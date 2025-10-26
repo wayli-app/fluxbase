@@ -1,0 +1,137 @@
+# .claudeignore - Files and directories Claude should ignore
+
+# Build artifacts
+/dist/
+/build/
+/tmp/
+*.exe
+fluxbase
+/fluxbase-*
+
+# Dependencies
+/vendor/
+/node_modules/
+/go.sum
+
+# Test artifacts
+*.test
+*.out
+/coverage.html
+/coverage.out
+*.prof
+*.bench
+/test-results/
+
+# IDE and editor files
+/.idea/
+/.vscode/settings.json
+/.vscode/launch.json
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+Thumbs.db
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.crt
+*.p12
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+/postgres-data/
+/data/
+
+# Log files
+*.log
+/logs/
+/tmp/
+
+# Storage/upload directories
+/storage/*
+!/storage/.gitkeep
+/uploads/
+/public/uploads/
+
+# Docker volumes
+/volumes/
+docker-compose.override.yml
+
+# Documentation build
+/docs/build/
+/docs/.docusaurus/
+/docs/node_modules/
+
+# Cache directories
+/.cache/
+/.parcel-cache/
+/.next/
+/.nuxt/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*_backup
+
+# Large binary files
+*.tar
+*.tar.gz
+*.zip
+*.rar
+*.7z
+*.dmg
+*.iso
+*.jar
+*.war
+*.ear
+
+# Generated files
+/generated/
+/swagger.json
+/swagger.yaml
+/openapi.json
+
+# CI/CD artifacts
+/.github/actions/
+/.gitlab/
+/.circleci/
+
+# Temporary files
+*.tmp
+/tmp/
+
+# Third-party licenses
+/LICENSES/
+/third_party/
+
+# Don't ignore these important files
+!.env.example
+!.gitignore
+!.dockerignore
+!.github/workflows/*.yml
+!Makefile
+!go.mod
+!README.md
+!TODO.md
+!.claude/

@@ -1,0 +1,153 @@
+package database
+
+import (
+	"context"
+	"embed"
+	"fmt"
+	"time"
+
+	"github.com/wayli-app/fluxbase/internal/config"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
+)
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+// Connection represents a database connection pool
+type Connection struct {
+	pool      *pgxpool.Pool
+	config    *config.DatabaseConfig
+	inspector *SchemaInspector
+}
+
+// NewConnection creates a new database connection pool
+func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.ConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse connection string: %w", err)
+	}
+
+	// Configure pool settings
+	poolConfig.MaxConns = cfg.MaxConnections
+	poolConfig.MinConns = cfg.MinConnections
+	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
+	poolConfig.MaxConnIdleTime = cfg.MaxConnIdleTime
+	poolConfig.HealthCheckPeriod = cfg.HealthCheck
+
+	// Create connection pool
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create connection pool: %w", err)
+	}
+
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("unable to ping database: %w", err)
+	}
+
+	conn := &Connection{
+		pool:   pool,
+		config: &cfg,
+	}
+
+	// Initialize schema inspector
+	conn.inspector = NewSchemaInspector(conn)
+
+	log.Info().Str("database", cfg.Database).Msg("Database connection established")
+
+	return conn, nil
+}
+
+// Close closes the database connection pool
+func (c *Connection) Close() {
+	c.pool.Close()
+	log.Info().Msg("Database connection closed")
+}
+
+// Pool returns the underlying connection pool
+func (c *Connection) Pool() *pgxpool.Pool {
+	return c.pool
+}
+
+// Migrate runs database migrations
+func (c *Connection) Migrate() error {
+	// Create migrations source from embedded filesystem
+	sourceDriver, err := iofs.New(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source: %w", err)
+	}
+
+	// Create migration instance
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, c.config.ConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to create migration instance: %w", err)
+	}
+	defer m.Close()
+
+	// Run migrations
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	if err == migrate.ErrNoChange {
+		log.Info().Msg("No new migrations to apply")
+	} else {
+		version, _, _ := m.Version()
+		log.Info().Uint("version", version).Msg("Migrations applied successfully")
+	}
+
+	return nil
+}
+
+// BeginTx starts a new transaction
+func (c *Connection) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return c.pool.Begin(ctx)
+}
+
+// Query executes a query that returns rows
+func (c *Connection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	return c.pool.Query(ctx, sql, args...)
+}
+
+// QueryRow executes a query that returns a single row
+func (c *Connection) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+	return c.pool.QueryRow(ctx, sql, args...)
+}
+
+// Exec executes a query that doesn't return rows
+func (c *Connection) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+	return c.pool.Exec(ctx, sql, args...)
+}
+
+// Inspector returns the schema inspector
+func (c *Connection) Inspector() *SchemaInspector {
+	return c.inspector
+}
+
+// Health checks the health of the database connection
+func (c *Connection) Health(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var result int
+	err := c.QueryRow(ctx, "SELECT 1").Scan(&result)
+	if err != nil {
+		return fmt.Errorf("health check failed: %w", err)
+	}
+
+	if result != 1 {
+		return fmt.Errorf("unexpected health check result: %d", result)
+	}
+
+	return nil
+}

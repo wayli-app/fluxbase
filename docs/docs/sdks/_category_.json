@@ -1,0 +1,10 @@
+{
+  "label": "Client SDKs",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "title": "Client SDKs",
+    "description": "Official SDKs for building applications with Fluxbase. Choose your preferred language and framework to get started.",
+    "slug": "/category/sdks"
+  }
+}

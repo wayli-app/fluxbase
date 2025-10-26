@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill:*)",
+      "Bash(go build:*)",
+      "Bash(/tmp/fluxbase:*)",
+      "Bash(/tmp/fluxbase-realtime migrate:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

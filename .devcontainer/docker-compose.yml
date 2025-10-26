@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: fluxbase-dev
+    volumes:
+      - ..:/workspace:cached
+      - go-modules:/go/pkg
+      - vscode-extensions:/home/vscode/.vscode-server/extensions
+    command: sleep infinity
+    environment:
+      # Go environment
+      GO111MODULE: "on"
+      GOPATH: "/go"
+      CGO_ENABLED: "1"
+
+      # Application environment
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_USER: postgres
+      FLUXBASE_DATABASE_PASSWORD: postgres
+      FLUXBASE_DATABASE_DATABASE: fluxbase_dev
+      FLUXBASE_AUTH_JWT_SECRET: dev-secret-key-change-in-production
+      FLUXBASE_DEBUG: "true"
+      FLUXBASE_STORAGE_PROVIDER: local
+      FLUXBASE_STORAGE_LOCAL_PATH: /workspace/storage
+      FLUXBASE_STORAGE_S3_ENDPOINT: http://minio:9000
+      FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_REGION: us-east-1
+      FLUXBASE_REALTIME_ENABLED: "true"
+
+      # Development tools
+      COLORTERM: truecolor
+      TERM: xterm-256color
+    networks:
+      - fluxbase-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fluxbase-postgres-dev
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../example/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql:ro
+      - ./init-db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fluxbase_dev
+      POSTGRES_HOST_AUTH_METHOD: trust
+    networks:
+      - fluxbase-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fluxbase-redis-dev
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - fluxbase-network
+    command: redis-server --appendonly yes
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fluxbase-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@fluxbase.local
+      PGADMIN_DEFAULT_PASSWORD: dev
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - fluxbase-network
+    depends_on:
+      - postgres
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fluxbase-mailhog-dev
+    restart: unless-stopped
+    networks:
+      - fluxbase-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: fluxbase-minio-dev
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    networks:
+      - fluxbase-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  go-modules:
+  vscode-extensions:
+  postgres-data:
+  redis-data:
+  pgadmin-data:
+  minio-data:
+
+networks:
+  fluxbase-network:
+    driver: bridge

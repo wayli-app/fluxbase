@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fluxbase-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fluxbase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./example/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql
+    networks:
+      - fluxbase-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fluxbase:
+    build: .
+    container_name: fluxbase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_USER: postgres
+      FLUXBASE_DATABASE_PASSWORD: postgres
+      FLUXBASE_DATABASE_DATABASE: fluxbase
+      FLUXBASE_AUTH_JWT_SECRET: your-secret-key-change-in-production
+      FLUXBASE_DEBUG: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/home/fluxbase/config
+      - ./storage:/home/fluxbase/storage
+    networks:
+      - fluxbase-network
+    restart: unless-stopped
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fluxbase-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fluxbase.eu
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - fluxbase-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # MailHog for testing email functionality
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fluxbase-mailhog
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Web UI port
+    networks:
+      - fluxbase-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  fluxbase-network:
+    driver: bridge

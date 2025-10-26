@@ -1,0 +1,33 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "../docs/static/api/sdk-react",
+  "name": "@fluxbase/sdk-react",
+  "readme": "README.md",
+  "plugin": [],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "searchInComments": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Context",
+    "Authentication Hooks",
+    "Database Hooks",
+    "Realtime Hooks",
+    "Storage Hooks",
+    "RPC Hooks",
+    "Types",
+    "*"
+  ],
+  "navigationLinks": {
+    "GitHub": "https://github.com/yourusername/fluxbase",
+    "Documentation": "https://fluxbase.dev"
+  }
+}

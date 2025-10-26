@@ -1,0 +1,67 @@
+{
+  "name": "@fluxbase/sdk",
+  "version": "0.2.0",
+  "description": "Official TypeScript SDK for Fluxbase - Backend as a Service",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write src",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch"
+  },
+  "keywords": [
+    "fluxbase",
+    "backend",
+    "baas",
+    "database",
+    "realtime",
+    "storage",
+    "auth",
+    "supabase",
+    "firebase"
+  ],
+  "author": "Fluxbase",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wayli-app/fluxbase"
+  },
+  "dependencies": {
+    "cross-fetch": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "tsup": "^8.0.1",
+    "typedoc": "^0.28.14",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
