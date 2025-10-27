@@ -15,6 +15,9 @@ type Service interface {
 	// SendVerificationEmail sends an email verification link
 	SendVerificationEmail(ctx context.Context, to, token, link string) error
 
+	// SendPasswordReset sends a password reset email
+	SendPasswordReset(ctx context.Context, to, token, link string) error
+
 	// Send sends a generic email
 	Send(ctx context.Context, to, subject, body string) error
 }
@@ -50,6 +53,10 @@ func (s *NoOpService) SendMagicLink(ctx context.Context, to, token, link string)
 }
 
 func (s *NoOpService) SendVerificationEmail(ctx context.Context, to, token, link string) error {
+	return fmt.Errorf("email service is disabled")
+}
+
+func (s *NoOpService) SendPasswordReset(ctx context.Context, to, token, link string) error {
 	return fmt.Errorf("email service is disabled")
 }
 

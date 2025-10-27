@@ -29,6 +29,43 @@ const config: Config = {
 
   themes: ["@docusaurus/theme-mermaid"],
 
+  plugins: [
+    [
+      "docusaurus-plugin-typedoc",
+      {
+        id: "sdk",
+        entryPoints: ["../sdk/src/index.ts"],
+        tsconfig: "../sdk/tsconfig.json",
+        out: "docs/api/sdk",
+        readme: "none",
+        disableSources: true,
+        excludePrivate: true,
+        excludeProtected: true,
+        excludeInternal: true,
+        sidebar: {
+          autoConfiguration: true,
+        },
+      },
+    ],
+    [
+      "docusaurus-plugin-typedoc",
+      {
+        id: "sdk-react",
+        entryPoints: ["../sdk-react/src/index.ts"],
+        tsconfig: "../sdk-react/tsconfig.json",
+        out: "docs/api/sdk-react",
+        readme: "none",
+        disableSources: true,
+        excludePrivate: true,
+        excludeProtected: true,
+        excludeInternal: true,
+        sidebar: {
+          autoConfiguration: true,
+        },
+      },
+    ],
+  ],
+
   presets: [
     [
       "classic",
@@ -61,15 +98,21 @@ const config: Config = {
       items: [
         {
           type: "docSidebar",
-          sidebarId: "tutorialSidebar",
+          sidebarId: "docsSidebar",
           position: "left",
-          label: "Documentation",
+          label: "Docs",
         },
         {
           type: "docSidebar",
-          sidebarId: "sdksSidebar",
+          sidebarId: "guidesSidebar",
           position: "left",
-          label: "SDKs",
+          label: "Guides",
+        },
+        {
+          type: "docSidebar",
+          sidebarId: "apiSidebar",
+          position: "left",
+          label: "API Reference",
         },
         { to: "/blog", label: "Blog", position: "left" },
         {

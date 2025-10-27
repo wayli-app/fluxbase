@@ -100,6 +100,12 @@ Thumbs.db
 .nyc_output/
 coverage/
 
+# Local configuration
+fluxbase.yaml
+fluxbase.yml
+config/fluxbase.yaml
+config/fluxbase.yml
+
 # Misc
 UI_PROPOSAL.md
 *.bak

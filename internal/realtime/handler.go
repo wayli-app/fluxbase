@@ -225,3 +225,13 @@ func (h *RealtimeHandler) GetStats() map[string]interface{} {
 		"channels":    h.manager.GetChannelCount(),
 	}
 }
+
+// GetDetailedStats returns detailed realtime statistics
+func (h *RealtimeHandler) GetDetailedStats() map[string]interface{} {
+	return h.manager.GetDetailedStats()
+}
+
+// GetManager returns the realtime manager
+func (h *RealtimeHandler) GetManager() *Manager {
+	return h.manager
+}

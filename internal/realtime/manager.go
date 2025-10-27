@@ -180,6 +180,65 @@ func (m *Manager) GetChannelCount() int {
 	return len(m.channels)
 }
 
+// ConnectionInfo represents detailed information about a connection
+type ConnectionInfo struct {
+	ID            string   `json:"id"`
+	UserID        *string  `json:"user_id"`
+	Subscriptions []string `json:"subscriptions"`
+	RemoteAddr    string   `json:"remote_addr"`
+	ConnectedAt   string   `json:"connected_at"`
+}
+
+// ChannelInfo represents detailed information about a channel
+type ChannelInfo struct {
+	Name          string `json:"name"`
+	SubscriberCount int  `json:"subscriber_count"`
+}
+
+// GetDetailedStats returns detailed realtime statistics
+func (m *Manager) GetDetailedStats() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Get connection details
+	connections := make([]ConnectionInfo, 0, len(m.connections))
+	for _, conn := range m.connections {
+		subscriptions := make([]string, 0, len(conn.Subscriptions))
+		for channel := range conn.Subscriptions {
+			subscriptions = append(subscriptions, channel)
+		}
+
+		remoteAddr := "unknown"
+		if conn.Conn != nil {
+			remoteAddr = conn.Conn.RemoteAddr().String()
+		}
+
+		connections = append(connections, ConnectionInfo{
+			ID:            conn.ID,
+			UserID:        conn.UserID,
+			Subscriptions: subscriptions,
+			RemoteAddr:    remoteAddr,
+			ConnectedAt:   conn.ConnectedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+
+	// Get channel details
+	channels := make([]ChannelInfo, 0, len(m.channels))
+	for channel, subscribers := range m.channels {
+		channels = append(channels, ChannelInfo{
+			Name:          channel,
+			SubscriberCount: len(subscribers),
+		})
+	}
+
+	return map[string]interface{}{
+		"total_connections": len(m.connections),
+		"total_channels":    len(m.channels),
+		"connections":       connections,
+		"channels":          channels,
+	}
+}
+
 // Shutdown gracefully shuts down the manager
 func (m *Manager) Shutdown() {
 	m.cancel()

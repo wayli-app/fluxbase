@@ -9,8 +9,10 @@ import (
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/email"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/realtime"
 	"github.com/wayli-app/fluxbase/internal/storage"
+	"github.com/wayli-app/fluxbase/internal/webhook"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -22,15 +24,18 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	app              *fiber.App
-	config           *config.Config
-	db               *database.Connection
-	rest             *RESTHandler
-	authHandler      *AuthHandler
-	storageHandler   *StorageHandler
-	realtimeManager  *realtime.Manager
-	realtimeHandler  *realtime.RealtimeHandler
-	realtimeListener *realtime.Listener
+	app                *fiber.App
+	config             *config.Config
+	db                 *database.Connection
+	rest               *RESTHandler
+	authHandler        *AuthHandler
+	apiKeyHandler      *APIKeyHandler
+	storageHandler     *StorageHandler
+	webhookHandler     *WebhookHandler
+	monitoringHandler  *MonitoringHandler
+	realtimeManager    *realtime.Manager
+	realtimeHandler    *realtime.RealtimeHandler
+	realtimeListener   *realtime.Listener
 }
 
 // NewServer creates a new HTTP server
@@ -58,15 +63,23 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Initialize auth service
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.BaseURL)
 
+	// Initialize API key service
+	apiKeyService := auth.NewAPIKeyService(db.Pool())
+
 	// Initialize storage service
 	storageService, err := storage.NewService(&cfg.Storage)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize storage service")
 	}
 
+	// Initialize webhook service
+	webhookService := webhook.NewWebhookService(db.Pool())
+
 	// Create handlers
 	authHandler := NewAuthHandler(authService)
+	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
+	webhookHandler := NewWebhookHandler(webhookService)
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
@@ -74,17 +87,23 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter)
 	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler)
 
+	// Create monitoring handler
+	monitoringHandler := NewMonitoringHandler(db.Pool(), realtimeHandler, storageService.Provider)
+
 	// Create server instance
 	server := &Server{
-		app:              app,
-		config:           cfg,
-		db:               db,
-		rest:             NewRESTHandler(db, NewQueryParser()),
-		authHandler:      authHandler,
-		storageHandler:   storageHandler,
-		realtimeManager:  realtimeManager,
-		realtimeHandler:  realtimeHandler,
-		realtimeListener: realtimeListener,
+		app:               app,
+		config:            cfg,
+		db:                db,
+		rest:              NewRESTHandler(db, NewQueryParser()),
+		authHandler:       authHandler,
+		apiKeyHandler:     apiKeyHandler,
+		storageHandler:    storageHandler,
+		webhookHandler:    webhookHandler,
+		monitoringHandler: monitoringHandler,
+		realtimeManager:   realtimeManager,
+		realtimeHandler:   realtimeHandler,
+		realtimeListener:  realtimeListener,
 	}
 
 	// Start realtime listener
@@ -139,37 +158,60 @@ func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.app.Get("/health", s.handleHealth)
 
-	// API routes
-	api := s.app.Group("/api")
+	// API v1 routes - versioned for future compatibility
+	v1 := s.app.Group("/api/v1")
+
+	// Setup RLS middleware if enabled (before REST API routes)
+	rlsConfig := middleware.RLSConfig{
+		DB:      s.db,
+		Enabled: s.config.Auth.EnableRLS,
+	}
 
 	// REST API routes (auto-generated from database schema)
-	rest := api.Group("/tables")
+	// Apply optional auth middleware (allows both authenticated and anonymous)
+	// followed by RLS middleware to set PostgreSQL session variables
+	rest := v1.Group("/tables",
+		OptionalAuthMiddleware(s.authHandler.authService),
+		middleware.RLSMiddleware(rlsConfig),
+	)
 	s.setupRESTRoutes(rest)
 
 	// RPC routes (auto-generated from database functions)
-	rpc := api.Group("/rpc")
+	rpc := v1.Group("/rpc")
 	s.setupRPCRoutes(rpc)
 
 	// Auth routes
-	auth := api.Group("/auth")
+	auth := v1.Group("/auth")
 	s.setupAuthRoutes(auth)
 
+	// API Keys routes
+	s.apiKeyHandler.RegisterRoutes(s.app)
+
+	// Webhook routes
+	s.webhookHandler.RegisterRoutes(s.app)
+
+	// Monitoring routes
+	s.monitoringHandler.RegisterRoutes(s.app)
+
 	// Storage routes
-	storage := api.Group("/storage")
+	storage := v1.Group("/storage")
 	s.setupStorageRoutes(storage)
 
-	// Realtime WebSocket endpoint
+	// Realtime WebSocket endpoint (not versioned as it's WebSocket)
 	s.app.Get("/realtime", s.realtimeHandler.HandleWebSocket)
 
 	// Realtime stats endpoint
-	s.app.Get("/api/realtime/stats", s.handleRealtimeStats)
+	s.app.Get("/api/v1/realtime/stats", s.handleRealtimeStats)
+
+	// Realtime broadcast endpoint
+	s.app.Post("/api/v1/realtime/broadcast", s.handleRealtimeBroadcast)
 
 	// Functions routes
-	functions := api.Group("/functions")
+	functions := v1.Group("/functions")
 	s.setupFunctionsRoutes(functions)
 
 	// Admin routes (optional)
-	admin := api.Group("/admin")
+	admin := v1.Group("/admin")
 	s.setupAdminRoutes(admin)
 
 	// Admin UI (embedded React app)
@@ -234,17 +276,17 @@ func (s *Server) setupRPCRoutes(router fiber.Router) {
 
 // setupAuthRoutes sets up authentication routes
 func (s *Server) setupAuthRoutes(router fiber.Router) {
-	// Public routes (no authentication required)
-	router.Post("/signup", s.authHandler.SignUp)
-	router.Post("/signin", s.authHandler.SignIn)
-	router.Post("/refresh", s.authHandler.RefreshToken)
-	router.Post("/magiclink", s.authHandler.SendMagicLink)
-	router.Post("/magiclink/verify", s.authHandler.VerifyMagicLink)
+	// Import rate limiters from middleware package
+	rateLimiters := map[string]fiber.Handler{
+		"signup":         middleware.AuthSignupLimiter(),
+		"login":          middleware.AuthLoginLimiter(),
+		"refresh":        middleware.AuthRefreshLimiter(),
+		"magiclink":      middleware.AuthMagicLinkLimiter(),
+		"password_reset": middleware.AuthPasswordResetLimiter(),
+	}
 
-	// Protected routes (authentication required)
-	router.Post("/signout", s.authHandler.SignOut)
-	router.Get("/user", s.authHandler.GetUser)
-	router.Patch("/user", s.authHandler.UpdateUser)
+	// Use the auth handler's RegisterRoutes method with rate limiters
+	s.authHandler.RegisterRoutes(s.app, rateLimiters)
 }
 
 // setupStorageRoutes sets up storage routes
@@ -431,6 +473,36 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 
 // handleRealtimeStats returns realtime statistics
 func (s *Server) handleRealtimeStats(c *fiber.Ctx) error {
-	stats := s.realtimeHandler.GetStats()
+	stats := s.realtimeHandler.GetDetailedStats()
 	return c.JSON(stats)
+}
+
+// BroadcastRequest represents a broadcast request
+type BroadcastRequest struct {
+	Channel string      `json:"channel"`
+	Message interface{} `json:"message"`
+}
+
+// handleRealtimeBroadcast broadcasts a message to a channel
+func (s *Server) handleRealtimeBroadcast(c *fiber.Ctx) error {
+	var req BroadcastRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Channel == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Channel is required",
+		})
+	}
+
+	// Broadcast the message
+	s.realtimeHandler.Broadcast(req.Channel, req.Message)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"channel": req.Channel,
+	})
 }

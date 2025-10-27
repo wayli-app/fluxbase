@@ -19,11 +19,12 @@ var (
 
 // TokenClaims represents the JWT claims
 type TokenClaims struct {
-	UserID    string   `json:"user_id"`
-	Email     string   `json:"email"`
-	Role      string   `json:"role,omitempty"`
-	SessionID string   `json:"session_id"`
-	TokenType string   `json:"token_type"` // "access" or "refresh"
+	UserID      string `json:"user_id"`
+	Email       string `json:"email,omitempty"`      // Empty for anonymous users
+	Role        string `json:"role,omitempty"`
+	SessionID   string `json:"session_id,omitempty"` // Empty for anonymous users (no session)
+	TokenType   string `json:"token_type"`           // "access" or "refresh"
+	IsAnonymous bool   `json:"is_anonymous,omitempty"` // True for anonymous users
 	jwt.RegisteredClaims
 }
 
@@ -208,4 +209,64 @@ func (m *JWTManager) GetTokenExpiry(tokenString string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return claims.ExpiresAt.Time, nil
+}
+
+// GenerateAnonymousAccessToken generates an access token for an anonymous user
+func (m *JWTManager) GenerateAnonymousAccessToken(userID string) (string, error) {
+	now := time.Now()
+
+	claims := &TokenClaims{
+		UserID:      userID,
+		Email:       "",      // No email for anonymous users
+		Role:        "anon", // Anonymous role
+		SessionID:   "",      // No session for anonymous users
+		TokenType:   "access",
+		IsAnonymous: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    m.issuer,
+			Subject:   userID,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.accessTokenTTL)),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(m.secretKey)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+// GenerateAnonymousRefreshToken generates a refresh token for an anonymous user
+func (m *JWTManager) GenerateAnonymousRefreshToken(userID string) (string, error) {
+	now := time.Now()
+
+	claims := &TokenClaims{
+		UserID:      userID,
+		Email:       "",      // No email for anonymous users
+		Role:        "anon", // Anonymous role
+		SessionID:   "",      // No session for anonymous users
+		TokenType:   "refresh",
+		IsAnonymous: true,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    m.issuer,
+			Subject:   userID,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshTokenTTL)),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(m.secretKey)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
 }

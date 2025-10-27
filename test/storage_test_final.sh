@@ -3,7 +3,7 @@
 echo "=== Fluxbase Storage E2E Test ==="
 echo ""
 
-API="http://localhost:8080/api/storage"
+API="http://localhost:8080/api/v1/storage"
 BUCKET="test-bucket-$$"  # Use PID to make unique
 PASSED=0
 FAILED=0
@@ -12,7 +12,7 @@ FAILED=0
 echo "Test 1: List buckets"
 curl -s "$API/buckets" | grep -q "buckets" && echo "✓ PASS" && ((PASSED++)) || { echo "✗ FAIL"; ((FAILED++)); }
 
-# Test 2: Create bucket  
+# Test 2: Create bucket
 echo "Test 2: Create bucket"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/buckets/$BUCKET")
 [ "$HTTP_CODE" = "201" ] && echo "✓ PASS (201)" && ((PASSED++)) || { echo "✗ FAIL ($HTTP_CODE)"; ((FAILED++)); }

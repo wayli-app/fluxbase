@@ -44,7 +44,7 @@ done
 # Check realtime stats
 echo ""
 echo -e "${BLUE}Checking realtime stats...${NC}"
-STATS=$(curl -s http://localhost:8080/api/realtime/stats)
+STATS=$(curl -s http://localhost:8080/api/v1/realtime/stats)
 echo "Stats: $STATS"
 
 # Test 1: WebSocket Connection (using websocat if available, or create a simple test)
@@ -107,7 +107,7 @@ echo -e "${GREEN}✓ Product deleted${NC}"
 # Check final stats
 echo ""
 echo -e "${BLUE}Final realtime stats:${NC}"
-curl -s http://localhost:8080/api/realtime/stats | jq '.'
+curl -s http://localhost:8080/api/v1/realtime/stats | jq '.'
 
 # Cleanup
 echo ""

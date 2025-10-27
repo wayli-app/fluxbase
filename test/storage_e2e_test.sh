@@ -9,8 +9,8 @@ echo ""
 
 # Configuration
 API_BASE="http://localhost:8080"
-STORAGE_API="$API_BASE/api/storage"
-AUTH_API="$API_BASE/api/auth"
+STORAGE_API="$API_BASE/api/v1/storage"
+AUTH_API="$API_BASE/api/v1/auth"
 MINIO_ENDPOINT="${FLUXBASE_STORAGE_S3_ENDPOINT:-http://minio:9000}"
 MINIO_ACCESS_KEY="${FLUXBASE_STORAGE_S3_ACCESS_KEY:-minioadmin}"
 MINIO_SECRET_KEY="${FLUXBASE_STORAGE_S3_SECRET_KEY:-minioadmin}"

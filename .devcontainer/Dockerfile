@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     software-properties-common \
     zsh \
+    lsof \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locale
@@ -47,17 +48,17 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && npm install -g \
-        typescript \
-        @types/node \
-        eslint \
-        prettier \
-        @swc/cli \
-        @swc/core \
-        tsx \
-        nodemon \
-        concurrently \
-        npm-check-updates \
-        serve \
+    typescript \
+    @types/node \
+    eslint \
+    prettier \
+    @swc/cli \
+    @swc/core \
+    tsx \
+    nodemon \
+    concurrently \
+    npm-check-updates \
+    serve \
     && rm -rf /var/lib/apt/lists/*
 
 # Install k6 for load testing (using direct download to avoid keyserver issues)
@@ -127,45 +128,45 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = []
-  bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main cmd/fluxbase/main.go"
-  delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "docs", "scripts", ".git", ".github", "dist", "node_modules"]
-  exclude_file = []
-  exclude_regex = ["_test.go"]
-  exclude_unchanged = false
-  follow_symlink = false
-  full_bin = ""
-  include_dir = []
-  include_ext = ["go", "tpl", "tmpl", "html", "yaml", "yml", "toml", "env"]
-  include_file = []
-  kill_delay = "0s"
-  log = "build-errors.log"
-  poll = false
-  poll_interval = 0
-  rerun = false
-  rerun_delay = 500
-  send_interrupt = false
-  stop_on_error = false
+args_bin = []
+bin = "./tmp/main"
+cmd = "go build -o ./tmp/main cmd/fluxbase/main.go"
+delay = 1000
+exclude_dir = ["assets", "tmp", "vendor", "testdata", "docs", "scripts", ".git", ".github", "dist", "node_modules"]
+exclude_file = []
+exclude_regex = ["_test.go"]
+exclude_unchanged = false
+follow_symlink = false
+full_bin = ""
+include_dir = []
+include_ext = ["go", "tpl", "tmpl", "html", "yaml", "yml", "toml", "env"]
+include_file = []
+kill_delay = "0s"
+log = "build-errors.log"
+poll = false
+poll_interval = 0
+rerun = false
+rerun_delay = 500
+send_interrupt = false
+stop_on_error = false
 
 [color]
-  app = ""
-  build = "yellow"
-  main = "magenta"
-  runner = "green"
-  watcher = "cyan"
+app = ""
+build = "yellow"
+main = "magenta"
+runner = "green"
+watcher = "cyan"
 
 [log]
-  main_only = false
-  time = false
+main_only = false
+time = false
 
 [misc]
-  clean_on_exit = false
+clean_on_exit = false
 
 [screen]
-  clear_on_rebuild = false
-  keep_scroll = true
+clear_on_rebuild = false
+keep_scroll = true
 EOF
 
 # Switch back to noninteractive

@@ -3,7 +3,7 @@
 echo "=== Fluxbase Storage E2E Test (MinIO Backend) ==="
 echo ""
 
-API="http://localhost:8080/api/storage"
+API="http://localhost:8080/api/v1/storage"
 BUCKET="fluxbase-test-$$"
 PASSED=0
 FAILED=0
@@ -19,7 +19,7 @@ else
     ((FAILED++))
 fi
 
-# Test 2: Create bucket  
+# Test 2: Create bucket
 echo "[2/8] Create bucket: $BUCKET"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/buckets/$BUCKET")
 [ "$HTTP_CODE" = "201" ] && { echo "  ✓ PASS (HTTP $HTTP_CODE)"; ((PASSED++)); } || { echo "  ✗ FAIL (HTTP $HTTP_CODE)"; ((FAILED++)); }

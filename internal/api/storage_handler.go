@@ -26,7 +26,7 @@ func NewStorageHandler(storage *storage.Service) *StorageHandler {
 }
 
 // UploadFile handles file upload
-// POST /api/storage/:bucket/:key
+// POST /api/v1/storage/:bucket/:key
 func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*") // Capture the rest of the path
@@ -96,7 +96,7 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 }
 
 // DownloadFile handles file download
-// GET /api/storage/:bucket/:key
+// GET /api/v1/storageage/:bucket/:key
 func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*")
@@ -153,7 +153,7 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 }
 
 // DeleteFile handles file deletion
-// DELETE /api/storage/:bucket/:key
+// DELETE /api/v1/storageage/:bucket/:key
 func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*")
@@ -193,7 +193,7 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 }
 
 // GetFileInfo handles getting file metadata
-// HEAD /api/storage/:bucket/:key
+// HEAD /api/v1/storageage/:bucket/:key
 func (h *StorageHandler) GetFileInfo(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*")
@@ -226,7 +226,7 @@ func (h *StorageHandler) GetFileInfo(c *fiber.Ctx) error {
 }
 
 // ListFiles handles listing files in a bucket
-// GET /api/storage/:bucket
+// GET /api/v1/storageage/:bucket
 func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 
@@ -258,15 +258,15 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"bucket":  bucket,
-		"objects": result.Objects,
-		"prefixes": result.CommonPrefixes,
+		"bucket":    bucket,
+		"objects":   result.Objects,
+		"prefixes":  result.CommonPrefixes,
 		"truncated": result.IsTruncated,
 	})
 }
 
 // CreateBucket handles bucket creation
-// POST /api/storage/buckets/:bucket
+// POST /api/v1/storageage/buckets/:bucket
 func (h *StorageHandler) CreateBucket(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 
@@ -295,13 +295,13 @@ func (h *StorageHandler) CreateBucket(c *fiber.Ctx) error {
 		Msg("Bucket created")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"bucket": bucket,
+		"bucket":  bucket,
 		"message": "bucket created successfully",
 	})
 }
 
 // DeleteBucket handles bucket deletion
-// DELETE /api/storage/buckets/:bucket
+// DELETE /api/v1/storageage/buckets/:bucket
 func (h *StorageHandler) DeleteBucket(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 
@@ -338,7 +338,7 @@ func (h *StorageHandler) DeleteBucket(c *fiber.Ctx) error {
 }
 
 // ListBuckets handles listing all buckets
-// GET /api/storage/buckets
+// GET /api/v1/storageage/buckets
 func (h *StorageHandler) ListBuckets(c *fiber.Ctx) error {
 	// List all buckets
 	buckets, err := h.storage.Provider.ListBuckets(c.Context())
@@ -355,7 +355,7 @@ func (h *StorageHandler) ListBuckets(c *fiber.Ctx) error {
 }
 
 // GenerateSignedURL generates a presigned URL for temporary access
-// POST /api/storage/:bucket/:key/signed-url
+// POST /api/v1/storageage/:bucket/:key/signed-url
 func (h *StorageHandler) GenerateSignedURL(c *fiber.Ctx) error {
 	// Check if provider supports signed URLs
 	if h.storage.IsLocal() {
@@ -407,9 +407,9 @@ func (h *StorageHandler) GenerateSignedURL(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"url": url,
+		"url":        url,
 		"expires_in": req.ExpiresIn,
-		"method": req.Method,
+		"method":     req.Method,
 	})
 }
 
@@ -463,7 +463,7 @@ func getUserID(c *fiber.Ctx) string {
 }
 
 // MultipartUpload handles multipart upload
-// POST /api/storage/:bucket/multipart
+// POST /api/v1/storageage/:bucket/multipart
 func (h *StorageHandler) MultipartUpload(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 

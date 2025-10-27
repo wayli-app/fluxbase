@@ -32,13 +32,84 @@ func (h *RPCHandler) RegisterRoutes(router fiber.Router) error {
 		return fmt.Errorf("failed to get functions: %w", err)
 	}
 
-	log.Info().Int("count", len(functions)).Msg("Registering RPC endpoints")
-
+	// Filter out internal functions before registering
+	userFunctions := make([]database.FunctionInfo, 0)
 	for _, fn := range functions {
+		if !h.isInternalFunction(fn) {
+			userFunctions = append(userFunctions, fn)
+		}
+	}
+
+	log.Info().Int("count", len(userFunctions)).Msg("Registering RPC endpoints")
+
+	// Register GET endpoint to list all functions
+	router.Get("/", h.ListFunctions)
+
+	// Register POST endpoints for each function
+	for _, fn := range userFunctions {
 		h.RegisterFunctionRoute(router, fn)
 	}
 
 	return nil
+}
+
+// ListFunctions returns a list of all available RPC functions
+func (h *RPCHandler) ListFunctions(c *fiber.Ctx) error {
+	ctx := c.Context()
+	inspector := database.NewSchemaInspector(h.db)
+
+	// Get all functions from public and auth schemas
+	functions, err := inspector.GetAllFunctions(ctx, "public", "auth")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get functions")
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to retrieve functions",
+		})
+	}
+
+	// Filter out internal functions
+	filteredFunctions := make([]database.FunctionInfo, 0)
+	for _, fn := range functions {
+		if !h.isInternalFunction(fn) {
+			filteredFunctions = append(filteredFunctions, fn)
+		}
+	}
+
+	return c.JSON(filteredFunctions)
+}
+
+// isInternalFunction checks if a function is an internal PostgreSQL extension function
+// that should not be exposed as an RPC endpoint
+func (h *RPCHandler) isInternalFunction(fn database.FunctionInfo) bool {
+	// List of internal function prefixes that should be filtered out
+	internalPrefixes := []string{
+		"gin_",           // GIN index functions
+		"gtrgm_",         // pg_trgm extension functions
+		"uuid_ns_",       // UUID namespace functions (usually internal)
+	}
+
+	// List of internal function names that should be filtered out
+	internalFunctions := map[string]bool{
+		"notify_table_change":      true, // Internal trigger function
+		"update_updated_at_column": true, // Internal trigger function
+		"enable_realtime":          true, // Internal realtime setup function
+		"disable_realtime":         true, // Internal realtime setup function
+	}
+
+	// Check if function name matches internal prefixes
+	for _, prefix := range internalPrefixes {
+		if len(fn.Name) >= len(prefix) && fn.Name[:len(prefix)] == prefix {
+			return true
+		}
+	}
+
+	// Check if function is in the internal functions list
+	if internalFunctions[fn.Name] {
+		return true
+	}
+
+	// Keep user-facing utility functions
+	return false
 }
 
 // RegisterFunctionRoute registers a single function as an RPC endpoint

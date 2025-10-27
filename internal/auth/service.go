@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Service provides a high-level authentication API
 type Service struct {
-	userRepo        *UserRepository
-	sessionRepo     *SessionRepository
-	magicLinkRepo   *MagicLinkRepository
-	jwtManager      *JWTManager
-	passwordHasher  *PasswordHasher
-	oauthManager    *OAuthManager
-	magicLinkService *MagicLinkService
-	config          *config.AuthConfig
+	userRepo              *UserRepository
+	sessionRepo           *SessionRepository
+	magicLinkRepo         *MagicLinkRepository
+	jwtManager            *JWTManager
+	passwordHasher        *PasswordHasher
+	oauthManager          *OAuthManager
+	magicLinkService      *MagicLinkService
+	passwordResetService  *PasswordResetService
+	tokenBlacklistService *TokenBlacklistService
+	impersonationService  *ImpersonationService
+	config                *config.AuthConfig
 }
 
 // NewService creates a new authentication service
@@ -45,15 +49,33 @@ func NewService(
 		baseURL,
 	)
 
+	passwordResetRepo := NewPasswordResetRepository(db)
+	passwordResetService := NewPasswordResetService(
+		passwordResetRepo,
+		userRepo,
+		emailService,
+		1*time.Hour, // TODO: Get from config
+		baseURL,
+	)
+
+	tokenBlacklistRepo := NewTokenBlacklistRepository(db)
+	tokenBlacklistService := NewTokenBlacklistService(tokenBlacklistRepo, jwtManager)
+
+	impersonationRepo := NewImpersonationRepository(db)
+	impersonationService := NewImpersonationService(impersonationRepo, userRepo, jwtManager)
+
 	return &Service{
-		userRepo:         userRepo,
-		sessionRepo:      sessionRepo,
-		magicLinkRepo:    magicLinkRepo,
-		jwtManager:       jwtManager,
-		passwordHasher:   passwordHasher,
-		oauthManager:     oauthManager,
-		magicLinkService: magicLinkService,
-		config:           cfg,
+		userRepo:              userRepo,
+		sessionRepo:           sessionRepo,
+		magicLinkRepo:         magicLinkRepo,
+		jwtManager:            jwtManager,
+		passwordHasher:        passwordHasher,
+		oauthManager:          oauthManager,
+		magicLinkService:      magicLinkService,
+		passwordResetService:  passwordResetService,
+		tokenBlacklistService: tokenBlacklistService,
+		impersonationService:  impersonationService,
+		config:                cfg,
 	}
 }
 
@@ -180,6 +202,12 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 
 // SignOut logs out a user by invalidating their session
 func (s *Service) SignOut(ctx context.Context, accessToken string) error {
+	// Blacklist the access token first
+	if err := s.tokenBlacklistService.RevokeToken(ctx, accessToken, "logout"); err != nil {
+		// Log error but continue with session deletion
+		// Revocation failure shouldn't block logout
+	}
+
 	// Get session by access token
 	session, err := s.sessionRepo.GetByAccessToken(ctx, accessToken)
 	if err != nil {
@@ -356,4 +384,91 @@ func (s *Service) ValidateToken(token string) (*TokenClaims, error) {
 // GetOAuthManager returns the OAuth manager for configuring providers
 func (s *Service) GetOAuthManager() *OAuthManager {
 	return s.oauthManager
+}
+
+// RequestPasswordReset sends a password reset email
+func (s *Service) RequestPasswordReset(ctx context.Context, email string) error {
+	return s.passwordResetService.RequestPasswordReset(ctx, email)
+}
+
+// ResetPassword resets a user's password using a valid reset token
+func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	return s.passwordResetService.ResetPassword(ctx, token, newPassword)
+}
+
+// VerifyPasswordResetToken verifies if a password reset token is valid
+func (s *Service) VerifyPasswordResetToken(ctx context.Context, token string) error {
+	return s.passwordResetService.VerifyPasswordResetToken(ctx, token)
+}
+
+// RevokeToken revokes a specific JWT token
+func (s *Service) RevokeToken(ctx context.Context, token, reason string) error {
+	return s.tokenBlacklistService.RevokeToken(ctx, token, reason)
+}
+
+// IsTokenRevoked checks if a JWT token has been revoked
+func (s *Service) IsTokenRevoked(ctx context.Context, jti string) (bool, error) {
+	return s.tokenBlacklistService.IsTokenRevoked(ctx, jti)
+}
+
+// RevokeAllUserTokens revokes all tokens for a specific user
+func (s *Service) RevokeAllUserTokens(ctx context.Context, userID, reason string) error {
+	return s.tokenBlacklistService.RevokeAllUserTokens(ctx, userID, reason)
+}
+
+// SignInAnonymousResponse represents an anonymous user sign-in response
+type SignInAnonymousResponse struct {
+	UserID       string `json:"user_id"`        // Temporary anonymous user ID
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"` // seconds
+	IsAnonymous  bool   `json:"is_anonymous"` // Always true for anonymous users
+}
+
+// SignInAnonymous creates JWT tokens for an anonymous user (no database record)
+func (s *Service) SignInAnonymous(ctx context.Context) (*SignInAnonymousResponse, error) {
+	// Generate a random UUID for the anonymous user
+	// This ID exists only in the JWT token, not in the database
+	anonymousUserID := uuid.New().String()
+
+	// Generate JWT tokens with is_anonymous flag in claims
+	accessToken, err := s.jwtManager.GenerateAnonymousAccessToken(anonymousUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.jwtManager.GenerateAnonymousRefreshToken(anonymousUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	return &SignInAnonymousResponse{
+		UserID:       anonymousUserID,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
+		IsAnonymous:  true,
+	}, nil
+}
+
+// Impersonation wrapper methods
+
+// StartImpersonation starts an admin impersonation session
+func (s *Service) StartImpersonation(ctx context.Context, adminUserID string, req StartImpersonationRequest) (*StartImpersonationResponse, error) {
+	return s.impersonationService.StartImpersonation(ctx, adminUserID, req)
+}
+
+// StopImpersonation stops the active impersonation session for an admin
+func (s *Service) StopImpersonation(ctx context.Context, adminUserID string) error {
+	return s.impersonationService.StopImpersonation(ctx, adminUserID)
+}
+
+// GetActiveImpersonation gets the active impersonation session for an admin
+func (s *Service) GetActiveImpersonation(ctx context.Context, adminUserID string) (*ImpersonationSession, error) {
+	return s.impersonationService.GetActiveSession(ctx, adminUserID)
+}
+
+// ListImpersonationSessions lists impersonation sessions for audit purposes
+func (s *Service) ListImpersonationSessions(ctx context.Context, adminUserID string, limit, offset int) ([]*ImpersonationSession, error) {
+	return s.impersonationService.ListSessions(ctx, adminUserID, limit, offset)
 }

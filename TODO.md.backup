@@ -86,7 +86,7 @@ None currently in progress.
   - Global command menu (Cmd+K)
   - Cleaned up to Fluxbase-specific menu items
 - [x] Build login/signup pages with auth flow [4h] ✅
-  - Integrated with Fluxbase `/api/auth` endpoints
+  - Integrated with Fluxbase `/api/v1/auth` endpoints
   - Real JWT authentication (not mocked)
   - Automatic token refresh on 401
   - Form validation with Zod
@@ -188,7 +188,7 @@ None currently in progress.
   - Ready for Swagger UI / Redoc / API Explorer
 - [x] Implement clean API structure [2h] ✅
   - All database endpoints under /api/tables/* prefix
-  - Authentication endpoints under /api/auth/*
+  - Authentication endpoints under /api/v1/auth/*
   - Clear separation between business logic and data access
   - No naming conflicts, easy to extend
 - [x] Support database views as read-only endpoints [4h] ✅
@@ -588,7 +588,7 @@ None currently in progress.
   - ✅ Advanced query operators (full-text search, JSONB, arrays, ranges)
   - ✅ Batch operations (insert/update/delete)
   - ✅ OpenAPI specification with auth + database + RPC endpoints
-  - ✅ Clean API structure (/api/tables/* and /api/auth/*)
+  - ✅ Clean API structure (/api/tables/* and /api/v1/auth/*)
   - ✅ Database views support (read-only endpoints)
   - ✅ Stored procedures as RPC endpoints (129 functions registered)
   - ✅ Aggregation endpoints (count, sum, avg, min, max with GROUP BY)

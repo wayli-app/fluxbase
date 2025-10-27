@@ -38,7 +38,7 @@ export class QueryBuilder<T = unknown> {
    */
   async insert(data: Partial<T> | Array<Partial<T>>): Promise<PostgrestResponse<T>> {
     const body = Array.isArray(data) ? data : data
-    const response = await this.fetch.post<T>(`/api/tables/${this.table}`, body)
+    const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body)
 
     return {
       data: response,
@@ -54,7 +54,7 @@ export class QueryBuilder<T = unknown> {
    */
   async upsert(data: Partial<T> | Array<Partial<T>>): Promise<PostgrestResponse<T>> {
     const body = Array.isArray(data) ? data : data
-    const response = await this.fetch.post<T>(`/api/tables/${this.table}`, body, {
+    const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body, {
       headers: {
         Prefer: 'resolution=merge-duplicates',
       },
@@ -74,7 +74,7 @@ export class QueryBuilder<T = unknown> {
    */
   async update(data: Partial<T>): Promise<PostgrestResponse<T>> {
     const queryString = this.buildQueryString()
-    const path = `/api/tables/${this.table}${queryString}`
+    const path = `/api/v1/tables/${this.table}${queryString}`
     const response = await this.fetch.patch<T>(path, data)
 
     return {
@@ -91,7 +91,7 @@ export class QueryBuilder<T = unknown> {
    */
   async delete(): Promise<PostgrestResponse<null>> {
     const queryString = this.buildQueryString()
-    const path = `/api/tables/${this.table}${queryString}`
+    const path = `/api/v1/tables/${this.table}${queryString}`
     await this.fetch.delete(path)
 
     return {
@@ -491,7 +491,7 @@ export class QueryBuilder<T = unknown> {
    */
   async execute(): Promise<PostgrestResponse<T>> {
     const queryString = this.buildQueryString()
-    const path = `/api/tables/${this.table}${queryString}`
+    const path = `/api/v1/tables/${this.table}${queryString}`
 
     try {
       const data = await this.fetch.get<T | T[]>(path)

@@ -189,7 +189,7 @@ graph TB
 - 🚀 [Quick Start Tutorial](getting-started/quick-start) - Build your first application
 - 🔧 [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
 - 📚 [API Documentation](api/rest) - Learn about all available endpoints
-- 💻 [SDK Documentation](sdks/typescript) - Use our TypeScript or Go SDKs
+- 💻 [SDK Documentation](guides/typescript-sdk) - Use our TypeScript or Go SDKs
 
 ## Community & Support
 

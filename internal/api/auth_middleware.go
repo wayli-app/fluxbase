@@ -34,6 +34,18 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 			})
 		}
 
+		// Check if token has been revoked
+		isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to check token revocation status")
+			// Continue anyway - revocation check failure shouldn't block valid tokens
+		} else if isRevoked {
+			log.Debug().Str("jti", claims.ID).Msg("Token has been revoked")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Token has been revoked",
+			})
+		}
+
 		// Store user information in context
 		c.Locals("user_id", claims.UserID)
 		c.Locals("user_email", claims.Email)
@@ -67,6 +79,17 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 		if err != nil {
 			// Invalid token, but continue anyway since auth is optional
 			log.Debug().Err(err).Msg("Invalid token in optional auth")
+			return c.Next()
+		}
+
+		// Check if token has been revoked
+		isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to check token revocation status in optional auth")
+			// Continue anyway - revocation check failure shouldn't block valid tokens
+		} else if isRevoked {
+			// Token is revoked, continue without authentication
+			log.Debug().Str("jti", claims.ID).Msg("Revoked token in optional auth, continuing unauthenticated")
 			return c.Next()
 		}
 

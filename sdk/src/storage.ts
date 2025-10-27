@@ -50,7 +50,7 @@ export class StorageBucket {
       }
 
       const data = await this.fetch.request<StorageObject>(
-        `/api/storage/${this.bucketName}/${path}`,
+        `/api/v1/storage/${this.bucketName}/${path}`,
         {
           method: 'POST',
           body: formData,
@@ -71,7 +71,7 @@ export class StorageBucket {
   async download(path: string): Promise<{ data: Blob | null; error: Error | null }> {
     try {
       const response = await fetch(
-        `${this.fetch['baseUrl']}/api/storage/${this.bucketName}/${path}`,
+        `${this.fetch['baseUrl']}/api/v1/storage/${this.bucketName}/${path}`,
         {
           headers: this.fetch['defaultHeaders'],
         }
@@ -111,7 +111,7 @@ export class StorageBucket {
       }
 
       const queryString = params.toString()
-      const path = `/api/storage/${this.bucketName}${queryString ? `?${queryString}` : ''}`
+      const path = `/api/v1/storage/${this.bucketName}${queryString ? `?${queryString}` : ''}`
 
       const data = await this.fetch.get<{ objects: StorageObject[] }>(path)
 
@@ -129,7 +129,7 @@ export class StorageBucket {
     try {
       // Delete files one by one (could be optimized with batch endpoint)
       for (const path of paths) {
-        await this.fetch.delete(`/api/storage/${this.bucketName}/${path}`)
+        await this.fetch.delete(`/api/v1/storage/${this.bucketName}/${path}`)
       }
 
       return { data: null, error: null }
@@ -143,7 +143,7 @@ export class StorageBucket {
    * @param path - The file path
    */
   getPublicUrl(path: string): { data: { publicUrl: string } } {
-    const publicUrl = `${this.fetch['baseUrl']}/api/storage/${this.bucketName}/${path}`
+    const publicUrl = `${this.fetch['baseUrl']}/api/v1/storage/${this.bucketName}/${path}`
     return { data: { publicUrl } }
   }
 
@@ -160,7 +160,7 @@ export class StorageBucket {
       const expiresIn = options?.expiresIn || 3600 // Default 1 hour
 
       const data = await this.fetch.post<{ signed_url: string }>(
-        `/api/storage/${this.bucketName}/sign/${path}`,
+        `/api/v1/storage/${this.bucketName}/sign/${path}`,
         { expires_in: expiresIn }
       )
 
@@ -181,7 +181,7 @@ export class StorageBucket {
   ): Promise<{ data: StorageObject | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<StorageObject>(
-        `/api/storage/${this.bucketName}/move`,
+        `/api/v1/storage/${this.bucketName}/move`,
         {
           from_path: fromPath,
           to_path: toPath,
@@ -205,7 +205,7 @@ export class StorageBucket {
   ): Promise<{ data: StorageObject | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<StorageObject>(
-        `/api/storage/${this.bucketName}/copy`,
+        `/api/v1/storage/${this.bucketName}/copy`,
         {
           from_path: fromPath,
           to_path: toPath,
@@ -243,7 +243,7 @@ export class FluxbaseStorage {
   }> {
     try {
       const data = await this.fetch.get<{ buckets: Array<{ name: string; created_at: string }> }>(
-        '/api/storage/buckets'
+        '/api/v1/storage/buckets'
       )
 
       return { data: data.buckets || [], error: null }
@@ -258,7 +258,7 @@ export class FluxbaseStorage {
    */
   async createBucket(bucketName: string): Promise<{ data: null; error: Error | null }> {
     try {
-      await this.fetch.post(`/api/storage/buckets/${bucketName}`)
+      await this.fetch.post(`/api/v1/storage/buckets/${bucketName}`)
       return { data: null, error: null }
     } catch (error) {
       return { data: null, error: error as Error }
@@ -271,7 +271,7 @@ export class FluxbaseStorage {
    */
   async deleteBucket(bucketName: string): Promise<{ data: null; error: Error | null }> {
     try {
-      await this.fetch.delete(`/api/storage/buckets/${bucketName}`)
+      await this.fetch.delete(`/api/v1/storage/buckets/${bucketName}`)
       return { data: null, error: null }
     } catch (error) {
       return { data: null, error: error as Error }

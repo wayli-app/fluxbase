@@ -44,7 +44,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest("POST", "/api/auth/signup", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/api/v1/auth/signup", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req, -1)
@@ -74,7 +74,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest("POST", "/api/auth/signin", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/api/v1/auth/signin", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req, -1)
@@ -98,7 +98,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 
 	// Step 3: Get user
 	t.Run("GetUser", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/auth/user", nil)
+		req := httptest.NewRequest("GET", "/api/v1/auth/user", nil)
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 
 		resp, err := app.Test(req, -1)
@@ -122,7 +122,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 		}
 		body, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest("POST", "/api/auth/refresh", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := app.Test(req, -1)
@@ -146,7 +146,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 
 	// Step 5: Sign out
 	t.Run("Signout", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/api/auth/signout", nil)
+		req := httptest.NewRequest("POST", "/api/v1/auth/signout", nil)
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 
 		resp, err := app.Test(req, -1)
@@ -157,7 +157,7 @@ func TestAuthFlow_SignupSigninSignout(t *testing.T) {
 
 	// Step 6: Verify token is invalid after signout
 	t.Run("GetUser_AfterSignout", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/auth/user", nil)
+		req := httptest.NewRequest("GET", "/api/v1/auth/user", nil)
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 
 		resp, err := app.Test(req, -1)

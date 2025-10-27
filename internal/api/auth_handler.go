@@ -266,19 +266,259 @@ func (h *AuthHandler) VerifyMagicLink(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
-// RegisterRoutes registers all authentication routes
-func (h *AuthHandler) RegisterRoutes(app *fiber.App) {
+// RequestPasswordReset handles password reset requests
+// POST /auth/password/reset
+func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
+	var req struct {
+		Email string `json:"email"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		log.Error().Err(err).Msg("Failed to parse password reset request")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate email
+	if req.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Email is required",
+		})
+	}
+
+	// Request password reset (this won't reveal if user exists)
+	if err := h.authService.RequestPasswordReset(c.Context(), req.Email); err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to request password reset")
+		// Don't reveal if user exists - always return success
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "If an account with that email exists, a password reset link has been sent",
+	})
+}
+
+// ResetPassword handles password reset with token
+// POST /auth/password/reset/confirm
+func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
+	var req struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		log.Error().Err(err).Msg("Failed to parse reset password request")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate required fields
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Token is required",
+		})
+	}
+	if req.NewPassword == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "New password is required",
+		})
+	}
+
+	// Reset password
+	if err := h.authService.ResetPassword(c.Context(), req.Token, req.NewPassword); err != nil {
+		log.Error().Err(err).Msg("Failed to reset password")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Password has been successfully reset",
+	})
+}
+
+// VerifyPasswordResetToken handles password reset token verification
+// POST /auth/password/reset/verify
+func (h *AuthHandler) VerifyPasswordResetToken(c *fiber.Ctx) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		log.Error().Err(err).Msg("Failed to parse verify token request")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate token
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Token is required",
+		})
+	}
+
+	// Verify token
+	if err := h.authService.VerifyPasswordResetToken(c.Context(), req.Token); err != nil {
+		log.Error().Err(err).Msg("Failed to verify password reset token")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Token is valid",
+	})
+}
+
+// RegisterRoutes registers all authentication routes with rate limiting
+func (h *AuthHandler) RegisterRoutes(app *fiber.App, rateLimiters map[string]fiber.Handler) {
 	auth := app.Group("/auth")
 
-	// Public routes (no authentication required)
-	auth.Post("/signup", h.SignUp)
-	auth.Post("/signin", h.SignIn)
-	auth.Post("/refresh", h.RefreshToken)
-	auth.Post("/magiclink", h.SendMagicLink)
-	auth.Post("/magiclink/verify", h.VerifyMagicLink)
+	// Public routes with rate limiting
+	auth.Post("/signup", rateLimiters["signup"], h.SignUp)
+	auth.Post("/signin", rateLimiters["login"], h.SignIn)
+	auth.Post("/signin/anonymous", h.SignInAnonymous) // No rate limit - creates unique user each time
+	auth.Post("/refresh", rateLimiters["refresh"], h.RefreshToken)
+	auth.Post("/magiclink", rateLimiters["magiclink"], h.SendMagicLink)
+	auth.Post("/magiclink/verify", h.VerifyMagicLink) // No rate limit on verification
+	auth.Post("/password/reset", rateLimiters["password_reset"], h.RequestPasswordReset)
+	auth.Post("/password/reset/confirm", h.ResetPassword) // No rate limit on actual reset (token is single-use)
+	auth.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
 
-	// Protected routes (authentication required)
+	// Protected routes (authentication required) - lighter rate limits
 	auth.Post("/signout", h.SignOut)
 	auth.Get("/user", h.GetUser)
 	auth.Patch("/user", h.UpdateUser)
+
+	// Admin impersonation routes (admin only)
+	auth.Post("/impersonate", h.StartImpersonation)
+	auth.Delete("/impersonate", h.StopImpersonation)
+	auth.Get("/impersonate", h.GetActiveImpersonation)
+	auth.Get("/impersonate/sessions", h.ListImpersonationSessions)
+}
+
+// SignInAnonymous creates JWT tokens for an anonymous user (no database record)
+func (h *AuthHandler) SignInAnonymous(c *fiber.Ctx) error {
+	resp, err := h.authService.SignInAnonymous(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// StartImpersonation starts an admin impersonation session
+func (h *AuthHandler) StartImpersonation(c *fiber.Ctx) error {
+	// Get admin user ID from context (must be authenticated)
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	var req auth.StartImpersonationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Set IP and user agent from request
+	req.IPAddress = c.IP()
+	req.UserAgent = c.Get("User-Agent")
+
+	resp, err := h.authService.StartImpersonation(c.Context(), adminUserID.(string), req)
+	if err != nil {
+		statusCode := fiber.StatusInternalServerError
+		if err == auth.ErrNotAdmin {
+			statusCode = fiber.StatusForbidden
+		} else if err == auth.ErrSelfImpersonation {
+			statusCode = fiber.StatusBadRequest
+		}
+		return c.Status(statusCode).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// StopImpersonation stops the active impersonation session
+func (h *AuthHandler) StopImpersonation(c *fiber.Ctx) error {
+	// Get admin user ID from context
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	err := h.authService.StopImpersonation(c.Context(), adminUserID.(string))
+	if err != nil {
+		if err == auth.ErrNoActiveImpersonation {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Impersonation session ended",
+	})
+}
+
+// GetActiveImpersonation gets the active impersonation session
+func (h *AuthHandler) GetActiveImpersonation(c *fiber.Ctx) error {
+	// Get admin user ID from context
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	session, err := h.authService.GetActiveImpersonation(c.Context(), adminUserID.(string))
+	if err != nil {
+		if err == auth.ErrNoActiveImpersonation {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(session)
+}
+
+// ListImpersonationSessions lists impersonation sessions for audit
+func (h *AuthHandler) ListImpersonationSessions(c *fiber.Ctx) error {
+	// Get admin user ID from context
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	sessions, err := h.authService.ListImpersonationSessions(c.Context(), adminUserID.(string), limit, offset)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(sessions)
 }

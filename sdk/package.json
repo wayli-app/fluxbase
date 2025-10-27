@@ -56,8 +56,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
+    "docusaurus-plugin-typedoc": "^1.4.2",
     "tsup": "^8.0.1",
     "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.1"
   },

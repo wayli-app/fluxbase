@@ -1,27 +1,28 @@
 # Authentication API
 
-Fluxbase provides a complete authentication system with email/password, magic links, and JWT tokens. All authentication endpoints are under `/api/auth`.
+Fluxbase provides a complete authentication system with email/password, magic links, and JWT tokens. All authentication endpoints are under `/api/v1/auth`.
 
 ## Endpoints Overview
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/signup` | Register a new user | No |
-| POST | `/api/auth/signin` | Sign in with email and password | No |
-| POST | `/api/auth/signout` | Sign out and invalidate session | Yes |
-| POST | `/api/auth/refresh` | Refresh access token | No |
-| GET | `/api/auth/user` | Get current user profile | Yes |
-| PATCH | `/api/auth/user` | Update user profile | Yes |
-| POST | `/api/auth/magiclink` | Send magic link email | No |
-| POST | `/api/auth/magiclink/verify` | Verify magic link token | No |
+| Method | Endpoint                        | Description                     | Auth Required |
+| ------ | ------------------------------- | ------------------------------- | ------------- |
+| POST   | `/api/v1/auth/signup`           | Register a new user             | No            |
+| POST   | `/api/v1/auth/signin`           | Sign in with email and password | No            |
+| POST   | `/api/v1/auth/signout`          | Sign out and invalidate session | Yes           |
+| POST   | `/api/v1/auth/refresh`          | Refresh access token            | No            |
+| GET    | `/api/v1/auth/user`             | Get current user profile        | Yes           |
+| PATCH  | `/api/v1/auth/user`             | Update user profile             | Yes           |
+| POST   | `/api/v1/auth/magiclink`        | Send magic link email           | No            |
+| POST   | `/api/v1/auth/magiclink/verify` | Verify magic link token         | No            |
 
 ## Sign Up
 
 Register a new user account.
 
-**Endpoint:** `POST /api/auth/signup`
+**Endpoint:** `POST /api/v1/auth/signup`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -34,6 +35,7 @@ Register a new user account.
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "user": {
@@ -55,10 +57,12 @@ Register a new user account.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Invalid request body or validation error
 - `409 Conflict`: Email already exists
 
 **Notes:**
+
 - Password must meet minimum length requirement (default: 8 characters)
 - Access token expires in 15 minutes (default)
 - Refresh token expires in 7 days (default)
@@ -70,9 +74,10 @@ Register a new user account.
 
 Authenticate with email and password.
 
-**Endpoint:** `POST /api/auth/signin`
+**Endpoint:** `POST /api/v1/auth/signin`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -81,6 +86,7 @@ Authenticate with email and password.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "user": {
@@ -101,6 +107,7 @@ Authenticate with email and password.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Missing email or password
 - `401 Unauthorized`: Invalid email or password
 
@@ -110,14 +117,16 @@ Authenticate with email and password.
 
 Sign out and invalidate the current session.
 
-**Endpoint:** `POST /api/auth/signout`
+**Endpoint:** `POST /api/v1/auth/signout`
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "message": "Successfully signed out"
@@ -125,10 +134,12 @@ Authorization: Bearer <access_token>
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Missing Authorization header
 - `500 Internal Server Error`: Failed to sign out
 
 **Notes:**
+
 - This endpoint invalidates the session in the database
 - The access token will no longer be valid for subsequent requests
 - Client should discard both access and refresh tokens
@@ -139,9 +150,10 @@ Authorization: Bearer <access_token>
 
 Get a new access token using a refresh token.
 
-**Endpoint:** `POST /api/auth/refresh`
+**Endpoint:** `POST /api/v1/auth/refresh`
 
 **Request Body:**
+
 ```json
 {
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -149,6 +161,7 @@ Get a new access token using a refresh token.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -158,10 +171,12 @@ Get a new access token using a refresh token.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Missing refresh token
 - `401 Unauthorized`: Invalid or expired refresh token
 
 **Notes:**
+
 - The refresh token remains the same (not rotated)
 - Only the access token is refreshed
 - Session must still exist in the database
@@ -172,14 +187,16 @@ Get a new access token using a refresh token.
 
 Get the current user's profile.
 
-**Endpoint:** `GET /api/auth/user`
+**Endpoint:** `GET /api/v1/auth/user`
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -196,6 +213,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid access token
 - `401 Unauthorized`: Session not found or expired
 
@@ -205,14 +223,16 @@ Authorization: Bearer <access_token>
 
 Update the current user's profile.
 
-**Endpoint:** `PATCH /api/auth/user`
+**Endpoint:** `PATCH /api/v1/auth/user`
 
 **Headers:**
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 **Request Body:**
+
 ```json
 {
   "email": "newemail@example.com",
@@ -225,6 +245,7 @@ Authorization: Bearer <access_token>
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -241,10 +262,12 @@ Authorization: Bearer <access_token>
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Invalid request body or validation error
 - `401 Unauthorized`: Not authenticated
 
 **Notes:**
+
 - All fields are optional - only provided fields will be updated
 - Password changes require the new password to meet validation rules
 - Email changes will reset email_verified to false
@@ -255,9 +278,10 @@ Authorization: Bearer <access_token>
 
 Request a passwordless magic link sign-in email.
 
-**Endpoint:** `POST /api/auth/magiclink`
+**Endpoint:** `POST /api/v1/auth/magiclink`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com"
@@ -265,6 +289,7 @@ Request a passwordless magic link sign-in email.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "message": "Magic link sent to your email"
@@ -272,10 +297,12 @@ Request a passwordless magic link sign-in email.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Missing or invalid email
 - `400 Bad Request`: Magic link authentication is disabled
 
 **Notes:**
+
 - Magic link expires in 15 minutes (default)
 - If the email doesn't exist, a new user account will be created upon verification
 - Email must be enabled in configuration (`FLUXBASE_EMAIL_ENABLED=true`)
@@ -286,9 +313,10 @@ Request a passwordless magic link sign-in email.
 
 Verify a magic link token and sign in.
 
-**Endpoint:** `POST /api/auth/magiclink/verify`
+**Endpoint:** `POST /api/v1/auth/magiclink/verify`
 
 **Request Body:**
+
 ```json
 {
   "token": "abc123def456..."
@@ -296,6 +324,7 @@ Verify a magic link token and sign in.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "user": {
@@ -314,10 +343,12 @@ Verify a magic link token and sign in.
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Missing or invalid token
 - `400 Bad Request`: Token expired or already used
 
 **Notes:**
+
 - Creates a new user account if email doesn't exist
 - Marks email as verified automatically
 - Token can only be used once
@@ -340,6 +371,7 @@ Access and refresh tokens are JWTs with the following claims:
 ```
 
 **Claims:**
+
 - `user_id`: User's unique identifier
 - `email`: User's email address
 - `role`: User's role (e.g., "user", "admin")
@@ -384,7 +416,7 @@ See [Configuration Guide](/docs/configuration) for complete details.
 
 ```bash
 # 1. Sign up
-curl -X POST http://localhost:8080/api/auth/signup \
+curl -X POST http://localhost:8080/api/v1/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -400,11 +432,11 @@ curl -X POST http://localhost:8080/api/auth/signup \
 # }
 
 # 2. Get user profile
-curl http://localhost:8080/api/auth/user \
+curl http://localhost:8080/api/v1/auth/user \
   -H "Authorization: Bearer eyJ..."
 
 # 3. Update profile
-curl -X PATCH http://localhost:8080/api/auth/user \
+curl -X PATCH http://localhost:8080/api/v1/auth/user \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -414,14 +446,14 @@ curl -X PATCH http://localhost:8080/api/auth/user \
   }'
 
 # 4. Refresh token (when access token expires)
-curl -X POST http://localhost:8080/api/auth/refresh \
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "eyJ..."
   }'
 
 # 5. Sign out
-curl -X POST http://localhost:8080/api/auth/signout \
+curl -X POST http://localhost:8080/api/v1/auth/signout \
   -H "Authorization: Bearer eyJ..."
 ```
 

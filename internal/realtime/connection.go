@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"sync"
+	"time"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/rs/zerolog/log"
@@ -13,6 +14,7 @@ type Connection struct {
 	Conn          *websocket.Conn
 	Subscriptions map[string]bool // channel -> subscribed
 	UserID        *string         // Authenticated user ID (nil if anonymous)
+	ConnectedAt   time.Time       // Connection timestamp
 	mu            sync.RWMutex
 }
 
@@ -23,6 +25,7 @@ func NewConnection(id string, conn *websocket.Conn, userID *string) *Connection 
 		Conn:          conn,
 		Subscriptions: make(map[string]bool),
 		UserID:        userID,
+		ConnectedAt:   time.Now(),
 	}
 }
 

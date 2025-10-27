@@ -56,6 +56,7 @@ type AuthConfig struct {
 	BcryptCost      int           `mapstructure:"bcrypt_cost"`
 	EnableSignup    bool          `mapstructure:"enable_signup"`
 	EnableMagicLink bool          `mapstructure:"enable_magic_link"`
+	EnableRLS       bool          `mapstructure:"enable_rls"` // Row Level Security enforcement
 }
 
 // StorageConfig contains file storage settings
@@ -110,9 +111,11 @@ type EmailConfig struct {
 	SESRegion    string `mapstructure:"ses_region"`
 
 	// Templates
-	MagicLinkTemplate    string        `mapstructure:"magic_link_template"`
-	VerificationTemplate string        `mapstructure:"verification_template"`
-	MagicLinkExpiry      time.Duration `mapstructure:"magic_link_expiry"`
+	MagicLinkTemplate      string        `mapstructure:"magic_link_template"`
+	VerificationTemplate   string        `mapstructure:"verification_template"`
+	PasswordResetTemplate  string        `mapstructure:"password_reset_template"`
+	MagicLinkExpiry        time.Duration `mapstructure:"magic_link_expiry"`
+	PasswordResetExpiry    time.Duration `mapstructure:"password_reset_expiry"`
 }
 
 // Load loads configuration from file and environment variables
@@ -212,6 +215,7 @@ func setDefaults() {
 	viper.SetDefault("auth.bcrypt_cost", 10)
 	viper.SetDefault("auth.enable_signup", true)
 	viper.SetDefault("auth.enable_magic_link", true)
+	viper.SetDefault("auth.enable_rls", true) // Row Level Security enabled by default
 
 	// Storage defaults
 	viper.SetDefault("storage.provider", "local")

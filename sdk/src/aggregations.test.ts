@@ -121,7 +121,7 @@ describe('QueryBuilder Batch Operations', () => {
 
     // Mock post method
     fetch.post = async (path: string, body: unknown) => {
-      expect(path).toBe('/api/tables/products')
+      expect(path).toBe('/api/v1/tables/products')
       expect(Array.isArray(body)).toBe(true)
       return [] as any
     }
@@ -135,7 +135,7 @@ describe('QueryBuilder Batch Operations', () => {
 
     // Mock patch method
     fetch.patch = async (path: string, body: unknown) => {
-      expect(path).toContain('/api/tables/products')
+      expect(path).toContain('/api/v1/tables/products')
       expect(body).toEqual({ discount: 10 })
       return [] as any
     }
@@ -149,7 +149,7 @@ describe('QueryBuilder Batch Operations', () => {
 
     // Mock delete method
     fetch.delete = async (path: string) => {
-      expect(path).toContain('/api/tables/products')
+      expect(path).toContain('/api/v1/tables/products')
       expect(path).toContain('active=eq.false')
       return undefined as any
     }

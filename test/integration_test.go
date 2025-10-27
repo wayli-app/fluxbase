@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/api"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/wayli-app/fluxbase/internal/api"
+	"github.com/wayli-app/fluxbase/internal/config"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // IntegrationTestSuite defines the integration test suite
@@ -306,7 +306,7 @@ func (suite *IntegrationTestSuite) TestAuthSignup() {
 	}
 
 	body, _ := json.Marshal(payload)
-	req := httptest.NewRequest("POST", "/api/auth/signup", bytes.NewReader(body))
+	req := httptest.NewRequest("POST", "/api/v1/auth/signup", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := suite.app.Test(req)
 	require.NoError(suite.T(), err)

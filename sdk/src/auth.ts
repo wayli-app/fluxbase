@@ -68,7 +68,7 @@ export class FluxbaseAuth {
    * Sign in with email and password
    */
   async signIn(credentials: SignInCredentials): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>('/api/auth/signin', credentials)
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/signin', credentials)
 
     const session: AuthSession = {
       ...response,
@@ -83,7 +83,7 @@ export class FluxbaseAuth {
    * Sign up with email and password
    */
   async signUp(credentials: SignUpCredentials): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>('/api/auth/signup', credentials)
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/signup', credentials)
 
     const session: AuthSession = {
       ...response,
@@ -99,7 +99,7 @@ export class FluxbaseAuth {
    */
   async signOut(): Promise<void> {
     try {
-      await this.fetch.post('/api/auth/signout')
+      await this.fetch.post('/api/v1/auth/signout')
     } finally {
       this.clearSession()
     }
@@ -113,7 +113,7 @@ export class FluxbaseAuth {
       throw new Error('No refresh token available')
     }
 
-    const response = await this.fetch.post<AuthResponse>('/api/auth/refresh', {
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/refresh', {
       refresh_token: this.session.refresh_token,
     })
 
@@ -134,7 +134,7 @@ export class FluxbaseAuth {
       throw new Error('Not authenticated')
     }
 
-    return await this.fetch.get<User>('/api/auth/user')
+    return await this.fetch.get<User>('/api/v1/auth/user')
   }
 
   /**
@@ -145,7 +145,7 @@ export class FluxbaseAuth {
       throw new Error('Not authenticated')
     }
 
-    const user = await this.fetch.patch<User>('/api/auth/user', data)
+    const user = await this.fetch.patch<User>('/api/v1/auth/user', data)
 
     // Update session with new user data
     if (this.session) {

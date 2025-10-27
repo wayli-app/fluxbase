@@ -144,7 +144,7 @@ export class FluxbaseClient {
     params?: Record<string, unknown>
   ): Promise<{ data: T | null; error: Error | null }> {
     try {
-      const data = await this.fetch.post<T>(`/api/rpc/${functionName}`, params || {})
+      const data = await this.fetch.post<T>(`/api/v1/rpc/${functionName}`, params || {})
       return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }

@@ -37,6 +37,14 @@ func (s *SMTPService) SendVerificationEmail(ctx context.Context, to, token, link
 	return s.Send(ctx, to, subject, body)
 }
 
+// SendPasswordReset sends a password reset email
+func (s *SMTPService) SendPasswordReset(ctx context.Context, to, token, link string) error {
+	subject := "Reset your password"
+	body := s.renderPasswordResetTemplate(link, token)
+
+	return s.Send(ctx, to, subject, body)
+}
+
 // Send sends an email via SMTP
 func (s *SMTPService) Send(ctx context.Context, to, subject, body string) error {
 	if !s.config.Enabled {
@@ -207,6 +215,41 @@ func (s *SMTPService) renderVerificationTemplate(link, token string) string {
 	return buf.String()
 }
 
+// renderPasswordResetTemplate renders the password reset email template
+func (s *SMTPService) renderPasswordResetTemplate(link, token string) string {
+	if s.config.PasswordResetTemplate != "" {
+		// Load custom template if provided
+		// TODO: Implement custom template loading
+	}
+
+	// Use default template
+	tmpl := template.Must(template.New("password-reset").Parse(defaultPasswordResetTemplate))
+
+	var buf bytes.Buffer
+	data := map[string]string{
+		"Link":   link,
+		"Token":  token,
+		"Expiry": s.config.PasswordResetExpiry.String(),
+	}
+
+	if err := tmpl.Execute(&buf, data); err != nil {
+		// Fallback to simple template
+		return fmt.Sprintf(`
+			<html>
+			<body>
+				<h2>Reset Your Password</h2>
+				<p>Click the link below to reset your password:</p>
+				<p><a href="%s">Reset Password</a></p>
+				<p>This link expires in %s</p>
+				<p>If you didn't request a password reset, please ignore this email.</p>
+			</body>
+			</html>
+		`, link, s.config.PasswordResetExpiry.String())
+	}
+
+	return buf.String()
+}
+
 // Default email templates
 const defaultMagicLinkTemplate = `
 <!DOCTYPE html>
@@ -258,6 +301,43 @@ const defaultVerificationTemplate = `
 		<p><code>{{.Link}}</code></p>
 		<div class="footer">
 			<p>If you didn't create an account, please ignore this email.</p>
+		</div>
+	</div>
+</body>
+</html>
+`
+
+const defaultPasswordResetTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+		.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+		.button { display: inline-block; padding: 12px 24px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 4px; }
+		.footer { margin-top: 30px; font-size: 12px; color: #666; }
+		.warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h2>Reset Your Password</h2>
+		<p>We received a request to reset your password. Click the button below to choose a new password:</p>
+		<p><a href="{{.Link}}" class="button">Reset Password</a></p>
+		<p>Or copy and paste this link into your browser:</p>
+		<p><code>{{.Link}}</code></p>
+		<p><strong>This link expires in {{.Expiry}}</strong></p>
+		<div class="warning">
+			<p><strong>Security Reminder:</strong></p>
+			<ul>
+				<li>This link can only be used once</li>
+				<li>We will never ask for your password via email</li>
+				<li>If you didn't request this reset, please ignore this email</li>
+			</ul>
+		</div>
+		<div class="footer">
+			<p>If you didn't request a password reset, your account is still secure. Someone may have entered your email address by mistake.</p>
 		</div>
 	</div>
 </body>

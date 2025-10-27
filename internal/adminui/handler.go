@@ -28,12 +28,14 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 		panic(err)
 	}
 
-	// Serve admin UI at /admin
-	app.Use("/admin", filesystem.New(filesystem.Config{
+	// Serve admin UI at /admin with SPA routing support
+	// This handles both /admin and /admin/* routes
+	app.Use("/admin*", filesystem.New(filesystem.Config{
 		Root:         http.FS(distFS),
 		PathPrefix:   "",
 		Browse:       false,
 		Index:        "index.html",
 		NotFoundFile: "index.html",
+		MaxAge:       3600,
 	}))
 }

@@ -4,7 +4,7 @@ set -e
 # Simple Storage E2E Test (no auth required for now)
 echo "=== Simple Storage E2E Test ==="
 
-API_BASE="http://localhost:8080/api/storage"
+API_BASE="http://localhost:8080/api/v1/storage"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'

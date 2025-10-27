@@ -1,4 +1,4 @@
-.PHONY: help build run test clean migrate-up migrate-down docker-build docker-run dev admin-dev admin-install
+.PHONY: help build run start serve test clean migrate-up migrate-down docker-build docker-run dev admin-dev admin-install
 
 # Variables
 BINARY_NAME=fluxbase
@@ -12,11 +12,27 @@ GREEN=\033[0;32m
 YELLOW=\033[1;33m
 NC=\033[0m # No Color
 
+# Default target
+.DEFAULT_GOAL := help
+
 help: ## Show this help message
-	@echo "Usage: make [target]"
+	@echo "╔════════════════════════════════════════════════════════════╗"
+	@echo "║                     FLUXBASE COMMANDS                      ║"
+	@echo "╚════════════════════════════════════════════════════════════╝"
 	@echo ""
-	@echo "Available targets:"
+	@echo "${GREEN}Quick Start:${NC}"
+	@echo "  make run            # Start Fluxbase server"
+	@echo "  make admin-dev      # Start admin UI dev server (separate terminal)"
+	@echo "  make build          # Build production binary with embedded UI"
+	@echo ""
+	@echo "${GREEN}All Available Commands:${NC}"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  ${GREEN}%-20s${NC} %s\n", $$1, $$2}'
+	@echo ""
+	@echo "${YELLOW}Examples:${NC}"
+	@echo "  make deps           # Install Go dependencies"
+	@echo "  make migrate-up     # Run database migrations"
+	@echo "  make test          # Run all tests"
+	@echo "  make clean         # Clean build artifacts"
 
 build: build-admin ## Build the binary with embedded admin UI
 	@echo "${YELLOW}Building ${BINARY_NAME}...${NC}"
@@ -48,8 +64,27 @@ admin-install: ## Install admin UI dependencies
 	@echo "${GREEN}Admin UI dependencies installed!${NC}"
 
 run: ## Run the application
-	@echo "${YELLOW}Starting ${BINARY_NAME}...${NC}"
-	@go run ${MAIN_PATH}
+	@echo "${YELLOW}Checking for existing process on port 8080...${NC}"
+	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
+	@./run-server.sh
+
+start: ## Start Fluxbase server (alias for run)
+	@make run
+
+serve: ## Run backend and admin UI in development mode (two terminals recommended)
+	@echo "${YELLOW}Starting Fluxbase backend and admin UI...${NC}"
+	@echo "${GREEN}This will start:${NC}"
+	@echo "  ${GREEN}Backend:${NC} http://localhost:8080"
+	@echo "  ${GREEN}Admin UI Dev:${NC} http://localhost:5173/admin/"
+	@echo ""
+	@echo "${YELLOW}Note: This runs both in the same terminal. For better experience:${NC}"
+	@echo "  Terminal 1: ${GREEN}make run${NC}"
+	@echo "  Terminal 2: ${GREEN}make admin-dev${NC}"
+	@echo ""
+	@echo "${YELLOW}Starting backend...${NC}"
+	@go run ${MAIN_PATH} & \
+	echo "${YELLOW}Starting admin UI dev server...${NC}" && \
+	cd admin && npm run dev
 
 dev: ## Run in development mode with hot reload (requires air)
 	@if command -v air > /dev/null; then \

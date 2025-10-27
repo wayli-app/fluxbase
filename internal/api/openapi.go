@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // OpenAPISpec represents the OpenAPI 3.0 specification
 type OpenAPISpec struct {
-	OpenAPI    string                       `json:"openapi"`
-	Info       OpenAPIInfo                  `json:"info"`
-	Servers    []OpenAPIServer              `json:"servers"`
-	Paths      map[string]OpenAPIPath       `json:"paths"`
-	Components OpenAPIComponents            `json:"components"`
+	OpenAPI    string                 `json:"openapi"`
+	Info       OpenAPIInfo            `json:"info"`
+	Servers    []OpenAPIServer        `json:"servers"`
+	Paths      map[string]OpenAPIPath `json:"paths"`
+	Components OpenAPIComponents      `json:"components"`
 }
 
 type OpenAPIInfo struct {
@@ -31,14 +31,14 @@ type OpenAPIServer struct {
 type OpenAPIPath map[string]OpenAPIOperation
 
 type OpenAPIOperation struct {
-	Summary     string                        `json:"summary,omitempty"`
-	Description string                        `json:"description,omitempty"`
-	OperationID string                        `json:"operationId,omitempty"`
-	Tags        []string                      `json:"tags,omitempty"`
-	Parameters  []OpenAPIParameter            `json:"parameters,omitempty"`
-	RequestBody *OpenAPIRequestBody           `json:"requestBody,omitempty"`
-	Responses   map[string]OpenAPIResponse    `json:"responses"`
-	Security    []map[string][]string         `json:"security,omitempty"`
+	Summary     string                     `json:"summary,omitempty"`
+	Description string                     `json:"description,omitempty"`
+	OperationID string                     `json:"operationId,omitempty"`
+	Tags        []string                   `json:"tags,omitempty"`
+	Parameters  []OpenAPIParameter         `json:"parameters,omitempty"`
+	RequestBody *OpenAPIRequestBody        `json:"requestBody,omitempty"`
+	Responses   map[string]OpenAPIResponse `json:"responses"`
+	Security    []map[string][]string      `json:"security,omitempty"`
 }
 
 type OpenAPIParameter struct {
@@ -50,8 +50,8 @@ type OpenAPIParameter struct {
 }
 
 type OpenAPIRequestBody struct {
-	Description string                `json:"description,omitempty"`
-	Required    bool                  `json:"required,omitempty"`
+	Description string                  `json:"description,omitempty"`
+	Required    bool                    `json:"required,omitempty"`
 	Content     map[string]OpenAPIMedia `json:"content"`
 }
 
@@ -60,7 +60,7 @@ type OpenAPIMedia struct {
 }
 
 type OpenAPIResponse struct {
-	Description string                `json:"description"`
+	Description string                  `json:"description"`
 	Content     map[string]OpenAPIMedia `json:"content,omitempty"`
 }
 
@@ -131,7 +131,7 @@ func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, functions []d
 					"type":         "http",
 					"scheme":       "bearer",
 					"bearerFormat": "JWT",
-					"description":  "JWT token obtained from /api/auth/signin or /api/auth/signup",
+					"description":  "JWT token obtained from /api/v1/auth/signin or /api/v1/auth/signup",
 				},
 			},
 		},
@@ -140,15 +140,18 @@ func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, functions []d
 	// Add authentication endpoints
 	h.addAuthEndpoints(&spec)
 
+	// Add storage endpoints
+	h.addStorageEndpoints(&spec)
+
 	// Generate paths and schemas for each table
 	for _, table := range tables {
 		h.addTableToSpec(&spec, table)
 	}
 
 	// Generate RPC endpoints for each function
-	for _, function := range functions {
-		h.addFunctionToSpec(&spec, function)
-	}
+	// TODO: Add user-defined functions when we have a way to distinguish them
+	// For now, hide all RPC functions from the API Explorer
+	_ = functions // Suppress unused variable warning
 
 	return spec
 }
@@ -180,7 +183,7 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 
 	// Signup request schema
 	spec.Components.Schemas["SignupRequest"] = map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"email", "password"},
 		"properties": map[string]interface{}{
 			"email":    map[string]string{"type": "string", "format": "email"},
@@ -190,7 +193,7 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 
 	// Signin request schema
 	spec.Components.Schemas["SigninRequest"] = map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"email", "password"},
 		"properties": map[string]interface{}{
 			"email":    map[string]string{"type": "string", "format": "email"},
@@ -200,7 +203,7 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 
 	// Refresh request schema
 	spec.Components.Schemas["RefreshRequest"] = map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"refresh_token"},
 		"properties": map[string]interface{}{
 			"refresh_token": map[string]string{"type": "string"},
@@ -209,7 +212,7 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 
 	// Magic link request schema
 	spec.Components.Schemas["MagicLinkRequest"] = map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"email"},
 		"properties": map[string]interface{}{
 			"email": map[string]string{"type": "string", "format": "email"},
@@ -224,8 +227,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/auth/signup
-	spec.Paths["/api/auth/signup"] = OpenAPIPath{
+	// POST /api/v1/auth/signup
+	spec.Paths["/api/v1/auth/signup"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Sign up a new user",
 			Description: "Create a new user account with email and password",
@@ -260,8 +263,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/auth/signin
-	spec.Paths["/api/auth/signin"] = OpenAPIPath{
+	// POST /api/v1/auth/signin
+	spec.Paths["/api/v1/auth/signin"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Sign in a user",
 			Description: "Authenticate with email and password to get access tokens",
@@ -296,8 +299,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/auth/signout
-	spec.Paths["/api/auth/signout"] = OpenAPIPath{
+	// POST /api/v1/auth/signout
+	spec.Paths["/api/v1/auth/signout"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Sign out a user",
 			Description: "Invalidate the current session",
@@ -322,8 +325,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/auth/refresh
-	spec.Paths["/api/auth/refresh"] = OpenAPIPath{
+	// POST /api/v1/auth/refresh
+	spec.Paths["/api/v1/auth/refresh"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Refresh access token",
 			Description: "Get a new access token using a refresh token",
@@ -358,8 +361,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// GET /api/auth/user
-	spec.Paths["/api/auth/user"] = OpenAPIPath{
+	// GET /api/v1/auth/user
+	spec.Paths["/api/v1/auth/user"] = OpenAPIPath{
 		"get": OpenAPIOperation{
 			Summary:     "Get current user",
 			Description: "Get the authenticated user's information",
@@ -424,8 +427,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/auth/magiclink
-	spec.Paths["/api/auth/magiclink"] = OpenAPIPath{
+	// POST /api/v1/auth/magiclink
+	spec.Paths["/api/v1/auth/magiclink"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Request magic link",
 			Description: "Send a magic link to the user's email for passwordless authentication",
@@ -455,8 +458,8 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// GET /api/auth/magiclink/verify
-	spec.Paths["/api/auth/magiclink/verify"] = OpenAPIPath{
+	// GET /api/v1/auth/magiclink/verify
+	spec.Paths["/api/v1/auth/magiclink/verify"] = OpenAPIPath{
 		"get": OpenAPIOperation{
 			Summary:     "Verify magic link",
 			Description: "Verify a magic link token and authenticate the user",
@@ -493,6 +496,452 @@ func (h *OpenAPIHandler) addAuthEndpoints(spec *OpenAPISpec) {
 	}
 }
 
+// addStorageEndpoints adds storage API endpoints to the spec
+func (h *OpenAPIHandler) addStorageEndpoints(spec *OpenAPISpec) {
+	// Storage object schema
+	spec.Components.Schemas["StorageObject"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"key":           map[string]string{"type": "string"},
+			"size":          map[string]string{"type": "integer"},
+			"content_type":  map[string]string{"type": "string"},
+			"etag":          map[string]string{"type": "string"},
+			"last_modified": map[string]string{"type": "string", "format": "date-time"},
+			"metadata":      map[string]interface{}{"type": "object", "additionalProperties": map[string]string{"type": "string"}},
+		},
+	}
+
+	// Bucket schema
+	spec.Components.Schemas["Bucket"] = map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"name":         map[string]string{"type": "string"},
+			"created_date": map[string]string{"type": "string", "format": "date-time"},
+		},
+	}
+
+	// GET /api/v1/storage/buckets - List all buckets
+	spec.Paths["/api/v1/storage/buckets"] = OpenAPIPath{
+		"get": OpenAPIOperation{
+			Summary:     "List all storage buckets",
+			Description: "Retrieve a list of all available storage buckets",
+			OperationID: "list_buckets",
+			Tags:        []string{"Storage"},
+			Responses: map[string]OpenAPIResponse{
+				"200": {
+					Description: "List of buckets",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"buckets": map[string]interface{}{
+										"type":  "array",
+										"items": map[string]string{"$ref": "#/components/schemas/Bucket"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// POST /api/v1/storage/buckets/:bucket - Create bucket
+	spec.Paths["/api/v1/storage/buckets/{bucket}"] = OpenAPIPath{
+		"post": OpenAPIOperation{
+			Summary:     "Create a new storage bucket",
+			Description: "Create a new bucket for storing files",
+			OperationID: "create_bucket",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"201": {
+					Description: "Bucket created",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"bucket":  map[string]string{"type": "string"},
+									"message": map[string]string{"type": "string"},
+								},
+							},
+						},
+					},
+				},
+				"409": {
+					Description: "Bucket already exists",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+		"delete": OpenAPIOperation{
+			Summary:     "Delete a storage bucket",
+			Description: "Delete an empty bucket",
+			OperationID: "delete_bucket",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"204": {
+					Description: "Bucket deleted",
+				},
+				"404": {
+					Description: "Bucket not found",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+				"409": {
+					Description: "Bucket is not empty",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// GET /api/v1/storage/:bucket - List files in bucket
+	spec.Paths["/api/v1/storage/{bucket}"] = OpenAPIPath{
+		"get": OpenAPIOperation{
+			Summary:     "List files in bucket",
+			Description: "List all files in a specific bucket with optional filtering",
+			OperationID: "list_files",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "prefix",
+					In:          "query",
+					Description: "Filter files by prefix",
+					Required:    false,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "delimiter",
+					In:          "query",
+					Description: "Delimiter for grouping",
+					Required:    false,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "limit",
+					In:          "query",
+					Description: "Maximum number of files to return",
+					Required:    false,
+					Schema:      map[string]string{"type": "integer", "default": "1000"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"200": {
+					Description: "List of files",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"bucket": map[string]string{"type": "string"},
+									"objects": map[string]interface{}{
+										"type":  "array",
+										"items": map[string]string{"$ref": "#/components/schemas/StorageObject"},
+									},
+									"prefixes": map[string]interface{}{
+										"type":  "array",
+										"items": map[string]string{"type": "string"},
+									},
+									"truncated": map[string]string{"type": "boolean"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// File operations: Upload, Download, Delete, Get Info
+	spec.Paths["/api/v1/storage/{bucket}/{key}"] = OpenAPIPath{
+		"post": OpenAPIOperation{
+			Summary:     "Upload a file",
+			Description: "Upload a file to the specified bucket and key",
+			OperationID: "upload_file",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "key",
+					In:          "path",
+					Description: "File key (path)",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			RequestBody: &OpenAPIRequestBody{
+				Required:    true,
+				Description: "File to upload",
+				Content: map[string]OpenAPIMedia{
+					"multipart/form-data": {
+						Schema: map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"file": map[string]string{
+									"type":   "string",
+									"format": "binary",
+								},
+							},
+							"required": []string{"file"},
+						},
+					},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"201": {
+					Description: "File uploaded",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/StorageObject"},
+						},
+					},
+				},
+			},
+		},
+		"get": OpenAPIOperation{
+			Summary:     "Download a file",
+			Description: "Download a file from storage",
+			OperationID: "download_file",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "key",
+					In:          "path",
+					Description: "File key (path)",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "download",
+					In:          "query",
+					Description: "Force download (set Content-Disposition header)",
+					Required:    false,
+					Schema:      map[string]string{"type": "boolean"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"200": {
+					Description: "File content",
+					Content: map[string]OpenAPIMedia{
+						"application/octet-stream": {
+							Schema: map[string]string{
+								"type":   "string",
+								"format": "binary",
+							},
+						},
+					},
+				},
+				"404": {
+					Description: "File not found",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+		"head": OpenAPIOperation{
+			Summary:     "Get file metadata",
+			Description: "Get metadata about a file without downloading it",
+			OperationID: "get_file_info",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "key",
+					In:          "path",
+					Description: "File key (path)",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"200": {
+					Description: "File metadata",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/StorageObject"},
+						},
+					},
+				},
+				"404": {
+					Description: "File not found",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+		"delete": OpenAPIOperation{
+			Summary:     "Delete a file",
+			Description: "Delete a file from storage",
+			OperationID: "delete_file",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "key",
+					In:          "path",
+					Description: "File key (path)",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"204": {
+					Description: "File deleted",
+				},
+				"404": {
+					Description: "File not found",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// POST /api/v1/storage/:bucket/:key/signed-url - Generate signed URL
+	spec.Paths["/api/v1/storage/{bucket}/{key}/signed-url"] = OpenAPIPath{
+		"post": OpenAPIOperation{
+			Summary:     "Generate signed URL",
+			Description: "Generate a presigned URL for temporary file access (not supported for local storage)",
+			OperationID: "generate_signed_url",
+			Tags:        []string{"Storage"},
+			Parameters: []OpenAPIParameter{
+				{
+					Name:        "bucket",
+					In:          "path",
+					Description: "Bucket name",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+				{
+					Name:        "key",
+					In:          "path",
+					Description: "File key (path)",
+					Required:    true,
+					Schema:      map[string]string{"type": "string"},
+				},
+			},
+			RequestBody: &OpenAPIRequestBody{
+				Description: "Signed URL options",
+				Content: map[string]OpenAPIMedia{
+					"application/json": {
+						Schema: map[string]interface{}{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"expires_in": map[string]string{
+									"type":        "integer",
+									"description": "URL expiration time in seconds (default: 900)",
+								},
+								"method": map[string]interface{}{
+									"type":        "string",
+									"enum":        []string{"GET", "PUT", "DELETE"},
+									"description": "HTTP method for the signed URL (default: GET)",
+								},
+							},
+						},
+					},
+				},
+			},
+			Responses: map[string]OpenAPIResponse{
+				"200": {
+					Description: "Signed URL generated",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"url":        map[string]string{"type": "string"},
+									"expires_at": map[string]string{"type": "string", "format": "date-time"},
+								},
+							},
+						},
+					},
+				},
+				"501": {
+					Description: "Not supported for local storage",
+					Content: map[string]OpenAPIMedia{
+						"application/json": {
+							Schema: map[string]string{"$ref": "#/components/schemas/Error"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 // addTableToSpec adds paths and schema for a table
 func (h *OpenAPIHandler) addTableToSpec(spec *OpenAPISpec, table database.TableInfo) {
 	tableName := table.Name
@@ -507,16 +956,16 @@ func (h *OpenAPIHandler) addTableToSpec(spec *OpenAPISpec, table database.TableI
 
 	// Add paths
 	spec.Paths[path] = OpenAPIPath{
-		"get": h.generateListOperation(tableName, schemaName, schemaRef),
-		"post": h.generateCreateOperation(tableName, schemaName, schemaRef),
-		"patch": h.generateBatchUpdateOperation(tableName, schemaName, schemaRef),
+		"get":    h.generateListOperation(tableName, schemaName, schemaRef),
+		"post":   h.generateCreateOperation(tableName, schemaName, schemaRef),
+		"patch":  h.generateBatchUpdateOperation(tableName, schemaName, schemaRef),
 		"delete": h.generateBatchDeleteOperation(tableName, schemaName, schemaRef),
 	}
 
 	spec.Paths[pathWithID] = OpenAPIPath{
-		"get": h.generateGetOperation(tableName, schemaName, schemaRef),
-		"put": h.generateReplaceOperation(tableName, schemaName, schemaRef),
-		"patch": h.generateUpdateOperation(tableName, schemaName, schemaRef),
+		"get":    h.generateGetOperation(tableName, schemaName, schemaRef),
+		"put":    h.generateReplaceOperation(tableName, schemaName, schemaRef),
+		"patch":  h.generateUpdateOperation(tableName, schemaName, schemaRef),
 		"delete": h.generateDeleteOperation(tableName, schemaName, schemaRef),
 	}
 }
@@ -538,9 +987,9 @@ func (h *OpenAPIHandler) buildTablePath(table database.TableInfo) string {
 
 	// All database tables/views are under /api/tables/ prefix
 	if table.Schema != "public" {
-		return "/api/tables/" + table.Schema + "/" + tableName
+		return "/api/v1/tables/" + table.Schema + "/" + tableName
 	}
-	return "/api/tables/" + tableName
+	return "/api/v1/tables/" + tableName
 }
 
 // generateTableSchema generates JSON schema for a table
@@ -608,10 +1057,10 @@ func (h *OpenAPIHandler) columnToSchema(col database.ColumnInfo) map[string]inte
 // generateListOperation generates GET operation for listing records
 func (h *OpenAPIHandler) generateListOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("List %s records", tableName),
+		Summary:     fmt.Sprintf("List %s.%s records", schemaName, tableName),
 		Description: "Query and filter records with PostgREST-compatible syntax",
 		OperationID: fmt.Sprintf("list_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters:  h.getQueryParameters(),
 		Responses: map[string]OpenAPIResponse{
 			"200": {
@@ -634,10 +1083,10 @@ func (h *OpenAPIHandler) generateListOperation(tableName, schemaName, schemaRef 
 // generateCreateOperation generates POST operation for creating records
 func (h *OpenAPIHandler) generateCreateOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Create %s record(s)", tableName),
+		Summary:     fmt.Sprintf("Create %s.%s record(s)", schemaName, tableName),
 		Description: "Create a single record or batch insert multiple records",
 		OperationID: fmt.Sprintf("create_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		RequestBody: &OpenAPIRequestBody{
 			Required: true,
 			Content: map[string]OpenAPIMedia{
@@ -682,9 +1131,9 @@ func (h *OpenAPIHandler) generateCreateOperation(tableName, schemaName, schemaRe
 // generateGetOperation generates GET by ID operation
 func (h *OpenAPIHandler) generateGetOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Get %s by ID", tableName),
+		Summary:     fmt.Sprintf("Get %s.%s by ID", schemaName, tableName),
 		OperationID: fmt.Sprintf("get_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters: []OpenAPIParameter{
 			{
 				Name:        "id",
@@ -713,9 +1162,9 @@ func (h *OpenAPIHandler) generateGetOperation(tableName, schemaName, schemaRef s
 // generateUpdateOperation generates PATCH operation
 func (h *OpenAPIHandler) generateUpdateOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Update %s", tableName),
+		Summary:     fmt.Sprintf("Update %s.%s", schemaName, tableName),
 		OperationID: fmt.Sprintf("update_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters: []OpenAPIParameter{
 			{
 				Name:        "id",
@@ -749,9 +1198,9 @@ func (h *OpenAPIHandler) generateUpdateOperation(tableName, schemaName, schemaRe
 // generateReplaceOperation generates PUT operation
 func (h *OpenAPIHandler) generateReplaceOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Replace %s", tableName),
+		Summary:     fmt.Sprintf("Replace %s.%s", schemaName, tableName),
 		OperationID: fmt.Sprintf("replace_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters: []OpenAPIParameter{
 			{
 				Name:        "id",
@@ -785,9 +1234,9 @@ func (h *OpenAPIHandler) generateReplaceOperation(tableName, schemaName, schemaR
 // generateDeleteOperation generates DELETE operation
 func (h *OpenAPIHandler) generateDeleteOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Delete %s", tableName),
+		Summary:     fmt.Sprintf("Delete %s.%s", schemaName, tableName),
 		OperationID: fmt.Sprintf("delete_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters: []OpenAPIParameter{
 			{
 				Name:        "id",
@@ -811,10 +1260,10 @@ func (h *OpenAPIHandler) generateDeleteOperation(tableName, schemaName, schemaRe
 // generateBatchUpdateOperation generates batch PATCH operation
 func (h *OpenAPIHandler) generateBatchUpdateOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Batch update %s records", tableName),
+		Summary:     fmt.Sprintf("Batch update %s.%s records", schemaName, tableName),
 		Description: "Update multiple records matching the filter criteria",
 		OperationID: fmt.Sprintf("batch_update_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters:  h.getQueryParameters(),
 		RequestBody: &OpenAPIRequestBody{
 			Required: true,
@@ -845,10 +1294,10 @@ func (h *OpenAPIHandler) generateBatchUpdateOperation(tableName, schemaName, sch
 // generateBatchDeleteOperation generates batch DELETE operation
 func (h *OpenAPIHandler) generateBatchDeleteOperation(tableName, schemaName, schemaRef string) OpenAPIOperation {
 	return OpenAPIOperation{
-		Summary:     fmt.Sprintf("Batch delete %s records", tableName),
+		Summary:     fmt.Sprintf("Batch delete %s.%s records", schemaName, tableName),
 		Description: "Delete multiple records matching the filter criteria (requires at least one filter)",
 		OperationID: fmt.Sprintf("batch_delete_%s_%s", schemaName, tableName),
-		Tags:        []string{schemaName + "." + tableName},
+		Tags:        []string{"Tables"},
 		Parameters:  h.getQueryParameters(),
 		Responses: map[string]OpenAPIResponse{
 			"200": {
@@ -908,6 +1357,40 @@ func (h *OpenAPIHandler) getQueryParameters() []OpenAPIParameter {
 			Schema:      map[string]string{"type": "string"},
 		},
 	}
+}
+
+// isInternalFunction checks if a function is an internal PostgreSQL extension function
+// that should not be exposed as an RPC endpoint
+func (h *OpenAPIHandler) isInternalFunction(fn database.FunctionInfo) bool {
+	// List of internal function prefixes that should be filtered out
+	internalPrefixes := []string{
+		"gin_",           // GIN index functions
+		"gtrgm_",         // pg_trgm extension functions
+		"uuid_ns_",       // UUID namespace functions (usually internal)
+	}
+
+	// List of internal function names that should be filtered out
+	internalFunctions := map[string]bool{
+		"notify_table_change":      true, // Internal trigger function
+		"update_updated_at_column": true, // Internal trigger function
+		"enable_realtime":          true, // Internal realtime setup function
+		"disable_realtime":         true, // Internal realtime setup function
+	}
+
+	// Check if function name matches internal prefixes
+	for _, prefix := range internalPrefixes {
+		if len(fn.Name) >= len(prefix) && fn.Name[:len(prefix)] == prefix {
+			return true
+		}
+	}
+
+	// Check if function is in the internal functions list
+	if internalFunctions[fn.Name] {
+		return true
+	}
+
+	// Keep user-facing utility functions
+	return false
 }
 
 // addFunctionToSpec adds a PostgreSQL function as an RPC endpoint to the spec
@@ -1004,16 +1487,16 @@ func (h *OpenAPIHandler) addFunctionToSpec(spec *OpenAPISpec, fn database.Functi
 // buildFunctionPath builds the API path for a function
 func (h *OpenAPIHandler) buildFunctionPath(fn database.FunctionInfo) string {
 	if fn.Schema != "public" {
-		return fmt.Sprintf("/api/rpc/%s/%s", fn.Schema, fn.Name)
+		return fmt.Sprintf("/api/v1/rpc/%s/%s", fn.Schema, fn.Name)
 	}
-	return fmt.Sprintf("/api/rpc/%s", fn.Name)
+	return fmt.Sprintf("/api/v1/rpc/%s", fn.Name)
 }
 
 // buildFunctionRequestSchema builds the request schema for a function
 func (h *OpenAPIHandler) buildFunctionRequestSchema(fn database.FunctionInfo) interface{} {
 	if len(fn.Parameters) == 0 {
 		return map[string]interface{}{
-			"type": "object",
+			"type":       "object",
 			"properties": map[string]interface{}{},
 		}
 	}
@@ -1080,8 +1563,8 @@ func (h *OpenAPIHandler) mapPostgreSQLTypeToJSON(pgType string) string {
 	case strings.Contains(pgTypeLower, "int"):
 		return "integer"
 	case strings.Contains(pgTypeLower, "numeric") || strings.Contains(pgTypeLower, "decimal") ||
-		 strings.Contains(pgTypeLower, "float") || strings.Contains(pgTypeLower, "double") ||
-		 strings.Contains(pgTypeLower, "real"):
+		strings.Contains(pgTypeLower, "float") || strings.Contains(pgTypeLower, "double") ||
+		strings.Contains(pgTypeLower, "real"):
 		return "number"
 	case strings.Contains(pgTypeLower, "bool"):
 		return "boolean"

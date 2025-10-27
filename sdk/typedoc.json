@@ -1,6 +1,8 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["src/index.ts"],
+  "entryPoints": [
+    "src/index.ts"
+  ],
   "out": "../docs/static/api/sdk",
   "name": "@fluxbase/sdk",
   "readme": "README.md",
@@ -27,6 +29,6 @@
   ],
   "navigationLinks": {
     "GitHub": "https://github.com/yourusername/fluxbase",
-    "Documentation": "https://fluxbase.dev"
+    "Documentation": "https://fluxbase.eu"
   }
 }
