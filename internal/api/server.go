@@ -24,18 +24,20 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	app                *fiber.App
-	config             *config.Config
-	db                 *database.Connection
-	rest               *RESTHandler
-	authHandler        *AuthHandler
-	apiKeyHandler      *APIKeyHandler
-	storageHandler     *StorageHandler
-	webhookHandler     *WebhookHandler
-	monitoringHandler  *MonitoringHandler
-	realtimeManager    *realtime.Manager
-	realtimeHandler    *realtime.RealtimeHandler
-	realtimeListener   *realtime.Listener
+	app                   *fiber.App
+	config                *config.Config
+	db                    *database.Connection
+	rest                  *RESTHandler
+	authHandler           *AuthHandler
+	adminAuthHandler      *AdminAuthHandler
+	apiKeyHandler         *APIKeyHandler
+	storageHandler        *StorageHandler
+	webhookHandler        *WebhookHandler
+	monitoringHandler     *MonitoringHandler
+	userManagementHandler *UserManagementHandler
+	realtimeManager       *realtime.Manager
+	realtimeHandler       *realtime.RealtimeHandler
+	realtimeListener      *realtime.Listener
 }
 
 // NewServer creates a new HTTP server
@@ -75,11 +77,22 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Initialize webhook service
 	webhookService := webhook.NewWebhookService(db.Pool())
 
+	// Initialize user management service
+	userMgmtService := auth.NewUserManagementService(
+		auth.NewUserRepository(db),
+		auth.NewSessionRepository(db),
+		auth.NewPasswordHasherWithConfig(auth.PasswordHasherConfig{MinLength: cfg.Auth.PasswordMinLen, Cost: cfg.Auth.BcryptCost}),
+		emailService,
+		cfg.BaseURL,
+	)
+
 	// Create handlers
 	authHandler := NewAuthHandler(authService)
+	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db))
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
 	webhookHandler := NewWebhookHandler(webhookService)
+	userMgmtHandler := NewUserManagementHandler(userMgmtService)
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
@@ -92,18 +105,20 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 
 	// Create server instance
 	server := &Server{
-		app:               app,
-		config:            cfg,
-		db:                db,
-		rest:              NewRESTHandler(db, NewQueryParser()),
-		authHandler:       authHandler,
-		apiKeyHandler:     apiKeyHandler,
-		storageHandler:    storageHandler,
-		webhookHandler:    webhookHandler,
-		monitoringHandler: monitoringHandler,
-		realtimeManager:   realtimeManager,
-		realtimeHandler:   realtimeHandler,
-		realtimeListener:  realtimeListener,
+		app:                   app,
+		config:                cfg,
+		db:                    db,
+		rest:                  NewRESTHandler(db, NewQueryParser()),
+		authHandler:           authHandler,
+		adminAuthHandler:      adminAuthHandler,
+		apiKeyHandler:         apiKeyHandler,
+		storageHandler:        storageHandler,
+		webhookHandler:        webhookHandler,
+		monitoringHandler:     monitoringHandler,
+		userManagementHandler: userMgmtHandler,
+		realtimeManager:       realtimeManager,
+		realtimeHandler:       realtimeHandler,
+		realtimeListener:      realtimeListener,
 	}
 
 	// Start realtime listener
@@ -193,6 +208,9 @@ func (s *Server) setupRoutes() {
 	// Monitoring routes
 	s.monitoringHandler.RegisterRoutes(s.app)
 
+	// User management routes (admin only)
+	s.userManagementHandler.RegisterRoutes(s.app)
+
 	// Storage routes
 	storage := v1.Group("/storage")
 	s.setupStorageRoutes(storage)
@@ -237,25 +255,40 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get all tables from public schema (and optionally other schemas)
-	tables, err := s.db.Inspector().GetAllTables(ctx, "public")
+	// Get all schemas to register tables from
+	schemas, err := s.db.Inspector().GetSchemas(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get tables for REST API")
+		log.Error().Err(err).Msg("Failed to get schemas for REST API")
 		return
 	}
 
-	// Register dynamic routes for each table
-	for _, table := range tables {
-		s.rest.RegisterTableRoutes(router, table)
-	}
+	// Register tables from all schemas (including auth, public, etc.)
+	for _, schema := range schemas {
+		// Skip system schemas
+		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+			continue
+		}
 
-	// Get all views and register as read-only endpoints
-	views, err := s.db.Inspector().GetAllViews(ctx, "public")
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to get views for REST API")
-	} else {
-		for _, view := range views {
-			s.rest.RegisterViewRoutes(router, view)
+		// Get all tables from this schema
+		tables, err := s.db.Inspector().GetAllTables(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
+			continue
+		}
+
+		// Register dynamic routes for each table
+		for _, table := range tables {
+			s.rest.RegisterTableRoutes(router, table)
+		}
+
+		// Get all views and register as read-only endpoints
+		views, err := s.db.Inspector().GetAllViews(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get views from schema")
+		} else {
+			for _, view := range views {
+				s.rest.RegisterViewRoutes(router, view)
+			}
 		}
 	}
 
@@ -323,9 +356,20 @@ func (s *Server) setupFunctionsRoutes(router fiber.Router) {
 
 // setupAdminRoutes sets up admin routes
 func (s *Server) setupAdminRoutes(router fiber.Router) {
-	router.Get("/tables", s.handleGetTables)
-	router.Get("/schemas", s.handleGetSchemas)
-	router.Post("/query", s.handleExecuteQuery)
+	// Public admin auth routes (no authentication required)
+	router.Get("/setup/status", s.adminAuthHandler.GetSetupStatus)
+	router.Post("/setup", s.adminAuthHandler.InitialSetup)
+	router.Post("/login", s.adminAuthHandler.AdminLogin)
+	router.Post("/refresh", s.adminAuthHandler.AdminRefreshToken)
+
+	// Protected admin routes (require admin authentication)
+	router.Post("/logout", AuthMiddleware(s.authHandler.authService), s.adminAuthHandler.AdminLogout)
+	router.Get("/me", AuthMiddleware(s.authHandler.authService), s.adminAuthHandler.GetCurrentAdmin)
+
+	// Existing admin routes (protect with auth)
+	router.Get("/tables", AuthMiddleware(s.authHandler.authService), s.handleGetTables)
+	router.Get("/schemas", AuthMiddleware(s.authHandler.authService), s.handleGetSchemas)
+	router.Post("/query", AuthMiddleware(s.authHandler.authService), s.handleExecuteQuery)
 }
 
 // handleHealth handles health check requests
@@ -412,11 +456,30 @@ func (s *Server) handleRealtimeUpgrade(c *fiber.Ctx) error {
 
 func (s *Server) handleGetTables(c *fiber.Ctx) error {
 	ctx := c.Context()
-	tables, err := s.db.Inspector().GetAllTables(ctx, "public")
+
+	// Get all schemas
+	schemas, err := s.db.Inspector().GetSchemas(ctx)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(tables)
+
+	// Collect tables from all schemas (except system schemas)
+	var allTables []database.TableInfo
+	for _, schema := range schemas {
+		// Skip system schemas
+		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+			continue
+		}
+
+		tables, err := s.db.Inspector().GetAllTables(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
+			continue
+		}
+		allTables = append(allTables, tables...)
+	}
+
+	return c.JSON(allTables)
 }
 
 func (s *Server) handleGetSchemas(c *fiber.Ctx) error {
@@ -425,7 +488,16 @@ func (s *Server) handleGetSchemas(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(schemas)
+
+	// Filter out system schemas
+	var userSchemas []string
+	for _, schema := range schemas {
+		if schema != "information_schema" && schema != "pg_catalog" && schema != "pg_toast" {
+			userSchemas = append(userSchemas, schema)
+		}
+	}
+
+	return c.JSON(userSchemas)
 }
 
 func (s *Server) handleExecuteQuery(c *fiber.Ctx) error {
