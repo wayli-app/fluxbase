@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 var (
@@ -24,12 +24,12 @@ var (
 
 // MagicLink represents a passwordless authentication link
 type MagicLink struct {
-	ID        string    `json:"id" db:"id"`
-	Email     string    `json:"email" db:"email"`
-	Token     string    `json:"token" db:"token"`
-	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	ID        string     `json:"id" db:"id"`
+	Email     string     `json:"email" db:"email"`
+	Token     string     `json:"token" db:"token"`
+	ExpiresAt time.Time  `json:"expires_at" db:"expires_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty" db:"used_at"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 }
 
 // MagicLinkRepository handles database operations for magic links
@@ -184,11 +184,11 @@ func GenerateMagicLinkToken() (string, error) {
 
 // MagicLinkService provides magic link functionality
 type MagicLinkService struct {
-	repo          *MagicLinkRepository
-	userRepo      *UserRepository
-	emailSender   EmailSender
-	linkDuration  time.Duration
-	baseURL       string
+	repo         *MagicLinkRepository
+	userRepo     *UserRepository
+	emailSender  EmailSender
+	linkDuration time.Duration
+	baseURL      string
 }
 
 // EmailSender defines the interface for sending emails

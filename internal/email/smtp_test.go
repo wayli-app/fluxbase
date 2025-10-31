@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 func TestNewSMTPService(t *testing.T) {
@@ -358,8 +358,8 @@ func TestEmailConfig_Validate(t *testing.T) {
 		{
 			name: "Mailgun missing API key",
 			cfg: config.EmailConfig{
-				Provider:    "mailgun",
-				FromAddress: "test@example.com",
+				Provider:      "mailgun",
+				FromAddress:   "test@example.com",
 				MailgunDomain: "example.com",
 			},
 			wantErr: true,

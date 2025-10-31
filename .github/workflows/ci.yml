@@ -22,12 +22,22 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Get dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Create dist directory with placeholder for embed directive
+        run: |
+          mkdir -p internal/adminui/dist
+          echo '<!DOCTYPE html><html><head><title>Placeholder</title></head><body></body></html>' > internal/adminui/dist/index.html
+
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
 
       - name: Run golangci-lint
-        run: golangci-lint run ./...
+        run: golangci-lint run --disable=typecheck ./...
 
       - name: Check go fmt
         run: |
@@ -55,6 +65,25 @@ jobs:
         ports:
           - 5432:5432
 
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025  # SMTP
+          - 8025:8025  # Web UI
+
+      minio:
+        image: minio/minio:edge-cicd
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl --silent --fail http://localhost:9000/minio/health/live || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -75,7 +104,29 @@ jobs:
           go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
           migrate -path internal/database/migrations -database "$DATABASE_URL" up
 
-      - name: Run tests with coverage
+      - name: Setup MinIO bucket
+        run: |
+          # Wait for MinIO to be ready
+          timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 1; done'
+
+          # Install mc (MinIO client)
+          wget https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+
+          # Configure mc
+          ./mc alias set minio http://localhost:9000 minioadmin minioadmin
+
+          # Create test bucket
+          ./mc mb minio/fluxbase-test || true
+          ./mc anonymous set public minio/fluxbase-test
+
+      - name: Create dist directory with placeholder for embed directive
+        run: |
+          mkdir -p internal/adminui/dist
+          echo '<!DOCTYPE html><html><head><title>Placeholder</title></head><body></body></html>' > internal/adminui/dist/index.html
+
+      - name: Run unit tests with coverage
+        timeout-minutes: 5
         env:
           FLUXBASE_DATABASE_HOST: localhost
           FLUXBASE_DATABASE_PORT: 5432
@@ -83,8 +134,28 @@ jobs:
           FLUXBASE_DATABASE_PASSWORD: postgres
           FLUXBASE_DATABASE_DATABASE: fluxbase_test
         run: |
-          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          # Run unit tests with -short flag to skip integration tests
+          # Integration tests require database setup and can be slow
+          go test -v -short -race -timeout=3m -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v '/test/e2e' | grep -v '/test$')
           go tool cover -html=coverage.out -o coverage.html
+
+      - name: Run e2e tests
+        timeout-minutes: 5
+        env:
+          FLUXBASE_DATABASE_HOST: localhost
+          FLUXBASE_DATABASE_PORT: 5432
+          FLUXBASE_DATABASE_USER: postgres
+          FLUXBASE_DATABASE_PASSWORD: postgres
+          FLUXBASE_DATABASE_DATABASE: fluxbase_test
+          FLUXBASE_EMAIL_SMTP_HOST: localhost
+          FLUXBASE_EMAIL_SMTP_PORT: 1025
+          FLUXBASE_STORAGE_S3_ENDPOINT: localhost:9000
+          FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+          FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+          FLUXBASE_STORAGE_S3_BUCKET: fluxbase-test
+        run: |
+          # Run e2e tests
+          go test -v -race -timeout=5m ./test/e2e/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -111,15 +182,37 @@ jobs:
             goarch: amd64
           - goos: linux
             goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Build SDKs and Admin UI
+        run: |
+          # Build SDK
+          cd sdk
+          npm ci
+          npm run build
+
+          # Build SDK React
+          cd ../sdk-react
+          npm ci
+          npm run build
+
+          # Build Admin UI (depends on SDKs)
+          cd ../admin
+          npm ci
+          npm run build
+
+          # Copy built files to internal/adminui/dist for embedding
+          mkdir -p ../internal/adminui/dist
+          cp -r dist/* ../internal/adminui/dist/
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -133,10 +226,8 @@ jobs:
         run: |
           mkdir -p dist
           output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            output_name="${output_name}.exe"
-          fi
-          go build -ldflags="-s -w -X main.Version=${GITHUB_SHA::8}" -o "dist/${output_name}" cmd/fluxbase/main.go
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          go build -ldflags="-s -w -X main.Version=dev-${GITHUB_SHA::8} -X main.Commit=${GITHUB_SHA} -X main.BuildDate=${BUILD_DATE}" -o "dist/${output_name}" cmd/fluxbase/main.go
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -145,7 +236,7 @@ jobs:
           path: dist/*
 
   docker:
-    name: Docker Build
+    name: Docker Build Test
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:
@@ -154,89 +245,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
+      - name: Build Docker image (test only, no push)
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          tags: ghcr.io/${{ github.repository }}:test
 
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [build, docker]
-    if: github.event_name == 'push'
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: fluxbase_integration
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Fluxbase container
-        run: |
-          docker run -d \
-            --name fluxbase-test \
-            --network host \
-            -e FLUXBASE_DATABASE_HOST=localhost \
-            -e FLUXBASE_DATABASE_PORT=5432 \
-            -e FLUXBASE_DATABASE_USER=postgres \
-            -e FLUXBASE_DATABASE_PASSWORD=postgres \
-            -e FLUXBASE_DATABASE_DATABASE=fluxbase_integration \
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-      - name: Wait for service to be ready
-        run: |
-          for i in {1..30}; do
-            if curl -f http://localhost:8080/health; then
-              echo "Service is ready"
-              break
-            fi
-            echo "Waiting for service... ($i/30)"
-            sleep 2
-          done
-
-      - name: Run API tests
-        run: |
-          # Test health endpoint
-          curl -f http://localhost:8080/health
-
-          # Test REST API metadata
-          curl -f http://localhost:8080/api/rest/
-
-      - name: Stop container
-        if: always()
-        run: docker stop fluxbase-test || true

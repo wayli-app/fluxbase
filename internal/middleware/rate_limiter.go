@@ -11,10 +11,10 @@ import (
 
 // RateLimiterConfig holds configuration for rate limiting
 type RateLimiterConfig struct {
-	Max        int           // Maximum number of requests
-	Expiration time.Duration // Time window for the rate limit
+	Max        int                     // Maximum number of requests
+	Expiration time.Duration           // Time window for the rate limit
 	KeyFunc    func(*fiber.Ctx) string // Function to generate the key for rate limiting
-	Message    string        // Custom error message
+	Message    string                  // Custom error message
 }
 
 // NewRateLimiter creates a new rate limiter middleware with custom configuration
@@ -38,13 +38,13 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 	}
 
 	return limiter.New(limiter.Config{
-		Max:        config.Max,
-		Expiration: config.Expiration,
+		Max:          config.Max,
+		Expiration:   config.Expiration,
 		KeyGenerator: config.KeyFunc,
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error":      "Rate limit exceeded",
-				"message":    config.Message,
+				"error":       "Rate limit exceeded",
+				"message":     config.Message,
 				"retry_after": int(config.Expiration.Seconds()),
 			})
 		},
@@ -135,7 +135,7 @@ func AuthEmailBasedLimiter(prefix string, max int, expiration time.Duration) fib
 			// Fallback to IP if no email found
 			return prefix + ":" + c.IP()
 		},
-		Message: fmt.Sprintf("Too many requests. Please try again later."),
+		Message: "Too many requests. Please try again later.",
 	})
 }
 

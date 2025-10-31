@@ -11,7 +11,7 @@ import (
 
 // Manager manages all WebSocket connections and subscriptions
 type Manager struct {
-	connections map[string]*Connection // connection ID -> connection
+	connections map[string]*Connection     // connection ID -> connection
 	channels    map[string]map[string]bool // channel -> connection IDs
 	mu          sync.RWMutex
 	ctx         context.Context
@@ -53,15 +53,23 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string)
 // RemoveConnection removes a WebSocket connection
 func (m *Manager) RemoveConnection(id string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	connection, exists := m.connections[id]
 	if !exists {
+		m.mu.Unlock()
 		return
 	}
 
-	// Remove from all channel subscriptions
+	// Get a copy of subscription channels while holding the connection lock
+	connection.mu.RLock()
+	channels := make([]string, 0, len(connection.Subscriptions))
 	for channel := range connection.Subscriptions {
+		channels = append(channels, channel)
+	}
+	connection.mu.RUnlock()
+
+	// Remove from all channel subscriptions
+	for _, channel := range channels {
 		if subscribers, exists := m.channels[channel]; exists {
 			delete(subscribers, id)
 			if len(subscribers) == 0 {
@@ -71,6 +79,10 @@ func (m *Manager) RemoveConnection(id string) {
 	}
 
 	delete(m.connections, id)
+
+	// Release manager lock before closing connection
+	m.mu.Unlock()
+
 	connection.Close()
 
 	log.Info().
@@ -81,10 +93,10 @@ func (m *Manager) RemoveConnection(id string) {
 // Subscribe subscribes a connection to a channel
 func (m *Manager) Subscribe(connectionID string, channel string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	connection, exists := m.connections[connectionID]
 	if !exists {
+		m.mu.Unlock()
 		log.Warn().Str("connection_id", connectionID).Msg("Connection not found")
 		return fmt.Errorf("connection not found")
 	}
@@ -95,7 +107,10 @@ func (m *Manager) Subscribe(connectionID string, channel string) error {
 	}
 	m.channels[channel][connectionID] = true
 
-	// Update connection subscriptions
+	// Release manager lock before acquiring connection lock to avoid deadlock
+	m.mu.Unlock()
+
+	// Update connection subscriptions (done after releasing manager lock)
 	connection.Subscribe(channel)
 
 	return nil
@@ -104,10 +119,10 @@ func (m *Manager) Subscribe(connectionID string, channel string) error {
 // Unsubscribe unsubscribes a connection from a channel
 func (m *Manager) Unsubscribe(connectionID string, channel string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	connection, exists := m.connections[connectionID]
 	if !exists {
+		m.mu.Unlock()
 		return fmt.Errorf("connection not found")
 	}
 
@@ -119,7 +134,10 @@ func (m *Manager) Unsubscribe(connectionID string, channel string) error {
 		}
 	}
 
-	// Update connection subscriptions
+	// Release manager lock before acquiring connection lock to avoid deadlock
+	m.mu.Unlock()
+
+	// Update connection subscriptions (done after releasing manager lock)
 	connection.Unsubscribe(channel)
 
 	return nil
@@ -191,8 +209,8 @@ type ConnectionInfo struct {
 
 // ChannelInfo represents detailed information about a channel
 type ChannelInfo struct {
-	Name          string `json:"name"`
-	SubscriberCount int  `json:"subscriber_count"`
+	Name            string `json:"name"`
+	SubscriberCount int    `json:"subscriber_count"`
 }
 
 // GetDetailedStats returns detailed realtime statistics
@@ -203,10 +221,13 @@ func (m *Manager) GetDetailedStats() map[string]interface{} {
 	// Get connection details
 	connections := make([]ConnectionInfo, 0, len(m.connections))
 	for _, conn := range m.connections {
+		// Acquire connection lock to safely read subscriptions
+		conn.mu.RLock()
 		subscriptions := make([]string, 0, len(conn.Subscriptions))
 		for channel := range conn.Subscriptions {
 			subscriptions = append(subscriptions, channel)
 		}
+		conn.mu.RUnlock()
 
 		remoteAddr := "unknown"
 		if conn.Conn != nil {
@@ -226,7 +247,7 @@ func (m *Manager) GetDetailedStats() map[string]interface{} {
 	channels := make([]ChannelInfo, 0, len(m.channels))
 	for channel, subscribers := range m.channels {
 		channels = append(channels, ChannelInfo{
-			Name:          channel,
+			Name:            channel,
 			SubscriberCount: len(subscribers),
 		})
 	}
@@ -244,13 +265,22 @@ func (m *Manager) Shutdown() {
 	m.cancel()
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	for id, conn := range m.connections {
-		conn.Close()
-		log.Info().Str("connection_id", id).Msg("Closed connection during shutdown")
+	// Collect all connections to close
+	connsToClose := make([]*Connection, 0, len(m.connections))
+	for _, conn := range m.connections {
+		connsToClose = append(connsToClose, conn)
 	}
 
+	// Clear maps while holding the lock
 	m.connections = make(map[string]*Connection)
 	m.channels = make(map[string]map[string]bool)
+
+	m.mu.Unlock()
+
+	// Close connections after releasing the lock to avoid deadlock
+	for _, conn := range connsToClose {
+		conn.Close()
+		log.Info().Str("connection_id", conn.ID).Msg("Closed connection during shutdown")
+	}
 }

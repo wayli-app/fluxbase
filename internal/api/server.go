@@ -4,6 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/adminui"
 	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/wayli-app/fluxbase/internal/config"
@@ -14,13 +21,6 @@ import (
 	"github.com/wayli-app/fluxbase/internal/realtime"
 	"github.com/wayli-app/fluxbase/internal/storage"
 	"github.com/wayli-app/fluxbase/internal/webhook"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
-	"github.com/rs/zerolog/log"
 )
 
 // Server represents the HTTP server
@@ -375,10 +375,10 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	router.Delete("/buckets/:bucket", s.storageHandler.DeleteBucket)
 
 	// File operations
-	router.Post("/:bucket/*", s.storageHandler.UploadFile)          // Upload file
-	router.Get("/:bucket/*", s.storageHandler.DownloadFile)         // Download file
-	router.Delete("/:bucket/*", s.storageHandler.DeleteFile)        // Delete file
-	router.Head("/:bucket/*", s.storageHandler.GetFileInfo)         // Get file metadata
+	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file
+	router.Get("/:bucket/*", s.storageHandler.DownloadFile)  // Download file
+	router.Delete("/:bucket/*", s.storageHandler.DeleteFile) // Delete file
+	router.Head("/:bucket/*", s.storageHandler.GetFileInfo)  // Get file metadata
 
 	// List files in bucket
 	router.Get("/:bucket", s.storageHandler.ListFiles)
@@ -556,6 +556,11 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop realtime listener
+	if s.realtimeListener != nil {
+		s.realtimeListener.Stop()
+	}
+
 	// Stop edge functions scheduler
 	if s.functionsScheduler != nil {
 		s.functionsScheduler.Stop()

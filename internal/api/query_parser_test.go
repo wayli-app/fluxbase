@@ -215,9 +215,9 @@ func TestQueryParser_ParseAggregations(t *testing.T) {
 	parser := NewQueryParser()
 
 	tests := []struct {
-		name                string
-		query               string
-		expectedSelect      []string
+		name                 string
+		query                string
+		expectedSelect       []string
 		expectedAggregations []Aggregation
 	}{
 		{
@@ -310,9 +310,9 @@ func TestQueryParser_ParseGroupBy(t *testing.T) {
 	parser := NewQueryParser()
 
 	tests := []struct {
-		name             string
-		query            string
-		expectedGroupBy  []string
+		name            string
+		query           string
+		expectedGroupBy []string
 	}{
 		{
 			name:            "single group by",
@@ -344,9 +344,9 @@ func TestQueryParser_ParseGroupBy(t *testing.T) {
 
 func TestQueryParams_BuildSelectClause(t *testing.T) {
 	tests := []struct {
-		name         string
-		params       QueryParams
-		expectedSQL  string
+		name        string
+		params      QueryParams
+		expectedSQL string
 	}{
 		{
 			name: "aggregation only - count(*)",
@@ -400,9 +400,9 @@ func TestQueryParams_BuildSelectClause(t *testing.T) {
 
 func TestQueryParams_BuildGroupByClause(t *testing.T) {
 	tests := []struct {
-		name         string
-		params       QueryParams
-		expectedSQL  string
+		name        string
+		params      QueryParams
+		expectedSQL string
 	}{
 		{
 			name: "no group by",
@@ -437,9 +437,9 @@ func TestQueryParams_BuildGroupByClause(t *testing.T) {
 
 func TestAggregation_ToSQL(t *testing.T) {
 	tests := []struct {
-		name         string
-		agg          Aggregation
-		expectedSQL  string
+		name        string
+		agg         Aggregation
+		expectedSQL string
 	}{
 		{
 			name:        "COUNT(*)",

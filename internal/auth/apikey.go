@@ -24,19 +24,19 @@ var (
 
 // APIKey represents an API key
 type APIKey struct {
-	ID                 uuid.UUID   `json:"id"`
-	Name               string      `json:"name"`
-	Description        *string     `json:"description,omitempty"`
-	KeyHash            string      `json:"-"` // Never expose the hash
-	KeyPrefix          string      `json:"key_prefix"`
-	UserID             *uuid.UUID  `json:"user_id,omitempty"`
-	Scopes             []string    `json:"scopes"`
-	RateLimitPerMinute int         `json:"rate_limit_per_minute"`
-	LastUsedAt         *time.Time  `json:"last_used_at,omitempty"`
-	ExpiresAt          *time.Time  `json:"expires_at,omitempty"`
-	RevokedAt          *time.Time  `json:"revoked_at,omitempty"`
-	CreatedAt          time.Time   `json:"created_at"`
-	UpdatedAt          time.Time   `json:"updated_at"`
+	ID                 uuid.UUID  `json:"id"`
+	Name               string     `json:"name"`
+	Description        *string    `json:"description,omitempty"`
+	KeyHash            string     `json:"-"` // Never expose the hash
+	KeyPrefix          string     `json:"key_prefix"`
+	UserID             *uuid.UUID `json:"user_id,omitempty"`
+	Scopes             []string   `json:"scopes"`
+	RateLimitPerMinute int        `json:"rate_limit_per_minute"`
+	LastUsedAt         *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	RevokedAt          *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // APIKeyWithPlaintext includes the plaintext key (only returned once during creation)
@@ -158,10 +158,14 @@ func (s *APIKeyService) ValidateAPIKey(ctx context.Context, plaintextKey string)
 	}
 
 	// Update last used timestamp
-	_, err = s.db.Exec(ctx, "UPDATE auth.api_keys SET last_used_at = NOW() WHERE id = $1", apiKey.ID)
+	now := time.Now()
+	_, err = s.db.Exec(ctx, "UPDATE auth.api_keys SET last_used_at = $1 WHERE id = $2", now, apiKey.ID)
 	if err != nil {
 		// Log but don't fail validation
 		fmt.Printf("Failed to update last_used_at: %v\n", err)
+	} else {
+		// Update the struct with the new timestamp
+		apiKey.LastUsedAt = &now
 	}
 
 	return &apiKey, nil

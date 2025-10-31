@@ -42,18 +42,18 @@ const (
 	OpILike          FilterOperator = "ilike"
 	OpIn             FilterOperator = "in"
 	OpIs             FilterOperator = "is"
-	OpContains       FilterOperator = "cs"     // contains (array/jsonb) @>
-	OpContained      FilterOperator = "cd"     // contained by (array/jsonb) <@
-	OpOverlap        FilterOperator = "ov"     // overlap (array) &&
-	OpTextSearch     FilterOperator = "fts"    // full text search
-	OpPhraseSearch   FilterOperator = "plfts"  // phrase search
-	OpWebSearch      FilterOperator = "wfts"   // web search
-	OpNot            FilterOperator = "not"    // negation
-	OpAdjacent       FilterOperator = "adj"    // adjacent range <<
-	OpStrictlyLeft   FilterOperator = "sl"     // strictly left of <<
-	OpStrictlyRight  FilterOperator = "sr"     // strictly right of >>
-	OpNotExtendRight FilterOperator = "nxr"    // does not extend to right &<
-	OpNotExtendLeft  FilterOperator = "nxl"    // does not extend to left &>
+	OpContains       FilterOperator = "cs"    // contains (array/jsonb) @>
+	OpContained      FilterOperator = "cd"    // contained by (array/jsonb) <@
+	OpOverlap        FilterOperator = "ov"    // overlap (array) &&
+	OpTextSearch     FilterOperator = "fts"   // full text search
+	OpPhraseSearch   FilterOperator = "plfts" // phrase search
+	OpWebSearch      FilterOperator = "wfts"  // web search
+	OpNot            FilterOperator = "not"   // negation
+	OpAdjacent       FilterOperator = "adj"   // adjacent range <<
+	OpStrictlyLeft   FilterOperator = "sl"    // strictly left of <<
+	OpStrictlyRight  FilterOperator = "sr"    // strictly right of >>
+	OpNotExtendRight FilterOperator = "nxr"   // does not extend to right &<
+	OpNotExtendLeft  FilterOperator = "nxl"   // does not extend to left &>
 )
 
 // OrderBy represents an ORDER BY clause
@@ -91,11 +91,11 @@ type Aggregation struct {
 type AggregateFunction string
 
 const (
-	AggCount   AggregateFunction = "count"
-	AggSum     AggregateFunction = "sum"
-	AggAvg     AggregateFunction = "avg"
-	AggMin     AggregateFunction = "min"
-	AggMax     AggregateFunction = "max"
+	AggCount    AggregateFunction = "count"
+	AggSum      AggregateFunction = "sum"
+	AggAvg      AggregateFunction = "avg"
+	AggMin      AggregateFunction = "min"
+	AggMax      AggregateFunction = "max"
 	AggCountAll AggregateFunction = "count(*)"
 )
 

@@ -20,29 +20,29 @@ var (
 // TokenClaims represents the JWT claims
 type TokenClaims struct {
 	UserID      string `json:"user_id"`
-	Email       string `json:"email,omitempty"`      // Empty for anonymous users
+	Email       string `json:"email,omitempty"` // Empty for anonymous users
 	Role        string `json:"role,omitempty"`
-	SessionID   string `json:"session_id,omitempty"` // Empty for anonymous users (no session)
-	TokenType   string `json:"token_type"`           // "access" or "refresh"
+	SessionID   string `json:"session_id,omitempty"`   // Empty for anonymous users (no session)
+	TokenType   string `json:"token_type"`             // "access" or "refresh"
 	IsAnonymous bool   `json:"is_anonymous,omitempty"` // True for anonymous users
 	jwt.RegisteredClaims
 }
 
 // JWTManager handles JWT token operations
 type JWTManager struct {
-	secretKey        []byte
-	accessTokenTTL   time.Duration
-	refreshTokenTTL  time.Duration
-	issuer           string
+	secretKey       []byte
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
+	issuer          string
 }
 
 // NewJWTManager creates a new JWT manager
 func NewJWTManager(secretKey string, accessTTL, refreshTTL time.Duration) *JWTManager {
 	return &JWTManager{
-		secretKey:        []byte(secretKey),
-		accessTokenTTL:   accessTTL,
-		refreshTokenTTL:  refreshTTL,
-		issuer:           "fluxbase",
+		secretKey:       []byte(secretKey),
+		accessTokenTTL:  accessTTL,
+		refreshTokenTTL: refreshTTL,
+		issuer:          "fluxbase",
 	}
 }
 
@@ -217,9 +217,9 @@ func (m *JWTManager) GenerateAnonymousAccessToken(userID string) (string, error)
 
 	claims := &TokenClaims{
 		UserID:      userID,
-		Email:       "",      // No email for anonymous users
+		Email:       "",     // No email for anonymous users
 		Role:        "anon", // Anonymous role
-		SessionID:   "",      // No session for anonymous users
+		SessionID:   "",     // No session for anonymous users
 		TokenType:   "access",
 		IsAnonymous: true,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -247,9 +247,9 @@ func (m *JWTManager) GenerateAnonymousRefreshToken(userID string) (string, error
 
 	claims := &TokenClaims{
 		UserID:      userID,
-		Email:       "",      // No email for anonymous users
+		Email:       "",     // No email for anonymous users
 		Role:        "anon", // Anonymous role
-		SessionID:   "",      // No session for anonymous users
+		SessionID:   "",     // No session for anonymous users
 		TokenType:   "refresh",
 		IsAnonymous: true,
 		RegisteredClaims: jwt.RegisteredClaims{

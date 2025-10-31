@@ -2,8 +2,8 @@ package api
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // AuthHandler handles authentication HTTP requests
@@ -384,7 +384,7 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/magiclink", rateLimiters["magiclink"], h.SendMagicLink)
 	router.Post("/magiclink/verify", h.VerifyMagicLink) // No rate limit on verification
 	router.Post("/password/reset", rateLimiters["password_reset"], h.RequestPasswordReset)
-	router.Post("/password/reset/confirm", h.ResetPassword) // No rate limit on actual reset (token is single-use)
+	router.Post("/password/reset/confirm", h.ResetPassword)           // No rate limit on actual reset (token is single-use)
 	router.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
 
 	// Protected routes (authentication required) - lighter rate limits

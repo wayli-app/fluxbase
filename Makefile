@@ -74,10 +74,25 @@ clean: ## Clean build artifacts
 	@rm -rf internal/adminui/dist
 	@echo "${GREEN}Clean complete!${NC}"
 
-test: ## Run all tests
-	@echo "${YELLOW}Running tests...${NC}"
-	@go test -v -race -cover ./...
+test: ## Run all tests with race detector (short mode - skips slow tests)
+	@echo "${YELLOW}Running tests with race detector (short mode)...${NC}"
+	@go test -timeout 2m -v -race -short -cover ./...
 	@echo "${GREEN}Tests complete!${NC}"
+
+test-fast: ## Run all tests without race detector (faster)
+	@echo "${YELLOW}Running tests (fast mode)...${NC}"
+	@go test -timeout 1m -v -short -cover ./...
+	@echo "${GREEN}Tests complete!${NC}"
+
+test-full: ## Run ALL tests including slow ones (may take 5-10 minutes)
+	@echo "${YELLOW}Running full test suite with race detector...${NC}"
+	@go test -timeout 15m -v -race -cover ./...
+	@echo "${GREEN}Full test suite complete!${NC}"
+
+test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
+	@echo "${YELLOW}Running e2e tests...${NC}"
+	@go test -v -race -timeout=5m ./test/e2e/...
+	@echo "${GREEN}E2E tests complete!${NC}"
 
 deps: ## Install Go dependencies
 	@echo "${YELLOW}Installing dependencies...${NC}"

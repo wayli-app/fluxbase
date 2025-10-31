@@ -6,10 +6,10 @@ import (
 	"net"
 	"strings"
 
-	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // DashboardAuthHandler handles dashboard authentication endpoints

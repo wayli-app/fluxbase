@@ -20,26 +20,26 @@ import (
 
 // Webhook represents a webhook configuration
 type Webhook struct {
-	ID                  uuid.UUID              `json:"id"`
-	Name                string                 `json:"name"`
-	Description         *string                `json:"description,omitempty"`
-	URL                 string                 `json:"url"`
-	Secret              *string                `json:"secret,omitempty"`
-	Enabled             bool                   `json:"enabled"`
-	Events              []EventConfig          `json:"events"`
-	MaxRetries          int                    `json:"max_retries"`
-	RetryBackoffSeconds int                    `json:"retry_backoff_seconds"`
-	TimeoutSeconds      int                    `json:"timeout_seconds"`
-	Headers             map[string]string      `json:"headers"`
-	CreatedBy           *uuid.UUID             `json:"created_by,omitempty"`
-	CreatedAt           time.Time              `json:"created_at"`
-	UpdatedAt           time.Time              `json:"updated_at"`
+	ID                  uuid.UUID         `json:"id"`
+	Name                string            `json:"name"`
+	Description         *string           `json:"description,omitempty"`
+	URL                 string            `json:"url"`
+	Secret              *string           `json:"secret,omitempty"`
+	Enabled             bool              `json:"enabled"`
+	Events              []EventConfig     `json:"events"`
+	MaxRetries          int               `json:"max_retries"`
+	RetryBackoffSeconds int               `json:"retry_backoff_seconds"`
+	TimeoutSeconds      int               `json:"timeout_seconds"`
+	Headers             map[string]string `json:"headers"`
+	CreatedBy           *uuid.UUID        `json:"created_by,omitempty"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
 // EventConfig represents events a webhook subscribes to
 type EventConfig struct {
-	Table      string   `json:"table"`       // e.g., "products", "users"
-	Operations []string `json:"operations"`  // INSERT, UPDATE, DELETE
+	Table      string   `json:"table"`      // e.g., "products", "users"
+	Operations []string `json:"operations"` // INSERT, UPDATE, DELETE
 }
 
 // WebhookDelivery represents a webhook delivery attempt
@@ -62,12 +62,12 @@ type WebhookDelivery struct {
 
 // WebhookPayload represents the payload sent to webhooks
 type WebhookPayload struct {
-	Event      string          `json:"event"`       // INSERT, UPDATE, DELETE
-	Table      string          `json:"table"`       // table name
-	Schema     string          `json:"schema"`      // schema name
-	Record     json.RawMessage `json:"record"`      // new record data
-	OldRecord  json.RawMessage `json:"old_record,omitempty"` // old record (for UPDATE/DELETE)
-	Timestamp  time.Time       `json:"timestamp"`
+	Event     string          `json:"event"`                // INSERT, UPDATE, DELETE
+	Table     string          `json:"table"`                // table name
+	Schema    string          `json:"schema"`               // schema name
+	Record    json.RawMessage `json:"record"`               // new record data
+	OldRecord json.RawMessage `json:"old_record,omitempty"` // old record (for UPDATE/DELETE)
+	Timestamp time.Time       `json:"timestamp"`
 }
 
 // WebhookService manages webhooks

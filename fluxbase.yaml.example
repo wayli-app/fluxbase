@@ -1,0 +1,59 @@
+# Fluxbase Configuration
+# This file is optional - all settings can be configured via environment variables
+
+# Server configuration
+server:
+  host: "0.0.0.0"
+  port: 8080
+  body_limit: 2147483648  # 2GB
+
+# Database configuration (can be overridden by DATABASE_URL env var)
+database:
+  url: "postgresql://postgres:postgres@localhost:5432/fluxbase?sslmode=disable"
+  max_connections: 100
+  max_idle_connections: 10
+  connection_max_lifetime: "1h"
+
+# JWT configuration
+jwt:
+  secret: ""  # Will use FLUXBASE_JWT_SECRET env var
+  expiry: "24h"
+  refresh_expiry: "168h"  # 7 days
+
+# Storage configuration  
+storage:
+  driver: "local"  # Options: local, s3
+  local:
+    base_path: "./storage"
+  max_upload_size: 2147483648  # 2GB
+
+# Realtime configuration
+realtime:
+  enabled: true
+  max_connections: 1000
+  ping_interval: "30s"
+
+# Admin UI
+admin:
+  enabled: true
+  
+# Logging
+log:
+  level: "info"  # Options: debug, info, warn, error
+  format: "console"  # Options: console, json
+
+# Security settings (Sprint 7)
+security:
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 100  # Global API rate limit per IP
+  # CSRF protection
+  csrf:
+    enabled: false  # Enable for browser-based applications
+    cookie_secure: false  # Set to true in production with HTTPS
+  # Request limits
+  request_limits:
+    max_body_size_mb: 2048  # 2GB (matches server.body_limit)
+    max_url_length: 8192
+    max_header_size: 16384

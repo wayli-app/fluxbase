@@ -8,14 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/internal/api"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/gofiber/fiber/v2"
-	"github.com/stretchr/testify/require"
 )
 
 // TestContext holds all testing dependencies
@@ -42,7 +43,11 @@ func NewTestContext(t *testing.T) *TestContext {
 	err = db.Health(ctx)
 	require.NoError(t, err, "Database is not healthy")
 
-	// Create server
+	// Run migrations BEFORE creating server so REST API can discover tables
+	err = db.Migrate()
+	require.NoError(t, err, "Failed to run migrations")
+
+	// Create server (REST API will now see all migrated tables)
 	server := api.NewServer(cfg, db)
 
 	return &TestContext{
@@ -56,6 +61,14 @@ func NewTestContext(t *testing.T) *TestContext {
 
 // Close cleans up test context resources
 func (tc *TestContext) Close() {
+	// Shutdown the server first to stop all background goroutines
+	if tc.Server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tc.Server.Shutdown(ctx)
+	}
+
+	// Then close the database connection
 	if tc.DB != nil {
 		tc.DB.Close()
 	}
@@ -90,8 +103,21 @@ func (tc *TestContext) DropTestTable(tableName string) {
 	require.NoError(tc.T, err)
 }
 
+// getEnvOrDefault gets an environment variable or returns a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 // GetTestConfig returns a test configuration
 func GetTestConfig() *config.Config {
+	// Allow environment variables to override defaults for CI
+	dbHost := getEnvOrDefault("FLUXBASE_DATABASE_HOST", "postgres")
+	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
+	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
+
 	return &config.Config{
 		Server: config.ServerConfig{
 			Address:      ":8081",
@@ -101,7 +127,7 @@ func GetTestConfig() *config.Config {
 			BodyLimit:    10 * 1024 * 1024,
 		},
 		Database: config.DatabaseConfig{
-			Host:            "postgres",
+			Host:            dbHost,
 			Port:            5432,
 			User:            "postgres",
 			Password:        "postgres",
@@ -132,6 +158,18 @@ func GetTestConfig() *config.Config {
 			Provider:      "local",
 			LocalPath:     "/tmp/fluxbase-test-storage",
 			MaxUploadSize: 100 * 1024 * 1024, // 100MB
+			S3Endpoint:    s3Endpoint,
+			S3AccessKey:   "minioadmin",
+			S3SecretKey:   "minioadmin",
+			S3Bucket:      "fluxbase-test",
+			S3Region:      "us-east-1",
+		},
+		Email: config.EmailConfig{
+			Enabled:     true,
+			SMTPHost:    smtpHost,
+			SMTPPort:    1025,
+			FromAddress: "test@fluxbase.test",
+			FromName:    "Fluxbase Test",
 		},
 		Debug: true,
 	}
@@ -139,10 +177,10 @@ func GetTestConfig() *config.Config {
 
 // APIRequest is a helper for making HTTP requests to the test server
 type APIRequest struct {
-	tc     *TestContext
-	method string
-	path   string
-	body   interface{}
+	tc      *TestContext
+	method  string
+	path    string
+	body    interface{}
 	headers map[string]string
 }
 
@@ -196,8 +234,8 @@ func (r *APIRequest) Send() *APIResponse {
 		req.Header.Set(key, value)
 	}
 
-	// Execute request
-	resp, err := r.tc.App.Test(req, -1) // -1 means no timeout
+	// Execute request with 5 second timeout
+	resp, err := r.tc.App.Test(req, 5000) // 5 second timeout
 	require.NoError(r.tc.T, err)
 
 	return &APIResponse{
@@ -345,4 +383,265 @@ func (tc *TestContext) QuerySQL(sql string, args ...interface{}) []map[string]in
 	}
 
 	return results
+}
+
+// RunMigrations runs database migrations
+func (tc *TestContext) RunMigrations() {
+	err := tc.DB.Migrate()
+	require.NoError(tc.T, err, "Failed to run migrations")
+}
+
+// CreateTestUser creates a test user with email and password, returns userID and JWT token
+func (tc *TestContext) CreateTestUser(email, password string) (userID, token string) {
+	// First, signup the user
+	signupResp := tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    email,
+			"password": password,
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var signupResult map[string]interface{}
+	signupResp.JSON(&signupResult)
+
+	// Extract user ID and token
+	if user, ok := signupResult["user"].(map[string]interface{}); ok {
+		if id, ok := user["id"].(string); ok {
+			userID = id
+		}
+	}
+
+	if accessToken, ok := signupResult["access_token"].(string); ok {
+		token = accessToken
+	}
+
+	require.NotEmpty(tc.T, userID, "User ID not returned from signup")
+	require.NotEmpty(tc.T, token, "Access token not returned from signup")
+
+	return userID, token
+}
+
+// GetAuthToken signs in with email/password and returns JWT token
+func (tc *TestContext) GetAuthToken(email, password string) string {
+	resp := tc.NewRequest("POST", "/api/v1/auth/signin").
+		WithBody(map[string]interface{}{
+			"email":    email,
+			"password": password,
+		}).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	var result map[string]interface{}
+	resp.JSON(&result)
+
+	token, ok := result["access_token"].(string)
+	require.True(tc.T, ok, "access_token not found in signin response")
+	require.NotEmpty(tc.T, token, "access_token is empty")
+
+	return token
+}
+
+// EnsureAuthSchema ensures auth schema and tables exist
+func (tc *TestContext) EnsureAuthSchema() {
+	ctx := context.Background()
+
+	queries := []string{
+		`CREATE SCHEMA IF NOT EXISTS auth`,
+		`CREATE TABLE IF NOT EXISTS auth.users (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			email TEXT UNIQUE NOT NULL,
+			encrypted_password TEXT,
+			email_confirmed_at TIMESTAMPTZ,
+			confirmation_token TEXT,
+			confirmation_sent_at TIMESTAMPTZ,
+			recovery_token TEXT,
+			recovery_sent_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS auth.sessions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+			refresh_token TEXT NOT NULL,
+			expires_at TIMESTAMPTZ NOT NULL,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	}
+
+	for _, query := range queries {
+		_, err := tc.DB.Exec(ctx, query)
+		require.NoError(tc.T, err, "Failed to create auth schema")
+	}
+}
+
+// EnsureStorageSchema ensures storage schema and tables exist
+func (tc *TestContext) EnsureStorageSchema() {
+	ctx := context.Background()
+
+	queries := []string{
+		`CREATE SCHEMA IF NOT EXISTS storage`,
+		`CREATE TABLE IF NOT EXISTS storage.buckets (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT UNIQUE NOT NULL,
+			public BOOLEAN DEFAULT false,
+			file_size_limit BIGINT,
+			allowed_mime_types TEXT[],
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS storage.objects (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			bucket_id UUID REFERENCES storage.buckets(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			owner UUID,
+			bucket_name TEXT,
+			size BIGINT,
+			mime_type TEXT,
+			etag TEXT,
+			metadata JSONB DEFAULT '{}'::jsonb,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			UNIQUE(bucket_id, name)
+		)`,
+	}
+
+	for _, query := range queries {
+		_, err := tc.DB.Exec(ctx, query)
+		require.NoError(tc.T, err, "Failed to create storage schema")
+	}
+}
+
+// EnsureFunctionsSchema ensures functions schema and tables exist
+func (tc *TestContext) EnsureFunctionsSchema() {
+	ctx := context.Background()
+
+	queries := []string{
+		`CREATE SCHEMA IF NOT EXISTS functions`,
+		`CREATE TABLE IF NOT EXISTS functions.functions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT UNIQUE NOT NULL,
+			body TEXT NOT NULL,
+			enabled BOOLEAN DEFAULT true,
+			timeout_ms INTEGER DEFAULT 5000,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	}
+
+	for _, query := range queries {
+		_, err := tc.DB.Exec(ctx, query)
+		require.NoError(tc.T, err, "Failed to create functions schema")
+	}
+}
+
+// MailHogMessage represents an email message from MailHog
+type MailHogMessage struct {
+	ID   string `json:"ID"`
+	From struct {
+		Mailbox string `json:"Mailbox"`
+		Domain  string `json:"Domain"`
+	} `json:"From"`
+	To []struct {
+		Mailbox string `json:"Mailbox"`
+		Domain  string `json:"Domain"`
+	} `json:"To"`
+	Content struct {
+		Headers map[string][]string `json:"Headers"`
+		Body    string              `json:"Body"`
+	} `json:"Content"`
+	Created time.Time `json:"Created"`
+}
+
+// MailHogResponse represents the MailHog API response
+type MailHogResponse struct {
+	Total    int              `json:"total"`
+	Count    int              `json:"count"`
+	Start    int              `json:"start"`
+	Messages []MailHogMessage `json:"items"`
+}
+
+// GetMailHogEmails queries the MailHog API for sent emails
+func (tc *TestContext) GetMailHogEmails() ([]MailHogMessage, error) {
+	// Query MailHog API
+	mailhogURL := "http://mailhog:8025/api/v2/messages"
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(mailhogURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query MailHog: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("MailHog returned status %d", resp.StatusCode)
+	}
+
+	var mailhogResp MailHogResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mailhogResp); err != nil {
+		return nil, fmt.Errorf("failed to decode MailHog response: %w", err)
+	}
+
+	return mailhogResp.Messages, nil
+}
+
+// ClearMailHogEmails deletes all emails from MailHog
+func (tc *TestContext) ClearMailHogEmails() error {
+	mailhogURL := "http://mailhog:8025/api/v1/messages"
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, err := http.NewRequest(http.MethodDelete, mailhogURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete MailHog messages: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("MailHog delete returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// CleanupStorageFiles deletes test files from local and MinIO storage
+func (tc *TestContext) CleanupStorageFiles() {
+	// Clean up local storage
+	if tc.Config.Storage.Provider == "local" || tc.Config.Storage.LocalPath != "" {
+		localPath := tc.Config.Storage.LocalPath
+		if localPath != "" && localPath != "/" {
+			os.RemoveAll(localPath)
+		}
+	}
+
+	// Clean up MinIO storage - no cleanup needed for now
+	// S3 buckets are ephemeral in test environment
+
+	// Also clean up storage metadata from database
+	ctx := context.Background()
+	_, _ = tc.DB.Exec(ctx, "TRUNCATE TABLE storage.objects CASCADE")
+	_, _ = tc.DB.Exec(ctx, "TRUNCATE TABLE storage.buckets CASCADE")
+}
+
+// WaitForEmail waits for an email to arrive in MailHog matching a filter
+func (tc *TestContext) WaitForEmail(timeout time.Duration, filter func(MailHogMessage) bool) *MailHogMessage {
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		emails, err := tc.GetMailHogEmails()
+		if err == nil {
+			for _, email := range emails {
+				if filter(email) {
+					return &email
+				}
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return nil
 }

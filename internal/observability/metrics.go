@@ -13,10 +13,10 @@ import (
 // Metrics holds all Prometheus metrics for Fluxbase
 type Metrics struct {
 	// HTTP metrics
-	httpRequestsTotal   *prometheus.CounterVec
-	httpRequestDuration *prometheus.HistogramVec
-	httpRequestSize     *prometheus.HistogramVec
-	httpResponseSize    *prometheus.HistogramVec
+	httpRequestsTotal    *prometheus.CounterVec
+	httpRequestDuration  *prometheus.HistogramVec
+	httpRequestSize      *prometheus.HistogramVec
+	httpResponseSize     *prometheus.HistogramVec
 	httpRequestsInFlight prometheus.Gauge
 
 	// Database metrics
@@ -34,8 +34,8 @@ type Metrics struct {
 	realtimeConnectionErrors *prometheus.CounterVec
 
 	// Storage metrics
-	storageBytesTotal      *prometheus.CounterVec
-	storageOperationsTotal *prometheus.CounterVec
+	storageBytesTotal        *prometheus.CounterVec
+	storageOperationsTotal   *prometheus.CounterVec
 	storageOperationDuration *prometheus.HistogramVec
 
 	// Auth metrics

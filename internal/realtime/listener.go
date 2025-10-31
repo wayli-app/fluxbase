@@ -13,10 +13,10 @@ import (
 
 // ChangeEvent represents a database change event
 type ChangeEvent struct {
-	Type      string                 `json:"type"`      // INSERT, UPDATE, DELETE
-	Table     string                 `json:"table"`     // Table name
-	Schema    string                 `json:"schema"`    // Schema name
-	Record    map[string]interface{} `json:"record"`    // New record data
+	Type      string                 `json:"type"`                 // INSERT, UPDATE, DELETE
+	Table     string                 `json:"table"`                // Table name
+	Schema    string                 `json:"schema"`               // Schema name
+	Record    map[string]interface{} `json:"record"`               // New record data
 	OldRecord map[string]interface{} `json:"old_record,omitempty"` // Old record data (for UPDATE/DELETE)
 }
 

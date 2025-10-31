@@ -12,7 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./example/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql
     networks:
       - fluxbase-network
     healthcheck:

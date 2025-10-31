@@ -111,11 +111,11 @@ type EmailConfig struct {
 	SESRegion    string `mapstructure:"ses_region"`
 
 	// Templates
-	MagicLinkTemplate      string        `mapstructure:"magic_link_template"`
-	VerificationTemplate   string        `mapstructure:"verification_template"`
-	PasswordResetTemplate  string        `mapstructure:"password_reset_template"`
-	MagicLinkExpiry        time.Duration `mapstructure:"magic_link_expiry"`
-	PasswordResetExpiry    time.Duration `mapstructure:"password_reset_expiry"`
+	MagicLinkTemplate     string        `mapstructure:"magic_link_template"`
+	VerificationTemplate  string        `mapstructure:"verification_template"`
+	PasswordResetTemplate string        `mapstructure:"password_reset_template"`
+	MagicLinkExpiry       time.Duration `mapstructure:"magic_link_expiry"`
+	PasswordResetExpiry   time.Duration `mapstructure:"password_reset_expiry"`
 }
 
 // Load loads configuration from file and environment variables
@@ -262,7 +262,7 @@ func (c *Config) Validate() error {
 
 	if c.Storage.Provider == "s3" {
 		if c.Storage.S3Endpoint == "" || c.Storage.S3AccessKey == "" ||
-		   c.Storage.S3SecretKey == "" || c.Storage.S3Bucket == "" {
+			c.Storage.S3SecretKey == "" || c.Storage.S3Bucket == "" {
 			return fmt.Errorf("S3 configuration is incomplete")
 		}
 	}

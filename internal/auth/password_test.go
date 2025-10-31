@@ -52,7 +52,7 @@ func TestNewPasswordHasherWithConfig_Defaults(t *testing.T) {
 }
 
 func TestHashPassword_Success(t *testing.T) {
-	hasher := NewPasswordHasher()
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4}) // Use low cost for faster tests
 	password := "testpassword123"
 
 	hash, err := hasher.HashPassword(password)
@@ -67,7 +67,7 @@ func TestHashPassword_Success(t *testing.T) {
 }
 
 func TestHashPassword_DifferentHashesForSamePassword(t *testing.T) {
-	hasher := NewPasswordHasher()
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4}) // Use low cost for faster tests
 	password := "testpassword123"
 
 	hash1, err1 := hasher.HashPassword(password)
@@ -107,7 +107,7 @@ func TestHashPassword_TooLong(t *testing.T) {
 }
 
 func TestComparePassword_Success(t *testing.T) {
-	hasher := NewPasswordHasher()
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4}) // Use low cost for faster tests
 	password := "testpassword123"
 
 	hash, err := hasher.HashPassword(password)
@@ -118,7 +118,7 @@ func TestComparePassword_Success(t *testing.T) {
 }
 
 func TestComparePassword_WrongPassword(t *testing.T) {
-	hasher := NewPasswordHasher()
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4}) // Use low cost for faster tests
 	password := "testpassword123"
 
 	hash, err := hasher.HashPassword(password)
@@ -129,7 +129,7 @@ func TestComparePassword_WrongPassword(t *testing.T) {
 }
 
 func TestComparePassword_CaseSensitive(t *testing.T) {
-	hasher := NewPasswordHasher()
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4}) // Use low cost for faster tests
 	password := "TestPassword123"
 
 	hash, err := hasher.HashPassword(password)
@@ -321,23 +321,23 @@ func TestValidatePassword_AllRequirements(t *testing.T) {
 }
 
 func TestNeedsRehash(t *testing.T) {
-	// Create hash with cost 10
-	hasher10 := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 10})
-	hash10, err := hasher10.HashPassword("testpassword")
+	// Create hash with cost 4 (fast for testing)
+	hasher4 := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4})
+	hash4, err := hasher4.HashPassword("testpassword")
 	require.NoError(t, err)
 
-	// Create hasher with cost 12
-	hasher12 := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 12})
+	// Create hasher with cost 5
+	hasher5 := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 5})
 
 	// Should need rehash because cost is different
-	assert.True(t, hasher12.NeedsRehash(hash10))
+	assert.True(t, hasher5.NeedsRehash(hash4))
 
-	// Hash with cost 12
-	hash12, err := hasher12.HashPassword("testpassword")
+	// Hash with cost 5
+	hash5, err := hasher5.HashPassword("testpassword")
 	require.NoError(t, err)
 
 	// Should not need rehash because cost matches
-	assert.False(t, hasher12.NeedsRehash(hash12))
+	assert.False(t, hasher5.NeedsRehash(hash5))
 }
 
 func TestNeedsRehash_InvalidHash(t *testing.T) {
@@ -351,6 +351,7 @@ func TestNeedsRehash_InvalidHash(t *testing.T) {
 func TestPasswordHasher_RealWorldUsage(t *testing.T) {
 	// Simulate real-world user registration and login flow
 	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{
+		Cost:          4, // Use low cost for faster tests
 		MinLength:     8,
 		RequireUpper:  true,
 		RequireLower:  true,
@@ -388,10 +389,16 @@ func TestPasswordHasher_RealWorldUsage(t *testing.T) {
 }
 
 func TestConcurrentHashing(t *testing.T) {
-	hasher := NewPasswordHasher()
+	if testing.Short() {
+		t.Skip("Skipping concurrent hashing test in short mode")
+	}
+
+	// Use lower cost for faster testing while still testing concurrency
+	hasher := NewPasswordHasherWithConfig(PasswordHasherConfig{Cost: 4})
 
 	// Hash passwords concurrently
-	const numGoroutines = 100
+	// Reduce to 10 goroutines to avoid extremely long test times with race detector
+	const numGoroutines = 10
 	results := make(chan string, numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {

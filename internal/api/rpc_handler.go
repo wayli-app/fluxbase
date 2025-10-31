@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/database"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // RPCHandler handles RPC (Remote Procedure Call) endpoints for PostgreSQL functions
@@ -85,9 +85,9 @@ func (h *RPCHandler) ListFunctions(c *fiber.Ctx) error {
 func (h *RPCHandler) isInternalFunction(fn database.FunctionInfo) bool {
 	// List of internal function prefixes that should be filtered out
 	internalPrefixes := []string{
-		"gin_",           // GIN index functions
-		"gtrgm_",         // pg_trgm extension functions
-		"uuid_ns_",       // UUID namespace functions (usually internal)
+		"gin_",     // GIN index functions
+		"gtrgm_",   // pg_trgm extension functions
+		"uuid_ns_", // UUID namespace functions (usually internal)
 	}
 
 	// List of internal function names that should be filtered out

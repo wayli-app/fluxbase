@@ -52,8 +52,8 @@ RUN go mod download && go mod verify
 # Copy source code
 COPY . .
 
-# Copy built admin UI from previous stage
-COPY --from=admin-builder /build/admin/dist ./admin/dist
+# Copy built admin UI from previous stage to the embed location
+COPY --from=admin-builder /build/admin/dist ./internal/adminui/dist
 
 # Build arguments for versioning
 ARG VERSION=dev
@@ -100,8 +100,8 @@ COPY --from=go-builder /build/fluxbase /app/fluxbase
 # Copy migrations (embedded in binary but also available as files)
 COPY --from=go-builder /build/internal/database/migrations /app/migrations
 
-# Copy example configuration
-COPY fluxbase.yaml /app/fluxbase.yaml.example
+# Copy example configuration from builder stage
+COPY --from=go-builder /build/fluxbase.yaml.example /app/fluxbase.yaml.example
 
 # Create necessary directories
 RUN mkdir -p /app/storage /app/config /app/data /app/logs && \

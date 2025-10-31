@@ -39,12 +39,12 @@ type ColumnInfo struct {
 
 // ForeignKey represents a foreign key relationship
 type ForeignKey struct {
-	Name            string `json:"name"`
-	ColumnName      string `json:"column_name"`
-	ReferencedTable string `json:"referenced_table"`
+	Name             string `json:"name"`
+	ColumnName       string `json:"column_name"`
+	ReferencedTable  string `json:"referenced_table"`
 	ReferencedColumn string `json:"referenced_column"`
-	OnDelete        string `json:"on_delete"`
-	OnUpdate        string `json:"on_update"`
+	OnDelete         string `json:"on_delete"`
+	OnUpdate         string `json:"on_update"`
 }
 
 // IndexInfo represents an index on a table

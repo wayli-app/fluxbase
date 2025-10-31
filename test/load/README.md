@@ -32,11 +32,6 @@ sudo apt-get update
 sudo apt-get install k6
 ```
 
-**Windows**:
-```powershell
-choco install k6
-```
-
 **Docker**:
 ```bash
 docker pull grafana/k6

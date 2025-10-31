@@ -1,3 +1,4 @@
+//nolint:errcheck // Test code - error handling not critical
 package realtime
 
 import (

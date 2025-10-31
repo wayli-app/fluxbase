@@ -298,9 +298,6 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o fluxbase cmd/fluxbase/main.
 
 # macOS
 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o fluxbase cmd/fluxbase/main.go
-
-# Windows
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o fluxbase.exe cmd/fluxbase/main.go
 ```
 
 ### Docker Deployment

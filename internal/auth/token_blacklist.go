@@ -17,12 +17,12 @@ var (
 
 // TokenBlacklistEntry represents a blacklisted token
 type TokenBlacklistEntry struct {
-	ID         string     `json:"id" db:"id"`
-	TokenJTI   string     `json:"token_jti" db:"token_jti"`
-	UserID     string     `json:"user_id" db:"user_id"`
-	Reason     string     `json:"reason" db:"reason"`
-	RevokedAt  time.Time  `json:"revoked_at" db:"revoked_at"`
-	ExpiresAt  time.Time  `json:"expires_at" db:"expires_at"`
+	ID        string    `json:"id" db:"id"`
+	TokenJTI  string    `json:"token_jti" db:"token_jti"`
+	UserID    string    `json:"user_id" db:"user_id"`
+	Reason    string    `json:"reason" db:"reason"`
+	RevokedAt time.Time `json:"revoked_at" db:"revoked_at"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
 }
 
 // TokenBlacklistRepository handles database operations for token blacklist

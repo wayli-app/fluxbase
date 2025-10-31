@@ -152,6 +152,7 @@ func (s *SMTPService) renderMagicLinkTemplate(link, token string) string {
 	if s.config.MagicLinkTemplate != "" {
 		// Load custom template if provided
 		// TODO: Implement custom template loading
+		_ = s.config.MagicLinkTemplate // nolint:staticcheck // Placeholder for future implementation
 	}
 
 	// Use default template
@@ -187,6 +188,7 @@ func (s *SMTPService) renderVerificationTemplate(link, token string) string {
 	if s.config.VerificationTemplate != "" {
 		// Load custom template if provided
 		// TODO: Implement custom template loading
+		_ = s.config.VerificationTemplate // nolint:staticcheck // Placeholder for future implementation
 	}
 
 	// Use default template
@@ -220,6 +222,7 @@ func (s *SMTPService) renderPasswordResetTemplate(link, token string) string {
 	if s.config.PasswordResetTemplate != "" {
 		// Load custom template if provided
 		// TODO: Implement custom template loading
+		_ = s.config.PasswordResetTemplate // nolint:staticcheck // Placeholder for future implementation
 	}
 
 	// Use default template

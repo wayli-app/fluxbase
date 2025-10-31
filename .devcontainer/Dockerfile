@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM golang:1.25-bookworm
 
 # Avoid warnings by switching to noninteractive
@@ -121,8 +122,8 @@ ENV GOPATH=/go \
 USER $USERNAME
 
 # Create Air config
-RUN mkdir -p /home/$USERNAME/.air \
-    && cat > /home/$USERNAME/.air/.air.toml << 'EOF'
+RUN mkdir -p /home/$USERNAME/.air
+COPY --chown=$USERNAME:$USERNAME <<EOF /home/$USERNAME/.air/.air.toml
 root = "."
 testdata_dir = "testdata"
 tmp_dir = "tmp"

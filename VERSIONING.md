@@ -335,7 +335,7 @@ make build
 Runs on every push/PR:
 - ✅ Linting
 - ✅ Tests with coverage
-- ✅ Multi-platform builds (Linux, macOS, Windows)
+- ✅ Multi-platform builds (Linux, macOS)
 - ✅ Docker image build
 
 **Version injection**:

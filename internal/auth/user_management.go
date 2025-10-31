@@ -24,11 +24,11 @@ type EnrichedUser struct {
 
 // UserManagementService provides admin operations for user management
 type UserManagementService struct {
-	userRepo      *UserRepository
-	sessionRepo   *SessionRepository
+	userRepo       *UserRepository
+	sessionRepo    *SessionRepository
 	passwordHasher *PasswordHasher
-	emailService  EmailSender
-	baseURL       string
+	emailService   EmailSender
+	baseURL        string
 }
 
 // NewUserManagementService creates a new user management service
@@ -111,10 +111,10 @@ type InviteUserRequest struct {
 
 // InviteUserResponse represents the response after inviting a user
 type InviteUserResponse struct {
-	User             *User  `json:"user"`
+	User              *User  `json:"user"`
 	TemporaryPassword string `json:"temporary_password,omitempty"` // Only if SMTP disabled
-	EmailSent        bool   `json:"email_sent"`
-	Message          string `json:"message"`
+	EmailSent         bool   `json:"email_sent"`
+	Message           string `json:"message"`
 }
 
 // InviteUser creates a new user and either sends them an invite email or returns a temp password

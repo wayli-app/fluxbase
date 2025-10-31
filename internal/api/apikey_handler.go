@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // APIKeyHandler handles API key-related requests

@@ -22,15 +22,15 @@ var (
 
 // ImpersonationSession represents an admin impersonation session
 type ImpersonationSession struct {
-	ID            string     `json:"id" db:"id"`
-	AdminUserID   string     `json:"admin_user_id" db:"admin_user_id"`
-	TargetUserID  string     `json:"target_user_id" db:"target_user_id"`
-	Reason        string     `json:"reason,omitempty" db:"reason"`
-	StartedAt     time.Time  `json:"started_at" db:"started_at"`
-	EndedAt       *time.Time `json:"ended_at,omitempty" db:"ended_at"`
-	IPAddress     string     `json:"ip_address,omitempty" db:"ip_address"`
-	UserAgent     string     `json:"user_agent,omitempty" db:"user_agent"`
-	IsActive      bool       `json:"is_active" db:"is_active"`
+	ID           string     `json:"id" db:"id"`
+	AdminUserID  string     `json:"admin_user_id" db:"admin_user_id"`
+	TargetUserID string     `json:"target_user_id" db:"target_user_id"`
+	Reason       string     `json:"reason,omitempty" db:"reason"`
+	StartedAt    time.Time  `json:"started_at" db:"started_at"`
+	EndedAt      *time.Time `json:"ended_at,omitempty" db:"ended_at"`
+	IPAddress    string     `json:"ip_address,omitempty" db:"ip_address"`
+	UserAgent    string     `json:"user_agent,omitempty" db:"user_agent"`
+	IsActive     bool       `json:"is_active" db:"is_active"`
 }
 
 // ImpersonationRepository handles database operations for impersonation sessions
@@ -177,9 +177,9 @@ func (r *ImpersonationRepository) ListByAdmin(ctx context.Context, adminUserID s
 
 // ImpersonationService provides business logic for admin impersonation
 type ImpersonationService struct {
-	repo        *ImpersonationRepository
-	userRepo    *UserRepository
-	jwtManager  *JWTManager
+	repo       *ImpersonationRepository
+	userRepo   *UserRepository
+	jwtManager *JWTManager
 }
 
 // NewImpersonationService creates a new impersonation service

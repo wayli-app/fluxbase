@@ -206,6 +206,7 @@ func (s *Service) SignOut(ctx context.Context, accessToken string) error {
 	if err := s.tokenBlacklistService.RevokeToken(ctx, accessToken, "logout"); err != nil {
 		// Log error but continue with session deletion
 		// Revocation failure shouldn't block logout
+		_ = err // nolint:staticcheck // Intentionally ignored
 	}
 
 	// Get session by access token
@@ -418,10 +419,10 @@ func (s *Service) RevokeAllUserTokens(ctx context.Context, userID, reason string
 
 // SignInAnonymousResponse represents an anonymous user sign-in response
 type SignInAnonymousResponse struct {
-	UserID       string `json:"user_id"`        // Temporary anonymous user ID
+	UserID       string `json:"user_id"` // Temporary anonymous user ID
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"` // seconds
+	ExpiresIn    int64  `json:"expires_in"`   // seconds
 	IsAnonymous  bool   `json:"is_anonymous"` // Always true for anonymous users
 }
 

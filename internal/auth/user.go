@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 var (
@@ -202,7 +202,7 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 	if req.Metadata != nil {
 		updates = append(updates, formatPlaceholder("metadata", argCount))
 		args = append(args, req.Metadata)
-		argCount++
+		// argCount++ // Not used after this point
 	}
 
 	if len(updates) == 0 {

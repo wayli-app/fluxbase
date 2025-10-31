@@ -11,22 +11,22 @@ import (
 
 // EdgeFunction represents a stored edge function
 type EdgeFunction struct {
-	ID          uuid.UUID  `json:"id"`
-	Name        string     `json:"name"`
-	Description *string    `json:"description"`
-	Code        string     `json:"code"`
-	Version     int        `json:"version"`
-	CronSchedule *string   `json:"cron_schedule"`
-	Enabled     bool       `json:"enabled"`
-	TimeoutSeconds int    `json:"timeout_seconds"`
-	MemoryLimitMB int     `json:"memory_limit_mb"`
-	AllowNet    bool       `json:"allow_net"`
-	AllowEnv    bool       `json:"allow_env"`
-	AllowRead   bool       `json:"allow_read"`
-	AllowWrite  bool       `json:"allow_write"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	CreatedBy   *uuid.UUID `json:"created_by"`
+	ID             uuid.UUID  `json:"id"`
+	Name           string     `json:"name"`
+	Description    *string    `json:"description"`
+	Code           string     `json:"code"`
+	Version        int        `json:"version"`
+	CronSchedule   *string    `json:"cron_schedule"`
+	Enabled        bool       `json:"enabled"`
+	TimeoutSeconds int        `json:"timeout_seconds"`
+	MemoryLimitMB  int        `json:"memory_limit_mb"`
+	AllowNet       bool       `json:"allow_net"`
+	AllowEnv       bool       `json:"allow_env"`
+	AllowRead      bool       `json:"allow_read"`
+	AllowWrite     bool       `json:"allow_write"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	CreatedBy      *uuid.UUID `json:"created_by"`
 }
 
 // EdgeFunctionExecution represents a function execution log

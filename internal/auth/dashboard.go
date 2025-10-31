@@ -18,17 +18,17 @@ import (
 
 // DashboardUser represents a dashboard/platform administrator user
 type DashboardUser struct {
-	ID           uuid.UUID  `json:"id"`
-	Email        string     `json:"email"`
-	EmailVerified bool      `json:"email_verified"`
-	FullName     *string    `json:"full_name,omitempty"`
-	AvatarURL    *string    `json:"avatar_url,omitempty"`
-	TOTPEnabled  bool       `json:"totp_enabled"`
-	IsActive     bool       `json:"is_active"`
-	IsLocked     bool       `json:"is_locked"`
-	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID            uuid.UUID  `json:"id"`
+	Email         string     `json:"email"`
+	EmailVerified bool       `json:"email_verified"`
+	FullName      *string    `json:"full_name,omitempty"`
+	AvatarURL     *string    `json:"avatar_url,omitempty"`
+	TOTPEnabled   bool       `json:"totp_enabled"`
+	IsActive      bool       `json:"is_active"`
+	IsLocked      bool       `json:"is_locked"`
+	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // DashboardSession represents an active dashboard session

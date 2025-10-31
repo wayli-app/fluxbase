@@ -77,15 +77,15 @@ type DatabaseStats struct {
 
 // RealtimeStats represents realtime connection stats
 type RealtimeStats struct {
-	TotalConnections  int `json:"total_connections"`
-	ActiveChannels    int `json:"active_channels"`
+	TotalConnections   int `json:"total_connections"`
+	ActiveChannels     int `json:"active_channels"`
 	TotalSubscriptions int `json:"total_subscriptions"`
 }
 
 // StorageStats represents storage usage stats
 type StorageStats struct {
-	TotalBuckets int    `json:"total_buckets"`
-	TotalFiles   int    `json:"total_files"`
+	TotalBuckets int     `json:"total_buckets"`
+	TotalFiles   int     `json:"total_files"`
 	TotalSizeGB  float64 `json:"total_size_gb"`
 }
 

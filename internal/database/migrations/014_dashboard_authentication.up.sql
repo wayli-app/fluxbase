@@ -130,10 +130,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Grant permissions
-GRANT USAGE ON SCHEMA dashboard TO fluxbase_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA dashboard TO fluxbase_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA dashboard TO fluxbase_app;
+-- Grant permissions (only if role exists)
+-- The fluxbase_app role may not exist in all environments (e.g., CI tests)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fluxbase_app') THEN
+        GRANT USAGE ON SCHEMA dashboard TO fluxbase_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA dashboard TO fluxbase_app;
+        GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA dashboard TO fluxbase_app;
+    END IF;
+END$$;
 
 -- Comments for documentation
 COMMENT ON SCHEMA dashboard IS 'Schema for dashboard/platform administrator authentication and management';

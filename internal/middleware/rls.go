@@ -101,7 +101,7 @@ func WrapWithRLS(ctx context.Context, conn *database.Connection, c *fiber.Ctx, f
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context from Fiber context
 	userID := c.Locals("rls_user_id")

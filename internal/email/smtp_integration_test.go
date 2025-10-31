@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package email
@@ -11,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // MailHogMessage represents an email message from MailHog API
 type MailHogMessage struct {
-	ID      string `json:"ID"`
-	From    struct {
+	ID   string `json:"ID"`
+	From struct {
 		Mailbox string `json:"Mailbox"`
 		Domain  string `json:"Domain"`
 	} `json:"From"`

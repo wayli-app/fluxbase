@@ -1364,9 +1364,9 @@ func (h *OpenAPIHandler) getQueryParameters() []OpenAPIParameter {
 func (h *OpenAPIHandler) isInternalFunction(fn database.FunctionInfo) bool {
 	// List of internal function prefixes that should be filtered out
 	internalPrefixes := []string{
-		"gin_",           // GIN index functions
-		"gtrgm_",         // pg_trgm extension functions
-		"uuid_ns_",       // UUID namespace functions (usually internal)
+		"gin_",     // GIN index functions
+		"gtrgm_",   // pg_trgm extension functions
+		"uuid_ns_", // UUID namespace functions (usually internal)
 	}
 
 	// List of internal function names that should be filtered out

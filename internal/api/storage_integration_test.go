@@ -49,7 +49,7 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string) {
 
 	// Setup storage routes
 	storageHandler := NewStorageHandler(storageService)
-	api := app.Group("/api")
+	api := app.Group("/api/v1")
 	storageRoutes := api.Group("/storage")
 
 	// Bucket management
@@ -91,14 +91,14 @@ func TestStorageAPI_CreateBucketAlreadyExists(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket first time
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/existing-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/existing-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// Create bucket second time
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/existing-bucket", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/existing-bucket", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -113,14 +113,14 @@ func TestStorageAPI_ListBuckets(t *testing.T) {
 	// Create some buckets
 	buckets := []string{"bucket1", "bucket2", "bucket3"}
 	for _, bucket := range buckets {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/"+bucket, nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/"+bucket, nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		resp.Body.Close()
 	}
 
 	// List buckets
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/storageage/buckets", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/storage/buckets", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -139,13 +139,13 @@ func TestStorageAPI_DeleteBucket(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/to-delete", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/to-delete", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 
 	// Delete bucket
-	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storageage/buckets/to-delete", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storage/buckets/to-delete", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -157,7 +157,7 @@ func TestStorageAPI_UploadFile(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/upload-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/upload-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -175,7 +175,7 @@ func TestStorageAPI_UploadFile(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/upload-bucket/test.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/upload-bucket/test.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err = app.Test(req)
@@ -196,7 +196,7 @@ func TestStorageAPI_UploadFileWithPath(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/path-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/path-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -214,7 +214,7 @@ func TestStorageAPI_UploadFileWithPath(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/path-bucket/path/to/nested.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/path-bucket/path/to/nested.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err = app.Test(req)
@@ -246,13 +246,13 @@ func TestStorageAPI_DownloadNonExistentFile(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/notfound-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/notfound-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 
 	// Try to download non-existent file
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/storageage/notfound-bucket/nonexistent.txt", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/storage/notfound-bucket/nonexistent.txt", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -264,7 +264,7 @@ func TestStorageAPI_DeleteFile(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket and upload file
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/delete-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/delete-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -278,14 +278,14 @@ func TestStorageAPI_DeleteFile(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/delete-bucket/todelete.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/delete-bucket/todelete.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 
 	// Delete file
-	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storageage/delete-bucket/todelete.txt", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storage/delete-bucket/todelete.txt", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -293,7 +293,7 @@ func TestStorageAPI_DeleteFile(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	// Verify file is gone
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/storageage/delete-bucket/todelete.txt", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/storage/delete-bucket/todelete.txt", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -309,7 +309,7 @@ func TestStorageAPI_ListFiles(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/list-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/list-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -326,7 +326,7 @@ func TestStorageAPI_ListFiles(t *testing.T) {
 		err = writer.Close()
 		require.NoError(t, err)
 
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/list-bucket/"+filename, body)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/list-bucket/"+filename, body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		resp, err = app.Test(req)
 		require.NoError(t, err)
@@ -334,7 +334,7 @@ func TestStorageAPI_ListFiles(t *testing.T) {
 	}
 
 	// List files
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/storageage/list-bucket", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/storage/list-bucket", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -363,7 +363,7 @@ func TestStorageAPI_ListFilesWithPrefix(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/prefix-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/prefix-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -380,7 +380,7 @@ func TestStorageAPI_ListFilesWithPrefix(t *testing.T) {
 		err = writer.Close()
 		require.NoError(t, err)
 
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/prefix-bucket/"+filename, body)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/prefix-bucket/"+filename, body)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		resp, err = app.Test(req)
 		require.NoError(t, err)
@@ -388,7 +388,7 @@ func TestStorageAPI_ListFilesWithPrefix(t *testing.T) {
 	}
 
 	// List files with prefix
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/storageage/prefix-bucket?prefix=images/", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/storage/prefix-bucket?prefix=images/", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -413,7 +413,7 @@ func TestStorageAPI_UploadWithMetadata(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/meta-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/meta-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -423,8 +423,8 @@ func TestStorageAPI_UploadWithMetadata(t *testing.T) {
 	writer := multipart.NewWriter(body)
 
 	// Add metadata fields
-	writer.WriteField("x-meta-author", "John Doe")
-	writer.WriteField("x-meta-version", "1.0")
+	_ = writer.WriteField("x-meta-author", "John Doe")
+	_ = writer.WriteField("x-meta-version", "1.0")
 
 	part, err := writer.CreateFormFile("file", "metadata.txt")
 	require.NoError(t, err)
@@ -434,7 +434,7 @@ func TestStorageAPI_UploadWithMetadata(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/meta-bucket/metadata.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/meta-bucket/metadata.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err = app.Test(req)
@@ -462,7 +462,7 @@ func TestStorageAPI_GenerateSignedURL_NotSupported(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket and upload file
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/signed-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/signed-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -476,14 +476,14 @@ func TestStorageAPI_GenerateSignedURL_NotSupported(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/signed-bucket/signed.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/signed-bucket/signed.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 
 	// Try to generate signed URL (not supported for local storage)
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/signed-bucket/signed.txt/signed-url", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/signed-bucket/signed.txt/signed-url", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -497,7 +497,7 @@ func TestStorageAPI_DeleteBucketNotEmpty(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/nonempty-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/nonempty-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -512,14 +512,14 @@ func TestStorageAPI_DeleteBucketNotEmpty(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/nonempty-bucket/file.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/nonempty-bucket/file.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
 
 	// Try to delete non-empty bucket
-	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storageage/buckets/nonempty-bucket", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/storage/buckets/nonempty-bucket", nil)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -536,7 +536,7 @@ func TestStorageAPI_InvalidBucketName(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Try to create bucket with invalid name
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/Invalid_Bucket!", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/Invalid_Bucket!", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -550,7 +550,7 @@ func TestStorageAPI_MissingFile(t *testing.T) {
 	app, _ := setupStorageTestServer(t)
 
 	// Create bucket
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/storageage/buckets/upload-bucket", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/upload-bucket", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	resp.Body.Close()
@@ -561,7 +561,7 @@ func TestStorageAPI_MissingFile(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/storageage/upload-bucket/test.txt", body)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/storage/upload-bucket/test.txt", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err = app.Test(req)

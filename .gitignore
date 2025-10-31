@@ -17,7 +17,7 @@
 coverage.*
 *.coverprofile
 profile.cov
-*.html
+coverage.html
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -66,9 +66,8 @@ docs/.docusaurus/
 docs/node_modules/
 
 # Storage directories (user uploaded files)
-storage/
-/storage
-data/
+/storage/
+/data/
 
 # Database
 *.db

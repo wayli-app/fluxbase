@@ -4,7 +4,15 @@
       "Bash(pkill:*)",
       "Bash(go build:*)",
       "Bash(/tmp/fluxbase:*)",
-      "Bash(/tmp/fluxbase-realtime migrate:*)"
+      "Bash(/tmp/fluxbase-realtime migrate:*)",
+      "Bash(go test:*)",
+      "Bash(make test-e2e:*)",
+      "Bash(psql:*)",
+      "Bash(go run:*)",
+      "Bash(cat:*)",
+      "Bash(go fmt:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": []

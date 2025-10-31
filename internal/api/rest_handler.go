@@ -7,11 +7,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // RESTHandler handles dynamic REST API endpoints
@@ -44,10 +44,10 @@ func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.Ta
 	router.Get(basePath+"/:id", h.makeGetByIdHandler(table))
 	router.Post(basePath, h.makePostHandler(table))
 	router.Put(basePath+"/:id", h.makePutHandler(table))
-	router.Patch(basePath+"/:id", h.makePatchHandler(table))       // Single record update
-	router.Patch(basePath, h.makeBatchPatchHandler(table))         // Batch update with filters
-	router.Delete(basePath+"/:id", h.makeDeleteHandler(table))     // Single record delete
-	router.Delete(basePath, h.makeBatchDeleteHandler(table))       // Batch delete with filters
+	router.Patch(basePath+"/:id", h.makePatchHandler(table))   // Single record update
+	router.Patch(basePath, h.makeBatchPatchHandler(table))     // Batch update with filters
+	router.Delete(basePath+"/:id", h.makeDeleteHandler(table)) // Single record delete
+	router.Delete(basePath, h.makeBatchDeleteHandler(table))   // Batch delete with filters
 }
 
 // RegisterViewRoutes registers read-only REST routes for a database view
@@ -73,8 +73,8 @@ func (h *RESTHandler) buildTablePath(table database.TableInfo) string {
 		if strings.HasSuffix(tableName, "y") {
 			tableName = strings.TrimSuffix(tableName, "y") + "ies"
 		} else if strings.HasSuffix(tableName, "x") ||
-				  strings.HasSuffix(tableName, "ch") ||
-				  strings.HasSuffix(tableName, "sh") {
+			strings.HasSuffix(tableName, "ch") ||
+			strings.HasSuffix(tableName, "sh") {
 			tableName += "es"
 		} else {
 			tableName += "s"

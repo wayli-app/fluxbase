@@ -16,7 +16,7 @@ import (
 // setupAPIKeyTestDB creates a test database connection for API key tests
 func setupAPIKeyTestDB(t *testing.T) *pgxpool.Pool {
 	cfg := &config.DatabaseConfig{
-		Host:            "localhost",
+		Host:            "postgres",
 		Port:            5432,
 		User:            "postgres",
 		Password:        "postgres",
@@ -39,11 +39,28 @@ func setupAPIKeyTestDB(t *testing.T) *pgxpool.Pool {
 	return db.Pool()
 }
 
-// cleanupAPIKeys removes all test API keys
+// cleanupAPIKeys removes all test API keys and users
 func cleanupAPIKeys(t *testing.T, db *pgxpool.Pool) {
 	ctx := context.Background()
+	// Delete API keys first (foreign key constraint)
 	_, err := db.Exec(ctx, "DELETE FROM auth.api_keys WHERE name LIKE 'test-%'")
 	require.NoError(t, err, "Failed to cleanup test API keys")
+	// Delete test users
+	_, err = db.Exec(ctx, "DELETE FROM auth.users WHERE email LIKE '%@example.com'")
+	require.NoError(t, err, "Failed to cleanup test users")
+}
+
+// createTestUser creates a test user and returns the ID
+func createTestUser(t *testing.T, db *pgxpool.Pool, email string) uuid.UUID {
+	ctx := context.Background()
+	var userID uuid.UUID
+	err := db.QueryRow(ctx, `
+		INSERT INTO auth.users (email, password_hash, email_verified)
+		VALUES ($1, 'hashed_password', true)
+		RETURNING id
+	`, email).Scan(&userID)
+	require.NoError(t, err, "Failed to create test user")
+	return userID
 }
 
 func TestHashAPIKey(t *testing.T) {
@@ -103,7 +120,8 @@ func TestGenerateAPIKey(t *testing.T) {
 
 	t.Run("Generate API key with custom values", func(t *testing.T) {
 		description := "Test API key with custom settings"
-		userID := uuid.New()
+		// Create a test user to associate with the API key
+		userID := createTestUser(t, db, "apikey-test@example.com")
 		scopes := []string{"read:tables", "read:storage"}
 		rateLimit := 200
 		expiresAt := time.Now().Add(30 * 24 * time.Hour)
@@ -225,10 +243,11 @@ func TestListAPIKeys(t *testing.T) {
 	service := NewAPIKeyService(db)
 	ctx := context.Background()
 
-	// Create test API keys
-	userID1 := uuid.New()
-	userID2 := uuid.New()
+	// Create test users
+	userID1 := createTestUser(t, db, "list-test1@example.com")
+	userID2 := createTestUser(t, db, "list-test2@example.com")
 
+	// Create test API keys
 	_, err := service.GenerateAPIKey(ctx, "test-list-1", nil, &userID1, nil, 0, nil)
 	require.NoError(t, err)
 	_, err = service.GenerateAPIKey(ctx, "test-list-2", nil, &userID1, nil, 0, nil)
@@ -414,6 +433,10 @@ func TestUpdateAPIKey(t *testing.T) {
 }
 
 func TestAPIKeyServiceNewAPIKeyService(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
 	db := setupAPIKeyTestDB(t)
 	defer db.Close()
 

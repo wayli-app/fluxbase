@@ -13,16 +13,16 @@ import (
 
 // Scheduler manages scheduled execution of edge functions via cron
 type Scheduler struct {
-	cron           *cron.Cron
-	storage        *Storage
-	runtime        *DenoRuntime
-	maxConcurrent  int
-	activeMu       sync.Mutex
-	activeCount    int
-	functionJobs   map[string]cron.EntryID // function name -> cron entry ID
-	jobsMu         sync.RWMutex
-	ctx            context.Context
-	cancel         context.CancelFunc
+	cron          *cron.Cron
+	storage       *Storage
+	runtime       *DenoRuntime
+	maxConcurrent int
+	activeMu      sync.Mutex
+	activeCount   int
+	functionJobs  map[string]cron.EntryID // function name -> cron entry ID
+	jobsMu        sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // NewScheduler creates a new scheduler for edge functions

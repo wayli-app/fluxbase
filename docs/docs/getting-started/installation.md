@@ -11,7 +11,7 @@ This guide walks you through installing Fluxbase on your system.
 Before installing Fluxbase, ensure you have:
 
 - **PostgreSQL 14+** - Fluxbase requires PostgreSQL as its database
-- **64-bit Operating System** - Linux, macOS, or Windows
+- **64-bit Operating System** - Linux
 - **1GB RAM minimum** (2GB+ recommended for production)
 - **100MB disk space** (plus space for your data)
 
@@ -80,18 +80,6 @@ curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-
 chmod +x fluxbase
 sudo mv fluxbase /usr/local/bin/
 ```
-
-**macOS (Apple Silicon)**
-
-```bash
-curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-darwin-arm64 -o fluxbase
-chmod +x fluxbase
-sudo mv fluxbase /usr/local/bin/
-```
-
-**Windows**
-
-Download `fluxbase-windows-amd64.exe` from [GitHub Releases](https://github.com/wayli-app/fluxbase/releases/latest) and add it to your PATH.
 
 ### Method 2: Docker
 

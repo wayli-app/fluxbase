@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // AuthMiddleware creates a middleware for JWT authentication

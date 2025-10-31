@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -14,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 //go:embed migrations/*.sql
@@ -193,6 +193,7 @@ func (c *Connection) Health(ctx context.Context) error {
 
 	return nil
 }
+
 // Stats returns database connection pool statistics
 func (c *Connection) Stats() *pgxpool.Stat {
 	return c.pool.Stat()
@@ -205,4 +206,3 @@ func truncateQuery(query string, maxLen int) string {
 	}
 	return query[:maxLen] + "... (truncated)"
 }
-

@@ -147,7 +147,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	switch msg.Type {
 	case MessageTypeSubscribe:
 		if msg.Channel == "" {
-			conn.SendMessage(ServerMessage{
+			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: "channel is required for subscribe",
 			})
@@ -155,14 +155,14 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 		if err := h.manager.Subscribe(conn.ID, msg.Channel); err != nil {
-			conn.SendMessage(ServerMessage{
+			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: err.Error(),
 			})
 			return
 		}
 
-		conn.SendMessage(ServerMessage{
+		_ = conn.SendMessage(ServerMessage{
 			Type:    MessageTypeAck,
 			Channel: msg.Channel,
 			Payload: map[string]interface{}{
@@ -172,7 +172,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 
 	case MessageTypeUnsubscribe:
 		if msg.Channel == "" {
-			conn.SendMessage(ServerMessage{
+			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: "channel is required for unsubscribe",
 			})
@@ -180,14 +180,14 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 		if err := h.manager.Unsubscribe(conn.ID, msg.Channel); err != nil {
-			conn.SendMessage(ServerMessage{
+			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: err.Error(),
 			})
 			return
 		}
 
-		conn.SendMessage(ServerMessage{
+		_ = conn.SendMessage(ServerMessage{
 			Type:    MessageTypeAck,
 			Channel: msg.Channel,
 			Payload: map[string]interface{}{
@@ -197,12 +197,12 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 
 	case MessageTypeHeartbeat:
 		// Respond to heartbeat
-		conn.SendMessage(ServerMessage{
+		_ = conn.SendMessage(ServerMessage{
 			Type: MessageTypeHeartbeat,
 		})
 
 	default:
-		conn.SendMessage(ServerMessage{
+		_ = conn.SendMessage(ServerMessage{
 			Type:  MessageTypeError,
 			Error: "unknown message type",
 		})
