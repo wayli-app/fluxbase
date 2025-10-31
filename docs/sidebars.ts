@@ -25,6 +25,21 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "doc",
+      id: "api-cookbook",
+      label: "📖 API Cookbook",
+    },
+    {
+      type: "doc",
+      id: "supabase-migration",
+      label: "🔄 Migrate from Supabase",
+    },
+    {
+      type: "doc",
+      id: "advanced-guides",
+      label: "🚀 Advanced Guides",
+    },
+    {
+      type: "doc",
       id: "testing-guide",
       label: "🧪 Testing Guide",
     },

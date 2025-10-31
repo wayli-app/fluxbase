@@ -1,12 +1,24 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create deps setup-dev
+.PHONY: help dev build clean test migrate-up migrate-down migrate-create deps setup-dev docs docs-build version docker-build docker-push release
 
 # Variables
 BINARY_NAME=fluxbase
 MAIN_PATH=cmd/fluxbase/main.go
 
+# Version variables
+VERSION := $(shell cat VERSION)
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildDate=$(BUILD_DATE)
+
+# Docker variables
+DOCKER_REGISTRY ?= ghcr.io
+DOCKER_ORG ?= zehbart
+DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
+
 # Colors for output
 GREEN=\033[0;32m
 YELLOW=\033[1;33m
+BLUE=\033[0;34m
 NC=\033[0m # No Color
 
 # Default target
@@ -41,14 +53,19 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 	@./run-server.sh & \
 	cd admin && npm run dev
 
+version: ## Show version information
+	@echo "${GREEN}Version:${NC}    $(VERSION)"
+	@echo "${GREEN}Commit:${NC}     $(COMMIT)"
+	@echo "${GREEN}Build Date:${NC} $(BUILD_DATE)"
+
 build: ## Build production binary with embedded admin UI
 	@echo "${YELLOW}Building admin UI...${NC}"
 	@cd admin && npm run build
 	@rm -rf internal/adminui/dist
 	@cp -r admin/dist internal/adminui/dist
-	@echo "${YELLOW}Building ${BINARY_NAME}...${NC}"
-	@go build -ldflags="-s -w" -o ${BINARY_NAME} ${MAIN_PATH}
-	@echo "${GREEN}Build complete: ${BINARY_NAME}${NC}"
+	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
+	@go build -ldflags="$(LDFLAGS)" -o ${BINARY_NAME} ${MAIN_PATH}
+	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION)${NC}"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning...${NC}"
@@ -99,3 +116,100 @@ migrate-create: ## Create new migration (usage: make migrate-create name=add_use
 	@echo "${YELLOW}Creating migration: $(name)...${NC}"
 	@migrate create -ext sql -dir internal/database/migrations -seq $(name)
 	@echo "${GREEN}Migration files created!${NC}"
+
+docs: ## Serve Docusaurus documentation at http://localhost:3000
+	@echo "${YELLOW}Starting Docusaurus documentation server...${NC}"
+	@if [ ! -d "docs/node_modules" ]; then \
+		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
+		cd docs && npm install; \
+	fi
+	@echo ""
+	@echo "${GREEN}📚 Documentation will be available at:${NC}"
+	@echo "  ${GREEN}http://localhost:3000${NC}"
+	@echo ""
+	@echo "${GREEN}New Pages Added:${NC}"
+	@echo "  • API Cookbook (60+ examples)"
+	@echo "  • Supabase Migration Guide"
+	@echo "  • Advanced Guides (RLS, Performance, Scaling)"
+	@echo "  • Example Applications (Todo, Blog, Chat)"
+	@echo ""
+	@echo "${YELLOW}Press Ctrl+C to stop the server${NC}"
+	@echo ""
+	@cd docs && npm start -- --host 0.0.0.0
+
+docs-build: ## Build static documentation site for production
+	@echo "${YELLOW}Building documentation site...${NC}"
+	@if [ ! -d "docs/node_modules" ]; then \
+		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
+		cd docs && npm install; \
+	fi
+	@cd docs && npm run build
+	@echo "${GREEN}Documentation built successfully!${NC}"
+	@echo "${YELLOW}Output:${NC} docs/build/"
+	@echo "${YELLOW}To serve locally:${NC} cd docs && npm run serve"
+
+docker-build: ## Build Docker image
+	@echo "${YELLOW}Building Docker image $(DOCKER_IMAGE):$(VERSION)...${NC}"
+	@docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(DOCKER_IMAGE):$(VERSION) \
+		-t $(DOCKER_IMAGE):latest \
+		-f Dockerfile .
+	@echo "${GREEN}Docker image built: $(DOCKER_IMAGE):$(VERSION)${NC}"
+
+docker-build-production: ## Build production Docker image with admin UI
+	@echo "${YELLOW}Building production Docker image with admin UI...${NC}"
+	@docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(DOCKER_IMAGE):$(VERSION) \
+		-t $(DOCKER_IMAGE):latest \
+		-f Dockerfile .
+	@echo "${GREEN}Production Docker image built: $(DOCKER_IMAGE):$(VERSION)${NC}"
+
+docker-push: docker-build-production ## Push Docker image to registry
+	@echo "${YELLOW}Pushing Docker images...${NC}"
+	@docker push $(DOCKER_IMAGE):$(VERSION)
+	@docker push $(DOCKER_IMAGE):latest
+	@echo "${GREEN}Docker images pushed!${NC}"
+
+bump-patch: ## Bump patch version (0.1.0 -> 0.1.1)
+	@echo "${YELLOW}Bumping patch version...${NC}"
+	@NEW_VERSION=$$(echo $(VERSION) | awk -F. '{$$3 = $$3 + 1;} 1' | sed 's/ /./g'); \
+	echo $$NEW_VERSION > VERSION; \
+	echo "${GREEN}Version bumped to $$NEW_VERSION${NC}"
+
+bump-minor: ## Bump minor version (0.1.0 -> 0.2.0)
+	@echo "${YELLOW}Bumping minor version...${NC}"
+	@NEW_VERSION=$$(echo $(VERSION) | awk -F. '{$$2 = $$2 + 1; $$3 = 0;} 1' | sed 's/ /./g'); \
+	echo $$NEW_VERSION > VERSION; \
+	echo "${GREEN}Version bumped to $$NEW_VERSION${NC}"
+
+bump-major: ## Bump major version (0.1.0 -> 1.0.0)
+	@echo "${YELLOW}Bumping major version...${NC}"
+	@NEW_VERSION=$$(echo $(VERSION) | awk -F. '{$$1 = $$1 + 1; $$2 = 0; $$3 = 0;} 1' | sed 's/ /./g'); \
+	echo $$NEW_VERSION > VERSION; \
+	echo "${GREEN}Version bumped to $$NEW_VERSION${NC}"
+
+release-tag: ## Create and push git tag for current version
+	@echo "${YELLOW}Creating release tag v$(VERSION)...${NC}"
+	@git tag -a v$(VERSION) -m "Release v$(VERSION)"
+	@git push origin v$(VERSION)
+	@echo "${GREEN}Tag v$(VERSION) created and pushed${NC}"
+
+release: ## Create a new release (test, build, tag, push)
+	@echo "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
+	@echo "${BLUE}║               Creating Release v$(VERSION)                     ║${NC}"
+	@echo "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
+	@echo ""
+	@$(MAKE) test
+	@$(MAKE) build
+	@$(MAKE) docker-build-production
+	@$(MAKE) docker-push
+	@$(MAKE) release-tag
+	@echo ""
+	@echo "${GREEN}✓ Release v$(VERSION) complete!${NC}"
+	@echo "${YELLOW}Next: Create GitHub release with binaries${NC}"

@@ -116,17 +116,59 @@ func (c *Connection) BeginTx(ctx context.Context) (pgx.Tx, error) {
 
 // Query executes a query that returns rows
 func (c *Connection) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-	return c.pool.Query(ctx, sql, args...)
+	start := time.Now()
+	rows, err := c.pool.Query(ctx, sql, args...)
+	duration := time.Since(start)
+
+	// Log slow queries (> 1 second)
+	if duration > 1*time.Second {
+		log.Warn().
+			Dur("duration", duration).
+			Int64("duration_ms", duration.Milliseconds()).
+			Str("query", truncateQuery(sql, 200)).
+			Bool("slow_query", true).
+			Msg("Slow query detected")
+	}
+
+	return rows, err
 }
 
 // QueryRow executes a query that returns a single row
 func (c *Connection) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	return c.pool.QueryRow(ctx, sql, args...)
+	start := time.Now()
+	row := c.pool.QueryRow(ctx, sql, args...)
+	duration := time.Since(start)
+
+	// Log slow queries (> 1 second)
+	if duration > 1*time.Second {
+		log.Warn().
+			Dur("duration", duration).
+			Int64("duration_ms", duration.Milliseconds()).
+			Str("query", truncateQuery(sql, 200)).
+			Bool("slow_query", true).
+			Msg("Slow query detected")
+	}
+
+	return row
 }
 
 // Exec executes a query that doesn't return rows
 func (c *Connection) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
-	return c.pool.Exec(ctx, sql, args...)
+	start := time.Now()
+	tag, err := c.pool.Exec(ctx, sql, args...)
+	duration := time.Since(start)
+
+	// Log slow queries (> 1 second)
+	if duration > 1*time.Second {
+		log.Warn().
+			Dur("duration", duration).
+			Int64("duration_ms", duration.Milliseconds()).
+			Str("query", truncateQuery(sql, 200)).
+			Bool("slow_query", true).
+			Msg("Slow query detected")
+	}
+
+	return tag, err
 }
 
 // Inspector returns the schema inspector
@@ -151,3 +193,16 @@ func (c *Connection) Health(ctx context.Context) error {
 
 	return nil
 }
+// Stats returns database connection pool statistics
+func (c *Connection) Stats() *pgxpool.Stat {
+	return c.pool.Stat()
+}
+
+// truncateQuery truncates a SQL query to a maximum length for logging
+func truncateQuery(query string, maxLen int) string {
+	if len(query) <= maxLen {
+		return query
+	}
+	return query[:maxLen] + "... (truncated)"
+}
+

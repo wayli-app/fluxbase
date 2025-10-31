@@ -225,6 +225,33 @@ fluxbase/
 - **Authentication**: JWT (golang-jwt)
 - **WebSockets**: Gorilla WebSocket
 
+## Example Applications
+
+Fluxbase includes **3 complete, production-ready example applications** to help you get started:
+
+| Example | Tech Stack | Features | Difficulty |
+|---------|------------|----------|------------|
+| [Todo App](./examples/todo-app/) | React + TypeScript | CRUD, RLS, Auth | Beginner |
+| [Blog Platform](./examples/blog-platform/) | Next.js + TypeScript | SSR, Auth, Storage | Intermediate |
+| [Chat Application](./examples/chat-app/) | React + TypeScript | Realtime, Presence | Intermediate |
+
+Each example includes:
+- ✅ Complete source code
+- ✅ Setup instructions
+- ✅ Deployment guides
+- ✅ Best practices
+
+**Quick start**:
+```bash
+cd examples/todo-app
+npm install
+cp .env.example .env.local
+# Edit .env.local with your Fluxbase URL
+npm run dev
+```
+
+See [examples/README.md](./examples/README.md) for detailed information.
+
 ## Development
 
 ### Documentation Server
@@ -360,6 +387,28 @@ MIT License - see LICENSE file for details.
 | Edge Functions | 🚧 QuickJS              | ✅ Deno                        |
 | Vector/AI      | ❌                      | ✅                             |
 | Admin UI       | 🚧 Optional             | ✅                             |
+
+## Documentation
+
+### Getting Started
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete setup guide with DevContainer and local options
+- **[examples/](examples/)** - 3 production-ready example applications (Todo, Blog, Chat)
+
+### Production
+- **[PRODUCTION_RUNBOOK.md](PRODUCTION_RUNBOOK.md)** - Production deployment, configuration, monitoring, and operations
+- **[VERSIONING.md](VERSIONING.md)** - Version management, build automation, and release process
+
+### GitHub Setup
+- **[.github/SETUP_GUIDE.md](.github/SETUP_GUIDE.md)** - Complete GitHub repository configuration
+- **[.github/SECRETS.md](.github/SECRETS.md)** - GitHub secrets and variables reference
+- **[.github/QUICK_REFERENCE.md](.github/QUICK_REFERENCE.md)** - Quick reference card for GitHub setup
+
+### Monitoring
+- **[deploy/MONITORING.md](deploy/MONITORING.md)** - Prometheus, Grafana, and observability setup
+
+### Additional Resources
+- **[docs/](docs/)** - Full Docusaurus documentation (run `make docs` to serve locally)
+- **[.docs/archive/](.docs/archive/)** - Historical project tracking documents
 
 ## Support
 

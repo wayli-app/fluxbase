@@ -373,30 +373,30 @@ func (h *AuthHandler) VerifyPasswordResetToken(c *fiber.Ctx) error {
 }
 
 // RegisterRoutes registers all authentication routes with rate limiting
-func (h *AuthHandler) RegisterRoutes(app *fiber.App, rateLimiters map[string]fiber.Handler) {
-	auth := app.Group("/auth")
+func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[string]fiber.Handler) {
+	// Register routes directly on the provided router (which should already be /api/v1/auth or similar)
 
 	// Public routes with rate limiting
-	auth.Post("/signup", rateLimiters["signup"], h.SignUp)
-	auth.Post("/signin", rateLimiters["login"], h.SignIn)
-	auth.Post("/signin/anonymous", h.SignInAnonymous) // No rate limit - creates unique user each time
-	auth.Post("/refresh", rateLimiters["refresh"], h.RefreshToken)
-	auth.Post("/magiclink", rateLimiters["magiclink"], h.SendMagicLink)
-	auth.Post("/magiclink/verify", h.VerifyMagicLink) // No rate limit on verification
-	auth.Post("/password/reset", rateLimiters["password_reset"], h.RequestPasswordReset)
-	auth.Post("/password/reset/confirm", h.ResetPassword) // No rate limit on actual reset (token is single-use)
-	auth.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
+	router.Post("/signup", rateLimiters["signup"], h.SignUp)
+	router.Post("/signin", rateLimiters["login"], h.SignIn)
+	router.Post("/signin/anonymous", h.SignInAnonymous) // No rate limit - creates unique user each time
+	router.Post("/refresh", rateLimiters["refresh"], h.RefreshToken)
+	router.Post("/magiclink", rateLimiters["magiclink"], h.SendMagicLink)
+	router.Post("/magiclink/verify", h.VerifyMagicLink) // No rate limit on verification
+	router.Post("/password/reset", rateLimiters["password_reset"], h.RequestPasswordReset)
+	router.Post("/password/reset/confirm", h.ResetPassword) // No rate limit on actual reset (token is single-use)
+	router.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
 
 	// Protected routes (authentication required) - lighter rate limits
-	auth.Post("/signout", h.SignOut)
-	auth.Get("/user", h.GetUser)
-	auth.Patch("/user", h.UpdateUser)
+	router.Post("/signout", h.SignOut)
+	router.Get("/user", h.GetUser)
+	router.Patch("/user", h.UpdateUser)
 
 	// Admin impersonation routes (admin only)
-	auth.Post("/impersonate", h.StartImpersonation)
-	auth.Delete("/impersonate", h.StopImpersonation)
-	auth.Get("/impersonate", h.GetActiveImpersonation)
-	auth.Get("/impersonate/sessions", h.ListImpersonationSessions)
+	router.Post("/impersonate", h.StartImpersonation)
+	router.Delete("/impersonate", h.StopImpersonation)
+	router.Get("/impersonate", h.GetActiveImpersonation)
+	router.Get("/impersonate/sessions", h.ListImpersonationSessions)
 }
 
 // SignInAnonymous creates JWT tokens for an anonymous user (no database record)

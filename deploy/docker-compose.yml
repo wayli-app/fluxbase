@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fluxbase-postgres
+    environment:
+      POSTGRES_USER: fluxbase
+      POSTGRES_PASSWORD: fluxbase
+      POSTGRES_DB: fluxbase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluxbase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluxbase
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    container_name: fluxbase-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - fluxbase
+
+  # Fluxbase API
+  fluxbase:
+    image: fluxbase/fluxbase:latest
+    container_name: fluxbase-api
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: fluxbase
+      DB_USER: fluxbase
+      DB_PASSWORD: fluxbase
+      DB_SSL_MODE: disable
+
+      # Server Configuration
+      SERVER_PORT: 8080
+      SERVER_HOST: 0.0.0.0
+
+      # JWT Configuration
+      JWT_SECRET: your-super-secret-jwt-key-change-me-in-production
+      JWT_EXPIRATION_MINUTES: 60
+
+      # Storage Configuration (using MinIO)
+      STORAGE_PROVIDER: s3
+      STORAGE_S3_BUCKET: fluxbase
+      STORAGE_S3_REGION: us-east-1
+      STORAGE_S3_ENDPOINT: http://minio:9000
+      STORAGE_S3_ACCESS_KEY_ID: minioadmin
+      STORAGE_S3_SECRET_ACCESS_KEY: minioadmin
+
+      # Observability
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      METRICS_ENABLED: "true"
+
+      # Security
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_REQUESTS_PER_MINUTE: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - fluxbase
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  fluxbase:
+    driver: bridge

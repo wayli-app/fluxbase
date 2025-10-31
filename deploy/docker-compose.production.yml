@@ -1,0 +1,249 @@
+version: '3.9'
+
+# Production Docker Compose for Fluxbase
+# Full stack with all dependencies
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fluxbase-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fluxbase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-fluxbase}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fluxbase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: fluxbase-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio:latest
+    container_name: fluxbase-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Fluxbase Application (3 replicas for HA)
+  fluxbase:
+    image: ghcr.io/wayli-app/fluxbase:${FLUXBASE_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${FLUXBASE_VERSION:-dev}
+        COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+    container_name: fluxbase-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Server
+      FLUXBASE_SERVER_ADDRESS: :8080
+      FLUXBASE_DEBUG: ${DEBUG:-false}
+      FLUXBASE_LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # Database
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_USER: ${POSTGRES_USER:-fluxbase}
+      FLUXBASE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      FLUXBASE_DATABASE_DATABASE: ${POSTGRES_DB:-fluxbase}
+      FLUXBASE_DATABASE_MAX_CONNECTIONS: 25
+      FLUXBASE_DATABASE_MIN_CONNECTIONS: 5
+
+      # Authentication
+      FLUXBASE_AUTH_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      FLUXBASE_AUTH_JWT_EXPIRY: 15m
+      FLUXBASE_AUTH_REFRESH_EXPIRY: 168h
+      FLUXBASE_AUTH_ENABLE_SIGNUP: ${ENABLE_SIGNUP:-true}
+
+      # Storage
+      FLUXBASE_STORAGE_PROVIDER: s3
+      FLUXBASE_STORAGE_S3_ENDPOINT: http://minio:9000
+      FLUXBASE_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      FLUXBASE_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      FLUXBASE_STORAGE_S3_REGION: us-east-1
+      FLUXBASE_STORAGE_S3_USE_SSL: false
+
+      # Realtime
+      FLUXBASE_REALTIME_ENABLED: true
+
+      # Base URL
+      FLUXBASE_BASE_URL: ${BASE_URL:-http://localhost:8080}
+    volumes:
+      - ./config/fluxbase.yaml:/app/config/fluxbase.yaml:ro
+      - fluxbase_storage:/app/storage
+      - fluxbase_logs:/app/logs
+    ports:
+      - "8080:8080"
+    networks:
+      - fluxbase-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fluxbase-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fluxbase-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required}
+      GF_INSTALL_PLUGINS: redis-datasource
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # NGINX reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fluxbase-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - fluxbase
+    networks:
+      - fluxbase-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  fluxbase-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  fluxbase_storage:
+    driver: local
+  fluxbase_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
