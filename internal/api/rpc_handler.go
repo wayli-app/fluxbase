@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/wayli-app/fluxbase/internal/database"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
 
@@ -162,79 +164,88 @@ func (h *RPCHandler) makeFunctionHandler(fn database.FunctionInfo) fiber.Handler
 			Interface("args", args).
 			Msg("Executing RPC call")
 
-		// Execute function
-		if fn.IsSetOf {
-			// Function returns a set of rows
-			rows, err := h.db.Query(ctx, query, args...)
-			if err != nil {
-				log.Error().Err(err).Str("function", fn.Name).Msg("Failed to execute function")
-				return c.Status(500).JSON(fiber.Map{
-					"error": "Failed to execute function",
-				})
-			}
-			defer rows.Close()
-
-			// Collect all rows
-			var results []map[string]interface{}
-			for rows.Next() {
-				values, err := rows.Values()
+		// Execute function within RLS transaction
+		var responseData interface{}
+		err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			// Execute function
+			if fn.IsSetOf {
+				// Function returns a set of rows
+				rows, err := tx.Query(ctx, query, args...)
 				if err != nil {
-					return c.Status(500).JSON(fiber.Map{
-						"error": "Failed to read function results",
-					})
+					log.Error().Err(err).Str("function", fn.Name).Msg("Failed to execute function")
+					return err
 				}
+				defer rows.Close()
 
-				// If function returns single column, return value directly
-				if len(values) == 1 {
-					// Try to parse as JSON if it's a composite type
-					if jsonStr, ok := values[0].(string); ok {
-						var jsonData map[string]interface{}
-						if err := json.Unmarshal([]byte(jsonStr), &jsonData); err == nil {
-							results = append(results, jsonData)
-							continue
+				// Collect all rows
+				var results []map[string]interface{}
+				for rows.Next() {
+					values, err := rows.Values()
+					if err != nil {
+						return err
+					}
+
+					// If function returns single column, return value directly
+					if len(values) == 1 {
+						// Try to parse as JSON if it's a composite type
+						if jsonStr, ok := values[0].(string); ok {
+							var jsonData map[string]interface{}
+							if err := json.Unmarshal([]byte(jsonStr), &jsonData); err == nil {
+								results = append(results, jsonData)
+								continue
+							}
 						}
+						// Otherwise return as single-key map
+						results = append(results, map[string]interface{}{
+							fn.ReturnType: values[0],
+						})
+					} else {
+						// Multiple columns - build map from column names
+						columns := rows.FieldDescriptions()
+						row := make(map[string]interface{})
+						for i, col := range columns {
+							row[string(col.Name)] = values[i]
+						}
+						results = append(results, row)
 					}
-					// Otherwise return as single-key map
-					results = append(results, map[string]interface{}{
-						fn.ReturnType: values[0],
-					})
-				} else {
-					// Multiple columns - build map from column names
-					columns := rows.FieldDescriptions()
-					row := make(map[string]interface{})
-					for i, col := range columns {
-						row[string(col.Name)] = values[i]
+				}
+
+				responseData = results
+				return nil
+			} else {
+				// Function returns a single value
+				row := tx.QueryRow(ctx, query, args...)
+
+				var result interface{}
+				if err := row.Scan(&result); err != nil {
+					log.Error().Err(err).Str("function", fn.Name).Msg("Failed to execute function")
+					return err
+				}
+
+				// Try to parse as JSON if it's a composite type
+				if jsonStr, ok := result.(string); ok {
+					var jsonData map[string]interface{}
+					if err := json.Unmarshal([]byte(jsonStr), &jsonData); err == nil {
+						responseData = jsonData
+						return nil
 					}
-					results = append(results, row)
 				}
-			}
 
-			return c.JSON(results)
-		} else {
-			// Function returns a single value
-			row := h.db.QueryRow(ctx, query, args...)
-
-			var result interface{}
-			if err := row.Scan(&result); err != nil {
-				log.Error().Err(err).Str("function", fn.Name).Msg("Failed to execute function")
-				return c.Status(500).JSON(fiber.Map{
-					"error": "Failed to execute function",
-				})
-			}
-
-			// Try to parse as JSON if it's a composite type
-			if jsonStr, ok := result.(string); ok {
-				var jsonData map[string]interface{}
-				if err := json.Unmarshal([]byte(jsonStr), &jsonData); err == nil {
-					return c.JSON(jsonData)
+				// Return scalar value
+				responseData = map[string]interface{}{
+					"result": result,
 				}
+				return nil
 			}
+		})
 
-			// Return scalar value
-			return c.JSON(map[string]interface{}{
-				"result": result,
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Failed to execute function",
 			})
 		}
+
+		return c.JSON(responseData)
 	}
 }
 

@@ -7,8 +7,7 @@
 *.dll
 *.so
 *.dylib
-fluxbase
-/fluxbase
+.docs/
 
 # Test binary, built with `go test -c`
 *.test

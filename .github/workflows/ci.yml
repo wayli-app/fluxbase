@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
-  GO_VERSION: '1.22'
-  POSTGRES_VERSION: '16'
+  GO_VERSION: "1.25"
+  POSTGRES_VERSION: "17"
 
 jobs:
   lint:
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:${{ env.POSTGRES_VERSION }}-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -131,6 +131,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
+          mkdir -p dist
           output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             output_name="${output_name}.exe"
@@ -189,7 +190,7 @@ jobs:
     if: github.event_name == 'push'
     services:
       postgres:
-        image: postgres:${{ env.POSTGRES_VERSION }}-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

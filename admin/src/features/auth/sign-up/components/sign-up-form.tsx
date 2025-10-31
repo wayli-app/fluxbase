@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from '@tanstack/react-router'
 import { IconFacebook, IconGithub } from '@/assets/brand-icons'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,10 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { authApi } from '@/lib/api'
+import { setTokens } from '@/lib/auth'
+import { setAuthToken } from '@/lib/fluxbase-client'
+import { toast } from 'sonner'
 
 const formSchema = z
   .object({
@@ -38,6 +43,7 @@ export function SignUpForm({
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
   const [isLoading, setIsLoading] = useState(false)
+  const navigate = useNavigate()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,14 +54,51 @@ export function SignUpForm({
     },
   })
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-    // eslint-disable-next-line no-console
-    console.log(data)
 
-    setTimeout(() => {
+    try {
+      const response = await authApi.signUp({
+        email: data.email,
+        password: data.password,
+      })
+
+      // Store tokens
+      setTokens(
+        {
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+          expires_in: response.expires_in,
+        },
+        {
+          id: response.user.id,
+          email: response.user.email,
+          role: response.user.role,
+          email_verified: response.user.email_verified,
+          created_at: response.user.created_at,
+          updated_at: response.user.updated_at,
+          metadata: response.user.metadata,
+        }
+      )
+
+      // Set token in Fluxbase SDK
+      setAuthToken(response.access_token)
+
+      toast.success('Account created!', {
+        description: 'Welcome to Fluxbase!',
+      })
+
+      // Redirect to dashboard
+      navigate({ to: '/' })
+    } catch (error: any) {
+      console.error('Sign up error:', error)
+      const errorMessage = error.response?.data?.error || 'Failed to create account'
+      toast.error('Sign up failed', {
+        description: errorMessage,
+      })
+    } finally {
       setIsLoading(false)
-    }, 3000)
+    }
   }
 
   return (

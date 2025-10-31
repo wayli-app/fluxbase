@@ -1,0 +1,60 @@
+CHART NAME: {{ .Chart.Name }}
+CHART VERSION: {{ .Chart.Version }}
+APP VERSION: {{ .Chart.AppVersion }}
+
+** Please be patient while the chart is being deployed **
+
+Fluxbase has been installed successfully!
+
+{{- if .Values.postgresql.enabled }}
+
+PostgreSQL is starting as part of this installation.
+{{- else }}
+
+You are using an external PostgreSQL database at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}
+{{- end }}
+
+1. Get the application URL by running these commands:
+
+{{- if .Values.ingress.enabled }}
+
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.hostname }}{{ .Values.ingress.path }}
+
+{{- else if contains "NodePort" .Values.service.type }}
+
+  export NODE_PORT=$(kubectl get --namespace {{ include "fluxbase.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "fluxbase.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "fluxbase.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Visit http://$NODE_IP:$NODE_PORT to use your application"
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        You can watch the status by running 'kubectl get --namespace {{ include "fluxbase.namespace" . }} svc -w {{ include "fluxbase.fullname" . }}'
+
+  export SERVICE_IP=$(kubectl get svc --namespace {{ include "fluxbase.namespace" . }} {{ include "fluxbase.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Visit http://$SERVICE_IP:{{ .Values.service.ports.http }} to use your application"
+
+{{- else if contains "ClusterIP" .Values.service.type }}
+
+  kubectl port-forward --namespace {{ include "fluxbase.namespace" . }} svc/{{ include "fluxbase.fullname" . }} 8080:{{ .Values.service.ports.http }}
+  echo "Visit http://127.0.0.1:8080 to use your application"
+
+{{- end }}
+
+2. Access the Admin UI:
+
+  Open http://your-fluxbase-url/admin in your browser
+
+3. To get your initial admin credentials:
+
+  kubectl get secret --namespace {{ include "fluxbase.namespace" . }} {{ include "fluxbase.fullname" . }} -o jsonpath="{.data.jwt-secret}" | base64 --decode
+
+{{- if .Values.metrics.enabled }}
+
+4. Access Prometheus metrics:
+
+  http://your-fluxbase-url/metrics
+
+{{- end }}
+
+{{ include "fluxbase.validateValues" . }}

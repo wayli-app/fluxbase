@@ -1,0 +1,110 @@
+# Prometheus Configuration for Fluxbase
+# Scrapes metrics from Fluxbase services and infrastructure
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'fluxbase-production'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load alerting rules
+# rule_files:
+#   - '/etc/prometheus/alerts/*.yml'
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Fluxbase Application (primary service)
+  - job_name: 'fluxbase'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'fluxbase:8080'
+        labels:
+          service: 'fluxbase'
+          tier: 'application'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):.*'
+        replacement: '${1}'
+
+  # PostgreSQL Database Metrics (using postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgresql'
+          tier: 'database'
+    # Optional: PostgreSQL connection details
+    # relabel_configs:
+    #   - source_labels: [__address__]
+    #     target_label: __param_target
+    #   - source_labels: [__param_target]
+    #     target_label: instance
+    #   - target_label: __address__
+    #     replacement: postgres-exporter:9187
+
+  # Redis Cache Metrics (using redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          tier: 'cache'
+
+  # MinIO Object Storage Metrics
+  - job_name: 'minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    scheme: http
+    static_configs:
+      - targets: ['minio:9000']
+        labels:
+          service: 'minio'
+          tier: 'storage'
+
+  # NGINX Reverse Proxy Metrics (using nginx-prometheus-exporter)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+          tier: 'proxy'
+
+  # Node Exporter for System Metrics (CPU, Memory, Disk, Network)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          tier: 'infrastructure'
+
+  # Docker Container Metrics (cAdvisor)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          tier: 'infrastructure'
+
+# Storage configuration
+storage:
+  tsdb:
+    path: /prometheus
+    retention:
+      time: 30d
+      size: 10GB

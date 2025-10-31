@@ -1,0 +1,687 @@
+## @section Global parameters
+## @descriptionStart
+## Global Docker image parameters
+## Please, note that this will override the image parameters, including dependencies, configured to use the global value
+## Current available global Docker image parameters: imageRegistry, imagePullSecrets and storageClass
+## @descriptionEnd
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Global Docker registry secret names as an array
+## @param global.storageClass Global StorageClass for Persistent Volume(s)
+##
+global:
+  imageRegistry: ""
+  ## E.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  imagePullSecrets: []
+  storageClass: ""
+
+## @section Common parameters
+
+## @param kubeVersion Override Kubernetes version
+##
+kubeVersion: ""
+## @param nameOverride String to partially override common.names.name
+##
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname
+##
+fullnameOverride: ""
+## @param namespaceOverride String to fully override common.names.namespace
+##
+namespaceOverride: ""
+## @param commonLabels Labels to add to all deployed objects
+##
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+##
+commonAnnotations: {}
+## @param clusterDomain Kubernetes cluster domain name
+##
+clusterDomain: cluster.local
+## @param extraDeploy Array of extra objects to deploy with the release
+##
+extraDeploy: []
+
+## @section Fluxbase Image parameters
+
+## Fluxbase image
+## @param image.registry [default: docker.io] Fluxbase image registry
+## @param image.repository [default: fluxbase/fluxbase] Fluxbase image repository
+## @param image.tag Fluxbase image tag (immutable tags are recommended)
+## @param image.digest Fluxbase image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
+## @param image.pullPolicy Fluxbase image pull policy
+## @param image.pullSecrets Fluxbase image pull secrets
+##
+image:
+  registry: ghcr.io
+  repository: wayli-app/fluxbase
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+  digest: ""
+  ## Specify a imagePullPolicy
+  ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
+  ## ref: https://kubernetes.io/docs/concepts/containers/images/#pre-pulled-images
+  ##
+  pullPolicy: IfNotPresent
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ## e.g:
+  ## pullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  pullSecrets: []
+
+## @section Fluxbase Configuration parameters
+
+## Fluxbase configuration
+## @param config.database.host PostgreSQL database host
+## @param config.database.port PostgreSQL database port
+## @param config.database.name PostgreSQL database name
+## @param config.database.user PostgreSQL database user
+## @param config.database.password PostgreSQL database password (use existingSecret instead)
+## @param config.database.sslMode PostgreSQL SSL mode (disable, require, verify-ca, verify-full)
+## @param config.server.port HTTP server port
+## @param config.server.host HTTP server host
+## @param config.jwt.secret JWT secret key (use existingSecret instead)
+## @param config.jwt.expirationMinutes JWT access token expiration in minutes
+## @param config.storage.provider Storage provider (local or s3)
+## @param config.storage.local.basePath Base path for local storage
+## @param config.storage.s3.bucket S3 bucket name
+## @param config.storage.s3.region S3 region
+## @param config.storage.s3.endpoint S3 endpoint (for MinIO or S3-compatible services)
+## @param config.storage.s3.accessKeyID S3 access key ID (use existingSecret instead)
+## @param config.storage.s3.secretAccessKey S3 secret access key (use existingSecret instead)
+##
+config:
+  database:
+    host: postgresql
+    port: 5432
+    name: fluxbase
+    user: fluxbase
+    password: ""  # Use existingSecret instead
+    sslMode: disable
+  server:
+    port: 8080
+    host: "0.0.0.0"
+  jwt:
+    secret: ""  # Use existingSecret instead
+    expirationMinutes: 60
+  storage:
+    provider: local
+    local:
+      basePath: /data/storage
+    s3:
+      bucket: ""
+      region: ""
+      endpoint: ""
+      accessKeyID: ""  # Use existingSecret instead
+      secretAccessKey: ""  # Use existingSecret instead
+
+## @param existingSecret Name of existing secret containing sensitive configuration
+## The secret should contain the following keys:
+## - database-password: PostgreSQL database password
+## - jwt-secret: JWT secret key
+## - s3-access-key-id: S3 access key ID (if using S3 storage)
+## - s3-secret-access-key: S3 secret access key (if using S3 storage)
+##
+existingSecret: ""
+
+## @section Fluxbase Deployment Parameters
+
+## @param replicaCount Number of Fluxbase replicas to deploy
+##
+replicaCount: 3
+
+## @param updateStrategy.type Fluxbase deployment strategy type
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+## e.g:
+## updateStrategy:
+##  type: RollingUpdate
+##  rollingUpdate:
+##    maxSurge: 25%
+##    maxUnavailable: 25%
+##
+updateStrategy:
+  type: RollingUpdate
+
+## @param podLabels Extra labels for Fluxbase pods
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+##
+podLabels: {}
+## @param podAnnotations Annotations for Fluxbase pods
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+##
+podAnnotations: {}
+## @param podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+##
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+##
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
+## @param nodeAffinityPreset.key Node label key to match. Ignored if `affinity` is set
+## @param nodeAffinityPreset.values Node label values to match. Ignored if `affinity` is set
+## E.g.
+## nodeAffinityPreset:
+##   type: hard
+##   key: node-label-key
+##   values:
+##     - node-label-value
+##
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param affinity Affinity for Fluxbase pods assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+## NOTE: `podAffinityPreset`, `podAntiAffinityPreset`, and `nodeAffinityPreset` will be ignored when it's set
+##
+affinity: {}
+## @param nodeSelector Node labels for Fluxbase pods assignment
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+##
+nodeSelector: {}
+## @param tolerations Tolerations for Fluxbase pods assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+##
+tolerations: []
+## @param priorityClassName Fluxbase pods' priorityClassName
+##
+priorityClassName: ""
+## @param schedulerName Name of the k8s scheduler (other than default) for Fluxbase pods
+## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+##
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment spread across your cluster among failure-domains
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/#spread-constraints-for-pods
+##
+topologySpreadConstraints: []
+## @param terminationGracePeriodSeconds Seconds Fluxbase pod needs to terminate gracefully
+## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+##
+terminationGracePeriodSeconds: 30
+
+## Configure Container Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+## @param podSecurityContext.enabled Enabled Fluxbase pods' Security Context
+## @param podSecurityContext.fsGroup Set Fluxbase pod's Security Context fsGroup
+## @param podSecurityContext.fsGroupChangePolicy Set filesystem group change policy
+## @param podSecurityContext.sysctls Set kernel settings using the sysctl interface
+## @param podSecurityContext.supplementalGroups Set filesystem extra groups
+##
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+
+## Configure Container Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
+## @param containerSecurityContext.enabled Enabled containers' Security Context
+## @param containerSecurityContext.seLinuxOptions [object,nullable] Set SELinux options in container
+## @param containerSecurityContext.runAsUser Set containers' Security Context runAsUser
+## @param containerSecurityContext.runAsGroup Set containers' Security Context runAsGroup
+## @param containerSecurityContext.runAsNonRoot Set container's Security Context runAsNonRoot
+## @param containerSecurityContext.privileged Set container's Security Context privileged
+## @param containerSecurityContext.readOnlyRootFilesystem Set container's Security Context readOnlyRootFilesystem
+## @param containerSecurityContext.allowPrivilegeEscalation Set container's Security Context allowPrivilegeEscalation
+## @param containerSecurityContext.capabilities.drop List of capabilities to be dropped
+## @param containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
+##
+containerSecurityContext:
+  enabled: true
+  seLinuxOptions: null
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+## Fluxbase resource requests and limits
+## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+## @param resourcesPreset Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+##
+resourcesPreset: "small"
+## @param resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+## Example:
+## resources:
+##   requests:
+##     cpu: 100m
+##     memory: 128Mi
+##   limits:
+##     cpu: 500m
+##     memory: 512Mi
+##
+resources: {}
+
+## Configure Pods probes
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+## @param startupProbe.enabled Enable startupProbe on Fluxbase containers
+## @param startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+## @param startupProbe.periodSeconds Period seconds for startupProbe
+## @param startupProbe.timeoutSeconds Timeout seconds for startupProbe
+## @param startupProbe.failureThreshold Failure threshold for startupProbe
+## @param startupProbe.successThreshold Success threshold for startupProbe
+##
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+
+## @param livenessProbe.enabled Enable livenessProbe on Fluxbase containers
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+## @param livenessProbe.successThreshold Success threshold for livenessProbe
+##
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+## @param readinessProbe.enabled Enable readinessProbe on Fluxbase containers
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+## @param readinessProbe.successThreshold Success threshold for readinessProbe
+##
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+## @param customStartupProbe Custom startupProbe that overrides the default one
+##
+customStartupProbe: {}
+## @param customLivenessProbe Custom livenessProbe that overrides the default one
+##
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readinessProbe that overrides the default one
+##
+customReadinessProbe: {}
+
+## @param lifecycleHooks for the Fluxbase container(s) to automate configuration before or after startup
+##
+lifecycleHooks: {}
+
+## @param command Override default container command (useful when using custom images)
+##
+command: []
+## @param args Override default container args (useful when using custom images)
+##
+args: []
+## @param extraEnvVars Array with extra environment variables to add to Fluxbase nodes
+## e.g:
+## extraEnvVars:
+##   - name: FOO
+##     value: "bar"
+##
+extraEnvVars: []
+## @param extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Fluxbase nodes
+##
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Name of existing Secret containing extra env vars for Fluxbase nodes
+##
+extraEnvVarsSecret: ""
+
+## @param extraVolumes Optionally specify extra list of additional volumes for the Fluxbase pod(s)
+## e.g:
+## extraVolumes:
+##   - name: extra-volume
+##     emptyDir: {}
+##
+extraVolumes: []
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for the Fluxbase container(s)
+## e.g:
+## extraVolumeMounts:
+##   - name: extra-volume
+##     mountPath: /extra/path
+##
+extraVolumeMounts: []
+
+## @param initContainers Add additional init containers to the Fluxbase pod(s)
+## ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+## e.g:
+## initContainers:
+##   - name: your-image-name
+##     image: your-image
+##     imagePullPolicy: Always
+##     command: ['sh', '-c', 'echo "hello world"']
+##
+initContainers: []
+## @param sidecars Add additional sidecar containers to the Fluxbase pod(s)
+## e.g:
+## sidecars:
+##   - name: your-image-name
+##     image: your-image
+##     imagePullPolicy: Always
+##     ports:
+##       - name: portname
+##         containerPort: 1234
+##
+sidecars: []
+
+## @section Traffic Exposure Parameters
+
+## Fluxbase service parameters
+##
+service:
+  ## @param service.type Fluxbase service type
+  ##
+  type: ClusterIP
+  ## @param service.ports.http Fluxbase service HTTP port
+  ##
+  ports:
+    http: 8080
+  ## @param service.nodePorts.http Node port for HTTP
+  ## NOTE: choose port between <30000-32767>
+  ##
+  nodePorts:
+    http: ""
+  ## @param service.clusterIP Fluxbase service Cluster IP
+  ## e.g.:
+  ## clusterIP: None
+  ##
+  clusterIP: ""
+  ## @param service.loadBalancerIP Fluxbase service Load Balancer IP
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+  ##
+  loadBalancerIP: ""
+  ## @param service.loadBalancerSourceRanges Fluxbase service Load Balancer sources
+  ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+  ## e.g:
+  ## loadBalancerSourceRanges:
+  ##   - 10.10.10.0/24
+  ##
+  loadBalancerSourceRanges: []
+  ## @param service.externalTrafficPolicy Fluxbase service external traffic policy
+  ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ##
+  externalTrafficPolicy: Cluster
+  ## @param service.annotations Additional custom annotations for Fluxbase service
+  ##
+  annotations: {}
+  ## @param service.extraPorts Extra ports to expose in Fluxbase service (normally used with the `sidecars` value)
+  ##
+  extraPorts: []
+  ## @param service.sessionAffinity Control where client requests go, to the same pod or round-robin
+  ## Values: ClientIP or None
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/
+  ##
+  sessionAffinity: None
+  ## @param service.sessionAffinityConfig Additional settings for the sessionAffinity
+  ## sessionAffinityConfig:
+  ##   clientIP:
+  ##     timeoutSeconds: 300
+  ##
+  sessionAffinityConfig: {}
+
+## Configure the ingress resource that allows you to access the Fluxbase installation
+## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/
+##
+ingress:
+  ## @param ingress.enabled Enable ingress record generation for Fluxbase
+  ##
+  enabled: false
+  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
+  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+  ##
+  ingressClassName: ""
+  ## @param ingress.pathType Ingress path type
+  ##
+  pathType: ImplementationSpecific
+  ## @param ingress.apiVersion Force Ingress API version (automatically detected if not set)
+  ##
+  apiVersion: ""
+  ## @param ingress.hostname Default host for the ingress record
+  ##
+  hostname: fluxbase.local
+  ## @param ingress.path Default path for the ingress record
+  ## NOTE: You may need to set this to '/*' in order to use this with ALB ingress controllers
+  ##
+  path: /
+  ## @param ingress.annotations Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
+  ## Use this parameter to set the required annotations for cert-manager, see
+  ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+  ## e.g:
+  ## annotations:
+  ##   kubernetes.io/ingress.class: nginx
+  ##   cert-manager.io/cluster-issuer: cluster-issuer-name
+  ##
+  annotations: {}
+  ## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname` parameter
+  ## TLS certificates will be retrieved from a TLS secret with name: `{{- printf "%s-tls" .Values.ingress.hostname }}`
+  ## You can:
+  ##   - Use the `ingress.secrets` parameter to create this TLS secret
+  ##   - Rely on cert-manager to create it by setting the corresponding annotations
+  ##   - Rely on Helm to create self-signed certificates by setting `ingress.selfSigned=true`
+  ##
+  tls: false
+  ## @param ingress.selfSigned Create a TLS secret for this ingress record using self-signed certificates generated by Helm
+  ##
+  selfSigned: false
+  ## @param ingress.extraHosts An array with additional hostname(s) to be covered with the ingress record
+  ## e.g:
+  ## extraHosts:
+  ##   - name: fluxbase.local
+  ##     path: /
+  ##
+  extraHosts: []
+  ## @param ingress.extraPaths An array with additional arbitrary paths that may need to be added to the ingress under the main host
+  ## e.g:
+  ## extraPaths:
+  ## - path: /*
+  ##   backend:
+  ##     serviceName: ssl-redirect
+  ##     servicePort: use-annotation
+  ##
+  extraPaths: []
+  ## @param ingress.extraTls TLS configuration for additional hostname(s) to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+  ## e.g:
+  ## extraTls:
+  ## - hosts:
+  ##     - fluxbase.local
+  ##   secretName: fluxbase.local-tls
+  ##
+  extraTls: []
+  ## @param ingress.secrets Custom TLS certificates as secrets
+  ## NOTE: 'key' and 'certificate' are expected in PEM format
+  ## NOTE: 'name' should line up with a 'secretName' set further up
+  ## If it is not set and you're using cert-manager, this is unneeded, as it will create a secret for you with valid certificates
+  ## If it is not set and you're NOT using cert-manager either, self-signed certificates will be created valid for 365 days
+  ## It is also possible to create and manage the certificates outside of this helm chart
+  ## Please see README.md for more information
+  ## e.g:
+  ## secrets:
+  ##   - name: fluxbase.local-tls
+  ##     key: |-
+  ##       -----BEGIN RSA PRIVATE KEY-----
+  ##       ...
+  ##       -----END RSA PRIVATE KEY-----
+  ##     certificate: |-
+  ##       -----BEGIN CERTIFICATE-----
+  ##       ...
+  ##       -----END CERTIFICATE-----
+  ##
+  secrets: []
+  ## @param ingress.extraRules Additional rules to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+  ## e.g:
+  ## extraRules:
+  ## - host: example.local
+  ##     http:
+  ##       path: /
+  ##       backend:
+  ##         service:
+  ##           name: example-svc
+  ##           port:
+  ##             name: http
+  ##
+  extraRules: []
+
+## @section Persistence Parameters
+
+## Persistence for storage data (when using local storage provider)
+##
+persistence:
+  ## @param persistence.enabled Enable persistence using Persistent Volume Claims
+  ##
+  enabled: true
+  ## @param persistence.storageClass Storage class of backing PVC
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  storageClass: ""
+  ## @param persistence.annotations Persistent Volume Claim annotations
+  ##
+  annotations: {}
+  ## @param persistence.accessModes Persistent Volume Access Modes
+  ##
+  accessModes:
+    - ReadWriteOnce
+  ## @param persistence.size Size of data volume
+  ##
+  size: 8Gi
+  ## @param persistence.existingClaim The name of an existing PVC to use for persistence
+  ##
+  existingClaim: ""
+  ## @param persistence.selector Selector to match an existing Persistent Volume for Fluxbase data PVC
+  ## If set, the PVC can't have a PV dynamically provisioned for it
+  ## E.g.
+  ## selector:
+  ##   matchLabels:
+  ##     app: my-app
+  ##
+  selector: {}
+  ## @param persistence.dataSource Custom PVC data source
+  ##
+  dataSource: {}
+
+## @section PostgreSQL Parameters
+## @descriptionStart
+## PostgreSQL chart configuration
+## ref: https://github.com/bitnami/charts/blob/main/bitnami/postgresql/values.yaml
+## @descriptionEnd
+
+## @param postgresql.enabled Deploy PostgreSQL container(s). Allowed values: `true` or `false`
+##
+postgresql:
+  enabled: true
+  ## @param postgresql.auth.username PostgreSQL username
+  ## @param postgresql.auth.password PostgreSQL password
+  ## @param postgresql.auth.database PostgreSQL database
+  ##
+  auth:
+    username: fluxbase
+    password: fluxbase
+    database: fluxbase
+  ## @param postgresql.primary.persistence.enabled Enable PostgreSQL Primary data persistence using PVC
+  ## @param postgresql.primary.persistence.size PostgreSQL Primary Persistent Volume size
+  ##
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+## External PostgreSQL configuration
+## All of these values are only used when postgresql.enabled is set to false
+## @param externalDatabase.host Database host
+## @param externalDatabase.port Database port number
+## @param externalDatabase.user Non-root username
+## @param externalDatabase.password Password for the non-root username
+## @param externalDatabase.database Database name
+## @param externalDatabase.existingSecret Name of an existing secret resource containing the database credentials
+## @param externalDatabase.existingSecretPasswordKey Name of an existing secret key containing the database credentials
+##
+externalDatabase:
+  host: ""
+  port: 5432
+  user: fluxbase
+  password: ""
+  database: fluxbase
+  existingSecret: ""
+  existingSecretPasswordKey: ""
+
+## @section ServiceAccount Parameters
+
+## @param serviceAccount.create Specifies whether a ServiceAccount should be created
+## @param serviceAccount.name The name of the ServiceAccount to use.
+## @param serviceAccount.automountServiceAccountToken Allows auto mount of ServiceAccountToken on the serviceAccount created
+## @param serviceAccount.annotations Additional custom annotations for the ServiceAccount
+##
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: false
+  annotations: {}
+
+## @section Autoscaling Parameters
+
+## Autoscaling configuration
+## @param autoscaling.enabled Enable autoscaling for Fluxbase
+## @param autoscaling.minReplicas Minimum number of Fluxbase replicas
+## @param autoscaling.maxReplicas Maximum number of Fluxbase replicas
+## @param autoscaling.targetCPU Target CPU utilization percentage
+## @param autoscaling.targetMemory Target Memory utilization percentage
+##
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 11
+  targetCPU: 80
+  targetMemory: 80
+
+## @section Metrics Parameters
+
+## Prometheus metrics
+## @param metrics.enabled Enable Prometheus metrics endpoint
+## @param metrics.serviceMonitor.enabled Create ServiceMonitor resource for scraping metrics using PrometheusOperator
+## @param metrics.serviceMonitor.namespace Namespace for the ServiceMonitor resource (defaults to the Release Namespace)
+## @param metrics.serviceMonitor.interval Interval at which metrics should be scraped
+## @param metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+## @param metrics.serviceMonitor.relabelings Metrics relabelings to add to the scrape endpoint
+## @param metrics.serviceMonitor.honorLabels Specify honorLabels parameter to add the scrape endpoint
+## @param metrics.serviceMonitor.additionalLabels Additional labels that can be used so ServiceMonitor resource(s) can be discovered by Prometheus
+## @param metrics.serviceMonitor.selector Prometheus instance selector labels
+##
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings: []
+    honorLabels: false
+    additionalLabels: {}
+    selector: {}

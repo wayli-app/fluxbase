@@ -389,3 +389,136 @@ export const adminAuthAPI = {
     return response.data
   },
 }
+
+// Dashboard user types
+export interface DashboardUser {
+  id: string
+  email: string
+  email_verified: boolean
+  full_name: string | null
+  avatar_url: string | null
+  totp_enabled: boolean
+  is_active: boolean
+  is_locked: boolean
+  last_login_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DashboardSignupRequest {
+  email: string
+  password: string
+  full_name: string
+}
+
+export interface DashboardLoginRequest {
+  email: string
+  password: string
+}
+
+export interface DashboardLoginResponse {
+  access_token: string
+  user: DashboardUser
+  requires_2fa?: boolean
+  user_id?: string
+}
+
+export interface UpdateProfileRequest {
+  full_name: string
+  avatar_url?: string | null
+}
+
+export interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
+}
+
+export interface DeleteAccountRequest {
+  password: string
+}
+
+export interface Setup2FAResponse {
+  secret: string
+  qr_url: string
+}
+
+export interface Enable2FARequest {
+  code: string
+}
+
+export interface Enable2FAResponse {
+  message: string
+  backup_codes: string[]
+}
+
+export interface Verify2FARequest {
+  user_id: string
+  code: string
+}
+
+export interface Disable2FARequest {
+  password: string
+}
+
+// Dashboard Auth API methods
+export const dashboardAuthAPI = {
+  // Signup for dashboard
+  signup: async (data: DashboardSignupRequest): Promise<{ user: DashboardUser; message: string }> => {
+    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/signup`, data)
+    return response.data
+  },
+
+  // Login to dashboard
+  login: async (credentials: DashboardLoginRequest): Promise<DashboardLoginResponse> => {
+    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/login`, credentials)
+    return response.data
+  },
+
+  // Get current dashboard user
+  me: async (): Promise<DashboardUser> => {
+    const response = await api.get('/dashboard/auth/me')
+    return response.data
+  },
+
+  // Update profile
+  updateProfile: async (data: UpdateProfileRequest): Promise<DashboardUser> => {
+    const response = await api.put('/dashboard/auth/profile', data)
+    return response.data
+  },
+
+  // Change password
+  changePassword: async (data: ChangePasswordRequest): Promise<{ message: string }> => {
+    const response = await api.post('/dashboard/auth/password/change', data)
+    return response.data
+  },
+
+  // Delete account
+  deleteAccount: async (data: DeleteAccountRequest): Promise<{ message: string }> => {
+    const response = await api.delete('/dashboard/auth/account', { data })
+    return response.data
+  },
+
+  // Setup 2FA
+  setup2FA: async (): Promise<Setup2FAResponse> => {
+    const response = await api.post('/dashboard/auth/2fa/setup')
+    return response.data
+  },
+
+  // Enable 2FA
+  enable2FA: async (data: Enable2FARequest): Promise<Enable2FAResponse> => {
+    const response = await api.post('/dashboard/auth/2fa/enable', data)
+    return response.data
+  },
+
+  // Verify 2FA code during login
+  verify2FA: async (data: Verify2FARequest): Promise<DashboardLoginResponse> => {
+    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/2fa/verify`, data)
+    return response.data
+  },
+
+  // Disable 2FA
+  disable2FA: async (data: Disable2FARequest): Promise<{ message: string }> => {
+    const response = await api.post('/dashboard/auth/2fa/disable', data)
+    return response.data
+  },
+}

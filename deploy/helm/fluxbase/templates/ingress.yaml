@@ -1,0 +1,38 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "fluxbase.fullname" . }}
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.hostname }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "fluxbase.fullname" . }}
+                port:
+                  number: {{ .Values.service.ports.http }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hostname }}
+      secretName: {{ printf "%s-tls" .Values.ingress.hostname }}
+  {{- end }}
+{{- end }}

@@ -6,6 +6,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -30,6 +34,11 @@ import {
   Code2,
   Filter,
   RefreshCw,
+  Zap,
+  Plus,
+  Edit,
+  Trash2,
+  Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -64,7 +73,39 @@ interface FunctionCall {
   status: 'success' | 'error'
 }
 
+interface EdgeFunction {
+  id: string
+  name: string
+  description?: string
+  code: string
+  version: number
+  cron_schedule?: string
+  enabled: boolean
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  created_at: string
+  updated_at: string
+}
+
+interface EdgeFunctionExecution {
+  id: string
+  function_id: string
+  trigger_type: string
+  status: string
+  status_code?: number
+  duration_ms?: number
+  result?: string
+  logs?: string
+  error_message?: string
+  executed_at: string
+}
+
 function FunctionsPage() {
+  const [activeTab, setActiveTab] = useState<'rpc' | 'edge'>('rpc')
   const [functions, setFunctions] = useState<RPCFunction[]>([])
   const [filteredFunctions, setFilteredFunctions] = useState<RPCFunction[]>([])
   const [loading, setLoading] = useState(true)
@@ -274,9 +315,9 @@ else console.log(data)`
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">RPC Functions</h1>
+          <h1 className="text-3xl font-bold">Functions</h1>
           <p className="text-muted-foreground">
-            Test and manage PostgreSQL functions via RPC endpoints
+            Manage PostgreSQL RPC functions and Edge Functions (Deno runtime)
           </p>
         </div>
         <Button onClick={fetchFunctions} variant="outline" size="sm">
@@ -284,6 +325,20 @@ else console.log(data)`
           Refresh
         </Button>
       </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'rpc' | 'edge')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="rpc">
+            <FileCode className="h-4 w-4 mr-2" />
+            PostgreSQL Functions
+          </TabsTrigger>
+          <TabsTrigger value="edge">
+            <Zap className="h-4 w-4 mr-2" />
+            Edge Functions
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rpc" className="space-y-6 mt-6">
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -576,6 +631,925 @@ else console.log(data)`
           </ScrollArea>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="edge" className="space-y-6 mt-6">
+          <EdgeFunctionsTab />
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+// Edge Functions Component
+function EdgeFunctionsTab() {
+  const [edgeFunctions, setEdgeFunctions] = useState<EdgeFunction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showInvokeDialog, setShowInvokeDialog] = useState(false)
+  const [showLogsDialog, setShowLogsDialog] = useState(false)
+  const [showResultDialog, setShowResultDialog] = useState(false)
+  const [selectedFunction, setSelectedFunction] = useState<EdgeFunction | null>(null)
+  const [executions, setExecutions] = useState<EdgeFunctionExecution[]>([])
+  const [invoking, setInvoking] = useState(false)
+  const [invokeResult, setInvokeResult] = useState<{ success: boolean; data: string; error?: string } | null>(null)
+  const [wordWrap, setWordWrap] = useState(false)
+  const [logsWordWrap, setLogsWordWrap] = useState(false)
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    code: `interface Request {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+async function handler(req: Request) {
+  // Your code here
+  const data = JSON.parse(req.body || "{}");
+
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "Hello from edge function!" })
+  };
+}`,
+    timeout_seconds: 30,
+    allow_net: true,
+    allow_env: true,
+    allow_read: false,
+    allow_write: false,
+    cron_schedule: '',
+  })
+
+  const [invokeBody, setInvokeBody] = useState('{}')
+
+  useEffect(() => {
+    fetchEdgeFunctions()
+  }, [])
+
+  const fetchEdgeFunctions = async () => {
+    setLoading(true)
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch('/api/v1/functions', {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setEdgeFunctions(data || [])
+      } else {
+        toast.error('Failed to fetch edge functions')
+      }
+    } catch (error) {
+      console.error('Error fetching edge functions:', error)
+      toast.error('Failed to fetch edge functions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createFunction = async () => {
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch('/api/v1/functions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          ...formData,
+          cron_schedule: formData.cron_schedule || null,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success('Edge function created successfully')
+        setShowCreateDialog(false)
+        resetForm()
+        fetchEdgeFunctions()
+      } else {
+        const error = await res.json()
+        toast.error(error.error || 'Failed to create edge function')
+      }
+    } catch (error) {
+      console.error('Error creating edge function:', error)
+      toast.error('Failed to create edge function')
+    }
+  }
+
+  const updateFunction = async () => {
+    if (!selectedFunction) return
+
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch(`/api/v1/functions/${selectedFunction.name}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          code: formData.code,
+          description: formData.description,
+          timeout_seconds: formData.timeout_seconds,
+          allow_net: formData.allow_net,
+          allow_env: formData.allow_env,
+          allow_read: formData.allow_read,
+          allow_write: formData.allow_write,
+          cron_schedule: formData.cron_schedule || null,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success('Edge function updated successfully')
+        setShowEditDialog(false)
+        fetchEdgeFunctions()
+      } else {
+        const error = await res.json()
+        toast.error(error.error || 'Failed to update edge function')
+      }
+    } catch (error) {
+      console.error('Error updating edge function:', error)
+      toast.error('Failed to update edge function')
+    }
+  }
+
+  const deleteFunction = async (name: string) => {
+    if (!confirm(`Are you sure you want to delete function "${name}"?`)) return
+
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch(`/api/v1/functions/${name}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      })
+
+      if (res.ok) {
+        toast.success('Edge function deleted successfully')
+        fetchEdgeFunctions()
+      } else {
+        const error = await res.json()
+        toast.error(error.error || 'Failed to delete edge function')
+      }
+    } catch (error) {
+      console.error('Error deleting edge function:', error)
+      toast.error('Failed to delete edge function')
+    }
+  }
+
+  const toggleFunction = async (fn: EdgeFunction) => {
+    const newEnabledState = !fn.enabled
+
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch(`/api/v1/functions/${fn.name}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          code: fn.code,
+          description: fn.description,
+          timeout_seconds: fn.timeout_seconds,
+          allow_net: fn.allow_net,
+          allow_env: fn.allow_env,
+          allow_read: fn.allow_read,
+          allow_write: fn.allow_write,
+          cron_schedule: fn.cron_schedule || null,
+          enabled: newEnabledState,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success(`Function ${newEnabledState ? 'enabled' : 'disabled'}`)
+        fetchEdgeFunctions()
+      } else {
+        const error = await res.json()
+        toast.error(error.error || 'Failed to toggle function')
+      }
+    } catch (error) {
+      console.error('Error toggling function:', error)
+      toast.error('Failed to toggle function')
+    }
+  }
+
+  const invokeFunction = async () => {
+    if (!selectedFunction) return
+
+    setInvoking(true)
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch(`/api/v1/functions/${selectedFunction.name}/invoke`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: invokeBody,
+      })
+
+      const result = await res.text()
+
+      if (res.ok) {
+        toast.success('Function invoked successfully')
+        setInvokeResult({ success: true, data: result })
+        setShowInvokeDialog(false)
+        setShowResultDialog(true)
+      } else {
+        toast.error('Function invocation failed')
+        setInvokeResult({ success: false, data: '', error: result })
+        setShowInvokeDialog(false)
+        setShowResultDialog(true)
+      }
+    } catch (error: any) {
+      console.error('Error invoking function:', error)
+      toast.error('Failed to invoke function')
+      setInvokeResult({ success: false, data: '', error: error.message })
+      setShowInvokeDialog(false)
+      setShowResultDialog(true)
+    } finally {
+      setInvoking(false)
+    }
+  }
+
+  const fetchExecutions = async (functionName: string) => {
+    try {
+      const token = localStorage.getItem('fluxbase-auth-token')
+      const res = await fetch(`/api/v1/functions/${functionName}/executions?limit=20`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setExecutions(data || [])
+        setShowLogsDialog(true)
+      } else {
+        toast.error('Failed to fetch execution logs')
+      }
+    } catch (error) {
+      console.error('Error fetching executions:', error)
+      toast.error('Failed to fetch execution logs')
+    }
+  }
+
+  const openEditDialog = (fn: EdgeFunction) => {
+    setSelectedFunction(fn)
+    setFormData({
+      name: fn.name,
+      description: fn.description || '',
+      code: fn.code,
+      timeout_seconds: fn.timeout_seconds,
+      allow_net: fn.allow_net,
+      allow_env: fn.allow_env,
+      allow_read: fn.allow_read,
+      allow_write: fn.allow_write,
+      cron_schedule: fn.cron_schedule || '',
+    })
+    setShowEditDialog(true)
+  }
+
+  const openInvokeDialog = (fn: EdgeFunction) => {
+    setSelectedFunction(fn)
+    setInvokeBody('{\n  "name": "World"\n}')
+    setShowInvokeDialog(true)
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      code: `interface Request {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+async function handler(req: Request) {
+  // Your code here
+  const data = JSON.parse(req.body || "{}");
+
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "Hello from edge function!" })
+  };
+}`,
+      timeout_seconds: 30,
+      allow_net: true,
+      allow_env: true,
+      allow_read: false,
+      allow_write: false,
+      cron_schedule: '',
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Edge Functions</h2>
+          <p className="text-sm text-muted-foreground">
+            Deploy and run TypeScript/JavaScript functions with Deno runtime
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={fetchEdgeFunctions} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Function
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Total Functions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{edgeFunctions.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {edgeFunctions.filter((f) => f.enabled).length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {edgeFunctions.filter((f) => f.cron_schedule).length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Functions List */}
+      <ScrollArea className="h-[calc(100vh-28rem)]">
+        <div className="grid gap-4">
+          {edgeFunctions.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-lg font-medium mb-2">No edge functions yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create your first edge function to get started
+                </p>
+                <Button onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Edge Function
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            edgeFunctions.map((fn) => (
+              <Card key={fn.id} className="hover:border-primary/50 transition-colors">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CardTitle className="text-lg">{fn.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={fn.enabled}
+                            onCheckedChange={() => toggleFunction(fn)}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {fn.enabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                        <Badge variant="outline">v{fn.version}</Badge>
+                        {fn.cron_schedule && (
+                          <Badge variant="outline">
+                            <Clock className="h-3 w-3 mr-1" />
+                            scheduled
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription>
+                        {fn.description || 'No description'}
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => openInvokeDialog(fn)}
+                        size="sm"
+                        variant="outline"
+                        disabled={!fn.enabled}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        Invoke
+                      </Button>
+                      <Button onClick={() => openEditDialog(fn)} size="sm" variant="outline">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={() => deleteFunction(fn.name)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-4">
+                      <span className="text-muted-foreground">Timeout:</span>
+                      <span>{fn.timeout_seconds}s</span>
+                      <span className="text-muted-foreground">Memory:</span>
+                      <span>{fn.memory_limit_mb}MB</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Permissions:</span>
+                      {fn.allow_net && <Badge variant="outline">net</Badge>}
+                      {fn.allow_env && <Badge variant="outline">env</Badge>}
+                      {fn.allow_read && <Badge variant="outline">read</Badge>}
+                      {fn.allow_write && <Badge variant="outline">write</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => fetchExecutions(fn.name)}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        <History className="h-4 w-4 mr-2" />
+                        View Logs
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Create Function Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Edge Function</DialogTitle>
+            <DialogDescription>
+              Deploy a new TypeScript/JavaScript function with Deno runtime
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Function Name</Label>
+              <Input
+                id="name"
+                placeholder="my_function"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description (optional)</Label>
+              <Input
+                id="description"
+                placeholder="What does this function do?"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="code">Code (TypeScript)</Label>
+              <Textarea
+                id="code"
+                className="font-mono text-sm min-h-[400px]"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="timeout">Timeout (seconds)</Label>
+                <Input
+                  id="timeout"
+                  type="number"
+                  min={1}
+                  max={300}
+                  value={formData.timeout_seconds}
+                  onChange={(e) =>
+                    setFormData({ ...formData, timeout_seconds: parseInt(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="cron">Cron Schedule (optional)</Label>
+                <Input
+                  id="cron"
+                  placeholder="0 0 * * *"
+                  value={formData.cron_schedule}
+                  onChange={(e) => setFormData({ ...formData, cron_schedule: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Permissions</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_net}
+                    onChange={(e) => setFormData({ ...formData, allow_net: e.target.checked })}
+                  />
+                  <span>Allow Network Access</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_env}
+                    onChange={(e) => setFormData({ ...formData, allow_env: e.target.checked })}
+                  />
+                  <span>Allow Environment Variables</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_read}
+                    onChange={(e) => setFormData({ ...formData, allow_read: e.target.checked })}
+                  />
+                  <span>Allow File Read</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_write}
+                    onChange={(e) => setFormData({ ...formData, allow_write: e.target.checked })}
+                  />
+                  <span>Allow File Write</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createFunction}>Create Function</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Function Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Edge Function</DialogTitle>
+            <DialogDescription>Update function code and settings</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit-code">Code</Label>
+              <Textarea
+                id="edit-code"
+                className="font-mono text-sm min-h-[400px]"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-timeout">Timeout (seconds)</Label>
+                <Input
+                  id="edit-timeout"
+                  type="number"
+                  min={1}
+                  max={300}
+                  value={formData.timeout_seconds}
+                  onChange={(e) =>
+                    setFormData({ ...formData, timeout_seconds: parseInt(e.target.value) })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-cron">Cron Schedule</Label>
+                <Input
+                  id="edit-cron"
+                  placeholder="0 0 * * *"
+                  value={formData.cron_schedule}
+                  onChange={(e) => setFormData({ ...formData, cron_schedule: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Permissions</Label>
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_net}
+                    onChange={(e) => setFormData({ ...formData, allow_net: e.target.checked })}
+                  />
+                  <span>Allow Network Access</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_env}
+                    onChange={(e) => setFormData({ ...formData, allow_env: e.target.checked })}
+                  />
+                  <span>Allow Environment Variables</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_read}
+                    onChange={(e) => setFormData({ ...formData, allow_read: e.target.checked })}
+                  />
+                  <span>Allow File Read</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_write}
+                    onChange={(e) => setFormData({ ...formData, allow_write: e.target.checked })}
+                  />
+                  <span>Allow File Write</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateFunction}>Update Function</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoke Function Dialog */}
+      <Dialog open={showInvokeDialog} onOpenChange={setShowInvokeDialog}>
+        <DialogContent className="max-w-5xl w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Invoke Edge Function</DialogTitle>
+            <DialogDescription>
+              Test {selectedFunction?.name} with custom input
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="invoke-body">Request Body (JSON)</Label>
+              <Textarea
+                id="invoke-body"
+                className="font-mono text-sm min-h-[200px]"
+                value={invokeBody}
+                onChange={(e) => setInvokeBody(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInvokeDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={invokeFunction} disabled={invoking}>
+              {invoking ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Invoking...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Invoke
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Execution Logs Dialog */}
+      <Dialog open={showLogsDialog} onOpenChange={setShowLogsDialog}>
+        <DialogContent className="!max-w-[95vw] !w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Execution Logs</DialogTitle>
+            <DialogDescription>
+              Recent executions for {selectedFunction?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <Switch
+              id="logs-word-wrap"
+              checked={logsWordWrap}
+              onCheckedChange={setLogsWordWrap}
+            />
+            <Label htmlFor="logs-word-wrap" className="cursor-pointer">
+              Word wrap
+            </Label>
+          </div>
+
+          <div className="flex-1 overflow-auto min-h-0 border rounded-lg p-4 space-y-3">
+            {executions.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No executions yet</p>
+              </div>
+            ) : (
+              executions.map((exec) => (
+                <Card key={exec.id} className="overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge
+                              variant={exec.status === 'success' ? 'default' : 'destructive'}
+                            >
+                              {exec.status}
+                            </Badge>
+                            <Badge variant="outline">{exec.trigger_type}</Badge>
+                            {exec.status_code && (
+                              <Badge variant="secondary">{exec.status_code}</Badge>
+                            )}
+                            {exec.duration_ms && (
+                              <span className="text-xs text-muted-foreground">
+                                {exec.duration_ms}ms
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(exec.executed_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {(exec.logs || exec.error_message || exec.result) && (
+                      <CardContent className="pt-0 overflow-hidden">
+                        {exec.error_message && (
+                          <div className="mb-2 min-w-0">
+                            <Label className="text-xs text-destructive">Error:</Label>
+                            <div className="mt-1 border rounded bg-destructive/10 overflow-auto max-h-40 max-w-full">
+                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
+                                {exec.error_message}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {exec.logs && (
+                          <div className="mb-2 min-w-0">
+                            <Label className="text-xs">Logs:</Label>
+                            <div className="mt-1 border rounded bg-muted overflow-auto max-h-40 max-w-full">
+                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
+                                {exec.logs}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {exec.result && !exec.error_message && (
+                          <div className="min-w-0">
+                            <Label className="text-xs">Result:</Label>
+                            <div className="mt-1 border rounded bg-muted overflow-auto max-h-40 max-w-full">
+                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
+                                {exec.result}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Dialog */}
+      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>
+              {invokeResult?.success ? 'Function Result' : 'Function Error'}
+            </DialogTitle>
+            <DialogDescription>
+              {invokeResult?.success
+                ? 'Function executed successfully'
+                : 'Function execution failed'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="word-wrap"
+                checked={wordWrap}
+                onCheckedChange={setWordWrap}
+              />
+              <Label htmlFor="word-wrap" className="cursor-pointer">
+                Word wrap
+              </Label>
+            </div>
+
+            {invokeResult?.success ? (
+              <div className="w-full overflow-hidden">
+                <Label>Response</Label>
+                <div className="mt-2 border rounded-lg bg-muted overflow-auto h-[70vh]">
+                  <pre
+                    className={`text-xs p-4 ${
+                      wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                    }`}
+                  >
+                    {invokeResult.data}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full overflow-hidden">
+                <Label>Error</Label>
+                <div className="mt-2 border rounded-lg bg-destructive/10 overflow-auto h-[70vh]">
+                  <pre
+                    className={`text-xs text-destructive p-4 ${
+                      wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                    }`}
+                  >
+                    {invokeResult?.error}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (invokeResult?.success) {
+                  navigator.clipboard.writeText(invokeResult.data)
+                  toast.success('Copied to clipboard')
+                }
+              }}
+              disabled={!invokeResult?.success}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
+            <Button onClick={() => setShowResultDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

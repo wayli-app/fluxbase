@@ -9,6 +9,7 @@ import (
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/email"
+	"github.com/wayli-app/fluxbase/internal/functions"
 	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/realtime"
 	"github.com/wayli-app/fluxbase/internal/storage"
@@ -30,11 +31,14 @@ type Server struct {
 	rest                  *RESTHandler
 	authHandler           *AuthHandler
 	adminAuthHandler      *AdminAuthHandler
+	dashboardAuthHandler  *DashboardAuthHandler
 	apiKeyHandler         *APIKeyHandler
 	storageHandler        *StorageHandler
 	webhookHandler        *WebhookHandler
 	monitoringHandler     *MonitoringHandler
 	userManagementHandler *UserManagementHandler
+	functionsHandler      *functions.Handler
+	functionsScheduler    *functions.Scheduler
 	realtimeManager       *realtime.Manager
 	realtimeHandler       *realtime.RealtimeHandler
 	realtimeListener      *realtime.Listener
@@ -89,10 +93,16 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Create handlers
 	authHandler := NewAuthHandler(authService)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db))
+	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), cfg.Auth.JWTSecret)
+	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
+	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService)
+	functionsHandler := functions.NewHandler(db.Pool())
+	functionsScheduler := functions.NewScheduler(db.Pool())
+	functionsHandler.SetScheduler(functionsScheduler)
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
@@ -111,11 +121,14 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		rest:                  NewRESTHandler(db, NewQueryParser()),
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
+		dashboardAuthHandler:  dashboardAuthHandler,
 		apiKeyHandler:         apiKeyHandler,
 		storageHandler:        storageHandler,
 		webhookHandler:        webhookHandler,
 		monitoringHandler:     monitoringHandler,
 		userManagementHandler: userMgmtHandler,
+		functionsHandler:      functionsHandler,
+		functionsScheduler:    functionsScheduler,
 		realtimeManager:       realtimeManager,
 		realtimeHandler:       realtimeHandler,
 		realtimeListener:      realtimeListener,
@@ -126,41 +139,61 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		log.Error().Err(err).Msg("Failed to start realtime listener")
 	}
 
+	// Start edge functions scheduler
+	if err := functionsScheduler.Start(); err != nil {
+		log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+	}
+
 	// Setup middlewares
+	log.Debug().Msg("Setting up middlewares")
 	server.setupMiddlewares()
 
 	// Setup routes
+	log.Debug().Msg("Setting up routes")
 	server.setupRoutes()
 
+	log.Debug().Msg("Server initialization complete")
 	return server
 }
 
 // setupMiddlewares sets up global middlewares
 func (s *Server) setupMiddlewares() {
-	// Request ID middleware
+	// Request ID middleware - must be first for tracing
+	log.Debug().Msg("Adding requestid middleware")
 	s.app.Use(requestid.New())
 
+	// Security headers middleware - protect against common attacks
+	log.Debug().Msg("Adding security headers middleware")
+	s.app.Use(middleware.SecurityHeaders())
+
 	// Logger middleware
+	log.Debug().Msg("Adding logger middleware")
 	if s.config.Debug {
 		s.app.Use(logger.New(logger.Config{
 			Format: "[${time}] ${status} - ${latency} ${method} ${path} ${error}\n",
 		}))
 	}
 
-	// Recover middleware
+	// Recover middleware - catch panics
+	log.Debug().Msg("Adding recover middleware")
 	s.app.Use(recover.New(recover.Config{
 		EnableStackTrace: s.config.Debug,
 	}))
 
 	// CORS middleware
+	log.Debug().Msg("Adding CORS middleware")
 	s.app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
+		AllowOrigins:     "http://localhost:5173,http://localhost:8080", // Can't use "*" with AllowCredentials
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Request-ID, Prefer",
-		ExposeHeaders:    "Content-Range, Content-Encoding, Content-Length, X-Request-ID",
-		AllowCredentials: false,
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-CSRF-Token, Prefer",
+		ExposeHeaders:    "Content-Range, Content-Encoding, Content-Length, X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
+		AllowCredentials: true, // Required for CSRF tokens
 		MaxAge:           300,
 	}))
+
+	// Global rate limiting - 100 requests per minute per IP
+	// TEMPORARILY DISABLED: Investigating hanging issue
+	// s.app.Use(middleware.GlobalAPILimiter())
 
 	// Compression middleware
 	s.app.Use(compress.New(compress.Config{
@@ -192,12 +225,20 @@ func (s *Server) setupRoutes() {
 	s.setupRESTRoutes(rest)
 
 	// RPC routes (auto-generated from database functions)
-	rpc := v1.Group("/rpc")
+	// Apply optional auth middleware (allows both authenticated and anonymous)
+	// followed by RLS middleware to set PostgreSQL session variables
+	rpc := v1.Group("/rpc",
+		OptionalAuthMiddleware(s.authHandler.authService),
+		middleware.RLSMiddleware(rlsConfig),
+	)
 	s.setupRPCRoutes(rpc)
 
 	// Auth routes
 	auth := v1.Group("/auth")
 	s.setupAuthRoutes(auth)
+
+	// Dashboard auth routes (separate from application auth)
+	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
 	// API Keys routes
 	s.apiKeyHandler.RegisterRoutes(s.app)
@@ -210,6 +251,9 @@ func (s *Server) setupRoutes() {
 
 	// User management routes (admin only)
 	s.userManagementHandler.RegisterRoutes(s.app)
+
+	// Edge functions routes
+	s.functionsHandler.RegisterRoutes(s.app)
 
 	// Storage routes
 	storage := v1.Group("/storage")
@@ -319,7 +363,8 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 	}
 
 	// Use the auth handler's RegisterRoutes method with rate limiters
-	s.authHandler.RegisterRoutes(s.app, rateLimiters)
+	// Pass the router (which is /api/v1/auth) instead of the whole app
+	s.authHandler.RegisterRoutes(router, rateLimiters)
 }
 
 // setupStorageRoutes sets up storage routes
@@ -511,6 +556,11 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop edge functions scheduler
+	if s.functionsScheduler != nil {
+		s.functionsScheduler.Stop()
+	}
+
 	return s.app.ShutdownWithContext(ctx)
 }
 

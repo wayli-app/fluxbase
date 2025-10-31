@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   app:
@@ -10,6 +10,9 @@ services:
       - ..:/workspace:cached
       - go-modules:/go/pkg
       - vscode-extensions:/home/vscode/.vscode-server/extensions
+      # Docker-in-Docker: Mount Docker socket from host
+      - /var/run/docker.sock:/var/run/docker.sock
+    privileged: true
     command: sleep infinity
     environment:
       # Go environment
@@ -41,16 +44,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: fluxbase-postgres-dev
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ../example/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql:ro
+      - ../examples/sql-scripts/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql:ro
       - ./init-db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     environment:
       POSTGRES_USER: postgres
@@ -65,16 +66,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: fluxbase-redis-dev
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    networks:
-      - fluxbase-network
-    command: redis-server --appendonly yes
-
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: fluxbase-pgadmin-dev
@@ -82,8 +73,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: dev@fluxbase.local
       PGADMIN_DEFAULT_PASSWORD: dev
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
@@ -120,7 +111,6 @@ volumes:
   go-modules:
   vscode-extensions:
   postgres-data:
-  redis-data:
   pgadmin-data:
   minio-data:
 

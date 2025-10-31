@@ -150,3 +150,84 @@ func GlobalAPILimiter() fiber.Handler {
 		Message: "API rate limit exceeded. Maximum 100 requests per minute allowed.",
 	})
 }
+
+// AuthenticatedUserLimiter limits requests per authenticated user (higher limits than IP-based)
+// Should be applied AFTER authentication middleware
+func AuthenticatedUserLimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        500, // Higher limit for authenticated users
+		Expiration: 1 * time.Minute,
+		KeyFunc: func(c *fiber.Ctx) string {
+			// Try to get user ID from locals (set by auth middleware)
+			userID := c.Locals("user_id")
+			if userID != nil {
+				if uid, ok := userID.(string); ok && uid != "" {
+					return "user:" + uid
+				}
+			}
+			// Fallback to IP if no user ID (shouldn't happen if auth middleware ran)
+			return "user:" + c.IP()
+		},
+		Message: "Rate limit exceeded for your account. Maximum 500 requests per minute allowed.",
+	})
+}
+
+// APIKeyLimiter limits requests per API key with configurable limits
+// Should be applied AFTER API key authentication middleware
+func APIKeyLimiter(maxRequests int, duration time.Duration) fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        maxRequests,
+		Expiration: duration,
+		KeyFunc: func(c *fiber.Ctx) string {
+			// Try to get API key ID from locals (set by API key auth middleware)
+			keyID := c.Locals("api_key_id")
+			if keyID != nil {
+				if kid, ok := keyID.(string); ok && kid != "" {
+					return "apikey:" + kid
+				}
+			}
+			// Fallback to IP if no API key ID
+			return "apikey:" + c.IP()
+		},
+		Message: fmt.Sprintf("API key rate limit exceeded. Maximum %d requests per %s allowed.", maxRequests, duration.String()),
+	})
+}
+
+// DefaultAPIKeyLimiter returns an API key limiter with default limits (1000 req/min)
+func DefaultAPIKeyLimiter() fiber.Handler {
+	return APIKeyLimiter(1000, 1*time.Minute)
+}
+
+// PerUserOrIPLimiter implements tiered rate limiting:
+// - Authenticated users: higher limit
+// - API keys: configurable limit
+// - Anonymous (IP): lower limit
+func PerUserOrIPLimiter(anonMax, userMax, apiKeyMax int, duration time.Duration) fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        anonMax, // Base max (will be adjusted by key function)
+		Expiration: duration,
+		KeyFunc: func(c *fiber.Ctx) string {
+			// Priority 1: Check for API key
+			apiKeyID := c.Locals("api_key_id")
+			if apiKeyID != nil {
+				if kid, ok := apiKeyID.(string); ok && kid != "" {
+					// Use API key specific limit
+					return fmt.Sprintf("apikey:%s:%d", kid, apiKeyMax)
+				}
+			}
+
+			// Priority 2: Check for authenticated user
+			userID := c.Locals("user_id")
+			if userID != nil {
+				if uid, ok := userID.(string); ok && uid != "" {
+					// Use user specific limit
+					return fmt.Sprintf("user:%s:%d", uid, userMax)
+				}
+			}
+
+			// Priority 3: Fallback to IP (anonymous)
+			return fmt.Sprintf("ip:%s:%d", c.IP(), anonMax)
+		},
+		Message: "Rate limit exceeded. Please try again later.",
+	})
+}

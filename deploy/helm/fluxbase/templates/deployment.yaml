@@ -1,0 +1,226 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fluxbase.fullname" . }}
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- toYaml .Values.commonAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- if .Values.updateStrategy }}
+  strategy: {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels: {{- include "fluxbase.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- if .Values.podAnnotations }}
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- end }}
+        {{- if .Values.commonAnnotations }}
+        {{- toYaml .Values.commonAnnotations | nindent 8 }}
+        {{- end }}
+      labels: {{- include "fluxbase.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
+        {{- if .Values.commonLabels }}
+        {{- toYaml .Values.commonLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "fluxbase.imagePullSecrets" . | nindent 6 }}
+      {{- if .Values.schedulerName }}
+      schedulerName: {{ .Values.schedulerName | quote }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "fluxbase.serviceAccountName" . }}
+      {{- if .Values.podSecurityContext.enabled }}
+      securityContext: {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.initContainers }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: fluxbase
+          image: {{ include "fluxbase.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.command }}
+          command: {{- toYaml .Values.command | nindent 12 }}
+          {{- end }}
+          {{- if .Values.args }}
+          args: {{- toYaml .Values.args | nindent 12 }}
+          {{- end }}
+          env:
+            # Database Configuration
+            - name: DB_HOST
+              value: {{ include "fluxbase.databaseHost" . | quote }}
+            - name: DB_PORT
+              value: {{ include "fluxbase.databasePort" . | quote }}
+            - name: DB_NAME
+              value: {{ include "fluxbase.databaseName" . | quote }}
+            - name: DB_USER
+              value: {{ include "fluxbase.databaseUser" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.databaseSecretName" . }}
+                  key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
+            - name: DB_SSL_MODE
+              value: {{ .Values.config.database.sslMode | quote }}
+            # Server Configuration
+            - name: SERVER_PORT
+              value: {{ .Values.config.server.port | quote }}
+            - name: SERVER_HOST
+              value: {{ .Values.config.server.host | quote }}
+            # JWT Configuration
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.jwtSecretName" . }}
+                  key: jwt-secret
+            - name: JWT_EXPIRATION_MINUTES
+              value: {{ .Values.config.jwt.expirationMinutes | quote }}
+            # Storage Configuration
+            - name: STORAGE_PROVIDER
+              value: {{ .Values.config.storage.provider | quote }}
+            {{- if eq .Values.config.storage.provider "local" }}
+            - name: STORAGE_LOCAL_BASE_PATH
+              value: {{ .Values.config.storage.local.basePath | quote }}
+            {{- else if eq .Values.config.storage.provider "s3" }}
+            - name: STORAGE_S3_BUCKET
+              value: {{ .Values.config.storage.s3.bucket | quote }}
+            - name: STORAGE_S3_REGION
+              value: {{ .Values.config.storage.s3.region | quote }}
+            - name: STORAGE_S3_ENDPOINT
+              value: {{ .Values.config.storage.s3.endpoint | quote }}
+            - name: STORAGE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.fullname" . }}
+                  key: s3-access-key-id
+            - name: STORAGE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.fullname" . }}
+                  key: s3-secret-access-key
+            {{- end }}
+            {{- if .Values.extraEnvVars }}
+            {{- toYaml .Values.extraEnvVars | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.extraEnvVarsCM .Values.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ .Values.extraEnvVarsCM }}
+            {{- end }}
+            {{- if .Values.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ .Values.extraEnvVarsSecret }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.server.port }}
+              protocol: TCP
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.startupProbe.successThreshold }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          {{- else if .Values.customStartupProbe }}
+          startupProbe: {{- toYaml .Values.customStartupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- else if .Values.customLivenessProbe }}
+          livenessProbe: {{- toYaml .Values.customLivenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- else if .Values.customReadinessProbe }}
+          readinessProbe: {{- toYaml .Values.customReadinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.lifecycleHooks }}
+          lifecycle: {{- toYaml .Values.lifecycleHooks | nindent 12 }}
+          {{- end }}
+          resources: {{- include "fluxbase.resources" . | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/fluxbase
+              readOnly: true
+            {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
+            - name: storage
+              mountPath: {{ .Values.config.storage.local.basePath }}
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+        {{- if .Values.sidecars }}
+        {{- toYaml .Values.sidecars | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "fluxbase.fullname" . }}
+        {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "fluxbase.fullname" .) }}
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
