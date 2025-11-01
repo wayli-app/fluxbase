@@ -63,8 +63,15 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Get token from Authorization header
 		authHeader := c.Get("Authorization")
+
+		log.Debug().
+			Str("path", c.Path()).
+			Str("auth_header", authHeader).
+			Msg("OptionalAuthMiddleware: Processing request")
+
 		if authHeader == "" {
 			// No token provided, continue without authentication
+			log.Debug().Str("path", c.Path()).Msg("OptionalAuthMiddleware: No auth header, continuing")
 			return c.Next()
 		}
 
@@ -78,7 +85,7 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 		claims, err := authService.ValidateToken(token)
 		if err != nil {
 			// Invalid token, but continue anyway since auth is optional
-			log.Debug().Err(err).Msg("Invalid token in optional auth")
+			log.Debug().Err(err).Str("path", c.Path()).Msg("Invalid token in optional auth")
 			return c.Next()
 		}
 
@@ -98,6 +105,11 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_role", claims.Role)
 		c.Locals("session_id", claims.SessionID)
+
+		log.Debug().
+			Str("user_id", claims.UserID).
+			Str("path", c.Path()).
+			Msg("OptionalAuthMiddleware: Set user context")
 
 		return c.Next()
 	}

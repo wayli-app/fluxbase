@@ -72,6 +72,14 @@ const sidebars: SidebarsConfig = {
         "guides/typescript-sdk/react-hooks",
       ],
     },
+    {
+      type: "category",
+      label: "⚙️ Admin Dashboard",
+      items: [
+        "guides/admin/index",
+        "guides/admin/user-impersonation",
+      ],
+    },
   ],
 
   // 🔌 API Reference sidebar - HTTP and SDK API references

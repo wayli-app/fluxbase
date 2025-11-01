@@ -99,7 +99,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
 	webhookHandler := NewWebhookHandler(webhookService)
-	userMgmtHandler := NewUserManagementHandler(userMgmtService)
+	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	functionsHandler := functions.NewHandler(db.Pool())
 	functionsScheduler := functions.NewScheduler(db.Pool())
 	functionsHandler.SetScheduler(functionsScheduler)
@@ -192,8 +192,12 @@ func (s *Server) setupMiddlewares() {
 	}))
 
 	// Global rate limiting - 100 requests per minute per IP
-	// TEMPORARILY DISABLED: Investigating hanging issue
-	// s.app.Use(middleware.GlobalAPILimiter())
+	// Note: Global rate limiting is disabled by default. Enable via config if needed.
+	// To enable: Set ENABLE_GLOBAL_RATE_LIMIT=true in environment
+	if s.config.Security.EnableGlobalRateLimit {
+		log.Info().Msg("Enabling global rate limiter (100 req/min per IP)")
+		s.app.Use(middleware.GlobalAPILimiter())
+	}
 
 	// Compression middleware
 	s.app.Use(compress.New(compress.Config{

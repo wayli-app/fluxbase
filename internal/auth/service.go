@@ -41,20 +41,31 @@ func NewService(
 	passwordHasher := NewPasswordHasherWithConfig(PasswordHasherConfig{MinLength: cfg.PasswordMinLen, Cost: cfg.BcryptCost})
 	oauthManager := NewOAuthManager()
 
+	// Use configured expiry times with sensible fallbacks
+	magicLinkExpiry := cfg.MagicLinkExpiry
+	if magicLinkExpiry == 0 {
+		magicLinkExpiry = 15 * time.Minute
+	}
+
 	magicLinkService := NewMagicLinkService(
 		magicLinkRepo,
 		userRepo,
 		emailService,
-		15*time.Minute, // TODO: Get from config
+		magicLinkExpiry,
 		baseURL,
 	)
+
+	passwordResetExpiry := cfg.PasswordResetExpiry
+	if passwordResetExpiry == 0 {
+		passwordResetExpiry = 1 * time.Hour
+	}
 
 	passwordResetRepo := NewPasswordResetRepository(db)
 	passwordResetService := NewPasswordResetService(
 		passwordResetRepo,
 		userRepo,
 		emailService,
-		1*time.Hour, // TODO: Get from config
+		passwordResetExpiry,
 		baseURL,
 	)
 
@@ -472,4 +483,14 @@ func (s *Service) GetActiveImpersonation(ctx context.Context, adminUserID string
 // ListImpersonationSessions lists impersonation sessions for audit purposes
 func (s *Service) ListImpersonationSessions(ctx context.Context, adminUserID string, limit, offset int) ([]*ImpersonationSession, error) {
 	return s.impersonationService.ListSessions(ctx, adminUserID, limit, offset)
+}
+
+// StartAnonImpersonation starts an impersonation session as anonymous user
+func (s *Service) StartAnonImpersonation(ctx context.Context, adminUserID string, reason string, ipAddress string, userAgent string) (*StartImpersonationResponse, error) {
+	return s.impersonationService.StartAnonImpersonation(ctx, adminUserID, reason, ipAddress, userAgent)
+}
+
+// StartServiceImpersonation starts an impersonation session with service role
+func (s *Service) StartServiceImpersonation(ctx context.Context, adminUserID string, reason string, ipAddress string, userAgent string) (*StartImpersonationResponse, error) {
+	return s.impersonationService.StartServiceImpersonation(ctx, adminUserID, reason, ipAddress, userAgent)
 }

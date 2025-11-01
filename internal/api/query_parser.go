@@ -156,7 +156,9 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 
 		default:
 			// Check if it's a filter parameter
-			if strings.Contains(key, ".") || key == "or" || key == "and" {
+			// PostgREST format: column=operator.value (dot in value)
+			// Old format: column.operator=value (dot in key)
+			if strings.Contains(key, ".") || strings.Contains(vals[0], ".") || key == "or" || key == "and" {
 				if err := qp.parseFilter(key, vals[0], params); err != nil {
 					return nil, fmt.Errorf("invalid filter parameter %s: %w", key, err)
 				}
@@ -372,45 +374,94 @@ func (qp *QueryParser) parseFilter(key, value string, params *QueryParams) error
 		return qp.parseLogicalFilter(value, params, false)
 	}
 
-	// Parse simple filter: column.operator=value
-	parts := strings.SplitN(key, ".", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid filter format: %s", key)
-	}
+	// Check for classic format first: column.operator=value
+	// This takes precedence over PostgREST format
+	if strings.Contains(key, ".") {
+		parts := strings.SplitN(key, ".", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid filter format: %s", key)
+		}
 
-	column := parts[0]
-	operator := FilterOperator(parts[1])
+		column := parts[0]
+		operator := FilterOperator(parts[1])
 
-	// Parse value based on operator
-	var filterValue interface{}
-	switch operator {
-	case OpIn:
-		// Parse array values: (1,2,3) or ["a","b","c"]
-		filterValue = qp.parseArrayValue(value)
-	case OpIs:
-		// Parse null/true/false
-		switch value {
-		case "null":
-			filterValue = nil
-		case "true":
-			filterValue = true
-		case "false":
-			filterValue = false
+		// Parse value based on operator
+		var filterValue interface{}
+		switch operator {
+		case OpIn:
+			// Parse array values: (1,2,3) or ["a","b","c"]
+			filterValue = qp.parseArrayValue(value)
+		case OpIs:
+			// Parse null/true/false
+			switch value {
+			case "null":
+				filterValue = nil
+			case "true":
+				filterValue = true
+			case "false":
+				filterValue = false
+			default:
+				filterValue = value
+			}
 		default:
 			filterValue = value
 		}
-	default:
-		filterValue = value
+
+		params.Filters = append(params.Filters, Filter{
+			Column:   column,
+			Operator: operator,
+			Value:    filterValue,
+			IsOr:     false,
+		})
+
+		return nil
 	}
 
-	params.Filters = append(params.Filters, Filter{
-		Column:   column,
-		Operator: operator,
-		Value:    filterValue,
-		IsOr:     false,
-	})
+	// Try PostgREST format: column=operator.value
+	// Split value by first dot to extract operator
+	dotIndex := strings.Index(value, ".")
+	if dotIndex > 0 {
+		// PostgREST format: column=operator.value
+		column := key
+		operatorStr := value[:dotIndex]
+		filterValue := value[dotIndex+1:]
 
-	return nil
+		operator := FilterOperator(operatorStr)
+
+		// Parse value based on operator
+		var parsedValue interface{}
+		switch operator {
+		case OpIn:
+			// Parse array values: (1,2,3) or ["a","b","c"]
+			parsedValue = qp.parseArrayValue(filterValue)
+		case OpIs:
+			// Parse null/true/false
+			switch filterValue {
+			case "null":
+				parsedValue = nil
+			case "true":
+				parsedValue = true
+			case "false":
+				parsedValue = false
+			default:
+				parsedValue = filterValue
+			}
+		default:
+			parsedValue = filterValue
+		}
+
+		params.Filters = append(params.Filters, Filter{
+			Column:   column,
+			Operator: operator,
+			Value:    parsedValue,
+			IsOr:     false,
+		})
+
+		return nil
+	}
+
+	// If neither format matched, return an error
+	return fmt.Errorf("invalid filter format: %s", key)
 }
 
 // parseLogicalFilter parses or/and grouped filters

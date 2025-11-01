@@ -3,7 +3,9 @@ package storage
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -44,6 +46,12 @@ func setupS3Storage(t *testing.T) *S3Storage {
 	return s3
 }
 
+// generateUniqueBucketName creates a unique bucket name for test isolation
+func generateUniqueBucketName(prefix string) string {
+	// Use timestamp + random number to ensure uniqueness across parallel tests
+	return fmt.Sprintf("%s-%d-%d", prefix, time.Now().UnixNano(), rand.Int63n(1000000))
+}
+
 // cleanupS3Bucket removes all objects from a bucket for cleanup
 func cleanupS3Bucket(t *testing.T, s3 *S3Storage, bucket string) {
 	t.Helper()
@@ -57,7 +65,7 @@ func cleanupS3Bucket(t *testing.T, s3 *S3Storage, bucket string) {
 		}
 	}
 
-	// Delete the bucket
+	// Delete the bucket - ignore errors as bucket might not exist
 	_ = s3.DeleteBucket(ctx, bucket)
 }
 
@@ -77,7 +85,7 @@ func TestS3Storage_Health(t *testing.T) {
 func TestS3Storage_UploadAndDownload(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-upload-bucket"
+	bucket := generateUniqueBucketName("test-upload")
 	key := "test-file.txt"
 
 	// Create bucket
@@ -118,7 +126,7 @@ func TestS3Storage_UploadAndDownload(t *testing.T) {
 func TestS3Storage_UploadWithPath(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-path-bucket"
+	bucket := generateUniqueBucketName("test-path")
 	key := "path/to/nested/file.txt"
 
 	err := s3.CreateBucket(ctx, bucket)
@@ -134,7 +142,7 @@ func TestS3Storage_UploadWithPath(t *testing.T) {
 func TestS3Storage_Delete(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-delete-bucket"
+	bucket := generateUniqueBucketName("test-delete")
 	key := "file-to-delete.txt"
 
 	err := s3.CreateBucket(ctx, bucket)
@@ -164,7 +172,7 @@ func TestS3Storage_Delete(t *testing.T) {
 func TestS3Storage_DeleteNonExistent(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-delete-nonexist-bucket"
+	bucket := generateUniqueBucketName("test-delete-nonexist")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -178,7 +186,7 @@ func TestS3Storage_DeleteNonExistent(t *testing.T) {
 func TestS3Storage_Exists(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-exists-bucket"
+	bucket := generateUniqueBucketName("test-exists")
 	key := "existing-file.txt"
 
 	err := s3.CreateBucket(ctx, bucket)
@@ -204,7 +212,7 @@ func TestS3Storage_Exists(t *testing.T) {
 func TestS3Storage_GetObject(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-getobj-bucket"
+	bucket := generateUniqueBucketName("test-getobj")
 	key := "metadata-file.txt"
 
 	err := s3.CreateBucket(ctx, bucket)
@@ -234,7 +242,7 @@ func TestS3Storage_GetObject(t *testing.T) {
 func TestS3Storage_List(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-list-bucket"
+	bucket := generateUniqueBucketName("test-list")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -258,7 +266,7 @@ func TestS3Storage_List(t *testing.T) {
 func TestS3Storage_ListWithPrefix(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-prefix-bucket"
+	bucket := generateUniqueBucketName("test-prefix")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -284,7 +292,7 @@ func TestS3Storage_ListWithPrefix(t *testing.T) {
 func TestS3Storage_ListWithLimit(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-limit-bucket"
+	bucket := generateUniqueBucketName("test-limit")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -308,7 +316,7 @@ func TestS3Storage_ListWithLimit(t *testing.T) {
 func TestS3Storage_CreateBucket(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-new-bucket"
+	bucket := generateUniqueBucketName("test-new")
 
 	defer cleanupS3Bucket(t, s3, bucket)
 
@@ -324,7 +332,7 @@ func TestS3Storage_CreateBucket(t *testing.T) {
 func TestS3Storage_CreateBucketAlreadyExists(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-existing-bucket"
+	bucket := generateUniqueBucketName("test-existing")
 
 	defer cleanupS3Bucket(t, s3, bucket)
 
@@ -332,15 +340,16 @@ func TestS3Storage_CreateBucketAlreadyExists(t *testing.T) {
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
 
-	// Create bucket second time - should not error
+	// Create bucket second time - should error (S3 behavior)
 	err = s3.CreateBucket(ctx, bucket)
-	assert.NoError(t, err)
+	assert.Error(t, err, "Creating duplicate bucket should return error")
+	assert.Contains(t, err.Error(), "already exists", "Error should indicate bucket exists")
 }
 
 func TestS3Storage_DeleteBucket(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-delete-bucket"
+	bucket := generateUniqueBucketName("test-delete")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -357,7 +366,7 @@ func TestS3Storage_DeleteBucket(t *testing.T) {
 func TestS3Storage_DeleteBucketNotEmpty(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-nonempty-bucket"
+	bucket := generateUniqueBucketName("test-nonempty")
 
 	err := s3.CreateBucket(ctx, bucket)
 	require.NoError(t, err)
@@ -376,7 +385,7 @@ func TestS3Storage_DeleteBucketNotEmpty(t *testing.T) {
 func TestS3Storage_BucketExists(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-exists-check-bucket"
+	bucket := generateUniqueBucketName("test-exists-check")
 
 	// Bucket doesn't exist yet
 	exists, err := s3.BucketExists(ctx, bucket)
@@ -505,7 +514,7 @@ func TestS3Storage_MoveObject(t *testing.T) {
 func TestS3Storage_GenerateSignedURL(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-signed-url-bucket"
+	bucket := generateUniqueBucketName("test-signed-url")
 	key := "test-file.txt"
 
 	err := s3.CreateBucket(ctx, bucket)
@@ -532,7 +541,7 @@ func TestS3Storage_GenerateSignedURL(t *testing.T) {
 func TestS3Storage_DownloadWithRange(t *testing.T) {
 	s3 := setupS3Storage(t)
 	ctx := context.Background()
-	bucket := "test-range-bucket"
+	bucket := generateUniqueBucketName("test-range")
 	key := "range-file.txt"
 
 	err := s3.CreateBucket(ctx, bucket)

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/internal/api"
 	"github.com/wayli-app/fluxbase/internal/config"
@@ -113,8 +115,17 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 // GetTestConfig returns a test configuration
 func GetTestConfig() *config.Config {
+	// Load .env file if it exists (for local development)
+	// Use Overload() to override existing environment variables (e.g., from devcontainer)
+	// Ignore errors since .env may not exist in CI
+	_ = godotenv.Overload()
+	_ = godotenv.Overload("../.env") // Try parent directory for test subdirectories
+
 	// Allow environment variables to override defaults for CI
 	dbHost := getEnvOrDefault("FLUXBASE_DATABASE_HOST", "postgres")
+	dbUser := getEnvOrDefault("FLUXBASE_DATABASE_USER", "fluxbase_app")
+	dbPassword := getEnvOrDefault("FLUXBASE_DATABASE_PASSWORD", "fluxbase_app_password")
+	dbDatabase := getEnvOrDefault("FLUXBASE_DATABASE_DATABASE", "fluxbase_test")
 	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
 	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
 
@@ -129,14 +140,14 @@ func GetTestConfig() *config.Config {
 		Database: config.DatabaseConfig{
 			Host:            dbHost,
 			Port:            5432,
-			User:            "postgres",
-			Password:        "postgres",
-			Database:        "fluxbase_test",
+			User:            dbUser, // Use non-superuser for RLS to work correctly (configurable via env)
+			Password:        dbPassword,
+			Database:        dbDatabase,
 			SSLMode:         "disable",
-			MaxConnections:  10,
-			MinConnections:  2,
-			MaxConnLifetime: 1 * time.Hour,
-			MaxConnIdleTime: 30 * time.Minute,
+			MaxConnections:  5,                // Balanced for CI: enough for queries but not too many with -parallel=1
+			MinConnections:  1,                // Reduced to minimize idle connections
+			MaxConnLifetime: 5 * time.Minute,  // Shorter lifetime to recycle connections
+			MaxConnIdleTime: 30 * time.Second, // Close idle connections faster
 			HealthCheck:     1 * time.Minute,
 		},
 		Auth: config.AuthConfig{
@@ -147,6 +158,7 @@ func GetTestConfig() *config.Config {
 			BcryptCost:      10,
 			EnableSignup:    true,
 			EnableMagicLink: true,
+			EnableRLS:       true, // Enable RLS for tests
 		},
 		Realtime: config.RealtimeConfig{
 			Enabled:        false, // Disabled for most tests
@@ -361,11 +373,62 @@ func (tc *TestContext) ExecuteSQL(sql string, args ...interface{}) {
 	require.NoError(tc.T, err)
 }
 
+// ExecuteSQLAsSuperuser executes raw SQL as postgres superuser (bypasses RLS)
+// This is useful for setting up test data that violates RLS policies
+func (tc *TestContext) ExecuteSQLAsSuperuser(sql string, args ...interface{}) {
+	ctx := context.Background()
+
+	// Create a temporary connection as postgres superuser
+	connStr := fmt.Sprintf("host=%s port=%d user=postgres password=postgres dbname=%s sslmode=disable",
+		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	require.NoError(tc.T, err, "Failed to connect as superuser")
+	defer conn.Close(ctx)
+
+	_, err = conn.Exec(ctx, sql, args...)
+	require.NoError(tc.T, err, "Failed to execute SQL as superuser")
+}
+
 // QuerySQL executes a SQL query and returns results
 func (tc *TestContext) QuerySQL(sql string, args ...interface{}) []map[string]interface{} {
 	ctx := context.Background()
 	rows, err := tc.DB.Query(ctx, sql, args...)
 	require.NoError(tc.T, err)
+	defer rows.Close()
+
+	results := make([]map[string]interface{}, 0)
+
+	for rows.Next() {
+		values, err := rows.Values()
+		require.NoError(tc.T, err)
+
+		row := make(map[string]interface{})
+		for i, col := range rows.FieldDescriptions() {
+			row[string(col.Name)] = values[i]
+		}
+
+		results = append(results, row)
+	}
+
+	return results
+}
+
+// QuerySQLAsSuperuser executes a SQL query as postgres superuser (bypasses RLS)
+// This is useful for verifying test data that should not be visible through RLS
+func (tc *TestContext) QuerySQLAsSuperuser(sql string, args ...interface{}) []map[string]interface{} {
+	ctx := context.Background()
+
+	// Create a temporary connection as postgres superuser
+	connStr := fmt.Sprintf("host=%s port=%d user=postgres password=postgres dbname=%s sslmode=disable",
+		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	require.NoError(tc.T, err, "Failed to connect as superuser")
+	defer conn.Close(ctx)
+
+	rows, err := conn.Query(ctx, sql, args...)
+	require.NoError(tc.T, err, "Failed to query as superuser")
 	defer rows.Close()
 
 	results := make([]map[string]interface{}, 0)
@@ -418,6 +481,22 @@ func (tc *TestContext) CreateTestUser(email, password string) (userID, token str
 
 	require.NotEmpty(tc.T, userID, "User ID not returned from signup")
 	require.NotEmpty(tc.T, token, "Access token not returned from signup")
+
+	return userID, token
+}
+
+// CreateAdminUser creates an admin user directly via database and returns userID and token
+func (tc *TestContext) CreateAdminUser(email, password string) (userID, token string) {
+	// Create regular user first via API
+	userID, _ = tc.CreateTestUser(email, password)
+
+	// Update role to admin directly in database
+	ctx := context.Background()
+	_, err := tc.DB.Exec(ctx, "UPDATE auth.users SET role = 'admin' WHERE id = $1", userID)
+	require.NoError(tc.T, err, "Failed to set user role to admin")
+
+	// Get a new token with admin role by signing in again
+	token = tc.GetAuthToken(email, password)
 
 	return userID, token
 }

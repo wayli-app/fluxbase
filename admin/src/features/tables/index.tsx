@@ -8,6 +8,8 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { TableSelector } from './components/table-selector'
 import { TableViewer } from './components/table-viewer'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
 
 const route = getRouteApi('/_authenticated/tables/')
 
@@ -34,11 +36,14 @@ export function Tables() {
       <Header fixed>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
+          <ImpersonationSelector />
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
         </div>
       </Header>
+
+      <ImpersonationBanner />
 
       <Main className='flex h-[calc(100vh-4rem)] gap-0 p-0'>
         <aside className='w-64 flex-shrink-0'>

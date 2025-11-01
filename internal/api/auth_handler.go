@@ -394,6 +394,8 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 
 	// Admin impersonation routes (admin only)
 	router.Post("/impersonate", h.StartImpersonation)
+	router.Post("/impersonate/anon", h.StartAnonImpersonation)
+	router.Post("/impersonate/service", h.StartServiceImpersonation)
 	router.Delete("/impersonate", h.StopImpersonation)
 	router.Get("/impersonate", h.GetActiveImpersonation)
 	router.Get("/impersonate/sessions", h.ListImpersonationSessions)
@@ -521,4 +523,90 @@ func (h *AuthHandler) ListImpersonationSessions(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(sessions)
+}
+
+// StartAnonImpersonation starts impersonation as anonymous user
+func (h *AuthHandler) StartAnonImpersonation(c *fiber.Ctx) error {
+	// Get admin user ID from context (must be authenticated)
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Reason is required",
+		})
+	}
+
+	// Set IP and user agent from request
+	ipAddress := c.IP()
+	userAgent := c.Get("User-Agent")
+
+	resp, err := h.authService.StartAnonImpersonation(c.Context(), adminUserID.(string), req.Reason, ipAddress, userAgent)
+	if err != nil {
+		statusCode := fiber.StatusInternalServerError
+		if err == auth.ErrNotAdmin {
+			statusCode = fiber.StatusForbidden
+		}
+		return c.Status(statusCode).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// StartServiceImpersonation starts impersonation with service role
+func (h *AuthHandler) StartServiceImpersonation(c *fiber.Ctx) error {
+	// Get admin user ID from context (must be authenticated)
+	adminUserID := c.Locals("user_id")
+	if adminUserID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Reason == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Reason is required",
+		})
+	}
+
+	// Set IP and user agent from request
+	ipAddress := c.IP()
+	userAgent := c.Get("User-Agent")
+
+	resp, err := h.authService.StartServiceImpersonation(c.Context(), adminUserID.(string), req.Reason, ipAddress, userAgent)
+	if err != nil {
+		statusCode := fiber.StatusInternalServerError
+		if err == auth.ErrNotAdmin {
+			statusCode = fiber.StatusForbidden
+		}
+		return c.Status(statusCode).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
 }

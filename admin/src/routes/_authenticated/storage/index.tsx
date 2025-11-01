@@ -254,7 +254,6 @@ function StorageBrowser() {
       return
     }
 
-    console.log('Starting upload for', files.length, 'files')
     setUploading(true)
     const filesArray = Array.from(files)
     let successCount = 0
@@ -264,7 +263,6 @@ function StorageBrowser() {
       for (const file of filesArray) {
         const key = currentPrefix ? `${currentPrefix}${file.name}` : file.name
         const token = localStorage.getItem('fluxbase-auth-token')
-        console.log('Uploading file:', file.name, 'to bucket:', selectedBucket, 'key:', key)
 
         // Set initial progress
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }))
@@ -275,8 +273,6 @@ function StorageBrowser() {
 
           // Use XMLHttpRequest for better progress tracking and large file support
           const uploadUrl = `/api/v1/storage/${selectedBucket}/${encodeURIComponent(key)}`
-          console.log('Upload URL:', uploadUrl)
-          console.log('File size:', file.size, 'bytes', '(', (file.size / (1024 * 1024)).toFixed(2), 'MB)')
 
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
@@ -285,16 +281,13 @@ function StorageBrowser() {
             xhr.upload.addEventListener('progress', (e) => {
               if (e.lengthComputable) {
                 const percentComplete = Math.round((e.loaded / e.total) * 100)
-                console.log(`Upload progress for ${file.name}: ${percentComplete}%`)
                 setUploadProgress((prev) => ({ ...prev, [file.name]: percentComplete }))
               }
             })
 
             // Handle completion
             xhr.addEventListener('load', () => {
-              console.log('Upload completed, status:', xhr.status)
               if (xhr.status >= 200 && xhr.status < 300) {
-                console.log(`Successfully uploaded ${file.name}`)
                 setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }))
                 setTimeout(() => {
                   setUploadProgress((prev) => {
@@ -343,7 +336,6 @@ function StorageBrowser() {
             if (token) {
               xhr.setRequestHeader('Authorization', `Bearer ${token}`)
             }
-            console.log('Starting XMLHttpRequest upload...')
             xhr.send(formData)
           })
         } catch (error) {

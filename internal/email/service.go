@@ -32,14 +32,11 @@ func NewService(cfg *config.EmailConfig) (Service, error) {
 	case "smtp", "":
 		return NewSMTPService(cfg), nil
 	case "sendgrid":
-		// TODO: Implement SendGrid
-		return nil, fmt.Errorf("sendgrid provider not yet implemented")
+		return NewSendGridService(cfg)
 	case "mailgun":
-		// TODO: Implement Mailgun
-		return nil, fmt.Errorf("mailgun provider not yet implemented")
+		return NewMailgunService(cfg)
 	case "ses":
-		// TODO: Implement AWS SES
-		return nil, fmt.Errorf("ses provider not yet implemented")
+		return NewSESService(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported email provider: %s", cfg.Provider)
 	}

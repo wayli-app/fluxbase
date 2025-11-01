@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -162,7 +163,7 @@ func (s *APIKeyService) ValidateAPIKey(ctx context.Context, plaintextKey string)
 	_, err = s.db.Exec(ctx, "UPDATE auth.api_keys SET last_used_at = $1 WHERE id = $2", now, apiKey.ID)
 	if err != nil {
 		// Log but don't fail validation
-		fmt.Printf("Failed to update last_used_at: %v\n", err)
+		log.Warn().Err(err).Str("api_key_id", apiKey.ID.String()).Msg("Failed to update last_used_at")
 	} else {
 		// Update the struct with the new timestamp
 		apiKey.LastUsedAt = &now

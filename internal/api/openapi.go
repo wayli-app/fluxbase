@@ -148,9 +148,8 @@ func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, functions []d
 		h.addTableToSpec(&spec, table)
 	}
 
-	// Generate RPC endpoints for each function
-	// TODO: Add user-defined functions when we have a way to distinguish them
-	// For now, hide all RPC functions from the API Explorer
+	// RPC endpoints are currently not included in the API Explorer
+	// In the future, we may add user-defined functions when we have a way to distinguish them
 	_ = functions // Suppress unused variable warning
 
 	return spec

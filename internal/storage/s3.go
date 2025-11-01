@@ -119,7 +119,17 @@ func (s3 *S3Storage) Download(ctx context.Context, bucket, key string, opts *Dow
 		if opts.IfNoneMatch != "" {
 			_ = getOpts.SetMatchETagExcept(opts.IfNoneMatch)
 		}
-		// Range requests are handled automatically by the HTTP client
+		// Set range header if specified (e.g., "bytes=0-1023")
+		if opts.Range != "" {
+			// Parse the range string (e.g., "bytes=2-5")
+			// SetRange expects offset and length
+			// For "bytes=2-5", offset=2, and we want bytes 2,3,4,5 (4 bytes)
+			// But MinIO's SetRange takes (offset, length-1) for the end byte
+			var start, end int64
+			if _, err := fmt.Sscanf(opts.Range, "bytes=%d-%d", &start, &end); err == nil {
+				_ = getOpts.SetRange(start, end)
+			}
+		}
 	}
 
 	reader, err := s3.client.GetObject(ctx, bucket, key, getOpts)

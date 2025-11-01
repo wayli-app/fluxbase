@@ -40,12 +40,20 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 		// Get user ID from context (set by auth middleware)
 		userID := c.Locals("user_id")
 
+		// Debug logging
+		log.Debug().
+			Interface("user_id", userID).
+			Str("path", c.Path()).
+			Str("auth_header", c.Get("Authorization")).
+			Msg("RLSMiddleware: checking user_id from context")
+
 		// If no user is authenticated, set empty session variables
 		// This allows RLS policies to restrict access appropriately
 		if userID == nil {
 			// Store in context that this is an anonymous request
 			c.Locals("rls_user_id", nil)
 			c.Locals("rls_role", "anon")
+			log.Debug().Str("path", c.Path()).Msg("RLSMiddleware: No user_id, setting anonymous")
 			return c.Next()
 		}
 
@@ -57,6 +65,12 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 		if role := c.Locals("user_role"); role != nil {
 			c.Locals("rls_role", role)
 		}
+
+		log.Debug().
+			Interface("rls_user_id", userID).
+			Interface("rls_role", c.Locals("rls_role")).
+			Str("path", c.Path()).
+			Msg("RLSMiddleware: Set RLS context")
 
 		return c.Next()
 	}

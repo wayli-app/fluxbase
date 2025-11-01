@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,9 +85,7 @@ func TestSMTPService_buildMessage(t *testing.T) {
 }
 
 func TestSMTPService_renderMagicLinkTemplate(t *testing.T) {
-	cfg := &config.EmailConfig{
-		MagicLinkExpiry: 15 * time.Minute,
-	}
+	cfg := &config.EmailConfig{}
 	service := NewSMTPService(cfg)
 
 	link := "https://example.com/auth/verify?token=abc123"
@@ -98,7 +95,6 @@ func TestSMTPService_renderMagicLinkTemplate(t *testing.T) {
 
 	// Check that the result contains expected elements
 	assert.Contains(t, result, link)
-	assert.Contains(t, result, "15m0s") // Expiry duration
 	assert.Contains(t, result, "Your Login Link")
 	assert.Contains(t, result, "<!DOCTYPE html>")
 	assert.Contains(t, result, "Log In")
@@ -159,7 +155,6 @@ func TestDefaultTemplates(t *testing.T) {
 	t.Run("magic link template is valid HTML", func(t *testing.T) {
 		assert.Contains(t, defaultMagicLinkTemplate, "<!DOCTYPE html>")
 		assert.Contains(t, defaultMagicLinkTemplate, "{{.Link}}")
-		assert.Contains(t, defaultMagicLinkTemplate, "{{.Expiry}}")
 		assert.Contains(t, defaultMagicLinkTemplate, "Your Login Link")
 	})
 
@@ -211,31 +206,49 @@ func TestNewService(t *testing.T) {
 			},
 		},
 		{
-			name: "sendgrid provider (not implemented)",
+			name: "sendgrid provider",
 			cfg: &config.EmailConfig{
-				Enabled:  true,
-				Provider: "sendgrid",
+				Enabled:        true,
+				Provider:       "sendgrid",
+				SendGridAPIKey: "test-api-key",
+				FromAddress:    "test@example.com",
 			},
-			wantErr: true,
-			errMsg:  "not yet implemented",
+			wantErr: false,
+			checkType: func(t *testing.T, svc Service) {
+				_, ok := svc.(*SendGridService)
+				assert.True(t, ok, "Expected SendGridService")
+			},
 		},
 		{
-			name: "mailgun provider (not implemented)",
+			name: "mailgun provider",
 			cfg: &config.EmailConfig{
-				Enabled:  true,
-				Provider: "mailgun",
+				Enabled:       true,
+				Provider:      "mailgun",
+				MailgunAPIKey: "test-api-key",
+				MailgunDomain: "example.com",
+				FromAddress:   "test@example.com",
 			},
-			wantErr: true,
-			errMsg:  "not yet implemented",
+			wantErr: false,
+			checkType: func(t *testing.T, svc Service) {
+				_, ok := svc.(*MailgunService)
+				assert.True(t, ok, "Expected MailgunService")
+			},
 		},
 		{
-			name: "ses provider (not implemented)",
+			name: "ses provider",
 			cfg: &config.EmailConfig{
-				Enabled:  true,
-				Provider: "ses",
+				Enabled:      true,
+				Provider:     "ses",
+				SESRegion:    "us-east-1",
+				SESAccessKey: "test-access-key",
+				SESSecretKey: "test-secret-key",
+				FromAddress:  "test@example.com",
 			},
-			wantErr: true,
-			errMsg:  "not yet implemented",
+			wantErr: false,
+			checkType: func(t *testing.T, svc Service) {
+				_, ok := svc.(*SESService)
+				assert.True(t, ok, "Expected SESService")
+			},
 		},
 		{
 			name: "unsupported provider",

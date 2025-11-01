@@ -5,6 +5,16 @@ import type { AdminUser } from './auth'
 // Base URL for the API - can be overridden with environment variable
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
+// Helper to get impersonation token if active
+const getImpersonationToken = (): string | null => {
+  return localStorage.getItem('fluxbase_impersonation_token')
+}
+
+// Helper to get active token (impersonation takes precedence)
+const getActiveToken = (): string | null => {
+  return getImpersonationToken() || getAccessToken()
+}
+
 // Create axios instance with default config
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -14,10 +24,11 @@ const api: AxiosInstance = axios.create({
   timeout: 30000, // 30 seconds
 })
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token (with impersonation support)
 api.interceptors.request.use(
   (config) => {
-    const accessToken = getAccessToken()
+    // Use impersonation token if active, otherwise use admin token
+    const accessToken = getActiveToken()
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
@@ -349,6 +360,7 @@ export const userManagementApi = {
 }
 
 export default api
+export { api as apiClient }
 
 // Admin Authentication API
 export const adminAuthAPI = {

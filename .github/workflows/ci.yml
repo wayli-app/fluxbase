@@ -64,6 +64,9 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+        # Configure PostgreSQL with custom settings
+        # Note: In GitHub Actions, we need to use a workaround to pass postgres args
+        # We'll do this via a step that restarts postgres after configuration
 
       mailhog:
         image: mailhog/mailhog:latest
@@ -97,12 +100,78 @@ jobs:
           go mod download
           go mod verify
 
+      - name: Setup database users
+        env:
+          PGPASSWORD: postgres
+        run: |
+          # Increase max_connections significantly for parallel test execution
+          # ALTER SYSTEM requires a restart, so we'll apply settings and restart the container
+          psql -h localhost -U postgres -d fluxbase_test -c "ALTER SYSTEM SET max_connections = 200;"
+          psql -h localhost -U postgres -d fluxbase_test -c "ALTER SYSTEM SET superuser_reserved_connections = 1;"
+
+          # Restart PostgreSQL to apply settings
+          # Find the container ID for postgres service and restart it
+          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:17-alpine" --format "{{.ID}}")
+          docker restart $POSTGRES_CONTAINER
+
+          # Wait for postgres to be ready after restart
+          sleep 5
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for postgres to be ready..."
+            sleep 2
+          done
+
+          # Create fluxbase_app user for RLS testing with LOGIN privilege
+          # Note: No CONNECTION LIMIT to allow tests to create many concurrent connections
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN;"
+          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
+
       - name: Run database migrations
         env:
           DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fluxbase_test?sslmode=disable"
+          PGPASSWORD: postgres
         run: |
           go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
           migrate -path internal/database/migrations -database "$DATABASE_URL" up
+
+          # Grant permissions to fluxbase_app after migrations
+          SCHEMAS="public auth storage functions realtime dashboard"
+          DB_USER="fluxbase_app"
+          PSQL_CMD="psql -h localhost -U postgres -d fluxbase_test"
+
+          # Grant USAGE and CREATE on all schemas
+          for schema in $SCHEMAS; do
+            $PSQL_CMD -c "GRANT USAGE, CREATE ON SCHEMA $schema TO $DB_USER;"
+          done
+
+          # Grant ALL PRIVILEGES on tables, sequences, and functions
+          for schema in $SCHEMAS; do
+            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA $schema TO $DB_USER;"
+            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA $schema TO $DB_USER;"
+          done
+
+          # Grant EXECUTE on functions (needed for auth helpers and RPC endpoints)
+          for schema in $SCHEMAS; do
+            $PSQL_CMD -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA $schema TO $DB_USER;"
+          done
+
+          # Change owner of all tables and sequences to fluxbase_app (required for upsert operations)
+          $PSQL_CMD <<'EOFSQL'
+          DO $$
+          DECLARE
+              r RECORD;
+          BEGIN
+              FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', 'auth', 'storage', 'functions', 'realtime', 'dashboard')
+              LOOP
+                  EXECUTE 'ALTER TABLE ' || quote_ident(r.schemaname) || '.' || quote_ident(r.tablename) || ' OWNER TO fluxbase_app';
+              END LOOP;
+
+              FOR r IN SELECT schemaname, sequencename FROM pg_sequences WHERE schemaname IN ('public', 'auth', 'storage', 'functions', 'realtime', 'dashboard')
+              LOOP
+                  EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.schemaname) || '.' || quote_ident(r.sequencename) || ' OWNER TO fluxbase_app';
+              END LOOP;
+          END$$;
+          EOFSQL
 
       - name: Setup MinIO bucket
         run: |
@@ -140,12 +209,12 @@ jobs:
           go tool cover -html=coverage.out -o coverage.html
 
       - name: Run e2e tests
-        timeout-minutes: 5
+        timeout-minutes: 15
         env:
           FLUXBASE_DATABASE_HOST: localhost
           FLUXBASE_DATABASE_PORT: 5432
-          FLUXBASE_DATABASE_USER: postgres
-          FLUXBASE_DATABASE_PASSWORD: postgres
+          FLUXBASE_DATABASE_USER: fluxbase_app
+          FLUXBASE_DATABASE_PASSWORD: fluxbase_app_password
           FLUXBASE_DATABASE_DATABASE: fluxbase_test
           FLUXBASE_EMAIL_SMTP_HOST: localhost
           FLUXBASE_EMAIL_SMTP_PORT: 1025
@@ -154,8 +223,9 @@ jobs:
           FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
           FLUXBASE_STORAGE_S3_BUCKET: fluxbase-test
         run: |
-          # Run e2e tests
-          go test -v -race -timeout=5m ./test/e2e/...
+          # Run e2e tests with fluxbase_app user for proper RLS testing
+          # Use -parallel=1 within each package to run test functions sequentially (avoid DB connection exhaustion)
+          go test -v -race -parallel=1 -timeout=10m ./test/e2e/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

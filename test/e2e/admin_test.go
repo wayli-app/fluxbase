@@ -17,10 +17,10 @@ func setupAdminTest(t *testing.T) (*test.TestContext, string) {
 	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
 
-	// Create a test user and get auth token for authenticated requests
+	// Create an admin user and get auth token for authenticated requests
 	email := "admin@test.com"
 	password := "adminpass123"
-	_, token := tc.CreateTestUser(email, password)
+	_, token := tc.CreateAdminUser(email, password)
 
 	return tc, token
 }

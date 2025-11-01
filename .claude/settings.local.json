@@ -12,7 +12,9 @@
       "Bash(cat:*)",
       "Bash(go fmt:*)",
       "Bash(golangci-lint run:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(unset:*)"
     ],
     "deny": [],
     "ask": []

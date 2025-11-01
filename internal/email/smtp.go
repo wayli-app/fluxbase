@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"html/template"
 	"net/smtp"
 
 	"github.com/wayli-app/fluxbase/internal/config"
@@ -149,108 +148,17 @@ func (s *SMTPService) buildMessage(to, subject, body string) []byte {
 
 // renderMagicLinkTemplate renders the magic link email template
 func (s *SMTPService) renderMagicLinkTemplate(link, token string) string {
-	if s.config.MagicLinkTemplate != "" {
-		// Load custom template if provided
-		// TODO: Implement custom template loading
-		_ = s.config.MagicLinkTemplate // nolint:staticcheck // Placeholder for future implementation
-	}
-
-	// Use default template
-	tmpl := template.Must(template.New("magic-link").Parse(defaultMagicLinkTemplate))
-
-	var buf bytes.Buffer
-	data := map[string]string{
-		"Link":   link,
-		"Token":  token,
-		"Expiry": s.config.MagicLinkExpiry.String(),
-	}
-
-	if err := tmpl.Execute(&buf, data); err != nil {
-		// Fallback to simple template
-		return fmt.Sprintf(`
-			<html>
-			<body>
-				<h2>Your Login Link</h2>
-				<p>Click the link below to log in:</p>
-				<p><a href="%s">Log In</a></p>
-				<p>This link expires in %s</p>
-				<p>If you didn't request this, please ignore this email.</p>
-			</body>
-			</html>
-		`, link, s.config.MagicLinkExpiry.String())
-	}
-
-	return buf.String()
+	return renderMagicLinkHTML(link, token, s.config.MagicLinkTemplate)
 }
 
 // renderVerificationTemplate renders the email verification template
 func (s *SMTPService) renderVerificationTemplate(link, token string) string {
-	if s.config.VerificationTemplate != "" {
-		// Load custom template if provided
-		// TODO: Implement custom template loading
-		_ = s.config.VerificationTemplate // nolint:staticcheck // Placeholder for future implementation
-	}
-
-	// Use default template
-	tmpl := template.Must(template.New("verification").Parse(defaultVerificationTemplate))
-
-	var buf bytes.Buffer
-	data := map[string]string{
-		"Link":  link,
-		"Token": token,
-	}
-
-	if err := tmpl.Execute(&buf, data); err != nil {
-		// Fallback to simple template
-		return fmt.Sprintf(`
-			<html>
-			<body>
-				<h2>Verify Your Email</h2>
-				<p>Click the link below to verify your email address:</p>
-				<p><a href="%s">Verify Email</a></p>
-				<p>If you didn't create an account, please ignore this email.</p>
-			</body>
-			</html>
-		`, link)
-	}
-
-	return buf.String()
+	return renderVerificationHTML(link, token, s.config.VerificationTemplate)
 }
 
 // renderPasswordResetTemplate renders the password reset email template
 func (s *SMTPService) renderPasswordResetTemplate(link, token string) string {
-	if s.config.PasswordResetTemplate != "" {
-		// Load custom template if provided
-		// TODO: Implement custom template loading
-		_ = s.config.PasswordResetTemplate // nolint:staticcheck // Placeholder for future implementation
-	}
-
-	// Use default template
-	tmpl := template.Must(template.New("password-reset").Parse(defaultPasswordResetTemplate))
-
-	var buf bytes.Buffer
-	data := map[string]string{
-		"Link":   link,
-		"Token":  token,
-		"Expiry": s.config.PasswordResetExpiry.String(),
-	}
-
-	if err := tmpl.Execute(&buf, data); err != nil {
-		// Fallback to simple template
-		return fmt.Sprintf(`
-			<html>
-			<body>
-				<h2>Reset Your Password</h2>
-				<p>Click the link below to reset your password:</p>
-				<p><a href="%s">Reset Password</a></p>
-				<p>This link expires in %s</p>
-				<p>If you didn't request a password reset, please ignore this email.</p>
-			</body>
-			</html>
-		`, link, s.config.PasswordResetExpiry.String())
-	}
-
-	return buf.String()
+	return renderPasswordResetHTML(link, token, s.config.PasswordResetTemplate)
 }
 
 // Default email templates

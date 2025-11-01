@@ -15,24 +15,6 @@ export const Route = createRootRouteWithContext<{
     if (location.pathname === '/setup' || location.pathname === '/login' || location.pathname === '/sign-up' || location.pathname === '/sign-in') {
       return
     }
-
-    // TEMPORARILY DISABLED: Backend server hanging issue
-    // Check if initial setup is needed (no users exist)
-    // try {
-    //   const status = await adminAuthAPI.getSetupStatus()
-    //   if (status.needs_setup) {
-    //     // Redirect to sign-up if no admin users exist
-    //     throw redirect({
-    //       to: '/sign-up',
-    //     })
-    //   }
-    // } catch (error) {
-    //   // Silently fail - don't block if API is down or during redirects
-    //   // Only log in development mode
-    //   if (import.meta.env.MODE === 'development') {
-    //     console.debug('Setup status check failed:', error)
-    //   }
-    // }
   },
   component: () => {
     return (

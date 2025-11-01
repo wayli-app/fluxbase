@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/database"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // RESTHandler handles dynamic REST API endpoints
@@ -111,27 +112,29 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		// Build SELECT query
 		query, args := h.buildSelectQuery(table, params)
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, args...)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, args...)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("Failed to execute query")
+				return err
+			}
+			defer rows.Close()
+
+			// Convert rows to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to execute query")
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to fetch records",
-			})
-		}
-		defer rows.Close()
-
-		// Convert rows to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
 		// Handle count if requested
 		if params.Count != CountNone && params.Count != "" {
-			count, err := h.getCount(ctx, table, params)
+			count, err := h.getCount(ctx, c, table, params)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to get count")
 			} else {
@@ -161,20 +164,22 @@ func (h *RESTHandler) makeGetByIdHandler(table database.TableInfo) fiber.Handler
 			table.Schema, table.Name, pkColumn,
 		)
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, id)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, id)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to fetch record",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -273,21 +278,22 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 
 		query += " RETURNING *"
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, values...)
-		if err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to insert record")
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		if err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, values...)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("Failed to insert record")
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		}); err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to create record",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -381,21 +387,23 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 
 	query += " RETURNING *"
 
-	// Execute query
-	rows, err := h.db.Query(ctx, query, values...)
+	// Execute query with RLS context
+	var results []map[string]interface{}
+	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, values...)
+		if err != nil {
+			log.Error().Err(err).Str("query", query).Msg("Failed to batch insert records")
+			return err
+		}
+		defer rows.Close()
+
+		// Convert to JSON
+		results, err = pgxRowsToJSON(rows)
+		return err
+	})
 	if err != nil {
-		log.Error().Err(err).Str("query", query).Msg("Failed to batch insert records")
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Failed to create records",
-		})
-	}
-	defer rows.Close()
-
-	// Convert to JSON
-	results, err := pgxRowsToJSON(rows)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to process results",
 		})
 	}
 
@@ -455,21 +463,23 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 			pkColumn, i,
 		)
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, values...)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, values...)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("Failed to update record")
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to update record")
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to update record",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -507,20 +517,22 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 			table.Schema, table.Name, pkColumn,
 		)
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, id)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, id)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON to check if record existed
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to delete record",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON to check if record existed
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -600,21 +612,23 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 
 		query += " RETURNING *"
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, values...)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, values...)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("Failed to batch update records")
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to batch update records")
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to update records",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -659,21 +673,23 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 			table.Schema, table.Name, whereSQL,
 		)
 
-		// Execute query
-		rows, err := h.db.Query(ctx, query, whereArgs...)
+		// Execute query with RLS context
+		var results []map[string]interface{}
+		err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, query, whereArgs...)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("Failed to batch delete records")
+				return err
+			}
+			defer rows.Close()
+
+			// Convert to JSON
+			results, err = pgxRowsToJSON(rows)
+			return err
+		})
 		if err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to batch delete records")
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to delete records",
-			})
-		}
-		defer rows.Close()
-
-		// Convert to JSON
-		results, err := pgxRowsToJSON(rows)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to process results",
 			})
 		}
 
@@ -738,25 +754,27 @@ func (h *RESTHandler) columnExists(table database.TableInfo, columnName string) 
 }
 
 // getCount gets the row count for a query
-func (h *RESTHandler) getCount(ctx context.Context, table database.TableInfo, params *QueryParams) (int, error) {
+func (h *RESTHandler) getCount(ctx context.Context, c *fiber.Ctx, table database.TableInfo, params *QueryParams) (int, error) {
 	// Build count query
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", table.Schema, table.Name)
 
-	// Add WHERE clause only (no ORDER BY, LIMIT, OFFSET for count)
+	// Build WHERE clause
+	var args []interface{}
 	if len(params.Filters) > 0 {
 		argCounter := 1
-		whereClause, args := params.buildWhereClause(&argCounter)
+		whereClause, whereArgs := params.buildWhereClause(&argCounter)
 		if whereClause != "" {
 			query += " WHERE " + whereClause
-
-			var count int
-			err := h.db.QueryRow(ctx, query, args...).Scan(&count)
-			return count, err
+			args = whereArgs
 		}
 	}
 
+	// Execute count query with RLS context
 	var count int
-	err := h.db.QueryRow(ctx, query).Scan(&count)
+	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, args...).Scan(&count)
+	})
+
 	return count, err
 }
 

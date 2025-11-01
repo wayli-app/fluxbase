@@ -16,6 +16,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Auth     AuthConfig     `mapstructure:"auth"`
+	Security SecurityConfig `mapstructure:"security"`
 	Storage  StorageConfig  `mapstructure:"storage"`
 	Realtime RealtimeConfig `mapstructure:"realtime"`
 	Email    EmailConfig    `mapstructure:"email"`
@@ -49,14 +50,21 @@ type DatabaseConfig struct {
 
 // AuthConfig contains authentication settings
 type AuthConfig struct {
-	JWTSecret       string        `mapstructure:"jwt_secret"`
-	JWTExpiry       time.Duration `mapstructure:"jwt_expiry"`
-	RefreshExpiry   time.Duration `mapstructure:"refresh_expiry"`
-	PasswordMinLen  int           `mapstructure:"password_min_length"`
-	BcryptCost      int           `mapstructure:"bcrypt_cost"`
-	EnableSignup    bool          `mapstructure:"enable_signup"`
-	EnableMagicLink bool          `mapstructure:"enable_magic_link"`
-	EnableRLS       bool          `mapstructure:"enable_rls"` // Row Level Security enforcement
+	JWTSecret           string        `mapstructure:"jwt_secret"`
+	JWTExpiry           time.Duration `mapstructure:"jwt_expiry"`
+	RefreshExpiry       time.Duration `mapstructure:"refresh_expiry"`
+	MagicLinkExpiry     time.Duration `mapstructure:"magic_link_expiry"`
+	PasswordResetExpiry time.Duration `mapstructure:"password_reset_expiry"`
+	PasswordMinLen      int           `mapstructure:"password_min_length"`
+	BcryptCost          int           `mapstructure:"bcrypt_cost"`
+	EnableSignup        bool          `mapstructure:"enable_signup"`
+	EnableMagicLink     bool          `mapstructure:"enable_magic_link"`
+	EnableRLS           bool          `mapstructure:"enable_rls"` // Row Level Security enforcement
+}
+
+// SecurityConfig contains security-related settings
+type SecurityConfig struct {
+	EnableGlobalRateLimit bool `mapstructure:"enable_global_rate_limit"` // Global API rate limiting (100 req/min per IP)
 }
 
 // StorageConfig contains file storage settings
@@ -111,11 +119,9 @@ type EmailConfig struct {
 	SESRegion    string `mapstructure:"ses_region"`
 
 	// Templates
-	MagicLinkTemplate     string        `mapstructure:"magic_link_template"`
-	VerificationTemplate  string        `mapstructure:"verification_template"`
-	PasswordResetTemplate string        `mapstructure:"password_reset_template"`
-	MagicLinkExpiry       time.Duration `mapstructure:"magic_link_expiry"`
-	PasswordResetExpiry   time.Duration `mapstructure:"password_reset_expiry"`
+	MagicLinkTemplate     string `mapstructure:"magic_link_template"`
+	VerificationTemplate  string `mapstructure:"verification_template"`
+	PasswordResetTemplate string `mapstructure:"password_reset_template"`
 }
 
 // Load loads configuration from file and environment variables
@@ -211,11 +217,16 @@ func setDefaults() {
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
 	viper.SetDefault("auth.jwt_expiry", "15m")
 	viper.SetDefault("auth.refresh_expiry", "168h") // 7 days in hours
+	viper.SetDefault("auth.magic_link_expiry", "15m")
+	viper.SetDefault("auth.password_reset_expiry", "1h")
 	viper.SetDefault("auth.password_min_length", 8)
 	viper.SetDefault("auth.bcrypt_cost", 10)
 	viper.SetDefault("auth.enable_signup", true)
 	viper.SetDefault("auth.enable_magic_link", true)
 	viper.SetDefault("auth.enable_rls", true) // Row Level Security enabled by default
+
+	// Security defaults
+	viper.SetDefault("security.enable_global_rate_limit", false) // Disabled by default, enable in production if needed
 
 	// Storage defaults
 	viper.SetDefault("storage.provider", "local")
@@ -239,7 +250,6 @@ func setDefaults() {
 	viper.SetDefault("email.from_name", "Fluxbase")
 	viper.SetDefault("email.smtp_port", 587)
 	viper.SetDefault("email.smtp_tls", true)
-	viper.SetDefault("email.magic_link_expiry", "15m")
 
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
