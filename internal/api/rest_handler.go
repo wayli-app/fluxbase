@@ -115,6 +115,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		// Execute query with RLS context
 		var results []map[string]interface{}
 		err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+			log.Debug().Str("query", query).Interface("args", args).Msg("Executing SELECT query")
 			rows, err := tx.Query(ctx, query, args...)
 			if err != nil {
 				log.Error().Err(err).Str("query", query).Msg("Failed to execute query")
@@ -124,6 +125,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 
 			// Convert rows to JSON
 			results, err = pgxRowsToJSON(rows)
+			log.Debug().Interface("results", results).Int("count", len(results)).Msg("Query results")
 			return err
 		})
 		if err != nil {

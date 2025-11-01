@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/internal/api"
 	"github.com/wayli-app/fluxbase/internal/config"
@@ -33,6 +34,13 @@ type TestContext struct {
 // NewTestContext creates a new test context with database and server
 func NewTestContext(t *testing.T) *TestContext {
 	cfg := GetTestConfig()
+
+	// Log the database user being used for debugging
+	log.Info().
+		Str("db_user", cfg.Database.User).
+		Str("db_host", cfg.Database.Host).
+		Str("db_database", cfg.Database.Database).
+		Msg("Test database configuration")
 
 	// Connect to test database
 	db, err := database.NewConnection(cfg.Database)

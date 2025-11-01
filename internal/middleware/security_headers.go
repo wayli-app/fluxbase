@@ -95,13 +95,14 @@ func SecurityHeaders(config ...SecurityHeadersConfig) fiber.Handler {
 
 // AdminUISecurityHeaders returns relaxed security headers for Admin UI
 // Admin UI needs 'unsafe-inline' and 'unsafe-eval' for React
+// Also allows Google Fonts from googleapis.com and gstatic.com
 func AdminUISecurityHeaders() fiber.Handler {
 	cfg := SecurityHeadersConfig{
 		ContentSecurityPolicy: "default-src 'self'; " +
 			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-			"style-src 'self' 'unsafe-inline'; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 			"img-src 'self' data: blob: https:; " +
-			"font-src 'self' data:; " +
+			"font-src 'self' data: https://fonts.gstatic.com; " +
 			"connect-src 'self' ws: wss: http: https:; " +
 			"frame-ancestors 'none'",
 		XFrameOptions:       "DENY",

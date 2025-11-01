@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -128,14 +129,8 @@ type EmailConfig struct {
 func Load() (*Config, error) {
 	// Load .env file if it exists (for local development)
 	if err := loadEnvFile(); err != nil {
-		log.Debug().Err(err).Msg("No .env file loaded")
+		log.Debug().Msg("No .env file found - using environment variables and defaults")
 	}
-
-	viper.SetConfigName("fluxbase")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/fluxbase")
 
 	// Set defaults
 	setDefaults()
@@ -145,15 +140,33 @@ func Load() (*Config, error) {
 	viper.SetEnvPrefix("FLUXBASE")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Read config file (if it exists)
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %w", err)
+	// Try to load config file from specific paths (in order of priority)
+	// This is more explicit than using SetConfigName which would also match .example files
+	configPaths := []string{
+		"./fluxbase.yaml",
+		"./fluxbase.yml",
+		"./config/fluxbase.yaml",
+		"./config/fluxbase.yml",
+		"/etc/fluxbase/fluxbase.yaml",
+		"/etc/fluxbase/fluxbase.yml",
+	}
+
+	var configLoaded bool
+	for _, configPath := range configPaths {
+		if _, err := os.Stat(configPath); err == nil {
+			viper.SetConfigFile(configPath)
+			if err := viper.ReadInConfig(); err != nil {
+				log.Warn().Err(err).Str("file", configPath).Msg("Config file found but could not be parsed, using environment variables and defaults")
+			} else {
+				log.Info().Str("file", configPath).Msg("Config file loaded")
+				configLoaded = true
+			}
+			break
 		}
-		// Config file not found; use defaults and environment variables
+	}
+
+	if !configLoaded {
 		log.Info().Msg("No config file found, using environment variables and defaults")
-	} else {
-		log.Info().Str("file", viper.ConfigFileUsed()).Msg("Config file loaded")
 	}
 
 	var config Config
@@ -258,23 +271,24 @@ func setDefaults() {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.Auth.JWTSecret == "your-secret-key-change-in-production" {
-		return fmt.Errorf("please set a secure JWT secret")
+	// Validate server configuration
+	if err := c.Server.Validate(); err != nil {
+		return fmt.Errorf("server configuration error: %w", err)
 	}
 
-	if c.Database.MaxConnections < c.Database.MinConnections {
-		return fmt.Errorf("max_connections must be greater than or equal to min_connections")
+	// Validate database configuration
+	if err := c.Database.Validate(); err != nil {
+		return fmt.Errorf("database configuration error: %w", err)
 	}
 
-	if c.Storage.Provider != "local" && c.Storage.Provider != "s3" {
-		return fmt.Errorf("storage provider must be 'local' or 's3'")
+	// Validate auth configuration
+	if err := c.Auth.Validate(); err != nil {
+		return fmt.Errorf("auth configuration error: %w", err)
 	}
 
-	if c.Storage.Provider == "s3" {
-		if c.Storage.S3Endpoint == "" || c.Storage.S3AccessKey == "" ||
-			c.Storage.S3SecretKey == "" || c.Storage.S3Bucket == "" {
-			return fmt.Errorf("S3 configuration is incomplete")
-		}
+	// Validate storage configuration
+	if err := c.Storage.Validate(); err != nil {
+		return fmt.Errorf("storage configuration error: %w", err)
 	}
 
 	// Validate email configuration if enabled
@@ -282,6 +296,182 @@ func (c *Config) Validate() error {
 		if err := c.Email.Validate(); err != nil {
 			return fmt.Errorf("email configuration error: %w", err)
 		}
+	}
+
+	// Validate base URL
+	if c.BaseURL != "" {
+		parsedURL, err := url.Parse(c.BaseURL)
+		if err != nil {
+			return fmt.Errorf("invalid base_url: %w", err)
+		}
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return fmt.Errorf("base_url must use http or https scheme, got: %s", parsedURL.Scheme)
+		}
+	}
+
+	return nil
+}
+
+// Validate validates server configuration
+func (sc *ServerConfig) Validate() error {
+	if sc.Address == "" {
+		return fmt.Errorf("server address cannot be empty")
+	}
+
+	// Validate timeouts are positive
+	if sc.ReadTimeout <= 0 {
+		return fmt.Errorf("read_timeout must be positive, got: %v", sc.ReadTimeout)
+	}
+	if sc.WriteTimeout <= 0 {
+		return fmt.Errorf("write_timeout must be positive, got: %v", sc.WriteTimeout)
+	}
+	if sc.IdleTimeout <= 0 {
+		return fmt.Errorf("idle_timeout must be positive, got: %v", sc.IdleTimeout)
+	}
+
+	// Validate body limit
+	if sc.BodyLimit <= 0 {
+		return fmt.Errorf("body_limit must be positive, got: %d", sc.BodyLimit)
+	}
+
+	return nil
+}
+
+// Validate validates database configuration
+func (dc *DatabaseConfig) Validate() error {
+	if dc.Host == "" {
+		return fmt.Errorf("database host is required")
+	}
+
+	if dc.Port < 1 || dc.Port > 65535 {
+		return fmt.Errorf("database port must be between 1 and 65535, got: %d", dc.Port)
+	}
+
+	if dc.User == "" {
+		return fmt.Errorf("database user is required")
+	}
+
+	if dc.Database == "" {
+		return fmt.Errorf("database name is required")
+	}
+
+	// Validate SSL mode
+	validSSLModes := []string{"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
+	sslModeValid := false
+	for _, mode := range validSSLModes {
+		if dc.SSLMode == mode {
+			sslModeValid = true
+			break
+		}
+	}
+	if !sslModeValid {
+		return fmt.Errorf("invalid ssl_mode: %s (must be one of: %v)", dc.SSLMode, validSSLModes)
+	}
+
+	// Validate connection pool settings
+	if dc.MaxConnections <= 0 {
+		return fmt.Errorf("max_connections must be positive, got: %d", dc.MaxConnections)
+	}
+
+	if dc.MinConnections < 0 {
+		return fmt.Errorf("min_connections cannot be negative, got: %d", dc.MinConnections)
+	}
+
+	if dc.MaxConnections < dc.MinConnections {
+		return fmt.Errorf("max_connections (%d) must be greater than or equal to min_connections (%d)",
+			dc.MaxConnections, dc.MinConnections)
+	}
+
+	// Validate timeouts are positive
+	if dc.MaxConnLifetime <= 0 {
+		return fmt.Errorf("max_conn_lifetime must be positive, got: %v", dc.MaxConnLifetime)
+	}
+	if dc.MaxConnIdleTime <= 0 {
+		return fmt.Errorf("max_conn_idle_time must be positive, got: %v", dc.MaxConnIdleTime)
+	}
+	if dc.HealthCheck <= 0 {
+		return fmt.Errorf("health_check_period must be positive, got: %v", dc.HealthCheck)
+	}
+
+	return nil
+}
+
+// Validate validates auth configuration
+func (ac *AuthConfig) Validate() error {
+	if ac.JWTSecret == "" {
+		return fmt.Errorf("jwt_secret is required")
+	}
+
+	if ac.JWTSecret == "your-secret-key-change-in-production" {
+		return fmt.Errorf("please set a secure JWT secret (current value is the default insecure value)")
+	}
+
+	// Validate JWT secret length (should be at least 32 characters for security)
+	if len(ac.JWTSecret) < 32 {
+		log.Warn().Msg("JWT secret is shorter than 32 characters - consider using a longer secret for better security")
+	}
+
+	// Validate expiry durations are positive
+	if ac.JWTExpiry <= 0 {
+		return fmt.Errorf("jwt_expiry must be positive, got: %v", ac.JWTExpiry)
+	}
+	if ac.RefreshExpiry <= 0 {
+		return fmt.Errorf("refresh_expiry must be positive, got: %v", ac.RefreshExpiry)
+	}
+	if ac.MagicLinkExpiry <= 0 {
+		return fmt.Errorf("magic_link_expiry must be positive, got: %v", ac.MagicLinkExpiry)
+	}
+	if ac.PasswordResetExpiry <= 0 {
+		return fmt.Errorf("password_reset_expiry must be positive, got: %v", ac.PasswordResetExpiry)
+	}
+
+	// Validate password settings
+	if ac.PasswordMinLen < 1 {
+		return fmt.Errorf("password_min_length must be at least 1, got: %d", ac.PasswordMinLen)
+	}
+	if ac.PasswordMinLen < 8 {
+		log.Warn().Int("min_length", ac.PasswordMinLen).Msg("Password minimum length is less than 8 - consider increasing for better security")
+	}
+
+	// Validate bcrypt cost (valid range is 4-31, recommended is 10-14)
+	if ac.BcryptCost < 4 || ac.BcryptCost > 31 {
+		return fmt.Errorf("bcrypt_cost must be between 4 and 31, got: %d", ac.BcryptCost)
+	}
+
+	return nil
+}
+
+// Validate validates storage configuration
+func (sc *StorageConfig) Validate() error {
+	if sc.Provider != "local" && sc.Provider != "s3" {
+		return fmt.Errorf("storage provider must be 'local' or 's3', got: %s", sc.Provider)
+	}
+
+	if sc.Provider == "local" {
+		if sc.LocalPath == "" {
+			return fmt.Errorf("local_path is required when using local storage provider")
+		}
+	}
+
+	if sc.Provider == "s3" {
+		if sc.S3Endpoint == "" {
+			return fmt.Errorf("s3_endpoint is required when using S3 storage provider")
+		}
+		if sc.S3AccessKey == "" {
+			return fmt.Errorf("s3_access_key is required when using S3 storage provider")
+		}
+		if sc.S3SecretKey == "" {
+			return fmt.Errorf("s3_secret_key is required when using S3 storage provider")
+		}
+		if sc.S3Bucket == "" {
+			return fmt.Errorf("s3_bucket is required when using S3 storage provider")
+		}
+		// S3Region is optional for some S3-compatible services
+	}
+
+	// Validate max upload size
+	if sc.MaxUploadSize <= 0 {
+		return fmt.Errorf("max_upload_size must be positive, got: %d", sc.MaxUploadSize)
 	}
 
 	return nil

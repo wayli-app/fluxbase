@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -163,8 +164,16 @@ func (s *Server) setupMiddlewares() {
 	s.app.Use(requestid.New())
 
 	// Security headers middleware - protect against common attacks
+	// Apply different CSP for admin UI (needs Google Fonts) vs API routes
 	log.Debug().Msg("Adding security headers middleware")
-	s.app.Use(middleware.SecurityHeaders())
+	s.app.Use(func(c *fiber.Ctx) error {
+		// Apply relaxed CSP for admin UI
+		if strings.HasPrefix(c.Path(), "/admin") {
+			return middleware.AdminUISecurityHeaders()(c)
+		}
+		// Apply strict CSP for all other routes
+		return middleware.SecurityHeaders()(c)
+	})
 
 	// Logger middleware
 	log.Debug().Msg("Adding logger middleware")
@@ -576,6 +585,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // App returns the underlying Fiber app instance for testing
 func (s *Server) App() *fiber.App {
 	return s.app
+}
+
+// GetStorageService returns the storage service from the storage handler
+func (s *Server) GetStorageService() *storage.Service {
+	if s.storageHandler == nil {
+		return nil
+	}
+	return s.storageHandler.storage
 }
 
 // customErrorHandler handles errors globally

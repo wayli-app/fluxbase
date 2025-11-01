@@ -100,9 +100,6 @@ COPY --from=go-builder /build/fluxbase /app/fluxbase
 # Copy migrations (embedded in binary but also available as files)
 COPY --from=go-builder /build/internal/database/migrations /app/migrations
 
-# Copy example configuration from builder stage
-COPY --from=go-builder /build/fluxbase.yaml.example /app/fluxbase.yaml.example
-
 # Create necessary directories
 RUN mkdir -p /app/storage /app/config /app/data /app/logs && \
     chown -R fluxbase:fluxbase /app

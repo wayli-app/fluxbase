@@ -23,8 +23,8 @@ services:
       # Application environment
       FLUXBASE_DATABASE_HOST: postgres
       FLUXBASE_DATABASE_PORT: 5432
-      FLUXBASE_DATABASE_USER: postgres
-      FLUXBASE_DATABASE_PASSWORD: postgres
+      FLUXBASE_DATABASE_USER: fluxbase_app
+      FLUXBASE_DATABASE_PASSWORD: fluxbase_app_password
       FLUXBASE_DATABASE_DATABASE: fluxbase_dev
       FLUXBASE_AUTH_JWT_SECRET: dev-secret-key-change-in-production
       FLUXBASE_DEBUG: "true"
