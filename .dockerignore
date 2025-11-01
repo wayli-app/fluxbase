@@ -1,0 +1,41 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Local configuration files
+fluxbase.yaml
+fluxbase.yaml.example
+config/fluxbase.yaml
+.env
+.env.local
+.env.*
+
+# Development files
+node_modules
+.vscode
+.idea
+*.log
+
+# Build artifacts
+dist
+build
+*.test
+coverage
+
+# Documentation
+*.md
+!README.md
+docs
+
+# CI/CD
+.github
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Testing
+*_test.go
+testdata

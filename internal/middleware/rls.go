@@ -93,10 +93,25 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID interface{}, role stri
 
 	// Execute all session variable sets
 	for _, query := range queries {
+		log.Debug().Str("query", query).Msg("Executing RLS context SQL")
 		if _, err := tx.Exec(ctx, query); err != nil {
 			log.Error().Err(err).Str("query", query).Msg("Failed to set RLS session variable")
 			return fmt.Errorf("failed to set RLS context: %w", err)
 		}
+	}
+
+	// Verify the RLS context was set by querying the session variables
+	var checkUserID string
+	var checkRole string
+	var currentUser string
+	if err := tx.QueryRow(ctx, "SELECT current_setting('app.user_id', TRUE), current_setting('app.role', TRUE), current_user").Scan(&checkUserID, &checkRole, &currentUser); err != nil {
+		log.Warn().Err(err).Msg("Failed to verify RLS session variables")
+	} else {
+		log.Debug().
+			Str("verified_user_id", checkUserID).
+			Str("verified_role", checkRole).
+			Str("current_pg_user", currentUser).
+			Msg("Verified RLS session variables and PostgreSQL user")
 	}
 
 	log.Debug().
@@ -123,6 +138,12 @@ func WrapWithRLS(ctx context.Context, conn *database.Connection, c *fiber.Ctx, f
 	if role == nil {
 		role = "anon"
 	}
+
+	log.Debug().
+		Interface("user_id_from_locals", userID).
+		Interface("role_from_locals", role).
+		Str("path", c.Path()).
+		Msg("WrapWithRLS: Retrieved RLS context from Fiber locals")
 
 	if err := SetRLSContext(ctx, tx, userID, role.(string)); err != nil {
 		return err

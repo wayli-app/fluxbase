@@ -3,9 +3,14 @@
 -- Create test database
 CREATE DATABASE fluxbase_test;
 
+-- Create fluxbase_app user for non-superuser operations (required for RLS)
+CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN;
+
 -- Grant all privileges
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO fluxbase_app;
+GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;
 
 -- Connect to dev database and create extensions
 \c fluxbase_dev;
