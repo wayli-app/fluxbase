@@ -7,6 +7,7 @@
 ---
 
 ## Table of Contents
+
 1. [System Overview](#system-overview)
 2. [Prerequisites](#prerequisites)
 3. [Deployment](#deployment)
@@ -23,6 +24,7 @@
 ## System Overview
 
 Fluxbase is a production-grade Backend-as-a-Service (BaaS) built in Go with:
+
 - **PostgreSQL** for primary data storage
 - **S3-compatible storage** for file uploads
 - **WebSocket** for realtime subscriptions
@@ -30,6 +32,7 @@ Fluxbase is a production-grade Backend-as-a-Service (BaaS) built in Go with:
 - **Two-tier authentication** (Dashboard admins + Application users)
 
 ### Architecture
+
 ```
 ┌─────────────────┐         ┌──────────────────┐
 │ Dashboard Admin │         │ Application User │
@@ -66,6 +69,7 @@ Fluxbase is a production-grade Backend-as-a-Service (BaaS) built in Go with:
 ```
 
 ### Key Components
+
 - **Go Binary**: Single stateless binary (~23MB)
 - **Database**: PostgreSQL 13+ with pgx/v5 driver
   - `dashboard` schema: Admin users with 2FA support
@@ -81,25 +85,29 @@ Fluxbase is a production-grade Backend-as-a-Service (BaaS) built in Go with:
 ## Prerequisites
 
 ### Required
-- **Go 1.21+** (for building from source)
+
+- **Go 1.25+** (for building from source)
 - **PostgreSQL 13+** with extensions:
   - `uuid-ossp` - UUID generation
   - `pg_trgm` - Fuzzy text search
 - **TLS certificates** (Let's Encrypt recommended)
 
 ### Optional
+
 - **S3-compatible storage** (AWS S3, MinIO, etc.)
 - **SMTP server** (for email auth)
 - **Prometheus** (for metrics)
 - **Grafana** (for dashboards)
 
 ### Minimum Resources
+
 - **CPU**: 2 cores
 - **RAM**: 2GB
 - **Disk**: 10GB (+ database and storage needs)
 - **Network**: 1Gbps
 
 ### Recommended Resources (Production)
+
 - **CPU**: 4+ cores
 - **RAM**: 8GB+
 - **Disk**: SSD with 100GB+
@@ -113,6 +121,7 @@ Fluxbase is a production-grade Backend-as-a-Service (BaaS) built in Go with:
 ### 1. Binary Deployment
 
 **Build**:
+
 ```bash
 git clone https://github.com/your-org/fluxbase
 cd fluxbase
@@ -120,6 +129,7 @@ go build -ldflags="-s -w" -o fluxbase cmd/fluxbase/main.go
 ```
 
 **Deploy**:
+
 ```bash
 # Copy binary to server
 scp fluxbase user@server:/usr/local/bin/
@@ -157,6 +167,7 @@ sudo systemctl start fluxbase
 ### 2. Docker Deployment
 
 **Production Dockerfile** (see [Dockerfile](../Dockerfile)):
+
 ```dockerfile
 # Multi-stage build with Admin UI
 FROM node:20-alpine AS admin-builder
@@ -179,6 +190,7 @@ CMD ["/app/fluxbase"]
 ```
 
 **Build & Run**:
+
 ```bash
 # Production build
 docker build -f Dockerfile -t fluxbase:latest .
@@ -193,12 +205,14 @@ docker run -d \
 ```
 
 **Production Stack** (see [docker-compose.production.yml](../deploy/docker-compose.production.yml)):
+
 ```bash
 cd deploy
 docker-compose -f docker-compose.production.yml up -d
 ```
 
 Includes:
+
 - PostgreSQL with health checks
 - Redis for caching
 - MinIO for S3-compatible storage
@@ -210,6 +224,7 @@ Includes:
 ### 3. Kubernetes Deployment
 
 **Helm Chart**:
+
 ```bash
 cd deploy/helm/fluxbase
 helm install fluxbase . \
@@ -253,7 +268,7 @@ FLUXBASE_S3_REGION="us-east-1"
 server:
   host: "0.0.0.0"
   port: 8080
-  body_limit: 2147483648  # 2GB
+  body_limit: 2147483648 # 2GB
 
 database:
   max_connections: 100
@@ -267,8 +282,8 @@ security:
     enabled: true
     requests_per_minute: 100
   csrf:
-    enabled: false  # Enable for browser-based apps
-    cookie_secure: true  # HTTPS only
+    enabled: false # Enable for browser-based apps
+    cookie_secure: true # HTTPS only
 
 realtime:
   enabled: true
@@ -276,8 +291,8 @@ realtime:
   ping_interval: "30s"
 
 log:
-  level: "info"  # Options: debug, info, warn, error
-  format: "json"  # Use json in production
+  level: "info" # Options: debug, info, warn, error
+  format: "json" # Use json in production
 ```
 
 ### Security Checklist
@@ -302,12 +317,14 @@ For detailed monitoring setup, see [MONITORING.md](deploy/MONITORING.md).
 ### Health Checks
 
 **Liveness Probe** (K8s):
+
 ```bash
 curl http://localhost:8080/health
 # Expected: 200 OK
 ```
 
 **Readiness Probe**:
+
 ```bash
 curl http://localhost:8080/ready
 # Expected: 200 OK (when DB is connected)
@@ -326,10 +343,12 @@ The production deployment includes a complete monitoring stack:
 - **cAdvisor**: Container metrics
 
 **Access**:
+
 - Grafana: http://localhost:3000 (default: admin/admin)
 - Prometheus: http://localhost:9090
 
 **Dashboards**:
+
 - Fluxbase - Application Overview
 - Fluxbase - Database Metrics
 
@@ -338,6 +357,7 @@ The production deployment includes a complete monitoring stack:
 **Endpoint**: `http://localhost:8080/metrics`
 
 **Key Metrics**:
+
 - `fluxbase_http_requests_total` - Total HTTP requests
 - `fluxbase_http_request_duration_seconds` - Request latency
 - `fluxbase_db_queries_total` - Database query count
@@ -349,12 +369,13 @@ The production deployment includes a complete monitoring stack:
 - `fluxbase_system_uptime_seconds` - System uptime
 
 **Prometheus scrape config**:
+
 ```yaml
 scrape_configs:
-  - job_name: 'fluxbase'
+  - job_name: "fluxbase"
     static_configs:
-      - targets: ['localhost:8080']
-    metrics_path: '/metrics'
+      - targets: ["localhost:8080"]
+    metrics_path: "/metrics"
     scrape_interval: 15s
 ```
 
@@ -363,12 +384,14 @@ scrape_configs:
 **Format**: JSON (in production)
 
 **Log Levels**:
+
 - `ERROR`: 5xx responses, failed queries, critical errors
 - `WARN`: 4xx responses, slow queries (>1s), rate limit hits
 - `INFO`: 2xx responses, startup/shutdown, config changes
 - `DEBUG`: Detailed request/response data (dev only)
 
 **Sample Log Entry**:
+
 ```json
 {
   "level": "info",
@@ -384,6 +407,7 @@ scrape_configs:
 ```
 
 **Viewing Logs**:
+
 ```bash
 # Systemd
 journalctl -u fluxbase -f --output=json
@@ -398,6 +422,7 @@ kubectl logs -f deployment/fluxbase | jq
 ### Audit Logging
 
 Security-sensitive events are logged with `log_type=audit`:
+
 - Authentication (login, logout, token refresh)
 - User management (create, delete, update)
 - API key operations (create, revoke, regenerate)
@@ -405,6 +430,7 @@ Security-sensitive events are logged with `log_type=audit`:
 - Security events (rate limit, CSRF, SQL injection attempts)
 
 **Query audit logs**:
+
 ```bash
 journalctl -u fluxbase | jq 'select(.log_type=="audit")'
 ```
@@ -422,6 +448,7 @@ Fluxbase uses a **two-tier authentication system** to separate dashboard adminis
 Dashboard admins access the Admin UI and manage the Fluxbase instance. They are stored in the `dashboard.users` table.
 
 **Features**:
+
 - Email/password authentication
 - Optional Two-Factor Authentication (TOTP)
 - Account locking after failed login attempts
@@ -431,6 +458,7 @@ Dashboard admins access the Admin UI and manage the Fluxbase instance. They are 
 - Email verification
 
 **Creating the first admin**:
+
 ```bash
 # Using the API
 curl -X POST http://localhost:8080/dashboard/auth/signup \
@@ -443,6 +471,7 @@ curl -X POST http://localhost:8080/dashboard/auth/signup \
 ```
 
 **Enabling 2FA**:
+
 1. Log in to Admin UI
 2. Navigate to Settings > Account
 3. Click "Enable 2FA"
@@ -455,6 +484,7 @@ curl -X POST http://localhost:8080/dashboard/auth/signup \
 Application users are the end-users of your frontend application. They are stored in the `auth.users` table and use Row-Level Security policies.
 
 **Features**:
+
 - Email/password or social authentication
 - JWT-based auth with refresh tokens
 - Row-Level Security (RLS) policies
@@ -464,19 +494,20 @@ Application users are the end-users of your frontend application. They are store
 
 **Key Differences**:
 
-| Feature | Dashboard Admin | Application User |
-|---------|----------------|------------------|
-| Schema | `dashboard.users` | `auth.users` |
-| JWT Role | `dashboard_admin` | `user` / `anon` |
-| 2FA Support | ✅ Yes | ❌ No (future) |
-| Access | Admin UI | Application API |
-| Endpoints | `/dashboard/auth/*` | `/api/v1/auth/*` |
-| Account Locking | ✅ Yes | ❌ No |
-| Activity Logging | ✅ Yes | ❌ No |
+| Feature          | Dashboard Admin     | Application User |
+| ---------------- | ------------------- | ---------------- |
+| Schema           | `dashboard.users`   | `auth.users`     |
+| JWT Role         | `dashboard_admin`   | `user` / `anon`  |
+| 2FA Support      | ✅ Yes              | ❌ No (future)   |
+| Access           | Admin UI            | Application API  |
+| Endpoints        | `/dashboard/auth/*` | `/api/v1/auth/*` |
+| Account Locking  | ✅ Yes              | ❌ No            |
+| Activity Logging | ✅ Yes              | ❌ No            |
 
 ### Implemented Protections
 
 ✅ **OWASP Top 10 Compliance**:
+
 - SQL Injection: Parameterized queries (pgx/v5)
 - XSS: Content Security Policy headers
 - CSRF: Token-based protection (opt-in)
@@ -484,12 +515,14 @@ Application users are the end-users of your frontend application. They are store
 - MIME Sniffing: X-Content-Type-Options: nosniff
 
 ✅ **Rate Limiting**:
+
 - Global: 100 req/min per IP
 - Auth endpoints: 5 login attempts per 15 min
 - Per-user: 500 req/min (authenticated)
 - Per-API-key: 1000 req/min
 
 ✅ **Security Headers**:
+
 - `Content-Security-Policy`
 - `X-Frame-Options`
 - `X-Content-Type-Options`
@@ -499,11 +532,13 @@ Application users are the end-users of your frontend application. They are store
 ### Security Audit Results
 
 **SQL Injection**: ✅ SECURE (Sprint 7 audit)
+
 - All queries use parameterized statements
 - Column names validated against schema
 - No string concatenation with user input
 
 **Dependencies**: Keep updated
+
 ```bash
 go get -u ./...
 go mod tidy
@@ -512,18 +547,21 @@ go mod tidy
 ### Incident Response
 
 **Rate Limit Hit**:
+
 1. Check logs: `journalctl -u fluxbase | grep rate_limit`
 2. Identify source IP
 3. Temporarily block if malicious: `iptables -A INPUT -s IP -j DROP`
 4. Adjust rate limits if legitimate traffic
 
 **Auth Failures**:
+
 1. Check audit logs: `jq 'select(.log_type=="audit" and .success==false)'`
 2. Identify pattern (brute force, credential stuffing)
 3. Enable CAPTCHA if needed
 4. Block source IPs
 
 **Slow Queries**:
+
 1. Check logs: `jq 'select(.slow_query==true)'`
 2. Analyze query plan: `EXPLAIN ANALYZE <query>`
 3. Add indexes if needed
@@ -536,10 +574,11 @@ go mod tidy
 ### Database Connection Pool
 
 **Recommended Settings** (per instance):
+
 ```yaml
 database:
-  max_connections: 100      # Total pool size
-  min_connections: 10       # Always keep 10 warm
+  max_connections: 100 # Total pool size
+  min_connections: 10 # Always keep 10 warm
   connection_max_lifetime: "1h"
   max_conn_idle_time: "10m"
   health_check_period: "1m"
@@ -548,6 +587,7 @@ database:
 **Formula**: `max_connections = (num_cpu_cores * 2) + disk_spindles`
 
 **Monitor**:
+
 ```bash
 curl localhost:8080/metrics | grep fluxbase_db_connections
 ```
@@ -557,11 +597,13 @@ curl localhost:8080/metrics | grep fluxbase_db_connections
 **Threshold**: 1 second (configurable)
 
 **Identify slow queries**:
+
 ```bash
 journalctl -u fluxbase | jq 'select(.slow_query==true) | {query, duration_ms}'
 ```
 
 **PostgreSQL logging** (enable for deep analysis):
+
 ```sql
 -- Add to postgresql.conf
 log_min_duration_statement = 1000  # Log queries > 1s
@@ -571,14 +613,17 @@ log_statement = 'all'               # Log all statements (dev only)
 ### Caching Strategy
 
 **Client-side** (future enhancement):
+
 - ETag support for GET requests
 - Cache-Control headers
 
 **Server-side**:
+
 - Connection pooling (already implemented)
 - Prepared statement caching (pgx default)
 
 **Database**:
+
 - Query result caching (PostgreSQL)
 - Materialized views for complex queries
 
@@ -587,35 +632,38 @@ log_statement = 'all'               # Log all statements (dev only)
 **Tool**: `k6` (recommended)
 
 **Basic test**:
+
 ```javascript
-import http from 'k6/http';
-import { check } from 'k6';
+import http from "k6/http";
+import { check } from "k6";
 
 export let options = {
   stages: [
-    { duration: '2m', target: 100 },  // Ramp up to 100 users
-    { duration: '5m', target: 100 },  // Stay at 100 users
-    { duration: '2m', target: 0 },    // Ramp down to 0 users
+    { duration: "2m", target: 100 }, // Ramp up to 100 users
+    { duration: "5m", target: 100 }, // Stay at 100 users
+    { duration: "2m", target: 0 }, // Ramp down to 0 users
   ],
   thresholds: {
-    http_req_duration: ['p(95)<500'],  // 95% of requests < 500ms
+    http_req_duration: ["p(95)<500"], // 95% of requests < 500ms
   },
 };
 
 export default function () {
-  let response = http.get('http://localhost:8080/health');
+  let response = http.get("http://localhost:8080/health");
   check(response, {
-    'status is 200': (r) => r.status === 200,
+    "status is 200": (r) => r.status === 200,
   });
 }
 ```
 
 **Run**:
+
 ```bash
 k6 run load-test.js
 ```
 
 **Target Performance**:
+
 - **Throughput**: 1000 req/s (single instance)
 - **Latency**: p95 < 500ms, p99 < 1s
 - **Error Rate**: < 0.1%
@@ -631,12 +679,14 @@ k6 run load-test.js
 **Symptoms**: `unable to ping database` on startup
 
 **Causes**:
+
 - PostgreSQL not running
 - Wrong connection string
 - Firewall blocking port 5432
 - SSL mode mismatch
 
 **Resolution**:
+
 ```bash
 # Test connection manually
 psql "postgresql://user:pass@host:5432/fluxbase"
@@ -658,11 +708,13 @@ sudo ufw allow 5432/tcp
 **Symptoms**: OOM kills, high `fluxbase_db_connections`
 
 **Causes**:
+
 - Too many database connections
 - Connection leaks
 - Large response payloads
 
 **Resolution**:
+
 ```bash
 # Reduce max_connections
 # Monitor connection usage
@@ -680,12 +732,14 @@ sudo systemctl restart fluxbase
 **Symptoms**: High `fluxbase_http_request_duration_seconds`
 
 **Causes**:
+
 - Slow database queries
 - Missing indexes
 - Large datasets without pagination
 - Network latency
 
 **Resolution**:
+
 ```bash
 # Identify slow queries
 journalctl -u fluxbase | jq 'select(.slow_query==true)'
@@ -702,11 +756,13 @@ psql -c "EXPLAIN ANALYZE SELECT * FROM users WHERE email='...'"
 **Symptoms**: Frequent reconnects, `realtime_connection_errors`
 
 **Causes**:
+
 - Load balancer timeout
 - Proxy buffering
 - Client network issues
 
 **Resolution**:
+
 ```nginx
 # Nginx config for WebSocket
 location /realtime {
@@ -726,17 +782,20 @@ location /realtime {
 ### Routine Tasks
 
 **Daily**:
+
 - [ ] Check error logs
 - [ ] Monitor disk space
 - [ ] Review rate limit hits
 
 **Weekly**:
+
 - [ ] Review slow queries
 - [ ] Check database backup success
 - [ ] Analyze performance metrics
 - [ ] Review security audit logs
 
 **Monthly**:
+
 - [ ] Update dependencies (`go get -u`)
 - [ ] Rotate API keys
 - [ ] Review and archive old logs
@@ -745,6 +804,7 @@ location /realtime {
 ### Database Maintenance
 
 **Vacuum** (automatically handled by PostgreSQL):
+
 ```sql
 -- Manual vacuum if needed
 VACUUM ANALYZE;
@@ -757,6 +817,7 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ```
 
 **Index Maintenance**:
+
 ```sql
 -- Rebuild indexes if needed
 REINDEX DATABASE fluxbase;
@@ -768,6 +829,7 @@ SELECT * FROM pg_stat_user_tables;
 ### Upgrades
 
 **Zero-Downtime Strategy**:
+
 1. Deploy new version to staging
 2. Run migrations (use `migrate` CLI)
 3. Blue-green deployment:
@@ -778,6 +840,7 @@ SELECT * FROM pg_stat_user_tables;
    - Shutdown old instances
 
 **Rollback Plan**:
+
 - Keep previous binary: `/usr/local/bin/fluxbase.backup`
 - Database migrations are versioned
 - Rollback: `systemctl stop fluxbase && cp fluxbase.backup fluxbase && systemctl start fluxbase`
@@ -791,6 +854,7 @@ SELECT * FROM pg_stat_user_tables;
 Fluxbase includes automated backup scripts. See [deploy/scripts/backup.sh](deploy/scripts/backup.sh).
 
 **Automated Backups**:
+
 ```bash
 # Local backup
 ./deploy/scripts/backup.sh local
@@ -800,6 +864,7 @@ Fluxbase includes automated backup scripts. See [deploy/scripts/backup.sh](deplo
 ```
 
 **Backup Components**:
+
 - PostgreSQL database (pg_dump format)
 - Configuration files
 - Local storage (if used)
@@ -807,6 +872,7 @@ Fluxbase includes automated backup scripts. See [deploy/scripts/backup.sh](deplo
 **Backup Retention**: 30 days (configurable via `RETENTION_DAYS`)
 
 **Manual Database Backups**:
+
 ```bash
 # Daily full backup
 pg_dump -Fc fluxbase > fluxbase-$(date +%Y%m%d).dump
@@ -819,11 +885,13 @@ archive_command = 'test ! -f /mnt/archive/%f && cp %p /mnt/archive/%f'
 ```
 
 **Storage Backups**:
+
 - S3: Enable versioning
 - Local: Included in backup script
 
 **Configuration Backups**:
 Included in backup script or manually:
+
 ```bash
 tar czf fluxbase-config-$(date +%Y%m%d).tar.gz \
   /etc/fluxbase/env \
@@ -833,6 +901,7 @@ tar czf fluxbase-config-$(date +%Y%m%d).tar.gz \
 ### Recovery Procedures
 
 **Automated Restore**:
+
 ```bash
 # Restore from local backup
 ./deploy/scripts/restore.sh 20251031_140530
@@ -842,6 +911,7 @@ tar czf fluxbase-config-$(date +%Y%m%d).tar.gz \
 ```
 
 **Manual Database Restore**:
+
 ```bash
 # Stop Fluxbase
 sudo systemctl stop fluxbase
@@ -854,6 +924,7 @@ sudo systemctl start fluxbase
 ```
 
 **Complete System Restore**:
+
 1. Provision new server
 2. Install PostgreSQL
 3. Restore database from backup
@@ -905,6 +976,7 @@ curl -s localhost:8080/metrics | grep -v '^#'
 ### Performance Baselines
 
 **Single Instance** (4 CPU, 8GB RAM):
+
 - Throughput: 1000-1500 req/s
 - Latency p50: 50ms
 - Latency p95: 200ms
@@ -913,6 +985,7 @@ curl -s localhost:8080/metrics | grep -v '^#'
 - Database connections: 50-100
 
 **Tuned** (8 CPU, 16GB RAM):
+
 - Throughput: 3000-5000 req/s
 - Latency p50: 30ms
 - Latency p95: 100ms
@@ -924,4 +997,4 @@ curl -s localhost:8080/metrics | grep -v '^#'
 
 **End of Runbook**
 
-*For questions or updates, contact DevOps team or file an issue on GitHub.*
+_For questions or updates, contact DevOps team or file an issue on GitHub._

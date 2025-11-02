@@ -38,6 +38,13 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -134,6 +141,20 @@ function WebhooksPage() {
       return response.json()
     },
     enabled: !!selectedWebhook,
+  })
+
+  // Fetch available tables
+  const { data: tables } = useQuery<Array<{ schema: string; name: string }>>({
+    queryKey: ['tables'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/admin/tables', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+      })
+      if (!response.ok) throw new Error('Failed to fetch tables')
+      return response.json()
+    },
   })
 
   // Create webhook
@@ -609,12 +630,18 @@ function WebhooksPage() {
                 <div className='grid grid-cols-2 gap-2'>
                   <div>
                     <Label htmlFor='tableName'>Table Name</Label>
-                    <Input
-                      id='tableName'
-                      placeholder='products'
-                      value={tableName}
-                      onChange={(e) => setTableName(e.target.value)}
-                    />
+                    <Select value={tableName} onValueChange={setTableName}>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select a table' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tables?.map((table) => (
+                          <SelectItem key={`${table.schema}.${table.name}`} value={table.name}>
+                            {table.schema}.{table.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Operations</Label>

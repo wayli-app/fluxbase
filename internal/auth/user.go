@@ -361,3 +361,195 @@ func joinStrings(strs []string, sep string) string {
 func formatPlaceholder(column string, argNum int) string {
 	return fmt.Sprintf("%s = $%d", column, argNum)
 }
+
+// CreateInTable creates a new user in the specified table (auth.users or dashboard.users)
+func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserRequest, passwordHash string, userType string) (*User, error) {
+	user := &User{
+		ID:            uuid.New().String(),
+		Email:         req.Email,
+		PasswordHash:  passwordHash,
+		EmailVerified: false,
+		Role:          req.Role,
+		Metadata:      req.Metadata,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	// Set default role if not provided
+	if user.Role == "" {
+		if userType == "dashboard" {
+			user.Role = "admin"
+		} else {
+			user.Role = "authenticated"
+		}
+	}
+
+	// Determine which table to use
+	tableName := "auth.users"
+	if userType == "dashboard" {
+		tableName = "dashboard.users"
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO %s (id, email, password_hash, email_verified, role, metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+	`, tableName)
+
+	err := r.db.QueryRow(
+		ctx,
+		query,
+		user.ID,
+		user.Email,
+		user.PasswordHash,
+		user.EmailVerified,
+		user.Role,
+		user.Metadata,
+		user.CreatedAt,
+		user.UpdatedAt,
+	).Scan(
+		&user.ID,
+		&user.Email,
+		&user.EmailVerified,
+		&user.Role,
+		&user.Metadata,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateInTable updates a user in the specified table
+func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req UpdateUserRequest, userType string) (*User, error) {
+	// Determine which table to use
+	tableName := "auth.users"
+	if userType == "dashboard" {
+		tableName = "dashboard.users"
+	}
+
+	// Build dynamic update query
+	updates := []string{}
+	args := []interface{}{id}
+	argNum := 2
+
+	if req.Email != nil {
+		updates = append(updates, formatPlaceholder("email", argNum))
+		args = append(args, *req.Email)
+		argNum++
+	}
+
+	if req.EmailVerified != nil {
+		updates = append(updates, formatPlaceholder("email_verified", argNum))
+		args = append(args, *req.EmailVerified)
+		argNum++
+	}
+
+	if req.Role != nil {
+		updates = append(updates, formatPlaceholder("role", argNum))
+		args = append(args, *req.Role)
+		argNum++
+	}
+
+	if req.Metadata != nil {
+		updates = append(updates, formatPlaceholder("metadata", argNum))
+		args = append(args, req.Metadata)
+		argNum++
+	}
+
+	// Always update updated_at
+	updates = append(updates, formatPlaceholder("updated_at", argNum))
+	args = append(args, time.Now())
+
+	if len(updates) == 1 { // Only updated_at
+		return nil, fmt.Errorf("no fields to update")
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE %s
+		SET %s
+		WHERE id = $1
+		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+	`, tableName, joinStrings(updates, ", "))
+
+	user := &User{}
+	err := r.db.QueryRow(ctx, query, args...).Scan(
+		&user.ID,
+		&user.Email,
+		&user.EmailVerified,
+		&user.Role,
+		&user.Metadata,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// DeleteFromTable deletes a user from the specified table
+func (r *UserRepository) DeleteFromTable(ctx context.Context, id string, userType string) error {
+	// Determine which table to use
+	tableName := "auth.users"
+	if userType == "dashboard" {
+		tableName = "dashboard.users"
+	}
+
+	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, tableName)
+
+	result, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+// GetByIDFromTable retrieves a user by ID from the specified table
+func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userType string) (*User, error) {
+	// Determine which table to use
+	tableName := "auth.users"
+	if userType == "dashboard" {
+		tableName = "dashboard.users"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, email, email_verified, role, metadata, created_at, updated_at
+		FROM %s
+		WHERE id = $1
+	`, tableName)
+
+	user := &User{}
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&user.ID,
+		&user.Email,
+		&user.EmailVerified,
+		&user.Role,
+		&user.Metadata,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return user, nil
+}

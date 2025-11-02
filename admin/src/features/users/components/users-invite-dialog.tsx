@@ -29,6 +29,7 @@ import { PasswordInput } from '@/components/password-input'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { roles } from '../data/data'
+import { useUsers } from './users-provider'
 
 const formSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -48,6 +49,7 @@ export function UsersInviteDialog({
   onOpenChange,
 }: UserInviteDialogProps) {
   const queryClient = useQueryClient()
+  const { userType } = useUsers()
   const [inviteResult, setInviteResult] = useState<{
     temporaryPassword?: string
     message: string
@@ -61,7 +63,7 @@ export function UsersInviteDialog({
   })
 
   const inviteMutation = useMutation({
-    mutationFn: userManagementApi.inviteUser,
+    mutationFn: (data: any) => userManagementApi.inviteUser(data, userType),
     onSuccess: (data) => {
       // Invalidate users query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['users'] })

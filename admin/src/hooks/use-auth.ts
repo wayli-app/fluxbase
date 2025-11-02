@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useFluxbaseClient } from '@fluxbase/sdk-react'
-import type { SignInCredentials, SignUpCredentials } from '@fluxbase/sdk'
+import type { SignInCredentials, SignUpCredentials, AuthSession } from '@fluxbase/sdk'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function useAuth() {
@@ -28,22 +28,32 @@ export function useAuth() {
       return await client.auth.signIn(data)
     },
     onSuccess: (session) => {
+      // Check if 2FA is required
+      if ('requires_2fa' in session && session.requires_2fa) {
+        // Handle 2FA flow - don't store tokens yet
+        toast.info(session.message || 'Two-factor authentication required')
+        return
+      }
+
+      // Type guard: at this point we know it's an AuthSession
+      const authSession = session as AuthSession
+
       // Store tokens
-      auth.setAccessToken(session.access_token)
-      localStorage.setItem('refresh_token', session.refresh_token)
+      auth.setAccessToken(authSession.access_token)
+      localStorage.setItem('refresh_token', authSession.refresh_token)
 
       // Store user in Zustand
       auth.setUser({
-        accountNo: session.user.id,
-        email: session.user.email,
-        role: [session.user.role],
-        exp: Date.now() + session.expires_in * 1000,
+        accountNo: authSession.user.id,
+        email: authSession.user.email,
+        role: [authSession.user.role],
+        exp: Date.now() + authSession.expires_in * 1000,
       })
 
       // Invalidate and refetch user query
       queryClient.invalidateQueries({ queryKey: ['auth', 'user'] })
 
-      toast.success(`Welcome back, ${session.user.email}!`)
+      toast.success(`Welcome back, ${authSession.user.email}!`)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to sign in')

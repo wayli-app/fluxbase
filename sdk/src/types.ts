@@ -86,6 +86,33 @@ export interface AuthResponse {
   expires_in: number
 }
 
+export interface TwoFactorSetupResponse {
+  secret: string
+  qr_code_url: string
+  message: string
+}
+
+export interface TwoFactorEnableResponse {
+  success: boolean
+  backup_codes: string[]
+  message: string
+}
+
+export interface TwoFactorStatusResponse {
+  totp_enabled: boolean
+}
+
+export interface TwoFactorVerifyRequest {
+  user_id: string
+  code: string
+}
+
+export interface SignInWith2FAResponse {
+  requires_2fa: boolean
+  user_id: string
+  message: string
+}
+
 export interface FluxbaseError extends Error {
   status?: number
   code?: string

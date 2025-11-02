@@ -22,20 +22,22 @@ type ChangeEvent struct {
 
 // Listener handles PostgreSQL LISTEN/NOTIFY
 type Listener struct {
-	pool    *pgxpool.Pool
-	handler *RealtimeHandler
-	ctx     context.Context
-	cancel  context.CancelFunc
+	pool       *pgxpool.Pool
+	handler    *RealtimeHandler
+	subManager *SubscriptionManager
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewListener creates a new PostgreSQL listener
-func NewListener(pool *pgxpool.Pool, handler *RealtimeHandler) *Listener {
+func NewListener(pool *pgxpool.Pool, handler *RealtimeHandler, subManager *SubscriptionManager) *Listener {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Listener{
-		pool:    pool,
-		handler: handler,
-		ctx:     ctx,
-		cancel:  cancel,
+		pool:       pool,
+		handler:    handler,
+		subManager: subManager,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -122,17 +124,37 @@ func (l *Listener) processNotification(notification *pgconn.Notification) {
 		return
 	}
 
-	// Determine the broadcast channel based on the table
-	channel := fmt.Sprintf("table:%s.%s", event.Schema, event.Table)
+	// Do RLS-aware filtering for table subscriptions
+	if l.subManager != nil {
+		filteredEvents := l.subManager.FilterEventForSubscribers(l.ctx, &event)
 
-	// Broadcast to all subscribers
-	l.handler.Broadcast(channel, event)
+		// Send to each connection that has access
+		for connID, filteredEvent := range filteredEvents {
+			// Get connection from manager
+			manager := l.handler.GetManager()
+			manager.mu.RLock()
+			conn, exists := manager.connections[connID]
+			manager.mu.RUnlock()
 
-	log.Debug().
-		Str("channel", channel).
-		Str("type", event.Type).
-		Str("table", event.Table).
-		Msg("Broadcasted change event")
+			if exists {
+				_ = conn.SendMessage(ServerMessage{
+					Type:    MessageTypeChange,
+					Payload: filteredEvent,
+				})
+			}
+		}
+
+		log.Debug().
+			Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
+			Str("type", event.Type).
+			Int("subscribers", len(filteredEvents)).
+			Msg("Filtered and sent RLS-aware change event")
+	} else {
+		log.Debug().
+			Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
+			Str("type", event.Type).
+			Msg("No subscription manager - change event not processed")
+	}
 }
 
 // Stop stops the listener

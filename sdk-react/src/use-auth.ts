@@ -56,7 +56,10 @@ export function useSignIn() {
     },
     onSuccess: (session) => {
       queryClient.setQueryData(['fluxbase', 'auth', 'session'], session)
-      queryClient.setQueryData(['fluxbase', 'auth', 'user'], session.user)
+      // Only set user if this is a complete auth session (not 2FA required)
+      if ('user' in session) {
+        queryClient.setQueryData(['fluxbase', 'auth', 'user'], session.user)
+      }
     },
   })
 }

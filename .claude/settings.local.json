@@ -14,7 +14,18 @@
       "Bash(golangci-lint run:*)",
       "Bash(gh run view:*)",
       "Bash(PGPASSWORD=postgres psql:*)",
-      "Bash(unset:*)"
+      "Bash(unset:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)",
+      "Bash(docker ps:*)",
+      "Bash(timeout 30 go run:*)",
+      "Bash(make db-reset:*)",
+      "Bash(FLUXBASE_DEBUG=true go test:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(awk:*)",
+      "Bash(migrate -help:*)",
+      "Bash(migrate:*)"
     ],
     "deny": [],
     "ask": []

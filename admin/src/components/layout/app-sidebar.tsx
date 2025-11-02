@@ -26,7 +26,7 @@ export function AppSidebar() {
     ? {
         name: (storedUser.metadata?.name as string) || storedUser.email.split('@')[0],
         email: storedUser.email,
-        avatar: (storedUser.metadata?.avatar as string) || '/avatars/shadcn.jpg',
+        avatar: (storedUser.metadata?.avatar as string) || '',
       }
     : sidebarData.user // Fallback to default user if not logged in
 

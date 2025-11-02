@@ -494,3 +494,229 @@ func (s *Service) StartAnonImpersonation(ctx context.Context, adminUserID string
 func (s *Service) StartServiceImpersonation(ctx context.Context, adminUserID string, reason string, ipAddress string, userAgent string) (*StartImpersonationResponse, error) {
 	return s.impersonationService.StartServiceImpersonation(ctx, adminUserID, reason, ipAddress, userAgent)
 }
+
+// IsSignupEnabled returns whether user signup is enabled
+func (s *Service) IsSignupEnabled() bool {
+	return s.config.EnableSignup
+}
+
+// SetupTOTP generates a new TOTP secret for 2FA setup
+func (s *Service) SetupTOTP(ctx context.Context, userID string) (string, string, error) {
+	// Generate TOTP secret
+	secret, qrCodeURL, err := GenerateTOTPSecret("Fluxbase", userID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate TOTP secret: %w", err)
+	}
+
+	// Store the secret in a temporary setup table (expires in 10 minutes)
+	query := `
+		INSERT INTO auth.two_factor_setups (user_id, secret, qr_code_url, expires_at)
+		VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')
+		ON CONFLICT (user_id) DO UPDATE
+			SET secret = EXCLUDED.secret,
+			    qr_code_url = EXCLUDED.qr_code_url,
+			    expires_at = EXCLUDED.expires_at,
+			    verified = FALSE
+	`
+
+	_, err = s.userRepo.db.Pool().Exec(ctx, query, userID, secret, qrCodeURL)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to store TOTP setup: %w", err)
+	}
+
+	return secret, qrCodeURL, nil
+}
+
+// EnableTOTP enables 2FA after verifying the TOTP code
+func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string, error) {
+	// Fetch the pending TOTP setup
+	var secret string
+	var expiresAt time.Time
+	query := `
+		SELECT secret, expires_at
+		FROM auth.two_factor_setups
+		WHERE user_id = $1 AND verified = FALSE
+	`
+
+	err := s.userRepo.db.Pool().QueryRow(ctx, query, userID).Scan(&secret, &expiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("2FA setup not found or expired: %w", err)
+	}
+
+	// Check if setup has expired
+	if time.Now().After(expiresAt) {
+		return nil, errors.New("2FA setup has expired, please start again")
+	}
+
+	// Verify the TOTP code
+	valid, err := VerifyTOTPCode(code, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify TOTP code: %w", err)
+	}
+
+	if !valid {
+		return nil, errors.New("invalid TOTP code")
+	}
+
+	// Generate backup codes
+	backupCodes, hashedCodes, err := GenerateBackupCodes(10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
+	}
+
+	// Enable TOTP for the user
+	updateQuery := `
+		UPDATE auth.users
+		SET totp_secret = $1, totp_enabled = TRUE, backup_codes = $2, updated_at = NOW()
+		WHERE id = $3
+	`
+
+	_, err = s.userRepo.db.Pool().Exec(ctx, updateQuery, secret, hashedCodes, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable TOTP: %w", err)
+	}
+
+	// Mark setup as verified
+	_, _ = s.userRepo.db.Pool().Exec(ctx, `
+		UPDATE auth.two_factor_setups
+		SET verified = TRUE
+		WHERE user_id = $1
+	`, userID)
+
+	return backupCodes, nil
+}
+
+// VerifyTOTP verifies a TOTP code during login
+func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
+	// Fetch user's TOTP secret and backup codes
+	var secret string
+	var backupCodes []string
+	query := `
+		SELECT totp_secret, COALESCE(backup_codes, ARRAY[]::text[])
+		FROM auth.users
+		WHERE id = $1 AND totp_enabled = TRUE
+	`
+
+	err := s.userRepo.db.Pool().QueryRow(ctx, query, userID).Scan(&secret, &backupCodes)
+	if err != nil {
+		return fmt.Errorf("2FA not enabled for this user: %w", err)
+	}
+
+	// Try TOTP code first
+	valid, err := VerifyTOTPCode(code, secret)
+	if err == nil && valid {
+		return nil
+	}
+
+	// Try backup codes
+	for i, hashedCode := range backupCodes {
+		match, err := VerifyBackupCode(code, hashedCode)
+		if err == nil && match {
+			// Remove used backup code
+			newBackupCodes := append(backupCodes[:i], backupCodes[i+1:]...)
+
+			_, err = s.userRepo.db.Pool().Exec(ctx, `
+				UPDATE auth.users
+				SET backup_codes = $1, updated_at = NOW()
+				WHERE id = $2
+			`, newBackupCodes, userID)
+
+			if err != nil {
+				return fmt.Errorf("failed to update backup codes: %w", err)
+			}
+
+			// Log successful recovery code usage
+			_, _ = s.userRepo.db.Pool().Exec(ctx, `
+				INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
+				VALUES ($1, $2, TRUE)
+			`, userID, "backup_code")
+
+			return nil
+		}
+	}
+
+	// Log failed attempt
+	_, _ = s.userRepo.db.Pool().Exec(ctx, `
+		INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
+		VALUES ($1, $2, FALSE)
+	`, userID, code)
+
+	return errors.New("invalid 2FA code")
+}
+
+// DisableTOTP disables 2FA for a user
+func (s *Service) DisableTOTP(ctx context.Context, userID, password string) error {
+	// Verify password first
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
+	if user.PasswordHash != "" {
+		err := s.passwordHasher.ComparePassword(user.PasswordHash, password)
+		if err != nil {
+			return errors.New("invalid password")
+		}
+	}
+
+	// Disable TOTP
+	query := `
+		UPDATE auth.users
+		SET totp_enabled = FALSE, totp_secret = NULL, backup_codes = NULL, updated_at = NOW()
+		WHERE id = $1
+	`
+
+	_, err = s.userRepo.db.Pool().Exec(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to disable 2FA: %w", err)
+	}
+
+	// Clean up pending setups
+	_, _ = s.userRepo.db.Pool().Exec(ctx, `
+		DELETE FROM auth.two_factor_setups WHERE user_id = $1
+	`, userID)
+
+	return nil
+}
+
+// IsTOTPEnabled checks if 2FA is enabled for a user
+func (s *Service) IsTOTPEnabled(ctx context.Context, userID string) (bool, error) {
+	var enabled bool
+	query := `SELECT COALESCE(totp_enabled, FALSE) FROM auth.users WHERE id = $1`
+
+	err := s.userRepo.db.Pool().QueryRow(ctx, query, userID).Scan(&enabled)
+	if err != nil {
+		return false, fmt.Errorf("failed to check 2FA status: %w", err)
+	}
+
+	return enabled, nil
+}
+
+// GenerateTokensForUser generates JWT tokens for a user after successful 2FA verification
+func (s *Service) GenerateTokensForUser(ctx context.Context, userID string) (*SignInResponse, error) {
+	// Get user details
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Generate JWT token pair
+	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate tokens: %w", err)
+	}
+
+	// Create session
+	expiresAt := time.Now().Add(s.config.RefreshExpiry)
+	_, err = s.sessionRepo.Create(ctx, user.ID, accessToken, refreshToken, expiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	return &SignInResponse{
+		User:         user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
+	}, nil
+}

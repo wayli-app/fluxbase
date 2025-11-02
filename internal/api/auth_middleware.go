@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/auth"
 )
@@ -66,7 +67,7 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 
 		log.Debug().
 			Str("path", c.Path()).
-			Str("auth_header", authHeader).
+			Bool("has_auth", authHeader != "").
 			Msg("OptionalAuthMiddleware: Processing request")
 
 		if authHeader == "" {
@@ -165,4 +166,84 @@ func GetUserRole(c *fiber.Ctx) (string, bool) {
 		return "", false
 	}
 	return role.(string), true
+}
+
+// UnifiedAuthMiddleware creates a middleware that accepts both auth.users and dashboard.users authentication
+// This allows both application users with admin role AND dashboard admins to access admin endpoints
+func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManager) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Get token from Authorization header
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Missing authorization header",
+			})
+		}
+
+		// Extract token from "Bearer <token>" format
+		token := authHeader
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+
+		// First, try to validate as auth.users token
+		claims, err := authService.ValidateToken(token)
+		if err == nil {
+			// Successfully validated as auth.users token
+			// Check if token has been revoked
+			isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to check token revocation status")
+				// Continue anyway - revocation check failure shouldn't block valid tokens
+			} else if isRevoked {
+				log.Debug().Str("jti", claims.ID).Msg("Token has been revoked")
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Token has been revoked",
+				})
+			}
+
+			// Store user information in context
+			c.Locals("user_id", claims.UserID)
+			c.Locals("user_email", claims.Email)
+			c.Locals("user_role", claims.Role)
+			c.Locals("session_id", claims.SessionID)
+
+			log.Debug().
+				Str("user_id", claims.UserID).
+				Str("role", claims.Role).
+				Msg("Authenticated as auth.users")
+
+			return c.Next()
+		}
+
+		// If auth.users validation failed, try dashboard.users token
+		dashboardClaims, err := jwtManager.ValidateAccessToken(token)
+		if err != nil {
+			// Both validations failed
+			log.Debug().Err(err).Msg("Invalid token for both auth types")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or expired token",
+			})
+		}
+
+		// Successfully validated as dashboard.users token
+		userID, err := uuid.Parse(dashboardClaims.Subject)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid user ID in token",
+			})
+		}
+
+		// Store user information in context
+		c.Locals("user_id", userID.String())
+		c.Locals("user_email", dashboardClaims.Email)
+		c.Locals("user_role", dashboardClaims.Role)
+
+		log.Debug().
+			Str("user_id", userID.String()).
+			Str("role", dashboardClaims.Role).
+			Msg("Authenticated as dashboard.users")
+
+		return c.Next()
+	}
 }

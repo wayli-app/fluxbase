@@ -121,57 +121,53 @@ jobs:
             sleep 2
           done
 
-          # Create fluxbase_app user for RLS testing with LOGIN privilege
+          # Create fluxbase_app user with BYPASSRLS for migrations and general testing
+          # This user can bypass RLS policies to manage data freely (like in production)
           # Note: No CONNECTION LIMIT to allow tests to create many concurrent connections
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN;"
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB;"
           psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
+
+          # Grant schema permissions to fluxbase_app for migrations
+          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA public TO fluxbase_app;"
+
+          # Create _fluxbase schema if it doesn't exist and grant permissions
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;"
+          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA _fluxbase TO fluxbase_app;"
+
+          # Create fluxbase_rls_test user specifically for RLS policy testing (without BYPASSRLS)
+          # This user is ONLY used in RLS-specific tests to verify policies work correctly
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
+          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;"
 
       - name: Run database migrations
         env:
-          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/fluxbase_test?sslmode=disable"
-          PGPASSWORD: postgres
+          # Run migrations as fluxbase_app user (same user tests will use)
+          # This ensures consistent ownership and permissions
+          DATABASE_URL: "postgres://fluxbase_app:fluxbase_app_password@localhost:5432/fluxbase_test?sslmode=disable"
         run: |
           go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
           migrate -path internal/database/migrations -database "$DATABASE_URL" up
 
-          # Grant permissions to fluxbase_app after migrations
-          SCHEMAS="public auth storage functions realtime dashboard"
-          DB_USER="fluxbase_app"
+          # Grant permissions to fluxbase_rls_test for RLS testing (AFTER migrations complete)
+          # Set PGPASSWORD for postgres user
+          export PGPASSWORD=postgres
+          SCHEMAS="_fluxbase public auth storage functions realtime dashboard"
           PSQL_CMD="psql -h localhost -U postgres -d fluxbase_test"
 
-          # Grant USAGE and CREATE on all schemas
+          # Grant permissions on existing objects
           for schema in $SCHEMAS; do
-            $PSQL_CMD -c "GRANT USAGE, CREATE ON SCHEMA $schema TO $DB_USER;"
+            $PSQL_CMD -c "GRANT USAGE ON SCHEMA $schema TO fluxbase_rls_test;"
+            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA $schema TO fluxbase_rls_test;"
+            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA $schema TO fluxbase_rls_test;"
+            $PSQL_CMD -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA $schema TO fluxbase_rls_test;"
           done
 
-          # Grant ALL PRIVILEGES on tables, sequences, and functions
+          # Also set default privileges for future objects created by fluxbase_app
           for schema in $SCHEMAS; do
-            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA $schema TO $DB_USER;"
-            $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA $schema TO $DB_USER;"
+            $PSQL_CMD -c "ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA $schema GRANT ALL ON TABLES TO fluxbase_rls_test;"
+            $PSQL_CMD -c "ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA $schema GRANT ALL ON SEQUENCES TO fluxbase_rls_test;"
+            $PSQL_CMD -c "ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA $schema GRANT EXECUTE ON FUNCTIONS TO fluxbase_rls_test;"
           done
-
-          # Grant EXECUTE on functions (needed for auth helpers and RPC endpoints)
-          for schema in $SCHEMAS; do
-            $PSQL_CMD -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA $schema TO $DB_USER;"
-          done
-
-          # Change owner of all tables and sequences to fluxbase_app (required for upsert operations)
-          $PSQL_CMD <<'EOFSQL'
-          DO $$
-          DECLARE
-              r RECORD;
-          BEGIN
-              FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ('public', 'auth', 'storage', 'functions', 'realtime', 'dashboard')
-              LOOP
-                  EXECUTE 'ALTER TABLE ' || quote_ident(r.schemaname) || '.' || quote_ident(r.tablename) || ' OWNER TO fluxbase_app';
-              END LOOP;
-
-              FOR r IN SELECT schemaname, sequencename FROM pg_sequences WHERE schemaname IN ('public', 'auth', 'storage', 'functions', 'realtime', 'dashboard')
-              LOOP
-                  EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.schemaname) || '.' || quote_ident(r.sequencename) || ' OWNER TO fluxbase_app';
-              END LOOP;
-          END$$;
-          EOFSQL
 
       - name: Setup MinIO bucket
         run: |

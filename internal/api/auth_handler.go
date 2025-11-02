@@ -21,6 +21,14 @@ func NewAuthHandler(authService *auth.Service) *AuthHandler {
 // SignUp handles user registration
 // POST /auth/signup
 func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
+	// Check if signup is enabled
+	if !h.authService.IsSignupEnabled() {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "User registration is currently disabled",
+			"code":  "SIGNUP_DISABLED",
+		})
+	}
+
 	var req auth.SignUpRequest
 	if err := c.BodyParser(&req); err != nil {
 		log.Error().Err(err).Msg("Failed to parse signup request")
@@ -77,6 +85,23 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 		log.Error().Err(err).Str("email", req.Email).Msg("Failed to sign in user")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid email or password",
+		})
+	}
+
+	// Check if user has 2FA enabled
+	twoFAEnabled, err := h.authService.IsTOTPEnabled(c.Context(), resp.User.ID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", resp.User.ID).Msg("Failed to check 2FA status")
+		// Continue with login - don't block if 2FA check fails
+		return c.Status(fiber.StatusOK).JSON(resp)
+	}
+
+	// If 2FA is enabled, return special response requiring 2FA verification
+	if twoFAEnabled {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"requires_2fa": true,
+			"user_id":      resp.User.ID,
+			"message":      "2FA verification required. Please provide your 2FA code.",
 		})
 	}
 
@@ -387,18 +412,29 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/password/reset/confirm", h.ResetPassword)           // No rate limit on actual reset (token is single-use)
 	router.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
 
+	// 2FA verification (public - used during login)
+	router.Post("/2fa/verify", h.VerifyTOTP)
+
 	// Protected routes (authentication required) - lighter rate limits
-	router.Post("/signout", h.SignOut)
-	router.Get("/user", h.GetUser)
-	router.Patch("/user", h.UpdateUser)
+	// Apply auth middleware to all routes below
+	authMiddleware := AuthMiddleware(h.authService)
+	router.Post("/signout", authMiddleware, h.SignOut)
+	router.Get("/user", authMiddleware, h.GetUser)
+	router.Patch("/user", authMiddleware, h.UpdateUser)
 
 	// Admin impersonation routes (admin only)
-	router.Post("/impersonate", h.StartImpersonation)
-	router.Post("/impersonate/anon", h.StartAnonImpersonation)
-	router.Post("/impersonate/service", h.StartServiceImpersonation)
-	router.Delete("/impersonate", h.StopImpersonation)
-	router.Get("/impersonate", h.GetActiveImpersonation)
-	router.Get("/impersonate/sessions", h.ListImpersonationSessions)
+	router.Post("/impersonate", authMiddleware, h.StartImpersonation)
+	router.Post("/impersonate/anon", authMiddleware, h.StartAnonImpersonation)
+	router.Post("/impersonate/service", authMiddleware, h.StartServiceImpersonation)
+	router.Delete("/impersonate", authMiddleware, h.StopImpersonation)
+	router.Get("/impersonate", authMiddleware, h.GetActiveImpersonation)
+	router.Get("/impersonate/sessions", authMiddleware, h.ListImpersonationSessions)
+
+	// 2FA routes (protected - authentication required)
+	router.Post("/2fa/setup", authMiddleware, h.SetupTOTP)
+	router.Post("/2fa/enable", authMiddleware, h.EnableTOTP)
+	router.Post("/2fa/disable", authMiddleware, h.DisableTOTP)
+	router.Get("/2fa/status", authMiddleware, h.GetTOTPStatus)
 }
 
 // SignInAnonymous creates JWT tokens for an anonymous user (no database record)
@@ -609,4 +645,175 @@ func (h *AuthHandler) StartServiceImpersonation(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// SetupTOTP initiates 2FA setup by generating a TOTP secret
+// POST /auth/2fa/setup
+func (h *AuthHandler) SetupTOTP(c *fiber.Ctx) error {
+	// Get user ID from JWT token
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	secret, qrCodeURL, err := h.authService.SetupTOTP(c.Context(), userID.(string))
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to setup TOTP")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to setup 2FA",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"secret":      secret,
+		"qr_code_url": qrCodeURL,
+		"message":     "2FA setup initiated. Please verify the code to enable 2FA.",
+	})
+}
+
+// EnableTOTP enables 2FA after verifying the TOTP code
+// POST /auth/2fa/enable
+func (h *AuthHandler) EnableTOTP(c *fiber.Ctx) error {
+	// Get user ID from JWT token
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Code is required",
+		})
+	}
+
+	backupCodes, err := h.authService.EnableTOTP(c.Context(), userID.(string), req.Code)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to enable TOTP")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success":      true,
+		"backup_codes": backupCodes,
+		"message":      "2FA enabled successfully. Please save your backup codes in a secure location.",
+	})
+}
+
+// VerifyTOTP verifies a TOTP code during login and issues JWT tokens
+// POST /auth/2fa/verify
+func (h *AuthHandler) VerifyTOTP(c *fiber.Ctx) error {
+	var req struct {
+		UserID string `json:"user_id"`
+		Code   string `json:"code"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.UserID == "" || req.Code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "User ID and code are required",
+		})
+	}
+
+	// Verify the 2FA code
+	err := h.authService.VerifyTOTP(c.Context(), req.UserID, req.Code)
+	if err != nil {
+		log.Warn().Err(err).Str("user_id", req.UserID).Msg("Failed to verify TOTP")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	// Generate a complete sign-in response with tokens
+	resp, err := h.authService.GenerateTokensForUser(c.Context(), req.UserID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", req.UserID).Msg("Failed to generate tokens after 2FA verification")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to complete authentication",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// DisableTOTP disables 2FA for a user
+// POST /auth/2fa/disable
+func (h *AuthHandler) DisableTOTP(c *fiber.Ctx) error {
+	// Get user ID from JWT token
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Password == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Password is required to disable 2FA",
+		})
+	}
+
+	err := h.authService.DisableTOTP(c.Context(), userID.(string), req.Password)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to disable TOTP")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "2FA disabled successfully",
+	})
+}
+
+// GetTOTPStatus checks if 2FA is enabled for a user
+// GET /auth/2fa/status
+func (h *AuthHandler) GetTOTPStatus(c *fiber.Ctx) error {
+	// Get user ID from JWT token
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	enabled, err := h.authService.IsTOTPEnabled(c.Context(), userID.(string))
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to check TOTP status")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to check 2FA status",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"totp_enabled": enabled,
+	})
 }

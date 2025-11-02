@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
@@ -87,12 +88,41 @@ func (c *Connection) Migrate() error {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
 
+	// Use connection string with custom migrations table in _fluxbase schema
+	// Note: dashboard.schema_migrations is for tracking DDL migrations, not golang-migrate migrations
+	// We use "pgx5" scheme which is registered by the pgx/v5 driver
+	// x-migrations-table-quoted=1 requires quoted schema.table format
+	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"schema_migrations\"&x-migrations-table-quoted=1",
+		c.config.User,
+		c.config.Password,
+		c.config.Host,
+		c.config.Port,
+		c.config.Database,
+		c.config.SSLMode,
+	)
+
+	log.Debug().Str("connection_string", connStr).Msg("Migration connection string")
+
 	// Create migration instance
-	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, c.config.ConnectionString())
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
 	defer m.Close()
+
+	// Check current version and dirty state
+	version, dirty, err := m.Version()
+	if err != nil && err != migrate.ErrNilVersion {
+		return fmt.Errorf("failed to get migration version: %w", err)
+	}
+
+	// If database is in dirty state, force the version to clean it
+	if dirty {
+		log.Warn().Uint("version", version).Msg("Database is in dirty state, forcing version to clean")
+		if err := m.Force(int(version)); err != nil {
+			return fmt.Errorf("failed to force migration version: %w", err)
+		}
+	}
 
 	// Run migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {

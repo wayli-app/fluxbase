@@ -231,3 +231,28 @@ func PerUserOrIPLimiter(anonMax, userMax, apiKeyMax int, duration time.Duration)
 		Message: "Rate limit exceeded. Please try again later.",
 	})
 }
+
+// AdminSetupLimiter limits admin setup attempts per IP
+// Very strict since this is a one-time operation
+func AdminSetupLimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        5,
+		Expiration: 15 * time.Minute,
+		KeyFunc: func(c *fiber.Ctx) string {
+			return "admin_setup:" + c.IP()
+		},
+		Message: "Too many admin setup attempts. Please try again in 15 minutes.",
+	})
+}
+
+// AdminLoginLimiter limits admin login attempts per IP
+func AdminLoginLimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        10,
+		Expiration: 1 * time.Minute,
+		KeyFunc: func(c *fiber.Ctx) string {
+			return "admin_login:" + c.IP()
+		},
+		Message: "Too many admin login attempts. Please try again in 1 minute.",
+	})
+}

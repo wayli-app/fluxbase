@@ -19,6 +19,9 @@ func setupAuthTest(t *testing.T) *test.TestContext {
 	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
 
+	// Enable signup for tests (default is now false for security)
+	tc.Config.Auth.EnableSignup = true
+
 	return tc
 }
 
@@ -265,4 +268,56 @@ func TestAuthMissingToken(t *testing.T) {
 	tc.NewRequest("GET", "/api/v1/auth/user").
 		Send().
 		AssertStatus(fiber.StatusUnauthorized)
+}
+
+// TestAuthSignupToggle tests that signup can be enabled/disabled
+func TestAuthSignupToggle(t *testing.T) {
+	// Test with signup disabled
+	t.Run("SignupDisabled", func(t *testing.T) {
+		tc := setupAuthTest(t)
+		defer tc.Close()
+
+		// Override config to disable signup
+		tc.Config.Auth.EnableSignup = false
+
+		// Try to signup
+		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
+			WithBody(map[string]interface{}{
+				"email":    "disabled@example.com",
+				"password": "testpassword123",
+			}).
+			Send().
+			AssertStatus(fiber.StatusForbidden)
+
+		// Verify response structure
+		var result map[string]interface{}
+		resp.JSON(&result)
+		require.Equal(t, "User registration is currently disabled", result["error"], "Error message should indicate signup is disabled")
+		require.Equal(t, "SIGNUP_DISABLED", result["code"], "Error code should be SIGNUP_DISABLED")
+	})
+
+	// Test with signup enabled
+	t.Run("SignupEnabled", func(t *testing.T) {
+		tc := setupAuthTest(t)
+		defer tc.Close()
+
+		// Ensure signup is enabled
+		tc.Config.Auth.EnableSignup = true
+
+		// Try to signup
+		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
+			WithBody(map[string]interface{}{
+				"email":    "enabled@example.com",
+				"password": "testpassword123",
+			}).
+			Send().
+			AssertStatus(fiber.StatusCreated)
+
+		// Verify response structure
+		var result map[string]interface{}
+		resp.JSON(&result)
+		require.NotNil(t, result["access_token"], "access_token should be present")
+		require.NotNil(t, result["refresh_token"], "refresh_token should be present")
+		require.NotNil(t, result["user"], "user should be present")
+	})
 }

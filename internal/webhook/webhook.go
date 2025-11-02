@@ -286,25 +286,55 @@ func (s *WebhookService) Delete(ctx context.Context, id uuid.UUID) error {
 
 // Deliver sends a webhook payload to the configured URL
 func (s *WebhookService) Deliver(ctx context.Context, webhook *Webhook, payload *WebhookPayload) error {
-	// Create delivery record
-	deliveryID := uuid.New()
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	insertQuery := `
-		INSERT INTO auth.webhook_deliveries (id, webhook_id, event_type, table_name, payload, status, attempt_number)
-		VALUES ($1, $2, $3, $4, $5, 'pending', 1)
-	`
+	// Send HTTP request synchronously and return error if it fails
+	// The trigger service will handle retries via webhook_events table
+	return s.sendWebhookSync(ctx, webhook, payloadJSON)
+}
 
-	_, err = s.db.Exec(ctx, insertQuery, deliveryID, webhook.ID, payload.Event, payload.Table, payloadJSON)
+// sendWebhookSync sends an HTTP request synchronously and returns any error
+func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, payloadJSON []byte) error {
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", webhook.URL, bytes.NewReader(payloadJSON))
 	if err != nil {
-		return fmt.Errorf("failed to create delivery record: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Send HTTP request
-	go s.sendWebhook(context.Background(), deliveryID, webhook, payloadJSON)
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Fluxbase-Webhooks/1.0")
+
+	// Add custom headers
+	for key, value := range webhook.Headers {
+		req.Header.Set(key, value)
+	}
+
+	// Add HMAC signature if secret is provided
+	if webhook.Secret != nil && *webhook.Secret != "" {
+		signature := s.generateSignature(payloadJSON, *webhook.Secret)
+		req.Header.Set("X-Webhook-Signature", signature)
+	}
+
+	// Send request with timeout
+	client := &http.Client{
+		Timeout: time.Duration(webhook.TimeoutSeconds) * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
 
 	return nil
 }

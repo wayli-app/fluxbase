@@ -1,7 +1,9 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
@@ -13,13 +15,11 @@ func setupAdminTest(t *testing.T) (*test.TestContext, string) {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean auth tables before each test to ensure isolation
-	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
-
-	// Create an admin user and get auth token for authenticated requests
-	email := "admin@test.com"
-	password := "adminpass123"
+	// Use timestamp-based unique email to avoid conflicts without truncating all data
+	// This allows tests to run in parallel and avoids affecting other data
+	timestamp := time.Now().UnixNano()
+	email := fmt.Sprintf("admin-%s-%d@test.com", t.Name(), timestamp)
+	password := "adminpass123456"
 	_, token := tc.CreateAdminUser(email, password)
 
 	return tc, token
@@ -148,4 +148,84 @@ func TestAdminRequestIDTracking(t *testing.T) {
 	} else {
 		t.Log("Request ID header may use a different name or not be configured")
 	}
+}
+
+// TestAdminSetupRateLimit tests that admin setup endpoint is rate limited
+func TestAdminSetupRateLimit(t *testing.T) {
+	tc := test.NewTestContext(t)
+	defer tc.Close()
+
+	tc.EnsureAuthSchema()
+
+	// Make multiple setup attempts to trigger rate limit (max 5 per 15 minutes)
+	for i := 1; i <= 6; i++ {
+		resp := tc.NewRequest("POST", "/api/v1/admin/setup").
+			WithBody(map[string]interface{}{
+				"email":    fmt.Sprintf("admin%d@example.com", i),
+				"password": "securepassword123",
+			}).Send()
+
+		// First 5 attempts should either succeed or fail with setup already complete or validation error
+		if i <= 5 {
+			// Accept either 201 (success), 403 (already setup), 409 (conflict), or 400 (validation error)
+			status := resp.Status()
+			require.Contains(t, []int{
+				fiber.StatusCreated,
+				fiber.StatusForbidden, // Setup already complete
+				fiber.StatusConflict,
+				fiber.StatusBadRequest,
+			}, status, "First 5 attempts should not be rate limited")
+			t.Logf("Attempt %d: Status %d", i, status)
+		} else {
+			// 6th attempt should be rate limited
+			resp.AssertStatus(fiber.StatusTooManyRequests)
+
+			var result map[string]interface{}
+			resp.JSON(&result)
+			require.Equal(t, "Rate limit exceeded", result["error"])
+			t.Logf("Attempt %d: Rate limited as expected", i)
+		}
+	}
+}
+
+// TestAdminLoginRateLimit tests that admin login endpoint is rate limited
+func TestAdminLoginRateLimit(t *testing.T) {
+	tc := test.NewTestContext(t)
+	defer tc.Close()
+
+	tc.EnsureAuthSchema()
+
+	// Create an admin user first with unique email
+	timestamp := time.Now().UnixNano()
+	email := fmt.Sprintf("admin-ratelimit-%d@example.com", timestamp)
+	password := "testpassword123"
+	tc.CreateAdminUser(email, password)
+
+	// Make multiple login attempts with wrong password to trigger rate limit
+	// (max 10 per minute)
+	rateLimitHit := false
+	for i := 1; i <= 12; i++ {
+		resp := tc.NewRequest("POST", "/api/v1/admin/login").
+			WithBody(map[string]interface{}{
+				"email":    email,
+				"password": "wrongpassword",
+			}).Send()
+
+		status := resp.Status()
+
+		if status == fiber.StatusTooManyRequests {
+			// Rate limit was triggered
+			rateLimitHit = true
+			var result map[string]interface{}
+			resp.JSON(&result)
+			require.Equal(t, "Rate limit exceeded", result["error"])
+			t.Logf("Attempt %d: Rate limited as expected (status %d)", i, status)
+			break
+		}
+
+		// Any other status is acceptable before rate limit
+		t.Logf("Attempt %d: Status %d", i, status)
+	}
+
+	require.True(t, rateLimitHit, "Rate limit should have been triggered within 12 attempts")
 }

@@ -66,6 +66,14 @@ type AuthConfig struct {
 // SecurityConfig contains security-related settings
 type SecurityConfig struct {
 	EnableGlobalRateLimit bool `mapstructure:"enable_global_rate_limit"` // Global API rate limiting (100 req/min per IP)
+
+	// Rate limiting for specific endpoints
+	AdminSetupRateLimit  int           `mapstructure:"admin_setup_rate_limit"`  // Max attempts for admin setup
+	AdminSetupRateWindow time.Duration `mapstructure:"admin_setup_rate_window"` // Time window for admin setup rate limit
+	AuthLoginRateLimit   int           `mapstructure:"auth_login_rate_limit"`   // Max attempts for auth login
+	AuthLoginRateWindow  time.Duration `mapstructure:"auth_login_rate_window"`  // Time window for auth login rate limit
+	AdminLoginRateLimit  int           `mapstructure:"admin_login_rate_limit"`  // Max attempts for admin login
+	AdminLoginRateWindow time.Duration `mapstructure:"admin_login_rate_window"` // Time window for admin login rate limit
 }
 
 // StorageConfig contains file storage settings
@@ -234,12 +242,18 @@ func setDefaults() {
 	viper.SetDefault("auth.password_reset_expiry", "1h")
 	viper.SetDefault("auth.password_min_length", 8)
 	viper.SetDefault("auth.bcrypt_cost", 10)
-	viper.SetDefault("auth.enable_signup", true)
+	viper.SetDefault("auth.enable_signup", false) // Default to disabled for security
 	viper.SetDefault("auth.enable_magic_link", true)
 	viper.SetDefault("auth.enable_rls", true) // Row Level Security enabled by default
 
 	// Security defaults
 	viper.SetDefault("security.enable_global_rate_limit", false) // Disabled by default, enable in production if needed
+	viper.SetDefault("security.admin_setup_rate_limit", 5)       // 5 attempts
+	viper.SetDefault("security.admin_setup_rate_window", "15m")  // per 15 minutes
+	viper.SetDefault("security.auth_login_rate_limit", 10)       // 10 attempts
+	viper.SetDefault("security.auth_login_rate_window", "1m")    // per minute
+	viper.SetDefault("security.admin_login_rate_limit", 10)      // 10 attempts
+	viper.SetDefault("security.admin_login_rate_window", "1m")   // per minute
 
 	// Storage defaults
 	viper.SetDefault("storage.provider", "local")

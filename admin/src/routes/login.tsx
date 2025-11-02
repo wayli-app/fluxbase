@@ -6,8 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
-import { adminAuthAPI } from '@/lib/api'
-import { setTokens } from '@/lib/auth'
+import { dashboardAuthAPI } from '@/lib/api'
 import { setAuthToken } from '@/lib/fluxbase-client'
 import { Command } from 'lucide-react'
 
@@ -36,20 +35,14 @@ function LoginPage() {
     setIsLoading(true)
 
     try {
-      const response = await adminAuthAPI.login({
+      const response = await dashboardAuthAPI.login({
         email: formData.email,
         password: formData.password,
       })
 
-      // Store tokens
-      setTokens(
-        {
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-          expires_in: response.expires_in,
-        },
-        response.user
-      )
+      // Store access token in localStorage
+      localStorage.setItem('access_token', response.access_token)
+      localStorage.setItem('user', JSON.stringify(response.user))
 
       // Also set token in Fluxbase SDK
       setAuthToken(response.access_token)

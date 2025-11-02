@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base32"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -57,6 +59,11 @@ func NewDashboardAuthService(db *pgxpool.Pool, jwtSecret string) *DashboardAuthS
 	}
 }
 
+// GetDB returns the database connection pool
+func (s *DashboardAuthService) GetDB() *pgxpool.Pool {
+	return s.db
+}
+
 // CreateUser creates a new dashboard user with email and password
 func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, fullName string) (*DashboardUser, error) {
 	// Hash password
@@ -82,6 +89,16 @@ func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, 
 	}
 
 	return user, nil
+}
+
+// HasExistingUsers checks if any dashboard users exist
+func (s *DashboardAuthService) HasExistingUsers(ctx context.Context) (bool, error) {
+	var count int
+	err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM dashboard.users WHERE deleted_at IS NULL`).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check existing users: %w", err)
+	}
+	return count > 0, nil
 }
 
 // Login authenticates a dashboard user with email and password
@@ -137,8 +154,7 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	_, err = s.db.Exec(ctx, `
 		UPDATE dashboard.users
 		SET failed_login_attempts = 0,
-		    last_login_at = NOW(),
-		    last_activity_at = NOW()
+		    last_login_at = NOW()
 		WHERE id = $1
 	`, user.ID)
 	if err != nil {
@@ -151,12 +167,29 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		return nil, "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	// Create session record (using token itself as hash for now)
-	tokenHash := token[:32] // Just use first 32 chars as hash
+	// Hash the token using SHA-256
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	// Handle nil IP address
+	var ipAddressStr interface{}
+	if ipAddress != nil {
+		ipAddressStr = ipAddress.String()
+	}
+
+	// Delete any existing sessions for this user (allow only one active session)
 	_, err = s.db.Exec(ctx, `
-		INSERT INTO dashboard.sessions (user_id, token_hash, ip_address, user_agent, expires_at)
+		DELETE FROM dashboard.sessions WHERE user_id = $1
+	`, user.ID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to clean up old sessions: %w", err)
+	}
+
+	// Create new session record
+	_, err = s.db.Exec(ctx, `
+		INSERT INTO dashboard.sessions (user_id, token, ip_address, user_agent, expires_at)
 		VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')
-	`, user.ID, tokenHash, ipAddress.String(), userAgent)
+	`, user.ID, tokenHash, ipAddressStr, userAgent)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create session: %w", err)
 	}

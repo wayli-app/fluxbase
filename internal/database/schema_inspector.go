@@ -17,6 +17,7 @@ type SchemaInspector struct {
 type TableInfo struct {
 	Schema      string       `json:"schema"`
 	Name        string       `json:"name"`
+	RESTPath    string       `json:"rest_path,omitempty"` // The REST API path for this table (e.g., "/auth/users")
 	Columns     []ColumnInfo `json:"columns"`
 	PrimaryKey  []string     `json:"primary_key"`
 	ForeignKeys []ForeignKey `json:"foreign_keys"`
@@ -83,7 +84,8 @@ func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) 
 		)
 		WHERE schemaname = ANY($1)
 			AND tablename NOT LIKE 'pg_%'
-			AND schemaname NOT IN ('information_schema', 'pg_catalog')
+			AND tablename NOT LIKE '_fluxbase.%'
+			AND schemaname NOT IN ('information_schema', 'pg_catalog', '_fluxbase')
 		ORDER BY schemaname, tablename
 	`
 

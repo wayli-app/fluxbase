@@ -20,6 +20,7 @@ import (
 	"github.com/wayli-app/fluxbase/internal/api"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // TestContext holds all testing dependencies
@@ -54,10 +55,58 @@ func NewTestContext(t *testing.T) *TestContext {
 	require.NoError(t, err, "Database is not healthy")
 
 	// Run migrations BEFORE creating server so REST API can discover tables
-	err = db.Migrate()
-	require.NoError(t, err, "Failed to run migrations")
+	// Note: In CI, migrations are already applied by postgres user during database setup
+	// The Migrate() function handles this case gracefully (returns ErrNoChange)
+	// Skip migrations entirely to avoid permission issues when CI already ran them
+	if os.Getenv("CI") == "" {
+		// Only run migrations locally (not in CI)
+		err = db.Migrate()
+		require.NoError(t, err, "Failed to run migrations")
+	}
 
 	// Create server (REST API will now see all migrated tables)
+	server := api.NewServer(cfg, db)
+
+	return &TestContext{
+		DB:     db,
+		Server: server,
+		App:    server.App(),
+		Config: cfg,
+		T:      t,
+	}
+}
+
+// NewRLSTestContext creates a test context using the RLS test user (without BYPASSRLS)
+// This is used specifically for testing RLS policies
+func NewRLSTestContext(t *testing.T) *TestContext {
+	cfg := GetTestConfig()
+
+	// Override database user to use RLS test user (without BYPASSRLS privilege)
+	cfg.Database.User = "fluxbase_rls_test"
+	cfg.Database.Password = "fluxbase_rls_test_password"
+
+	// Log the database user being used for debugging
+	log.Info().
+		Str("db_user", cfg.Database.User).
+		Str("db_host", cfg.Database.Host).
+		Str("db_database", cfg.Database.Database).
+		Msg("RLS test database configuration (user without BYPASSRLS)")
+
+	// Connect to test database
+	db, err := database.NewConnection(cfg.Database)
+	require.NoError(t, err, "Failed to connect to test database with RLS user")
+
+	// Ensure database is healthy
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = db.Health(ctx)
+	require.NoError(t, err, "Database is not healthy")
+
+	// Don't run migrations as RLS user - migrations should already be applied
+	// by setup using fluxbase_app user
+
+	// Create server (REST API will see all migrated tables)
 	server := api.NewServer(cfg, db)
 
 	return &TestContext{
@@ -254,8 +303,8 @@ func (r *APIRequest) Send() *APIResponse {
 		req.Header.Set(key, value)
 	}
 
-	// Execute request with 5 second timeout
-	resp, err := r.tc.App.Test(req, 5000) // 5 second timeout
+	// Execute request with 15 second timeout (to accommodate race detector slowness)
+	resp, err := r.tc.App.Test(req, 15000) // 15 second timeout
 	require.NoError(r.tc.T, err)
 
 	return &APIResponse{
@@ -493,20 +542,93 @@ func (tc *TestContext) CreateTestUser(email, password string) (userID, token str
 	return userID, token
 }
 
-// CreateAdminUser creates an admin user directly via database and returns userID and token
-func (tc *TestContext) CreateAdminUser(email, password string) (userID, token string) {
-	// Create regular user first via API
-	userID, _ = tc.CreateTestUser(email, password)
-
-	// Update role to admin directly in database
+// CreateDashboardAdminUser creates a Fluxbase dashboard admin user (platform administrator)
+// and returns userID and token. This is different from app users in auth.users.
+func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID, token string) {
 	ctx := context.Background()
-	_, err := tc.DB.Exec(ctx, "UPDATE auth.users SET role = 'admin' WHERE id = $1", userID)
-	require.NoError(tc.T, err, "Failed to set user role to admin")
 
-	// Get a new token with admin role by signing in again
-	token = tc.GetAuthToken(email, password)
+	// Try the initial setup endpoint (creates first admin user)
+	setupResp := tc.NewRequest("POST", "/api/v1/admin/setup").
+		WithBody(map[string]interface{}{
+			"email":    email,
+			"password": password,
+			"name":     "Admin User",
+		}).
+		Send()
+
+	// If setup already done or successful, extract token
+	if setupResp.Status() == fiber.StatusCreated || setupResp.Status() == fiber.StatusOK {
+		var result map[string]interface{}
+		setupResp.JSON(&result)
+
+		if user, ok := result["user"].(map[string]interface{}); ok {
+			if id, ok := user["id"].(string); ok {
+				userID = id
+			}
+		}
+
+		if accessToken, ok := result["access_token"].(string); ok {
+			token = accessToken
+			return userID, token
+		}
+	}
+
+	// If setup was already done, create user directly in database using bcrypt
+	// Use Go's bcrypt package to match what the Login function expects
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		require.NoError(tc.T, err, "Failed to hash password")
+	}
+
+	// Insert directly into dashboard.users with bcrypt hash
+	err = tc.DB.QueryRow(ctx,
+		`INSERT INTO dashboard.users (email, password_hash, full_name, role, email_verified)
+		 VALUES ($1, $2, $3, 'dashboard_admin', true)
+		 RETURNING id`,
+		email, string(passwordHash), "Admin User").Scan(&userID)
+
+	if err != nil {
+		require.NoError(tc.T, err, "Failed to create dashboard admin user")
+	}
+
+	// Get token by signing in
+	token = tc.GetDashboardAuthToken(email, password)
+
+	require.NotEmpty(tc.T, userID, "Dashboard admin user ID not created")
+	require.NotEmpty(tc.T, token, "Dashboard admin token not created")
 
 	return userID, token
+}
+
+// CreateAdminUser is deprecated, use CreateDashboardAdminUser instead
+// Kept for backwards compatibility
+func (tc *TestContext) CreateAdminUser(email, password string) (userID, token string) {
+	return tc.CreateDashboardAdminUser(email, password)
+}
+
+// GetDashboardAuthToken signs in with email/password for dashboard users and returns JWT token
+func (tc *TestContext) GetDashboardAuthToken(email, password string) string {
+	resp := tc.NewRequest("POST", "/api/v1/admin/login").
+		WithBody(map[string]interface{}{
+			"email":    email,
+			"password": password,
+		}).
+		Send()
+
+	// Check if login succeeded
+	if resp.Status() != fiber.StatusOK {
+		tc.T.Logf("Dashboard login failed with status %d, body: %s", resp.Status(), string(resp.Body()))
+		require.Equal(tc.T, fiber.StatusOK, resp.Status(), "Dashboard login should succeed")
+	}
+
+	var result map[string]interface{}
+	resp.JSON(&result)
+
+	token, ok := result["access_token"].(string)
+	require.True(tc.T, ok, "access_token not found in dashboard login response")
+	require.NotEmpty(tc.T, token, "access_token is empty")
+
+	return token
 }
 
 // GetAuthToken signs in with email/password and returns JWT token
@@ -530,11 +652,14 @@ func (tc *TestContext) GetAuthToken(email, password string) string {
 }
 
 // EnsureAuthSchema ensures auth schema and tables exist
+// Note: auth schema is already created by migrations, so we only ensure tables exist
 func (tc *TestContext) EnsureAuthSchema() {
 	ctx := context.Background()
 
+	// Note: Don't create auth schema here - it's already created by migrations
+	// The RLS test user only has USAGE and CREATE on auth schema (for tables),
+	// not permission to create the schema itself
 	queries := []string{
-		`CREATE SCHEMA IF NOT EXISTS auth`,
 		`CREATE TABLE IF NOT EXISTS auth.users (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			email TEXT UNIQUE NOT NULL,
@@ -558,7 +683,7 @@ func (tc *TestContext) EnsureAuthSchema() {
 
 	for _, query := range queries {
 		_, err := tc.DB.Exec(ctx, query)
-		require.NoError(tc.T, err, "Failed to create auth schema")
+		require.NoError(tc.T, err, "Failed to ensure auth tables exist")
 	}
 }
 

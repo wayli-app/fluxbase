@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -33,24 +33,11 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { oauthProviderApi, authSettingsApi, type OAuthProviderConfig, type CreateOAuthProviderRequest, type UpdateOAuthProviderRequest, type AuthSettings } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/authentication/')({
   component: AuthenticationPage,
 })
-
-interface OAuthProvider {
-  id: string
-  name: string
-  enabled: boolean
-  clientId: string
-  clientSecret: string
-  redirectUrl: string
-  scopes: string[]
-  isCustom?: boolean
-  authorizationUrl?: string
-  tokenUrl?: string
-  userInfoUrl?: string
-}
 
 interface Session {
   id: string
@@ -125,12 +112,17 @@ function AuthenticationPage() {
 }
 
 function OAuthProvidersTab() {
+  const queryClient = useQueryClient()
   const [showAddProvider, setShowAddProvider] = useState(false)
+  const [showEditProvider, setShowEditProvider] = useState(false)
+  const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<string>('')
   const [customProviderName, setCustomProviderName] = useState('')
   const [customAuthUrl, setCustomAuthUrl] = useState('')
   const [customTokenUrl, setCustomTokenUrl] = useState('')
   const [customUserInfoUrl, setCustomUserInfoUrl] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [clientSecret, setClientSecret] = useState('')
 
   const availableProviders = [
     { id: 'google', name: 'Google', icon: '🔵' },
@@ -145,40 +137,63 @@ function OAuthProvidersTab() {
     { id: 'custom', name: 'Custom Provider', icon: '⚙️' },
   ]
 
-  // Mock enabled providers (would come from backend in real implementation)
-  const enabledProviders: OAuthProvider[] = [
-    {
-      id: 'google',
-      name: 'Google',
-      enabled: true,
-      clientId: 'YOUR_GOOGLE_CLIENT_ID',
-      clientSecret: '***hidden***',
-      redirectUrl: `${window.location.origin}/api/v1/auth/callback/google`,
-      scopes: ['openid', 'email', 'profile'],
+  // Fetch OAuth providers from backend
+  const { data: enabledProviders = [] } = useQuery({
+    queryKey: ['oauthProviders'],
+    queryFn: oauthProviderApi.list,
+  })
+
+  // Create OAuth provider mutation
+  const createProviderMutation = useMutation({
+    mutationFn: (data: CreateOAuthProviderRequest) => oauthProviderApi.create(data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['oauthProviders'] })
+      setShowAddProvider(false)
+      resetForm()
     },
-    {
-      id: 'github',
-      name: 'GitHub',
-      enabled: true,
-      clientId: 'YOUR_GITHUB_CLIENT_ID',
-      clientSecret: '***hidden***',
-      redirectUrl: `${window.location.origin}/api/v1/auth/callback/github`,
-      scopes: ['user:email'],
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to create OAuth provider')
     },
-    {
-      id: 'okta-custom',
-      name: 'Okta (Custom)',
-      enabled: true,
-      clientId: 'YOUR_OKTA_CLIENT_ID',
-      clientSecret: '***hidden***',
-      redirectUrl: `${window.location.origin}/api/v1/auth/callback/okta`,
-      scopes: ['openid', 'email', 'profile'],
-      isCustom: true,
-      authorizationUrl: 'https://your-domain.okta.com/oauth2/v1/authorize',
-      tokenUrl: 'https://your-domain.okta.com/oauth2/v1/token',
-      userInfoUrl: 'https://your-domain.okta.com/oauth2/v1/userinfo',
+  })
+
+  // Update OAuth provider mutation
+  const updateProviderMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateOAuthProviderRequest }) =>
+      oauthProviderApi.update(id, data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['oauthProviders'] })
+      setShowEditProvider(false)
+      setEditingProvider(null)
+      resetForm()
     },
-  ]
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to update OAuth provider')
+    },
+  })
+
+  // Delete OAuth provider mutation
+  const deleteProviderMutation = useMutation({
+    mutationFn: (id: string) => oauthProviderApi.delete(id),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['oauthProviders'] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete OAuth provider')
+    },
+  })
+
+  const resetForm = () => {
+    setSelectedProvider('')
+    setCustomProviderName('')
+    setCustomAuthUrl('')
+    setCustomTokenUrl('')
+    setCustomUserInfoUrl('')
+    setClientId('')
+    setClientSecret('')
+  }
 
   return (
     <div className='space-y-4'>
@@ -214,7 +229,7 @@ function OAuthProvidersTab() {
                     <div className='flex items-start justify-between'>
                       <div className='space-y-2 flex-1'>
                         <div className='flex items-center gap-2'>
-                          <h3 className='font-semibold text-lg'>{provider.name}</h3>
+                          <h3 className='font-semibold text-lg'>{provider.display_name}</h3>
                           {provider.enabled ? (
                             <Badge variant='default' className='gap-1'>
                               <Check className='h-3 w-3' />
@@ -227,29 +242,29 @@ function OAuthProvidersTab() {
                         <div className='grid grid-cols-2 gap-4 text-sm'>
                           <div>
                             <Label className='text-muted-foreground'>Client ID</Label>
-                            <p className='font-mono text-xs break-all'>{provider.clientId}</p>
+                            <p className='font-mono text-xs break-all'>{provider.client_id}</p>
                           </div>
                           <div>
                             <Label className='text-muted-foreground'>Client Secret</Label>
-                            <p className='font-mono text-xs'>{provider.clientSecret}</p>
+                            <p className='font-mono text-xs'>{provider.client_secret ? '••••••••' : 'Not set'}</p>
                           </div>
                           <div className='col-span-2'>
                             <Label className='text-muted-foreground'>Redirect URL</Label>
-                            <p className='font-mono text-xs break-all'>{provider.redirectUrl}</p>
+                            <p className='font-mono text-xs break-all'>{provider.redirect_url}</p>
                           </div>
-                          {provider.isCustom && (
+                          {provider.is_custom && (
                             <>
                               <div className='col-span-2'>
                                 <Label className='text-muted-foreground'>Authorization URL</Label>
-                                <p className='font-mono text-xs break-all'>{provider.authorizationUrl}</p>
+                                <p className='font-mono text-xs break-all'>{provider.authorization_url}</p>
                               </div>
                               <div className='col-span-2'>
                                 <Label className='text-muted-foreground'>Token URL</Label>
-                                <p className='font-mono text-xs break-all'>{provider.tokenUrl}</p>
+                                <p className='font-mono text-xs break-all'>{provider.token_url}</p>
                               </div>
                               <div className='col-span-2'>
                                 <Label className='text-muted-foreground'>User Info URL</Label>
-                                <p className='font-mono text-xs break-all'>{provider.userInfoUrl}</p>
+                                <p className='font-mono text-xs break-all'>{provider.user_info_url}</p>
                               </div>
                             </>
                           )}
@@ -270,7 +285,17 @@ function OAuthProvidersTab() {
                           variant='outline'
                           size='sm'
                           onClick={() => {
-                            toast.info('OAuth provider editing coming soon')
+                            setEditingProvider(provider)
+                            setSelectedProvider(provider.id)
+                            setCustomProviderName(provider.display_name)
+                            setClientId(provider.client_id)
+                            setClientSecret('')
+                            if (provider.is_custom) {
+                              setCustomAuthUrl(provider.authorization_url || '')
+                              setCustomTokenUrl(provider.token_url || '')
+                              setCustomUserInfoUrl(provider.user_info_url || '')
+                            }
+                            setShowEditProvider(true)
                           }}
                         >
                           Edit
@@ -279,9 +304,9 @@ function OAuthProvidersTab() {
                           variant='outline'
                           size='sm'
                           onClick={() => {
-                            const authUrl = provider.isCustom
-                              ? provider.authorizationUrl
-                              : `https://accounts.google.com/o/oauth2/v2/auth?client_id=${provider.clientId}&redirect_uri=${encodeURIComponent(provider.redirectUrl)}&response_type=code&scope=${provider.scopes.join(' ')}`
+                            const authUrl = provider.is_custom
+                              ? provider.authorization_url
+                              : `https://accounts.google.com/o/oauth2/v2/auth?client_id=${provider.client_id}&redirect_uri=${encodeURIComponent(provider.redirect_url)}&response_type=code&scope=${provider.scopes.join(' ')}`
                             window.open(authUrl, '_blank', 'width=500,height=600')
                             toast.success('Test authentication window opened')
                           }}
@@ -292,10 +317,11 @@ function OAuthProvidersTab() {
                           variant='destructive'
                           size='sm'
                           onClick={() => {
-                            if (confirm(`Are you sure you want to remove ${provider.name}?`)) {
-                              toast.success(`${provider.name} removed (demo mode)`)
+                            if (confirm(`Are you sure you want to remove ${provider.display_name}?`)) {
+                              deleteProviderMutation.mutate(provider.id)
                             }
                           }}
+                          disabled={deleteProviderMutation.isPending}
                         >
                           <X className='h-4 w-4' />
                         </Button>
@@ -311,7 +337,7 @@ function OAuthProvidersTab() {
 
       {/* Add Provider Dialog */}
       <Dialog open={showAddProvider} onOpenChange={setShowAddProvider}>
-        <DialogContent className='max-w-2xl'>
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Add OAuth Provider</DialogTitle>
             <DialogDescription>
@@ -403,8 +429,8 @@ function OAuthProvidersTab() {
               <Input
                 id='redirectUrl'
                 value={selectedProvider === 'custom'
-                  ? `${window.location.origin}/api/v1/auth/callback/${customProviderName.toLowerCase().replace(/\s+/g, '-') || 'custom'}`
-                  : `${window.location.origin}/api/v1/auth/callback/${selectedProvider}`}
+                  ? `${window.location.origin}/api/v1/auth/oauth/${customProviderName.toLowerCase().replace(/\s+/g, '-') || 'custom'}/callback`
+                  : `${window.location.origin}/api/v1/auth/oauth/${selectedProvider}/callback`}
                 readOnly
                 className='font-mono text-xs'
               />
@@ -417,11 +443,143 @@ function OAuthProvidersTab() {
             <Button variant='outline' onClick={() => setShowAddProvider(false)}>
               Cancel
             </Button>
-            <Button onClick={() => {
-              toast.success('OAuth provider configuration saved (demo mode)')
-              setShowAddProvider(false)
+            <Button
+              onClick={() => {
+                const isCustom = selectedProvider === 'custom'
+                const providerName = isCustom ? customProviderName.toLowerCase().replace(/\s+/g, '_') : selectedProvider
+
+                const data: CreateOAuthProviderRequest = {
+                  provider_name: providerName,
+                  display_name: isCustom ? customProviderName : selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1),
+                  enabled: true,
+                  client_id: clientId,
+                  client_secret: clientSecret,
+                  redirect_url: `${window.location.origin}/api/v1/auth/oauth/${providerName}/callback`,
+                  scopes: ['openid', 'email', 'profile'],
+                  is_custom: isCustom,
+                  ...(isCustom && {
+                    authorization_url: customAuthUrl,
+                    token_url: customTokenUrl,
+                    user_info_url: customUserInfoUrl,
+                  }),
+                }
+
+                createProviderMutation.mutate(data)
+              }}
+              disabled={!selectedProvider || !clientId || !clientSecret || createProviderMutation.isPending}
+            >
+              {createProviderMutation.isPending ? 'Saving...' : 'Save Provider'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Provider Dialog */}
+      <Dialog open={showEditProvider} onOpenChange={setShowEditProvider}>
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Edit OAuth Provider</DialogTitle>
+            <DialogDescription>
+              Update the configuration for {editingProvider?.display_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <div className='grid gap-2'>
+              <Label>Provider</Label>
+              <Input value={editingProvider?.display_name || ''} disabled className='bg-muted' />
+            </div>
+
+            {editingProvider?.is_custom && (
+              <>
+                <div className='grid gap-2'>
+                  <Label htmlFor='editProviderName'>Provider Name</Label>
+                  <Input
+                    id='editProviderName'
+                    value={customProviderName}
+                    onChange={(e) => setCustomProviderName(e.target.value)}
+                  />
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='editAuthorizationUrl'>Authorization URL</Label>
+                  <Input
+                    id='editAuthorizationUrl'
+                    value={customAuthUrl}
+                    onChange={(e) => setCustomAuthUrl(e.target.value)}
+                  />
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='editTokenUrl'>Token URL</Label>
+                  <Input
+                    id='editTokenUrl'
+                    value={customTokenUrl}
+                    onChange={(e) => setCustomTokenUrl(e.target.value)}
+                  />
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='editUserInfoUrl'>User Info URL</Label>
+                  <Input
+                    id='editUserInfoUrl'
+                    value={customUserInfoUrl}
+                    onChange={(e) => setCustomUserInfoUrl(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className='grid gap-2'>
+              <Label htmlFor='editClientId'>Client ID</Label>
+              <Input
+                id='editClientId'
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              />
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='editClientSecret'>Client Secret</Label>
+              <Input
+                id='editClientSecret'
+                type='password'
+                placeholder='Leave empty to keep current secret'
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+              />
+              <p className='text-xs text-muted-foreground'>
+                Only provide a new secret if you want to change it
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='editRedirectUrl'>Redirect URL</Label>
+              <Input
+                id='editRedirectUrl'
+                value={editingProvider?.redirect_url || ''}
+                readOnly
+                className='font-mono text-xs bg-muted'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => {
+              setShowEditProvider(false)
+              setEditingProvider(null)
             }}>
-              Save Provider
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editingProvider) return
+
+                const data: UpdateOAuthProviderRequest = {
+                  display_name: editingProvider.display_name,
+                  enabled: editingProvider.enabled,
+                  client_id: clientId,
+                  ...(clientSecret && { client_secret: clientSecret }),
+                }
+
+                updateProviderMutation.mutate({ id: editingProvider.id, data })
+              }}
+              disabled={!editingProvider || updateProviderMutation.isPending}
+            >
+              {updateProviderMutation.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -431,20 +589,44 @@ function OAuthProvidersTab() {
 }
 
 function AuthSettingsTab() {
-  const [settings, setSettings] = useState({
-    passwordMinLength: 8,
-    passwordRequireUppercase: true,
-    passwordRequireNumbers: true,
-    passwordRequireSymbols: false,
-    sessionTimeout: 24, // hours
-    accessTokenExpiry: 15, // minutes
-    refreshTokenExpiry: 7, // days
-    magicLinkExpiry: 15, // minutes
-    emailVerificationRequired: true,
+  const queryClient = useQueryClient()
+
+  // Fetch auth settings from backend
+  const { data: fetchedSettings, isLoading } = useQuery({
+    queryKey: ['authSettings'],
+    queryFn: authSettingsApi.get,
+  })
+
+  // Local state for editing
+  const [settings, setSettings] = useState<AuthSettings | null>(null)
+
+  // Initialize local state when data is fetched
+  useEffect(() => {
+    if (fetchedSettings) {
+      setSettings(fetchedSettings)
+    }
+  }, [fetchedSettings])
+
+  // Update auth settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: (data: AuthSettings) => authSettingsApi.update(data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['authSettings'] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to update auth settings')
+    },
   })
 
   const handleSaveSettings = () => {
-    toast.success('Auth settings saved (demo mode)')
+    if (settings) {
+      updateSettingsMutation.mutate(settings)
+    }
+  }
+
+  if (isLoading || !settings) {
+    return <div className='flex justify-center p-8'><Loader2 className='h-6 w-6 animate-spin' /></div>
   }
 
   return (
@@ -460,9 +642,9 @@ function AuthSettingsTab() {
             <Input
               id='minLength'
               type='number'
-              value={settings.passwordMinLength}
+              value={settings.password_min_length}
               onChange={(e) =>
-                setSettings({ ...settings, passwordMinLength: parseInt(e.target.value) })
+                setSettings({ ...settings, password_min_length: parseInt(e.target.value) })
               }
             />
           </div>
@@ -470,9 +652,9 @@ function AuthSettingsTab() {
             <Label htmlFor='uppercase'>Require Uppercase Letters</Label>
             <Switch
               id='uppercase'
-              checked={settings.passwordRequireUppercase}
+              checked={settings.password_require_uppercase}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, passwordRequireUppercase: checked })
+                setSettings({ ...settings, password_require_uppercase: checked })
               }
             />
           </div>
@@ -480,9 +662,9 @@ function AuthSettingsTab() {
             <Label htmlFor='numbers'>Require Numbers</Label>
             <Switch
               id='numbers'
-              checked={settings.passwordRequireNumbers}
+              checked={settings.password_require_number}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, passwordRequireNumbers: checked })
+                setSettings({ ...settings, password_require_number: checked })
               }
             />
           </div>
@@ -490,9 +672,9 @@ function AuthSettingsTab() {
             <Label htmlFor='symbols'>Require Symbols</Label>
             <Switch
               id='symbols'
-              checked={settings.passwordRequireSymbols}
+              checked={settings.password_require_special}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, passwordRequireSymbols: checked })
+                setSettings({ ...settings, password_require_special: checked })
               }
             />
           </div>
@@ -506,46 +688,24 @@ function AuthSettingsTab() {
         </CardHeader>
         <CardContent className='space-y-4'>
           <div className='grid gap-2'>
-            <Label htmlFor='sessionTimeout'>Session Timeout (hours)</Label>
+            <Label htmlFor='sessionTimeout'>Session Timeout (minutes)</Label>
             <Input
               id='sessionTimeout'
               type='number'
-              value={settings.sessionTimeout}
+              value={settings.session_timeout_minutes}
               onChange={(e) =>
-                setSettings({ ...settings, sessionTimeout: parseInt(e.target.value) })
+                setSettings({ ...settings, session_timeout_minutes: parseInt(e.target.value) })
               }
             />
           </div>
           <div className='grid gap-2'>
-            <Label htmlFor='accessToken'>Access Token Expiry (minutes)</Label>
+            <Label htmlFor='maxSessions'>Max Sessions Per User</Label>
             <Input
-              id='accessToken'
+              id='maxSessions'
               type='number'
-              value={settings.accessTokenExpiry}
+              value={settings.max_sessions_per_user}
               onChange={(e) =>
-                setSettings({ ...settings, accessTokenExpiry: parseInt(e.target.value) })
-              }
-            />
-          </div>
-          <div className='grid gap-2'>
-            <Label htmlFor='refreshToken'>Refresh Token Expiry (days)</Label>
-            <Input
-              id='refreshToken'
-              type='number'
-              value={settings.refreshTokenExpiry}
-              onChange={(e) =>
-                setSettings({ ...settings, refreshTokenExpiry: parseInt(e.target.value) })
-              }
-            />
-          </div>
-          <div className='grid gap-2'>
-            <Label htmlFor='magicLink'>Magic Link Expiry (minutes)</Label>
-            <Input
-              id='magicLink'
-              type='number'
-              value={settings.magicLinkExpiry}
-              onChange={(e) =>
-                setSettings({ ...settings, magicLinkExpiry: parseInt(e.target.value) })
+                setSettings({ ...settings, max_sessions_per_user: parseInt(e.target.value) })
               }
             />
           </div>
@@ -567,9 +727,9 @@ function AuthSettingsTab() {
             </div>
             <Switch
               id='emailVerification'
-              checked={settings.emailVerificationRequired}
+              checked={settings.require_email_verification}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, emailVerificationRequired: checked })
+                setSettings({ ...settings, require_email_verification: checked })
               }
             />
           </div>

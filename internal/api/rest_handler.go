@@ -32,7 +32,7 @@ func NewRESTHandler(db *database.Connection, parser *QueryParser) *RESTHandler {
 // RegisterTableRoutes registers REST routes for a table
 func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.TableInfo) {
 	// Build the REST path for this table
-	basePath := h.buildTablePath(table)
+	basePath := h.BuildTablePath(table)
 
 	log.Info().
 		Str("table", fmt.Sprintf("%s.%s", table.Schema, table.Name)).
@@ -54,7 +54,7 @@ func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.Ta
 // RegisterViewRoutes registers read-only REST routes for a database view
 func (h *RESTHandler) RegisterViewRoutes(router fiber.Router, view database.TableInfo) {
 	// Build the REST path for this view
-	basePath := h.buildTablePath(view)
+	basePath := h.BuildTablePath(view)
 
 	log.Info().
 		Str("view", fmt.Sprintf("%s.%s", view.Schema, view.Name)).
@@ -66,8 +66,9 @@ func (h *RESTHandler) RegisterViewRoutes(router fiber.Router, view database.Tabl
 	router.Get(basePath+"/:id", h.makeGetByIdHandler(view))
 }
 
-// buildTablePath builds the REST API path for a table
-func (h *RESTHandler) buildTablePath(table database.TableInfo) string {
+// BuildTablePath builds the REST API path for a table (relative to router group)
+// Used for registering routes on the /api/v1/tables router group
+func (h *RESTHandler) BuildTablePath(table database.TableInfo) string {
 	// Simple pluralization
 	tableName := table.Name
 	if !strings.HasSuffix(tableName, "s") {
@@ -82,11 +83,18 @@ func (h *RESTHandler) buildTablePath(table database.TableInfo) string {
 		}
 	}
 
-	// Paths are relative to the router group, no /api/tables prefix needed
+	// Paths are relative to the router group
 	if table.Schema != "public" {
 		return "/" + table.Schema + "/" + tableName
 	}
 	return "/" + tableName
+}
+
+// BuildFullTablePath builds the full REST API path for a table (including /api/v1/tables prefix)
+// Used for client consumption in API responses
+func (h *RESTHandler) BuildFullTablePath(table database.TableInfo) string {
+	relativePath := h.BuildTablePath(table)
+	return "/api/v1/tables" + relativePath
 }
 
 // makeGetHandler creates a GET handler for listing records
@@ -804,7 +812,7 @@ func (h *RESTHandler) HandleGetTables(c *fiber.Ctx) error {
 		response = append(response, fiber.Map{
 			"schema":      table.Schema,
 			"name":        table.Name,
-			"path":        h.buildTablePath(table),
+			"path":        h.BuildFullTablePath(table),
 			"columns":     table.Columns,
 			"primary_key": table.PrimaryKey,
 			"rls_enabled": table.RLSEnabled,

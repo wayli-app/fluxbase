@@ -1,0 +1,114 @@
+# Dockerfile for Fluxbase Documentation Site
+# This builds a standalone container for the Docusaurus documentation
+
+FROM node:20-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app/docs
+
+# Copy package files
+COPY docs/package.json docs/package-lock.json* ./
+RUN npm ci
+
+# Build the documentation
+FROM base AS builder
+WORKDIR /app/docs
+
+COPY --from=deps /app/docs/node_modules ./node_modules
+COPY docs/ ./
+
+# Build the static site
+RUN npm run build
+
+# Production image - serve with nginx
+FROM nginx:alpine AS runner
+
+# Create non-root user
+RUN addgroup -g 101 -S nginx && \
+    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx 2>/dev/null || true
+
+# Create necessary directories and set permissions
+RUN mkdir -p /var/cache/nginx /var/log/nginx /var/run && \
+    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /var/run && \
+    chmod -R 755 /var/cache/nginx /var/log/nginx
+
+# Copy built site to nginx
+COPY --from=builder /app/docs/build /usr/share/nginx/html
+RUN chown -R nginx:nginx /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY <<EOF /etc/nginx/nginx.conf
+# Run as non-root user
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+                    '\$status \$body_bytes_sent "\$http_referer" '
+                    '"\$http_user_agent" "\$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+
+    # Enable gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    server {
+        listen 8080;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Handle client-side routing
+        location / {
+            try_files \$uri \$uri/ /index.html;
+        }
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+    }
+}
+EOF
+
+# Expose port 8080 (non-privileged port)
+EXPOSE 8080
+
+# Switch to non-root user
+USER nginx
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

@@ -44,7 +44,6 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 		log.Debug().
 			Interface("user_id", userID).
 			Str("path", c.Path()).
-			Str("auth_header", c.Get("Authorization")).
 			Msg("RLSMiddleware: checking user_id from context")
 
 		// If no user is authenticated, set empty session variables
@@ -79,26 +78,62 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 // SetRLSContext sets PostgreSQL session variables for RLS enforcement
 // This should be called at the beginning of each database transaction
 func SetRLSContext(ctx context.Context, tx pgx.Tx, userID interface{}, role string) error {
-	var queries []string
-
-	// Set user ID if present
-	if userID != nil {
-		queries = append(queries, fmt.Sprintf("SET LOCAL app.user_id = '%v'", userID))
-	} else {
-		queries = append(queries, "SET LOCAL app.user_id = ''")
+	// Validate role to prevent injection
+	validRoles := map[string]bool{
+		"anon":            true,
+		"authenticated":   true,
+		"admin":           true,
+		"dashboard_admin": true,
+		"service_role":    true,
 	}
 
-	// Set role (anon, authenticated, admin, etc.)
-	queries = append(queries, fmt.Sprintf("SET LOCAL app.role = '%s'", role))
+	if !validRoles[role] {
+		log.Warn().Str("role", role).Msg("Invalid role provided to SetRLSContext")
+		return fmt.Errorf("invalid role: %s", role)
+	}
 
-	// Execute all session variable sets
-	for _, query := range queries {
-		log.Debug().Str("query", query).Msg("Executing RLS context SQL")
-		if _, err := tx.Exec(ctx, query); err != nil {
-			log.Error().Err(err).Str("query", query).Msg("Failed to set RLS session variable")
-			return fmt.Errorf("failed to set RLS context: %w", err)
+	// Convert userID to string and validate if present
+	var userIDStr string
+	if userID != nil {
+		userIDStr = fmt.Sprintf("%v", userID)
+
+		// Validate UUID format if userID is provided
+		// This prevents SQL injection through the userID parameter
+		if userIDStr != "" {
+			// Check if it's a valid UUID (basic validation: 36 chars with hyphens in right places)
+			if len(userIDStr) != 36 || userIDStr[8] != '-' || userIDStr[13] != '-' ||
+				userIDStr[18] != '-' || userIDStr[23] != '-' {
+				log.Warn().Str("user_id", userIDStr).Msg("Invalid UUID format provided to SetRLSContext")
+				return fmt.Errorf("invalid user_id format: must be a valid UUID")
+			}
 		}
 	}
+
+	// Use parameterized set_config() function instead of string interpolation
+	// This is safe from SQL injection as PostgreSQL treats the values as data, not SQL
+	if userIDStr != "" {
+		_, err := tx.Exec(ctx, "SELECT set_config('app.user_id', $1, true)", userIDStr)
+		if err != nil {
+			log.Error().Err(err).Str("user_id", userIDStr).Msg("Failed to set RLS user_id")
+			return fmt.Errorf("failed to set RLS user_id: %w", err)
+		}
+		log.Debug().Str("user_id", userIDStr).Msg("Set RLS user_id using parameterized query")
+	} else {
+		_, err := tx.Exec(ctx, "SELECT set_config('app.user_id', '', true)")
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to set empty RLS user_id")
+			return fmt.Errorf("failed to set empty RLS user_id: %w", err)
+		}
+		log.Debug().Msg("Set empty RLS user_id")
+	}
+
+	// Set role using parameterized query (role is already validated above)
+	_, err := tx.Exec(ctx, "SELECT set_config('app.role', $1, true)", role)
+	if err != nil {
+		log.Error().Err(err).Str("role", role).Msg("Failed to set RLS role")
+		return fmt.Errorf("failed to set RLS role: %w", err)
+	}
+	log.Debug().Str("role", role).Msg("Set RLS role using parameterized query")
 
 	// Verify the RLS context was set by querying the session variables
 	var checkUserID string

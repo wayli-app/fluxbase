@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -38,11 +39,18 @@ type Server struct {
 	webhookHandler        *WebhookHandler
 	monitoringHandler     *MonitoringHandler
 	userManagementHandler *UserManagementHandler
+	invitationHandler     *InvitationHandler
+	ddlHandler            *DDLHandler
+	oauthProviderHandler  *OAuthProviderHandler
+	oauthHandler          *OAuthHandler
+	systemSettingsHandler *SystemSettingsHandler
+	appSettingsHandler    *AppSettingsHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
 	realtimeManager       *realtime.Manager
 	realtimeHandler       *realtime.RealtimeHandler
 	realtimeListener      *realtime.Listener
+	webhookTriggerService *webhook.TriggerService
 }
 
 // NewServer creates a new HTTP server
@@ -82,6 +90,9 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Initialize webhook service
 	webhookService := webhook.NewWebhookService(db.Pool())
 
+	// Initialize webhook trigger service (4 workers)
+	webhookTriggerService := webhook.NewTriggerService(db.Pool(), webhookService, 4)
+
 	// Initialize user management service
 	userMgmtService := auth.NewUserManagementService(
 		auth.NewUserRepository(db),
@@ -93,14 +104,24 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 
 	// Create handlers
 	authHandler := NewAuthHandler(authService)
-	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db))
 	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), cfg.Auth.JWTSecret)
+	systemSettingsService := auth.NewSystemSettingsService(db)
+	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService)
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
+	invitationService := auth.NewInvitationService(db)
+	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService)
+	ddlHandler := NewDDLHandler(db)
+	oauthProviderHandler := NewOAuthProviderHandler(db.Pool())
+	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
+	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
+	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
+	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
+	appSettingsHandler := NewAppSettingsHandler(systemSettingsService)
 	functionsHandler := functions.NewHandler(db.Pool())
 	functionsScheduler := functions.NewScheduler(db.Pool())
 	functionsHandler.SetScheduler(functionsScheduler)
@@ -108,8 +129,9 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
-	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter)
-	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler)
+	realtimeSubManager := realtime.NewSubscriptionManager(db.Pool())
+	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
+	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager)
 
 	// Create monitoring handler
 	monitoringHandler := NewMonitoringHandler(db.Pool(), realtimeHandler, storageService.Provider)
@@ -128,11 +150,18 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		webhookHandler:        webhookHandler,
 		monitoringHandler:     monitoringHandler,
 		userManagementHandler: userMgmtHandler,
+		invitationHandler:     invitationHandler,
+		ddlHandler:            ddlHandler,
+		oauthProviderHandler:  oauthProviderHandler,
+		oauthHandler:          oauthHandler,
+		systemSettingsHandler: systemSettingsHandler,
+		appSettingsHandler:    appSettingsHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
 		realtimeManager:       realtimeManager,
 		realtimeHandler:       realtimeHandler,
 		realtimeListener:      realtimeListener,
+		webhookTriggerService: webhookTriggerService,
 	}
 
 	// Start realtime listener
@@ -143,6 +172,11 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Start edge functions scheduler
 	if err := functionsScheduler.Start(); err != nil {
 		log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+	}
+
+	// Start webhook trigger service
+	if err := webhookTriggerService.Start(context.Background()); err != nil {
+		log.Error().Err(err).Msg("Failed to start webhook trigger service")
 	}
 
 	// Setup middlewares
@@ -262,9 +296,6 @@ func (s *Server) setupRoutes() {
 	// Monitoring routes
 	s.monitoringHandler.RegisterRoutes(s.app)
 
-	// User management routes (admin only)
-	s.userManagementHandler.RegisterRoutes(s.app)
-
 	// Edge functions routes
 	s.functionsHandler.RegisterRoutes(s.app)
 
@@ -281,13 +312,13 @@ func (s *Server) setupRoutes() {
 	// Realtime broadcast endpoint
 	s.app.Post("/api/v1/realtime/broadcast", s.handleRealtimeBroadcast)
 
-	// Functions routes
-	functions := v1.Group("/functions")
-	s.setupFunctionsRoutes(functions)
-
 	// Admin routes (optional)
 	admin := v1.Group("/admin")
 	s.setupAdminRoutes(admin)
+
+	// Public invitation routes (no auth required)
+	invitations := v1.Group("/invitations")
+	s.setupPublicInvitationRoutes(invitations)
 
 	// Admin UI (embedded React app)
 	adminUI := adminui.New()
@@ -319,10 +350,14 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 		return
 	}
 
-	// Register tables from all schemas (including auth, public, etc.)
+	// Register tables from all schemas (excluding system and sensitive schemas)
 	for _, schema := range schemas {
-		// Skip system schemas
-		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+		// Skip system schemas and sensitive schemas (dashboard, auth, _fluxbase)
+		// Sensitive schemas contain user credentials and should not be exposed via REST API
+		// They are only accessible through protected admin endpoints
+		// _fluxbase is an internal schema for migration tracking
+		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" ||
+			schema == "dashboard" || schema == "auth" || schema == "_fluxbase" {
 			continue
 		}
 
@@ -378,6 +413,11 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 	// Use the auth handler's RegisterRoutes method with rate limiters
 	// Pass the router (which is /api/v1/auth) instead of the whole app
 	s.authHandler.RegisterRoutes(router, rateLimiters)
+
+	// OAuth routes
+	router.Get("/oauth/providers", s.oauthHandler.ListEnabledProviders)
+	router.Get("/oauth/:provider/authorize", s.oauthHandler.Authorize)
+	router.Get("/oauth/:provider/callback", s.oauthHandler.Callback)
 }
 
 // setupStorageRoutes sets up storage routes
@@ -403,31 +443,71 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	router.Post("/:bucket/*/signed-url", s.storageHandler.GenerateSignedURL)
 }
 
-// setupFunctionsRoutes sets up edge functions routes
-func (s *Server) setupFunctionsRoutes(router fiber.Router) {
-	router.Get("/", s.handleListFunctions)
-	router.Post("/", s.handleCreateFunction)
-	router.Put("/:name", s.handleUpdateFunction)
-	router.Delete("/:name", s.handleDeleteFunction)
-	router.Post("/:name/invoke", s.handleInvokeFunction)
-}
-
 // setupAdminRoutes sets up admin routes
 func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// Public admin auth routes (no authentication required)
 	router.Get("/setup/status", s.adminAuthHandler.GetSetupStatus)
-	router.Post("/setup", s.adminAuthHandler.InitialSetup)
-	router.Post("/login", s.adminAuthHandler.AdminLogin)
+	router.Post("/setup", middleware.AdminSetupLimiter(), s.adminAuthHandler.InitialSetup)
+	router.Post("/login", middleware.AdminLoginLimiter(), s.adminAuthHandler.AdminLogin)
 	router.Post("/refresh", s.adminAuthHandler.AdminRefreshToken)
 
-	// Protected admin routes (require admin authentication)
-	router.Post("/logout", AuthMiddleware(s.authHandler.authService), s.adminAuthHandler.AdminLogout)
-	router.Get("/me", AuthMiddleware(s.authHandler.authService), s.adminAuthHandler.GetCurrentAdmin)
+	// Protected admin routes (require authentication from either auth.users or dashboard.users)
+	// UnifiedAuthMiddleware accepts tokens from both authentication systems
+	unifiedAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager)
 
-	// Existing admin routes (protect with auth)
-	router.Get("/tables", AuthMiddleware(s.authHandler.authService), s.handleGetTables)
-	router.Get("/schemas", AuthMiddleware(s.authHandler.authService), s.handleGetSchemas)
-	router.Post("/query", AuthMiddleware(s.authHandler.authService), s.handleExecuteQuery)
+	router.Post("/logout", unifiedAuth, s.adminAuthHandler.AdminLogout)
+	router.Get("/me", unifiedAuth, s.adminAuthHandler.GetCurrentAdmin)
+
+	// Admin panel routes (require admin or dashboard_admin role)
+	router.Get("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetTables)
+	router.Get("/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetSchemas)
+	router.Post("/query", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleExecuteQuery)
+
+	// DDL routes (schema and table management) - require admin or dashboard_admin role
+	router.Post("/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateSchema)
+	router.Post("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateTable)
+	router.Delete("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DeleteTable)
+
+	// OAuth provider management routes (require admin or dashboard_admin role)
+	router.Get("/oauth/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.ListOAuthProviders)
+	router.Get("/oauth/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.GetOAuthProvider)
+	router.Post("/oauth/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.CreateOAuthProvider)
+	router.Put("/oauth/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.UpdateOAuthProvider)
+	router.Delete("/oauth/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.DeleteOAuthProvider)
+
+	// Auth settings routes (require admin or dashboard_admin role)
+	router.Get("/auth/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.GetAuthSettings)
+	router.Put("/auth/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.UpdateAuthSettings)
+
+	// System settings routes (require admin or dashboard_admin role)
+	router.Get("/system/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.ListSettings)
+	router.Get("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.GetSetting)
+	router.Put("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
+	router.Delete("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
+
+	// App settings routes (require admin or dashboard_admin role)
+	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)
+	router.Put("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.UpdateAppSettings)
+	router.Post("/app/settings/reset", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.ResetAppSettings)
+
+	// User management routes (require admin or dashboard_admin role)
+	router.Get("/users", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.ListUsers)
+	router.Post("/users/invite", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.InviteUser)
+	router.Delete("/users/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.DeleteUser)
+	router.Patch("/users/:id/role", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.UpdateUserRole)
+	router.Post("/users/:id/reset-password", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.ResetUserPassword)
+
+	// Invitation management routes (require admin or dashboard_admin role)
+	router.Post("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.CreateInvitation)
+	router.Get("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.ListInvitations)
+	router.Delete("/invitations/:token", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.RevokeInvitation)
+}
+
+// setupPublicInvitationRoutes sets up public invitation routes (no auth required)
+func (s *Server) setupPublicInvitationRoutes(router fiber.Router) {
+	// Public invitation routes (no authentication required)
+	router.Get("/:token/validate", s.invitationHandler.ValidateInvitation)
+	router.Post("/:token/accept", s.invitationHandler.AcceptInvitation)
 }
 
 // handleHealth handles health check requests
@@ -459,81 +539,43 @@ func (s *Server) handleHealth(c *fiber.Ctx) error {
 	})
 }
 
-// Placeholder handlers (to be implemented)
-func (s *Server) handleGetBuckets(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Get buckets endpoint - to be implemented"})
-}
-
-func (s *Server) handleCreateBucket(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Create bucket endpoint - to be implemented"})
-}
-
-func (s *Server) handleDeleteBucket(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Delete bucket endpoint - to be implemented"})
-}
-
-func (s *Server) handleUpload(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Upload endpoint - to be implemented"})
-}
-
-func (s *Server) handleDownload(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Download endpoint - to be implemented"})
-}
-
-func (s *Server) handleDeleteObject(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Delete object endpoint - to be implemented"})
-}
-
-func (s *Server) handleListObjects(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "List objects endpoint - to be implemented"})
-}
-
-func (s *Server) handleListFunctions(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "List functions endpoint - to be implemented"})
-}
-
-func (s *Server) handleCreateFunction(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Create function endpoint - to be implemented"})
-}
-
-func (s *Server) handleUpdateFunction(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Update function endpoint - to be implemented"})
-}
-
-func (s *Server) handleDeleteFunction(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Delete function endpoint - to be implemented"})
-}
-
-func (s *Server) handleInvokeFunction(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Invoke function endpoint - to be implemented"})
-}
-
-func (s *Server) handleRealtimeUpgrade(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Realtime WebSocket endpoint - to be implemented"})
-}
-
 func (s *Server) handleGetTables(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	// Get all schemas
-	schemas, err := s.db.Inspector().GetSchemas(ctx)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+	// Check if schema query parameter is provided
+	schemaParam := c.Query("schema")
 
-	// Collect tables from all schemas (except system schemas)
-	var allTables []database.TableInfo
-	for _, schema := range schemas {
-		// Skip system schemas
-		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
-			continue
+	var schemasToQuery []string
+
+	if schemaParam != "" {
+		// If schema parameter provided, query only that schema
+		schemasToQuery = []string{schemaParam}
+	} else {
+		// Otherwise, get all schemas (backward compatible behavior)
+		schemas, err := s.db.Inspector().GetSchemas(ctx)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
+		// Filter out system schemas
+		for _, schema := range schemas {
+			// Skip system schemas only
+			if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+				continue
+			}
+			schemasToQuery = append(schemasToQuery, schema)
+		}
+	}
+
+	// Collect tables from requested schema(s)
+	var allTables []database.TableInfo
+	for _, schema := range schemasToQuery {
 		tables, err := s.db.Inspector().GetAllTables(ctx, schema)
 		if err != nil {
 			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
 			continue
 		}
+
 		allTables = append(allTables, tables...)
 	}
 
@@ -579,6 +621,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.functionsScheduler.Stop()
 	}
 
+	// Stop webhook trigger service
+	if s.webhookTriggerService != nil {
+		s.webhookTriggerService.Stop()
+	}
+
 	return s.app.ShutdownWithContext(ctx)
 }
 
@@ -593,6 +640,11 @@ func (s *Server) GetStorageService() *storage.Service {
 		return nil
 	}
 	return s.storageHandler.storage
+}
+
+// GetWebhookTriggerService returns the webhook trigger service for testing
+func (s *Server) GetWebhookTriggerService() *webhook.TriggerService {
+	return s.webhookTriggerService
 }
 
 // customErrorHandler handles errors globally
@@ -646,11 +698,11 @@ func (s *Server) handleRealtimeBroadcast(c *fiber.Ctx) error {
 		})
 	}
 
-	// Broadcast the message
-	s.realtimeHandler.Broadcast(req.Channel, req.Message)
+	// TODO: Implement broadcast functionality
+	// s.realtimeHandler.Broadcast(req.Channel, req.Message)
 
-	return c.JSON(fiber.Map{
-		"success": true,
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"error":   "Broadcast functionality not yet implemented",
 		"channel": req.Channel,
 	})
 }

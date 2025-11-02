@@ -14,6 +14,8 @@ import {
   Shield,
   Webhook,
   Activity,
+  Sliders,
+  Server,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -21,7 +23,7 @@ export const sidebarData: SidebarData = {
   user: {
     name: 'Admin',
     email: 'admin@fluxbase.eu',
-    avatar: '/avatars/shadcn.jpg',
+    avatar: '',
   },
   teams: [
     {
@@ -35,7 +37,7 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Overview',
           url: '/',
           icon: LayoutDashboard,
         },
@@ -98,6 +100,21 @@ export const sidebarData: SidebarData = {
           title: 'Webhooks',
           url: '/webhooks',
           icon: Webhook,
+        },
+      ],
+    },
+    {
+      title: 'Configuration',
+      items: [
+        {
+          title: 'App Settings',
+          url: '/app-settings',
+          icon: Sliders,
+        },
+        {
+          title: 'System Settings',
+          url: '/system-settings',
+          icon: Server,
         },
       ],
     },

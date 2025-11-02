@@ -3,7 +3,8 @@ import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth'
 import type { AdminUser } from './auth'
 
 // Base URL for the API - can be overridden with environment variable
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// Use empty string (relative URLs) to work with both dev server proxy and production
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
 // Helper to get impersonation token if active
 const getImpersonationToken = (): string | null => {
@@ -203,6 +204,7 @@ export const authApi = {
 export interface TableInfo {
   schema: string
   name: string
+  rest_path?: string
   columns: Array<{
     name: string
     data_type: string
@@ -226,10 +228,37 @@ export const databaseApi = {
     return response.data
   },
 
-  getTables: async (): Promise<string[]> => {
-    const response = await api.get<TableInfo[]>('/api/v1/admin/tables')
-    // Convert table objects to "schema.table" strings
-    return response.data.map((t) => `${t.schema}.${t.name}`)
+  getTables: async (schema?: string): Promise<TableInfo[]> => {
+    const url = schema
+      ? `/api/v1/admin/tables?schema=${encodeURIComponent(schema)}`
+      : '/api/v1/admin/tables'
+    const response = await api.get<TableInfo[]>(url)
+    return response.data
+  },
+
+  createSchema: async (name: string): Promise<{ success: boolean; schema: string; message: string }> => {
+    const response = await api.post('/api/v1/admin/schemas', { name })
+    return response.data
+  },
+
+  createTable: async (data: {
+    schema: string
+    name: string
+    columns: Array<{
+      name: string
+      type: string
+      nullable: boolean
+      primaryKey: boolean
+      defaultValue: string
+    }>
+  }): Promise<{ success: boolean; schema: string; table: string; message: string }> => {
+    const response = await api.post('/api/v1/admin/tables', data)
+    return response.data
+  },
+
+  deleteTable: async (schema: string, table: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/api/v1/admin/tables/${schema}/${table}`)
+    return response.data
   },
 
   getTableData: async <T = unknown>(
@@ -324,36 +353,44 @@ export interface InviteUserResponse {
 
 // User Management API methods (admin only)
 export const userManagementApi = {
-  listUsers: async (): Promise<EnrichedUser[]> => {
-    const response = await api.get<EnrichedUser[]>('/api/v1/admin/users')
-    return response.data
-  },
-
-  inviteUser: async (data: InviteUserRequest): Promise<InviteUserResponse> => {
-    const response = await api.post<InviteUserResponse>(
-      '/api/v1/admin/users/invite',
-      data
-    )
-    return response.data
-  },
-
-  deleteUser: async (userId: string): Promise<{ message: string }> => {
-    const response = await api.delete<{ message: string }>(
-      `/api/v1/admin/users/${userId}`
-    )
-    return response.data
-  },
-
-  updateUserRole: async (userId: string, role: string): Promise<User> => {
-    const response = await api.patch<User>(`/api/v1/admin/users/${userId}/role`, {
-      role,
+  listUsers: async (userType: 'app' | 'dashboard' = 'app'): Promise<{ users: EnrichedUser[]; total: number }> => {
+    const response = await api.get<{ users: EnrichedUser[]; total: number }>('/api/v1/admin/users', {
+      params: { type: userType }
     })
     return response.data
   },
 
-  resetUserPassword: async (userId: string): Promise<{ message: string }> => {
+  inviteUser: async (data: InviteUserRequest, userType: 'app' | 'dashboard' = 'app'): Promise<InviteUserResponse> => {
+    const response = await api.post<InviteUserResponse>(
+      '/api/v1/admin/users/invite',
+      data,
+      { params: { type: userType } }
+    )
+    return response.data
+  },
+
+  deleteUser: async (userId: string, userType: 'app' | 'dashboard' = 'app'): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(
+      `/api/v1/admin/users/${userId}`,
+      { params: { type: userType } }
+    )
+    return response.data
+  },
+
+  updateUserRole: async (userId: string, role: string, userType: 'app' | 'dashboard' = 'app'): Promise<User> => {
+    const response = await api.patch<User>(`/api/v1/admin/users/${userId}/role`, {
+      role,
+    }, {
+      params: { type: userType }
+    })
+    return response.data
+  },
+
+  resetUserPassword: async (userId: string, userType: 'app' | 'dashboard' = 'app'): Promise<{ message: string }> => {
     const response = await api.post<{ message: string }>(
-      `/api/v1/admin/users/${userId}/reset-password`
+      `/api/v1/admin/users/${userId}/reset-password`,
+      {},
+      { params: { type: userType } }
     )
     return response.data
   },
@@ -531,6 +568,111 @@ export const dashboardAuthAPI = {
   // Disable 2FA
   disable2FA: async (data: Disable2FARequest): Promise<{ message: string }> => {
     const response = await api.post('/dashboard/auth/2fa/disable', data)
+    return response.data
+  },
+}
+
+// OAuth Provider Management Types
+export interface OAuthProviderConfig {
+  id: string
+  provider_name: string
+  display_name: string
+  enabled: boolean
+  client_id: string
+  client_secret?: string
+  redirect_url: string
+  scopes: string[]
+  is_custom: boolean
+  authorization_url?: string
+  token_url?: string
+  user_info_url?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateOAuthProviderRequest {
+  provider_name: string
+  display_name: string
+  enabled: boolean
+  client_id: string
+  client_secret: string
+  redirect_url: string
+  scopes: string[]
+  is_custom: boolean
+  authorization_url?: string
+  token_url?: string
+  user_info_url?: string
+}
+
+export interface UpdateOAuthProviderRequest {
+  display_name?: string
+  enabled?: boolean
+  client_id?: string
+  client_secret?: string
+  redirect_url?: string
+  scopes?: string[]
+  authorization_url?: string
+  token_url?: string
+  user_info_url?: string
+}
+
+export interface AuthSettings {
+  enable_signup: boolean
+  require_email_verification: boolean
+  enable_magic_link: boolean
+  password_min_length: number
+  password_require_uppercase: boolean
+  password_require_lowercase: boolean
+  password_require_number: boolean
+  password_require_special: boolean
+  session_timeout_minutes: number
+  max_sessions_per_user: number
+}
+
+// OAuth Provider Management API
+export const oauthProviderApi = {
+  // List all OAuth providers
+  list: async (): Promise<OAuthProviderConfig[]> => {
+    const response = await api.get<OAuthProviderConfig[]>('/api/v1/admin/oauth/providers')
+    return response.data
+  },
+
+  // Get single OAuth provider
+  get: async (id: string): Promise<OAuthProviderConfig> => {
+    const response = await api.get<OAuthProviderConfig>(`/api/v1/admin/oauth/providers/${id}`)
+    return response.data
+  },
+
+  // Create OAuth provider
+  create: async (data: CreateOAuthProviderRequest): Promise<{ success: boolean; id: string; provider: string; message: string }> => {
+    const response = await api.post('/api/v1/admin/oauth/providers', data)
+    return response.data
+  },
+
+  // Update OAuth provider
+  update: async (id: string, data: UpdateOAuthProviderRequest): Promise<{ success: boolean; message: string }> => {
+    const response = await api.put(`/api/v1/admin/oauth/providers/${id}`, data)
+    return response.data
+  },
+
+  // Delete OAuth provider
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/api/v1/admin/oauth/providers/${id}`)
+    return response.data
+  },
+}
+
+// Auth Settings API
+export const authSettingsApi = {
+  // Get auth settings
+  get: async (): Promise<AuthSettings> => {
+    const response = await api.get<AuthSettings>('/api/v1/admin/auth/settings')
+    return response.data
+  },
+
+  // Update auth settings
+  update: async (data: AuthSettings): Promise<{ success: boolean; message: string }> => {
+    const response = await api.put('/api/v1/admin/auth/settings', data)
     return response.data
   },
 }

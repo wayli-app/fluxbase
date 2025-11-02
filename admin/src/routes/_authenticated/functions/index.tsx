@@ -41,6 +41,8 @@ import {
   Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
   component: FunctionsPage,
@@ -147,7 +149,11 @@ function FunctionsPage() {
   const fetchFunctions = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
+      // Use impersonation token if active, otherwise use admin token
+      const impersonationToken = localStorage.getItem('fluxbase_impersonation_token')
+      const adminToken = localStorage.getItem('access_token')
+      const token = impersonationToken || adminToken
+
       const res = await fetch('/api/v1/rpc/', {
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
@@ -206,7 +212,11 @@ function FunctionsPage() {
     setResult(null)
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
+      // Use impersonation token if active, otherwise use admin token
+      const impersonationToken = localStorage.getItem('fluxbase_impersonation_token')
+      const adminToken = localStorage.getItem('access_token')
+      const token = impersonationToken || adminToken
+
       const path =
         selectedFunction.schema === 'public'
           ? `/api/v1/rpc/${selectedFunction.name}`
@@ -313,6 +323,8 @@ else console.log(data)`
 
   return (
     <div className="flex flex-col gap-6 p-6">
+      <ImpersonationBanner />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Functions</h1>
@@ -320,10 +332,13 @@ else console.log(data)`
             Manage PostgreSQL RPC functions and Edge Functions (Deno runtime)
           </p>
         </div>
-        <Button onClick={fetchFunctions} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <ImpersonationSelector />
+          <Button onClick={fetchFunctions} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'rpc' | 'edge')}>

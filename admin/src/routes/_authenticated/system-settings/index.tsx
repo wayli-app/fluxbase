@@ -69,7 +69,7 @@ function SystemSettingsPage() {
     smtp_host: 'mailhog',
     smtp_port: 1025,
     smtp_username: '',
-    smtp_from: 'noreply@fluxbase.local',
+    smtp_from: 'noreply@fluxbase.eu',
     smtp_from_name: 'Fluxbase',
   })
 

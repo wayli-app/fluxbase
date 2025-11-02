@@ -68,6 +68,11 @@ export type {
   SignInCredentials,
   SignUpCredentials,
   AuthResponse,
+  TwoFactorSetupResponse,
+  TwoFactorEnableResponse,
+  TwoFactorStatusResponse,
+  TwoFactorVerifyRequest,
+  SignInWith2FAResponse,
 
   // Database types
   PostgrestResponse,

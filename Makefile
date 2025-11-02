@@ -1,4 +1,4 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create deps setup-dev docs docs-build version docker-build docker-push release
+.PHONY: help dev build clean test migrate-up migrate-down migrate-create db-reset deps setup-dev docs docs-build version docker-build docker-push release
 
 # Variables
 BINARY_NAME=fluxbase
@@ -44,6 +44,10 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 		echo "${YELLOW}Installing admin UI dependencies...${NC}"; \
 		cd admin && npm install; \
 	fi
+	@echo "${YELLOW}Building admin UI...${NC}"
+	@cd admin && npm run build
+	@rm -rf internal/adminui/dist
+	@cp -r admin/dist internal/adminui/dist
 	@echo "${GREEN}Backend:${NC}     http://localhost:8080"
 	@echo "${GREEN}Frontend:${NC}    http://localhost:5173/admin/"
 	@echo "${GREEN}Admin Login:${NC} http://localhost:5173/admin/login"
@@ -74,17 +78,17 @@ clean: ## Clean build artifacts
 	@rm -rf internal/adminui/dist
 	@echo "${GREEN}Clean complete!${NC}"
 
-test: ## Run all tests with race detector (short mode - skips slow tests)
+test: ## Run all tests with race detector (short mode - skips slow tests, excludes e2e)
 	@echo "${YELLOW}Running tests with race detector (short mode)...${NC}"
-	@go test -timeout 2m -v -race -short -cover ./...
+	@go test -timeout 2m -v -race -short -cover $(shell go list ./... | grep -v '/test/e2e')
 	@echo "${GREEN}Tests complete!${NC}"
 
-test-fast: ## Run all tests without race detector (faster)
+test-fast: ## Run all tests without race detector (faster, excludes e2e)
 	@echo "${YELLOW}Running tests (fast mode)...${NC}"
-	@go test -timeout 1m -v -short -cover ./...
+	@go test -timeout 1m -v -short -cover $(shell go list ./... | grep -v '/test/e2e')
 	@echo "${GREEN}Tests complete!${NC}"
 
-test-full: ## Run ALL tests including slow ones (may take 5-10 minutes)
+test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minutes)
 	@echo "${YELLOW}Running full test suite with race detector...${NC}"
 	@go test -timeout 15m -v -race -cover ./...
 	@echo "${GREEN}Full test suite complete!${NC}"
@@ -131,6 +135,26 @@ migrate-create: ## Create new migration (usage: make migrate-create name=add_use
 	@echo "${YELLOW}Creating migration: $(name)...${NC}"
 	@migrate create -ext sql -dir internal/database/migrations -seq $(name)
 	@echo "${GREEN}Migration files created!${NC}"
+
+db-reset: ## Reset database (drop all schemas and run migrations)
+	@echo "${YELLOW}Resetting database...${NC}"
+	@echo "${YELLOW}Dropping all schemas except public...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS auth CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS dashboard CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS storage CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS functions CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS _fluxbase CASCADE;" || true
+	@echo "${YELLOW}Creating _fluxbase schema for migration tracking...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;" || true
+	@echo "${YELLOW}Running migrations...${NC}"
+	@migrate -path internal/database/migrations -database 'postgresql://postgres:postgres@postgres:5432/fluxbase_dev?sslmode=disable&x-migrations-table="_fluxbase"."schema_migrations"&x-migrations-table-quoted=1' up
+	@echo "${YELLOW}Granting permissions to fluxbase_app user...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER fluxbase_app WITH BYPASSRLS;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER fluxbase_app SET search_path TO public;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA public TO fluxbase_app;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app;" || true
+	@echo "${GREEN}Database reset complete!${NC}"
 
 docs: ## Serve Docusaurus documentation at http://localhost:3000
 	@echo "${YELLOW}Starting Docusaurus documentation server...${NC}"

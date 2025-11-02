@@ -34,6 +34,7 @@ import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
+import { Route as AuthenticatedAppSettingsIndexRouteImport } from './routes/_authenticated/app-settings/index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
@@ -174,6 +175,12 @@ const AuthenticatedAuthenticationIndexRoute =
     path: '/authentication/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAppSettingsIndexRoute =
+  AuthenticatedAppSettingsIndexRouteImport.update({
+    id: '/app-settings/',
+    path: '/app-settings/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedApiKeysIndexRoute =
   AuthenticatedApiKeysIndexRouteImport.update({
     id: '/api-keys/',
@@ -224,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
+  '/app-settings': typeof AuthenticatedAppSettingsIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -254,6 +262,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
+  '/app-settings': typeof AuthenticatedAppSettingsIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -287,6 +296,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
+  '/_authenticated/app-settings/': typeof AuthenticatedAppSettingsIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/api-keys'
+    | '/app-settings'
     | '/authentication'
     | '/functions'
     | '/monitoring'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/appearance'
     | '/api-keys'
+    | '/app-settings'
     | '/authentication'
     | '/functions'
     | '/monitoring'
@@ -382,6 +394,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/api-keys/'
+    | '/_authenticated/app-settings/'
     | '/_authenticated/authentication/'
     | '/_authenticated/functions/'
     | '/_authenticated/monitoring/'
@@ -587,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuthenticationIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/app-settings/': {
+      id: '/_authenticated/app-settings/'
+      path: '/app-settings'
+      fullPath: '/app-settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/api-keys/': {
       id: '/_authenticated/api-keys/'
       path: '/api-keys'
@@ -649,6 +669,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApiRestRoute: typeof AuthenticatedApiRestRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
+  AuthenticatedAppSettingsIndexRoute: typeof AuthenticatedAppSettingsIndexRoute
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
@@ -666,6 +687,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApiRestRoute: AuthenticatedApiRestRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
+  AuthenticatedAppSettingsIndexRoute: AuthenticatedAppSettingsIndexRoute,
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,

@@ -36,19 +36,31 @@ func (h *DashboardAuthHandler) RegisterRoutes(app *fiber.App) {
 	dashboard.Post("/2fa/verify", h.VerifyTOTP)
 
 	// Protected routes (require dashboard JWT)
-	dashboard.Get("/me", h.requireDashboardAuth, h.GetCurrentUser)
-	dashboard.Put("/profile", h.requireDashboardAuth, h.UpdateProfile)
-	dashboard.Post("/password/change", h.requireDashboardAuth, h.ChangePassword)
-	dashboard.Delete("/account", h.requireDashboardAuth, h.DeleteAccount)
+	dashboard.Get("/me", h.RequireDashboardAuth, h.GetCurrentUser)
+	dashboard.Put("/profile", h.RequireDashboardAuth, h.UpdateProfile)
+	dashboard.Post("/password/change", h.RequireDashboardAuth, h.ChangePassword)
+	dashboard.Delete("/account", h.RequireDashboardAuth, h.DeleteAccount)
 
 	// 2FA routes
-	dashboard.Post("/2fa/setup", h.requireDashboardAuth, h.SetupTOTP)
-	dashboard.Post("/2fa/enable", h.requireDashboardAuth, h.EnableTOTP)
-	dashboard.Post("/2fa/disable", h.requireDashboardAuth, h.DisableTOTP)
+	dashboard.Post("/2fa/setup", h.RequireDashboardAuth, h.SetupTOTP)
+	dashboard.Post("/2fa/enable", h.RequireDashboardAuth, h.EnableTOTP)
+	dashboard.Post("/2fa/disable", h.RequireDashboardAuth, h.DisableTOTP)
 }
 
 // Signup creates a new dashboard user account
+// Only allowed if no dashboard users exist yet (first user self-registration)
 func (h *DashboardAuthHandler) Signup(c *fiber.Ctx) error {
+	// Check if any dashboard users exist
+	hasUsers, err := h.authService.HasExistingUsers(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to check existing users")
+	}
+
+	// If users exist, signup is disabled (must use invite instead)
+	if hasUsers {
+		return fiber.NewError(fiber.StatusForbidden, "Sign-up is disabled. Please contact an administrator for an invitation.")
+	}
+
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -103,7 +115,9 @@ func (h *DashboardAuthHandler) Login(c *fiber.Ctx) error {
 		if err.Error() == "account is inactive" {
 			return fiber.NewError(fiber.StatusForbidden, "Account is inactive")
 		}
-		return fiber.NewError(fiber.StatusInternalServerError, "Login failed")
+		// Log the actual error for debugging
+		fmt.Printf("Dashboard login error: %v\n", err)
+		return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Login failed: %v", err))
 	}
 
 	// Check if 2FA is enabled
@@ -351,15 +365,15 @@ func (h *DashboardAuthHandler) DisableTOTP(c *fiber.Ctx) error {
 	})
 }
 
-// requireDashboardAuth is a middleware that requires dashboard authentication
-func (h *DashboardAuthHandler) requireDashboardAuth(c *fiber.Ctx) error {
+// RequireDashboardAuth is a middleware that requires dashboard authentication
+func (h *DashboardAuthHandler) RequireDashboardAuth(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
 		return fiber.NewError(fiber.StatusUnauthorized, "Missing authorization header")
 	}
 
 	// Extract token from "Bearer <token>"
-	token := ""
+	var token string
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		token = authHeader[7:]
 	} else {
@@ -385,9 +399,10 @@ func (h *DashboardAuthHandler) requireDashboardAuth(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID")
 	}
 
-	// Set user ID in locals
+	// Set user ID and role in locals
+	// Using "user_role" to match RLS middleware expectations
 	c.Locals("user_id", userID)
-	c.Locals("role", claims.Role)
+	c.Locals("user_role", claims.Role)
 
 	return c.Next()
 }

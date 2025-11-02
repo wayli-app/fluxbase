@@ -170,7 +170,7 @@ function SettingsAccountPage() {
   }
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 overflow-y-auto h-full p-6'>
       <div>
         <h1 className='text-3xl font-bold tracking-tight'>Account</h1>
         <p className='text-muted-foreground'>

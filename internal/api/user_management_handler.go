@@ -23,9 +23,10 @@ func NewUserManagementHandler(userMgmtService *auth.UserManagementService, authS
 func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 	excludeAdmins := c.QueryBool("exclude_admins", false)
 	search := c.Query("search", "")
-	limit := c.QueryInt("limit", 0) // 0 means no limit
+	limit := c.QueryInt("limit", 0)    // 0 means no limit
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
 
-	users, err := h.userMgmtService.ListEnrichedUsers(c.Context())
+	users, err := h.userMgmtService.ListEnrichedUsers(c.Context(), userType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -92,7 +93,9 @@ func (h *UserManagementHandler) InviteUser(c *fiber.Ctx) error {
 		})
 	}
 
-	resp, err := h.userMgmtService.InviteUser(c.Context(), req)
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
+
+	resp, err := h.userMgmtService.InviteUser(c.Context(), req, userType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -105,8 +108,9 @@ func (h *UserManagementHandler) InviteUser(c *fiber.Ctx) error {
 // DeleteUser deletes a user
 func (h *UserManagementHandler) DeleteUser(c *fiber.Ctx) error {
 	userID := c.Params("id")
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
 
-	err := h.userMgmtService.DeleteUser(c.Context(), userID)
+	err := h.userMgmtService.DeleteUser(c.Context(), userID, userType)
 	if err != nil {
 		if err == auth.ErrUserNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -126,6 +130,7 @@ func (h *UserManagementHandler) DeleteUser(c *fiber.Ctx) error {
 // UpdateUserRole updates a user's role
 func (h *UserManagementHandler) UpdateUserRole(c *fiber.Ctx) error {
 	userID := c.Params("id")
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
 
 	var req struct {
 		Role string `json:"role"`
@@ -136,7 +141,7 @@ func (h *UserManagementHandler) UpdateUserRole(c *fiber.Ctx) error {
 		})
 	}
 
-	user, err := h.userMgmtService.UpdateUserRole(c.Context(), userID, req.Role)
+	user, err := h.userMgmtService.UpdateUserRole(c.Context(), userID, req.Role, userType)
 	if err != nil {
 		if err == auth.ErrUserNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -154,8 +159,9 @@ func (h *UserManagementHandler) UpdateUserRole(c *fiber.Ctx) error {
 // ResetUserPassword resets a user's password
 func (h *UserManagementHandler) ResetUserPassword(c *fiber.Ctx) error {
 	userID := c.Params("id")
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
 
-	result, err := h.userMgmtService.ResetUserPassword(c.Context(), userID)
+	result, err := h.userMgmtService.ResetUserPassword(c.Context(), userID, userType)
 	if err != nil {
 		if err == auth.ErrUserNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{

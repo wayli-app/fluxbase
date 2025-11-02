@@ -9,6 +9,11 @@ import type {
   SignInCredentials,
   SignUpCredentials,
   User,
+  TwoFactorSetupResponse,
+  TwoFactorEnableResponse,
+  TwoFactorStatusResponse,
+  TwoFactorVerifyRequest,
+  SignInWith2FAResponse,
 } from './types'
 
 const AUTH_STORAGE_KEY = 'fluxbase.auth.session'
@@ -66,13 +71,24 @@ export class FluxbaseAuth {
 
   /**
    * Sign in with email and password
+   * Returns AuthSession if successful, or SignInWith2FAResponse if 2FA is required
    */
-  async signIn(credentials: SignInCredentials): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/signin', credentials)
+  async signIn(credentials: SignInCredentials): Promise<AuthSession | SignInWith2FAResponse> {
+    const response = await this.fetch.post<AuthResponse | SignInWith2FAResponse>(
+      '/api/v1/auth/signin',
+      credentials
+    )
 
+    // Check if 2FA is required
+    if ('requires_2fa' in response && response.requires_2fa) {
+      return response as SignInWith2FAResponse
+    }
+
+    // Normal sign in without 2FA
+    const authResponse = response as AuthResponse
     const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
+      ...authResponse,
+      expires_at: Date.now() + authResponse.expires_in * 1000,
     }
 
     this.setSession(session)
@@ -161,6 +177,72 @@ export class FluxbaseAuth {
    */
   setToken(token: string) {
     this.fetch.setAuthToken(token)
+  }
+
+  /**
+   * Setup 2FA for the current user
+   * Returns TOTP secret and QR code URL
+   */
+  async setup2FA(): Promise<TwoFactorSetupResponse> {
+    if (!this.session) {
+      throw new Error('Not authenticated')
+    }
+
+    return await this.fetch.post<TwoFactorSetupResponse>('/api/v1/auth/2fa/setup')
+  }
+
+  /**
+   * Enable 2FA after verifying the TOTP code
+   * Returns backup codes that should be saved by the user
+   */
+  async enable2FA(code: string): Promise<TwoFactorEnableResponse> {
+    if (!this.session) {
+      throw new Error('Not authenticated')
+    }
+
+    return await this.fetch.post<TwoFactorEnableResponse>('/api/v1/auth/2fa/enable', { code })
+  }
+
+  /**
+   * Disable 2FA for the current user
+   * Requires password confirmation
+   */
+  async disable2FA(password: string): Promise<{ success: boolean; message: string }> {
+    if (!this.session) {
+      throw new Error('Not authenticated')
+    }
+
+    return await this.fetch.post<{ success: boolean; message: string }>(
+      '/api/v1/auth/2fa/disable',
+      { password }
+    )
+  }
+
+  /**
+   * Check 2FA status for the current user
+   */
+  async get2FAStatus(): Promise<TwoFactorStatusResponse> {
+    if (!this.session) {
+      throw new Error('Not authenticated')
+    }
+
+    return await this.fetch.get<TwoFactorStatusResponse>('/api/v1/auth/2fa/status')
+  }
+
+  /**
+   * Verify 2FA code during login
+   * Call this after signIn returns requires_2fa: true
+   */
+  async verify2FA(request: TwoFactorVerifyRequest): Promise<AuthSession> {
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/2fa/verify', request)
+
+    const session: AuthSession = {
+      ...response,
+      expires_at: Date.now() + response.expires_in * 1000,
+    }
+
+    this.setSession(session)
+    return session
   }
 
   /**

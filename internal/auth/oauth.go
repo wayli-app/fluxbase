@@ -72,15 +72,15 @@ func (m *OAuthManager) RegisterProvider(provider OAuthProvider, config OAuthConf
 		ClientSecret: config.ClientSecret,
 		RedirectURL:  config.RedirectURL,
 		Scopes:       config.Scopes,
-		Endpoint:     m.getEndpoint(provider),
+		Endpoint:     m.GetEndpoint(provider),
 	}
 
 	m.configs[provider] = oauth2Config
 	return nil
 }
 
-// getEndpoint returns the OAuth2 endpoint for a provider
-func (m *OAuthManager) getEndpoint(provider OAuthProvider) oauth2.Endpoint {
+// GetEndpoint returns the OAuth2 endpoint for a provider
+func (m *OAuthManager) GetEndpoint(provider OAuthProvider) oauth2.Endpoint {
 	switch provider {
 	case ProviderGoogle:
 		return google.Endpoint
@@ -161,7 +161,7 @@ func (m *OAuthManager) GetUserInfo(ctx context.Context, provider OAuthProvider, 
 	client := config.Client(ctx, token)
 
 	// Get user info from provider-specific endpoint
-	userInfoURL := m.getUserInfoURL(provider)
+	userInfoURL := m.GetUserInfoURL(provider)
 	resp, err := client.Get(userInfoURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
@@ -180,8 +180,8 @@ func (m *OAuthManager) GetUserInfo(ctx context.Context, provider OAuthProvider, 
 	return userInfo, nil
 }
 
-// getUserInfoURL returns the user info endpoint for a provider
-func (m *OAuthManager) getUserInfoURL(provider OAuthProvider) string {
+// GetUserInfoURL returns the user info endpoint for a provider
+func (m *OAuthManager) GetUserInfoURL(provider OAuthProvider) string {
 	switch provider {
 	case ProviderGoogle:
 		return "https://www.googleapis.com/oauth2/v2/userinfo"

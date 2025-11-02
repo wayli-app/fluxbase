@@ -40,7 +40,7 @@ export function FluxbaseStats() {
     queryKey: ['users', 'count'],
     queryFn: async () => {
       try {
-        const result = await client.from('users').select('*').execute()
+        const result = await client.from('auth/users').select('*').execute()
         return result.data?.length || 0
       } catch {
         return 0
@@ -121,13 +121,23 @@ export function FluxbaseStats() {
           <Activity className='text-muted-foreground h-4 w-4' />
         </CardHeader>
         <CardContent>
-          <div className='text-2xl font-bold'>
-            <span className='text-green-600 dark:text-green-400'>Live</span>
-          </div>
-          <p className='text-muted-foreground text-xs'>
-            Realtime:{' '}
-            {health?.services.realtime ? 'Enabled' : 'Disabled'}
-          </p>
+          {isLoadingHealth ? (
+            <Skeleton className='h-8 w-20' />
+          ) : (
+            <>
+              <div className='text-2xl font-bold'>
+                {health?.status === 'ok' ? (
+                  <span className='text-green-600 dark:text-green-400'>Live</span>
+                ) : (
+                  <span className='text-red-600 dark:text-red-400'>Down</span>
+                )}
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                Realtime:{' '}
+                {health?.services.realtime ? 'Enabled' : 'Disabled'}
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -49,8 +49,22 @@ func NewUserManagementService(
 }
 
 // ListEnrichedUsers returns a list of users with enriched metadata
-func (s *UserManagementService) ListEnrichedUsers(ctx context.Context) ([]*EnrichedUser, error) {
-	query := `
+// userType can be "app" for auth.users or "dashboard" for dashboard.users
+func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType string) ([]*EnrichedUser, error) {
+	// Default to app users if not specified
+	if userType == "" {
+		userType = "app"
+	}
+
+	// Determine which table to query
+	usersTable := "auth.users"
+	sessionsTable := "auth.sessions"
+	if userType == "dashboard" {
+		usersTable = "dashboard.users"
+		sessionsTable = "dashboard.sessions"
+	}
+
+	query := fmt.Sprintf(`
 		SELECT
 			u.id,
 			u.email,
@@ -66,11 +80,11 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context) ([]*Enric
 				WHEN u.email_verified = false THEN 'invite_pending'
 				ELSE 'email'
 			END as provider
-		FROM auth.users u
-		LEFT JOIN auth.sessions s ON u.id = s.user_id
+		FROM %s u
+		LEFT JOIN %s s ON u.id = s.user_id
 		GROUP BY u.id, u.email, u.email_verified, u.role, u.metadata, u.created_at, u.updated_at, u.password_hash
 		ORDER BY u.created_at DESC
-	`
+	`, usersTable, sessionsTable)
 
 	rows, err := s.userRepo.db.Query(ctx, query)
 	if err != nil {
@@ -118,10 +132,14 @@ type InviteUserResponse struct {
 }
 
 // InviteUser creates a new user and either sends them an invite email or returns a temp password
-func (s *UserManagementService) InviteUser(ctx context.Context, req InviteUserRequest) (*InviteUserResponse, error) {
-	// Validate role
+func (s *UserManagementService) InviteUser(ctx context.Context, req InviteUserRequest, userType string) (*InviteUserResponse, error) {
+	// Validate role - for dashboard users, default to admin
 	if req.Role == "" {
-		req.Role = "user"
+		if userType == "dashboard" {
+			req.Role = "admin"
+		} else {
+			req.Role = "user"
+		}
 	}
 
 	// Use provided password or generate a temporary one
@@ -143,14 +161,14 @@ func (s *UserManagementService) InviteUser(ctx context.Context, req InviteUserRe
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create user
+	// Create user in the appropriate table
 	createReq := CreateUserRequest{
 		Email:    req.Email,
 		Password: tempPassword, // Not used, we provide hash directly
 		Role:     req.Role,
 	}
 
-	user, err := s.userRepo.Create(ctx, createReq, hashedPassword)
+	user, err := s.userRepo.CreateInTable(ctx, createReq, hashedPassword, userType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -189,21 +207,21 @@ func (s *UserManagementService) InviteUser(ctx context.Context, req InviteUserRe
 }
 
 // UpdateUserRole updates a user's role
-func (s *UserManagementService) UpdateUserRole(ctx context.Context, userID string, newRole string) (*User, error) {
+func (s *UserManagementService) UpdateUserRole(ctx context.Context, userID string, newRole string, userType string) (*User, error) {
 	req := UpdateUserRequest{
 		Role: &newRole,
 	}
-	return s.userRepo.Update(ctx, userID, req)
+	return s.userRepo.UpdateInTable(ctx, userID, req, userType)
 }
 
 // DeleteUser deletes a user (cascades to sessions, tokens, etc.)
-func (s *UserManagementService) DeleteUser(ctx context.Context, userID string) error {
-	return s.userRepo.Delete(ctx, userID)
+func (s *UserManagementService) DeleteUser(ctx context.Context, userID string, userType string) error {
+	return s.userRepo.DeleteFromTable(ctx, userID, userType)
 }
 
 // ResetUserPassword triggers a password reset for a user
-func (s *UserManagementService) ResetUserPassword(ctx context.Context, userID string) (string, error) {
-	user, err := s.userRepo.GetByID(ctx, userID)
+func (s *UserManagementService) ResetUserPassword(ctx context.Context, userID string, userType string) (string, error) {
+	user, err := s.userRepo.GetByIDFromTable(ctx, userID, userType)
 	if err != nil {
 		return "", fmt.Errorf("user not found: %w", err)
 	}

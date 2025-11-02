@@ -20,13 +20,17 @@ const (
 	MessageTypeBroadcast   MessageType = "broadcast"
 	MessageTypeError       MessageType = "error"
 	MessageTypeAck         MessageType = "ack"
+	MessageTypeChange      MessageType = "change"
 )
 
 // ClientMessage represents a message from the client
 type ClientMessage struct {
-	Type    MessageType     `json:"type"`
-	Channel string          `json:"channel,omitempty"`
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Type    MessageType            `json:"type"`
+	Channel string                 `json:"channel,omitempty"`
+	Schema  string                 `json:"schema,omitempty"`
+	Table   string                 `json:"table,omitempty"`
+	Filters map[string]interface{} `json:"filters,omitempty"`
+	Payload json.RawMessage        `json:"payload,omitempty"`
 }
 
 // ServerMessage represents a message to the client
@@ -54,13 +58,15 @@ type TokenClaims struct {
 type RealtimeHandler struct {
 	manager     *Manager
 	authService AuthService
+	subManager  *SubscriptionManager
 }
 
 // NewRealtimeHandler creates a new realtime handler
-func NewRealtimeHandler(manager *Manager, authService AuthService) *RealtimeHandler {
+func NewRealtimeHandler(manager *Manager, authService AuthService, subManager *SubscriptionManager) *RealtimeHandler {
 	return &RealtimeHandler{
 		manager:     manager,
 		authService: authService,
+		subManager:  subManager,
 	}
 }
 
@@ -107,7 +113,13 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 
 	// Add connection to manager
 	connection := h.manager.AddConnection(connectionID, c, userID)
-	defer h.manager.RemoveConnection(connectionID)
+	defer func() {
+		// Clean up RLS-aware subscriptions
+		if h.subManager != nil {
+			h.subManager.RemoveConnectionSubscriptions(connectionID)
+		}
+		h.manager.RemoveConnection(connectionID)
+	}()
 
 	// Start heartbeat ticker
 	ticker := time.NewTicker(30 * time.Second)
@@ -146,15 +158,46 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	switch msg.Type {
 	case MessageTypeSubscribe:
-		if msg.Channel == "" {
+		// All subscriptions must be RLS-aware table subscriptions
+		if msg.Table == "" {
 			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
-				Error: "channel is required for subscribe",
+				Error: "table is required for subscribe",
 			})
 			return
 		}
 
-		if err := h.manager.Subscribe(conn.ID, msg.Channel); err != nil {
+		// Authentication required for all subscriptions
+		if conn.UserID == nil {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "authentication required for subscriptions",
+			})
+			return
+		}
+
+		schema := msg.Schema
+		if schema == "" {
+			schema = "public" // Default schema
+		}
+
+		// Get user's role from connection or default to "authenticated"
+		role := "authenticated"
+		// TODO: Fetch actual role from token claims or connection metadata
+
+		// Create RLS-aware subscription
+		subID := uuid.New().String()
+		_, err := h.subManager.CreateSubscription(
+			subID,
+			conn.ID,
+			*conn.UserID,
+			role,
+			schema,
+			msg.Table,
+			msg.Filters,
+		)
+
+		if err != nil {
 			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: err.Error(),
@@ -163,36 +206,21 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 		_ = conn.SendMessage(ServerMessage{
-			Type:    MessageTypeAck,
-			Channel: msg.Channel,
+			Type: MessageTypeAck,
 			Payload: map[string]interface{}{
-				"subscribed": true,
+				"subscribed":      true,
+				"subscription_id": subID,
+				"schema":          schema,
+				"table":           msg.Table,
 			},
 		})
 
 	case MessageTypeUnsubscribe:
-		if msg.Channel == "" {
-			_ = conn.SendMessage(ServerMessage{
-				Type:  MessageTypeError,
-				Error: "channel is required for unsubscribe",
-			})
-			return
-		}
-
-		if err := h.manager.Unsubscribe(conn.ID, msg.Channel); err != nil {
-			_ = conn.SendMessage(ServerMessage{
-				Type:  MessageTypeError,
-				Error: err.Error(),
-			})
-			return
-		}
-
+		// Unsubscribe is handled automatically when connection closes
+		// We don't support manual unsubscribe for individual subscriptions yet
 		_ = conn.SendMessage(ServerMessage{
-			Type:    MessageTypeAck,
-			Channel: msg.Channel,
-			Payload: map[string]interface{}{
-				"subscribed": false,
-			},
+			Type:  MessageTypeError,
+			Error: "unsubscribe not supported - subscriptions are removed on disconnect",
 		})
 
 	case MessageTypeHeartbeat:
@@ -209,20 +237,10 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	}
 }
 
-// Broadcast sends a message to all subscribers of a channel
-func (h *RealtimeHandler) Broadcast(channel string, payload interface{}) {
-	h.manager.Broadcast(channel, ServerMessage{
-		Type:    MessageTypeBroadcast,
-		Channel: channel,
-		Payload: payload,
-	})
-}
-
 // GetStats returns realtime statistics
 func (h *RealtimeHandler) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"connections": h.manager.GetConnectionCount(),
-		"channels":    h.manager.GetChannelCount(),
 	}
 }
 

@@ -29,9 +29,10 @@ func (m *MockRealtimeHandler) Broadcast(channel string, payload interface{}) {
 func TestListener_ProcessNotification_Insert(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil) // nil auth service for testing
+	handler := NewRealtimeHandler(manager, nil, nil) // nil auth service and sub manager for testing
 	listener := &Listener{
 		handler: handler,
+		ctx:     ctx,
 	}
 
 	// Create a notification
@@ -53,9 +54,10 @@ func TestListener_ProcessNotification_Insert(t *testing.T) {
 func TestListener_ProcessNotification_Update(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 	listener := &Listener{
 		handler: handler,
+		ctx:     ctx,
 	}
 
 	notification := &pgconn.Notification{
@@ -76,9 +78,10 @@ func TestListener_ProcessNotification_Update(t *testing.T) {
 func TestListener_ProcessNotification_Delete(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 	listener := &Listener{
 		handler: handler,
+		ctx:     ctx,
 	}
 
 	notification := &pgconn.Notification{
@@ -98,9 +101,10 @@ func TestListener_ProcessNotification_Delete(t *testing.T) {
 func TestListener_ProcessNotification_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 	listener := &Listener{
 		handler: handler,
+		ctx:     ctx,
 	}
 
 	notification := &pgconn.Notification{
@@ -115,9 +119,10 @@ func TestListener_ProcessNotification_InvalidJSON(t *testing.T) {
 func TestListener_ProcessNotification_ChannelFormat(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 	listener := &Listener{
 		handler: handler,
+		ctx:     ctx,
 	}
 
 	tests := []struct {
@@ -212,9 +217,9 @@ func TestChangeEvent_WithOldRecord(t *testing.T) {
 func TestNewListener(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 
-	listener := NewListener(nil, handler)
+	listener := NewListener(nil, handler, nil)
 
 	assert.NotNil(t, listener)
 	assert.NotNil(t, listener.handler)
@@ -225,9 +230,9 @@ func TestNewListener(t *testing.T) {
 func TestListener_Stop(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	handler := NewRealtimeHandler(manager, nil)
+	handler := NewRealtimeHandler(manager, nil, nil)
 
-	listener := NewListener(nil, handler)
+	listener := NewListener(nil, handler, nil)
 
 	// Should not panic
 	listener.Stop()

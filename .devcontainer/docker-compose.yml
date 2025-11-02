@@ -70,11 +70,14 @@ services:
     image: dpage/pgadmin4:latest
     container_name: fluxbase-pgadmin-dev
     restart: unless-stopped
+    ports:
+      - "5050:5050"
     environment:
-      PGADMIN_DEFAULT_EMAIL: dev@fluxbase.local
+      PGADMIN_DEFAULT_EMAIL: admin@fluxbase.eu
       PGADMIN_DEFAULT_PASSWORD: dev
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_LISTEN_PORT: 5050
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:

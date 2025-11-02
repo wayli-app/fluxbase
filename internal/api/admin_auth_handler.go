@@ -12,15 +12,24 @@ import (
 
 // AdminAuthHandler handles admin-specific authentication
 type AdminAuthHandler struct {
-	authService *auth.Service
-	userRepo    *auth.UserRepository
+	authService    *auth.Service
+	userRepo       *auth.UserRepository
+	dashboardAuth  *auth.DashboardAuthService
+	systemSettings *auth.SystemSettingsService
 }
 
 // NewAdminAuthHandler creates a new admin auth handler
-func NewAdminAuthHandler(authService *auth.Service, userRepo *auth.UserRepository) *AdminAuthHandler {
+func NewAdminAuthHandler(
+	authService *auth.Service,
+	userRepo *auth.UserRepository,
+	dashboardAuth *auth.DashboardAuthService,
+	systemSettings *auth.SystemSettingsService,
+) *AdminAuthHandler {
 	return &AdminAuthHandler{
-		authService: authService,
-		userRepo:    userRepo,
+		authService:    authService,
+		userRepo:       userRepo,
+		dashboardAuth:  dashboardAuth,
+		systemSettings: systemSettings,
 	}
 }
 
@@ -39,10 +48,10 @@ type InitialSetupRequest struct {
 
 // InitialSetupResponse represents the initial setup response
 type InitialSetupResponse struct {
-	User         *auth.User `json:"user"`
-	AccessToken  string     `json:"access_token"`
-	RefreshToken string     `json:"refresh_token"`
-	ExpiresIn    int64      `json:"expires_in"`
+	User         *auth.DashboardUser `json:"user"`
+	AccessToken  string              `json:"access_token"`
+	RefreshToken string              `json:"refresh_token"`
+	ExpiresIn    int64               `json:"expires_in"`
 }
 
 // AdminLoginRequest represents an admin login request
@@ -53,10 +62,10 @@ type AdminLoginRequest struct {
 
 // AdminLoginResponse represents an admin login response
 type AdminLoginResponse struct {
-	User         *auth.User `json:"user"`
-	AccessToken  string     `json:"access_token"`
-	RefreshToken string     `json:"refresh_token"`
-	ExpiresIn    int64      `json:"expires_in"`
+	User         *auth.DashboardUser `json:"user"`
+	AccessToken  string              `json:"access_token"`
+	RefreshToken string              `json:"refresh_token"`
+	ExpiresIn    int64               `json:"expires_in"`
 }
 
 // GetSetupStatus checks if initial setup is needed
@@ -64,31 +73,17 @@ type AdminLoginResponse struct {
 func (h *AdminAuthHandler) GetSetupStatus(c *fiber.Ctx) error {
 	ctx := context.Background()
 
-	// Count total users
-	userCount, err := h.userRepo.Count(ctx)
+	// Check if setup has been completed using system settings
+	setupComplete, err := h.systemSettings.IsSetupComplete(ctx)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to check setup status",
 		})
 	}
 
-	// Count admin users
-	adminCount := 0
-	if userCount > 0 {
-		// Check if any admin users exist
-		users, err := h.userRepo.List(ctx, 0, 1000) // Get all users (limit for safety)
-		if err == nil {
-			for _, user := range users {
-				if user.Role == "admin" {
-					adminCount++
-				}
-			}
-		}
-	}
-
 	return c.JSON(SetupStatusResponse{
-		NeedsSetup: adminCount == 0, // Setup needed if no admin users exist
-		HasAdmin:   adminCount > 0,
+		NeedsSetup: !setupComplete,
+		HasAdmin:   setupComplete,
 	})
 }
 
@@ -97,30 +92,17 @@ func (h *AdminAuthHandler) GetSetupStatus(c *fiber.Ctx) error {
 func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 	ctx := context.Background()
 
-	// Check if setup is still needed (i.e., no admin users exist)
-	userCount, err := h.userRepo.Count(ctx)
+	// Check if setup has already been completed using system settings
+	setupComplete, err := h.systemSettings.IsSetupComplete(ctx)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to check setup status",
 		})
 	}
 
-	// Check if any admin users already exist
-	adminCount := 0
-	if userCount > 0 {
-		users, err := h.userRepo.List(ctx, 0, 1000)
-		if err == nil {
-			for _, user := range users {
-				if user.Role == "admin" {
-					adminCount++
-				}
-			}
-		}
-	}
-
-	if adminCount > 0 {
+	if setupComplete {
 		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Setup has already been completed - admin user exists",
+			"error": "Setup has already been completed",
 		})
 	}
 
@@ -139,43 +121,52 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create the first admin user using the auth service
-	signupReq := auth.SignUpRequest{
-		Email:    req.Email,
-		Password: req.Password,
-		Metadata: map[string]interface{}{
-			"name": req.Name,
-		},
-	}
-
-	// Sign up the user
-	signupResp, err := h.authService.SignUp(ctx, signupReq)
+	// Create the first dashboard admin user
+	user, err := h.dashboardAuth.CreateUser(ctx, req.Email, req.Password, req.Name)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to create admin user: %v", err),
 		})
 	}
 
-	// Update the user's role to admin
-	adminRole := "admin"
-	emailVerified := true
-	updateReq := auth.UpdateUserRequest{
-		Role:          &adminRole,
-		EmailVerified: &emailVerified,
-	}
-
-	updatedUser, err := h.userRepo.Update(ctx, signupResp.User.ID, updateReq)
+	// Update user to be dashboard_admin with email verified
+	// Direct database update since dashboard service doesn't have these methods yet
+	_, err = h.dashboardAuth.GetDB().Exec(ctx, `
+		UPDATE dashboard.users
+		SET role = 'dashboard_admin', email_verified = true
+		WHERE id = $1
+	`, user.ID)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to set admin role",
+			"error": "Failed to set admin role and verify email",
 		})
 	}
 
+	// Mark setup as complete in system settings
+	if err := h.systemSettings.MarkSetupComplete(ctx, user.ID, user.Email); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to mark setup as complete",
+		})
+	}
+
+	// Log in the user to get access token
+	loggedInUser, accessToken, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "User created but failed to generate access token",
+		})
+	}
+
+	// Generate refresh token (placeholder - dashboard currently doesn't support refresh tokens)
+	// Using same token for now
+	refreshToken := accessToken
+	expiresIn := int64(900) // 15 minutes in seconds
+
 	return c.Status(http.StatusCreated).JSON(InitialSetupResponse{
-		User:         updatedUser,
-		AccessToken:  signupResp.AccessToken,
-		RefreshToken: signupResp.RefreshToken,
-		ExpiresIn:    signupResp.ExpiresIn,
+		User:         loggedInUser,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    expiresIn,
 	})
 }
 
@@ -191,13 +182,8 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	// Use the auth service to sign in
-	signInReq := auth.SignInRequest{
-		Email:    req.Email,
-		Password: req.Password,
-	}
-
-	signInResp, err := h.authService.SignIn(ctx, signInReq)
+	// Use the dashboard auth service to sign in (dashboard.users, not auth.users)
+	user, accessToken, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
 		if err == auth.ErrInvalidCredentials {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
@@ -205,22 +191,38 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 			})
 		}
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Authentication failed",
+			"error": fmt.Sprintf("Authentication failed: %v", err),
 		})
 	}
 
-	// Check if user has admin role
-	if signInResp.User.Role != "admin" {
+	// Query user's role from database (DashboardUser struct doesn't include role)
+	var userRole string
+	err = h.dashboardAuth.GetDB().QueryRow(ctx,
+		"SELECT role FROM dashboard.users WHERE id = $1",
+		user.ID,
+	).Scan(&userRole)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to verify user role",
+		})
+	}
+
+	// Check if user has dashboard_admin role
+	if userRole != "dashboard_admin" {
 		return c.Status(http.StatusForbidden).JSON(fiber.Map{
 			"error": "Access denied. Admin role required.",
 		})
 	}
 
+	// Generate refresh token (placeholder - dashboard currently doesn't support refresh tokens)
+	refreshToken := accessToken
+	expiresIn := int64(900) // 15 minutes in seconds
+
 	return c.JSON(AdminLoginResponse{
-		User:         signInResp.User,
-		AccessToken:  signInResp.AccessToken,
-		RefreshToken: signInResp.RefreshToken,
-		ExpiresIn:    signInResp.ExpiresIn,
+		User:         user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    expiresIn,
 	})
 }
 
@@ -319,17 +321,31 @@ func (h *AdminAuthHandler) AdminLogout(c *fiber.Ctx) error {
 // GetCurrentAdmin returns the currently authenticated admin user
 // GET /api/v1/admin/me
 func (h *AdminAuthHandler) GetCurrentAdmin(c *fiber.Ctx) error {
-	// Get user from context (set by auth middleware)
-	user := c.Locals("user").(*auth.User)
+	// Get user info from context (set by auth middleware)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User not authenticated",
+		})
+	}
+
+	userEmail, _ := c.Locals("user_email").(string)
+	userRole, _ := c.Locals("user_role").(string)
 
 	// Verify admin role
-	if user.Role != "admin" {
+	if userRole != "admin" {
 		return c.Status(http.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin role required",
 		})
 	}
 
+	// Return user info from JWT claims (sufficient for UI needs)
+	// We could fetch full user from DB but JWT claims have what we need
 	return c.JSON(fiber.Map{
-		"user": user,
+		"user": fiber.Map{
+			"id":    userID,
+			"email": userEmail,
+			"role":  userRole,
+		},
 	})
 }

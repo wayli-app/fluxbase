@@ -1,23 +1,31 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInsert, useUpdate } from '@fluxbase/sdk-react'
-import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
+
+interface TableColumn {
+  name: string
+  data_type: string
+  is_nullable: boolean
+  default_value: string | null
+  is_primary_key: boolean
+}
 
 interface RecordEditDialogProps {
   tableName: string
+  tableDisplayName: string
+  tableSchema?: TableColumn[]
   record: Record<string, unknown> | null
   isOpen: boolean
   onClose: () => void
@@ -26,6 +34,8 @@ interface RecordEditDialogProps {
 
 export function RecordEditDialog({
   tableName,
+  tableDisplayName,
+  tableSchema = [],
   record,
   isOpen,
   onClose,
@@ -45,10 +55,23 @@ export function RecordEditDialog({
         }
       })
       setFormData(stringData)
+    } else if (isCreate && tableSchema.length > 0) {
+      // Initialize form with table schema columns and defaults
+      const stringData: Record<string, string> = {}
+      tableSchema.forEach((col) => {
+        if (col.default_value) {
+          // Show the default value as a placeholder hint
+          stringData[col.name] = ''
+        } else if (!col.is_nullable) {
+          // Required fields should be in form
+          stringData[col.name] = ''
+        }
+      })
+      setFormData(stringData)
     } else if (isCreate) {
       setFormData({})
     }
-  }, [record, isCreate])
+  }, [record, isCreate, tableSchema])
 
   const insertMutation = useInsert(tableName)
   const updateFluxbase = useUpdate(tableName)
@@ -57,7 +80,7 @@ export function RecordEditDialog({
     mutateAsync: async (data: Record<string, unknown>) => {
       try {
         await insertMutation.mutateAsync(data)
-        queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
+        queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
         toast.success('Record created successfully')
         onClose()
       } catch (error) {
@@ -68,7 +91,7 @@ export function RecordEditDialog({
     mutate: (data: Record<string, unknown>) => {
       insertMutation.mutateAsync(data)
         .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
+          queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
           toast.success('Record created successfully')
           onClose()
         })
@@ -86,7 +109,7 @@ export function RecordEditDialog({
           data,
           buildQuery: (q) => q.eq('id', record!.id),
         })
-        queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
+        queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
         toast.success('Record updated successfully')
         onClose()
       } catch (error) {
@@ -100,7 +123,7 @@ export function RecordEditDialog({
         buildQuery: (q) => q.eq('id', record!.id),
       })
         .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
+          queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
           toast.success('Record updated successfully')
           onClose()
         })
@@ -117,6 +140,23 @@ export function RecordEditDialog({
     // Convert string values back to appropriate types
     const processedData: Record<string, unknown> = {}
     Object.entries(formData).forEach(([key, value]) => {
+      const colSchema = tableSchema.find(col => col.name === key)
+
+      // Skip empty values for columns with defaults (let DB handle it)
+      if (value === '' && colSchema?.default_value) {
+        return
+      }
+
+      // Skip primary key fields with defaults (auto-generated)
+      if (colSchema?.is_primary_key && colSchema?.default_value) {
+        return
+      }
+
+      // Skip empty values entirely - don't send them
+      if (value === '') {
+        return
+      }
+
       // Try to parse as JSON for objects/arrays
       if (value.startsWith('{') || value.startsWith('[')) {
         try {
@@ -127,7 +167,7 @@ export function RecordEditDialog({
         }
       }
       // Try to parse as number
-      if (!isNaN(Number(value)) && value !== '') {
+      if (!isNaN(Number(value))) {
         processedData[key] = Number(value)
         return
       }
@@ -151,92 +191,70 @@ export function RecordEditDialog({
     setFormData((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleAddField = () => {
-    const fieldName = prompt('Enter field name:')
-    if (fieldName && !formData[fieldName]) {
-      setFormData((prev) => ({ ...prev, [fieldName]: '' }))
-    }
-  }
-
-  const handleRemoveField = (key: string) => {
-    setFormData((prev) => {
-      const newData = { ...prev }
-      delete newData[key]
-      return newData
-    })
-  }
-
   const isLoading = createMutation.isPending || updateMutation.isPending
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className='max-h-[85vh] max-w-2xl flex flex-col'>
-        <DialogHeader className='flex-shrink-0'>
-          <DialogTitle>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className='w-full sm:max-w-xl overflow-y-auto p-6'>
+        <SheetHeader className='mb-6'>
+          <SheetTitle>
             {isCreate ? 'Create New Record' : 'Edit Record'}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {isCreate
               ? `Add a new record to ${tableName}`
               : `Update record in ${tableName}`}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit} className='flex flex-1 flex-col overflow-hidden'>
-          <ScrollArea className='flex-1 pr-4'>
-            <div className='space-y-4 py-4'>
-              {Object.entries(formData).map(([key, value]) => (
-                <div key={key} className='space-y-2'>
-                  <div className='flex items-center justify-between'>
-                    <Label htmlFor={key}>{key}</Label>
-                    {isCreate && key !== 'id' && (
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => handleRemoveField(key)}
-                      >
-                        <X className='size-4' />
-                      </Button>
+        <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
+          <div className='space-y-4'>
+              {Object.entries(formData).map(([key, value]) => {
+                const colSchema = tableSchema.find(col => col.name === key)
+                const defaultHint = colSchema?.default_value ? `Default: ${colSchema.default_value}` : ''
+                const typeHint = colSchema?.data_type || ''
+                const isRequired = colSchema ? !colSchema.is_nullable && !colSchema.default_value : false
+
+                return (
+                  <div key={key} className='space-y-2'>
+                    <div className='flex flex-col gap-0.5'>
+                      <Label htmlFor={key} className='flex items-center gap-1.5'>
+                        {key}
+                        {isRequired && <span className='text-destructive'>*</span>}
+                      </Label>
+                      {typeHint && (
+                        <span className='text-xs text-muted-foreground'>{typeHint}</span>
+                      )}
+                    </div>
+                    <Input
+                      id={key}
+                      value={value}
+                      onChange={(e) => handleChange(key, e.target.value)}
+                      disabled={colSchema?.is_primary_key && colSchema.default_value !== null}
+                      placeholder={defaultHint || `Enter ${key}`}
+                    />
+                    {defaultHint && value === '' && (
+                      <p className='text-xs text-muted-foreground'>{defaultHint}</p>
                     )}
                   </div>
-                  <Input
-                    id={key}
-                    value={value}
-                    onChange={(e) => handleChange(key, e.target.value)}
-                    disabled={key === 'id' && !isCreate}
-                    placeholder={`Enter ${key}`}
-                  />
-                </div>
-              ))}
+                )
+              })}
+          </div>
 
-              {isCreate && (
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={handleAddField}
-                  className='w-full'
-                >
-                  Add Field
-                </Button>
-              )}
-            </div>
-          </ScrollArea>
-
-          <DialogFooter className='mt-4 flex-shrink-0'>
-            <Button type='button' variant='outline' onClick={onClose}>
+          <SheetFooter className='flex-row gap-2 pt-4'>
+            <Button type='button' variant='outline' onClick={onClose} className='flex-1'>
               Cancel
             </Button>
-            <Button type='submit' disabled={isLoading}>
+            <Button type='submit' disabled={isLoading} className='flex-1'>
               {isLoading
                 ? 'Saving...'
                 : isCreate
                   ? 'Create'
                   : 'Update'}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }

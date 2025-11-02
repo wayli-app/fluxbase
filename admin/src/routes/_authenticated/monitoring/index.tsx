@@ -257,8 +257,8 @@ function MonitoringPage() {
                     <div key={name} className='flex justify-between items-center'>
                       <span className='text-sm capitalize'>{name}</span>
                       <div className='flex items-center gap-2'>
-                        {getStatusBadge(status.status)}
                         {status.latency_ms !== undefined && <span className='text-xs text-muted-foreground'>{status.latency_ms}ms</span>}
+                        {getStatusBadge(status.status)}
                       </div>
                     </div>
                   ))}

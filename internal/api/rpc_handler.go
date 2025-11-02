@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -21,6 +22,41 @@ type RPCHandler struct {
 // NewRPCHandler creates a new RPC handler
 func NewRPCHandler(db *database.Connection) *RPCHandler {
 	return &RPCHandler{db: db}
+}
+
+// convertBytesToValue converts byte arrays to appropriate types
+// Handles UUID (16 bytes), and falls back to string for other bytea
+func convertBytesToValue(bytes []byte) interface{} {
+	// Check if it's a UUID (exactly 16 bytes)
+	if len(bytes) == 16 {
+		// Format as UUID string: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+		uuid := fmt.Sprintf("%x-%x-%x-%x-%x",
+			bytes[0:4],
+			bytes[4:6],
+			bytes[6:8],
+			bytes[8:10],
+			bytes[10:16])
+		return uuid
+	}
+
+	// For other byte arrays, check if it's valid UTF-8
+	str := string(bytes)
+	if isValidUTF8(str) {
+		return str
+	}
+
+	// If not valid UTF-8, return as hex string
+	return "0x" + hex.EncodeToString(bytes)
+}
+
+// isValidUTF8 checks if a string contains valid UTF-8
+func isValidUTF8(s string) bool {
+	for _, r := range s {
+		if r == '\ufffd' {
+			return false
+		}
+	}
+	return true
 }
 
 // RegisterRoutes registers all RPC routes based on database functions
@@ -158,7 +194,7 @@ func (h *RPCHandler) makeFunctionHandler(fn database.FunctionInfo) fiber.Handler
 			})
 		}
 
-		log.Debug().
+		log.Info().
 			Str("function", fmt.Sprintf("%s.%s", fn.Schema, fn.Name)).
 			Str("query", query).
 			Interface("args", args).
@@ -183,6 +219,18 @@ func (h *RPCHandler) makeFunctionHandler(fn database.FunctionInfo) fiber.Handler
 					values, err := rows.Values()
 					if err != nil {
 						return err
+					}
+
+					// Convert byte arrays to appropriate types (UUID, string, etc.)
+					for i, val := range values {
+						if bytes, ok := val.([]byte); ok {
+							values[i] = convertBytesToValue(bytes)
+						} else if uuidArray, ok := val.([16]uint8); ok {
+							// Convert [16]uint8 array to []byte slice
+							bytes := make([]byte, 16)
+							copy(bytes, uuidArray[:])
+							values[i] = convertBytesToValue(bytes)
+						}
 					}
 
 					// If function returns single column, return value directly
@@ -220,6 +268,17 @@ func (h *RPCHandler) makeFunctionHandler(fn database.FunctionInfo) fiber.Handler
 				if err := row.Scan(&result); err != nil {
 					log.Error().Err(err).Str("function", fn.Name).Msg("Failed to execute function")
 					return err
+				}
+
+				// Convert byte arrays to appropriate types (UUID, bytea, etc.)
+				// Handle both []byte (slice) and [16]uint8 (fixed array for UUIDs)
+				if bytes, ok := result.([]byte); ok {
+					result = convertBytesToValue(bytes)
+				} else if uuidArray, ok := result.([16]uint8); ok {
+					// Convert [16]uint8 array to []byte slice
+					bytes := make([]byte, 16)
+					copy(bytes, uuidArray[:])
+					result = convertBytesToValue(bytes)
 				}
 
 				// Try to parse as JSON if it's a composite type

@@ -17,6 +17,7 @@ export function Tables() {
   const navigate = route.useNavigate()
   const search = route.useSearch()
   const selectedTable = search.table
+  const selectedSchema = search.schema || 'public'
 
   // Auto-select first table if none selected
   useEffect(() => {
@@ -28,6 +29,12 @@ export function Tables() {
   const handleTableSelect = (table: string) => {
     navigate({
       search: (prev) => ({ ...prev, table, page: 1 }),
+    })
+  }
+
+  const handleSchemaChange = (schema: string) => {
+    navigate({
+      search: (prev) => ({ ...prev, schema, table: undefined, page: 1 }),
     })
   }
 
@@ -49,12 +56,14 @@ export function Tables() {
         <aside className='w-64 flex-shrink-0'>
           <TableSelector
             selectedTable={selectedTable}
+            selectedSchema={selectedSchema}
             onTableSelect={handleTableSelect}
+            onSchemaChange={handleSchemaChange}
           />
         </aside>
         <main className='flex-1 overflow-auto'>
           {selectedTable ? (
-            <TableViewer tableName={selectedTable} />
+            <TableViewer tableName={selectedTable} schema={selectedSchema} />
           ) : (
             <div className='flex h-full items-center justify-center'>
               <p className='text-muted-foreground'>

@@ -3,17 +3,21 @@
 ## 🚀 Get Started in 3 Steps
 
 ### 1. Open in Container
+
 ```
 VS Code → Reopen in Container
 ```
+
 Wait 5-10 minutes for first build (subsequent starts: ~30 seconds)
 
 ### 2. Verify Setup
+
 ```bash
 bash .devcontainer/test-setup.sh
 ```
 
 ### 3. Start Developing
+
 ```bash
 make dev  # Start with hot-reload
 ```
@@ -53,12 +57,12 @@ make help             # Show all commands
 
 ## 🌐 Service URLs
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Fluxbase API | http://localhost:8080 | - |
-| pgAdmin | http://localhost:5050 | dev@fluxbase.local / dev |
-| MailHog | http://localhost:8025 | - |
-| Documentation | http://localhost:3000 | - |
+| Service       | URL                   | Credentials               |
+| ------------- | --------------------- | ------------------------- |
+| Fluxbase API  | http://localhost:8080 | -                         |
+| pgAdmin       | http://localhost:5050 | support@fluxbase.eu / dev |
+| MailHog       | http://localhost:8025 | -                         |
+| Documentation | http://localhost:3000 | -                         |
 
 ## 🗄️ Database
 
@@ -70,10 +74,12 @@ psql -h postgres -U postgres -d fluxbase_dev
 ```
 
 **Databases**:
+
 - `fluxbase_dev` - Development
 - `fluxbase_test` - Testing
 
 **Credentials**:
+
 - Host: `postgres`
 - User: `postgres`
 - Password: `postgres`
@@ -81,28 +87,35 @@ psql -h postgres -U postgres -d fluxbase_dev
 ## 🛠️ Installed Tools
 
 ### Go
+
 - gopls, dlv, golangci-lint, air, migrate, swag, mockery, staticcheck
 
 ### Node.js
+
 - typescript, eslint, prettier, tsx, nodemon
 
 ### Testing
+
 - k6 (load testing), gotestsum, ginkgo
 
 ### Database
+
 - psql, redis-cli, pgAdmin
 
 ### Utilities
+
 - git, gh, docker, make, jq, httpie, tree
 
 ## 🎨 VS Code Extensions
 
 ### Essential
+
 - **Claude Code** - AI assistant
 - **Go** - Full Go support
 - **SQLTools** - Database management
 
 ### Useful Shortcuts
+
 - `Ctrl+` ` - Toggle terminal
 - `F5` - Start debugging
 - `Ctrl+Shift+P` - Command palette
@@ -131,6 +144,7 @@ fluxbase/
 ## 🎯 Current Sprint: Authentication
 
 Next tasks from `TODO.md`:
+
 1. Implement JWT token utilities
 2. Create user registration endpoint
 3. Create login endpoint
@@ -151,6 +165,7 @@ See `TODO.md` and `IMPLEMENTATION_PLAN.md` for details.
 ## 🐛 Quick Troubleshooting
 
 ### Container Issues
+
 ```bash
 # Rebuild
 F1 → "Dev Containers: Rebuild Container"
@@ -160,6 +175,7 @@ docker-compose logs -f
 ```
 
 ### Database Issues
+
 ```bash
 # Test connection
 pg_isready -h postgres -U postgres
@@ -169,6 +185,7 @@ docker logs fluxbase-postgres-dev
 ```
 
 ### Go Issues
+
 ```bash
 # Reinstall dependencies
 go mod download
@@ -191,6 +208,7 @@ go build cmd/fluxbase/main.go
 ## ✅ Health Check
 
 Run this to verify everything:
+
 ```bash
 bash .devcontainer/test-setup.sh
 ```
@@ -200,6 +218,7 @@ Should show all green checkmarks ✓
 ## 🎉 You're Ready!
 
 Start building:
+
 ```bash
 make dev
 ```

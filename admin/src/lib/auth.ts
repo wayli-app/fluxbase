@@ -23,7 +23,8 @@ export interface TokenPair {
 // Get access token from localStorage
 export function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem(ACCESS_TOKEN_KEY)
+  // Check both new key and legacy key for backwards compatibility
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem('access_token')
 }
 
 // Get refresh token from localStorage
@@ -35,7 +36,8 @@ export function getRefreshToken(): string | null {
 // Get stored user from localStorage
 export function getStoredUser(): AdminUser | null {
   if (typeof window === 'undefined') return null
-  const userJson = localStorage.getItem(USER_KEY)
+  // Check both new key and legacy key for backwards compatibility
+  const userJson = localStorage.getItem(USER_KEY) || localStorage.getItem('user')
   if (!userJson) return null
   try {
     return JSON.parse(userJson)
@@ -58,6 +60,10 @@ export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  // Also clear legacy keys
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  localStorage.removeItem('user')
 }
 
 // Check if user is authenticated (has valid token)

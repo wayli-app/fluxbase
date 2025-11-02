@@ -10,11 +10,9 @@ import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { TopNav } from '@/components/layout/top-nav'
-import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { FluxbaseStats } from './components/fluxbase-stats'
-import { Overview } from './components/overview'
 
 export function Dashboard() {
   return (
@@ -26,7 +24,6 @@ export function Dashboard() {
           <Search />
           <ThemeSwitch />
           <ConfigDrawer />
-          <ProfileDropdown />
         </div>
       </Header>
 
@@ -54,31 +51,20 @@ export function Dashboard() {
             {/* Fluxbase System Stats */}
             <FluxbaseStats />
 
-            {/* Additional Charts */}
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
-              <Card className='col-span-1 lg:col-span-4'>
-                <CardHeader>
-                  <CardTitle>API Usage Overview</CardTitle>
-                  <CardDescription>
-                    Request volume over the last 7 days
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='ps-2'>
-                  <Overview />
-                </CardContent>
-              </Card>
-              <Card className='col-span-1 lg:col-span-3'>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>
-                    Common administrative tasks
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-2'>
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>
+                  Common administrative tasks
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
                   <div className='text-sm'>
                     <p className='text-muted-foreground mb-1'>Database</p>
                     <a
-                      href='/#/tables'
+                      href='/admin/tables'
                       className='text-primary hover:underline'
                     >
                       Browse database tables →
@@ -87,33 +73,33 @@ export function Dashboard() {
                   <div className='text-sm'>
                     <p className='text-muted-foreground mb-1'>Users</p>
                     <a
-                      href='/#/users'
+                      href='/admin/users'
                       className='text-primary hover:underline'
                     >
                       Manage user accounts →
                     </a>
                   </div>
                   <div className='text-sm'>
-                    <p className='text-muted-foreground mb-1'>API</p>
+                    <p className='text-muted-foreground mb-1'>Functions</p>
                     <a
-                      href='/#/api-explorer'
+                      href='/admin/functions'
                       className='text-primary hover:underline'
                     >
-                      Test API endpoints →
+                      Test RPC functions →
                     </a>
                   </div>
                   <div className='text-sm'>
                     <p className='text-muted-foreground mb-1'>Settings</p>
                     <a
-                      href='/#/settings'
+                      href='/admin/settings'
                       className='text-primary hover:underline'
                     >
                       Configure system settings →
                     </a>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </Main>

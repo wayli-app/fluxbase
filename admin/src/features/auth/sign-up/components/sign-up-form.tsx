@@ -15,13 +15,12 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
-import { authApi } from '@/lib/api'
-import { setTokens } from '@/lib/auth'
-import { setAuthToken } from '@/lib/fluxbase-client'
+import { dashboardAuthAPI } from '@/lib/api'
 import { toast } from 'sonner'
 
 const formSchema = z
   .object({
+    full_name: z.string().min(1, 'Please enter your full name'),
     email: z.email({
       error: (iss) =>
         iss.input === '' ? 'Please enter your email' : undefined,
@@ -29,7 +28,7 @@ const formSchema = z
     password: z
       .string()
       .min(1, 'Please enter your password')
-      .min(7, 'Password must be at least 7 characters long'),
+      .min(8, 'Password must be at least 8 characters long'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -47,6 +46,7 @@ export function SignUpForm({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      full_name: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -57,38 +57,19 @@ export function SignUpForm({
     setIsLoading(true)
 
     try {
-      const response = await authApi.signUp({
+      // Create dashboard user account
+      await dashboardAuthAPI.signup({
         email: data.email,
         password: data.password,
+        full_name: data.full_name,
       })
-
-      // Store tokens
-      setTokens(
-        {
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-          expires_in: response.expires_in,
-        },
-        {
-          id: response.user.id,
-          email: response.user.email,
-          role: response.user.role,
-          email_verified: response.user.email_verified,
-          created_at: response.user.created_at,
-          updated_at: response.user.updated_at,
-          metadata: response.user.metadata,
-        }
-      )
-
-      // Set token in Fluxbase SDK
-      setAuthToken(response.access_token)
 
       toast.success('Account created!', {
-        description: 'Welcome to Fluxbase!',
+        description: 'Please log in with your credentials.',
       })
 
-      // Redirect to dashboard
-      navigate({ to: '/' })
+      // Redirect to login page
+      navigate({ to: '/login' })
     } catch (error: any) {
       console.error('Sign up error:', error)
       const errorMessage = error.response?.data?.error || 'Failed to create account'
@@ -107,6 +88,19 @@ export function SignUpForm({
         className={cn('grid gap-3', className)}
         {...props}
       >
+        <FormField
+          control={form.control}
+          name='full_name'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Full Name</FormLabel>
+              <FormControl>
+                <Input placeholder='John Doe' {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name='email'

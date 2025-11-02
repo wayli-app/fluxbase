@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Database } from 'lucide-react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Database, MoreVertical, Pencil, Trash2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -12,18 +12,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { databaseApi } from '@/lib/api'
+import { toast } from 'sonner'
 
 interface TableSelectorProps {
   selectedTable?: string
+  selectedSchema: string
   onTableSelect: (table: string) => void
+  onSchemaChange: (schema: string) => void
 }
 
 export function TableSelector({
   selectedTable,
+  selectedSchema,
   onTableSelect,
+  onSchemaChange,
 }: TableSelectorProps) {
-  const [selectedSchema, setSelectedSchema] = useState<string>('public')
+  const queryClient = useQueryClient()
+  const [showCreateSchema, setShowCreateSchema] = useState(false)
+  const [newSchemaName, setNewSchemaName] = useState('')
+  const [showCreateTable, setShowCreateTable] = useState(false)
+  const [newTableName, setNewTableName] = useState('')
+  const [newTableSchema, setNewTableSchema] = useState(selectedSchema)
+  const [columns, setColumns] = useState<Array<{
+    name: string
+    type: string
+    nullable: boolean
+    primaryKey: boolean
+    defaultValue: string
+  }>>([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
 
   const { data: schemas, isLoading: schemasLoading } = useQuery({
     queryKey: ['schemas'],
@@ -31,8 +65,66 @@ export function TableSelector({
   })
 
   const { data: tables, isLoading: tablesLoading } = useQuery({
-    queryKey: ['tables'],
-    queryFn: databaseApi.getTables,
+    queryKey: ['tables', selectedSchema],
+    queryFn: () => databaseApi.getTables(selectedSchema),
+    staleTime: 0, // Always refetch when component mounts
+    refetchOnMount: 'always', // Force refetch on mount
+  })
+
+  // Create Schema Mutation
+  const createSchemaMutation = useMutation({
+    mutationFn: (name: string) => databaseApi.createSchema(name),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['schemas'] })
+      setShowCreateSchema(false)
+      setNewSchemaName('')
+      onSchemaChange(data.schema)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to create schema')
+    },
+  })
+
+  // Create Table Mutation
+  const createTableMutation = useMutation({
+    mutationFn: (data: {
+      schema: string
+      name: string
+      columns: Array<{
+        name: string
+        type: string
+        nullable: boolean
+        primaryKey: boolean
+        defaultValue: string
+      }>
+    }) => databaseApi.createTable(data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      // Invalidate queries for the affected schema
+      queryClient.invalidateQueries({ queryKey: ['tables', data.schema] })
+      setShowCreateTable(false)
+      setNewTableName('')
+      setColumns([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
+      onTableSelect(`${data.schema}.${data.table}`)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to create table')
+    },
+  })
+
+  // Delete Table Mutation
+  const deleteTableMutation = useMutation({
+    mutationFn: ({ schema, table }: { schema: string; table: string }) =>
+      databaseApi.deleteTable(schema, table),
+    onSuccess: (data, variables) => {
+      toast.success(data.message)
+      // Invalidate queries for the affected schema
+      queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete table')
+    },
   })
 
   const isLoading = schemasLoading || tablesLoading
@@ -49,21 +141,11 @@ export function TableSelector({
     )
   }
 
-  // Group tables by schema
-  const groupedTables = (tables || []).reduce(
-    (acc, table) => {
-      const [schema, name] = table.includes('.')
-        ? table.split('.')
-        : ['public', table]
-      if (!acc[schema]) acc[schema] = []
-      acc[schema].push({ full: table, name })
-      return acc
-    },
-    {} as Record<string, Array<{ full: string; name: string }>>
-  )
-
-  // Show only selected schema (no "all" option)
-  const filteredTables = groupedTables[selectedSchema] || []
+  // Map tables to display format (already filtered by schema in API call)
+  const filteredTables = (tables || []).map(table => ({
+    full: `${table.schema}.${table.name}`,
+    name: table.name
+  }))
 
   return (
     <div className='flex h-full flex-col border-r'>
@@ -72,38 +154,338 @@ export function TableSelector({
           <Database className='size-5' />
           Tables
         </h2>
-        <Select value={selectedSchema} onValueChange={setSelectedSchema}>
-          <SelectTrigger className='w-full'>
-            <SelectValue placeholder='Select schema' />
-          </SelectTrigger>
-          <SelectContent>
-            {(schemas || []).map((schema) => (
-              <SelectItem key={schema} value={schema}>
-                {schema}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className='flex gap-2'>
+          <Select value={selectedSchema} onValueChange={onSchemaChange}>
+            <SelectTrigger className='flex-1'>
+              <SelectValue placeholder='Select schema' />
+            </SelectTrigger>
+            <SelectContent>
+              {(schemas || []).map((schema) => (
+                <SelectItem key={schema} value={schema}>
+                  {schema}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant='outline'
+            size='icon'
+            onClick={() => setShowCreateSchema(true)}
+            title='Create Schema'
+          >
+            <Plus className='h-4 w-4' />
+          </Button>
+        </div>
       </div>
       <ScrollArea className='flex-1'>
         <div className='p-2'>
+          <Button
+            variant='outline'
+            className='w-full mb-2'
+            onClick={() => {
+              setNewTableSchema(selectedSchema)
+              setShowCreateTable(true)
+            }}
+          >
+            <Plus className='mr-2 h-4 w-4' />
+            Create Table
+          </Button>
           <div className='space-y-1'>
             {filteredTables.map(({ full, name }) => (
-              <Button
-                key={full}
-                variant={selectedTable === full ? 'secondary' : 'ghost'}
-                className={cn(
-                  'w-full justify-start font-normal',
-                  selectedTable === full && 'bg-secondary'
-                )}
-                onClick={() => onTableSelect(full)}
-              >
-                {name}
-              </Button>
+              <div key={full} className='group relative flex items-center'>
+                <Button
+                  variant={selectedTable === full ? 'secondary' : 'ghost'}
+                  className={cn(
+                    'flex-1 justify-start font-normal pr-8',
+                    selectedTable === full && 'bg-secondary'
+                  )}
+                  onClick={() => onTableSelect(full)}
+                >
+                  {name}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='absolute right-1 h-7 w-7 p-0 opacity-0 group-hover:opacity-100'
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className='h-4 w-4' />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toast.info('Table editing UI coming soon')
+                      }}
+                    >
+                      <Pencil className='mr-2 h-4 w-4' />
+                      Edit Table
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className='text-destructive'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const [schema, table] = full.split('.')
+                        if (confirm(`Are you sure you want to delete table "${full}"? This action cannot be undone.`)) {
+                          deleteTableMutation.mutate({ schema, table })
+                        }
+                      }}
+                    >
+                      <Trash2 className='mr-2 h-4 w-4' />
+                      Delete Table
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))}
           </div>
         </div>
       </ScrollArea>
+
+      {/* Create Schema Dialog */}
+      <Dialog open={showCreateSchema} onOpenChange={setShowCreateSchema}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Schema</DialogTitle>
+            <DialogDescription>
+              Create a new database schema to organize your tables.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <div className='grid gap-2'>
+              <Label htmlFor='schemaName'>Schema Name</Label>
+              <Input
+                id='schemaName'
+                placeholder='e.g., my_schema'
+                value={newSchemaName}
+                onChange={(e) => setNewSchemaName(e.target.value)}
+                autoFocus
+              />
+              <p className='text-xs text-muted-foreground'>
+                Must start with a letter and contain only letters, numbers, and underscores.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowCreateSchema(false)
+                setNewSchemaName('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newSchemaName.trim()) {
+                  toast.error('Please enter a schema name')
+                  return
+                }
+                createSchemaMutation.mutate(newSchemaName)
+              }}
+              disabled={createSchemaMutation.isPending}
+            >
+              {createSchemaMutation.isPending ? 'Creating...' : 'Create Schema'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Table Dialog */}
+      <Dialog open={showCreateTable} onOpenChange={setShowCreateTable}>
+        <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Create New Table</DialogTitle>
+            <DialogDescription>
+              Define a new table with columns, types, and constraints.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='tableName'>Table Name</Label>
+                <Input
+                  id='tableName'
+                  placeholder='e.g., users'
+                  value={newTableName}
+                  onChange={(e) => setNewTableName(e.target.value)}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='tableSchema'>Schema</Label>
+                <Select value={newTableSchema} onValueChange={setNewTableSchema}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(schemas || []).map((schema) => (
+                      <SelectItem key={schema} value={schema}>
+                        {schema}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label>Columns</Label>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setColumns([
+                      ...columns,
+                      { name: '', type: 'text', nullable: true, primaryKey: false, defaultValue: '' }
+                    ])
+                  }}
+                >
+                  <Plus className='mr-1 h-3 w-3' />
+                  Add Column
+                </Button>
+              </div>
+
+              <div className='space-y-2 border rounded-md p-3'>
+                {columns.map((column, index) => (
+                  <div key={index} className='grid grid-cols-12 gap-2 items-start'>
+                    <Input
+                      className='col-span-3'
+                      placeholder='Column name'
+                      value={column.name}
+                      onChange={(e) => {
+                        const newColumns = [...columns]
+                        newColumns[index].name = e.target.value
+                        setColumns(newColumns)
+                      }}
+                    />
+                    <Select
+                      value={column.type}
+                      onValueChange={(value) => {
+                        const newColumns = [...columns]
+                        newColumns[index].type = value
+                        setColumns(newColumns)
+                      }}
+                    >
+                      <SelectTrigger className='col-span-2'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='text'>Text</SelectItem>
+                        <SelectItem value='varchar'>Varchar</SelectItem>
+                        <SelectItem value='integer'>Integer</SelectItem>
+                        <SelectItem value='bigint'>Bigint</SelectItem>
+                        <SelectItem value='uuid'>UUID</SelectItem>
+                        <SelectItem value='boolean'>Boolean</SelectItem>
+                        <SelectItem value='timestamp'>Timestamp</SelectItem>
+                        <SelectItem value='timestamptz'>Timestamptz</SelectItem>
+                        <SelectItem value='date'>Date</SelectItem>
+                        <SelectItem value='jsonb'>JSONB</SelectItem>
+                        <SelectItem value='numeric'>Numeric</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className='col-span-3'
+                      placeholder='Default value'
+                      value={column.defaultValue}
+                      onChange={(e) => {
+                        const newColumns = [...columns]
+                        newColumns[index].defaultValue = e.target.value
+                        setColumns(newColumns)
+                      }}
+                    />
+                    <div className='col-span-2 flex items-center gap-2'>
+                      <label className='flex items-center gap-1 text-xs'>
+                        <input
+                          type='checkbox'
+                          checked={column.primaryKey}
+                          onChange={(e) => {
+                            const newColumns = [...columns]
+                            newColumns[index].primaryKey = e.target.checked
+                            if (e.target.checked) {
+                              newColumns[index].nullable = false
+                            }
+                            setColumns(newColumns)
+                          }}
+                        />
+                        PK
+                      </label>
+                      <label className='flex items-center gap-1 text-xs'>
+                        <input
+                          type='checkbox'
+                          checked={column.nullable}
+                          disabled={column.primaryKey}
+                          onChange={(e) => {
+                            const newColumns = [...columns]
+                            newColumns[index].nullable = e.target.checked
+                            setColumns(newColumns)
+                          }}
+                        />
+                        NULL
+                      </label>
+                    </div>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className='col-span-2 h-8'
+                      onClick={() => {
+                        setColumns(columns.filter((_, i) => i !== index))
+                      }}
+                      disabled={columns.length === 1}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowCreateTable(false)
+                setNewTableName('')
+                setColumns([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newTableName.trim()) {
+                  toast.error('Please enter a table name')
+                  return
+                }
+                if (columns.length === 0) {
+                  toast.error('Please add at least one column')
+                  return
+                }
+                const hasInvalidColumn = columns.some(c => !c.name.trim())
+                if (hasInvalidColumn) {
+                  toast.error('All columns must have a name')
+                  return
+                }
+                createTableMutation.mutate({
+                  schema: newTableSchema,
+                  name: newTableName,
+                  columns
+                })
+              }}
+              disabled={createTableMutation.isPending}
+            >
+              {createTableMutation.isPending ? 'Creating...' : 'Create Table'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
