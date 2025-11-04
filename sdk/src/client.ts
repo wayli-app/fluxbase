@@ -36,6 +36,8 @@ import { FluxbaseFetch } from './fetch'
 import { FluxbaseAuth } from './auth'
 import { FluxbaseRealtime } from './realtime'
 import { FluxbaseStorage } from './storage'
+import { FluxbaseAdmin } from './admin'
+import { FluxbaseManagement } from './management'
 import { QueryBuilder } from './query-builder'
 import type { FluxbaseClientOptions } from './types'
 
@@ -55,6 +57,12 @@ export class FluxbaseClient {
 
   /** Storage module for file operations */
   public storage: FluxbaseStorage
+
+  /** Admin module for instance management (requires admin authentication) */
+  public admin: FluxbaseAdmin
+
+  /** Management module for API keys, webhooks, and invitations */
+  public management: FluxbaseManagement
 
   /**
    * Create a new Fluxbase client instance
@@ -85,6 +93,12 @@ export class FluxbaseClient {
 
     // Initialize storage module
     this.storage = new FluxbaseStorage(this.fetch)
+
+    // Initialize admin module
+    this.admin = new FluxbaseAdmin(this.fetch)
+
+    // Initialize management module
+    this.management = new FluxbaseManagement(this.fetch)
 
     // Subscribe to auth changes to update realtime token
     this.setupAuthSync()

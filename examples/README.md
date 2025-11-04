@@ -21,6 +21,7 @@ Complete, production-ready applications:
 | [Todo App](./todo-app/) | React + TypeScript | CRUD, RLS, Auth | Beginner |
 | [Blog Platform](./blog-platform/) | Next.js + TypeScript | SSR, Auth, Storage | Intermediate |
 | [Chat Application](./chat-app/) | React + TypeScript | Realtime, Presence | Intermediate |
+| [Admin Setup](./admin-setup/) | TypeScript + SDK | All Admin Features | Advanced |
 
 ## 🚀 Quick Start
 
@@ -130,6 +131,34 @@ A real-time chat application featuring:
 
 **Time to Complete**: ~2 hours
 
+### 4. Admin Setup
+
+**Description**: Complete admin workflow example
+
+A comprehensive example demonstrating all advanced admin features:
+- ✅ Admin authentication and token management
+- ✅ OAuth provider configuration (GitHub, Google, custom)
+- ✅ Authentication settings (password policies, sessions)
+- ✅ Application settings (features, rate limiting)
+- ✅ Multi-tenant database creation with DDL
+- ✅ API key generation for backend services
+- ✅ Webhook setup for database events
+- ✅ Custom configuration storage
+- ✅ User impersonation for debugging
+
+**Tech Stack**:
+- TypeScript
+- @fluxbase/sdk
+- Node.js 18+
+
+**Time to Complete**: ~30 minutes
+
+**Use Cases**:
+- Setting up a new Fluxbase instance
+- Configuring multi-tenant SaaS architecture
+- Understanding all admin SDK features
+- Production environment setup
+
 ## 🎓 Learning Path
 
 ### Beginners
@@ -144,8 +173,9 @@ A real-time chat application featuring:
 
 ### Advanced
 1. Create **Chat Application** - Master realtime, presence, and state management
-2. Add features (voice chat, video calls, etc.)
-3. Deploy to production
+2. Run **Admin Setup** - Learn all admin features and multi-tenancy
+3. Add features (voice chat, video calls, etc.)
+4. Deploy to production
 
 ## 🔧 Customization
 
@@ -236,7 +266,7 @@ All examples are MIT licensed. See [LICENSE](../LICENSE) for details.
 
 ---
 
-**Examples**: 3 complete applications
-**Total Lines of Code**: 5,000+
-**Time Investment**: 10-20 hours
+**Examples**: 4 complete applications
+**Total Lines of Code**: 6,000+
+**Time Investment**: 12-24 hours
 **Production Ready**: ✅ Yes

@@ -84,6 +84,16 @@ export {
   useRPCBatch,
 } from './use-rpc'
 
+// Admin hooks
+export { useAdminAuth } from './use-admin-auth'
+export { useUsers } from './use-users'
+export { useAPIKeys } from './use-api-keys'
+export {
+  useWebhooks,
+  useAppSettings,
+  useSystemSettings,
+} from './use-admin-hooks'
+
 // Re-export types from SDK
 export type {
   FluxbaseClient,
@@ -94,4 +104,10 @@ export type {
   PostgrestResponse,
   RealtimeChangePayload,
   StorageObject,
+  AdminUser,
+  EnrichedUser,
+  APIKey,
+  Webhook,
+  AppSettings,
+  SystemSetting,
 } from '@fluxbase/sdk'

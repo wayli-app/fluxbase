@@ -14,6 +14,15 @@ import type {
   TwoFactorStatusResponse,
   TwoFactorVerifyRequest,
   SignInWith2FAResponse,
+  PasswordResetResponse,
+  VerifyResetTokenResponse,
+  ResetPasswordResponse,
+  MagicLinkOptions,
+  MagicLinkResponse,
+  AnonymousSignInResponse,
+  OAuthProvidersResponse,
+  OAuthOptions,
+  OAuthUrlResponse,
 } from './types'
 
 const AUTH_STORAGE_KEY = 'fluxbase.auth.session'
@@ -243,6 +252,148 @@ export class FluxbaseAuth {
 
     this.setSession(session)
     return session
+  }
+
+  /**
+   * Send password reset email
+   * Sends a password reset link to the provided email address
+   * @param email - Email address to send reset link to
+   */
+  async sendPasswordReset(email: string): Promise<PasswordResetResponse> {
+    return await this.fetch.post<PasswordResetResponse>('/api/v1/auth/password/reset', { email })
+  }
+
+  /**
+   * Verify password reset token
+   * Check if a password reset token is valid before allowing password reset
+   * @param token - Password reset token to verify
+   */
+  async verifyResetToken(token: string): Promise<VerifyResetTokenResponse> {
+    return await this.fetch.post<VerifyResetTokenResponse>('/api/v1/auth/password/reset/verify', {
+      token,
+    })
+  }
+
+  /**
+   * Reset password with token
+   * Complete the password reset process with a valid token
+   * @param token - Password reset token
+   * @param newPassword - New password to set
+   */
+  async resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
+    return await this.fetch.post<ResetPasswordResponse>('/api/v1/auth/password/reset/confirm', {
+      token,
+      new_password: newPassword,
+    })
+  }
+
+  /**
+   * Send magic link for passwordless authentication
+   * @param email - Email address to send magic link to
+   * @param options - Optional configuration for magic link
+   */
+  async sendMagicLink(email: string, options?: MagicLinkOptions): Promise<MagicLinkResponse> {
+    return await this.fetch.post<MagicLinkResponse>('/api/v1/auth/magiclink', {
+      email,
+      redirect_to: options?.redirect_to,
+    })
+  }
+
+  /**
+   * Verify magic link token and sign in
+   * @param token - Magic link token from email
+   */
+  async verifyMagicLink(token: string): Promise<AuthSession> {
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/magiclink/verify', {
+      token,
+    })
+
+    const session: AuthSession = {
+      ...response,
+      expires_at: Date.now() + response.expires_in * 1000,
+    }
+
+    this.setSession(session)
+    return session
+  }
+
+  /**
+   * Sign in anonymously
+   * Creates a temporary anonymous user session
+   */
+  async signInAnonymously(): Promise<AuthSession> {
+    const response = await this.fetch.post<AnonymousSignInResponse>('/api/v1/auth/signin/anonymous')
+
+    const session: AuthSession = {
+      ...response,
+      expires_at: Date.now() + response.expires_in * 1000,
+    }
+
+    this.setSession(session)
+    return session
+  }
+
+  /**
+   * Get list of enabled OAuth providers
+   */
+  async getOAuthProviders(): Promise<OAuthProvidersResponse> {
+    return await this.fetch.get<OAuthProvidersResponse>('/api/v1/auth/oauth/providers')
+  }
+
+  /**
+   * Get OAuth authorization URL for a provider
+   * @param provider - OAuth provider name (e.g., 'google', 'github')
+   * @param options - Optional OAuth configuration
+   */
+  async getOAuthUrl(provider: string, options?: OAuthOptions): Promise<OAuthUrlResponse> {
+    const params = new URLSearchParams()
+    if (options?.redirect_to) {
+      params.append('redirect_to', options.redirect_to)
+    }
+    if (options?.scopes && options.scopes.length > 0) {
+      params.append('scopes', options.scopes.join(','))
+    }
+
+    const queryString = params.toString()
+    const url = queryString
+      ? `/api/v1/auth/oauth/${provider}/authorize?${queryString}`
+      : `/api/v1/auth/oauth/${provider}/authorize`
+
+    const response = await this.fetch.get<OAuthUrlResponse>(url)
+    return response
+  }
+
+  /**
+   * Exchange OAuth authorization code for session
+   * This is typically called in your OAuth callback handler
+   * @param code - Authorization code from OAuth callback
+   */
+  async exchangeCodeForSession(code: string): Promise<AuthSession> {
+    const response = await this.fetch.post<AuthResponse>('/api/v1/auth/oauth/callback', { code })
+
+    const session: AuthSession = {
+      ...response,
+      expires_at: Date.now() + response.expires_in * 1000,
+    }
+
+    this.setSession(session)
+    return session
+  }
+
+  /**
+   * Convenience method to initiate OAuth sign-in
+   * Redirects the user to the OAuth provider's authorization page
+   * @param provider - OAuth provider name (e.g., 'google', 'github')
+   * @param options - Optional OAuth configuration
+   */
+  async signInWithOAuth(provider: string, options?: OAuthOptions): Promise<void> {
+    const { url } = await this.getOAuthUrl(provider, options)
+
+    if (typeof window !== 'undefined') {
+      window.location.href = url
+    } else {
+      throw new Error('signInWithOAuth can only be called in a browser environment')
+    }
   }
 
   /**

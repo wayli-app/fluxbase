@@ -9,8 +9,12 @@ The authentication system includes:
 - **User Registration** - Create new user accounts with email and password
 - **Login/Logout** - Secure authentication with JWT tokens
 - **Token Refresh** - Automatic token renewal without re-authentication
+- **Password Reset** - Secure password reset flow with email verification
+- **Magic Link (Passwordless)** - Sign in via email link without password
+- **Anonymous Authentication** - Guest access without account creation
+- **OAuth / Social Login** - Sign in with Google, GitHub, Microsoft, and more
+- **Two-Factor Authentication (2FA)** - TOTP-based multi-factor authentication
 - **Password Management** - Secure password hashing with bcrypt
-- **Email Verification** - Verify user email addresses
 - **Session Management** - Track active user sessions
 
 ## Quick Start
@@ -296,15 +300,225 @@ Authorization: Bearer {access_token}
 
 ---
 
-### POST /api/v1/auth/magic-link
+### POST /api/v1/auth/password/reset
 
-Request a magic link for passwordless authentication (Coming Soon).
+Request a password reset email.
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "If an account with that email exists, a password reset link has been sent"
+}
+```
 
 ---
 
-### GET /api/v1/auth/verify
+### POST /api/v1/auth/password/reset/verify
 
-Verify email address via verification link (Coming Soon).
+Verify a password reset token before allowing password reset.
+
+**Request Body:**
+
+```json
+{
+  "token": "reset_token"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "valid": true,
+  "message": "Token is valid"
+}
+```
+
+**Errors:**
+
+- `400 Bad Request` - Invalid or expired token
+
+---
+
+### POST /api/v1/auth/password/reset/confirm
+
+Complete the password reset with a valid token.
+
+**Request Body:**
+
+```json
+{
+  "token": "reset_token",
+  "new_password": "NewSecurePassword123"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "Password has been successfully reset"
+}
+```
+
+**Errors:**
+
+- `400 Bad Request` - Invalid token or weak password
+
+---
+
+### POST /api/v1/auth/magiclink
+
+Request a magic link for passwordless authentication.
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "redirect_to": "https://app.example.com/dashboard" // optional
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "message": "Magic link sent to your email"
+}
+```
+
+---
+
+### POST /api/v1/auth/magiclink/verify
+
+Verify a magic link token and sign in.
+
+**Request Body:**
+
+```json
+{
+  "token": "magic_link_token"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {...},
+  "access_token": "jwt_token",
+  "refresh_token": "jwt_token",
+  "expires_in": 3600
+}
+```
+
+**Errors:**
+
+- `400 Bad Request` - Invalid or expired token
+
+---
+
+### POST /api/v1/auth/signin/anonymous
+
+Sign in anonymously without credentials.
+
+**Request Body:** (empty)
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {
+    "id": "anon-uuid",
+    "email": "anonymous@fluxbase.local",
+    "role": "anonymous",
+    ...
+  },
+  "access_token": "jwt_token",
+  "refresh_token": "jwt_token",
+  "expires_in": 3600
+}
+```
+
+---
+
+### GET /api/v1/auth/oauth/providers
+
+Get list of enabled OAuth providers.
+
+**Response (200 OK):**
+
+```json
+{
+  "providers": [
+    {
+      "id": "google",
+      "name": "Google",
+      "enabled": true
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "enabled": true
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/v1/auth/oauth/:provider/authorize
+
+Get OAuth authorization URL for a specific provider.
+
+**Query Parameters:**
+
+- `redirect_to` (optional) - URL to redirect after OAuth completion
+- `scopes` (optional) - Comma-separated list of scopes
+
+**Response (200 OK):**
+
+```json
+{
+  "url": "https://accounts.google.com/o/oauth2/v2/auth?...",
+  "provider": "google"
+}
+```
+
+---
+
+### POST /api/v1/auth/oauth/callback
+
+Exchange OAuth authorization code for session.
+
+**Request Body:**
+
+```json
+{
+  "code": "authorization_code"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "user": {...},
+  "access_token": "jwt_token",
+  "refresh_token": "jwt_token",
+  "expires_in": 3600
+}
+```
 
 ## Configuration
 
@@ -426,27 +640,62 @@ const client = new FluxbaseClient({
 });
 
 // Sign up
-const { user, session } = await client.auth.signUp({
+const session = await client.auth.signUp({
   email: "user@example.com",
   password: "SecurePassword123",
 });
 
 // Sign in
-const { user, session } = await client.auth.signIn({
+const session = await client.auth.signIn({
   email: "user@example.com",
   password: "SecurePassword123",
 });
 
 // Get current user
-const user = await client.auth.user();
+const user = await client.auth.getCurrentUser();
 
 // Sign out
 await client.auth.signOut();
 
-// Automatic token refresh
-client.auth.onAuthStateChange((event, session) => {
-  console.log(event, session);
+// Password Reset Flow
+// 1. Request password reset
+await client.auth.sendPasswordReset("user@example.com");
+
+// 2. Verify reset token (optional)
+const { valid } = await client.auth.verifyResetToken("reset-token");
+
+// 3. Reset password with token
+await client.auth.resetPassword("reset-token", "NewPassword123");
+
+// Magic Link (Passwordless)
+// 1. Send magic link
+await client.auth.sendMagicLink("user@example.com", {
+  redirect_to: "https://app.example.com/dashboard",
 });
+
+// 2. Verify magic link (after user clicks email link)
+const session = await client.auth.verifyMagicLink("magic-link-token");
+
+// Anonymous Authentication
+const anonSession = await client.auth.signInAnonymously();
+
+// OAuth Authentication
+// 1. Get list of available providers
+const { providers } = await client.auth.getOAuthProviders();
+
+// 2. Get OAuth URL (manual approach)
+const { url } = await client.auth.getOAuthUrl("google", {
+  redirect_to: "https://app.example.com/auth/callback",
+  scopes: ["email", "profile"],
+});
+
+// 3. Or use convenience method to redirect automatically
+await client.auth.signInWithOAuth("google", {
+  redirect_to: "https://app.example.com/auth/callback",
+});
+
+// 4. In your OAuth callback handler, exchange code for session
+const session = await client.auth.exchangeCodeForSession("auth-code");
 ```
 
 ### Python
@@ -505,6 +754,179 @@ client.auth.sign_out()
 - [Row Level Security](row-level-security) - Secure your data with RLS policies
 - [REST API](the REST API) - Make authenticated requests to your data
 - [Realtime](realtime features) - Subscribe to real-time database changes
+
+---
+
+## Password Reset Flow
+
+Fluxbase provides a secure password reset flow that sends a time-limited token to the user's email.
+
+### How It Works
+
+1. **User requests password reset** - User provides their email address
+2. **Email sent** - If the email exists, a reset token is sent (system doesn't reveal if email exists)
+3. **Token verification** - (Optional) Verify the token is valid before showing password form
+4. **Password reset** - User provides the token and new password
+
+### Send Password Reset Email
+
+**API:**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/password/reset \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+**SDK (TypeScript):**
+
+```typescript
+await client.auth.sendPasswordReset("user@example.com");
+```
+
+**Response:**
+
+```json
+{
+  "message": "If an account with that email exists, a password reset link has been sent"
+}
+```
+
+### Verify Reset Token (Optional)
+
+Before showing the password reset form, you can verify the token is valid:
+
+**SDK (TypeScript):**
+
+```typescript
+const { valid, message } = await client.auth.verifyResetToken(token);
+
+if (valid) {
+  // Show password reset form
+} else {
+  // Show error: token expired or invalid
+}
+```
+
+### Complete Password Reset
+
+**SDK (TypeScript):**
+
+```typescript
+try {
+  await client.auth.resetPassword(token, "NewSecurePassword123");
+  // Password reset successful, redirect to login
+} catch (error) {
+  // Handle error: invalid token or weak password
+}
+```
+
+### Example: React Password Reset Flow
+
+```tsx
+import { useState } from "react";
+import { FluxbaseClient } from "@fluxbase/client";
+
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
+
+// Step 1: Request password reset
+function RequestResetForm() {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await client.auth.sendPasswordReset(email);
+    setSent(true);
+  };
+
+  if (sent) {
+    return <p>Check your email for a password reset link.</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Your email"
+        required
+      />
+      <button type="submit">Send Reset Link</button>
+    </form>
+  );
+}
+
+// Step 2: Reset password with token
+function ResetPasswordForm({ token }: { token: string }) {
+  const [password, setPassword] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await client.auth.resetPassword(token, password);
+      setConfirmed(true);
+      // Redirect to login after 2 seconds
+      setTimeout(() => (window.location.href = "/login"), 2000);
+    } catch (error) {
+      alert("Failed to reset password. Please try again.");
+    }
+  };
+
+  if (confirmed) {
+    return <p>Password reset successful! Redirecting to login...</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="New password"
+        required
+      />
+      <button type="submit">Reset Password</button>
+    </form>
+  );
+}
+```
+
+### Configuration
+
+Configure password reset settings:
+
+```yaml
+auth:
+  password_reset:
+    enabled: true
+    token_expiry: 1h # Reset token expires after 1 hour
+    email:
+      from: "noreply@yourapp.com"
+      subject: "Reset your password"
+      template: |
+        Hi,
+
+        Click the link below to reset your password:
+        {{.ResetLink}}
+
+        This link expires in 1 hour.
+        If you didn't request this, please ignore this email.
+```
+
+### Security Considerations
+
+- **No user enumeration** - API doesn't reveal if email exists in database
+- **Time-limited tokens** - Reset tokens expire after configured time (default: 1 hour)
+- **One-time use** - Tokens can only be used once
+- **Secure token generation** - Uses cryptographically secure random token
+- **Password requirements** - New password must meet minimum requirements
+
+---
 
 ## OAuth / Social Login (SSO)
 
@@ -611,38 +1033,104 @@ auth:
 **JavaScript/TypeScript:**
 
 ```typescript
-// Initiate OAuth flow
-const { url } = await client.auth.signInWithOAuth({
-  provider: "google",
-  options: {
-    redirectTo: "http://localhost:3000/auth/callback",
-  },
-});
+import { FluxbaseClient } from "@fluxbase/client";
 
-// Redirect user to OAuth provider
-window.location.href = url;
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
-// Handle callback (in your callback page)
-const { user, session } = await client.auth.exchangeCodeForSession({
-  code: searchParams.get("code"),
-  state: searchParams.get("state"),
+// Method 1: Automatic redirect (convenience method)
+await client.auth.signInWithOAuth("google", {
+  redirect_to: "http://localhost:3000/auth/callback",
+  scopes: ["email", "profile"],
 });
+// User is automatically redirected to Google OAuth page
+
+// Method 2: Manual control over redirect
+const { url } = await client.auth.getOAuthUrl("github", {
+  redirect_to: "http://localhost:3000/auth/callback",
+  scopes: ["read:user", "user:email"],
+});
+window.location.href = url; // Manually redirect
+
+// Handle OAuth callback (in your /auth/callback page)
+// Extract code from URL query parameters
+const urlParams = new URLSearchParams(window.location.search);
+const code = urlParams.get("code");
+
+if (code) {
+  try {
+    const session = await client.auth.exchangeCodeForSession(code);
+    console.log("Logged in as:", session.user.email);
+    // Redirect to app
+    window.location.href = "/dashboard";
+  } catch (error) {
+    console.error("OAuth failed:", error);
+  }
+}
+```
+
+**React Example:**
+
+```tsx
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { FluxbaseClient } from "@fluxbase/client";
+
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
+
+// Login page
+function LoginPage() {
+  const handleGoogleLogin = async () => {
+    await client.auth.signInWithOAuth("google", {
+      redirect_to: window.location.origin + "/auth/callback",
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleGoogleLogin}>Sign in with Google</button>
+    </div>
+  );
+}
+
+// OAuth callback handler
+function OAuthCallback() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const code = searchParams.get("code");
+    if (code) {
+      client.auth
+        .exchangeCodeForSession(code)
+        .then(() => navigate("/dashboard"))
+        .catch((error) => {
+          console.error("OAuth failed:", error);
+          navigate("/login");
+        });
+    }
+  }, [searchParams, navigate]);
+
+  return <div>Completing sign in...</div>;
+}
 ```
 
 **Python:**
 
 ```python
+from fluxbase import FluxbaseClient
+
+client = FluxbaseClient(url="http://localhost:8080")
+
 # Initiate OAuth flow
-response = client.auth.sign_in_with_oauth(
+oauth_url_response = client.auth.get_oauth_url(
     provider="google",
     redirect_to="http://localhost:3000/auth/callback"
 )
-# Redirect user to response['url']
+# Redirect user to oauth_url_response['url']
 
 # Handle callback
 session = client.auth.exchange_code_for_session(
-    code=request.args.get('code'),
-    state=request.args.get('state')
+    code=request.args.get('code')
 )
 ```
 
@@ -727,34 +1215,122 @@ auth:
 **JavaScript/TypeScript:**
 
 ```typescript
-// Request magic link
-await client.auth.signInWithMagicLink({
-  email: "user@example.com",
-  options: {
-    redirectTo: "http://localhost:3000/auth/callback",
-  },
-});
+import { FluxbaseClient } from "@fluxbase/client";
 
-// User clicks link in email, gets redirected to callback
-// Extract token from URL and verify
-const { user, session } = await client.auth.verifyMagicLink({
-  token: searchParams.get("token"),
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
+
+// Step 1: Request magic link
+await client.auth.sendMagicLink("user@example.com", {
+  redirect_to: "http://localhost:3000/auth/callback",
 });
+// User receives email with magic link
+
+// Step 2: Verify magic link (in your callback handler)
+// Extract token from URL query parameters
+const urlParams = new URLSearchParams(window.location.search);
+const token = urlParams.get("token");
+
+if (token) {
+  try {
+    const session = await client.auth.verifyMagicLink(token);
+    console.log("Logged in as:", session.user.email);
+    window.location.href = "/dashboard";
+  } catch (error) {
+    console.error("Magic link verification failed:", error);
+  }
+}
+```
+
+**React Example:**
+
+```tsx
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { FluxbaseClient } from "@fluxbase/client";
+
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
+
+// Login page - request magic link
+function MagicLinkLogin() {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await client.auth.sendMagicLink(email, {
+      redirect_to: window.location.origin + "/auth/magic-link",
+    });
+    setSent(true);
+  };
+
+  if (sent) {
+    return (
+      <div>
+        <h2>Check your email</h2>
+        <p>We sent a magic link to {email}.</p>
+        <p>Click the link to sign in.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Your email"
+        required
+      />
+      <button type="submit">Send Magic Link</button>
+    </form>
+  );
+}
+
+// Magic link callback handler
+function MagicLinkCallback() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      client.auth
+        .verifyMagicLink(token)
+        .then(() => {
+          navigate("/dashboard");
+        })
+        .catch((err) => {
+          setError("Magic link is invalid or expired");
+        });
+    }
+  }, [searchParams, navigate]);
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  return <div>Verifying magic link...</div>;
+}
 ```
 
 **Python:**
 
 ```python
+from fluxbase import FluxbaseClient
+
+client = FluxbaseClient(url="http://localhost:8080")
+
 # Request magic link
-client.auth.sign_in_with_magic_link(
+client.auth.send_magic_link(
     email="user@example.com",
     redirect_to="http://localhost:3000/auth/callback"
 )
 
-# Verify magic link
-session = client.auth.verify_magic_link(
-    token=request.args.get('token')
-)
+# Verify magic link (in callback handler)
+token = request.args.get('token')
+session = client.auth.verify_magic_link(token)
 ```
 
 ### Security Considerations
@@ -772,6 +1348,165 @@ session = client.auth.verify_magic_link(
 - Tokens are validated before exchanging for session
 - Provider tokens are not stored
 - User data is fetched fresh on each OAuth login
+
+---
+
+## Anonymous Authentication
+
+Anonymous authentication allows users to access your application without creating an account. This is useful for:
+
+- Guest checkout in e-commerce
+- Trial/demo access
+- Gaming sessions
+- Shopping carts before checkout
+- Converting anonymous users to registered users later
+
+### How It Works
+
+1. **Create anonymous session** - User gets a temporary session without providing credentials
+2. **Use the app** - User can interact with the app as an anonymous user
+3. **Convert to permanent** (optional) - User can later register to keep their data
+
+### Sign In Anonymously
+
+**API:**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/signin/anonymous
+```
+
+**SDK (TypeScript):**
+
+```typescript
+const session = await client.auth.signInAnonymously();
+console.log("Anonymous user ID:", session.user.id);
+```
+
+**Response:**
+
+```json
+{
+  "user": {
+    "id": "anon-uuid",
+    "email": "anonymous@fluxbase.local",
+    "role": "anonymous",
+    "created_at": "2024-10-26T10:00:00Z"
+  },
+  "access_token": "jwt_token",
+  "refresh_token": "jwt_token",
+  "expires_in": 3600
+}
+```
+
+### React Example: Guest Checkout
+
+```tsx
+import { useState, useEffect } from "react";
+import { FluxbaseClient } from "@fluxbase/client";
+
+const client = new FluxbaseClient({ url: "http://localhost:8080" });
+
+function GuestCheckout() {
+  const [cart, setCart] = useState([]);
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    // Sign in anonymously when component mounts
+    const initAnonymousSession = async () => {
+      const anonSession = await client.auth.signInAnonymously();
+      setSession(anonSession);
+    };
+
+    // Check if user is already signed in
+    const existingSession = client.auth.getSession();
+    if (!existingSession) {
+      initAnonymousSession();
+    } else {
+      setSession(existingSession);
+    }
+  }, []);
+
+  const addToCart = async (item) => {
+    // Anonymous users can add items to cart
+    const { data } = await client
+      .from("cart_items")
+      .insert({ user_id: session.user.id, ...item });
+
+    setCart([...cart, data]);
+  };
+
+  const convertToRegisteredUser = async (email, password) => {
+    // Convert anonymous user to registered user
+    await client.auth.signUp({ email, password });
+    // Cart items will be preserved with the same user_id
+  };
+
+  return (
+    <div>
+      <h2>Shopping Cart</h2>
+      {session?.user.role === "anonymous" && (
+        <p>Sign up to save your cart!</p>
+      )}
+      {/* Cart UI */}
+    </div>
+  );
+}
+```
+
+### Converting Anonymous Users
+
+Anonymous users can be converted to permanent users by signing up with email/password or OAuth:
+
+```typescript
+// User is currently anonymous
+const anonSession = await client.auth.signInAnonymously();
+
+// Later, user decides to create an account
+// Their anonymous data can be migrated using RLS policies
+await client.auth.signUp({
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
+```
+
+### Configuration
+
+Configure anonymous authentication:
+
+```yaml
+auth:
+  anonymous:
+    enabled: true
+    session_expiry: 24h # How long anonymous sessions last
+    auto_cleanup: 30d # Delete anonymous users after 30 days of inactivity
+```
+
+### Security Considerations
+
+- **Limited permissions** - Anonymous users should have restricted RLS policies
+- **Time-limited sessions** - Anonymous sessions expire after configured time
+- **Data cleanup** - Old anonymous user data should be cleaned up periodically
+- **Rate limiting** - Apply stricter rate limits to anonymous users
+
+### RLS Policies for Anonymous Users
+
+Example policy to allow anonymous users to manage their own cart:
+
+```sql
+-- Allow anonymous users to insert their own cart items
+CREATE POLICY "Anonymous users can manage their cart"
+ON cart_items
+FOR ALL
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Allow authenticated users more privileges
+CREATE POLICY "Authenticated users can save orders"
+ON orders
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+```
 
 ---
 

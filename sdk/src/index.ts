@@ -54,6 +54,24 @@ export { FluxbaseRealtime, RealtimeChannel } from './realtime'
 // Storage module
 export { FluxbaseStorage, StorageBucket } from './storage'
 
+// Admin module
+export { FluxbaseAdmin } from './admin'
+
+// Management module
+export { FluxbaseManagement, APIKeysManager, WebhooksManager, InvitationsManager } from './management'
+
+// Settings module
+export { FluxbaseSettings, SystemSettingsManager, AppSettingsManager } from './settings'
+
+// DDL module
+export { DDLManager } from './ddl'
+
+// OAuth configuration module
+export { FluxbaseOAuth, OAuthProviderManager, AuthSettingsManager } from './oauth'
+
+// Impersonation module
+export { ImpersonationManager } from './impersonation'
+
 // HTTP client (advanced users)
 export { FluxbaseFetch } from './fetch'
 
@@ -92,6 +110,105 @@ export type {
   UploadOptions,
   ListOptions,
   SignedUrlOptions,
+
+  // Admin types
+  AdminSetupStatusResponse,
+  AdminSetupRequest,
+  AdminUser,
+  AdminAuthResponse,
+  AdminLoginRequest,
+  AdminRefreshRequest,
+  AdminRefreshResponse,
+  AdminMeResponse,
+  EnrichedUser,
+  ListUsersResponse,
+  ListUsersOptions,
+  InviteUserRequest,
+  InviteUserResponse,
+  UpdateUserRoleRequest,
+  ResetUserPasswordResponse,
+  DeleteUserResponse,
+
+  // Management types - API Keys
+  APIKey,
+  CreateAPIKeyRequest,
+  CreateAPIKeyResponse,
+  ListAPIKeysResponse,
+  UpdateAPIKeyRequest,
+  RevokeAPIKeyResponse,
+  DeleteAPIKeyResponse,
+
+  // Management types - Webhooks
+  Webhook,
+  CreateWebhookRequest,
+  UpdateWebhookRequest,
+  ListWebhooksResponse,
+  TestWebhookResponse,
+  WebhookDelivery,
+  ListWebhookDeliveriesResponse,
+  DeleteWebhookResponse,
+
+  // Management types - Invitations
+  Invitation,
+  CreateInvitationRequest,
+  CreateInvitationResponse,
+  ValidateInvitationResponse,
+  AcceptInvitationRequest,
+  AcceptInvitationResponse,
+  ListInvitationsOptions,
+  ListInvitationsResponse,
+  RevokeInvitationResponse,
+
+  // Settings types - System Settings
+  SystemSetting,
+  UpdateSystemSettingRequest,
+  ListSystemSettingsResponse,
+
+  // Settings types - App Settings
+  AuthenticationSettings,
+  FeatureSettings,
+  EmailSettings,
+  SecuritySettings,
+  AppSettings,
+  UpdateAppSettingsRequest,
+
+  // DDL types
+  CreateColumnRequest,
+  CreateSchemaRequest,
+  CreateSchemaResponse,
+  CreateTableRequest,
+  CreateTableResponse,
+  DeleteTableResponse,
+  Schema,
+  ListSchemasResponse,
+  Column,
+  Table,
+  ListTablesResponse,
+
+  // OAuth Provider Configuration types
+  OAuthProvider,
+  CreateOAuthProviderRequest,
+  CreateOAuthProviderResponse,
+  UpdateOAuthProviderRequest,
+  UpdateOAuthProviderResponse,
+  DeleteOAuthProviderResponse,
+  ListOAuthProvidersResponse,
+  AuthSettings,
+  UpdateAuthSettingsRequest,
+  UpdateAuthSettingsResponse,
+
+  // Impersonation types
+  ImpersonationType,
+  ImpersonationTargetUser,
+  ImpersonationSession,
+  ImpersonateUserRequest,
+  ImpersonateAnonRequest,
+  ImpersonateServiceRequest,
+  StartImpersonationResponse,
+  StopImpersonationResponse,
+  GetImpersonationResponse,
+  ListImpersonationSessionsOptions,
+  ListImpersonationSessionsResponse,
 
   // HTTP types
   FluxbaseError,

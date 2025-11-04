@@ -76,10 +76,7 @@ const config: Config = {
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
         },
-        blog: {
-          showReadingTime: true,
-          editUrl: "https://github.com/wayli-app/fluxbase/tree/main/docs/",
-        },
+        blog: false,
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -114,7 +111,6 @@ const config: Config = {
           position: "left",
           label: "API Reference",
         },
-        { to: "/blog", label: "Blog", position: "left" },
         {
           href: "https://github.com/wayli-app/fluxbase",
           label: "GitHub",

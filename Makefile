@@ -12,7 +12,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Bui
 
 # Docker variables
 DOCKER_REGISTRY ?= ghcr.io
-DOCKER_ORG ?= zehbart
+DOCKER_ORG ?= wayli-app
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
 
 # Colors for output
@@ -32,6 +32,7 @@ help: ## Show available commands
 	@echo "${GREEN}Quick Start:${NC}"
 	@echo "  make dev            # Build & run backend + frontend (all-in-one)"
 	@echo "  make build          # Build production binary with embedded UI"
+	@echo "  make test-all       # Run ALL tests (backend + SDK + React + integration)"
 	@echo ""
 	@echo "${GREEN}All Commands:${NC}"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  ${GREEN}%-20s${NC} %s\\n", $$1, $$2}'
@@ -68,12 +69,13 @@ build: ## Build production binary with embedded admin UI
 	@rm -rf internal/adminui/dist
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
-	@go build -ldflags="$(LDFLAGS)" -o ${BINARY_NAME} ${MAIN_PATH}
+	@mkdir -p build/
+	@go build -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
 	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION)${NC}"
 
 clean: ## Clean build artifacts
 	@echo "${YELLOW}Cleaning...${NC}"
-	@rm -f ${BINARY_NAME}
+	@rm -f build/${BINARY_NAME}
 	@rm -f coverage.out coverage.html
 	@rm -rf internal/adminui/dist
 	@echo "${GREEN}Clean complete!${NC}"
@@ -97,6 +99,48 @@ test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
 	@echo "${YELLOW}Running e2e tests...${NC}"
 	@go test -v -race -timeout=5m ./test/e2e/...
 	@echo "${GREEN}E2E tests complete!${NC}"
+
+test-sdk: ## Run SDK tests (TypeScript)
+	@echo "${YELLOW}Running SDK tests...${NC}"
+	@cd sdk && npm test -- src/admin.test.ts src/auth.test.ts src/management.test.ts src/ddl.test.ts src/impersonation.test.ts src/settings.test.ts src/oauth.test.ts
+	@echo "${GREEN}SDK tests complete!${NC}"
+
+test-sdk-react: ## Build React SDK (includes type checking)
+	@echo "${YELLOW}Building React SDK...${NC}"
+	@cd sdk-react && npm run build
+	@echo "${GREEN}React SDK build complete!${NC}"
+
+test-integration: ## Run admin integration tests (requires running server)
+	@echo "${YELLOW}Running admin integration tests...${NC}"
+	@if ! curl -s http://localhost:8080/health > /dev/null; then \
+		echo "${RED}Error: Fluxbase server not running on localhost:8080${NC}"; \
+		echo "${YELLOW}Start server with: make dev${NC}"; \
+		exit 1; \
+	fi
+	@cd examples/admin-setup && npm test
+	@echo "${GREEN}Integration tests complete!${NC}"
+
+test-all: ## Run ALL tests (backend + SDK + React + integration)
+	@echo "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
+	@echo "${BLUE}║              FLUXBASE - COMPLETE TEST SUITE                ║${NC}"
+	@echo "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
+	@echo ""
+	@echo "${YELLOW}[1/4] Running Backend Tests (Go)...${NC}"
+	@$(MAKE) test
+	@echo ""
+	@echo "${YELLOW}[2/4] Running Core SDK Tests (TypeScript)...${NC}"
+	@$(MAKE) test-sdk
+	@echo ""
+	@echo "${YELLOW}[3/4] Building React SDK...${NC}"
+	@$(MAKE) test-sdk-react
+	@echo ""
+	@echo "${YELLOW}[4/4] Running Admin Integration Tests...${NC}"
+	@$(MAKE) test-integration || true
+	@echo ""
+	@echo "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
+	@echo "${BLUE}║                      TEST SUMMARY                          ║${NC}"
+	@echo "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
+	@echo "${GREEN}✓ All test suites complete!${NC}"
 
 deps: ## Install Go dependencies
 	@echo "${YELLOW}Installing dependencies...${NC}"

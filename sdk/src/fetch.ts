@@ -130,6 +130,13 @@ export class FluxbaseFetch {
   }
 
   /**
+   * PUT request
+   */
+  async put<T = unknown>(path: string, body?: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
+    return this.request<T>(path, { ...options, method: 'PUT', body })
+  }
+
+  /**
    * PATCH request
    */
   async patch<T = unknown>(path: string, body?: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {

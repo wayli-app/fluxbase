@@ -330,4 +330,327 @@ describe("FluxbaseAuth", () => {
       expect(localStorage.getItem("fluxbase.auth.session")).toBeNull();
     });
   });
+
+  describe("Password Reset Flow", () => {
+    describe("sendPasswordReset()", () => {
+      it("should send password reset email", async () => {
+        const response = {
+          message: "If an account with that email exists, a password reset link has been sent",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.sendPasswordReset("user@example.com");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset", {
+          email: "user@example.com",
+        });
+        expect(result.message).toBe(response.message);
+      });
+    });
+
+    describe("verifyResetToken()", () => {
+      it("should verify valid reset token", async () => {
+        const response = {
+          valid: true,
+          message: "Token is valid",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.verifyResetToken("valid-token");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset/verify", {
+          token: "valid-token",
+        });
+        expect(result.valid).toBe(true);
+      });
+
+      it("should return invalid for expired token", async () => {
+        const response = {
+          valid: false,
+          message: "Token has expired",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.verifyResetToken("expired-token");
+
+        expect(result.valid).toBe(false);
+      });
+    });
+
+    describe("resetPassword()", () => {
+      it("should reset password with valid token", async () => {
+        const response = {
+          message: "Password has been successfully reset",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.resetPassword("valid-token", "newPassword123");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset/confirm", {
+          token: "valid-token",
+          new_password: "newPassword123",
+        });
+        expect(result.message).toBe(response.message);
+      });
+    });
+  });
+
+  describe("Magic Link Authentication", () => {
+    describe("sendMagicLink()", () => {
+      it("should send magic link without options", async () => {
+        const response = {
+          message: "Magic link sent to your email",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.sendMagicLink("user@example.com");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/magiclink", {
+          email: "user@example.com",
+          redirect_to: undefined,
+        });
+        expect(result.message).toBe(response.message);
+      });
+
+      it("should send magic link with redirect URL", async () => {
+        const response = {
+          message: "Magic link sent to your email",
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(response);
+
+        const result = await auth.sendMagicLink("user@example.com", {
+          redirect_to: "https://app.example.com/dashboard",
+        });
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/magiclink", {
+          email: "user@example.com",
+          redirect_to: "https://app.example.com/dashboard",
+        });
+        expect(result.message).toBe(response.message);
+      });
+    });
+
+    describe("verifyMagicLink()", () => {
+      it("should verify magic link and create session", async () => {
+        const authResponse: AuthResponse = {
+          access_token: "magic-token",
+          refresh_token: "refresh-token",
+          expires_in: 3600,
+          token_type: "Bearer",
+          user: { id: "1", email: "user@example.com", created_at: "" },
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+
+        const session = await auth.verifyMagicLink("magic-link-token");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/magiclink/verify", {
+          token: "magic-link-token",
+        });
+        expect(session.access_token).toBe("magic-token");
+        expect(auth.getSession()).toEqual(session);
+        expect(mockFetch.setAuthToken).toHaveBeenCalledWith("magic-token");
+      });
+    });
+  });
+
+  describe("Anonymous Authentication", () => {
+    describe("signInAnonymously()", () => {
+      it("should create anonymous session", async () => {
+        const authResponse: AuthResponse = {
+          access_token: "anon-token",
+          refresh_token: "anon-refresh-token",
+          expires_in: 3600,
+          token_type: "Bearer",
+          user: {
+            id: "anon-123",
+            email: "anonymous@fluxbase.local",
+            created_at: new Date().toISOString(),
+          },
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+
+        const session = await auth.signInAnonymously();
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signin/anonymous");
+        expect(session.access_token).toBe("anon-token");
+        expect(auth.getSession()).toEqual(session);
+      });
+    });
+  });
+
+  describe("OAuth Flow", () => {
+    describe("getOAuthProviders()", () => {
+      it("should fetch list of OAuth providers", async () => {
+        const response = {
+          providers: [
+            { id: "google", name: "Google", enabled: true },
+            { id: "github", name: "GitHub", enabled: true },
+          ],
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        const result = await auth.getOAuthProviders();
+
+        expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/auth/oauth/providers");
+        expect(result.providers).toHaveLength(2);
+        expect(result.providers[0].id).toBe("google");
+      });
+    });
+
+    describe("getOAuthUrl()", () => {
+      it("should get OAuth URL without options", async () => {
+        const response = {
+          url: "https://accounts.google.com/o/oauth2/v2/auth?...",
+          provider: "google",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        const result = await auth.getOAuthUrl("google");
+
+        expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/auth/oauth/google/authorize");
+        expect(result.url).toContain("google.com");
+      });
+
+      it("should get OAuth URL with redirect_to", async () => {
+        const response = {
+          url: "https://accounts.google.com/o/oauth2/v2/auth?...",
+          provider: "google",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        const result = await auth.getOAuthUrl("google", {
+          redirect_to: "https://app.example.com/auth/callback",
+        });
+
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          "/api/v1/auth/oauth/google/authorize?redirect_to=https%3A%2F%2Fapp.example.com%2Fauth%2Fcallback"
+        );
+      });
+
+      it("should get OAuth URL with scopes", async () => {
+        const response = {
+          url: "https://accounts.google.com/o/oauth2/v2/auth?...",
+          provider: "google",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        const result = await auth.getOAuthUrl("google", {
+          scopes: ["email", "profile"],
+        });
+
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          "/api/v1/auth/oauth/google/authorize?scopes=email%2Cprofile"
+        );
+      });
+
+      it("should get OAuth URL with both redirect_to and scopes", async () => {
+        const response = {
+          url: "https://github.com/login/oauth/authorize?...",
+          provider: "github",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        const result = await auth.getOAuthUrl("github", {
+          redirect_to: "https://app.example.com/callback",
+          scopes: ["read:user", "repo"],
+        });
+
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          expect.stringContaining("/api/v1/auth/oauth/github/authorize?")
+        );
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          expect.stringContaining("redirect_to=")
+        );
+        expect(mockFetch.get).toHaveBeenCalledWith(expect.stringContaining("scopes="));
+      });
+    });
+
+    describe("exchangeCodeForSession()", () => {
+      it("should exchange OAuth code for session", async () => {
+        const authResponse: AuthResponse = {
+          access_token: "oauth-token",
+          refresh_token: "oauth-refresh",
+          expires_in: 3600,
+          token_type: "Bearer",
+          user: {
+            id: "oauth-user-1",
+            email: "user@example.com",
+            created_at: new Date().toISOString(),
+          },
+        };
+
+        vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+
+        const session = await auth.exchangeCodeForSession("auth-code-123");
+
+        expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/oauth/callback", {
+          code: "auth-code-123",
+        });
+        expect(session.access_token).toBe("oauth-token");
+        expect(auth.getSession()).toEqual(session);
+      });
+    });
+
+    describe("signInWithOAuth()", () => {
+      it("should redirect to OAuth provider in browser", async () => {
+        const response = {
+          url: "https://accounts.google.com/o/oauth2/v2/auth?...",
+          provider: "google",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        // Mock window.location
+        const originalLocation = global.window?.location;
+        delete (global as any).window;
+        (global as any).window = { location: { href: "" } };
+
+        await auth.signInWithOAuth("google");
+
+        expect(window.location.href).toBe(response.url);
+
+        // Restore
+        if (originalLocation) {
+          (global as any).window = { location: originalLocation };
+        } else {
+          delete (global as any).window;
+        }
+      });
+
+      it("should throw error in non-browser environment", async () => {
+        const response = {
+          url: "https://accounts.google.com/o/oauth2/v2/auth?...",
+          provider: "google",
+        };
+
+        vi.mocked(mockFetch.get).mockResolvedValue(response);
+
+        // Ensure window is undefined
+        const originalWindow = global.window;
+        delete (global as any).window;
+
+        await expect(auth.signInWithOAuth("google")).rejects.toThrow(
+          "signInWithOAuth can only be called in a browser environment"
+        );
+
+        // Restore
+        if (originalWindow) {
+          (global as any).window = originalWindow;
+        }
+      });
+    });
+  });
 });

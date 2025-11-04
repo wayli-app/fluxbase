@@ -25,7 +25,15 @@
       "Bash(go mod tidy:*)",
       "Bash(awk:*)",
       "Bash(migrate -help:*)",
-      "Bash(migrate:*)"
+      "Bash(migrate:*)",
+      "Bash(find:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx docusaurus build:*)",
+      "Bash(timeout 60 bash -c:*)",
+      "Bash(timeout 30 npm test -- src/oauth.test.ts)",
+      "Bash(timeout 60 npm run build:*)",
+      "Bash(timeout 60 npm test:*)"
     ],
     "deny": [],
     "ask": []

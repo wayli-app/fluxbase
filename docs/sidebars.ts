@@ -38,11 +38,6 @@ const sidebars: SidebarsConfig = {
       id: "advanced-guides",
       label: "🚀 Advanced Guides",
     },
-    {
-      type: "doc",
-      id: "testing-guide",
-      label: "🧪 Testing Guide",
-    },
   ],
 
   // 📖 Guides sidebar - Feature-specific guides
@@ -63,6 +58,56 @@ const sidebars: SidebarsConfig = {
       label: "📦 Storage",
     },
     {
+      type: "doc",
+      id: "guides/row-level-security",
+      label: "🔒 Row Level Security",
+    },
+    {
+      type: "doc",
+      id: "guides/webhooks",
+      label: "🪝 Webhooks",
+    },
+    {
+      type: "doc",
+      id: "guides/edge-functions",
+      label: "⚡ Edge Functions",
+    },
+    {
+      type: "doc",
+      id: "guides/email-services",
+      label: "📧 Email Services",
+    },
+    {
+      type: "doc",
+      id: "guides/rate-limiting",
+      label: "⏱️ Rate Limiting",
+    },
+    {
+      type: "doc",
+      id: "guides/monitoring-observability",
+      label: "📊 Monitoring & Observability",
+    },
+    {
+      type: "doc",
+      id: "guides/logging",
+      label: "📝 Logging",
+    },
+    {
+      type: "doc",
+      id: "guides/testing",
+      label: "🧪 Testing",
+    },
+    {
+      type: "category",
+      label: "🔐 Security",
+      items: [
+        "security/overview",
+        "security/csrf-protection",
+        "security/security-headers",
+        "security/best-practices",
+      ],
+    },
+    {
       type: "category",
       label: "💻 TypeScript SDK",
       items: [
@@ -70,6 +115,13 @@ const sidebars: SidebarsConfig = {
         "guides/typescript-sdk/getting-started",
         "guides/typescript-sdk/database",
         "guides/typescript-sdk/react-hooks",
+        "sdk/admin",
+        "sdk/management",
+        "sdk/settings",
+        "sdk/ddl",
+        "sdk/oauth",
+        "sdk/impersonation",
+        "sdk/advanced-features",
       ],
     },
     {

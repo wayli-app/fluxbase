@@ -109,6 +109,16 @@ function YourApp() {
 - `useRPCMutation()` - Call PostgreSQL function (mutation)
 - `useRPCBatch()` - Call multiple functions in parallel
 
+### Admin (Management & Operations)
+- `useAdminAuth()` - Admin authentication state and login/logout
+- `useUsers()` - User management with pagination and CRUD
+- `useAPIKeys()` - API key creation and management
+- `useWebhooks()` - Webhook configuration and delivery monitoring
+- `useAppSettings()` - Application-wide settings management
+- `useSystemSettings()` - System key-value settings storage
+
+📚 **[Complete Admin Hooks Guide](./README-ADMIN.md)** - Comprehensive admin dashboard documentation
+
 ## Documentation
 
 📚 **[Complete React Hooks Guide](../../docs/docs/sdks/react-hooks.md)**
