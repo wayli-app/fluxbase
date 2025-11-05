@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Search, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -28,14 +28,13 @@ const METHOD_COLORS = {
 }
 
 export function EndpointBrowser({ spec, onSelectEndpoint, selectedEndpoint }: EndpointBrowserProps) {
-  const [groups, setGroups] = useState<EndpointGroup[]>([])
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [filterTag, setFilterTag] = useState<string>('all')
   const [filterMethod, setFilterMethod] = useState<string>('all')
 
-  useEffect(() => {
-    if (!spec) return
+  const groups = useMemo(() => {
+    if (!spec) return []
 
     // Group endpoints by tags, then by resource
     const tagMap = new Map<string, Map<string, EndpointInfo[]>>()
@@ -62,7 +61,7 @@ export function EndpointBrowser({ spec, onSelectEndpoint, selectedEndpoint }: En
             }
 
             // Group by base path (without {id}) for all endpoints
-            let resourceKey = path.replace(/\/\{[^}]+\}$/, '')
+            const resourceKey = path.replace(/\/\{[^}]+\}$/, '')
 
             const resourceMap = tagMap.get(tag)!
             if (!resourceMap.has(resourceKey)) {
@@ -129,8 +128,7 @@ export function EndpointBrowser({ spec, onSelectEndpoint, selectedEndpoint }: En
         })
       })
 
-    setGroups(groupArray)
-    setExpandedGroups(new Set()) // Start with all categories collapsed
+    return groupArray
   }, [spec])
 
   const toggleGroup = (groupName: string) => {

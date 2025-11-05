@@ -88,10 +88,12 @@ function SetupPage() {
 
       // Redirect to dashboard
       navigate({ to: '/' })
-    } catch (error: any) {
-      console.error('Setup error:', error)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create admin account'
+        : 'Failed to create admin account'
       toast.error('Setup failed', {
-        description: error.response?.data?.error || 'Failed to create admin account',
+        description: errorMessage,
       })
     } finally {
       setIsLoading(false)

@@ -21,9 +21,8 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { UserSearch } from './user-search'
-import { useImpersonationStore } from '@/stores/impersonation-store'
+import { useImpersonationStore, type ImpersonationType } from '@/stores/impersonation-store'
 import { impersonationApi } from '@/lib/impersonation-api'
-import type { ImpersonationType } from '@/stores/impersonation-store'
 
 export function ImpersonationSelector() {
   const { isImpersonating, startImpersonation } = useImpersonationStore()
@@ -89,11 +88,11 @@ export function ImpersonationSelector() {
 
       // Reload the page to refresh data with new context
       window.location.reload()
-    } catch (error: any) {
-      console.error('Failed to start impersonation:', error)
-      toast.error(
-        error.response?.data?.error || 'Failed to start impersonation'
-      )
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
+      toast.error(errorMessage || 'Failed to start impersonation')
     } finally {
       setLoading(false)
     }

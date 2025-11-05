@@ -70,11 +70,12 @@ export function SignUpForm({
 
       // Redirect to login page
       navigate({ to: '/login' })
-    } catch (error: any) {
-      console.error('Sign up error:', error)
-      const errorMessage = error.response?.data?.error || 'Failed to create account'
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
       toast.error('Sign up failed', {
-        description: errorMessage,
+        description: errorMessage || 'Failed to create account',
       })
     } finally {
       setIsLoading(false)

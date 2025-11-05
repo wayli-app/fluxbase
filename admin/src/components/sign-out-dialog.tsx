@@ -16,8 +16,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     try {
       // Call backend logout endpoint to invalidate token
       await adminAuthAPI.logout()
-    } catch (error) {
-      console.error('Logout error:', error)
+    } catch {
       // Continue with local logout even if API call fails
     } finally {
       // Clear tokens from localStorage

@@ -41,6 +41,7 @@ export default defineConfig({
         proxyTimeout: 600000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
+            // eslint-disable-next-line no-console
             console.log('Storage proxy error:', err)
           })
           proxy.on('proxyReq', (proxyReq, _req, _res) => {

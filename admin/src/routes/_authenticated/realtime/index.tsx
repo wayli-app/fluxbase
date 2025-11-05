@@ -62,6 +62,7 @@ function RealtimePage() {
       const data = await response.json()
       setStats(data)
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching realtime stats:', error)
       toast.error('Failed to load realtime statistics')
     } finally {

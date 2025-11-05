@@ -25,6 +25,13 @@
     "database",
     "realtime"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wayli-app/fluxbase"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@fluxbase/sdk": "^0.1.0",
     "@tanstack/react-query": "^5.0.0",

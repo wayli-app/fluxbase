@@ -117,6 +117,7 @@ function StorageBrowser() {
   // Load buckets on mount
   useEffect(() => {
     loadBuckets()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Load objects when bucket or prefix changes
@@ -124,6 +125,7 @@ function StorageBrowser() {
     if (selectedBucket) {
       loadObjects()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBucket, currentPrefix])
 
   const loadBuckets = async () => {
@@ -145,9 +147,9 @@ function StorageBrowser() {
       } else {
         toast.error('Failed to load buckets')
       }
-    } catch (error) {
-      console.error('Error loading buckets:', error)
-      toast.error('Failed to load buckets')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to load buckets: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -177,9 +179,9 @@ function StorageBrowser() {
       } else {
         toast.error('Failed to load files')
       }
-    } catch (error) {
-      console.error('Error loading objects:', error)
-      toast.error('Failed to load files')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to load files: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -211,9 +213,9 @@ function StorageBrowser() {
         const error = await res.text()
         toast.error(`Failed to create bucket: ${error}`)
       }
-    } catch (error) {
-      console.error('Error creating bucket:', error)
-      toast.error('Failed to create bucket')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to create bucket: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -240,9 +242,9 @@ function StorageBrowser() {
         const error = await res.text()
         toast.error(`Failed to delete bucket: ${error}`)
       }
-    } catch (error) {
-      console.error('Error deleting bucket:', error)
-      toast.error('Failed to delete bucket')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to delete bucket: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -299,7 +301,9 @@ function StorageBrowser() {
                 successCount++
                 resolve()
               } else {
+                // eslint-disable-next-line no-console
                 console.error(`Failed to upload ${file.name}: ${xhr.status} ${xhr.statusText}`)
+                // eslint-disable-next-line no-console
                 console.error('Response:', xhr.responseText)
                 setUploadProgress((prev) => {
                   const updated = { ...prev }
@@ -312,6 +316,7 @@ function StorageBrowser() {
 
             // Handle errors
             xhr.addEventListener('error', () => {
+              // eslint-disable-next-line no-console
               console.error('Upload error')
               setUploadProgress((prev) => {
                 const updated = { ...prev }
@@ -322,6 +327,7 @@ function StorageBrowser() {
             })
 
             xhr.addEventListener('abort', () => {
+              // eslint-disable-next-line no-console
               console.error('Upload aborted')
               setUploadProgress((prev) => {
                 const updated = { ...prev }
@@ -338,8 +344,10 @@ function StorageBrowser() {
             }
             xhr.send(formData)
           })
-        } catch (error) {
-          console.error(`Error uploading ${file.name}:`, error)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          // eslint-disable-next-line no-console
+          console.error(`Error uploading ${file.name}:`, errorMessage)
           setUploadProgress((prev) => {
             const updated = { ...prev }
             delete updated[file.name]
@@ -356,9 +364,9 @@ function StorageBrowser() {
       if (successCount < filesArray.length) {
         toast.error(`Failed to upload ${filesArray.length - successCount} file(s)`)
       }
-    } catch (error) {
-      console.error('Error uploading files:', error)
-      toast.error('Failed to upload files')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to upload files: ${errorMessage}`)
     } finally {
       setUploading(false)
       setUploadProgress({})
@@ -390,9 +398,9 @@ function StorageBrowser() {
       } else {
         toast.error('Failed to download file')
       }
-    } catch (error) {
-      console.error('Error downloading file:', error)
-      toast.error('Failed to download file')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to download file: ${errorMessage}`)
     }
   }
 
@@ -419,9 +427,9 @@ function StorageBrowser() {
       } else {
         toast.error('Failed to delete file')
       }
-    } catch (error) {
-      console.error('Error deleting file:', error)
-      toast.error('Failed to delete file')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to delete file: ${errorMessage}`)
     }
   }
 
@@ -445,8 +453,10 @@ function StorageBrowser() {
         if (res.ok) {
           successCount++
         }
-      } catch (error) {
-        console.error(`Failed to delete ${key}:`, error)
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        // eslint-disable-next-line no-console
+        console.error(`Failed to delete ${key}:`, errorMessage)
       }
     }
 
@@ -500,9 +510,9 @@ function StorageBrowser() {
       } else {
         toast.error('Failed to load file preview')
       }
-    } catch (error) {
-      console.error('Error loading preview:', error)
-      toast.error('Failed to load file preview')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to load file preview: ${errorMessage}`)
     }
   }
 
@@ -550,9 +560,9 @@ function StorageBrowser() {
         const error = await res.text()
         toast.error(`Failed to create folder: ${error}`)
       }
-    } catch (error) {
-      console.error('Error creating folder:', error)
-      toast.error('Failed to create folder')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to create folder: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -596,9 +606,9 @@ function StorageBrowser() {
         const error = await res.text()
         toast.error(`Failed to generate signed URL: ${error}`)
       }
-    } catch (error) {
-      console.error('Error generating signed URL:', error)
-      toast.error('Failed to generate signed URL')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Failed to generate signed URL: ${errorMessage}`)
     } finally {
       setGeneratingUrl(false)
     }
@@ -830,7 +840,7 @@ function StorageBrowser() {
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
                     </div>
-                    <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'name' | 'size' | 'date')}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>

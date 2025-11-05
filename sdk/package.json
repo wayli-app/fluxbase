@@ -1,6 +1,6 @@
 {
   "name": "@fluxbase/sdk",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Official TypeScript SDK for Fluxbase - Backend as a Service",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -50,6 +50,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/wayli-app/fluxbase"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "cross-fetch": "^4.0.0"

@@ -1,6 +1,5 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios'
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth'
-import type { AdminUser } from './auth'
+import { getAccessToken, getRefreshToken, setTokens, clearTokens, type AdminUser } from './auth'
 
 // Base URL for the API - can be overridden with environment variable
 // Use empty string (relative URLs) to work with both dev server proxy and production

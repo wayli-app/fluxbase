@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { dashboardAuthAPI, type DashboardUser } from '@/lib/api'
 import { Loader2 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 export const Route = createFileRoute('/_authenticated/settings/')({
   component: SettingsProfilePage,
@@ -15,7 +15,6 @@ export const Route = createFileRoute('/_authenticated/settings/')({
 
 function SettingsProfilePage() {
   const queryClient = useQueryClient()
-  const [fullName, setFullName] = useState('')
 
   // Fetch current user data
   const { data: user, isLoading } = useQuery<DashboardUser>({
@@ -23,12 +22,14 @@ function SettingsProfilePage() {
     queryFn: dashboardAuthAPI.me,
   })
 
-  // Set initial value when user loads
+  // Initialize fullName from user data
+  const initialFullName = useMemo(() => user?.full_name || '', [user?.full_name])
+  const [fullName, setFullName] = useState(initialFullName)
+
+  // Update fullName when initialFullName changes
   useEffect(() => {
-    if (user?.full_name) {
-      setFullName(user.full_name)
-    }
-  }, [user])
+    setFullName(initialFullName)
+  }, [initialFullName])
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -37,8 +38,11 @@ function SettingsProfilePage() {
       queryClient.setQueryData(['dashboard-user'], data)
       toast.success('Profile updated successfully')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update profile')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || (error as Error).message
+        : 'Failed to update profile'
+      toast.error(errorMessage)
     },
   })
 

@@ -81,8 +81,11 @@ export function TableSelector({
       setNewSchemaName('')
       onSchemaChange(data.schema)
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to create schema')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
+      toast.error(errorMessage || 'Failed to create schema')
     },
   })
 
@@ -108,8 +111,11 @@ export function TableSelector({
       setColumns([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
       onTableSelect(`${data.schema}.${data.table}`)
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to create table')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
+      toast.error(errorMessage || 'Failed to create table')
     },
   })
 
@@ -122,8 +128,11 @@ export function TableSelector({
       // Invalidate queries for the affected schema
       queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to delete table')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
+      toast.error(errorMessage || 'Failed to delete table')
     },
   })
 

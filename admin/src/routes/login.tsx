@@ -53,9 +53,10 @@ function LoginPage() {
 
       // Redirect to dashboard
       navigate({ to: '/' })
-    } catch (error: any) {
-      console.error('Login error:', error)
-      const errorMessage = error.response?.data?.error || 'Invalid email or password'
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Invalid email or password'
+        : 'Invalid email or password'
       toast.error('Login failed', {
         description: errorMessage,
       })

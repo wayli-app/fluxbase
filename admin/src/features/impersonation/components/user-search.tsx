@@ -43,8 +43,7 @@ export function UserSearch({ value, onSelect, disabled }: UserSearchProps) {
       setLoading(true)
       const response = await impersonationApi.listUsers(searchTerm || undefined, 20)
       setUsers(response.users)
-    } catch (error) {
-      console.error('Failed to load users:', error)
+    } catch {
       setUsers([])
     } finally {
       setLoading(false)

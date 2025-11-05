@@ -9,7 +9,7 @@ export interface AdminUser {
   email: string
   role: string
   email_verified: boolean
-  metadata?: any
+  metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
 }

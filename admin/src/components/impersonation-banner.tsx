@@ -24,9 +24,11 @@ export function ImpersonationBanner() {
 
       // Reload the page to refresh data with admin context
       window.location.reload()
-    } catch (error: any) {
-      console.error('Failed to stop impersonation:', error)
-      toast.error(error.response?.data?.error || 'Failed to stop impersonation')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined
+      toast.error(errorMessage || 'Failed to stop impersonation')
     } finally {
       setIsStopping(false)
     }

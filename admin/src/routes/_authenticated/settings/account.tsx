@@ -60,8 +60,11 @@ function SettingsAccountPage() {
       setNewPassword('')
       setConfirmPassword('')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to change password')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to change password'
+        : 'Failed to change password'
+      toast.error(errorMessage)
     },
   })
 
@@ -73,8 +76,11 @@ function SettingsAccountPage() {
       setTotpSecret(data.secret)
       toast.success('Scan the QR code with your authenticator app')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to setup 2FA')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to setup 2FA'
+        : 'Failed to setup 2FA'
+      toast.error(errorMessage)
     },
   })
 
@@ -89,8 +95,11 @@ function SettingsAccountPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-user'] })
       toast.success('2FA enabled successfully. Save your backup codes!')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Invalid verification code')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Invalid verification code'
+        : 'Invalid verification code'
+      toast.error(errorMessage)
     },
   })
 
@@ -102,8 +111,11 @@ function SettingsAccountPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-user'] })
       toast.success('2FA disabled successfully')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to disable 2FA')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to disable 2FA'
+        : 'Failed to disable 2FA'
+      toast.error(errorMessage)
     },
   })
 
@@ -115,8 +127,11 @@ function SettingsAccountPage() {
       clearTokens()
       window.location.href = '/login'
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to delete account')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete account'
+        : 'Failed to delete account'
+      toast.error(errorMessage)
     },
   })
 

@@ -54,7 +54,7 @@ interface RequestHistory {
     status: number
     statusText: string
     headers: Record<string, string>
-    data: any
+    data: unknown
     duration: number
   }
 }
@@ -101,8 +101,8 @@ function RestAPIExplorer() {
     if (savedHistory) {
       try {
         setHistory(JSON.parse(savedHistory))
-      } catch (e) {
-        console.error('Failed to parse history:', e)
+      } catch {
+        // Failed to parse history
       }
     }
 
@@ -110,8 +110,8 @@ function RestAPIExplorer() {
     if (saved) {
       try {
         setSavedRequests(JSON.parse(saved))
-      } catch (e) {
-        console.error('Failed to parse saved requests:', e)
+      } catch {
+        // Failed to parse saved requests
       }
     }
 
@@ -132,10 +132,47 @@ function RestAPIExplorer() {
         const spec = await res.json()
         setOpenAPISpec(spec)
       }
-    } catch (e) {
-      console.error('Failed to fetch OpenAPI spec:', e)
+    } catch {
+      // Failed to fetch OpenAPI spec
     }
   }
+
+  const generateExampleFromSchema = useCallback((schema: Record<string, unknown> | unknown): unknown => {
+    if (!schema || typeof schema !== 'object') return null
+
+    const schemaObj = schema as Record<string, unknown>
+
+    if (schemaObj.$ref) return null
+
+    if (schemaObj.example !== undefined) return schemaObj.example
+
+    if (schemaObj.type === 'object' && schemaObj.properties) {
+      const example: Record<string, unknown> = {}
+      const properties = schemaObj.properties as Record<string, unknown>
+      Object.entries(properties).forEach(([key, prop]) => {
+        const value = generateExampleFromSchema(prop)
+        if (value !== null) {
+          example[key] = value
+        }
+      })
+      return Object.keys(example).length > 0 ? example : null
+    }
+
+    if (schemaObj.type === 'array' && schemaObj.items) {
+      const itemExample = generateExampleFromSchema(schemaObj.items)
+      return itemExample ? [itemExample] : null
+    }
+
+    // Default values by type
+    const defaults: Record<string, unknown> = {
+      string: '',
+      number: 0,
+      integer: 0,
+      boolean: false,
+    }
+
+    return defaults[schemaObj.type as string] ?? null
+  }, [])
 
   const handleSelectEndpoint = useCallback((endpoint: EndpointInfo) => {
     setSelectedEndpoint(endpoint)
@@ -175,41 +212,7 @@ function RestAPIExplorer() {
 
     toast.success(`Loaded endpoint: ${endpoint.method} ${endpoint.path}`)
     setShowDocumentation(true)
-  }, [])
-
-  const generateExampleFromSchema = (schema: any): any => {
-    if (!schema) return null
-
-    if (schema.$ref) return null
-
-    if (schema.example !== undefined) return schema.example
-
-    if (schema.type === 'object' && schema.properties) {
-      const example: any = {}
-      Object.entries(schema.properties).forEach(([key, prop]: [string, any]) => {
-        const value = generateExampleFromSchema(prop)
-        if (value !== null) {
-          example[key] = value
-        }
-      })
-      return Object.keys(example).length > 0 ? example : null
-    }
-
-    if (schema.type === 'array' && schema.items) {
-      const itemExample = generateExampleFromSchema(schema.items)
-      return itemExample ? [itemExample] : null
-    }
-
-    // Default values by type
-    const defaults: Record<string, any> = {
-      string: '',
-      number: 0,
-      integer: 0,
-      boolean: false,
-    }
-
-    return defaults[schema.type] ?? null
-  }
+  }, [generateExampleFromSchema])
 
   const buildUrl = useCallback(() => {
     const params = new URLSearchParams()
@@ -290,14 +293,14 @@ function RestAPIExplorer() {
       } else {
         toast.error(`Request failed: ${res.status} ${res.statusText}`)
       }
-    } catch (error) {
-      console.error('Request failed:', error)
-      toast.error(`Request failed: ${error}`)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      toast.error(`Request failed: ${errorMessage}`)
       setResponse({
         status: 0,
         statusText: 'Network Error',
         headers: {},
-        data: { error: error?.toString() },
+        data: { error: errorMessage },
         duration: performance.now() - startTime,
       })
     } finally {
@@ -424,7 +427,7 @@ function RestAPIExplorer() {
         }
 })
   .then(res => res.json())
-  .then(data => console.log(data))`
+  .then(data => data)`
         break
 
       case 'typescript':
@@ -911,9 +914,9 @@ print(data)`
                 <TabsContent value="body">
                   <ScrollArea className="h-96">
                     <pre className="text-sm">
-                      {typeof response.data === 'object'
+                      {typeof response.data === 'object' && response.data !== null
                         ? JSON.stringify(response.data, null, 2)
-                        : response.data}
+                        : String(response.data ?? '')}
                     </pre>
                   </ScrollArea>
                 </TabsContent>
@@ -945,7 +948,7 @@ print(data)`
                         <tbody>
                           {response.data.slice(0, 10).map((row, i) => (
                             <tr key={i} className="border-b">
-                              {Object.values(row).map((value: any, j) => (
+                              {Object.values(row).map((value: unknown, j) => (
                                 <td key={j} className="p-2">
                                   {typeof value === 'object'
                                     ? JSON.stringify(value)
@@ -965,9 +968,9 @@ print(data)`
                   ) : (
                     <ScrollArea className="h-96">
                       <pre className="text-sm">
-                        {typeof response.data === 'object'
+                        {typeof response.data === 'object' && response.data !== null
                           ? JSON.stringify(response.data, null, 2)
-                          : response.data}
+                          : String(response.data ?? '')}
                       </pre>
                     </ScrollArea>
                   )}

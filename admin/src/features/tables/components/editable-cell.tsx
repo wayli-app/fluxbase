@@ -78,8 +78,8 @@ export function EditableCell({
 
       await onSave(processedValue)
       setIsEditing(false)
-    } catch (error) {
-      console.error('Failed to save:', error)
+    } catch {
+      // Error is handled by the parent component
     } finally {
       setIsSaving(false)
     }

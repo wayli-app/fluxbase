@@ -24,11 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination } from '@/components/data-table'
+import { DataTablePagination, DataTableColumnHeader } from '@/components/data-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
-import { DataTableColumnHeader } from '@/components/data-table'
 import { TableRowActions } from './table-row-actions'
 import { RecordEditDialog } from './record-edit-dialog'
 import { EditableCell } from './editable-cell'
@@ -169,7 +168,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
     // Use table schema if available, otherwise fall back to data keys
     let columnKeys: string[]
-    let columnTypes: Record<string, string> = {}
+    const columnTypes: Record<string, string> = {}
 
     if (tableColumns.length > 0) {
       columnKeys = tableColumns.map(col => col.name)
@@ -258,7 +257,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     })
 
     return allColumns
-  }, [data, deleteMutation, tableColumns])
+  }, [data, deleteMutation.mutate, tableColumns])
 
   const table = useReactTable<Record<string, unknown>>({
     data: (data || []) as Record<string, unknown>[],

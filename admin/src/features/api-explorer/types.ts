@@ -20,7 +20,7 @@ export interface OpenAPISpec {
       [name: string]: OpenAPISchema
     }
     securitySchemes?: {
-      [name: string]: any
+      [name: string]: Record<string, unknown>
     }
   }
 }
@@ -45,7 +45,7 @@ export interface OpenAPIParameter {
   required?: boolean
   deprecated?: boolean
   schema?: OpenAPISchema
-  example?: any
+  example?: unknown
 }
 
 export interface OpenAPIRequestBody {
@@ -54,8 +54,8 @@ export interface OpenAPIRequestBody {
   content: {
     [mediaType: string]: {
       schema?: OpenAPISchema
-      example?: any
-      examples?: { [name: string]: { value: any; summary?: string } }
+      example?: unknown
+      examples?: { [name: string]: { value: unknown; summary?: string } }
     }
   }
 }
@@ -65,7 +65,7 @@ export interface OpenAPIResponse {
   content?: {
     [mediaType: string]: {
       schema?: OpenAPISchema
-      example?: any
+      example?: unknown
     }
   }
 }
@@ -77,8 +77,8 @@ export interface OpenAPISchema {
   properties?: { [key: string]: OpenAPISchema }
   required?: string[]
   items?: OpenAPISchema
-  enum?: any[]
-  example?: any
+  enum?: unknown[]
+  example?: unknown
   $ref?: string
   oneOf?: OpenAPISchema[]
   anyOf?: OpenAPISchema[]
@@ -116,7 +116,7 @@ export interface RequestTemplate {
   endpoint: string
   headers?: Record<string, string>
   queryParams?: Record<string, string>
-  body?: any
+  body?: unknown
 }
 
 // Parameter Builder Types
@@ -126,6 +126,6 @@ export interface ParameterInput {
   type: string
   required: boolean
   description?: string
-  example?: any
+  example?: unknown
   in: 'query' | 'header' | 'path' | 'body'
 }

@@ -69,10 +69,16 @@ interface RPCFunction {
 
 interface FunctionCall {
   function: RPCFunction
-  params: Record<string, any>
-  result: any
+  params: Record<string, unknown>
+  result: unknown
   timestamp: number
   status: 'success' | 'error'
+}
+
+interface FunctionResult {
+  success: boolean
+  data?: unknown
+  error?: unknown
 }
 
 interface EdgeFunction {
@@ -116,8 +122,8 @@ function FunctionsPage() {
   const [selectedFunction, setSelectedFunction] = useState<RPCFunction | null>(null)
   const [showTester, setShowTester] = useState(false)
   const [executing, setExecuting] = useState(false)
-  const [paramValues, setParamValues] = useState<Record<string, any>>({})
-  const [result, setResult] = useState<any>(null)
+  const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
+  const [result, setResult] = useState<FunctionResult | null>(null)
   const [history, setHistory] = useState<FunctionCall[]>([])
   const [showHistory, setShowHistory] = useState(false)
 
@@ -178,6 +184,7 @@ function FunctionsPage() {
         toast.error('Failed to fetch functions')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching functions:', error)
       toast.error('Failed to fetch functions')
     } finally {
@@ -254,9 +261,11 @@ function FunctionsPage() {
           status: 'error',
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line no-console
       console.error('Error executing function:', error)
-      setResult({ success: false, error: error.message })
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      setResult({ success: false, error: errorMessage })
       toast.error('Failed to execute function')
     } finally {
       setExecuting(false)
@@ -297,13 +306,16 @@ function FunctionsPage() {
 })
 
 const data = await response.json()
+// eslint-disable-next-line no-console
 console.log(data)`
     } else if (lang === 'typescript') {
       code = `import { fluxbase } from '@fluxbase/sdk'
 
 const { data, error } = await fluxbase.rpc('${selectedFunction.name}', ${JSON.stringify(paramValues, null, 2)})
 
+// eslint-disable-next-line no-console
 if (error) console.error(error)
+// eslint-disable-next-line no-console
 else console.log(data)`
     }
 
@@ -522,7 +534,7 @@ else console.log(data)`
                     </label>
                     <Input
                       placeholder={`Enter ${param.type} value...`}
-                      value={paramValues[param.name || `arg${param.position}`] || ''}
+                      value={String(paramValues[param.name || `arg${param.position}`] ?? '')}
                       onChange={(e) =>
                         setParamValues({
                           ...paramValues,
@@ -724,6 +736,7 @@ async function handler(req: Request) {
         toast.error('Failed to fetch edge functions')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching edge functions:', error)
       toast.error('Failed to fetch edge functions')
     } finally {
@@ -756,6 +769,7 @@ async function handler(req: Request) {
         toast.error(error.error || 'Failed to create edge function')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating edge function:', error)
       toast.error('Failed to create edge function')
     }
@@ -793,6 +807,7 @@ async function handler(req: Request) {
         toast.error(error.error || 'Failed to update edge function')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error updating edge function:', error)
       toast.error('Failed to update edge function')
     }
@@ -818,6 +833,7 @@ async function handler(req: Request) {
         toast.error(error.error || 'Failed to delete edge function')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error deleting edge function:', error)
       toast.error('Failed to delete edge function')
     }
@@ -855,6 +871,7 @@ async function handler(req: Request) {
         toast.error(error.error || 'Failed to toggle function')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error toggling function:', error)
       toast.error('Failed to toggle function')
     }
@@ -888,10 +905,12 @@ async function handler(req: Request) {
         setShowInvokeDialog(false)
         setShowResultDialog(true)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line no-console
       console.error('Error invoking function:', error)
       toast.error('Failed to invoke function')
-      setInvokeResult({ success: false, data: '', error: error.message })
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      setInvokeResult({ success: false, data: '', error: errorMessage })
       setShowInvokeDialog(false)
       setShowResultDialog(true)
     } finally {
@@ -916,6 +935,7 @@ async function handler(req: Request) {
         toast.error('Failed to fetch execution logs')
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching executions:', error)
       toast.error('Failed to fetch execution logs')
     }

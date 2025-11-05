@@ -83,7 +83,7 @@ interface WebhookDelivery {
   event_type: string
   table_name: string
   record_id?: string
-  payload: any
+  payload: unknown
   attempt_number: number
   status: string
   http_status_code?: number
@@ -129,7 +129,7 @@ function WebhooksPage() {
 
   // Fetch deliveries for selected webhook
   const { data: deliveries } = useQuery<WebhookDelivery[]>({
-    queryKey: ['webhook-deliveries', selectedWebhook?.id],
+    queryKey: ['webhook-deliveries', selectedWebhook?.id, selectedWebhook],
     queryFn: async () => {
       if (!selectedWebhook) return []
       const response = await fetch(`/api/v1/webhooks/${selectedWebhook.id}/deliveries?limit=50`, {

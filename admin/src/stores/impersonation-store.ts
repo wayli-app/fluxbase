@@ -68,8 +68,8 @@ const loadFromStorage = () => {
         session: JSON.parse(sessionStr),
       }
     }
-  } catch (error) {
-    console.error('Failed to load impersonation state from storage:', error)
+  } catch {
+    // Failed to load impersonation state from storage - will use default state
   }
 
   return {

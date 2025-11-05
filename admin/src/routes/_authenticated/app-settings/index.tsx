@@ -91,12 +91,16 @@ function AppSettingsPage() {
       queryClient.setQueryData(['app-settings'], data)
       toast.success('Settings updated successfully')
     },
-    onError: (error: any, _variables, context) => {
+    onError: (error: unknown, _variables, context) => {
       // Only rollback if we got an actual error response from the server
       // Network errors (CORS, connection refused) might mean the request succeeded but we can't verify
-      if (error.response && context?.previousSettings) {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update settings'
+        : 'Failed to update settings'
+
+      if (error instanceof Error && 'response' in error && context?.previousSettings) {
         queryClient.setQueryData(['app-settings'], context.previousSettings)
-        toast.error(error.response?.data?.error || 'Failed to update settings')
+        toast.error(errorMessage)
       } else {
         // Network error - request may have succeeded, refetch to get actual state
         queryClient.invalidateQueries({ queryKey: ['app-settings'] })
@@ -115,8 +119,11 @@ function AppSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['app-settings'] })
       toast.success('All settings have been reset to defaults')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to reset settings')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to reset settings'
+        : 'Failed to reset settings'
+      toast.error(errorMessage)
     },
   })
 

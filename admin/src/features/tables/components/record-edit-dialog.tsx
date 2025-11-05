@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInsert, useUpdate } from '@fluxbase/sdk-react'
 import { Button } from '@/components/ui/button'
@@ -42,9 +42,8 @@ export function RecordEditDialog({
   isCreate = false,
 }: RecordEditDialogProps) {
   const queryClient = useQueryClient()
-  const [formData, setFormData] = useState<Record<string, string>>({})
 
-  useEffect(() => {
+  const initialFormData = useMemo(() => {
     if (record && !isCreate) {
       // Convert record values to strings for form inputs
       const stringData: Record<string, string> = {}
@@ -54,7 +53,7 @@ export function RecordEditDialog({
             typeof value === 'object' ? JSON.stringify(value) : String(value)
         }
       })
-      setFormData(stringData)
+      return stringData
     } else if (isCreate && tableSchema.length > 0) {
       // Initialize form with table schema columns and defaults
       const stringData: Record<string, string> = {}
@@ -67,11 +66,16 @@ export function RecordEditDialog({
           stringData[col.name] = ''
         }
       })
-      setFormData(stringData)
-    } else if (isCreate) {
-      setFormData({})
+      return stringData
     }
+    return {}
   }, [record, isCreate, tableSchema])
+
+  const [formData, setFormData] = useState<Record<string, string>>(initialFormData)
+
+  useEffect(() => {
+    setFormData(initialFormData)
+  }, [initialFormData])
 
   const insertMutation = useInsert(tableName)
   const updateFluxbase = useUpdate(tableName)

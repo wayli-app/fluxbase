@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -152,8 +152,11 @@ function OAuthProvidersTab() {
       setShowAddProvider(false)
       resetForm()
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to create OAuth provider')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create OAuth provider'
+        : 'Failed to create OAuth provider'
+      toast.error(errorMessage)
     },
   })
 
@@ -168,8 +171,11 @@ function OAuthProvidersTab() {
       setEditingProvider(null)
       resetForm()
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update OAuth provider')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update OAuth provider'
+        : 'Failed to update OAuth provider'
+      toast.error(errorMessage)
     },
   })
 
@@ -180,8 +186,11 @@ function OAuthProvidersTab() {
       toast.success(data.message)
       queryClient.invalidateQueries({ queryKey: ['oauthProviders'] })
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to delete OAuth provider')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete OAuth provider'
+        : 'Failed to delete OAuth provider'
+      toast.error(errorMessage)
     },
   })
 
@@ -597,12 +606,20 @@ function AuthSettingsTab() {
     queryFn: authSettingsApi.get,
   })
 
-  // Local state for editing
-  const [settings, setSettings] = useState<AuthSettings | null>(null)
+  // Use useMemo to derive the initial settings value from fetched data
+  const initialSettings = useMemo(() => fetchedSettings || null, [fetchedSettings])
 
-  // Initialize local state when data is fetched
+  // Local state for editing
+  const [settings, setSettings] = useState<AuthSettings | null>(initialSettings)
+
+  // Track previous fetchedSettings to avoid unnecessary updates
+  const prevFetchedRef = useRef<AuthSettings | null>(null)
+
+  // Sync settings when fetchedSettings changes (only on data fetch, not on user edits)
   useEffect(() => {
-    if (fetchedSettings) {
+    if (fetchedSettings && prevFetchedRef.current !== fetchedSettings) {
+      prevFetchedRef.current = fetchedSettings
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettings(fetchedSettings)
     }
   }, [fetchedSettings])
@@ -614,8 +631,11 @@ function AuthSettingsTab() {
       toast.success(data.message)
       queryClient.invalidateQueries({ queryKey: ['authSettings'] })
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update auth settings')
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update auth settings'
+        : 'Failed to update auth settings'
+      toast.error(errorMessage)
     },
   })
 

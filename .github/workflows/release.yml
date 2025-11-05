@@ -284,7 +284,36 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Build and Publish SDK
-        working-directory: ./sdk/typescript
+        working-directory: ./sdk
+        run: |
+          npm ci
+          npm run build
+          npm version ${{ needs.get-version.outputs.version }} --no-git-tag-version
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-npm-sdk-react:
+    name: Publish React SDK to NPM
+    needs: get-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Build core SDK first
+        working-directory: ./sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build and Publish React SDK
+        working-directory: ./sdk-react
         run: |
           npm ci
           npm run build

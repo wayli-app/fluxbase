@@ -63,7 +63,7 @@ export function UsersInviteDialog({
   })
 
   const inviteMutation = useMutation({
-    mutationFn: (data: any) => userManagementApi.inviteUser(data, userType),
+    mutationFn: (data: { email: string; role: string; password?: string }) => userManagementApi.inviteUser(data, userType),
     onSuccess: (data) => {
       // Invalidate users query to refresh the list
       queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -81,9 +81,12 @@ export function UsersInviteDialog({
         handleClose()
       }
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } }; message?: string }).response?.data?.error || (error as Error).message
+        : 'Unknown error'
       toast.error('Failed to invite user', {
-        description: error.response?.data?.error || error.message,
+        description: errorMessage,
       })
     },
   })
