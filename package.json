@@ -1,0 +1,29 @@
+{
+  "name": "fluxbase-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fluxbase monorepo - Backend-as-a-Service platform",
+  "scripts": {
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11"
+  },
+  "lint-staged": {
+    "admin/src/**/*.{ts,tsx}": [
+      "bash -c 'cd admin && npx eslint --fix \"${0#admin/}\"'",
+      "bash -c 'cd admin && npx prettier --write \"${0#admin/}\"'"
+    ],
+    "sdk/src/**/*.ts": [
+      "bash -c 'cd sdk && npx eslint --fix \"${0#sdk/}\"'",
+      "bash -c 'cd sdk && npx prettier --write \"${0#sdk/}\"'"
+    ],
+    "sdk-react/src/**/*.{ts,tsx}": [
+      "bash -c 'cd sdk-react && npx prettier --write \"${0#sdk-react/}\"'"
+    ],
+    "*.{json,md}": [
+      "npx prettier --write"
+    ]
+  }
+}

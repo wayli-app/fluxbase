@@ -1,8 +1,6 @@
-import {
-  SidebarMenu,
-  SidebarMenuItem,
-} from '@/components/ui/sidebar'
+import { SidebarMenu, SidebarMenuItem } from '@/components/ui/sidebar'
 
+// Component to display user name in sidebar footer
 type NavUserProps = {
   user: {
     name: string
