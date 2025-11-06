@@ -39,6 +39,7 @@ services:
     volumes:
       - ./config:/home/fluxbase/config
       - ./storage:/home/fluxbase/storage
+      - ./functions:/home/fluxbase/functions
     networks:
       - fluxbase-network
     restart: unless-stopped

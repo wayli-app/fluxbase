@@ -9,6 +9,7 @@ Build your first application with Fluxbase in 10 minutes. This tutorial walks yo
 ## What We'll Build
 
 A todo list application with:
+
 - ✅ REST API for CRUD operations
 - ✅ Real-time updates via WebSockets
 - ✅ User authentication
@@ -93,7 +94,7 @@ Save the `access_token` - you'll need it for authenticated requests.
 Create your first todo:
 
 ```bash
-curl -X POST http://localhost:8080/api/tables/todos \
+curl -X POST http://localhost:8080/api/v1/tables/todos \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -107,24 +108,26 @@ curl -X POST http://localhost:8080/api/tables/todos \
 Response:
 
 ```json
-[{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "title": "Learn Fluxbase",
-  "description": "Complete the quick start tutorial",
-  "completed": false,
-  "priority": "high",
-  "due_date": "2024-11-01T18:00:00Z",
-  "created_at": "2024-10-27T10:00:00Z",
-  "updated_at": "2024-10-27T10:00:00Z"
-}]
+[
+  {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Learn Fluxbase",
+    "description": "Complete the quick start tutorial",
+    "completed": false,
+    "priority": "high",
+    "due_date": "2024-11-01T18:00:00Z",
+    "created_at": "2024-10-27T10:00:00Z",
+    "updated_at": "2024-10-27T10:00:00Z"
+  }
+]
 ```
 
 Create more todos:
 
 ```bash
 # Create second todo
-curl -X POST http://localhost:8080/api/tables/todos \
+curl -X POST http://localhost:8080/api/v1/tables/todos \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -133,7 +136,7 @@ curl -X POST http://localhost:8080/api/tables/todos \
   }'
 
 # Create third todo
-curl -X POST http://localhost:8080/api/tables/todos \
+curl -X POST http://localhost:8080/api/v1/tables/todos \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -147,7 +150,7 @@ curl -X POST http://localhost:8080/api/tables/todos \
 ### Get All Todos
 
 ```bash
-curl http://localhost:8080/api/tables/todos \
+curl http://localhost:8080/api/v1/tables/todos \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -155,7 +158,7 @@ curl http://localhost:8080/api/tables/todos \
 
 ```bash
 # Get incomplete todos
-curl "http://localhost:8080/api/tables/todos?completed=eq.false" \
+curl "http://localhost:8080/api/v1/tables/todos?completed=eq.false" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -163,7 +166,7 @@ curl "http://localhost:8080/api/tables/todos?completed=eq.false" \
 
 ```bash
 # Get high priority todos
-curl "http://localhost:8080/api/tables/todos?priority=eq.high" \
+curl "http://localhost:8080/api/v1/tables/todos?priority=eq.high" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -171,7 +174,7 @@ curl "http://localhost:8080/api/tables/todos?priority=eq.high" \
 
 ```bash
 # Get latest 5 todos, ordered by creation date
-curl "http://localhost:8080/api/tables/todos?order=created_at.desc&limit=5" \
+curl "http://localhost:8080/api/v1/tables/todos?order=created_at.desc&limit=5" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -179,7 +182,7 @@ curl "http://localhost:8080/api/tables/todos?order=created_at.desc&limit=5" \
 
 ```bash
 # Get incomplete high-priority todos, ordered by due date
-curl "http://localhost:8080/api/tables/todos?completed=eq.false&priority=eq.high&order=due_date.asc" \
+curl "http://localhost:8080/api/v1/tables/todos?completed=eq.false&priority=eq.high&order=due_date.asc" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -187,7 +190,7 @@ curl "http://localhost:8080/api/tables/todos?completed=eq.false&priority=eq.high
 
 ```bash
 # Only get id, title, and completed status
-curl "http://localhost:8080/api/tables/todos?select=id,title,completed" \
+curl "http://localhost:8080/api/v1/tables/todos?select=id,title,completed" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -196,7 +199,7 @@ curl "http://localhost:8080/api/tables/todos?select=id,title,completed" \
 Mark a todo as completed:
 
 ```bash
-curl -X PATCH http://localhost:8080/api/tables/todos \
+curl -X PATCH http://localhost:8080/api/v1/tables/todos \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Prefer: return=representation" \
@@ -210,7 +213,7 @@ curl -X PATCH http://localhost:8080/api/tables/todos \
 Update multiple fields:
 
 ```bash
-curl -X PATCH http://localhost:8080/api/tables/todos \
+curl -X PATCH http://localhost:8080/api/v1/tables/todos \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
@@ -226,14 +229,14 @@ curl -X PATCH http://localhost:8080/api/tables/todos \
 Delete a specific todo:
 
 ```bash
-curl -X DELETE "http://localhost:8080/api/tables/todos?id=eq.123e4567-e89b-12d3-a456-426614174000" \
+curl -X DELETE "http://localhost:8080/api/v1/tables/todos?id=eq.123e4567-e89b-12d3-a456-426614174000" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 Delete all completed todos:
 
 ```bash
-curl -X DELETE "http://localhost:8080/api/tables/todos?completed=eq.true" \
+curl -X DELETE "http://localhost:8080/api/v1/tables/todos?completed=eq.true" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -246,44 +249,46 @@ Create a file `realtime-test.html`:
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Fluxbase Realtime Test</title>
-</head>
-<body>
-  <h1>Todo Updates (Real-time)</h1>
-  <div id="updates"></div>
+  <head>
+    <title>Fluxbase Realtime Test</title>
+  </head>
+  <body>
+    <h1>Todo Updates (Real-time)</h1>
+    <div id="updates"></div>
 
-  <script>
-    const token = 'YOUR_ACCESS_TOKEN';
-    const ws = new WebSocket(`ws://localhost:8080/realtime?token=${token}`);
+    <script>
+      const token = "YOUR_ACCESS_TOKEN";
+      const ws = new WebSocket(`ws://localhost:8080/realtime?token=${token}`);
 
-    ws.onopen = () => {
-      console.log('Connected to Fluxbase realtime');
+      ws.onopen = () => {
+        console.log("Connected to Fluxbase realtime");
 
-      // Subscribe to todos table
-      ws.send(JSON.stringify({
-        type: 'subscribe',
-        channel: 'table:public.todos'
-      }));
-    };
+        // Subscribe to todos table
+        ws.send(
+          JSON.stringify({
+            type: "subscribe",
+            channel: "table:public.todos",
+          }),
+        );
+      };
 
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      console.log('Received:', message);
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        console.log("Received:", message);
 
-      if (message.type === 'broadcast') {
-        const div = document.getElementById('updates');
-        const p = document.createElement('p');
-        p.textContent = `${message.payload.type}: ${JSON.stringify(message.payload.record)}`;
-        div.insertBefore(p, div.firstChild);
-      }
-    };
+        if (message.type === "broadcast") {
+          const div = document.getElementById("updates");
+          const p = document.createElement("p");
+          p.textContent = `${message.payload.type}: ${JSON.stringify(message.payload.record)}`;
+          div.insertBefore(p, div.firstChild);
+        }
+      };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-  </script>
-</body>
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+    </script>
+  </body>
 </html>
 ```
 
@@ -300,91 +305,91 @@ npm install @fluxbase/sdk
 Create `app.ts`:
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
 // Initialize client
 const client = createClient({
-  url: 'http://localhost:8080',
+  url: "http://localhost:8080",
   auth: {
     autoRefresh: true,
-    persist: true
-  }
-})
+    persist: true,
+  },
+});
 
 interface Todo {
-  id: string
-  title: string
-  description?: string
-  completed: boolean
-  priority: 'low' | 'medium' | 'high'
-  due_date?: string
-  created_at: string
-  updated_at: string
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority: "low" | "medium" | "high";
+  due_date?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 async function main() {
   // Sign in
   const { user, error: authError } = await client.auth.signIn({
-    email: 'user@example.com',
-    password: 'SecurePassword123'
-  })
+    email: "user@example.com",
+    password: "SecurePassword123",
+  });
 
   if (authError) {
-    console.error('Auth failed:', authError)
-    return
+    console.error("Auth failed:", authError);
+    return;
   }
 
-  console.log('Signed in as:', user?.email)
+  console.log("Signed in as:", user?.email);
 
   // Get all todos
   const { data: todos, error } = await client
-    .from<Todo>('todos')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .execute()
+    .from<Todo>("todos")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .execute();
 
   if (error) {
-    console.error('Query failed:', error)
-    return
+    console.error("Query failed:", error);
+    return;
   }
 
-  console.log('Todos:', todos)
+  console.log("Todos:", todos);
 
   // Create a new todo
   const { data: newTodo, error: createError } = await client
-    .from<Todo>('todos')
+    .from<Todo>("todos")
     .insert({
-      title: 'Todo from TypeScript',
-      description: 'Created using the SDK',
-      priority: 'medium'
+      title: "Todo from TypeScript",
+      description: "Created using the SDK",
+      priority: "medium",
     })
-    .execute()
+    .execute();
 
   if (createError) {
-    console.error('Create failed:', createError)
-    return
+    console.error("Create failed:", createError);
+    return;
   }
 
-  console.log('Created todo:', newTodo)
+  console.log("Created todo:", newTodo);
 
   // Subscribe to real-time updates
   client.realtime
-    .channel('table:public.todos')
-    .on('INSERT', (payload) => {
-      console.log('New todo:', payload.new_record)
+    .channel("table:public.todos")
+    .on("INSERT", (payload) => {
+      console.log("New todo:", payload.new_record);
     })
-    .on('UPDATE', (payload) => {
-      console.log('Updated todo:', payload.new_record)
+    .on("UPDATE", (payload) => {
+      console.log("Updated todo:", payload.new_record);
     })
-    .on('DELETE', (payload) => {
-      console.log('Deleted todo:', payload.old_record)
+    .on("DELETE", (payload) => {
+      console.log("Deleted todo:", payload.old_record);
     })
-    .subscribe()
+    .subscribe();
 
-  console.log('Subscribed to real-time updates')
+  console.log("Subscribed to real-time updates");
 }
 
-main()
+main();
 ```
 
 Run it:
@@ -435,22 +440,22 @@ ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
 -- Policy: Users can only see their own todos
 CREATE POLICY todos_select_policy ON todos
   FOR SELECT
-  USING (user_id = auth.uid());
+  USING (user_id = current_setting('app.user_id', true)::uuid);
 
 -- Policy: Users can only insert their own todos
 CREATE POLICY todos_insert_policy ON todos
   FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = current_setting('app.user_id', true)::uuid);
 
 -- Policy: Users can only update their own todos
 CREATE POLICY todos_update_policy ON todos
   FOR UPDATE
-  USING (user_id = auth.uid());
+  USING (user_id = current_setting('app.user_id', true)::uuid);
 
 -- Policy: Users can only delete their own todos
 CREATE POLICY todos_delete_policy ON todos
   FOR DELETE
-  USING (user_id = auth.uid());
+  USING (user_id = current_setting('app.user_id', true)::uuid);
 ```
 
 ### Add Aggregations

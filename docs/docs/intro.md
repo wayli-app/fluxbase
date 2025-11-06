@@ -11,7 +11,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ### 🚀 Single Binary Deployment
 
-- **Simple**: Deploy one binary file (~50MB)
+- **Simple**: Deploy one binary file (~80MB)
 - **Fast**: Starts in seconds, not minutes
 - **Portable**: Runs anywhere Go runs
 
@@ -41,13 +41,13 @@ Automatically generate CRUD endpoints from your PostgreSQL schema with PostgREST
 
 ```bash
 # Filter and select
-GET /api/rest/posts?published=eq.true&select=id,title,author(name)
+GET /api/v1/tables/posts?published=eq.true&select=id,title,author(name)
 
 # Order and paginate
-GET /api/rest/posts?order=created_at.desc&limit=10&offset=20
+GET /api/v1/tables/posts?order=created_at.desc&limit=10&offset=20
 
 # Complex queries
-GET /api/rest/posts?or=(status.eq.draft,status.eq.published)&author_id=eq.1
+GET /api/v1/tables/posts?or=(status.eq.draft,status.eq.published)&author_id=eq.1
 ```
 
 ### 🔐 Authentication
@@ -84,7 +84,7 @@ JavaScript/TypeScript function execution:
 - HTTP-triggered functions
 - Scheduled functions (cron)
 - Database webhook triggers
-- Embedded QuickJS runtime
+- Deno runtime
 
 ## Quick Comparison
 
@@ -97,7 +97,7 @@ JavaScript/TypeScript function execution:
 | **Authentication** | ✅ Built-in       | ✅ GoTrue                | ✅ Built-in        |
 | **Realtime**       | ✅ WebSocket      | ✅ WebSocket             | ✅ WebSocket       |
 | **Storage**        | ✅ Local/S3       | ✅ S3                    | ✅ Cloud Storage   |
-| **Functions**      | ✅ QuickJS        | ✅ Deno                  | ✅ Cloud Functions |
+| **Functions**      | ✅ Deno           | ✅ Deno                  | ✅ Cloud Functions |
 | **Open Source**    | ✅ MIT            | ✅ Apache 2.0            | ❌ Proprietary     |
 
 ## Getting Started
@@ -142,12 +142,12 @@ CREATE TABLE posts (
 
 ```bash
 # Create a post
-curl -X POST http://localhost:8080/api/rest/posts \
+curl -X POST http://localhost:8080/api/v1/tables/posts \
   -H "Content-Type: application/json" \
   -d '{"title": "Hello World", "content": "My first post!"}'
 
 # Query posts
-curl http://localhost:8080/api/rest/posts?published=eq.true
+curl http://localhost:8080/api/v1/tables/posts?published=eq.true
 ```
 
 That's it! Your API is ready.

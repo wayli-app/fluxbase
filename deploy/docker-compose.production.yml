@@ -135,10 +135,22 @@ services:
 
       # Base URL
       FLUXBASE_BASE_URL: ${BASE_URL:-http://localhost:8080}
+
+      # Service Keys (optional - for backend services/cron jobs)
+      # ⚠️  WARNING: Service keys bypass RLS and have full database access
+      # Generate with: openssl rand -base64 32
+      # Format as: sk_live_<random_string>
+      # Store in environment or secrets manager, NEVER commit to git
+      # Then add to auth.service_keys table with bcrypt hash:
+      # INSERT INTO auth.service_keys (name, key_hash, key_prefix, enabled)
+      # VALUES ('Backend', crypt('sk_live_...', gen_salt('bf', 12)), 'sk_live_', true);
+      # Uncomment to use:
+      # FLUXBASE_SERVICE_KEY: ${SERVICE_KEY:?SERVICE_KEY is required for production}
     volumes:
       - ./config/fluxbase.yaml:/app/config/fluxbase.yaml:ro
       - fluxbase_storage:/app/storage
       - fluxbase_logs:/app/logs
+      - fluxbase_functions:/app/functions
     ports:
       - "8080:8080"
     networks:
@@ -242,6 +254,8 @@ volumes:
   fluxbase_storage:
     driver: local
   fluxbase_logs:
+    driver: local
+  fluxbase_functions:
     driver: local
   prometheus_data:
     driver: local

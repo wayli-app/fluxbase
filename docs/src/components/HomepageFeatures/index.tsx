@@ -48,7 +48,7 @@ const FeatureList: FeatureItem[] = [
     title: 'Edge Functions',
     description: (
       <>
-        Execute JavaScript/TypeScript functions with QuickJS runtime.
+        Execute JavaScript/TypeScript functions with Deno runtime.
         Perfect for custom business logic and API extensions.
       </>
     ),
@@ -57,7 +57,7 @@ const FeatureList: FeatureItem[] = [
     title: 'Single Binary',
     description: (
       <>
-        Deploy a complete backend in a single ~50MB binary. Only PostgreSQL
+        Deploy a complete backend in a single ~80MB binary. Only PostgreSQL
         required as an external dependency.
       </>
     ),

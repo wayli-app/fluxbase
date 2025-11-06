@@ -10,12 +10,12 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 - **Authentication**: Email/password, magic links, JWT tokens with session management
 - **Realtime Subscriptions**: WebSocket-based live data updates using PostgreSQL LISTEN/NOTIFY
 - **Storage**: File upload/download with access policies (local filesystem or S3)
-- **Edge Functions**: JavaScript/TypeScript function execution with QuickJS runtime
+- **Edge Functions**: JavaScript/TypeScript function execution with Deno runtime
 - **Schema Introspection**: Automatic API generation from database tables
 
 ### Key Highlights
 
-- Single binary deployment (~50MB)
+- Single binary deployment (~80MB)
 - PostgreSQL as the only external dependency
 - Automatic REST endpoint generation
 - Row Level Security (RLS) support
@@ -25,6 +25,32 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 ## Quick Start
 
 > 📖 **See [GETTING_STARTED.md](GETTING_STARTED.md) for complete setup instructions**
+
+### Try it Now: Docker Compose (2 minutes)
+
+Get Fluxbase running instantly with Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/wayli-app/fluxbase.git
+cd fluxbase/deploy
+
+# Start all services (PostgreSQL + Fluxbase + MinIO)
+docker-compose up -d
+
+# Check health
+curl http://localhost:8080/health
+
+# Access admin dashboard
+open http://localhost:8080
+```
+
+That's it! Fluxbase is now running at http://localhost:8080
+
+**Default credentials:**
+
+- Database: `postgres:postgres`
+- MinIO: `minioadmin:minioadmin`
 
 ### Recommended: DevContainer (5 minutes)
 
@@ -115,42 +141,42 @@ Fluxbase automatically generates REST endpoints for all your database tables:
 
 ```bash
 # Get all records from a table
-curl http://localhost:8080/api/rest/users
+curl http://localhost:8080/api/v1/tables/users
 
 # Get a specific record
-curl http://localhost:8080/api/rest/users/123
+curl http://localhost:8080/api/v1/tables/users/123
 
 # Create a new record
-curl -X POST http://localhost:8080/api/rest/users \
+curl -X POST http://localhost:8080/api/v1/tables/users \
   -H "Content-Type: application/json" \
   -d '{"name": "John Doe", "email": "john@example.com"}'
 
 # Update a record
-curl -X PATCH http://localhost:8080/api/rest/users/123 \
+curl -X PATCH http://localhost:8080/api/v1/tables/users/123 \
   -H "Content-Type: application/json" \
   -d '{"name": "Jane Doe"}'
 
 # Delete a record
-curl -X DELETE http://localhost:8080/api/rest/users/123
+curl -X DELETE http://localhost:8080/api/v1/tables/users/123
 ```
 
 ### Query Parameters (PostgREST-compatible)
 
 ```bash
 # Filtering
-curl "http://localhost:8080/api/rest/users?age=gt.18&name=like.*john*"
+curl "http://localhost:8080/api/v1/tables/users?age=gt.18&name=like.*john*"
 
 # Selecting specific columns
-curl "http://localhost:8080/api/rest/users?select=id,name,email"
+curl "http://localhost:8080/api/v1/tables/users?select=id,name,email"
 
 # Ordering
-curl "http://localhost:8080/api/rest/users?order=created_at.desc"
+curl "http://localhost:8080/api/v1/tables/users?order=created_at.desc"
 
 # Pagination
-curl "http://localhost:8080/api/rest/users?limit=10&offset=20"
+curl "http://localhost:8080/api/v1/tables/users?limit=10&offset=20"
 
 # Complex filters
-curl "http://localhost:8080/api/rest/posts?or=(status.eq.draft,status.eq.published)&author_id=eq.1"
+curl "http://localhost:8080/api/v1/tables/posts?or=(status.eq.draft,status.eq.published)&author_id=eq.1"
 ```
 
 ## Database Schema
@@ -229,19 +255,21 @@ fluxbase/
 
 Fluxbase includes **3 complete, production-ready example applications** to help you get started:
 
-| Example | Tech Stack | Features | Difficulty |
-|---------|------------|----------|------------|
-| [Todo App](./examples/todo-app/) | React + TypeScript | CRUD, RLS, Auth | Beginner |
+| Example                                    | Tech Stack           | Features           | Difficulty   |
+| ------------------------------------------ | -------------------- | ------------------ | ------------ |
+| [Todo App](./examples/todo-app/)           | React + TypeScript   | CRUD, RLS, Auth    | Beginner     |
 | [Blog Platform](./examples/blog-platform/) | Next.js + TypeScript | SSR, Auth, Storage | Intermediate |
-| [Chat Application](./examples/chat-app/) | React + TypeScript | Realtime, Presence | Intermediate |
+| [Chat Application](./examples/chat-app/)   | React + TypeScript   | Realtime, Presence | Intermediate |
 
 Each example includes:
+
 - ✅ Complete source code
 - ✅ Setup instructions
 - ✅ Deployment guides
 - ✅ Best practices
 
 **Quick start**:
+
 ```bash
 cd examples/todo-app
 npm install
@@ -319,48 +347,14 @@ CMD ["./fluxbase"]
 
 ## Roadmap
 
-### Phase 1: Core Foundation ✅
+### Upcoming Features
 
-- [x] PostgreSQL connection pooling
-- [x] Configuration management
-- [x] Database migrations
-- [x] Schema introspection
-
-### Phase 2: REST API & Auth ✅
-
-- [x] PostgREST-compatible query parser
-- [x] Dynamic REST endpoint generation
-- [x] HTTP server setup
-- [ ] JWT authentication
-- [ ] User management
-- [ ] RLS enforcement
-
-### Phase 3: Realtime Engine
-
-- [ ] WebSocket server
-- [ ] PostgreSQL LISTEN/NOTIFY
-- [ ] Subscription management
-- [ ] Presence tracking
-
-### Phase 4: Storage & Functions
-
-- [ ] File upload/download
-- [ ] Storage policies
-- [ ] QuickJS integration
-- [ ] Function deployment
-
-### Phase 5: Client SDKs
-
-- [ ] TypeScript SDK
-- [ ] Go SDK
+- [ ] TypeScript SDK (PostgREST-compatible)
+- [ ] Go SDK improvements
 - [ ] SDK documentation
-
-### Phase 6: Polish & Studio
-
-- [ ] Admin UI
-- [ ] Performance optimization
-- [ ] Docker/Kubernetes support
-- [ ] Comprehensive documentation
+- [ ] Vector/AI support (pgvector integration)
+- [ ] Enhanced monitoring and observability
+- [ ] Performance benchmarks and optimization
 
 ## Contributing
 
@@ -376,34 +370,39 @@ MIT License - see LICENSE file for details.
 | -------------- | ----------------------- | ------------------------------ |
 | Deployment     | Single binary           | Multiple services              |
 | Dependencies   | PostgreSQL only         | PostgreSQL + multiple services |
-| Binary size    | ~50MB                   | N/A (containerized)            |
+| Size           | ~80MB                   | 2+ GB                          |
 | REST API       | ✅ PostgREST-compatible | ✅ PostgREST                   |
 | Authentication | ✅ Built-in             | ✅ GoTrue                      |
 | Realtime       | ✅ Built-in             | ✅ Realtime                    |
 | Storage        | ✅ Built-in             | ✅ Storage API                 |
-| Edge Functions | 🚧 QuickJS              | ✅ Deno                        |
+| Edge Functions | ✅ Deno                 | ✅ Deno                        |
 | Vector/AI      | ❌                      | ✅                             |
-| Admin UI       | 🚧 Optional             | ✅                             |
+| Admin UI       | ✅ Built-in             | ✅                             |
 
 ## Documentation
 
 ### Getting Started
+
 - **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete setup guide with DevContainer and local options
 - **[examples/](examples/)** - 3 production-ready example applications (Todo, Blog, Chat)
 
 ### Production
+
 - **[PRODUCTION_RUNBOOK.md](PRODUCTION_RUNBOOK.md)** - Production deployment, configuration, monitoring, and operations
 - **[VERSIONING.md](VERSIONING.md)** - Version management, build automation, and release process
 
 ### GitHub Setup
+
 - **[.github/SETUP_GUIDE.md](.github/SETUP_GUIDE.md)** - Complete GitHub repository configuration
 - **[.github/SECRETS.md](.github/SECRETS.md)** - GitHub secrets and variables reference
 - **[.github/QUICK_REFERENCE.md](.github/QUICK_REFERENCE.md)** - Quick reference card for GitHub setup
 
 ### Monitoring
+
 - **[deploy/MONITORING.md](deploy/MONITORING.md)** - Prometheus, Grafana, and observability setup
 
 ### Additional Resources
+
 - **[docs/](docs/)** - Full Docusaurus documentation (run `make docs` to serve locally)
 - **[.docs/archive/](.docs/archive/)** - Historical project tracking documents
 

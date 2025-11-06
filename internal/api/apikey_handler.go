@@ -6,7 +6,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // APIKeyHandler handles API key-related requests
@@ -38,9 +40,12 @@ type UpdateAPIKeyRequest struct {
 	RateLimitPerMinute *int     `json:"rate_limit_per_minute,omitempty"`
 }
 
-// RegisterRoutes registers API key routes
-func (h *APIKeyHandler) RegisterRoutes(app *fiber.App) {
-	apiKeys := app.Group("/api/v1/api-keys")
+// RegisterRoutes registers API key routes with authentication
+func (h *APIKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+	// Apply authentication middleware to all API key routes
+	apiKeys := app.Group("/api/v1/api-keys",
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+	)
 
 	apiKeys.Post("/", h.CreateAPIKey)
 	apiKeys.Get("/", h.ListAPIKeys)

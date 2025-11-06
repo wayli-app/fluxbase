@@ -30,40 +30,56 @@ const config: Config = {
   themes: ["@docusaurus/theme-mermaid"],
 
   plugins: [
-    [
-      "docusaurus-plugin-typedoc",
-      {
-        id: "sdk",
-        entryPoints: ["../sdk/src/index.ts"],
-        tsconfig: "../sdk/tsconfig.json",
-        out: "docs/api/sdk",
-        readme: "none",
-        disableSources: true,
-        excludePrivate: true,
-        excludeProtected: true,
-        excludeInternal: true,
-        sidebar: {
-          autoConfiguration: true,
+    ...(process.env.SKIP_TYPEDOC !== 'true' ? [
+      [
+        "docusaurus-plugin-typedoc",
+        {
+          id: "sdk",
+          entryPoints: ["../sdk/src/index.ts"],
+          tsconfig: "../sdk/tsconfig.json",
+          out: "docs/api/sdk",
+          readme: "none",
+          disableSources: true,
+          excludePrivate: true,
+          excludeProtected: true,
+          excludeInternal: true,
+          useCodeBlocks: true,
+          useHTMLEncodedBrackets: true,
+          parametersFormat: "table",
+          propertiesFormat: "table",
+          enumMembersFormat: "table",
+          typeDeclarationFormat: "table",
+          expandObjects: false,
+          sidebar: {
+            autoConfiguration: true,
+          },
         },
-      },
-    ],
-    [
-      "docusaurus-plugin-typedoc",
-      {
-        id: "sdk-react",
-        entryPoints: ["../sdk-react/src/index.ts"],
-        tsconfig: "../sdk-react/tsconfig.json",
-        out: "docs/api/sdk-react",
-        readme: "none",
-        disableSources: true,
-        excludePrivate: true,
-        excludeProtected: true,
-        excludeInternal: true,
-        sidebar: {
-          autoConfiguration: true,
+      ],
+      [
+        "docusaurus-plugin-typedoc",
+        {
+          id: "sdk-react",
+          entryPoints: ["../sdk-react/src/index.ts"],
+          tsconfig: "../sdk-react/tsconfig.json",
+          out: "docs/api/sdk-react",
+          readme: "none",
+          disableSources: true,
+          excludePrivate: true,
+          excludeProtected: true,
+          excludeInternal: true,
+          useCodeBlocks: true,
+          useHTMLEncodedBrackets: true,
+          parametersFormat: "table",
+          propertiesFormat: "table",
+          enumMembersFormat: "table",
+          typeDeclarationFormat: "table",
+          expandObjects: false,
+          sidebar: {
+            autoConfiguration: true,
+          },
         },
-      },
-    ],
+      ],
+    ] : []),
   ],
 
   presets: [
@@ -89,7 +105,7 @@ const config: Config = {
     navbar: {
       title: "Fluxbase",
       logo: {
-        alt: "Fluxbase Logo",
+        alt: "",
         src: "img/logo.svg",
       },
       items: [
@@ -119,7 +135,7 @@ const config: Config = {
       ],
     },
     footer: {
-      style: "dark",
+      style: "light",
       links: [
         {
           title: "Docs",

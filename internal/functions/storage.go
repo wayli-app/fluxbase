@@ -11,22 +11,23 @@ import (
 
 // EdgeFunction represents a stored edge function
 type EdgeFunction struct {
-	ID             uuid.UUID  `json:"id"`
-	Name           string     `json:"name"`
-	Description    *string    `json:"description"`
-	Code           string     `json:"code"`
-	Version        int        `json:"version"`
-	CronSchedule   *string    `json:"cron_schedule"`
-	Enabled        bool       `json:"enabled"`
-	TimeoutSeconds int        `json:"timeout_seconds"`
-	MemoryLimitMB  int        `json:"memory_limit_mb"`
-	AllowNet       bool       `json:"allow_net"`
-	AllowEnv       bool       `json:"allow_env"`
-	AllowRead      bool       `json:"allow_read"`
-	AllowWrite     bool       `json:"allow_write"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	CreatedBy      *uuid.UUID `json:"created_by"`
+	ID                   uuid.UUID  `json:"id"`
+	Name                 string     `json:"name"`
+	Description          *string    `json:"description"`
+	Code                 string     `json:"code"`
+	Version              int        `json:"version"`
+	CronSchedule         *string    `json:"cron_schedule"`
+	Enabled              bool       `json:"enabled"`
+	TimeoutSeconds       int        `json:"timeout_seconds"`
+	MemoryLimitMB        int        `json:"memory_limit_mb"`
+	AllowNet             bool       `json:"allow_net"`
+	AllowEnv             bool       `json:"allow_env"`
+	AllowRead            bool       `json:"allow_read"`
+	AllowWrite           bool       `json:"allow_write"`
+	AllowUnauthenticated bool       `json:"allow_unauthenticated"` // NEW: Allow invocation without authentication
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	CreatedBy            *uuid.UUID `json:"created_by"`
 }
 
 // EdgeFunctionExecution represents a function execution log
@@ -61,14 +62,14 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 	query := `
 		INSERT INTO functions.edge_functions (
 			name, description, code, enabled, timeout_seconds, memory_limit_mb,
-			allow_net, allow_env, allow_read, allow_write, cron_schedule, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, cron_schedule, created_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, version, created_at, updated_at
 	`
 
 	err := s.db.QueryRow(ctx, query,
 		fn.Name, fn.Description, fn.Code, fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
-		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.CronSchedule, fn.CreatedBy,
+		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.CronSchedule, fn.CreatedBy,
 	).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 
 	if err != nil {
@@ -82,7 +83,7 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, error) {
 	query := `
 		SELECT id, name, description, code, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated,
 		       created_at, updated_at, created_by
 		FROM functions.edge_functions
 		WHERE name = $1
@@ -91,7 +92,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 	fn := &EdgeFunction{}
 	err := s.db.QueryRow(ctx, query, name).Scan(
 		&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.Version, &fn.CronSchedule, &fn.Enabled,
-		&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite,
+		&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
 		&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
 	)
 
@@ -106,7 +107,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 	query := `
 		SELECT id, name, description, code, version, cron_schedule, enabled,
-		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated,
 		       created_at, updated_at, created_by
 		FROM functions.edge_functions
 		ORDER BY created_at DESC
@@ -123,7 +124,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 		fn := EdgeFunction{}
 		err := rows.Scan(
 			&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.Version, &fn.CronSchedule, &fn.Enabled,
-			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
 			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
 		)
 		if err != nil {

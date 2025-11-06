@@ -225,7 +225,7 @@ make dev
 
 Open http://localhost:8080/health - should return `{"status":"ok"}`
 
-Now start Sprint 1 (Authentication) from `TODO.md`!
+You're all set! Check out the documentation in `docs/` to learn more.
 
 ---
 

@@ -206,6 +206,10 @@ spec:
             - name: storage
               mountPath: {{ .Values.config.storage.local.basePath }}
             {{- end }}
+            {{- if .Values.functionsPersistence.enabled }}
+            - name: functions
+              mountPath: /app/functions
+            {{- end }}
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -220,6 +224,11 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim | default (include "fluxbase.fullname" .) }}
+        {{- end }}
+        {{- if .Values.functionsPersistence.enabled }}
+        - name: functions
+          persistentVolumeClaim:
+            claimName: {{ .Values.functionsPersistence.existingClaim | default (printf "%s-functions" (include "fluxbase.fullname" .)) }}
         {{- end }}
         {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

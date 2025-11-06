@@ -370,7 +370,7 @@ async function downloadFile(bucket: string, key: string) {
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
 
   const blob = await response.blob();
@@ -657,4 +657,3 @@ done
 
 - [Authentication](./authentication.md) - Securing storage endpoints
 - [API Reference](../api/storage.md) - Complete API documentation
-- [Testing Guide](../testing-guide.md) - Testing strategies

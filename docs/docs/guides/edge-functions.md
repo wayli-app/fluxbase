@@ -45,21 +45,180 @@ curl -X POST http://localhost:8080/api/v1/functions \
 ```bash
 curl -X POST http://localhost:8080/api/v1/functions/hello-world/invoke \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ANON_KEY" \
   -d '{"name": "Alice"}'
 ```
 
 Response:
+
 ```json
 {
   "message": "Hello World!"
 }
 ```
 
+> **Note:** Function invocation requires at minimum an **anon key** (JWT token with `role=anon`). See the [Authentication](#authentication) section below for details.
+
 ### 3. View Execution History
 
 ```bash
 curl http://localhost:8080/api/v1/functions/hello-world/executions \
   -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Authentication
+
+Edge function invocation requires **at minimum an anon key** (JWT token with `role=anon`) by default. This follows the Supabase authentication model where even "public" endpoints require project identification for security and usage tracking.
+
+### Authentication Options
+
+Functions accept multiple authentication methods, in order of privilege:
+
+#### 1. Anon Key (Minimum Required)
+
+An anon key is a JWT token with `role=anon` that allows anonymous access while still identifying your project.
+
+**Generate an anon key:**
+
+```bash
+# Using the helper script
+./scripts/generate-keys.sh
+# Select option 3: Generate Anon Key
+```
+
+**Use in requests:**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
+  -H "Authorization: Bearer YOUR_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"data": "value"}'
+```
+
+**Client-side usage:**
+
+```javascript
+// Store anon key in your environment
+const FLUXBASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+
+// Use in API calls
+fetch("http://localhost:8080/api/v1/functions/my-function/invoke", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${FLUXBASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ data: "value" }),
+});
+```
+
+#### 2. User JWT Token
+
+Authenticated user tokens from sign-in provide user context to functions.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"data": "value"}'
+```
+
+Functions can access the authenticated user ID:
+
+```typescript
+async function handler(request) {
+  const userId = request.user_id; // Available when user is authenticated
+
+  if (userId) {
+    console.log("Authenticated user:", userId);
+  } else {
+    console.log("Anonymous user (anon key)");
+  }
+
+  // Your logic here
+}
+```
+
+#### 3. API Key
+
+API keys provide scoped access with specific permissions.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"data": "value"}'
+```
+
+Create an API key with `execute:functions` scope:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/api-keys \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My API Key",
+    "scopes": ["execute:functions"],
+    "rate_limit_per_minute": 100
+  }'
+```
+
+#### 4. Service Key
+
+Service keys have elevated privileges and bypass RLS policies. Use only for backend services.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
+  -H "X-Service-Key: YOUR_SERVICE_KEY" \
+  -H "Content-Type": "application/json" \
+  -d '{"data": "value"}'
+```
+
+### Allowing Completely Unauthenticated Access
+
+For truly public endpoints that don't require any authentication (not even an anon key), set `allow_unauthenticated: true`. This is useful for public webhooks or endpoints that must be accessible without credentials.
+
+**Via API:**
+
+```json
+{
+  "name": "public-webhook",
+  "code": "async function handler(req) { ... }",
+  "allow_unauthenticated": true
+}
+```
+
+**Via code comment:**
+
+```typescript
+// @fluxbase:allow-unauthenticated
+async function handler(request) {
+  // Process webhook without authentication
+  return {
+    status: 200,
+    body: JSON.stringify({ success: true }),
+  };
+}
+```
+
+> **Security Note:** Use `allow_unauthenticated: true` sparingly. Anon keys provide better security, rate limiting, and usage tracking for most public endpoints.
+
+### Authentication Error Responses
+
+**No authentication provided (401):**
+
+```json
+{
+  "error": "Authentication required. Provide an anon key (Bearer token with role=anon), API key (X-API-Key header), or service key (X-Service-Key header). To allow completely unauthenticated access, set allow_unauthenticated=true on the function."
+}
+```
+
+**Function disabled (403):**
+
+```json
+{
+  "error": "Function is disabled"
+}
 ```
 
 ## Writing Functions
@@ -74,7 +233,7 @@ async function handler(request: Request): Promise<Response> {
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "Success" })
+    body: JSON.stringify({ message: "Success" }),
   };
 }
 ```
@@ -85,11 +244,11 @@ The `request` parameter contains:
 
 ```typescript
 interface Request {
-  method: string;           // HTTP method (GET, POST, etc.)
-  url: string;             // Full request URL
+  method: string; // HTTP method (GET, POST, etc.)
+  url: string; // Full request URL
   headers: Record<string, string>; // Request headers
-  body: string;            // Request body as string
-  user_id?: string;        // Authenticated user ID (if available)
+  body: string; // Request body as string
+  user_id?: string; // Authenticated user ID (if available)
 }
 ```
 
@@ -99,9 +258,9 @@ Return a response object:
 
 ```typescript
 interface Response {
-  status: number;          // HTTP status code (200, 404, 500, etc.)
+  status: number; // HTTP status code (200, 404, 500, etc.)
   headers?: Record<string, string>; // Response headers
-  body: string;            // Response body as string
+  body: string; // Response body as string
 }
 ```
 
@@ -111,16 +270,16 @@ interface Response {
 
 ```typescript
 async function handler(request) {
-  const data = JSON.parse(request.body || '{}');
-  const name = data.name || 'World';
+  const data = JSON.parse(request.body || "{}");
+  const name = data.name || "World";
 
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: `Hello ${name}!`,
-      timestamp: new Date().toISOString()
-    })
+      timestamp: new Date().toISOString(),
+    }),
   };
 }
 ```
@@ -135,15 +294,15 @@ async function handler(request) {
   // Query your database via REST API
   const response = await fetch(`${url}/api/v1/tables/users?select=id,email`, {
     headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
   });
 
   if (!response.ok) {
     return {
       status: response.status,
-      body: JSON.stringify({ error: "Failed to fetch users" })
+      body: JSON.stringify({ error: "Failed to fetch users" }),
     };
   }
 
@@ -154,8 +313,8 @@ async function handler(request) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       count: users.length,
-      users: users
-    })
+      users: users,
+    }),
   };
 }
 ```
@@ -165,14 +324,14 @@ async function handler(request) {
 ```typescript
 async function handler(request) {
   // Parse webhook payload
-  const payload = JSON.parse(request.body || '{}');
+  const payload = JSON.parse(request.body || "{}");
 
   // Validate webhook signature (example)
-  const signature = request.headers['x-webhook-signature'];
+  const signature = request.headers["x-webhook-signature"];
   if (!signature) {
     return {
       status: 401,
-      body: JSON.stringify({ error: "Missing signature" })
+      body: JSON.stringify({ error: "Missing signature" }),
     };
   }
 
@@ -186,19 +345,19 @@ async function handler(request) {
   await fetch(`${url}/api/v1/tables/webhook_events`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       event_type: payload.event,
       data: payload,
-      received_at: new Date().toISOString()
-    })
+      received_at: new Date().toISOString(),
+    }),
   });
 
   return {
     status: 200,
-    body: JSON.stringify({ success: true })
+    body: JSON.stringify({ success: true }),
   };
 }
 ```
@@ -207,34 +366,38 @@ async function handler(request) {
 
 ```typescript
 async function handler(request) {
-  const data = JSON.parse(request.body || '{}');
+  const data = JSON.parse(request.body || "{}");
 
   // Send email via external service (e.g., SendGrid)
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
+  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
     headers: {
-      'Authorization': `Bearer ${Deno.env.get('SENDGRID_API_KEY')}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${Deno.env.get("SENDGRID_API_KEY")}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      personalizations: [{
-        to: [{ email: data.email }],
-        subject: data.subject
-      }],
-      from: { email: 'noreply@yourapp.com' },
-      content: [{
-        type: 'text/html',
-        value: data.html_body
-      }]
-    })
+      personalizations: [
+        {
+          to: [{ email: data.email }],
+          subject: data.subject,
+        },
+      ],
+      from: { email: "noreply@yourapp.com" },
+      content: [
+        {
+          type: "text/html",
+          value: data.html_body,
+        },
+      ],
+    }),
   });
 
   return {
     status: response.ok ? 200 : 500,
     body: JSON.stringify({
       success: response.ok,
-      message: response.ok ? 'Email sent' : 'Failed to send email'
-    })
+      message: response.ok ? "Email sent" : "Failed to send email",
+    }),
   };
 }
 ```
@@ -243,7 +406,7 @@ async function handler(request) {
 
 ```typescript
 async function handler(request) {
-  const data = JSON.parse(request.body || '{}');
+  const data = JSON.parse(request.body || "{}");
 
   // Validate required fields
   if (!data.email || !data.name) {
@@ -251,8 +414,8 @@ async function handler(request) {
       status: 400,
       body: JSON.stringify({
         error: "Missing required fields",
-        required: ["email", "name"]
-      })
+        required: ["email", "name"],
+      }),
     };
   }
 
@@ -261,7 +424,7 @@ async function handler(request) {
   if (!emailRegex.test(data.email)) {
     return {
       status: 400,
-      body: JSON.stringify({ error: "Invalid email format" })
+      body: JSON.stringify({ error: "Invalid email format" }),
     };
   }
 
@@ -272,9 +435,9 @@ async function handler(request) {
       valid: true,
       data: {
         email: data.email.toLowerCase(),
-        name: data.name.trim()
-      }
-    })
+        name: data.name.trim(),
+      },
+    }),
   };
 }
 ```
@@ -283,13 +446,13 @@ async function handler(request) {
 
 ```typescript
 async function handler(request) {
-  const data = JSON.parse(request.body || '{}');
+  const data = JSON.parse(request.body || "{}");
 
   // Proxy request to external API
   const response = await fetch(`https://api.example.com/data/${data.id}`, {
     headers: {
-      'Authorization': `Bearer ${Deno.env.get('EXTERNAL_API_KEY')}`
-    }
+      Authorization: `Bearer ${Deno.env.get("EXTERNAL_API_KEY")}`,
+    },
   });
 
   const result = await response.json();
@@ -300,10 +463,220 @@ async function handler(request) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       data: result,
-      cached_at: new Date().toISOString()
+      cached_at: new Date().toISOString(),
+    }),
+  };
+}
+```
+
+## Deployment Methods
+
+Fluxbase supports two ways to deploy edge functions:
+
+### 1. API-Based Deployment (Default)
+
+Create and manage functions via the REST API. This is ideal for:
+
+- Dynamic function creation from admin dashboards
+- Programmatic deployment workflows
+- Quick prototyping and testing
+
+See the [Management API](#management-api) section below for details.
+
+### 2. File-Based Deployment
+
+Deploy functions as TypeScript files mounted to the functions directory. This is ideal for:
+
+- GitOps workflows and version control
+- Docker/Kubernetes deployments
+- CI/CD pipelines
+- Team collaboration
+
+#### Configuration
+
+Enable file-based functions in your `fluxbase.yaml`:
+
+```yaml
+functions:
+  enabled: true
+  functions_dir: "./functions" # Path to functions directory
+  default_timeout: 30 # Default timeout in seconds
+  max_timeout: 300 # Maximum timeout (5 minutes)
+  default_memory_limit: 128 # Default memory limit in MB
+  max_memory_limit: 1024 # Maximum memory limit (1GB)
+```
+
+Or via environment variables:
+
+```bash
+FLUXBASE_FUNCTIONS_ENABLED=true
+FLUXBASE_FUNCTIONS_DIR=./functions
+FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT=30
+FLUXBASE_FUNCTIONS_MAX_TIMEOUT=300
+FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT=128
+FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT=1024
+```
+
+#### Creating Functions
+
+Create a TypeScript file in your functions directory:
+
+```bash
+# Create functions directory
+mkdir -p ./functions
+
+# Create a function file
+cat > ./functions/hello-world.ts << 'EOF'
+async function handler(req) {
+  const data = JSON.parse(req.body || '{}');
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: `Hello ${data.name || 'World'}!`
     })
   };
 }
+EOF
+```
+
+#### Docker Deployment
+
+Mount your functions directory as a volume:
+
+```yaml
+# docker-compose.yml
+services:
+  fluxbase:
+    image: fluxbase/fluxbase:latest
+    volumes:
+      - ./functions:/app/functions
+    environment:
+      FLUXBASE_FUNCTIONS_ENABLED: "true"
+      FLUXBASE_FUNCTIONS_DIR: /app/functions
+```
+
+#### Kubernetes Deployment
+
+Use a PersistentVolumeClaim or ConfigMap:
+
+```yaml
+# Using PVC (recommended for production)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fluxbase-functions
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluxbase
+spec:
+  template:
+    spec:
+      containers:
+        - name: fluxbase
+          image: fluxbase/fluxbase:latest
+          env:
+            - name: FLUXBASE_FUNCTIONS_ENABLED
+              value: "true"
+            - name: FLUXBASE_FUNCTIONS_DIR
+              value: /app/functions
+          volumeMounts:
+            - name: functions
+              mountPath: /app/functions
+      volumes:
+        - name: functions
+          persistentVolumeClaim:
+            claimName: fluxbase-functions
+```
+
+#### Reloading Functions
+
+Functions are automatically detected from the filesystem at runtime. To reload functions after updating files:
+
+**Via API (Admin Only):**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
+  -H "Authorization: Bearer ADMIN_TOKEN"
+```
+
+**Via Dashboard:**
+
+1. Navigate to the Functions page
+2. Functions are automatically reloaded when the page loads
+3. Or click the "Reload from Disk" button (if available)
+
+The reload endpoint will:
+
+- Scan the functions directory for `.ts` files
+- Create new functions in the database
+- Update existing functions if code has changed
+- Skip invalid or malformed files
+- Return a summary of created, updated, and error counts
+
+**Response:**
+
+```json
+{
+  "message": "Functions reloaded from filesystem",
+  "total": 5,
+  "created": ["new-function"],
+  "updated": ["existing-function"],
+  "errors": []
+}
+```
+
+#### File Naming Rules
+
+- Function names are derived from filenames
+- Only `.ts` files are processed
+- Valid characters: `a-z`, `A-Z`, `0-9`, `-`, `_`
+- Reserved names are blocked: `.`, `..`, `index`, `main`, `handler`, `_`, `-`
+- Path traversal attempts (e.g., `../malicious.ts`) are rejected
+
+#### Security
+
+File-based deployment includes security measures:
+
+- **Path traversal prevention**: Strict validation prevents directory traversal attacks
+- **Name validation**: Function names are validated against a regex pattern
+- **Admin-only reload**: Only dashboard admins can trigger function reloads
+- **Filesystem as source of truth**: Files override database entries
+- **Audit logging**: All reload operations are logged
+
+#### GitOps Workflow Example
+
+```bash
+# 1. Add function to Git repository
+git add functions/new-feature.ts
+git commit -m "Add new-feature function"
+git push
+
+# 2. Deploy to staging (CI/CD pipeline)
+kubectl apply -f k8s/staging/
+# Wait for pods to restart with new volume
+
+# 3. Reload functions via API
+curl -X POST https://staging-api.example.com/api/v1/admin/functions/reload \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# 4. Test the function
+curl -X POST https://staging-api.example.com/api/v1/functions/new-feature/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"test": true}'
+
+# 5. Deploy to production
+kubectl apply -f k8s/production/
+curl -X POST https://api.example.com/api/v1/admin/functions/reload \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
 ## Management API
@@ -446,12 +819,12 @@ Returns whatever your function's handler returns.
 
 Configure what your function can access:
 
-| Permission | Description | Default |
-|------------|-------------|---------|
-| `allow_net` | Network access (fetch, WebSocket) | `true` |
-| `allow_env` | Environment variables | `true` |
-| `allow_read` | Filesystem read access | `false` |
-| `allow_write` | Filesystem write access | `false` |
+| Permission    | Description                       | Default |
+| ------------- | --------------------------------- | ------- |
+| `allow_net`   | Network access (fetch, WebSocket) | `true`  |
+| `allow_env`   | Environment variables             | `true`  |
+| `allow_read`  | Filesystem read access            | `false` |
+| `allow_write` | Filesystem write access           | `false` |
 
 **Example:**
 
@@ -468,10 +841,10 @@ Configure what your function can access:
 
 ### Execution Limits
 
-| Setting | Description | Default | Max |
-|---------|-------------|---------|-----|
-| `timeout_seconds` | Maximum execution time | 30s | 300s |
-| `memory_limit_mb` | Maximum memory usage | 128MB | 1024MB |
+| Setting           | Description            | Default | Max    |
+| ----------------- | ---------------------- | ------- | ------ |
+| `timeout_seconds` | Maximum execution time | 30s     | 300s   |
+| `memory_limit_mb` | Maximum memory usage   | 128MB   | 1024MB |
 
 ### Environment Variables
 
@@ -507,7 +880,7 @@ async function handler(request) {
 
   return {
     status: 200,
-    body: JSON.stringify(result)
+    body: JSON.stringify(result),
   };
 }
 ```
@@ -521,14 +894,14 @@ Wrap your code in try-catch blocks:
 ```typescript
 async function handler(request) {
   try {
-    const data = JSON.parse(request.body || '{}');
+    const data = JSON.parse(request.body || "{}");
 
     // Your logic here
     const result = await someAsyncOperation(data);
 
     return {
       status: 200,
-      body: JSON.stringify(result)
+      body: JSON.stringify(result),
     };
   } catch (error) {
     console.error("Function error:", error);
@@ -537,8 +910,8 @@ async function handler(request) {
       status: 500,
       body: JSON.stringify({
         error: error.message,
-        stack: error.stack
-      })
+        stack: error.stack,
+      }),
     };
   }
 }
@@ -550,12 +923,12 @@ async function handler(request) {
 
 ```typescript
 async function handler(request) {
-  const data = JSON.parse(request.body || '{}');
+  const data = JSON.parse(request.body || "{}");
 
   if (!data.email) {
     return {
       status: 400,
-      body: JSON.stringify({ error: "email is required" })
+      body: JSON.stringify({ error: "email is required" }),
     };
   }
 
@@ -593,7 +966,7 @@ async function handler(request) {
     console.error(error);
     return {
       status: 500,
-      body: JSON.stringify({ error: "Internal server error" })
+      body: JSON.stringify({ error: "Internal server error" }),
     };
   }
 }
@@ -629,7 +1002,7 @@ return { status: 500, body: "..." };
 - **Execution Time**: Maximum 300 seconds (5 minutes)
 - **Memory**: Maximum 1024MB
 - **Concurrency**: Each invocation runs in a separate process
-- **Code Size**: Recommended <1MB for faster cold starts
+- **Code Size**: Recommended &lt;1MB for faster cold starts
 - **Log Retention**: 30 days
 
 ## Security Considerations
@@ -673,6 +1046,7 @@ The following features are planned for future releases:
 Fluxbase Edge Functions are similar to Supabase Edge Functions:
 
 **Similarities:**
+
 - Deno runtime
 - TypeScript/JavaScript support
 - HTTP invocation
@@ -680,6 +1054,7 @@ Fluxbase Edge Functions are similar to Supabase Edge Functions:
 - Environment variables
 
 **Differences:**
+
 - **Invocation**: Fluxbase uses `/functions/:name/invoke` instead of URL routing
 - **Deployment**: Managed via REST API instead of CLI
 - **Triggers**: Database triggers coming in future release
@@ -687,6 +1062,7 @@ Fluxbase Edge Functions are similar to Supabase Edge Functions:
 **Migration Example:**
 
 Supabase:
+
 ```typescript
 // functions/hello/index.ts
 Deno.serve(async (req) => {
@@ -697,12 +1073,13 @@ Deno.serve(async (req) => {
 ```
 
 Fluxbase:
+
 ```typescript
 async function handler(req) {
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "Hello" })
+    body: JSON.stringify({ message: "Hello" }),
   };
 }
 ```
@@ -718,6 +1095,7 @@ async function handler(req) {
 ### Timeout Errors
 
 Increase `timeout_seconds`:
+
 ```json
 {
   "timeout_seconds": 60
@@ -727,6 +1105,7 @@ Increase `timeout_seconds`:
 ### Permission Denied
 
 Enable required permissions:
+
 ```json
 {
   "allow_net": true,

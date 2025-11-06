@@ -101,7 +101,7 @@ docker run -d \
 Create `docker-compose.yml`:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -160,6 +160,7 @@ docker-compose up -d
 ### Method 4: Build from Source
 
 Requirements:
+
 - Go 1.22 or later
 - Make
 - Git
@@ -202,9 +203,9 @@ jwt:
 
 # Storage Configuration
 storage:
-  provider: local  # or "s3"
+  provider: local # or "s3"
   local_path: ./storage
-  max_upload_size: 10485760  # 10MB
+  max_upload_size: 10485760 # 10MB
 
 # Realtime Configuration
 realtime:
@@ -236,6 +237,7 @@ fluxbase migrate
 ```
 
 This will:
+
 - Create the `auth` schema with user tables
 - Create the `storage` schema for file metadata
 - Set up realtime triggers
@@ -312,7 +314,7 @@ CREATE TABLE tasks (
 Query via REST API:
 
 ```bash
-curl http://localhost:8080/api/tables/tasks
+curl http://localhost:8080/api/v1/tables/tasks
 ```
 
 ## Troubleshooting
@@ -324,6 +326,7 @@ Error: failed to connect to database
 ```
 
 **Solution:**
+
 - Check PostgreSQL is running: `sudo systemctl status postgresql`
 - Verify connection string in `DATABASE_URL`
 - Ensure database exists: `psql -U postgres -l`
@@ -335,6 +338,7 @@ Error: listen tcp :8080: bind: address already in use
 ```
 
 **Solution:**
+
 - Change port: `PORT=8081 fluxbase`
 - Or kill existing process: `lsof -ti:8080 | xargs kill`
 
@@ -345,6 +349,7 @@ Error: migration 001_init.up.sql failed
 ```
 
 **Solution:**
+
 - Drop and recreate database (development only!)
 - Check PostgreSQL logs: `sudo journalctl -u postgresql`
 - Ensure fluxbase user has proper permissions

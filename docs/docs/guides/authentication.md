@@ -1444,9 +1444,7 @@ function GuestCheckout() {
   return (
     <div>
       <h2>Shopping Cart</h2>
-      {session?.user.role === "anonymous" && (
-        <p>Sign up to save your cart!</p>
-      )}
+      {session?.user.role === "anonymous" && <p>Sign up to save your cart!</p>}
       {/* Cart UI */}
     </div>
   );
@@ -1497,15 +1495,230 @@ Example policy to allow anonymous users to manage their own cart:
 CREATE POLICY "Anonymous users can manage their cart"
 ON cart_items
 FOR ALL
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+USING (current_setting('app.user_id', true)::uuid = user_id)
+WITH CHECK (current_setting('app.user_id', true)::uuid = user_id);
 
 -- Allow authenticated users more privileges
 CREATE POLICY "Authenticated users can save orders"
 ON orders
 FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK (current_setting('app.user_id', true)::uuid = user_id);
+```
+
+---
+
+## API Keys & Service Keys
+
+Fluxbase supports three types of authentication for programmatic access:
+
+### 1. User API Keys
+
+User API keys are tied to specific user accounts and inherit the user's permissions and RLS policies.
+
+**Creating an API Key:**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer {your_jwt_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Application Key",
+    "description": "API key for my mobile app",
+    "scopes": ["read:data", "write:data"],
+    "rate_limit_per_minute": 100
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "id": "uuid",
+  "name": "My Application Key",
+  "key": "fbk_live_abc123...", // Only shown once!
+  "key_prefix": "fbk_live",
+  "scopes": ["read:data", "write:data"],
+  "rate_limit_per_minute": 100,
+  "created_at": "2024-10-26T10:00:00Z"
+}
+```
+
+**Using an API Key:**
+
+```bash
+# Via X-API-Key header (recommended)
+curl http://localhost:8080/api/v1/tables/users \
+  -H "X-API-Key: fbk_live_abc123..."
+
+# Via query parameter (not recommended for production)
+curl "http://localhost:8080/api/v1/tables/users?apikey=fbk_live_abc123..."
+```
+
+### 2. Service Role Keys
+
+Service role keys provide **elevated privileges** that bypass user-level RLS policies. They are intended for:
+
+- Backend services
+- Cron jobs
+- Admin scripts
+- CI/CD pipelines
+- Server-to-server communication
+
+**⚠️ Security Warning**: Service keys bypass RLS and have full database access. Store them securely and never expose them to clients.
+
+**Creating a Service Key:**
+
+Service keys are created directly in the database by an admin:
+
+```sql
+-- Generate a service key
+INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, scopes, enabled)
+VALUES (
+  'Backend Service',
+  'Key for backend API service',
+  -- Hash your key with bcrypt (cost 12)
+  crypt('sk_live_your_random_key_here', gen_salt('bf', 12)),
+  'sk_live_',  -- First 8 chars of the key
+  ARRAY[]::TEXT[],  -- Empty array = full access
+  true
+);
+```
+
+**Key Format**: `sk_{environment}_{random}` (e.g., `sk_live_abc123xyz...`)
+
+**Using a Service Key:**
+
+```bash
+# Via X-Service-Key header (recommended)
+curl http://localhost:8080/api/v1/tables/users \
+  -H "X-Service-Key: sk_live_abc123..."
+
+# Via Authorization header
+curl http://localhost:8080/api/v1/tables/users \
+  -H "Authorization: ServiceKey sk_live_abc123..."
+```
+
+### 3. JWT Tokens (User Sessions)
+
+JWT tokens are obtained through user login and represent authenticated user sessions.
+
+```bash
+# Standard user authentication
+curl http://localhost:8080/api/v1/tables/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Authentication Priority
+
+When multiple authentication methods are provided, Fluxbase checks them in this order:
+
+1. **Service Key** (highest privilege)
+2. **JWT Token**
+3. **API Key**
+
+If a service key is provided, other auth methods are ignored.
+
+### Comparison
+
+| Feature             | JWT Token            | User API Key        | Service Key          |
+| ------------------- | -------------------- | ------------------- | -------------------- |
+| **Created by**      | User login           | Authenticated user  | Database admin       |
+| **Lifespan**        | 15 min (default)     | Until revoked       | Until revoked        |
+| **RLS Enforcement** | ✅ Yes               | ✅ Yes              | ❌ No (bypasses RLS) |
+| **Use Case**        | Web/mobile apps      | Programmatic access | Backend services     |
+| **Privileges**      | User's permissions   | User's permissions  | Full database access |
+| **Rotation**        | Automatic            | Manual              | Manual               |
+| **Client-safe**     | ✅ Yes (short-lived) | ⚠️ Depends          | ❌ Never expose      |
+
+### SDK Usage
+
+**TypeScript:**
+
+```typescript
+import { FluxbaseClient } from "@fluxbase/client";
+
+// Using JWT (after login)
+const client = new FluxbaseClient({
+  url: "http://localhost:8080",
+});
+await client.auth.signIn({ email, password });
+
+// Using API Key
+const client = new FluxbaseClient({
+  url: "http://localhost:8080",
+  apiKey: "fbk_live_abc123...",
+});
+
+// Using Service Key (backend only!)
+const client = new FluxbaseClient({
+  url: "http://localhost:8080",
+  serviceKey: "sk_live_abc123...",
+});
+```
+
+### Best Practices
+
+**API Keys:**
+
+- ✅ Use for mobile apps and SPAs where you need persistent auth
+- ✅ Set appropriate scopes to limit permissions
+- ✅ Rotate keys regularly
+- ✅ Use separate keys for dev/staging/production
+- ❌ Don't commit keys to version control
+- ❌ Don't log keys in plaintext
+
+**Service Keys:**
+
+- ✅ Use only in backend services (never in clients)
+- ✅ Store in secure secrets management (e.g., AWS Secrets Manager, HashiCorp Vault)
+- ✅ Use environment variables, never hardcode
+- ✅ Monitor usage via `last_used_at` timestamp
+- ✅ Set expiration dates where possible
+- ❌ Never expose service keys in client code
+- ❌ Never commit to version control
+- ❌ Don't use in frontend applications
+
+**Example: Environment Variables**
+
+```bash
+# .env (never commit this file!)
+FLUXBASE_URL=http://localhost:8080
+FLUXBASE_SERVICE_KEY=sk_live_abc123xyz...
+
+# In your backend code:
+const client = new FluxbaseClient({
+  url: process.env.FLUXBASE_URL,
+  serviceKey: process.env.FLUXBASE_SERVICE_KEY,
+});
+```
+
+### Managing API Keys
+
+**List your API keys:**
+
+```bash
+curl http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer {your_jwt_token}"
+```
+
+**Revoke an API key:**
+
+```bash
+curl -X DELETE http://localhost:8080/api/v1/api-keys/{key_id} \
+  -H "Authorization: Bearer {your_jwt_token}"
+```
+
+**Update API key:**
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/api-keys/{key_id} \
+  -H "Authorization: Bearer {your_jwt_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated name",
+    "scopes": ["read:data"]
+  }'
 ```
 
 ---

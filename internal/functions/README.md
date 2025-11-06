@@ -5,6 +5,7 @@ Serverless functions powered by Deno runtime for executing JavaScript/TypeScript
 ## Features
 
 ✅ **Implemented (MVP)**:
+
 - Deno 2.5.4 runtime integration via CLI
 - Function storage in PostgreSQL
 - HTTP invocation endpoint
@@ -14,6 +15,7 @@ Serverless functions powered by Deno runtime for executing JavaScript/TypeScript
 - User authentication integration
 
 ⏸️ **Deferred (Future Enhancement)**:
+
 - Cron scheduler for scheduled execution
 - Database triggers for event-driven execution
 - Admin UI integration
@@ -82,13 +84,13 @@ async function handler(request) {
   // }
 
   // Your function logic here
-  const data = JSON.parse(request.body || '{}');
+  const data = JSON.parse(request.body || "{}");
 
   // Return response
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "Success", data })
+    body: JSON.stringify({ message: "Success", data }),
   };
 }
 ```
@@ -96,6 +98,7 @@ async function handler(request) {
 ### Available APIs
 
 Functions have access to:
+
 - **Deno standard library**: All Deno APIs
 - **Fluxbase API**: Access via environment variables
   - `FLUXBASE_URL`: API endpoint
@@ -111,9 +114,9 @@ async function handler(request) {
   // Query Fluxbase REST API
   const response = await fetch(`${url}/api/v1/tables/users`, {
     headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
   });
 
   const users = await response.json();
@@ -121,7 +124,7 @@ async function handler(request) {
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ count: users.length, users })
+    body: JSON.stringify({ count: users.length, users }),
   };
 }
 ```
@@ -130,12 +133,92 @@ async function handler(request) {
 
 Functions run in a sandboxed Deno environment with configurable permissions:
 
-| Permission | Description | Default |
-|------------|-------------|---------|
-| `allow_net` | Network access | `true` |
-| `allow_env` | Environment variables | `true` |
-| `allow_read` | Filesystem read | `false` |
-| `allow_write` | Filesystem write | `false` |
+| Permission              | Description                   | Default |
+| ----------------------- | ----------------------------- | ------- |
+| `allow_net`             | Network access                | `true`  |
+| `allow_env`             | Environment variables         | `true`  |
+| `allow_read`            | Filesystem read               | `false` |
+| `allow_write`           | Filesystem write              | `false` |
+| `allow_unauthenticated` | Allow invocation without auth | `false` |
+
+### Authentication Configuration
+
+By default, **all function management endpoints require authentication** (JWT, API key, or service key):
+
+- Creating, listing, updating, and deleting functions
+- Viewing execution history
+
+**Function invocation** requires **at minimum an anon key** (JWT token with `role=anon`) by default. This follows the Supabase authentication model where even "public" endpoints require project identification.
+
+#### Authentication Options for Invocation
+
+1. **Anon Key** (JWT with `role=anon`) - Minimum required authentication
+
+   ```bash
+   curl -X POST https://fluxbase.example.com/api/v1/functions/my-function/invoke \
+     -H "Authorization: Bearer $ANON_KEY" \
+     -d '{"data": "value"}'
+   ```
+
+2. **User JWT** - Authenticated user token
+
+   ```bash
+   curl -X POST https://fluxbase.example.com/api/v1/functions/my-function/invoke \
+     -H "Authorization: Bearer $USER_TOKEN" \
+     -d '{"data": "value"}'
+   ```
+
+3. **API Key** - Scoped API key with `execute:functions` permission
+
+   ```bash
+   curl -X POST https://fluxbase.example.com/api/v1/functions/my-function/invoke \
+     -H "X-API-Key: $API_KEY" \
+     -d '{"data": "value"}'
+   ```
+
+4. **Service Key** - Elevated privileges for backend services
+   ```bash
+   curl -X POST https://fluxbase.example.com/api/v1/functions/my-function/invoke \
+     -H "X-Service-Key: $SERVICE_KEY" \
+     -d '{"data": "value"}'
+   ```
+
+#### Generating Anon Keys
+
+Generate an anon key using the helper script:
+
+```bash
+./scripts/generate-keys.sh
+# Select option 3: Generate Anon Key
+```
+
+The anon key is a JWT token signed with your `JWT_SECRET` containing `role=anon`. Distribute this key to your client applications for public API access.
+
+#### Allowing Completely Unauthenticated Access
+
+For truly public endpoints that don't require any authentication (not even an anon key), set `allow_unauthenticated: true`:
+
+1. **API Request** - Set `allow_unauthenticated` when creating/updating:
+
+   ```json
+   {
+     "name": "public-webhook",
+     "code": "...",
+     "allow_unauthenticated": true
+   }
+   ```
+
+2. **Code Comment** - Add directive in your function code:
+   ```typescript
+   // @fluxbase:allow-unauthenticated
+   async function handler(request) {
+     return { status: 200, body: "Truly public endpoint" };
+   }
+   ```
+
+The comment directive is parsed when functions are loaded via the `/api/v1/admin/functions/reload` endpoint.
+
+**Note**: Use `allow_unauthenticated: true` only for public webhooks or endpoints that must be accessible without any credentials. For most use cases, anon keys provide better security and usage tracking.
 
 ## Execution Limits
 
@@ -170,11 +253,13 @@ edge_function_triggers (
 ## Architecture
 
 **Runtime**: Deno CLI integration (shell execution)
+
 - Simple, no CGO dependencies
 - Easy to deploy (just install Deno binary)
 - Can be optimized with embedded Deno core later
 
 **Execution Flow**:
+
 1. HTTP request → `/api/v1/functions/:name/invoke`
 2. Load function code from PostgreSQL
 3. Wrap code with runtime bridge
@@ -218,6 +303,7 @@ curl http://localhost:8080/api/v1/functions/test/executions
 ## Migration Path from Supabase
 
 Fluxbase edge functions are compatible with Supabase's approach:
+
 - TypeScript/JavaScript runtime (Deno)
 - HTTP-triggered execution
 - Access to database via REST API

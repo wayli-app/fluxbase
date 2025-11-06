@@ -84,6 +84,15 @@ services:
       # Security
       RATE_LIMIT_ENABLED: "true"
       RATE_LIMIT_REQUESTS_PER_MINUTE: 100
+
+      # Service Keys (optional - for backend services only)
+      # Generate with: openssl rand -base64 32
+      # Format as: sk_live_<random> or sk_test_<random>
+      # Then add to auth.service_keys table with bcrypt hash
+      # Uncomment to use:
+      # FLUXBASE_SERVICE_KEY: sk_test_your_service_key_here
+    volumes:
+      - functions_data:/app/functions
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +112,8 @@ volumes:
   postgres_data:
     driver: local
   minio_data:
+    driver: local
+  functions_data:
     driver: local
 
 networks:

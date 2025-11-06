@@ -201,9 +201,22 @@ th {
 }
 
 .button--secondary {
-  background-color: transparent;
-  border: 2px solid var(--ifm-color-primary);
+  background-color: white;
+  border: 2px solid white;
   color: var(--ifm-color-primary);
+}
+
+.button--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-color: white;
+  color: var(--ifm-color-primary-dark);
+}
+
+/* Override secondary button on hero */
+.hero .button--secondary {
+  background-color: white;
+  color: var(--ifm-color-primary);
+  border-color: white;
 }
 
 /* Search */

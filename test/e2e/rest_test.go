@@ -9,15 +9,27 @@ import (
 	"github.com/wayli-app/fluxbase/test"
 )
 
+// RESTTestContext extends TestContext with REST-specific auth setup
+type RESTTestContext struct {
+	*test.TestContext
+	APIKey string // API key for authenticated REST requests
+}
+
 // setupRESTTest prepares the test context for REST API tests
-func setupRESTTest(t *testing.T) *test.TestContext {
+func setupRESTTest(t *testing.T) *RESTTestContext {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
 	// Clean products table before each test to ensure isolation
 	tc.ExecuteSQL("TRUNCATE TABLE products CASCADE")
 
-	return tc
+	// Create an API key for authenticated requests
+	apiKey := tc.CreateAPIKey("REST Test API Key", nil) // nil = use default scopes (all access)
+
+	return &RESTTestContext{
+		TestContext: tc,
+		APIKey:      apiKey,
+	}
 }
 
 // TestRESTCreateRecord tests inserting data into an existing table
@@ -27,6 +39,8 @@ func TestRESTCreateRecord(t *testing.T) {
 
 	// Insert a product via REST API
 	resp := tc.NewRequest("POST", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
+		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "Test Product",
 			"price": 29.99,
@@ -52,6 +66,8 @@ func TestRESTRead(t *testing.T) {
 
 	// Read all products
 	resp := tc.NewRequest("GET", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -72,6 +88,7 @@ func TestRESTUpdate(t *testing.T) {
 
 	// Update the product
 	resp := tc.NewRequest("PATCH", "/api/v1/tables/products?id=eq.1").
+		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "New Name",
 			"price": 15.00,
@@ -97,6 +114,7 @@ func TestRESTDelete(t *testing.T) {
 
 	// Delete product with id=1 using the /:id endpoint
 	tc.NewRequest("DELETE", "/api/v1/tables/products/1").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusNoContent)
 
@@ -122,6 +140,7 @@ func TestRESTQueryOperators(t *testing.T) {
 
 	// Test: Basic query returns all products
 	resp := tc.NewRequest("GET", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -145,6 +164,7 @@ func TestRESTPagination(t *testing.T) {
 
 	// Test limit
 	resp := tc.NewRequest("GET", "/api/v1/tables/products?limit=5").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -154,6 +174,7 @@ func TestRESTPagination(t *testing.T) {
 
 	// Test offset
 	resp = tc.NewRequest("GET", "/api/v1/tables/products?limit=5&offset=5").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -176,6 +197,7 @@ func TestRESTOrdering(t *testing.T) {
 
 	// Test ascending order
 	resp := tc.NewRequest("GET", "/api/v1/tables/products?order=price.asc").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -186,6 +208,7 @@ func TestRESTOrdering(t *testing.T) {
 
 	// Test descending order
 	resp = tc.NewRequest("GET", "/api/v1/tables/products?order=price.desc").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -203,6 +226,7 @@ func TestRESTSelect(t *testing.T) {
 
 	// Select only specific columns
 	resp := tc.NewRequest("GET", "/api/v1/tables/products?select=name").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -226,6 +250,7 @@ func TestRESTCount(t *testing.T) {
 
 	// Get count via header
 	resp := tc.NewRequest("GET", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		WithHeader("Prefer", "count=exact").
 		Send().
 		AssertStatus(fiber.StatusOK)
@@ -248,6 +273,7 @@ func TestRESTUpsert(t *testing.T) {
 
 	// Insert initial product
 	tc.NewRequest("POST", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "Unique Product",
 			"price": 10.00,
@@ -257,6 +283,7 @@ func TestRESTUpsert(t *testing.T) {
 
 	// Try to insert duplicate (should fail due to unique constraint)
 	resp := tc.NewRequest("POST", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "Unique Product",
 			"price": 15.00,
@@ -287,6 +314,7 @@ func TestRESTMultipleConditions(t *testing.T) {
 
 	// Test basic query returns all records
 	resp := tc.NewRequest("GET", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -309,6 +337,7 @@ func TestRESTNotFound(t *testing.T) {
 
 	// Try to query a non-existent table
 	tc.NewRequest("GET", "/api/v1/tables/nonexistent_table").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusNotFound)
 }
@@ -320,6 +349,7 @@ func TestRESTBadRequest(t *testing.T) {
 
 	// Try to insert with invalid data type (string for numeric field)
 	resp := tc.NewRequest("POST", "/api/v1/tables/products").
+		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "Test Product",
 			"price": "not-a-number", // Invalid type

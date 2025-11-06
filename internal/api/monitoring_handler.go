@@ -7,6 +7,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/realtime"
 	"github.com/wayli-app/fluxbase/internal/storage"
 )
@@ -27,9 +29,13 @@ func NewMonitoringHandler(db *pgxpool.Pool, realtimeHandler *realtime.RealtimeHa
 	}
 }
 
-// RegisterRoutes registers monitoring routes
-func (h *MonitoringHandler) RegisterRoutes(app *fiber.App) {
-	monitoring := app.Group("/api/v1/monitoring")
+// RegisterRoutes registers monitoring routes with authentication
+func (h *MonitoringHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+	// Apply authentication middleware to all monitoring routes
+	monitoring := app.Group("/api/v1/monitoring",
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+	)
+
 	monitoring.Get("/metrics", h.GetMetrics)
 	monitoring.Get("/health", h.GetHealth)
 	monitoring.Get("/logs", h.GetLogs)

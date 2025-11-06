@@ -7,18 +7,21 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Authentication & Authorization
 
 - [ ] **JWT Secret**: Changed from default, at least 32 characters
+
   ```bash
   # Generate strong secret
   openssl rand -base64 32
   ```
 
 - [ ] **Database Password**: Strong password, not default
+
   ```bash
   # Generate strong password
   openssl rand -base64 24
   ```
 
 - [ ] **Admin Credentials**: Changed default admin email/password
+
   ```bash
   FLUXBASE_ADMIN_EMAIL=admin@yourdomain.com
   FLUXBASE_ADMIN_PASSWORD=secure-password
@@ -29,7 +32,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```sql
   ALTER TABLE users ENABLE ROW LEVEL SECURITY;
   CREATE POLICY user_isolation ON users
-    USING (auth.uid() = id);
+    USING (current_setting('app.user_id', true)::uuid = id);
   ```
 
 ### Network Security
@@ -40,11 +43,13 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   - [ ] HTTP → HTTPS redirect enabled
 
 - [ ] **Database SSL**: Enabled
+
   ```bash
   FLUXBASE_DATABASE_SSL_MODE=require  # or verify-full
   ```
 
 - [ ] **CORS**: Properly configured (not `*` in production)
+
   ```bash
   FLUXBASE_CORS_ALLOWED_ORIGINS=https://app.yourdomain.com,https://www.yourdomain.com
   ```
@@ -74,12 +79,14 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Container Security
 
 - [ ] **Non-root User**: Container runs as non-root
+
   ```dockerfile
   USER fluxbase  # Already configured in official image
   ```
 
 - [ ] **Read-only Filesystem**: Where possible
 - [ ] **Security Scanning**: Images scanned for vulnerabilities
+
   ```bash
   docker scan ghcr.io/wayli-app/fluxbase:latest
   ```
@@ -92,16 +99,19 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Application Settings
 
 - [ ] **Environment**: Set to production
+
   ```bash
   FLUXBASE_ENVIRONMENT=production
   ```
 
 - [ ] **Debug Mode**: Disabled
+
   ```bash
   FLUXBASE_DEBUG=false
   ```
 
 - [ ] **Log Level**: Set to `info` or `warn`
+
   ```bash
   FLUXBASE_LOG_LEVEL=info
   ```
@@ -114,12 +124,14 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Database Configuration
 
 - [ ] **Connection Pool**: Properly sized
+
   ```bash
   FLUXBASE_DATABASE_MAX_CONNECTIONS=25
   FLUXBASE_DATABASE_MIN_CONNECTIONS=5
   ```
 
 - [ ] **Connection Timeouts**: Configured
+
   ```bash
   FLUXBASE_DATABASE_MAX_CONN_LIFETIME=1h
   FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME=30m
@@ -132,11 +144,13 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Storage Configuration
 
 - [ ] **Storage Provider**: Configured (S3, not local in production)
+
   ```bash
   FLUXBASE_STORAGE_PROVIDER=s3
   ```
 
 - [ ] **Upload Limits**: Set appropriately
+
   ```bash
   FLUXBASE_STORAGE_MAX_UPLOAD_SIZE=2147483648  # 2GB
   FLUXBASE_SERVER_BODY_LIMIT=2147483648
@@ -149,6 +163,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Email Configuration
 
 - [ ] **Email Provider**: Configured and tested
+
   ```bash
   FLUXBASE_EMAIL_ENABLED=true
   FLUXBASE_EMAIL_PROVIDER=sendgrid  # or smtp, mailgun, ses
@@ -163,8 +178,9 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Redundancy
 
 - [ ] **Multiple Replicas**: At least 3 instances
+
   ```yaml
-  replicaCount: 3  # Kubernetes
+  replicaCount: 3 # Kubernetes
   ```
 
 - [ ] **Database Replication**: Primary + replicas
@@ -186,6 +202,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Auto-scaling
 
 - [ ] **Horizontal Pod Autoscaler (HPA)**: Configured
+
   ```yaml
   autoscaling:
     enabled: true
@@ -200,6 +217,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Health Checks
 
 - [ ] **Liveness Probe**: Configured
+
   ```yaml
   livenessProbe:
     httpGet:
@@ -210,6 +228,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```
 
 - [ ] **Readiness Probe**: Configured
+
   ```yaml
   readinessProbe:
     httpGet:
@@ -226,6 +245,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Metrics
 
 - [ ] **Prometheus Metrics**: Enabled
+
   ```bash
   FLUXBASE_METRICS_ENABLED=true
   FLUXBASE_METRICS_PORT=9090
@@ -250,11 +270,11 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Alerting
 
 - [ ] **Alert Rules**: Configured
-  - [ ] High error rate (>1%)
-  - [ ] Slow response time (p95 > 1s)
-  - [ ] High CPU/memory usage (>80%)
+  - [ ] High error rate (&gt;1%)
+  - [ ] Slow response time (p95 &gt; 1s)
+  - [ ] High CPU/memory usage (&gt;80%)
   - [ ] Database connection pool exhaustion
-  - [ ] Disk space low (<20%)
+  - [ ] Disk space low (&lt;20%)
 
 - [ ] **Alert Channels**: Configured
   - [ ] Email
@@ -266,6 +286,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Tracing
 
 - [ ] **Distributed Tracing**: Enabled (optional but recommended)
+
   ```bash
   FLUXBASE_TRACING_ENABLED=true
   FLUXBASE_TRACING_EXPORTER=jaeger
@@ -278,6 +299,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Database Backups
 
 - [ ] **Automated Backups**: Daily or more frequent
+
   ```bash
   # Example cron job
   0 2 * * * /scripts/backup-db.sh
@@ -311,6 +333,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Resource Allocation
 
 - [ ] **CPU Limits**: Set appropriately
+
   ```yaml
   resources:
     requests:
@@ -320,6 +343,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```
 
 - [ ] **Memory Limits**: Set appropriately
+
   ```yaml
   resources:
     requests:
@@ -333,12 +357,14 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Optimization
 
 - [ ] **Database Indexes**: Created for all queries
+
   ```sql
   CREATE INDEX idx_users_email ON users(email);
   ```
 
 - [ ] **Query Optimization**: Slow queries identified and fixed
 - [ ] **Caching**: Redis configured
+
   ```bash
   FLUXBASE_REDIS_ENABLED=true
   ```
@@ -387,6 +413,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Load Testing
 
 - [ ] **Load Test**: Performed at expected peak load
+
   ```bash
   # Example with k6
   k6 run --vus 100 --duration 30s load-test.js
@@ -451,18 +478,21 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ## Checklist Summary
 
 **Critical (Must Have)**:
+
 - Security (JWT secret, HTTPS, database password)
 - Backups (automated, tested)
 - Monitoring (metrics, logs, alerts)
 - High Availability (multiple replicas, health checks)
 
 **Important (Should Have)**:
+
 - Auto-scaling
 - Disaster recovery plan
 - Load testing
 - Documentation
 
 **Nice to Have**:
+
 - Distributed tracing
 - Cost optimization
 - Advanced security (vault, IAM roles)
@@ -480,5 +510,6 @@ After completing this checklist:
 5. Document any issues for future improvements
 
 For ongoing operations, see:
+
 - [Scaling Guide](scaling) - Performance optimization
 - [Monitoring Guide](../guides/monitoring) - Observability setup

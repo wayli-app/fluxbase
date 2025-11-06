@@ -11,7 +11,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 - Realtime WebSocket subscriptions
 - File storage (local or S3)
 - Edge functions
-- All in a single ~50MB Go binary!
+- All in a single ~80MB Go binary!
 
 ## ⚡ Quick Start (Recommended: DevContainer)
 
@@ -26,11 +26,10 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 1. **Open in VS Code**
 
    ```bash
-   code /Users/bart/Dev/fluxbase
+   code /path/to/fluxbase
    ```
 
 2. **Reopen in Container**
-
    - Click "Reopen in Container" when prompted
    - Or: `F1` → "Dev Containers: Reopen in Container"
    - First build: ~5-10 minutes
@@ -244,38 +243,39 @@ make docs-dev      # Start docs server
 
 ```bash
 # List all tables
-curl http://localhost:8080/api/rest/
+curl http://localhost:8080/api/v1/tables/
 
 # Query with filters
-curl "http://localhost:8080/api/rest/posts?published=eq.true&limit=10"
+curl "http://localhost:8080/api/v1/tables/posts?published=eq.true&limit=10"
 
 # Create a record
-curl -X POST http://localhost:8080/api/rest/posts \
+curl -X POST http://localhost:8080/api/v1/tables/posts \
   -H "Content-Type: application/json" \
   -d '{"title":"Hello","content":"World"}'
 ```
 
-## 🎯 What to Build Next
+## 🎯 Next Steps
 
-According to [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md):
+Now that you have Fluxbase running, explore these guides:
 
-### Sprint 1: Authentication (Week 1) - START HERE
+### Core Features
 
-- [ ] JWT token utilities (4h)
-- [ ] User registration endpoint (4h)
-- [ ] Login endpoint (3h)
-- [ ] Auth middleware (4h)
-- [ ] Session management (4h)
+- **[Authentication Guide](docs/docs/guides/authentication.md)** - User management, JWT tokens, OAuth
+- **[Edge Functions](docs/docs/guides/edge-functions.md)** - Deploy serverless TypeScript/JavaScript functions
+- **[Storage](docs/docs/guides/storage.md)** - File uploads, downloads, and access control
+- **[Realtime](docs/docs/guides/realtime.md)** - WebSocket subscriptions for live data
 
-**Goal**: Secure all APIs with JWT authentication
+### Example Applications
 
-### Future Sprints
+- **[Todo App](examples/todo-app/)** - Simple CRUD with authentication (Beginner)
+- **[Blog Platform](examples/blog-platform/)** - SSR with Next.js (Intermediate)
+- **[Chat App](examples/chat-app/)** - Realtime messaging (Intermediate)
 
-- Sprint 2: Enhanced REST API (Week 2)
-- Sprint 3: Realtime Engine (Week 3)
-- Sprint 4: Storage Service (Week 4)
-- Sprint 5: TypeScript SDK (Week 5)
-- Sprint 6: Admin UI (Week 6)
+### Production Deployment
+
+- **[Docker Compose](deploy/docker-compose.yml)** - Quick deployment setup
+- **[Kubernetes Helm Charts](deploy/helm/)** - Enterprise-grade deployment
+- **[Production Runbook](PRODUCTION_RUNBOOK.md)** - Monitoring, backups, and operations
 
 ## 💡 Pro Tips
 
@@ -355,14 +355,14 @@ curl localhost:8080/health  # Server responds
 
 All green? You're ready! 🎉
 
-## 🎉 Next Steps
+## 🎉 You're All Set!
 
 1. ✅ Set up environment (you just did this!)
-2. 📖 Read [TODO.md](TODO.md) - Understand what needs to be built
-3. 🏃 Start Sprint 1 - Begin with JWT authentication
-4. 💻 Use Claude Code - AI-powered development
-5. 🧪 Write tests - Maintain 80% coverage
-6. 📝 Update docs - Keep documentation current
+2. 📖 Explore the [Core Features](#core-features) guides above
+3. 💻 Try the [Example Applications](#example-applications)
+4. 🧪 Run tests with `make test`
+5. 📚 Read the [full documentation](docs/)
+6. 🚀 Deploy to production when ready
 
 **Ready to build Fluxbase!** 🚀
 

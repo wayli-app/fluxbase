@@ -3,6 +3,8 @@ package test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,11 +15,13 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/internal/api"
+	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 	"golang.org/x/crypto/bcrypt"
@@ -275,9 +279,39 @@ func (r *APIRequest) WithHeader(key, value string) *APIRequest {
 	return r
 }
 
-// WithAuth sets the Authorization header
+// WithAuth sets the Authorization header with Bearer token
+// Alias for WithBearerToken for backward compatibility
 func (r *APIRequest) WithAuth(token string) *APIRequest {
+	return r.WithBearerToken(token)
+}
+
+// WithBearerToken sets the Authorization header with a Bearer token (JWT)
+func (r *APIRequest) WithBearerToken(token string) *APIRequest {
 	r.headers["Authorization"] = "Bearer " + token
+	return r
+}
+
+// WithAPIKey sets the X-API-Key header for API key authentication
+func (r *APIRequest) WithAPIKey(apiKey string) *APIRequest {
+	r.headers["X-API-Key"] = apiKey
+	return r
+}
+
+// WithServiceKey sets the X-Service-Key header for service key authentication
+// Service keys have elevated privileges and bypass RLS
+func (r *APIRequest) WithServiceKey(serviceKey string) *APIRequest {
+	r.headers["X-Service-Key"] = serviceKey
+	return r
+}
+
+// Unauthenticated explicitly marks this request as unauthenticated
+// Useful for testing authentication failures
+// This is the default behavior, but makes intent clear in tests
+func (r *APIRequest) Unauthenticated() *APIRequest {
+	// Remove any authentication headers that may have been set
+	delete(r.headers, "Authorization")
+	delete(r.headers, "X-API-Key")
+	delete(r.headers, "X-Service-Key")
 	return r
 }
 
@@ -856,4 +890,103 @@ func (tc *TestContext) WaitForEmail(timeout time.Duration, filter func(MailHogMe
 	}
 
 	return nil
+}
+
+// CreateAPIKey creates a test API key and returns the plaintext key for use in tests
+func (tc *TestContext) CreateAPIKey(name string, scopes []string) string {
+	ctx := context.Background()
+
+	// Create API key service
+	apiKeyService := auth.NewAPIKeyService(tc.DB.Pool())
+
+	// Generate API key with provided scopes
+	// Use default scopes if none provided (read/write for tables, storage, functions)
+	if len(scopes) == 0 {
+		scopes = []string{"*"} // All scopes for testing
+	}
+
+	keyWithPlaintext, err := apiKeyService.GenerateAPIKey(
+		ctx,
+		name,
+		nil, // no description
+		nil, // no user association
+		scopes,
+		1000, // high rate limit for tests
+		nil,  // no expiration
+	)
+	require.NoError(tc.T, err, "Failed to create API key")
+	require.NotEmpty(tc.T, keyWithPlaintext.PlaintextKey, "API key plaintext is empty")
+
+	return keyWithPlaintext.PlaintextKey
+}
+
+// CreateServiceKey creates a test service key and returns the plaintext key for use in tests
+// Service keys have elevated privileges and bypass RLS
+func (tc *TestContext) CreateServiceKey(name string) string {
+	ctx := context.Background()
+
+	// Generate random key bytes
+	keyBytes := make([]byte, 32)
+	_, err := rand.Read(keyBytes)
+	require.NoError(tc.T, err, "Failed to generate random bytes")
+
+	// Format as service key with sk_test_ prefix
+	plaintextKey := "sk_test_" + base64.URLEncoding.EncodeToString(keyBytes)
+
+	// Extract prefix (first 16 chars for identification to ensure uniqueness)
+	// This includes "sk_test_" plus some random chars to avoid collisions
+	keyPrefix := plaintextKey[:16]
+
+	// Hash with bcrypt (cost 10 for tests, faster than production cost 12)
+	keyHash, err := bcrypt.GenerateFromPassword([]byte(plaintextKey), 10)
+	require.NoError(tc.T, err, "Failed to hash service key")
+
+	// Insert into auth.service_keys table
+	query := `
+		INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, enabled)
+		VALUES ($1, $2, $3, $4, true)
+		RETURNING id
+	`
+
+	var keyID uuid.UUID
+	err = tc.DB.QueryRow(ctx, query,
+		name,
+		"Test service key for "+name,
+		string(keyHash),
+		keyPrefix,
+	).Scan(&keyID)
+	require.NoError(tc.T, err, "Failed to insert service key")
+	require.NotEmpty(tc.T, keyID, "Service key ID is empty")
+
+	return plaintextKey
+}
+
+// GenerateAnonKey generates an anonymous JWT token (anon key) for testing
+// Anon keys are JWT tokens with role="anon" that allow anonymous access
+func (tc *TestContext) GenerateAnonKey() string {
+	// Create JWT manager using test config
+	jwtManager := auth.NewJWTManager(
+		tc.Config.Auth.JWTSecret,
+		tc.Config.Auth.JWTExpiry,
+		tc.Config.Auth.RefreshExpiry,
+	)
+
+	// Generate anonymous access token with random user ID
+	userID := uuid.New().String()
+	token, err := jwtManager.GenerateAnonymousAccessToken(userID)
+	require.NoError(tc.T, err, "Failed to generate anon key")
+	require.NotEmpty(tc.T, token, "Anon key is empty")
+
+	return token
+}
+
+// CreateUser creates a regular app user (auth.users) and returns userID and JWT token
+// This is an alias for CreateTestUser for clarity
+func (tc *TestContext) CreateUser(email, password string) (userID, token string) {
+	return tc.CreateTestUser(email, password)
+}
+
+// WithJSON is a convenience method to set the request body as JSON
+func (r *APIRequest) WithJSON(data interface{}) *APIRequest {
+	return r.WithBody(data)
 }

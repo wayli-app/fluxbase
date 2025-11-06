@@ -127,8 +127,29 @@ config:
 ## - jwt-secret: JWT secret key
 ## - s3-access-key-id: S3 access key ID (if using S3 storage)
 ## - s3-secret-access-key: S3 secret access key (if using S3 storage)
+## - service-key: Service role key for backend services (optional, highly sensitive)
 ##
 existingSecret: ""
+
+## @section Security Configuration
+
+## Service Keys Configuration
+## Service keys provide elevated privileges that bypass RLS for backend services.
+## WARNING: Service keys have full database access. NEVER expose to clients.
+##
+## To create a service key:
+## 1. Generate random key: openssl rand -base64 32
+## 2. Format as: sk_live_<random_string> or sk_test_<random_string>
+## 3. Hash with bcrypt and store in database (see docs/guides/authentication.md)
+##
+## @param serviceKey.enabled Enable service key usage in backend pods
+## @param serviceKey.existingSecret Name of existing secret containing the service key
+## @param serviceKey.secretKey Key name in the secret (default: service-key)
+##
+serviceKey:
+  enabled: false
+  existingSecret: ""  # Name of Kubernetes secret containing service key
+  secretKey: "service-key"  # Key name within the secret
 
 ## @section Fluxbase Deployment Parameters
 
@@ -584,6 +605,44 @@ persistence:
   ##
   selector: {}
   ## @param persistence.dataSource Custom PVC data source
+  ##
+  dataSource: {}
+
+## Persistence for edge functions
+##
+functionsPersistence:
+  ## @param functionsPersistence.enabled Enable persistence for edge functions using Persistent Volume Claims
+  ##
+  enabled: true
+  ## @param functionsPersistence.storageClass Storage class of backing PVC for functions
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.
+  ##
+  storageClass: ""
+  ## @param functionsPersistence.annotations Persistent Volume Claim annotations for functions
+  ##
+  annotations: {}
+  ## @param functionsPersistence.accessModes Persistent Volume Access Modes for functions
+  ##
+  accessModes:
+    - ReadWriteMany
+  ## @param functionsPersistence.size Size of functions volume
+  ##
+  size: 1Gi
+  ## @param functionsPersistence.existingClaim The name of an existing PVC to use for functions persistence
+  ##
+  existingClaim: ""
+  ## @param functionsPersistence.selector Selector to match an existing Persistent Volume for functions data PVC
+  ## If set, the PVC can't have a PV dynamically provisioned for it
+  ## E.g.
+  ## selector:
+  ##   matchLabels:
+  ##     app: my-app
+  ##
+  selector: {}
+  ## @param functionsPersistence.dataSource Custom PVC data source for functions
   ##
   dataSource: {}
 

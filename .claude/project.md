@@ -6,7 +6,7 @@
 
 ## Key Design Decisions
 
-1. **Single Binary Architecture**: Everything compiles into one ~50MB Go executable for easy deployment
+1. **Single Binary Architecture**: Everything compiles into one ~80MB Go executable for easy deployment
 2. **PostgreSQL Only**: No Redis, no RabbitMQ, just PostgreSQL for all persistence
 3. **PostgREST Compatible**: Maintains API compatibility with Supabase where practical
 4. **Schema-Driven**: Database tables automatically become REST endpoints
@@ -34,6 +34,7 @@ fluxbase/
 ## Current Implementation Status
 
 ### ✅ What's Working
+
 - **REST API Generator**: Automatically creates CRUD endpoints from PostgreSQL tables
 - **Query Parser**: Full PostgREST-compatible filtering, ordering, pagination
 - **Schema Introspection**: Discovers tables, columns, relationships
@@ -45,6 +46,7 @@ fluxbase/
 - **DevContainer**: Full development environment with all tools
 
 ### 🚧 What's Not Yet Implemented
+
 - **Authentication**: JWT, user management, magic links
 - **Realtime**: WebSocket server, subscriptions, presence
 - **Storage**: File upload/download, buckets, S3 integration
@@ -124,6 +126,7 @@ FLUXBASE_STORAGE_PROVIDER=s3
 ## Next Priority
 
 According to TODO.md, the next major milestone is implementing the **Authentication System**:
+
 1. JWT token generation and validation
 2. User registration and login endpoints
 3. Password hashing with bcrypt
@@ -133,6 +136,7 @@ According to TODO.md, the next major milestone is implementing the **Authenticat
 ## Quick Context for Claude
 
 When you (Claude) work on this project:
+
 1. Check `TODO.md` for current tasks
 2. Follow patterns in existing code
 3. Maintain PostgREST compatibility

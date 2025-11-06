@@ -5,12 +5,14 @@ This devcontainer provides a complete development environment for Fluxbase with 
 ## What's Included
 
 ### Languages & Runtimes
+
 - Go 1.25
 - Node.js 20
 - PostgreSQL client
 - Redis client
 
 ### Development Tools
+
 - **Go Tools**: gopls, dlv, golangci-lint, air, migrate, swag, mockery, staticcheck
 - **Node Tools**: TypeScript, ESLint, Prettier, tsx, nodemon
 - **Testing**: k6 (load testing), gotestsum, ginkgo
@@ -20,11 +22,13 @@ This devcontainer provides a complete development environment for Fluxbase with 
 ### VS Code Extensions
 
 #### Essential
+
 - **Claude Code** (saoudrizwan.claude-dev) - AI assistant
 - **Go** (golang.go) - Go language support
 - **SQLTools** - Database management
 
 #### Development
+
 - Docker, Kubernetes support
 - Makefile tools
 - Git tools (GitLens, Git Graph)
@@ -32,12 +36,14 @@ This devcontainer provides a complete development environment for Fluxbase with 
 - Code quality (spell checker, TODO tree)
 
 #### Languages
+
 - TypeScript/JavaScript with ESLint & Prettier
 - Markdown with preview
 - YAML, TOML support
 - Shell scripting support
 
 ### Services
+
 All services are pre-configured and ready to use:
 
 - **PostgreSQL 16**: Main database
@@ -55,6 +61,7 @@ All services are pre-configured and ready to use:
    - [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 2. Open the project:
+
    ```bash
    code /Users/bart/Dev/fluxbase
    ```
@@ -111,12 +118,14 @@ Two PostgreSQL databases are pre-configured:
 ### SQLTools Configuration
 
 Database connections are automatically configured in SQLTools. Access them via:
+
 - Click the database icon in the left sidebar
 - Or press `Ctrl+Shift+P` → "SQLTools: Connect"
 
 ### Service URLs
 
 When services are running:
+
 - Fluxbase API: http://localhost:8080
 - pgAdmin: http://localhost:5050
 - MailHog UI: http://localhost:8025
@@ -144,9 +153,7 @@ Edit `.devcontainer/devcontainer.json`:
 {
   "customizations": {
     "vscode": {
-      "extensions": [
-        "your-extension-id"
-      ]
+      "extensions": ["your-extension-id"]
     }
   }
 }
@@ -270,7 +277,7 @@ When the Dockerfile or configuration changes:
 
 1. Check that everything works: `make test`
 2. Read the development guidelines: `.claude/instructions.md`
-3. Start implementing: `TODO.md` → Sprint 1 (Authentication)
+3. Explore the codebase and documentation
 4. Use Claude Code for AI-powered development assistance
 
 Happy coding! 🚀

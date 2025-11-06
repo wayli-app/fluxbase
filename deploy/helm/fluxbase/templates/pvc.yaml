@@ -26,3 +26,32 @@ spec:
   selector: {{- toYaml .Values.persistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
+---
+{{- if and .Values.functionsPersistence.enabled (not .Values.functionsPersistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-functions
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if or .Values.functionsPersistence.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.functionsPersistence.annotations }}
+    {{- toYaml .Values.functionsPersistence.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes: {{- toYaml .Values.functionsPersistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.functionsPersistence.size | quote }}
+  {{- if .Values.functionsPersistence.storageClass }}
+  storageClassName: {{ .Values.functionsPersistence.storageClass | quote }}
+  {{- end }}
+  {{- if .Values.functionsPersistence.selector }}
+  selector: {{- toYaml .Values.functionsPersistence.selector | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -34,6 +34,7 @@ type Server struct {
 	authHandler           *AuthHandler
 	adminAuthHandler      *AdminAuthHandler
 	dashboardAuthHandler  *DashboardAuthHandler
+	apiKeyService         *auth.APIKeyService // Added for service-wide access
 	apiKeyHandler         *APIKeyHandler
 	storageHandler        *StorageHandler
 	webhookHandler        *WebhookHandler
@@ -122,7 +123,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService)
-	functionsHandler := functions.NewHandler(db.Pool())
+	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
 	functionsScheduler := functions.NewScheduler(db.Pool())
 	functionsHandler.SetScheduler(functionsScheduler)
 
@@ -145,6 +146,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
 		dashboardAuthHandler:  dashboardAuthHandler,
+		apiKeyService:         apiKeyService, // Added for service-wide access
 		apiKeyHandler:         apiKeyHandler,
 		storageHandler:        storageHandler,
 		webhookHandler:        webhookHandler,
@@ -263,19 +265,19 @@ func (s *Server) setupRoutes() {
 	}
 
 	// REST API routes (auto-generated from database schema)
-	// Apply optional auth middleware (allows both authenticated and anonymous)
-	// followed by RLS middleware to set PostgreSQL session variables
+	// Optional authentication (JWT, API key, or service key) - allows anonymous access with RLS
+	// Followed by RLS middleware to set PostgreSQL session variables (role 'anon' if unauthenticated)
 	rest := v1.Group("/tables",
-		OptionalAuthMiddleware(s.authHandler.authService),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
 		middleware.RLSMiddleware(rlsConfig),
 	)
 	s.setupRESTRoutes(rest)
 
 	// RPC routes (auto-generated from database functions)
-	// Apply optional auth middleware (allows both authenticated and anonymous)
+	// Require authentication (JWT, API key, or service key)
 	// followed by RLS middleware to set PostgreSQL session variables
 	rpc := v1.Group("/rpc",
-		OptionalAuthMiddleware(s.authHandler.authService),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
 		middleware.RLSMiddleware(rlsConfig),
 	)
 	s.setupRPCRoutes(rpc)
@@ -287,30 +289,39 @@ func (s *Server) setupRoutes() {
 	// Dashboard auth routes (separate from application auth)
 	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
-	// API Keys routes
-	s.apiKeyHandler.RegisterRoutes(s.app)
+	// API Keys routes - require authentication
+	s.apiKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
 
-	// Webhook routes
-	s.webhookHandler.RegisterRoutes(s.app)
+	// Webhook routes - require authentication
+	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
 
-	// Monitoring routes
-	s.monitoringHandler.RegisterRoutes(s.app)
+	// Monitoring routes - require authentication
+	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
 
-	// Edge functions routes
-	s.functionsHandler.RegisterRoutes(s.app)
+	// Edge functions routes - require authentication by default, but per-function config can override
+	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
 
-	// Storage routes
-	storage := v1.Group("/storage")
+	// Storage routes - require authentication
+	storage := v1.Group("/storage",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+	)
 	s.setupStorageRoutes(storage)
 
 	// Realtime WebSocket endpoint (not versioned as it's WebSocket)
+	// WebSocket validates auth internally, but make it required
 	s.app.Get("/realtime", s.realtimeHandler.HandleWebSocket)
 
-	// Realtime stats endpoint
-	s.app.Get("/api/v1/realtime/stats", s.handleRealtimeStats)
+	// Realtime stats endpoint - require authentication
+	s.app.Get("/api/v1/realtime/stats",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		s.handleRealtimeStats,
+	)
 
-	// Realtime broadcast endpoint
-	s.app.Post("/api/v1/realtime/broadcast", s.handleRealtimeBroadcast)
+	// Realtime broadcast endpoint - require authentication
+	s.app.Post("/api/v1/realtime/broadcast",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		s.handleRealtimeBroadcast,
+	)
 
 	// Admin routes (optional)
 	admin := v1.Group("/admin")
@@ -501,6 +512,9 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.CreateInvitation)
 	router.Get("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.ListInvitations)
 	router.Delete("/invitations/:token", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.RevokeInvitation)
+
+	// Functions management routes (require admin or dashboard_admin role)
+	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.functionsHandler.ReloadFunctions)
 }
 
 // setupPublicInvitationRoutes sets up public invitation routes (no auth required)

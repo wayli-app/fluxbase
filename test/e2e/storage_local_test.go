@@ -14,7 +14,7 @@ import (
 )
 
 // setupStorageLocalTest prepares the test context for local storage tests
-func setupStorageLocalTest(t *testing.T) *test.TestContext {
+func setupStorageLocalTest(t *testing.T) *StorageTestContext {
 	tc := test.NewTestContext(t)
 	tc.EnsureStorageSchema()
 
@@ -25,7 +25,13 @@ func setupStorageLocalTest(t *testing.T) *test.TestContext {
 	// Clean up any existing test storage files
 	tc.CleanupStorageFiles()
 
-	return tc
+	// Create an API key for authenticated requests
+	apiKey := tc.CreateAPIKey("Storage Local Test API Key", nil)
+
+	return &StorageTestContext{
+		TestContext: tc,
+		APIKey:      apiKey,
+	}
 }
 
 // TestStorageLocalCreateBucket tests creating a storage bucket
@@ -37,6 +43,7 @@ func TestStorageLocalCreateBucket(t *testing.T) {
 
 	// Create bucket
 	resp := tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
@@ -53,11 +60,12 @@ func TestStorageLocalListBuckets(t *testing.T) {
 	defer tc.Close()
 
 	// Create a few test buckets
-	tc.NewRequest("POST", "/api/v1/storage/buckets/bucket1").Send().AssertStatus(fiber.StatusCreated)
-	tc.NewRequest("POST", "/api/v1/storage/buckets/bucket2").Send().AssertStatus(fiber.StatusCreated)
+	tc.NewRequest("POST", "/api/v1/storage/buckets/bucket1").WithAPIKey(tc.APIKey).Send().AssertStatus(fiber.StatusCreated)
+	tc.NewRequest("POST", "/api/v1/storage/buckets/bucket2").WithAPIKey(tc.APIKey).Send().AssertStatus(fiber.StatusCreated)
 
 	// List buckets
 	resp := tc.NewRequest("GET", "/api/v1/storage/buckets").
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 
@@ -81,6 +89,7 @@ func TestStorageLocalUploadFile(t *testing.T) {
 
 	// Create bucket first
 	tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
@@ -100,6 +109,7 @@ func TestStorageLocalUploadFile(t *testing.T) {
 	// Upload file - use httptest to create proper request
 	req := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-API-Key", tc.APIKey)
 
 	resp, err := tc.App.Test(req)
 	require.NoError(t, err)
@@ -119,6 +129,7 @@ func TestStorageLocalDownloadFile(t *testing.T) {
 
 	// Create bucket
 	tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
@@ -134,11 +145,13 @@ func TestStorageLocalDownloadFile(t *testing.T) {
 
 	uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+	uploadReq.Header.Set("X-API-Key", tc.APIKey)
 	_, err = tc.App.Test(uploadReq)
 	require.NoError(t, err)
 
 	// Now download the file
 	resp := tc.NewRequest("GET", "/api/v1/storage/"+bucketName+"/"+fileName).
+		WithAPIKey(tc.APIKey).
 		Send()
 
 	// Download should work or return an appropriate status
@@ -162,6 +175,7 @@ func TestStorageLocalDeleteFile(t *testing.T) {
 
 	// Create bucket
 	tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
@@ -177,11 +191,13 @@ func TestStorageLocalDeleteFile(t *testing.T) {
 
 	uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+	uploadReq.Header.Set("X-API-Key", tc.APIKey)
 	_, err = tc.App.Test(uploadReq)
 	require.NoError(t, err)
 
 	// Delete the file
 	tc.NewRequest("DELETE", "/api/v1/storage/"+bucketName+"/"+fileName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusNoContent)
 
@@ -197,11 +213,13 @@ func TestStorageLocalDeleteBucket(t *testing.T) {
 
 	// Create bucket
 	tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
 	// Delete bucket
 	tc.NewRequest("DELETE", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusNoContent)
 
@@ -217,6 +235,7 @@ func TestStorageLocalListFiles(t *testing.T) {
 
 	// Create bucket
 	tc.NewRequest("POST", "/api/v1/storage/buckets/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
@@ -234,12 +253,14 @@ func TestStorageLocalListFiles(t *testing.T) {
 
 		uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 		uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+		uploadReq.Header.Set("X-API-Key", tc.APIKey)
 		_, err = tc.App.Test(uploadReq)
 		require.NoError(t, err)
 	}
 
 	// List files in bucket
 	resp := tc.NewRequest("GET", "/api/v1/storage/"+bucketName).
+		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 

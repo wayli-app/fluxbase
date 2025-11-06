@@ -1,30 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { createFileRoute } from '@tanstack/react-router'
 import {
   FileCode,
   Search,
@@ -41,8 +16,39 @@ import {
   Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
   component: FunctionsPage,
@@ -119,7 +125,9 @@ function FunctionsPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [schemaFilter, setSchemaFilter] = useState<string>('all')
-  const [selectedFunction, setSelectedFunction] = useState<RPCFunction | null>(null)
+  const [selectedFunction, setSelectedFunction] = useState<RPCFunction | null>(
+    null
+  )
   const [showTester, setShowTester] = useState(false)
   const [executing, setExecuting] = useState(false)
   const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
@@ -156,7 +164,9 @@ function FunctionsPage() {
     setLoading(true)
     try {
       // Use impersonation token if active, otherwise use admin token
-      const impersonationToken = localStorage.getItem('fluxbase_impersonation_token')
+      const impersonationToken = localStorage.getItem(
+        'fluxbase_impersonation_token'
+      )
       const adminToken = localStorage.getItem('access_token')
       const token = impersonationToken || adminToken
 
@@ -202,7 +212,10 @@ function FunctionsPage() {
   const saveHistory = (call: FunctionCall) => {
     const newHistory = [call, ...history].slice(0, 20) // Keep last 20
     setHistory(newHistory)
-    localStorage.setItem('fluxbase-function-history', JSON.stringify(newHistory))
+    localStorage.setItem(
+      'fluxbase-function-history',
+      JSON.stringify(newHistory)
+    )
   }
 
   const openTester = (fn: RPCFunction) => {
@@ -220,7 +233,9 @@ function FunctionsPage() {
 
     try {
       // Use impersonation token if active, otherwise use admin token
-      const impersonationToken = localStorage.getItem('fluxbase_impersonation_token')
+      const impersonationToken = localStorage.getItem(
+        'fluxbase_impersonation_token'
+      )
       const adminToken = localStorage.getItem('access_token')
       const token = impersonationToken || adminToken
 
@@ -251,7 +266,10 @@ function FunctionsPage() {
           status: 'success',
         })
       } else {
-        setResult({ success: false, error: data.error || 'Function execution failed' })
+        setResult({
+          success: false,
+          error: data.error || 'Function execution failed',
+        })
         toast.error(data.error || 'Function execution failed')
         saveHistory({
           function: selectedFunction,
@@ -264,7 +282,8 @@ function FunctionsPage() {
     } catch (error: unknown) {
       // eslint-disable-next-line no-console
       console.error('Error executing function:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
       setResult({ success: false, error: errorMessage })
       toast.error('Failed to execute function')
     } finally {
@@ -327,340 +346,403 @@ else console.log(data)`
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className='flex h-96 items-center justify-center'>
+        <RefreshCw className='text-muted-foreground h-8 w-8 animate-spin' />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className='flex flex-col gap-6 p-6'>
       <ImpersonationBanner />
 
-      <div className="flex items-center justify-between">
+      <div className='flex items-center justify-between'>
         <div>
-          <h1 className="text-3xl font-bold">Functions</h1>
-          <p className="text-muted-foreground">
+          <h1 className='text-3xl font-bold'>Functions</h1>
+          <p className='text-muted-foreground'>
             Manage PostgreSQL RPC functions and Edge Functions (Deno runtime)
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <ImpersonationSelector />
-          <Button onClick={fetchFunctions} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button onClick={fetchFunctions} variant='outline' size='sm'>
+            <RefreshCw className='mr-2 h-4 w-4' />
             Refresh
           </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'rpc' | 'edge')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="rpc">
-            <FileCode className="h-4 w-4 mr-2" />
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as 'rpc' | 'edge')}
+      >
+        <TabsList className='grid w-full max-w-md grid-cols-2'>
+          <TabsTrigger value='rpc'>
+            <FileCode className='mr-2 h-4 w-4' />
             PostgreSQL Functions
           </TabsTrigger>
-          <TabsTrigger value="edge">
-            <Zap className="h-4 w-4 mr-2" />
+          <TabsTrigger value='edge'>
+            <Zap className='mr-2 h-4 w-4' />
             Edge Functions
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="rpc" className="space-y-6 mt-6">
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Functions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{functions.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Schemas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{schemas.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{history.length}</div>
-              <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)}>
-                <History className="h-4 w-4 mr-2" />
-                View
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search functions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-          <SelectTrigger className="w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Schemas</SelectItem>
-            {schemas.map((schema) => (
-              <SelectItem key={schema} value={schema}>
-                {schema}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Functions List */}
-      <ScrollArea className="h-[calc(100vh-28rem)]">
-        <div className="grid gap-4">
-          {filteredFunctions.length === 0 ? (
+        <TabsContent value='rpc' className='mt-6 space-y-6'>
+          {/* Stats */}
+          <div className='grid gap-4 md:grid-cols-3'>
             <Card>
-              <CardContent className="p-12 text-center">
-                <FileCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-lg font-medium mb-2">No functions found</p>
-                <p className="text-sm text-muted-foreground">
-                  {searchQuery || schemaFilter !== 'all'
-                    ? 'Try adjusting your filters'
-                    : 'Create functions in your PostgreSQL database to see them here'}
-                </p>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-sm font-medium'>
+                  Total Functions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{functions.length}</div>
               </CardContent>
             </Card>
-          ) : (
-            filteredFunctions.map((fn) => (
-              <Card key={`${fn.schema}.${fn.name}`} className="hover:border-primary/50 transition-colors">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-lg">{fn.name}</CardTitle>
-                        <Badge variant="outline">{fn.schema}</Badge>
-                        <Badge variant="secondary">{fn.volatility.toLowerCase()}</Badge>
-                        {fn.is_set_of && <Badge>returns set</Badge>}
-                      </div>
-                      <CardDescription>
-                        {fn.description || 'No description available'}
-                      </CardDescription>
-                    </div>
-                    <Button onClick={() => openTester(fn)} size="sm">
-                      <Play className="h-4 w-4 mr-2" />
-                      Test
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-medium">Parameters:</span>
-                      {!fn.parameters || fn.parameters.length === 0 ? (
-                        <span className="text-muted-foreground">None</span>
-                      ) : (
-                        <span className="text-muted-foreground">
-                          {fn.parameters
-                            .map((p) => `${p.name || `arg${p.position}`}: ${p.type}`)
-                            .join(', ')}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-medium">Returns:</span>
-                      <span className="text-muted-foreground">
-                        {fn.is_set_of ? `SETOF ${fn.return_type}` : fn.return_type}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* Function Tester Dialog */}
-      <Dialog open={showTester} onOpenChange={setShowTester}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileCode className="h-5 w-5" />
-              {selectedFunction?.schema}.{selectedFunction?.name}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedFunction?.description || 'Test this PostgreSQL function'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Function Info */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline">{selectedFunction?.schema}</Badge>
-              <Badge variant="secondary">{selectedFunction?.volatility.toLowerCase()}</Badge>
-              <Badge>{selectedFunction?.language}</Badge>
-              {selectedFunction?.is_set_of && <Badge>returns set</Badge>}
-            </div>
-
-            <Separator />
-
-            {/* Parameters */}
-            {selectedFunction && selectedFunction.parameters && selectedFunction.parameters.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium">Parameters</h4>
-                {selectedFunction.parameters.map((param) => (
-                  <div key={param.position} className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      {param.name || `arg${param.position}`}
-                      <Badge variant="outline" className="font-normal">
-                        {param.type}
-                      </Badge>
-                      {!param.has_default && (
-                        <span className="text-xs text-destructive">required</span>
-                      )}
-                    </label>
-                    <Input
-                      placeholder={`Enter ${param.type} value...`}
-                      value={String(paramValues[param.name || `arg${param.position}`] ?? '')}
-                      onChange={(e) =>
-                        setParamValues({
-                          ...paramValues,
-                          [param.name || `arg${param.position}`]: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {selectedFunction && (!selectedFunction.parameters || selectedFunction.parameters.length === 0) && (
-              <div className="text-sm text-muted-foreground">
-                This function takes no parameters
-              </div>
-            )}
-
-            {/* Result */}
-            {result && (
-              <div className="space-y-2">
-                <h4 className="font-medium">Result</h4>
-                <div
-                  className={`p-4 rounded-lg font-mono text-sm overflow-x-auto ${
-                    result.success
-                      ? 'bg-green-500/10 border border-green-500/20'
-                      : 'bg-destructive/10 border border-destructive/20'
-                  }`}
-                >
-                  <pre>{JSON.stringify(result.success ? result.data : result.error, null, 2)}</pre>
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-sm font-medium'>Schemas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{schemas.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-sm font-medium'>History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='flex items-center justify-between'>
+                  <div className='text-2xl font-bold'>{history.length}</div>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => setShowHistory(true)}
+                  >
+                    <History className='mr-2 h-4 w-4' />
+                    View
+                  </Button>
                 </div>
-              </div>
-            )}
+              </CardContent>
+            </Card>
           </div>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <div className="flex gap-2 flex-1">
-              <Button variant="outline" size="sm" onClick={() => copyCode('curl')}>
-                <Code2 className="h-4 w-4 mr-2" />
-                cURL
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => copyCode('javascript')}>
-                <Code2 className="h-4 w-4 mr-2" />
-                JavaScript
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => copyCode('typescript')}>
-                <Code2 className="h-4 w-4 mr-2" />
-                TypeScript
-              </Button>
+          {/* Filters */}
+          <div className='flex items-center gap-3'>
+            <div className='relative flex-1'>
+              <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+              <Input
+                placeholder='Search functions...'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className='pl-9'
+              />
             </div>
-            <Button onClick={executeFunction} disabled={executing}>
-              {executing ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Executing...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Execute
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Select value={schemaFilter} onValueChange={setSchemaFilter}>
+              <SelectTrigger className='w-[180px]'>
+                <Filter className='mr-2 h-4 w-4' />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>All Schemas</SelectItem>
+                {schemas.map((schema) => (
+                  <SelectItem key={schema} value={schema}>
+                    {schema}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* History Dialog */}
-      <Dialog open={showHistory} onOpenChange={setShowHistory}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Execution History
-            </DialogTitle>
-            <DialogDescription>Recent function calls (last 20)</DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="h-[60vh]">
-            <div className="space-y-3">
-              {history.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No execution history yet</p>
-                </div>
+          {/* Functions List */}
+          <ScrollArea className='h-[calc(100vh-28rem)]'>
+            <div className='grid gap-4'>
+              {filteredFunctions.length === 0 ? (
+                <Card>
+                  <CardContent className='p-12 text-center'>
+                    <FileCode className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
+                    <p className='mb-2 text-lg font-medium'>
+                      No functions found
+                    </p>
+                    <p className='text-muted-foreground text-sm'>
+                      {searchQuery || schemaFilter !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Create functions in your PostgreSQL database to see them here'}
+                    </p>
+                  </CardContent>
+                </Card>
               ) : (
-                history.map((call, i) => (
-                  <Card key={i} className="hover:border-primary/50 transition-colors cursor-pointer"
-                    onClick={() => replayFromHistory(call)}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">
-                              {call.function.schema}.{call.function.name}
-                            </span>
-                            <Badge variant={call.status === 'success' ? 'default' : 'destructive'}>
-                              {call.status}
+                filteredFunctions.map((fn) => (
+                  <Card
+                    key={`${fn.schema}.${fn.name}`}
+                    className='hover:border-primary/50 transition-colors'
+                  >
+                    <CardHeader>
+                      <div className='flex items-start justify-between'>
+                        <div className='flex-1'>
+                          <div className='mb-2 flex items-center gap-2'>
+                            <CardTitle className='text-lg'>{fn.name}</CardTitle>
+                            <Badge variant='outline'>{fn.schema}</Badge>
+                            <Badge variant='secondary'>
+                              {fn.volatility.toLowerCase()}
                             </Badge>
+                            {fn.is_set_of && <Badge>returns set</Badge>}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(call.timestamp).toLocaleString()}
-                          </p>
+                          <CardDescription>
+                            {fn.description || 'No description available'}
+                          </CardDescription>
                         </div>
-                        <Button variant="ghost" size="sm">
-                          <Copy className="h-4 w-4" />
+                        <Button onClick={() => openTester(fn)} size='sm'>
+                          <Play className='mr-2 h-4 w-4' />
+                          Test
                         </Button>
                       </div>
                     </CardHeader>
-                    {Object.keys(call.params).length > 0 && (
-                      <CardContent className="pt-0">
-                        <div className="text-xs font-mono text-muted-foreground truncate">
-                          {JSON.stringify(call.params)}
+                    <CardContent>
+                      <div className='space-y-2'>
+                        <div className='flex items-center gap-2 text-sm'>
+                          <span className='font-medium'>Parameters:</span>
+                          {!fn.parameters || fn.parameters.length === 0 ? (
+                            <span className='text-muted-foreground'>None</span>
+                          ) : (
+                            <span className='text-muted-foreground'>
+                              {fn.parameters
+                                .map(
+                                  (p) =>
+                                    `${p.name || `arg${p.position}`}: ${p.type}`
+                                )
+                                .join(', ')}
+                            </span>
+                          )}
                         </div>
-                      </CardContent>
-                    )}
+                        <div className='flex items-center gap-2 text-sm'>
+                          <span className='font-medium'>Returns:</span>
+                          <span className='text-muted-foreground'>
+                            {fn.is_set_of
+                              ? `SETOF ${fn.return_type}`
+                              : fn.return_type}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
                   </Card>
                 ))
               )}
             </div>
           </ScrollArea>
-        </DialogContent>
-      </Dialog>
+
+          {/* Function Tester Dialog */}
+          <Dialog open={showTester} onOpenChange={setShowTester}>
+            <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
+              <DialogHeader>
+                <DialogTitle className='flex items-center gap-2'>
+                  <FileCode className='h-5 w-5' />
+                  {selectedFunction?.schema}.{selectedFunction?.name}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedFunction?.description ||
+                    'Test this PostgreSQL function'}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className='space-y-4'>
+                {/* Function Info */}
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge variant='outline'>{selectedFunction?.schema}</Badge>
+                  <Badge variant='secondary'>
+                    {selectedFunction?.volatility.toLowerCase()}
+                  </Badge>
+                  <Badge>{selectedFunction?.language}</Badge>
+                  {selectedFunction?.is_set_of && <Badge>returns set</Badge>}
+                </div>
+
+                <Separator />
+
+                {/* Parameters */}
+                {selectedFunction &&
+                  selectedFunction.parameters &&
+                  selectedFunction.parameters.length > 0 && (
+                    <div className='space-y-3'>
+                      <h4 className='font-medium'>Parameters</h4>
+                      {selectedFunction.parameters.map((param) => (
+                        <div key={param.position} className='space-y-2'>
+                          <label className='flex items-center gap-2 text-sm font-medium'>
+                            {param.name || `arg${param.position}`}
+                            <Badge variant='outline' className='font-normal'>
+                              {param.type}
+                            </Badge>
+                            {!param.has_default && (
+                              <span className='text-destructive text-xs'>
+                                required
+                              </span>
+                            )}
+                          </label>
+                          <Input
+                            placeholder={`Enter ${param.type} value...`}
+                            value={String(
+                              paramValues[
+                                param.name || `arg${param.position}`
+                              ] ?? ''
+                            )}
+                            onChange={(e) =>
+                              setParamValues({
+                                ...paramValues,
+                                [param.name || `arg${param.position}`]:
+                                  e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                {selectedFunction &&
+                  (!selectedFunction.parameters ||
+                    selectedFunction.parameters.length === 0) && (
+                    <div className='text-muted-foreground text-sm'>
+                      This function takes no parameters
+                    </div>
+                  )}
+
+                {/* Result */}
+                {result && (
+                  <div className='space-y-2'>
+                    <h4 className='font-medium'>Result</h4>
+                    <div
+                      className={`overflow-x-auto rounded-lg p-4 font-mono text-sm ${
+                        result.success
+                          ? 'border border-green-500/20 bg-green-500/10'
+                          : 'bg-destructive/10 border-destructive/20 border'
+                      }`}
+                    >
+                      <pre>
+                        {JSON.stringify(
+                          result.success ? result.data : result.error,
+                          null,
+                          2
+                        )}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className='flex-col gap-2 sm:flex-row'>
+                <div className='flex flex-1 gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => copyCode('curl')}
+                  >
+                    <Code2 className='mr-2 h-4 w-4' />
+                    cURL
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => copyCode('javascript')}
+                  >
+                    <Code2 className='mr-2 h-4 w-4' />
+                    JavaScript
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => copyCode('typescript')}
+                  >
+                    <Code2 className='mr-2 h-4 w-4' />
+                    TypeScript
+                  </Button>
+                </div>
+                <Button onClick={executeFunction} disabled={executing}>
+                  {executing ? (
+                    <>
+                      <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className='mr-2 h-4 w-4' />
+                      Execute
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* History Dialog */}
+          <Dialog open={showHistory} onOpenChange={setShowHistory}>
+            <DialogContent className='max-h-[90vh] max-w-2xl'>
+              <DialogHeader>
+                <DialogTitle className='flex items-center gap-2'>
+                  <History className='h-5 w-5' />
+                  Execution History
+                </DialogTitle>
+                <DialogDescription>
+                  Recent function calls (last 20)
+                </DialogDescription>
+              </DialogHeader>
+
+              <ScrollArea className='h-[60vh]'>
+                <div className='space-y-3'>
+                  {history.length === 0 ? (
+                    <div className='text-muted-foreground py-12 text-center'>
+                      <History className='mx-auto mb-4 h-12 w-12 opacity-50' />
+                      <p>No execution history yet</p>
+                    </div>
+                  ) : (
+                    history.map((call, i) => (
+                      <Card
+                        key={i}
+                        className='hover:border-primary/50 cursor-pointer transition-colors'
+                        onClick={() => replayFromHistory(call)}
+                      >
+                        <CardHeader className='pb-3'>
+                          <div className='flex items-start justify-between'>
+                            <div className='flex-1'>
+                              <div className='mb-1 flex items-center gap-2'>
+                                <span className='font-medium'>
+                                  {call.function.schema}.{call.function.name}
+                                </span>
+                                <Badge
+                                  variant={
+                                    call.status === 'success'
+                                      ? 'default'
+                                      : 'destructive'
+                                  }
+                                >
+                                  {call.status}
+                                </Badge>
+                              </div>
+                              <p className='text-muted-foreground text-xs'>
+                                {new Date(call.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                            <Button variant='ghost' size='sm'>
+                              <Copy className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        {Object.keys(call.params).length > 0 && (
+                          <CardContent className='pt-0'>
+                            <div className='text-muted-foreground truncate font-mono text-xs'>
+                              {JSON.stringify(call.params)}
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
-        <TabsContent value="edge" className="space-y-6 mt-6">
+        <TabsContent value='edge' className='mt-6 space-y-6'>
           <EdgeFunctionsTab />
         </TabsContent>
       </Tabs>
@@ -677,10 +759,16 @@ function EdgeFunctionsTab() {
   const [showInvokeDialog, setShowInvokeDialog] = useState(false)
   const [showLogsDialog, setShowLogsDialog] = useState(false)
   const [showResultDialog, setShowResultDialog] = useState(false)
-  const [selectedFunction, setSelectedFunction] = useState<EdgeFunction | null>(null)
+  const [selectedFunction, setSelectedFunction] = useState<EdgeFunction | null>(
+    null
+  )
   const [executions, setExecutions] = useState<EdgeFunctionExecution[]>([])
   const [invoking, setInvoking] = useState(false)
-  const [invokeResult, setInvokeResult] = useState<{ success: boolean; data: string; error?: string } | null>(null)
+  const [invokeResult, setInvokeResult] = useState<{
+    success: boolean
+    data: string
+    error?: string
+  } | null>(null)
   const [wordWrap, setWordWrap] = useState(false)
   const [logsWordWrap, setLogsWordWrap] = useState(false)
 
@@ -719,9 +807,41 @@ async function handler(req: Request) {
     fetchEdgeFunctions()
   }, [])
 
-  const fetchEdgeFunctions = async () => {
+  const reloadFunctionsFromDisk = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const res = await fetch('/api/v1/admin/functions/reload', {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        if (result.created?.length > 0 || result.updated?.length > 0) {
+          toast.success(
+            `Reloaded functions from disk: ${result.created?.length || 0} created, ${result.updated?.length || 0} updated`
+          )
+        }
+      } else {
+        // eslint-disable-next-line no-console
+        console.error('Failed to reload functions from disk')
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error reloading functions:', error)
+    }
+  }
+
+  const fetchEdgeFunctions = async (shouldReload = true) => {
     setLoading(true)
     try {
+      // First, reload functions from disk (only on initial load or manual refresh)
+      if (shouldReload) {
+        await reloadFunctionsFromDisk()
+      }
+
       const token = localStorage.getItem('fluxbase-auth-token')
       const res = await fetch('/api/v1/functions', {
         headers: {
@@ -763,7 +883,7 @@ async function handler(req: Request) {
         toast.success('Edge function created successfully')
         setShowCreateDialog(false)
         resetForm()
-        fetchEdgeFunctions()
+        fetchEdgeFunctions(false) // Don't reload from disk after creating
       } else {
         const error = await res.json()
         toast.error(error.error || 'Failed to create edge function')
@@ -801,7 +921,7 @@ async function handler(req: Request) {
       if (res.ok) {
         toast.success('Edge function updated successfully')
         setShowEditDialog(false)
-        fetchEdgeFunctions()
+        fetchEdgeFunctions(false) // Don't reload from disk after updating
       } else {
         const error = await res.json()
         toast.error(error.error || 'Failed to update edge function')
@@ -827,7 +947,7 @@ async function handler(req: Request) {
 
       if (res.ok) {
         toast.success('Edge function deleted successfully')
-        fetchEdgeFunctions()
+        fetchEdgeFunctions(false) // Don't reload from disk after deleting
       } else {
         const error = await res.json()
         toast.error(error.error || 'Failed to delete edge function')
@@ -865,7 +985,7 @@ async function handler(req: Request) {
 
       if (res.ok) {
         toast.success(`Function ${newEnabledState ? 'enabled' : 'disabled'}`)
-        fetchEdgeFunctions()
+        fetchEdgeFunctions(false) // Don't reload from disk after toggling
       } else {
         const error = await res.json()
         toast.error(error.error || 'Failed to toggle function')
@@ -883,14 +1003,17 @@ async function handler(req: Request) {
     setInvoking(true)
     try {
       const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/functions/${selectedFunction.name}/invoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: invokeBody,
-      })
+      const res = await fetch(
+        `/api/v1/functions/${selectedFunction.name}/invoke`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+          body: invokeBody,
+        }
+      )
 
       const result = await res.text()
 
@@ -909,7 +1032,8 @@ async function handler(req: Request) {
       // eslint-disable-next-line no-console
       console.error('Error invoking function:', error)
       toast.error('Failed to invoke function')
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
       setInvokeResult({ success: false, data: '', error: errorMessage })
       setShowInvokeDialog(false)
       setShowResultDialog(true)
@@ -921,11 +1045,14 @@ async function handler(req: Request) {
   const fetchExecutions = async (functionName: string) => {
     try {
       const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/functions/${functionName}/executions?limit=20`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
+      const res = await fetch(
+        `/api/v1/functions/${functionName}/executions?limit=20`,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        }
+      )
 
       if (res.ok) {
         const data = await res.json()
@@ -995,59 +1122,65 @@ async function handler(req: Request) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className='flex h-96 items-center justify-center'>
+        <RefreshCw className='text-muted-foreground h-8 w-8 animate-spin' />
       </div>
     )
   }
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className='flex items-center justify-between'>
         <div>
-          <h2 className="text-2xl font-bold">Edge Functions</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className='text-2xl font-bold'>Edge Functions</h2>
+          <p className='text-muted-foreground text-sm'>
             Deploy and run TypeScript/JavaScript functions with Deno runtime
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={fetchEdgeFunctions} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+        <div className='flex gap-2'>
+          <Button
+            onClick={() => fetchEdgeFunctions()}
+            variant='outline'
+            size='sm'
+          >
+            <RefreshCw className='mr-2 h-4 w-4' />
             Refresh
           </Button>
-          <Button onClick={() => setShowCreateDialog(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => setShowCreateDialog(true)} size='sm'>
+            <Plus className='mr-2 h-4 w-4' />
             New Function
           </Button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className='grid gap-4 md:grid-cols-3'>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Functions</CardTitle>
+          <CardHeader className='pb-3'>
+            <CardTitle className='text-sm font-medium'>
+              Total Functions
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{edgeFunctions.length}</div>
+            <div className='text-2xl font-bold'>{edgeFunctions.length}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
+          <CardHeader className='pb-3'>
+            <CardTitle className='text-sm font-medium'>Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className='text-2xl font-bold'>
               {edgeFunctions.filter((f) => f.enabled).length}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
+          <CardHeader className='pb-3'>
+            <CardTitle className='text-sm font-medium'>Scheduled</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className='text-2xl font-bold'>
               {edgeFunctions.filter((f) => f.cron_schedule).length}
             </div>
           </CardContent>
@@ -1055,43 +1188,48 @@ async function handler(req: Request) {
       </div>
 
       {/* Functions List */}
-      <ScrollArea className="h-[calc(100vh-28rem)]">
-        <div className="grid gap-4">
+      <ScrollArea className='h-[calc(100vh-28rem)]'>
+        <div className='grid gap-4'>
           {edgeFunctions.length === 0 ? (
             <Card>
-              <CardContent className="p-12 text-center">
-                <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-lg font-medium mb-2">No edge functions yet</p>
-                <p className="text-sm text-muted-foreground mb-4">
+              <CardContent className='p-12 text-center'>
+                <Zap className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
+                <p className='mb-2 text-lg font-medium'>
+                  No edge functions yet
+                </p>
+                <p className='text-muted-foreground mb-4 text-sm'>
                   Create your first edge function to get started
                 </p>
                 <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className='mr-2 h-4 w-4' />
                   Create Edge Function
                 </Button>
               </CardContent>
             </Card>
           ) : (
             edgeFunctions.map((fn) => (
-              <Card key={fn.id} className="hover:border-primary/50 transition-colors">
+              <Card
+                key={fn.id}
+                className='hover:border-primary/50 transition-colors'
+              >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-lg">{fn.name}</CardTitle>
-                        <div className="flex items-center gap-2">
+                  <div className='flex items-start justify-between'>
+                    <div className='flex-1'>
+                      <div className='mb-2 flex items-center gap-2'>
+                        <CardTitle className='text-lg'>{fn.name}</CardTitle>
+                        <div className='flex items-center gap-2'>
                           <Switch
                             checked={fn.enabled}
                             onCheckedChange={() => toggleFunction(fn)}
                           />
-                          <span className="text-sm text-muted-foreground">
+                          <span className='text-muted-foreground text-sm'>
                             {fn.enabled ? 'Enabled' : 'Disabled'}
                           </span>
                         </div>
-                        <Badge variant="outline">v{fn.version}</Badge>
+                        <Badge variant='outline'>v{fn.version}</Badge>
                         {fn.cron_schedule && (
-                          <Badge variant="outline">
-                            <Clock className="h-3 w-3 mr-1" />
+                          <Badge variant='outline'>
+                            <Clock className='mr-1 h-3 w-3' />
                             scheduled
                           </Badge>
                         )}
@@ -1100,51 +1238,57 @@ async function handler(req: Request) {
                         {fn.description || 'No description'}
                       </CardDescription>
                     </div>
-                    <div className="flex gap-2">
+                    <div className='flex gap-2'>
                       <Button
                         onClick={() => openInvokeDialog(fn)}
-                        size="sm"
-                        variant="outline"
+                        size='sm'
+                        variant='outline'
                         disabled={!fn.enabled}
                       >
-                        <Play className="h-4 w-4 mr-2" />
+                        <Play className='mr-2 h-4 w-4' />
                         Invoke
                       </Button>
-                      <Button onClick={() => openEditDialog(fn)} size="sm" variant="outline">
-                        <Edit className="h-4 w-4" />
+                      <Button
+                        onClick={() => openEditDialog(fn)}
+                        size='sm'
+                        variant='outline'
+                      >
+                        <Edit className='h-4 w-4' />
                       </Button>
                       <Button
                         onClick={() => deleteFunction(fn.name)}
-                        size="sm"
-                        variant="outline"
+                        size='sm'
+                        variant='outline'
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className='h-4 w-4' />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-4">
-                      <span className="text-muted-foreground">Timeout:</span>
+                  <div className='space-y-2 text-sm'>
+                    <div className='flex items-center gap-4'>
+                      <span className='text-muted-foreground'>Timeout:</span>
                       <span>{fn.timeout_seconds}s</span>
-                      <span className="text-muted-foreground">Memory:</span>
+                      <span className='text-muted-foreground'>Memory:</span>
                       <span>{fn.memory_limit_mb}MB</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Permissions:</span>
-                      {fn.allow_net && <Badge variant="outline">net</Badge>}
-                      {fn.allow_env && <Badge variant="outline">env</Badge>}
-                      {fn.allow_read && <Badge variant="outline">read</Badge>}
-                      {fn.allow_write && <Badge variant="outline">write</Badge>}
+                    <div className='flex items-center gap-2'>
+                      <span className='text-muted-foreground'>
+                        Permissions:
+                      </span>
+                      {fn.allow_net && <Badge variant='outline'>net</Badge>}
+                      {fn.allow_env && <Badge variant='outline'>env</Badge>}
+                      {fn.allow_read && <Badge variant='outline'>read</Badge>}
+                      {fn.allow_write && <Badge variant='outline'>write</Badge>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className='flex items-center gap-2'>
                       <Button
                         onClick={() => fetchExecutions(fn.name)}
-                        variant="ghost"
-                        size="sm"
+                        variant='ghost'
+                        size='sm'
                       >
-                        <History className="h-4 w-4 mr-2" />
+                        <History className='mr-2 h-4 w-4' />
                         View Logs
                       </Button>
                     </div>
@@ -1158,7 +1302,7 @@ async function handler(req: Request) {
 
       {/* Create Function Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Create Edge Function</DialogTitle>
             <DialogDescription>
@@ -1166,95 +1310,117 @@ async function handler(req: Request) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className='space-y-4'>
             <div>
-              <Label htmlFor="name">Function Name</Label>
+              <Label htmlFor='name'>Function Name</Label>
               <Input
-                id="name"
-                placeholder="my_function"
+                id='name'
+                placeholder='my_function'
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
               />
             </div>
 
             <div>
-              <Label htmlFor="description">Description (optional)</Label>
+              <Label htmlFor='description'>Description (optional)</Label>
               <Input
-                id="description"
-                placeholder="What does this function do?"
+                id='description'
+                placeholder='What does this function do?'
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
               />
             </div>
 
             <div>
-              <Label htmlFor="code">Code (TypeScript)</Label>
+              <Label htmlFor='code'>Code (TypeScript)</Label>
               <Textarea
-                id="code"
-                className="font-mono text-sm min-h-[400px]"
+                id='code'
+                className='min-h-[400px] font-mono text-sm'
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, code: e.target.value })
+                }
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className='grid grid-cols-2 gap-4'>
               <div>
-                <Label htmlFor="timeout">Timeout (seconds)</Label>
+                <Label htmlFor='timeout'>Timeout (seconds)</Label>
                 <Input
-                  id="timeout"
-                  type="number"
+                  id='timeout'
+                  type='number'
                   min={1}
                   max={300}
                   value={formData.timeout_seconds}
                   onChange={(e) =>
-                    setFormData({ ...formData, timeout_seconds: parseInt(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      timeout_seconds: parseInt(e.target.value),
+                    })
                   }
                 />
               </div>
 
               <div>
-                <Label htmlFor="cron">Cron Schedule (optional)</Label>
+                <Label htmlFor='cron'>Cron Schedule (optional)</Label>
                 <Input
-                  id="cron"
-                  placeholder="0 0 * * *"
+                  id='cron'
+                  placeholder='0 0 * * *'
                   value={formData.cron_schedule}
-                  onChange={(e) => setFormData({ ...formData, cron_schedule: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cron_schedule: e.target.value })
+                  }
                 />
               </div>
             </div>
 
             <div>
               <Label>Permissions</Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className='mt-2 grid grid-cols-2 gap-3'>
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_net}
-                    onChange={(e) => setFormData({ ...formData, allow_net: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_net: e.target.checked })
+                    }
                   />
                   <span>Allow Network Access</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_env}
-                    onChange={(e) => setFormData({ ...formData, allow_env: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_env: e.target.checked })
+                    }
                   />
                   <span>Allow Environment Variables</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_read}
-                    onChange={(e) => setFormData({ ...formData, allow_read: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_read: e.target.checked })
+                    }
                   />
                   <span>Allow File Read</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_write}
-                    onChange={(e) => setFormData({ ...formData, allow_write: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        allow_write: e.target.checked,
+                      })
+                    }
                   />
                   <span>Allow File Write</span>
                 </label>
@@ -1263,7 +1429,10 @@ async function handler(req: Request) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setShowCreateDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={createFunction}>Create Function</Button>
@@ -1273,90 +1442,112 @@ async function handler(req: Request) {
 
       {/* Edit Function Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Edit Edge Function</DialogTitle>
-            <DialogDescription>Update function code and settings</DialogDescription>
+            <DialogDescription>
+              Update function code and settings
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className='space-y-4'>
             <div>
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor='edit-description'>Description</Label>
               <Input
-                id="edit-description"
+                id='edit-description'
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
               />
             </div>
 
             <div>
-              <Label htmlFor="edit-code">Code</Label>
+              <Label htmlFor='edit-code'>Code</Label>
               <Textarea
-                id="edit-code"
-                className="font-mono text-sm min-h-[400px]"
+                id='edit-code'
+                className='min-h-[400px] font-mono text-sm'
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, code: e.target.value })
+                }
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className='grid grid-cols-2 gap-4'>
               <div>
-                <Label htmlFor="edit-timeout">Timeout (seconds)</Label>
+                <Label htmlFor='edit-timeout'>Timeout (seconds)</Label>
                 <Input
-                  id="edit-timeout"
-                  type="number"
+                  id='edit-timeout'
+                  type='number'
                   min={1}
                   max={300}
                   value={formData.timeout_seconds}
                   onChange={(e) =>
-                    setFormData({ ...formData, timeout_seconds: parseInt(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      timeout_seconds: parseInt(e.target.value),
+                    })
                   }
                 />
               </div>
 
               <div>
-                <Label htmlFor="edit-cron">Cron Schedule</Label>
+                <Label htmlFor='edit-cron'>Cron Schedule</Label>
                 <Input
-                  id="edit-cron"
-                  placeholder="0 0 * * *"
+                  id='edit-cron'
+                  placeholder='0 0 * * *'
                   value={formData.cron_schedule}
-                  onChange={(e) => setFormData({ ...formData, cron_schedule: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cron_schedule: e.target.value })
+                  }
                 />
               </div>
             </div>
 
             <div>
               <Label>Permissions</Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className='mt-2 grid grid-cols-2 gap-3'>
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_net}
-                    onChange={(e) => setFormData({ ...formData, allow_net: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_net: e.target.checked })
+                    }
                   />
                   <span>Allow Network Access</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_env}
-                    onChange={(e) => setFormData({ ...formData, allow_env: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_env: e.target.checked })
+                    }
                   />
                   <span>Allow Environment Variables</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_read}
-                    onChange={(e) => setFormData({ ...formData, allow_read: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, allow_read: e.target.checked })
+                    }
                   />
                   <span>Allow File Read</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className='flex cursor-pointer items-center gap-2'>
                   <input
-                    type="checkbox"
+                    type='checkbox'
                     checked={formData.allow_write}
-                    onChange={(e) => setFormData({ ...formData, allow_write: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        allow_write: e.target.checked,
+                      })
+                    }
                   />
                   <span>Allow File Write</span>
                 </label>
@@ -1365,7 +1556,7 @@ async function handler(req: Request) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+            <Button variant='outline' onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>
             <Button onClick={updateFunction}>Update Function</Button>
@@ -1375,7 +1566,7 @@ async function handler(req: Request) {
 
       {/* Invoke Function Dialog */}
       <Dialog open={showInvokeDialog} onOpenChange={setShowInvokeDialog}>
-        <DialogContent className="max-w-5xl w-[90vw]">
+        <DialogContent className='w-[90vw] max-w-5xl'>
           <DialogHeader>
             <DialogTitle>Invoke Edge Function</DialogTitle>
             <DialogDescription>
@@ -1383,12 +1574,12 @@ async function handler(req: Request) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className='space-y-4'>
             <div>
-              <Label htmlFor="invoke-body">Request Body (JSON)</Label>
+              <Label htmlFor='invoke-body'>Request Body (JSON)</Label>
               <Textarea
-                id="invoke-body"
-                className="font-mono text-sm min-h-[200px]"
+                id='invoke-body'
+                className='min-h-[200px] font-mono text-sm'
                 value={invokeBody}
                 onChange={(e) => setInvokeBody(e.target.value)}
               />
@@ -1396,18 +1587,21 @@ async function handler(req: Request) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowInvokeDialog(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setShowInvokeDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={invokeFunction} disabled={invoking}>
               {invoking ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
                   Invoking...
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4 mr-2" />
+                  <Play className='mr-2 h-4 w-4' />
                   Invoke
                 </>
               )}
@@ -1418,94 +1612,108 @@ async function handler(req: Request) {
 
       {/* Execution Logs Dialog */}
       <Dialog open={showLogsDialog} onOpenChange={setShowLogsDialog}>
-        <DialogContent className="!max-w-[95vw] !w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
-          <DialogHeader className="flex-shrink-0">
+        <DialogContent className='flex max-h-[95vh] !w-[95vw] !max-w-[95vw] flex-col overflow-hidden'>
+          <DialogHeader className='flex-shrink-0'>
             <DialogTitle>Execution Logs</DialogTitle>
             <DialogDescription>
               Recent executions for {selectedFunction?.name}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center space-x-2 flex-shrink-0">
+          <div className='flex flex-shrink-0 items-center space-x-2'>
             <Switch
-              id="logs-word-wrap"
+              id='logs-word-wrap'
               checked={logsWordWrap}
               onCheckedChange={setLogsWordWrap}
             />
-            <Label htmlFor="logs-word-wrap" className="cursor-pointer">
+            <Label htmlFor='logs-word-wrap' className='cursor-pointer'>
               Word wrap
             </Label>
           </div>
 
-          <div className="flex-1 overflow-auto min-h-0 border rounded-lg p-4 space-y-3">
+          <div className='min-h-0 flex-1 space-y-3 overflow-auto rounded-lg border p-4'>
             {executions.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <div className='text-muted-foreground py-12 text-center'>
+                <History className='mx-auto mb-4 h-12 w-12 opacity-50' />
                 <p>No executions yet</p>
               </div>
             ) : (
               executions.map((exec) => (
-                <Card key={exec.id} className="overflow-hidden">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              variant={exec.status === 'success' ? 'default' : 'destructive'}
-                            >
-                              {exec.status}
+                <Card key={exec.id} className='overflow-hidden'>
+                  <CardHeader className='pb-3'>
+                    <div className='flex items-start justify-between'>
+                      <div className='flex-1'>
+                        <div className='mb-1 flex items-center gap-2'>
+                          <Badge
+                            variant={
+                              exec.status === 'success'
+                                ? 'default'
+                                : 'destructive'
+                            }
+                          >
+                            {exec.status}
+                          </Badge>
+                          <Badge variant='outline'>{exec.trigger_type}</Badge>
+                          {exec.status_code && (
+                            <Badge variant='secondary'>
+                              {exec.status_code}
                             </Badge>
-                            <Badge variant="outline">{exec.trigger_type}</Badge>
-                            {exec.status_code && (
-                              <Badge variant="secondary">{exec.status_code}</Badge>
-                            )}
-                            {exec.duration_ms && (
-                              <span className="text-xs text-muted-foreground">
-                                {exec.duration_ms}ms
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(exec.executed_at).toLocaleString()}
-                          </p>
+                          )}
+                          {exec.duration_ms && (
+                            <span className='text-muted-foreground text-xs'>
+                              {exec.duration_ms}ms
+                            </span>
+                          )}
                         </div>
+                        <p className='text-muted-foreground text-xs'>
+                          {new Date(exec.executed_at).toLocaleString()}
+                        </p>
                       </div>
-                    </CardHeader>
-                    {(exec.logs || exec.error_message || exec.result) && (
-                      <CardContent className="pt-0 overflow-hidden">
-                        {exec.error_message && (
-                          <div className="mb-2 min-w-0">
-                            <Label className="text-xs text-destructive">Error:</Label>
-                            <div className="mt-1 border rounded bg-destructive/10 overflow-auto max-h-40 max-w-full">
-                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
-                                {exec.error_message}
-                              </pre>
-                            </div>
+                    </div>
+                  </CardHeader>
+                  {(exec.logs || exec.error_message || exec.result) && (
+                    <CardContent className='overflow-hidden pt-0'>
+                      {exec.error_message && (
+                        <div className='mb-2 min-w-0'>
+                          <Label className='text-destructive text-xs'>
+                            Error:
+                          </Label>
+                          <div className='bg-destructive/10 mt-1 max-h-40 max-w-full overflow-auto rounded border'>
+                            <pre
+                              className={`min-w-0 p-2 text-xs ${logsWordWrap ? 'break-words whitespace-pre-wrap' : 'whitespace-pre'}`}
+                            >
+                              {exec.error_message}
+                            </pre>
                           </div>
-                        )}
-                        {exec.logs && (
-                          <div className="mb-2 min-w-0">
-                            <Label className="text-xs">Logs:</Label>
-                            <div className="mt-1 border rounded bg-muted overflow-auto max-h-40 max-w-full">
-                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
-                                {exec.logs}
-                              </pre>
-                            </div>
+                        </div>
+                      )}
+                      {exec.logs && (
+                        <div className='mb-2 min-w-0'>
+                          <Label className='text-xs'>Logs:</Label>
+                          <div className='bg-muted mt-1 max-h-40 max-w-full overflow-auto rounded border'>
+                            <pre
+                              className={`min-w-0 p-2 text-xs ${logsWordWrap ? 'break-words whitespace-pre-wrap' : 'whitespace-pre'}`}
+                            >
+                              {exec.logs}
+                            </pre>
                           </div>
-                        )}
-                        {exec.result && !exec.error_message && (
-                          <div className="min-w-0">
-                            <Label className="text-xs">Result:</Label>
-                            <div className="mt-1 border rounded bg-muted overflow-auto max-h-40 max-w-full">
-                              <pre className={`text-xs p-2 min-w-0 ${logsWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}`}>
-                                {exec.result}
-                              </pre>
-                            </div>
+                        </div>
+                      )}
+                      {exec.result && !exec.error_message && (
+                        <div className='min-w-0'>
+                          <Label className='text-xs'>Result:</Label>
+                          <div className='bg-muted mt-1 max-h-40 max-w-full overflow-auto rounded border'>
+                            <pre
+                              className={`min-w-0 p-2 text-xs ${logsWordWrap ? 'break-words whitespace-pre-wrap' : 'whitespace-pre'}`}
+                            >
+                              {exec.result}
+                            </pre>
                           </div>
-                        )}
-                      </CardContent>
-                    )}
-                  </Card>
+                        </div>
+                      )}
+                    </CardContent>
+                  )}
+                </Card>
               ))
             )}
           </div>
@@ -1514,7 +1722,7 @@ async function handler(req: Request) {
 
       {/* Result Dialog */}
       <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] w-[95vw]">
+        <DialogContent className='max-h-[95vh] w-[95vw] max-w-[95vw]'>
           <DialogHeader>
             <DialogTitle>
               {invokeResult?.success ? 'Function Result' : 'Function Error'}
@@ -1526,25 +1734,27 @@ async function handler(req: Request) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
+          <div className='space-y-4'>
+            <div className='flex items-center space-x-2'>
               <Switch
-                id="word-wrap"
+                id='word-wrap'
                 checked={wordWrap}
                 onCheckedChange={setWordWrap}
               />
-              <Label htmlFor="word-wrap" className="cursor-pointer">
+              <Label htmlFor='word-wrap' className='cursor-pointer'>
                 Word wrap
               </Label>
             </div>
 
             {invokeResult?.success ? (
-              <div className="w-full overflow-hidden">
+              <div className='w-full overflow-hidden'>
                 <Label>Response</Label>
-                <div className="mt-2 border rounded-lg bg-muted overflow-auto h-[70vh]">
+                <div className='bg-muted mt-2 h-[70vh] overflow-auto rounded-lg border'>
                   <pre
-                    className={`text-xs p-4 ${
-                      wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                    className={`p-4 text-xs ${
+                      wordWrap
+                        ? 'break-words whitespace-pre-wrap'
+                        : 'whitespace-pre'
                     }`}
                   >
                     {invokeResult.data}
@@ -1552,12 +1762,14 @@ async function handler(req: Request) {
                 </div>
               </div>
             ) : (
-              <div className="w-full overflow-hidden">
+              <div className='w-full overflow-hidden'>
                 <Label>Error</Label>
-                <div className="mt-2 border rounded-lg bg-destructive/10 overflow-auto h-[70vh]">
+                <div className='bg-destructive/10 mt-2 h-[70vh] overflow-auto rounded-lg border'>
                   <pre
-                    className={`text-xs text-destructive p-4 ${
-                      wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                    className={`text-destructive p-4 text-xs ${
+                      wordWrap
+                        ? 'break-words whitespace-pre-wrap'
+                        : 'whitespace-pre'
                     }`}
                   >
                     {invokeResult?.error}
@@ -1569,7 +1781,7 @@ async function handler(req: Request) {
 
           <DialogFooter>
             <Button
-              variant="outline"
+              variant='outline'
               onClick={() => {
                 if (invokeResult?.success) {
                   navigator.clipboard.writeText(invokeResult.data)
@@ -1578,7 +1790,7 @@ async function handler(req: Request) {
               }}
               disabled={!invokeResult?.success}
             >
-              <Copy className="h-4 w-4 mr-2" />
+              <Copy className='mr-2 h-4 w-4' />
               Copy
             </Button>
             <Button onClick={() => setShowResultDialog(false)}>Close</Button>

@@ -14,15 +14,16 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Security SecurityConfig `mapstructure:"security"`
-	Storage  StorageConfig  `mapstructure:"storage"`
-	Realtime RealtimeConfig `mapstructure:"realtime"`
-	Email    EmailConfig    `mapstructure:"email"`
-	BaseURL  string         `mapstructure:"base_url"`
-	Debug    bool           `mapstructure:"debug"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Auth      AuthConfig      `mapstructure:"auth"`
+	Security  SecurityConfig  `mapstructure:"security"`
+	Storage   StorageConfig   `mapstructure:"storage"`
+	Realtime  RealtimeConfig  `mapstructure:"realtime"`
+	Email     EmailConfig     `mapstructure:"email"`
+	Functions FunctionsConfig `mapstructure:"functions"`
+	BaseURL   string          `mapstructure:"base_url"`
+	Debug     bool            `mapstructure:"debug"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -131,6 +132,16 @@ type EmailConfig struct {
 	MagicLinkTemplate     string `mapstructure:"magic_link_template"`
 	VerificationTemplate  string `mapstructure:"verification_template"`
 	PasswordResetTemplate string `mapstructure:"password_reset_template"`
+}
+
+// FunctionsConfig contains edge functions settings
+type FunctionsConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	FunctionsDir       string `mapstructure:"functions_dir"`
+	DefaultTimeout     int    `mapstructure:"default_timeout"`      // seconds
+	MaxTimeout         int    `mapstructure:"max_timeout"`          // seconds
+	DefaultMemoryLimit int    `mapstructure:"default_memory_limit"` // MB
+	MaxMemoryLimit     int    `mapstructure:"max_memory_limit"`     // MB
 }
 
 // Load loads configuration from file and environment variables
@@ -278,6 +289,14 @@ func setDefaults() {
 	viper.SetDefault("email.smtp_port", 587)
 	viper.SetDefault("email.smtp_tls", true)
 
+	// Functions defaults
+	viper.SetDefault("functions.enabled", true)
+	viper.SetDefault("functions.functions_dir", "./functions")
+	viper.SetDefault("functions.default_timeout", 30)       // 30 seconds
+	viper.SetDefault("functions.max_timeout", 300)          // 5 minutes
+	viper.SetDefault("functions.default_memory_limit", 128) // 128MB
+	viper.SetDefault("functions.max_memory_limit", 1024)    // 1GB
+
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("debug", false)
@@ -309,6 +328,13 @@ func (c *Config) Validate() error {
 	if c.Email.Enabled {
 		if err := c.Email.Validate(); err != nil {
 			return fmt.Errorf("email configuration error: %w", err)
+		}
+	}
+
+	// Validate functions configuration if enabled
+	if c.Functions.Enabled {
+		if err := c.Functions.Validate(); err != nil {
+			return fmt.Errorf("functions configuration error: %w", err)
 		}
 	}
 
@@ -544,6 +570,48 @@ func (ec *EmailConfig) Validate() error {
 		if ec.SESRegion == "" {
 			return fmt.Errorf("ses_region is required when using SES provider")
 		}
+	}
+
+	return nil
+}
+
+// Validate validates functions configuration
+func (fc *FunctionsConfig) Validate() error {
+	// Validate functions directory
+	if fc.FunctionsDir == "" {
+		return fmt.Errorf("functions_dir cannot be empty")
+	}
+
+	// Validate timeout settings
+	if fc.DefaultTimeout <= 0 {
+		return fmt.Errorf("default_timeout must be positive, got: %d", fc.DefaultTimeout)
+	}
+	if fc.MaxTimeout <= 0 {
+		return fmt.Errorf("max_timeout must be positive, got: %d", fc.MaxTimeout)
+	}
+	if fc.DefaultTimeout > fc.MaxTimeout {
+		return fmt.Errorf("default_timeout (%d) cannot be greater than max_timeout (%d)", fc.DefaultTimeout, fc.MaxTimeout)
+	}
+
+	// Validate memory limit settings
+	if fc.DefaultMemoryLimit <= 0 {
+		return fmt.Errorf("default_memory_limit must be positive, got: %d", fc.DefaultMemoryLimit)
+	}
+	if fc.MaxMemoryLimit <= 0 {
+		return fmt.Errorf("max_memory_limit must be positive, got: %d", fc.MaxMemoryLimit)
+	}
+	if fc.DefaultMemoryLimit > fc.MaxMemoryLimit {
+		return fmt.Errorf("default_memory_limit (%d) cannot be greater than max_memory_limit (%d)", fc.DefaultMemoryLimit, fc.MaxMemoryLimit)
+	}
+
+	// Warn if max_timeout is very high (over 5 minutes)
+	if fc.MaxTimeout > 300 {
+		log.Warn().Int("max_timeout", fc.MaxTimeout).Msg("max_timeout is over 5 minutes - long-running functions may impact performance")
+	}
+
+	// Warn if max_memory_limit is very high (over 1GB)
+	if fc.MaxMemoryLimit > 1024 {
+		log.Warn().Int("max_memory_limit", fc.MaxMemoryLimit).Msg("max_memory_limit is over 1GB - high memory functions may impact performance")
 	}
 
 	return nil

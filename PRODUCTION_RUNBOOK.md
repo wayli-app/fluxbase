@@ -504,6 +504,57 @@ Application users are the end-users of your frontend application. They are store
 | Account Locking  | ✅ Yes              | ❌ No            |
 | Activity Logging | ✅ Yes              | ❌ No            |
 
+### Service Role Keys
+
+Service keys provide **elevated privileges** for backend services, cron jobs, and admin scripts. They bypass Row-Level Security (RLS) policies and have full database access.
+
+**⚠️ CRITICAL WARNING**: Service keys are extremely powerful. Misuse can lead to data breaches.
+
+#### Creating a Service Key
+
+```bash
+# 1. Generate random key
+openssl rand -base64 32
+
+# 2. Format as sk_live_<random> or sk_test_<random>
+SERVICE_KEY="sk_live_abc123xyz456..."
+
+# 3. Hash and store in database
+psql -U postgres -d fluxbase <<SQL
+INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, enabled, expires_at)
+VALUES (
+  'Backend Service',
+  'Service key for backend cron jobs',
+  crypt('sk_live_abc123xyz456...', gen_salt('bf', 12)),
+  'sk_live_',
+  true,
+  NOW() + INTERVAL '1 year'
+);
+SQL
+```
+
+#### Using Service Keys
+
+```bash
+# Via X-Service-Key header
+curl -H "X-Service-Key: sk_live_abc123..." https://api.example.com/api/v1/tables/users
+
+# Via Authorization header
+curl -H "Authorization: ServiceKey sk_live_abc123..." https://api.example.com/api/v1/tables/users
+```
+
+**Best Practices**:
+
+- ✅ Store in secrets manager (Vault, AWS Secrets Manager)
+- ✅ Rotate every 90 days
+- ✅ Monitor via `last_used_at` timestamp
+- ✅ Set expiration dates
+- ❌ Never expose to clients
+- ❌ Never commit to version control
+- ❌ Never log in plaintext
+
+For detailed service key documentation, see [docs/guides/authentication.md](docs/docs/guides/authentication.md#api-keys--service-keys).
+
 ### Implemented Protections
 
 ✅ **OWASP Top 10 Compliance**:
@@ -531,7 +582,7 @@ Application users are the end-users of your frontend application. They are store
 
 ### Security Audit Results
 
-**SQL Injection**: ✅ SECURE (Sprint 7 audit)
+**SQL Injection**: ✅ SECURE
 
 - All queries use parameterized statements
 - Column names validated against schema

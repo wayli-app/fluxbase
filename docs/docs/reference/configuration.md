@@ -18,7 +18,7 @@ server:
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
-  max_header_bytes: 1048576  # 1MB
+  max_header_bytes: 1048576 # 1MB
 
 # Database Configuration
 database:
@@ -38,9 +38,9 @@ jwt:
 
 # Storage Configuration
 storage:
-  provider: local  # "local" or "s3"
+  provider: local # "local" or "s3"
   local_path: ./storage
-  max_upload_size: 10485760  # 10MB in bytes
+  max_upload_size: 10485760 # 10MB in bytes
 
   # S3 Configuration (when provider: s3)
   s3_endpoint: s3.amazonaws.com
@@ -65,9 +65,9 @@ admin:
 
 # Logging
 logging:
-  level: info  # debug, info, warn, error
-  format: json  # json or text
-  output: stdout  # stdout, stderr, or file path
+  level: info # debug, info, warn, error
+  format: json # json or text
+  output: stdout # stdout, stderr, or file path
 
 # CORS Configuration
 cors:
@@ -90,20 +90,20 @@ cors:
     - Content-Range
     - X-Content-Range
   allow_credentials: true
-  max_age: 86400  # 24 hours
+  max_age: 86400 # 24 hours
 
-# Rate Limiting (Sprint 7)
+# Rate Limiting (Upcoming)
 rate_limit:
   enabled: false
   requests_per_minute: 100
   burst: 200
 
-# TLS/HTTPS (Sprint 8)
+# TLS/HTTPS (Upcoming)
 tls:
   enabled: false
   cert_file: /path/to/cert.pem
   key_file: /path/to/key.pem
-  auto_cert: false  # Let's Encrypt
+  auto_cert: false # Let's Encrypt
   auto_cert_domain: example.com
 ```
 
@@ -113,23 +113,23 @@ Environment variables take precedence over configuration file values.
 
 ### Server
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `PORT` | HTTP server port | `8080` | `8080` |
-| `HOST` | HTTP server host | `0.0.0.0` | `0.0.0.0` |
-| `SERVER_READ_TIMEOUT` | Read timeout | `30s` | `30s` |
-| `SERVER_WRITE_TIMEOUT` | Write timeout | `30s` | `30s` |
-| `SERVER_IDLE_TIMEOUT` | Idle timeout | `120s` | `120s` |
+| Variable               | Description      | Default   | Example   |
+| ---------------------- | ---------------- | --------- | --------- |
+| `PORT`                 | HTTP server port | `8080`    | `8080`    |
+| `HOST`                 | HTTP server host | `0.0.0.0` | `0.0.0.0` |
+| `SERVER_READ_TIMEOUT`  | Read timeout     | `30s`     | `30s`     |
+| `SERVER_WRITE_TIMEOUT` | Write timeout    | `30s`     | `30s`     |
+| `SERVER_IDLE_TIMEOUT`  | Idle timeout     | `120s`    | `120s`    |
 
 ### Database
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | **(required)** | `postgres://user:pass@localhost:5432/db` |
-| `DB_MAX_CONNECTIONS` | Max connection pool size | `100` | `100` |
-| `DB_IDLE_CONNECTIONS` | Idle connections in pool | `10` | `10` |
-| `DB_CONNECTION_LIFETIME` | Connection max lifetime | `60m` | `60m` |
-| `DB_CONNECTION_TIMEOUT` | Connection timeout | `10s` | `10s` |
+| Variable                 | Description                  | Default        | Example                                  |
+| ------------------------ | ---------------------------- | -------------- | ---------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection string | **(required)** | `postgres://user:pass@localhost:5432/db` |
+| `DB_MAX_CONNECTIONS`     | Max connection pool size     | `100`          | `100`                                    |
+| `DB_IDLE_CONNECTIONS`    | Idle connections in pool     | `10`           | `10`                                     |
+| `DB_CONNECTION_LIFETIME` | Connection max lifetime      | `60m`          | `60m`                                    |
+| `DB_CONNECTION_TIMEOUT`  | Connection timeout           | `10s`          | `10s`                                    |
 
 **Connection String Format:**
 
@@ -138,6 +138,7 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 ```
 
 **SSL Modes:**
+
 - `disable` - No SSL (development only)
 - `require` - Require SSL
 - `verify-ca` - Verify CA certificate
@@ -145,15 +146,16 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 
 ### JWT Authentication
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `JWT_SECRET` | JWT signing key | **(required)** | `your-secret-key` |
-| `JWT_ACCESS_TOKEN_EXPIRY` | Access token expiration | `15m` | `15m`, `1h` |
-| `JWT_REFRESH_TOKEN_EXPIRY` | Refresh token expiration | `7d` | `7d`, `30d` |
-| `JWT_ISSUER` | JWT issuer | `fluxbase` | `myapp` |
-| `JWT_AUDIENCE` | JWT audience | `authenticated` | `authenticated` |
+| Variable                   | Description              | Default         | Example           |
+| -------------------------- | ------------------------ | --------------- | ----------------- |
+| `JWT_SECRET`               | JWT signing key          | **(required)**  | `your-secret-key` |
+| `JWT_ACCESS_TOKEN_EXPIRY`  | Access token expiration  | `15m`           | `15m`, `1h`       |
+| `JWT_REFRESH_TOKEN_EXPIRY` | Refresh token expiration | `7d`            | `7d`, `30d`       |
+| `JWT_ISSUER`               | JWT issuer               | `fluxbase`      | `myapp`           |
+| `JWT_AUDIENCE`             | JWT audience             | `authenticated` | `authenticated`   |
 
 **Security Best Practices:**
+
 - Use a strong, random JWT secret (min 32 characters)
 - Rotate JWT secrets periodically
 - Use short access token expiry (15-30 minutes)
@@ -161,19 +163,20 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 
 ### Storage
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `STORAGE_PROVIDER` | Storage backend | `local` | `local`, `s3` |
-| `STORAGE_LOCAL_PATH` | Local storage path | `./storage` | `/var/lib/fluxbase/storage` |
-| `STORAGE_MAX_UPLOAD_SIZE` | Max upload size (bytes) | `10485760` | `10485760` (10MB) |
-| `STORAGE_S3_ENDPOINT` | S3 endpoint | `s3.amazonaws.com` | `s3.amazonaws.com` |
-| `STORAGE_S3_ACCESS_KEY` | S3 access key | - | `AKIAIOSFODNN7EXAMPLE` |
-| `STORAGE_S3_SECRET_KEY` | S3 secret key | - | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `STORAGE_S3_REGION` | S3 region | `us-east-1` | `us-west-2` |
-| `STORAGE_S3_BUCKET` | S3 bucket name | `fluxbase` | `my-bucket` |
-| `STORAGE_S3_USE_SSL` | Use SSL for S3 | `true` | `true`, `false` |
+| Variable                  | Description             | Default            | Example                                    |
+| ------------------------- | ----------------------- | ------------------ | ------------------------------------------ |
+| `STORAGE_PROVIDER`        | Storage backend         | `local`            | `local`, `s3`                              |
+| `STORAGE_LOCAL_PATH`      | Local storage path      | `./storage`        | `/var/lib/fluxbase/storage`                |
+| `STORAGE_MAX_UPLOAD_SIZE` | Max upload size (bytes) | `10485760`         | `10485760` (10MB)                          |
+| `STORAGE_S3_ENDPOINT`     | S3 endpoint             | `s3.amazonaws.com` | `s3.amazonaws.com`                         |
+| `STORAGE_S3_ACCESS_KEY`   | S3 access key           | -                  | `AKIAIOSFODNN7EXAMPLE`                     |
+| `STORAGE_S3_SECRET_KEY`   | S3 secret key           | -                  | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `STORAGE_S3_REGION`       | S3 region               | `us-east-1`        | `us-west-2`                                |
+| `STORAGE_S3_BUCKET`       | S3 bucket name          | `fluxbase`         | `my-bucket`                                |
+| `STORAGE_S3_USE_SSL`      | Use SSL for S3          | `true`             | `true`, `false`                            |
 
 **S3-Compatible Services:**
+
 - AWS S3
 - MinIO (local development): `http://localhost:9000`
 - DigitalOcean Spaces: `https://nyc3.digitaloceanspaces.com`
@@ -182,56 +185,56 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 
 ### Realtime
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `REALTIME_ENABLED` | Enable realtime | `true` | `true`, `false` |
-| `REALTIME_HEARTBEAT_INTERVAL` | Heartbeat interval | `30s` | `30s` |
-| `REALTIME_MAX_CONNECTIONS` | Max WebSocket connections | `1000` | `1000` |
-| `REALTIME_READ_BUFFER_SIZE` | WebSocket read buffer | `1024` | `1024` |
-| `REALTIME_WRITE_BUFFER_SIZE` | WebSocket write buffer | `1024` | `1024` |
+| Variable                      | Description               | Default | Example         |
+| ----------------------------- | ------------------------- | ------- | --------------- |
+| `REALTIME_ENABLED`            | Enable realtime           | `true`  | `true`, `false` |
+| `REALTIME_HEARTBEAT_INTERVAL` | Heartbeat interval        | `30s`   | `30s`           |
+| `REALTIME_MAX_CONNECTIONS`    | Max WebSocket connections | `1000`  | `1000`          |
+| `REALTIME_READ_BUFFER_SIZE`   | WebSocket read buffer     | `1024`  | `1024`          |
+| `REALTIME_WRITE_BUFFER_SIZE`  | WebSocket write buffer    | `1024`  | `1024`          |
 
 ### Admin UI
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `ADMIN_ENABLED` | Enable Admin UI | `true` | `true`, `false` |
-| `ADMIN_PATH` | Admin UI path | `/admin` | `/admin`, `/dashboard` |
+| Variable        | Description     | Default  | Example                |
+| --------------- | --------------- | -------- | ---------------------- |
+| `ADMIN_ENABLED` | Enable Admin UI | `true`   | `true`, `false`        |
+| `ADMIN_PATH`    | Admin UI path   | `/admin` | `/admin`, `/dashboard` |
 
 ### Logging
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `LOG_LEVEL` | Log level | `info` | `debug`, `info`, `warn`, `error` |
-| `LOG_FORMAT` | Log format | `json` | `json`, `text` |
-| `LOG_OUTPUT` | Log output | `stdout` | `stdout`, `stderr`, `/var/log/fluxbase.log` |
+| Variable     | Description | Default  | Example                                     |
+| ------------ | ----------- | -------- | ------------------------------------------- |
+| `LOG_LEVEL`  | Log level   | `info`   | `debug`, `info`, `warn`, `error`            |
+| `LOG_FORMAT` | Log format  | `json`   | `json`, `text`                              |
+| `LOG_OUTPUT` | Log output  | `stdout` | `stdout`, `stderr`, `/var/log/fluxbase.log` |
 
 ### CORS
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `CORS_ENABLED` | Enable CORS | `true` | `true`, `false` |
-| `CORS_ALLOWED_ORIGINS` | Allowed origins (comma-separated) | `*` | `http://localhost:3000,https://app.com` |
-| `CORS_ALLOWED_METHODS` | Allowed HTTP methods | All | `GET,POST,PUT,DELETE` |
-| `CORS_ALLOW_CREDENTIALS` | Allow credentials | `true` | `true`, `false` |
-| `CORS_MAX_AGE` | Preflight cache time (seconds) | `86400` | `86400` |
+| Variable                 | Description                       | Default | Example                                 |
+| ------------------------ | --------------------------------- | ------- | --------------------------------------- |
+| `CORS_ENABLED`           | Enable CORS                       | `true`  | `true`, `false`                         |
+| `CORS_ALLOWED_ORIGINS`   | Allowed origins (comma-separated) | `*`     | `http://localhost:3000,https://app.com` |
+| `CORS_ALLOWED_METHODS`   | Allowed HTTP methods              | All     | `GET,POST,PUT,DELETE`                   |
+| `CORS_ALLOW_CREDENTIALS` | Allow credentials                 | `true`  | `true`, `false`                         |
+| `CORS_MAX_AGE`           | Preflight cache time (seconds)    | `86400` | `86400`                                 |
 
-### Rate Limiting (Sprint 7)
+### Rate Limiting (Upcoming)
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `RATE_LIMIT_ENABLED` | Enable rate limiting | `false` | `true`, `false` |
-| `RATE_LIMIT_REQUESTS_PER_MINUTE` | Requests per minute | `100` | `100` |
-| `RATE_LIMIT_BURST` | Burst allowance | `200` | `200` |
+| Variable                         | Description          | Default | Example         |
+| -------------------------------- | -------------------- | ------- | --------------- |
+| `RATE_LIMIT_ENABLED`             | Enable rate limiting | `false` | `true`, `false` |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | Requests per minute  | `100`   | `100`           |
+| `RATE_LIMIT_BURST`               | Burst allowance      | `200`   | `200`           |
 
-### TLS/HTTPS (Sprint 8)
+### TLS/HTTPS (Upcoming)
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `TLS_ENABLED` | Enable TLS | `false` | `true`, `false` |
-| `TLS_CERT_FILE` | Path to certificate | - | `/etc/certs/tls.crt` |
-| `TLS_KEY_FILE` | Path to private key | - | `/etc/certs/tls.key` |
-| `TLS_AUTO_CERT` | Enable Let's Encrypt | `false` | `true`, `false` |
-| `TLS_AUTO_CERT_DOMAIN` | Domain for auto cert | - | `example.com` |
+| Variable               | Description          | Default | Example              |
+| ---------------------- | -------------------- | ------- | -------------------- |
+| `TLS_ENABLED`          | Enable TLS           | `false` | `true`, `false`      |
+| `TLS_CERT_FILE`        | Path to certificate  | -       | `/etc/certs/tls.crt` |
+| `TLS_KEY_FILE`         | Path to private key  | -       | `/etc/certs/tls.key` |
+| `TLS_AUTO_CERT`        | Enable Let's Encrypt | `false` | `true`, `false`      |
+| `TLS_AUTO_CERT_DOMAIN` | Domain for auto cert | -       | `example.com`        |
 
 ## Production Configuration
 
@@ -239,7 +242,7 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 
 ```yaml
 server:
-  port: 443  # HTTPS
+  port: 443 # HTTPS
   host: 0.0.0.0
   read_timeout: 30s
   write_timeout: 30s
@@ -251,13 +254,13 @@ database:
   connection_lifetime: 30m
 
 jwt:
-  secret: ${JWT_SECRET}  # From environment
+  secret: ${JWT_SECRET} # From environment
   access_token_expiry: 15m
   refresh_token_expiry: 7d
 
 storage:
   provider: s3
-  max_upload_size: 52428800  # 50MB
+  max_upload_size: 52428800 # 50MB
   s3_endpoint: s3.amazonaws.com
   s3_access_key: ${S3_ACCESS_KEY}
   s3_secret_key: ${S3_SECRET_KEY}
@@ -270,7 +273,7 @@ realtime:
   max_connections: 5000
 
 admin:
-  enabled: false  # Disable in production or protect behind VPN
+  enabled: false # Disable in production or protect behind VPN
 
 logging:
   level: info
@@ -336,13 +339,13 @@ database:
 
 jwt:
   secret: dev-secret-change-in-production
-  access_token_expiry: 24h  # Longer for development
+  access_token_expiry: 24h # Longer for development
   refresh_token_expiry: 30d
 
 storage:
   provider: local
   local_path: ./storage
-  max_upload_size: 10485760  # 10MB
+  max_upload_size: 10485760 # 10MB
 
 realtime:
   enabled: true
@@ -366,10 +369,10 @@ cors:
   allow_credentials: true
 
 rate_limit:
-  enabled: false  # Disable in development
+  enabled: false # Disable in development
 
 tls:
-  enabled: false  # Use HTTP in development
+  enabled: false # Use HTTP in development
 ```
 
 ## Docker Configuration
@@ -377,7 +380,7 @@ tls:
 ### Docker Compose Example
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   fluxbase:
@@ -452,7 +455,7 @@ volumes:
 
 ## Kubernetes Configuration
 
-Helm chart configuration will be available in a future release (Sprint 8).
+Helm chart configuration will be available in a future release.
 
 ## Configuration Priority
 
@@ -466,6 +469,7 @@ Configuration is loaded in the following order (later sources override earlier o
 ## Validation
 
 Fluxbase validates configuration on startup and will fail fast if:
+
 - Required values are missing (e.g., `DATABASE_URL`, `JWT_SECRET`)
 - Values are invalid (e.g., negative numbers, invalid formats)
 - Database connection fails
@@ -496,6 +500,7 @@ jwt:
 ### Production Secrets
 
 Use a secrets management solution:
+
 - **Kubernetes**: Use Secrets and ConfigMaps
 - **Docker Swarm**: Use Docker Secrets
 - **AWS**: Use AWS Secrets Manager or Parameter Store

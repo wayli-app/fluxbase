@@ -4,15 +4,19 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "docusaurus start",
-    "build": "docusaurus build",
+    "start": "bash fix-typedoc-brackets.sh && SKIP_TYPEDOC=true docusaurus start",
+    "build": "bash fix-typedoc-brackets.sh && docusaurus build",
+    "build:ci": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "validate": "bash validate-docs.sh",
+    "fix-typedoc": "bash fix-typedoc-brackets.sh",
+    "generate-api": "docusaurus build && bash fix-typedoc-brackets.sh"
   },
   "dependencies": {
     "@docusaurus/core": "^3.6.3",

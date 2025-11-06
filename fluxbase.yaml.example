@@ -38,6 +38,26 @@ auth:
   enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK
   enable_rls: true                      # FLUXBASE_AUTH_ENABLE_RLS (Row Level Security)
 
+  # Service Keys (optional - for backend services only)
+  # Service keys provide elevated privileges that bypass RLS
+  # WARNING: Service keys have full database access - use with extreme caution
+  #
+  # To create a service key:
+  # 1. Generate random key: openssl rand -base64 32
+  # 2. Format as: sk_live_<random> or sk_test_<random>
+  # 3. Hash with bcrypt and store in auth.service_keys table:
+  #    INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, enabled)
+  #    VALUES (
+  #      'Backend Service',
+  #      'Service key for backend API calls',
+  #      crypt('sk_live_abc123...', gen_salt('bf', 12)),
+  #      'sk_live_',
+  #      true
+  #    );
+  # 4. Use via X-Service-Key header or Authorization: ServiceKey header
+  #
+  # service_key: ""                     # FLUXBASE_AUTH_SERVICE_KEY (optional, backend only)
+
 # Security settings
 security:
   enable_global_rate_limit: false       # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT
@@ -97,6 +117,15 @@ email:
   # magic_link_template: ""             # FLUXBASE_EMAIL_MAGIC_LINK_TEMPLATE
   # verification_template: ""           # FLUXBASE_EMAIL_VERIFICATION_TEMPLATE
   # password_reset_template: ""         # FLUXBASE_EMAIL_PASSWORD_RESET_TEMPLATE
+
+# Edge Functions configuration
+functions:
+  enabled: true                         # FLUXBASE_FUNCTIONS_ENABLED
+  functions_dir: "./functions"          # FLUXBASE_FUNCTIONS_DIR (directory for function files)
+  default_timeout: 30                   # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT (seconds)
+  max_timeout: 300                      # FLUXBASE_FUNCTIONS_MAX_TIMEOUT (max 5 minutes)
+  default_memory_limit: 128             # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT (MB)
+  max_memory_limit: 1024                # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT (max 1GB)
 
 # General settings
 base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL (must include http:// or https://)

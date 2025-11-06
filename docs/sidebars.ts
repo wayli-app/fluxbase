@@ -30,8 +30,8 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "doc",
-      id: "supabase-migration",
-      label: "🔄 Migrate from Supabase",
+      id: "supabase-comparison",
+      label: "🔄 Supabase Comparison",
     },
     {
       type: "doc",
@@ -136,33 +136,33 @@ const sidebars: SidebarsConfig = {
 
   // 🔌 API Reference sidebar - HTTP and SDK API references
   apiSidebar: [
-    {
-      type: "category",
-      label: "📡 HTTP REST API",
-      collapsed: false,
-      items: [
-        {
-          type: "doc",
-          id: "api/rest",
-          label: "Tables",
-        },
-        {
-          type: "doc",
-          id: "api/authentication",
-          label: "Authentication",
-        },
-        {
-          type: "doc",
-          id: "api/storage",
-          label: "Storage",
-        },
-        {
-          type: "doc",
-          id: "api/realtime",
-          label: "Realtime",
-        },
-      ],
-    },
+    // {
+    //   type: "category",
+    //   label: "📡 HTTP REST API",
+    //   collapsed: false,
+    //   items: [
+    //     {
+    //       type: "doc",
+    //       id: "api/rest",
+    //       label: "Tables",
+    //     },
+    //     {
+    //       type: "doc",
+    //       id: "api/authentication",
+    //       label: "Authentication",
+    //     },
+    //     {
+    //       type: "doc",
+    //       id: "api/storage",
+    //       label: "Storage",
+    //     },
+    //     {
+    //       type: "doc",
+    //       id: "api/realtime",
+    //       label: "Realtime",
+    //     },
+    //   ],
+    // },
     {
       type: "category",
       label: "💻 TypeScript SDK API",

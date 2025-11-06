@@ -3,6 +3,9 @@ package api
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/webhook"
 )
 
@@ -18,9 +21,13 @@ func NewWebhookHandler(webhookService *webhook.WebhookService) *WebhookHandler {
 	}
 }
 
-// RegisterRoutes registers webhook routes
-func (h *WebhookHandler) RegisterRoutes(app *fiber.App) {
-	webhooks := app.Group("/api/v1/webhooks")
+// RegisterRoutes registers webhook routes with authentication
+func (h *WebhookHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+	// Apply authentication middleware to all webhook routes
+	webhooks := app.Group("/api/v1/webhooks",
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+	)
+
 	webhooks.Post("/", h.CreateWebhook)
 	webhooks.Get("/", h.ListWebhooks)
 	webhooks.Get("/:id", h.GetWebhook)

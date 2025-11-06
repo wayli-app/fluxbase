@@ -2,25 +2,30 @@ package functions
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // Handler manages HTTP endpoints for edge functions
 type Handler struct {
-	storage   *Storage
-	runtime   *DenoRuntime
-	scheduler *Scheduler
+	storage      *Storage
+	runtime      *DenoRuntime
+	scheduler    *Scheduler
+	functionsDir string
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *pgxpool.Pool) *Handler {
+func NewHandler(db *pgxpool.Pool, functionsDir string) *Handler {
 	return &Handler{
-		storage: NewStorage(db),
-		runtime: NewDenoRuntime(),
+		storage:      NewStorage(db),
+		runtime:      NewDenoRuntime(),
+		functionsDir: functionsDir,
 	}
 }
 
@@ -29,36 +34,47 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 	h.scheduler = scheduler
 }
 
-// RegisterRoutes registers all edge function routes
-func (h *Handler) RegisterRoutes(app *fiber.App) {
-	// Management endpoints
-	app.Post("/api/v1/functions", h.CreateFunction)
-	app.Get("/api/v1/functions", h.ListFunctions)
-	app.Get("/api/v1/functions/:name", h.GetFunction)
-	app.Put("/api/v1/functions/:name", h.UpdateFunction)
-	app.Delete("/api/v1/functions/:name", h.DeleteFunction)
+// RegisterRoutes registers all edge function routes with authentication
+func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+	// Apply authentication middleware to management endpoints
+	authMiddleware := middleware.RequireAuthOrServiceKey(authService, apiKeyService, db)
 
-	// Invocation endpoint
-	app.Post("/api/v1/functions/:name/invoke", h.InvokeFunction)
+	functions := app.Group("/api/v1/functions")
 
-	// Execution history
-	app.Get("/api/v1/functions/:name/executions", h.GetExecutions)
+	// Management endpoints - require authentication
+	functions.Post("/", authMiddleware, h.CreateFunction)
+	functions.Get("/", authMiddleware, h.ListFunctions)
+	functions.Get("/:name", authMiddleware, h.GetFunction)
+	functions.Put("/:name", authMiddleware, h.UpdateFunction)
+	functions.Delete("/:name", authMiddleware, h.DeleteFunction)
+
+	// Invocation endpoint - auth checked per-function in handler based on allow_unauthenticated
+	// We use OptionalAuthMiddleware so auth context is set if token provided,
+	// but the handler will check the function's allow_unauthenticated setting
+	optionalAuth := middleware.OptionalAPIKeyAuth(authService, apiKeyService)
+	functions.Post("/:name/invoke", optionalAuth, h.InvokeFunction)
+
+	// Execution history - require authentication
+	functions.Get("/:name/executions", authMiddleware, h.GetExecutions)
+
+	// Admin reload endpoint - handled separately in server.go under admin routes
 }
 
 // CreateFunction creates a new edge function
 func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 	var req struct {
-		Name           string  `json:"name"`
-		Description    *string `json:"description"`
-		Code           string  `json:"code"`
-		Enabled        *bool   `json:"enabled"`
-		TimeoutSeconds *int    `json:"timeout_seconds"`
-		MemoryLimitMB  *int    `json:"memory_limit_mb"`
-		AllowNet       *bool   `json:"allow_net"`
-		AllowEnv       *bool   `json:"allow_env"`
-		AllowRead      *bool   `json:"allow_read"`
-		AllowWrite     *bool   `json:"allow_write"`
-		CronSchedule   *string `json:"cron_schedule"`
+		Name                 string  `json:"name"`
+		Description          *string `json:"description"`
+		Code                 string  `json:"code"`
+		Enabled              *bool   `json:"enabled"`
+		TimeoutSeconds       *int    `json:"timeout_seconds"`
+		MemoryLimitMB        *int    `json:"memory_limit_mb"`
+		AllowNet             *bool   `json:"allow_net"`
+		AllowEnv             *bool   `json:"allow_env"`
+		AllowRead            *bool   `json:"allow_read"`
+		AllowWrite           *bool   `json:"allow_write"`
+		AllowUnauthenticated *bool   `json:"allow_unauthenticated"`
+		CronSchedule         *string `json:"cron_schedule"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -84,20 +100,32 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		}
 	}
 
+	// Parse configuration from code comments (if not explicitly set in request)
+	var allowUnauthenticated bool
+	if req.AllowUnauthenticated != nil {
+		// Explicit setting takes precedence
+		allowUnauthenticated = *req.AllowUnauthenticated
+	} else {
+		// Parse from code comments
+		config := ParseFunctionConfig(req.Code)
+		allowUnauthenticated = config.AllowUnauthenticated
+	}
+
 	// Create function
 	fn := &EdgeFunction{
-		Name:           req.Name,
-		Description:    req.Description,
-		Code:           req.Code,
-		Enabled:        req.Enabled != nil && *req.Enabled,
-		TimeoutSeconds: valueOr(req.TimeoutSeconds, 30),
-		MemoryLimitMB:  valueOr(req.MemoryLimitMB, 128),
-		AllowNet:       valueOr(req.AllowNet, true),
-		AllowEnv:       valueOr(req.AllowEnv, true),
-		AllowRead:      valueOr(req.AllowRead, false),
-		AllowWrite:     valueOr(req.AllowWrite, false),
-		CronSchedule:   req.CronSchedule,
-		CreatedBy:      createdBy,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Code:                 req.Code,
+		Enabled:              req.Enabled != nil && *req.Enabled,
+		TimeoutSeconds:       valueOr(req.TimeoutSeconds, 30),
+		MemoryLimitMB:        valueOr(req.MemoryLimitMB, 128),
+		AllowNet:             valueOr(req.AllowNet, true),
+		AllowEnv:             valueOr(req.AllowEnv, true),
+		AllowRead:            valueOr(req.AllowRead, false),
+		AllowWrite:           valueOr(req.AllowWrite, false),
+		AllowUnauthenticated: allowUnauthenticated,
+		CronSchedule:         req.CronSchedule,
+		CreatedBy:            createdBy,
 	}
 
 	if err := h.storage.CreateFunction(c.Context(), fn); err != nil {
@@ -181,6 +209,19 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	// Check if enabled
 	if !fn.Enabled {
 		return c.Status(403).JSON(fiber.Map{"error": "Function is disabled"})
+	}
+
+	// Check authentication requirement
+	// If function doesn't allow unauthenticated access, require at minimum an anon key
+	// Functions can explicitly set allow_unauthenticated=true to bypass this check
+	if !fn.AllowUnauthenticated {
+		authType := c.Locals("auth_type")
+		if authType == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authentication required. Provide an anon key (Bearer token with role=anon), API key (X-API-Key header), or service key (X-Service-Key header). " +
+					"To allow completely unauthenticated access, set allow_unauthenticated=true on the function.",
+			})
+		}
 	}
 
 	// Build execution request
@@ -275,6 +316,104 @@ func (h *Handler) GetExecutions(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(executions)
+}
+
+// RegisterAdminRoutes registers admin-only routes for functions management
+// These routes should be called with UnifiedAuthMiddleware and RequireRole("admin", "dashboard_admin")
+func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
+	// Admin-only function reload endpoint
+	app.Post("/api/v1/admin/functions/reload", h.ReloadFunctions)
+}
+
+// ReloadFunctions scans the functions directory and syncs with database
+// Admin-only endpoint - requires authentication and admin role
+func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	// Scan functions directory for all .ts files
+	functionFiles, err := ListFunctionFiles(h.functionsDir)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to scan functions directory",
+		})
+	}
+
+	// Track results
+	var created []string
+	var updated []string
+	var errors []string
+
+	// Process each function file
+	for _, fileInfo := range functionFiles {
+		// Check if function exists in database
+		existingFn, err := h.storage.GetFunction(ctx, fileInfo.Name)
+
+		if err != nil {
+			// Function doesn't exist in database - create it
+			code, err := LoadFunctionCode(h.functionsDir, fileInfo.Name)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to load code: %v", fileInfo.Name, err))
+				continue
+			}
+
+			// Parse configuration from code comments
+			config := ParseFunctionConfig(code)
+
+			// Create new function with default settings
+			fn := &EdgeFunction{
+				Name:                 fileInfo.Name,
+				Code:                 code,
+				Enabled:              true,
+				TimeoutSeconds:       30,
+				MemoryLimitMB:        128,
+				AllowNet:             true,
+				AllowEnv:             true,
+				AllowRead:            false,
+				AllowWrite:           false,
+				AllowUnauthenticated: config.AllowUnauthenticated,
+			}
+
+			if err := h.storage.CreateFunction(ctx, fn); err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to create: %v", fileInfo.Name, err))
+				continue
+			}
+
+			created = append(created, fileInfo.Name)
+		} else {
+			// Function exists - update code from filesystem
+			code, err := LoadFunctionCode(h.functionsDir, fileInfo.Name)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to load code: %v", fileInfo.Name, err))
+				continue
+			}
+
+			// Parse configuration from code comments
+			config := ParseFunctionConfig(code)
+
+			// Update if code or config has changed
+			if existingFn.Code != code || existingFn.AllowUnauthenticated != config.AllowUnauthenticated {
+				updates := map[string]interface{}{
+					"code":                  code,
+					"allow_unauthenticated": config.AllowUnauthenticated,
+				}
+
+				if err := h.storage.UpdateFunction(ctx, fileInfo.Name, updates); err != nil {
+					errors = append(errors, fmt.Sprintf("%s: failed to update: %v", fileInfo.Name, err))
+					continue
+				}
+
+				updated = append(updated, fileInfo.Name)
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Functions reloaded from filesystem",
+		"created": created,
+		"updated": updated,
+		"errors":  errors,
+		"total":   len(functionFiles),
+	})
 }
 
 // Helper functions
