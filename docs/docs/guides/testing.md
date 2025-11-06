@@ -471,6 +471,7 @@ npm run type-check
 **Location**: `sdk/src/*.test.ts`
 
 **Available Test Files**:
+
 - [src/auth.test.ts](sdk/src/auth.test.ts) - Authentication tests
 - [src/admin.test.ts](sdk/src/admin.test.ts) - Admin SDK tests
 - [src/management.test.ts](sdk/src/management.test.ts) - Management SDK tests
@@ -484,13 +485,13 @@ npm run type-check
 **Authentication Test** ([sdk/src/auth.test.ts:1-150](sdk/src/auth.test.ts#L1-L150)):
 
 ```typescript
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { FluxbaseAuth } from './auth'
-import type { FluxbaseFetch } from './fetch'
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { FluxbaseAuth } from "./auth";
+import type { FluxbaseFetch } from "./fetch";
 
-describe('FluxbaseAuth', () => {
-  let auth: FluxbaseAuth
-  let mockFetch: FluxbaseFetch
+describe("FluxbaseAuth", () => {
+  let auth: FluxbaseAuth;
+  let mockFetch: FluxbaseFetch;
 
   beforeEach(() => {
     // Create mock fetch
@@ -499,87 +500,87 @@ describe('FluxbaseAuth', () => {
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
-    } as unknown as FluxbaseFetch
+    } as unknown as FluxbaseFetch;
 
-    auth = new FluxbaseAuth(mockFetch)
-  })
+    auth = new FluxbaseAuth(mockFetch);
+  });
 
-  describe('signUp', () => {
-    it('should sign up a new user', async () => {
+  describe("signUp", () => {
+    it("should sign up a new user", async () => {
       const mockResponse = {
         user: {
-          id: 'user-123',
-          email: 'test@example.com',
+          id: "user-123",
+          email: "test@example.com",
         },
-        access_token: 'token-123',
-        refresh_token: 'refresh-123',
-      }
+        access_token: "token-123",
+        refresh_token: "refresh-123",
+      };
 
-      vi.mocked(mockFetch.post).mockResolvedValue(mockResponse)
+      vi.mocked(mockFetch.post).mockResolvedValue(mockResponse);
 
       const result = await auth.signUp({
-        email: 'test@example.com',
-        password: 'password123',
-      })
+        email: "test@example.com",
+        password: "password123",
+      });
 
-      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/auth/signup', {
-        email: 'test@example.com',
-        password: 'password123',
-      })
+      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signup", {
+        email: "test@example.com",
+        password: "password123",
+      });
 
-      expect(result).toEqual(mockResponse)
-      expect(result.user.email).toBe('test@example.com')
-      expect(result.access_token).toBe('token-123')
-    })
+      expect(result).toEqual(mockResponse);
+      expect(result.user.email).toBe("test@example.com");
+      expect(result.access_token).toBe("token-123");
+    });
 
-    it('should handle sign up errors', async () => {
+    it("should handle sign up errors", async () => {
       vi.mocked(mockFetch.post).mockRejectedValue(
-        new Error('Email already exists')
-      )
+        new Error("Email already exists")
+      );
 
       await expect(
         auth.signUp({
-          email: 'test@example.com',
-          password: 'password123',
+          email: "test@example.com",
+          password: "password123",
         })
-      ).rejects.toThrow('Email already exists')
-    })
-  })
+      ).rejects.toThrow("Email already exists");
+    });
+  });
 
-  describe('signIn', () => {
-    it('should sign in existing user', async () => {
+  describe("signIn", () => {
+    it("should sign in existing user", async () => {
       const mockResponse = {
-        user: { id: 'user-123', email: 'test@example.com' },
-        access_token: 'token-123',
-        refresh_token: 'refresh-123',
-      }
+        user: { id: "user-123", email: "test@example.com" },
+        access_token: "token-123",
+        refresh_token: "refresh-123",
+      };
 
-      vi.mocked(mockFetch.post).mockResolvedValue(mockResponse)
+      vi.mocked(mockFetch.post).mockResolvedValue(mockResponse);
 
       const result = await auth.signIn({
-        email: 'test@example.com',
-        password: 'password123',
-      })
+        email: "test@example.com",
+        password: "password123",
+      });
 
-      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/auth/signin', {
-        email: 'test@example.com',
-        password: 'password123',
-      })
+      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signin", {
+        email: "test@example.com",
+        password: "password123",
+      });
 
-      expect(result.access_token).toBe('token-123')
-    })
-  })
+      expect(result.access_token).toBe("token-123");
+    });
+  });
 
-  describe('signOut', () => {
-    it('should sign out user', async () => {
-      vi.mocked(mockFetch.post).mockResolvedValue({})
+  describe("signOut", () => {
+    it("should sign out user", async () => {
+      vi.mocked(mockFetch.post).mockResolvedValue({});
 
-      await auth.signOut()
+      await auth.signOut();
 
-      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/auth/signout', {})
-    })
-  })
-})
+      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signout", {});
+    });
+  });
+});
 ```
 
 ### Mocking with Vitest
@@ -587,38 +588,38 @@ describe('FluxbaseAuth', () => {
 **Mock HTTP Fetch:**
 
 ```typescript
-import { vi } from 'vitest'
+import { vi } from "vitest";
 
 const mockFetch = {
   get: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
-}
+};
 
 // Set mock return value
 vi.mocked(mockFetch.post).mockResolvedValue({
-  data: { id: 123, name: 'Test' }
-})
+  data: { id: 123, name: "Test" },
+});
 
 // Verify mock was called
-expect(mockFetch.post).toHaveBeenCalledWith('/api/endpoint', { data: 'test' })
+expect(mockFetch.post).toHaveBeenCalledWith("/api/endpoint", { data: "test" });
 
 // Check call count
-expect(mockFetch.post).toHaveBeenCalledTimes(1)
+expect(mockFetch.post).toHaveBeenCalledTimes(1);
 ```
 
 **Mock Modules:**
 
 ```typescript
-import { vi } from 'vitest'
+import { vi } from "vitest";
 
-vi.mock('./storage', () => ({
+vi.mock("./storage", () => ({
   FluxbaseStorage: vi.fn(() => ({
-    upload: vi.fn().mockResolvedValue({ url: 'https://example.com/file.jpg' }),
+    upload: vi.fn().mockResolvedValue({ url: "https://example.com/file.jpg" }),
     download: vi.fn().mockResolvedValue(new Blob()),
   })),
-}))
+}));
 ```
 
 ---
@@ -684,19 +685,19 @@ SDK tests use mocked HTTP calls and don't require a running server.
 **Vitest Configuration** (`sdk/vitest.config.ts`):
 
 ```typescript
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
+    environment: "node",
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', 'dist/'],
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: ["node_modules/", "dist/"],
     },
   },
-})
+});
 ```
 
 ---
@@ -734,12 +735,12 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - name: Setup test database
         run: ./test/scripts/setup_test_db.sh
@@ -756,12 +757,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         working-directory: ./sdk
@@ -800,6 +801,7 @@ xdg-open coverage.html  # Linux
 ```
 
 **Coverage Targets**:
+
 - Overall: > 70%
 - Critical paths (auth, RLS, security): > 90%
 - Utilities: > 80%
@@ -817,6 +819,7 @@ open coverage/index.html
 ```
 
 **Coverage Targets**:
+
 - Overall: > 80%
 - Core modules: > 90%
 
@@ -870,8 +873,8 @@ For TypeScript:
 
 ```typescript
 beforeEach(() => {
-    vi.clearAllMocks()
-})
+  vi.clearAllMocks();
+});
 ```
 
 ### 3. Descriptive Test Names
@@ -982,20 +985,20 @@ Always mock external services in tests:
 
 ```typescript
 // Mock HTTP client
-vi.mock('./http-client', () => ({
+vi.mock("./http-client", () => ({
   httpClient: {
-    post: vi.fn().mockResolvedValue({ data: 'mocked' })
-  }
-}))
+    post: vi.fn().mockResolvedValue({ data: "mocked" }),
+  },
+}));
 
 // Mock WebSocket
-vi.mock('./websocket', () => ({
+vi.mock("./websocket", () => ({
   WebSocketClient: vi.fn(() => ({
     connect: vi.fn(),
     send: vi.fn(),
     close: vi.fn(),
-  }))
-}))
+  })),
+}));
 ```
 
 ---
@@ -1104,6 +1107,7 @@ go test -race ./...
 ### Flaky Tests
 
 **Common causes**:
+
 - Time-dependent tests (use fake time)
 - Race conditions (add proper synchronization)
 - External dependencies (mock them)
@@ -1199,45 +1203,45 @@ docker pull grafana/k6
 **Load Test Script** (`test/k6/load-test.js`):
 
 ```javascript
-import http from 'k6/http';
-import { check, sleep } from 'k6';
+import http from "k6/http";
+import { check, sleep } from "k6";
 
 export const options = {
   stages: [
-    { duration: '30s', target: 20 },  // Ramp up to 20 users
-    { duration: '1m', target: 20 },   // Stay at 20 users
-    { duration: '30s', target: 100 }, // Ramp up to 100 users
-    { duration: '2m', target: 100 },  // Stay at 100 users
-    { duration: '30s', target: 0 },   // Ramp down
+    { duration: "30s", target: 20 }, // Ramp up to 20 users
+    { duration: "1m", target: 20 }, // Stay at 20 users
+    { duration: "30s", target: 100 }, // Ramp up to 100 users
+    { duration: "2m", target: 100 }, // Stay at 100 users
+    { duration: "30s", target: 0 }, // Ramp down
   ],
   thresholds: {
-    http_req_duration: ['p(95)<500', 'p(99)<1000'],
-    http_req_failed: ['rate<0.05'],
+    http_req_duration: ["p(95)<500", "p(99)<1000"],
+    http_req_failed: ["rate<0.05"],
   },
 };
 
 export default function () {
   // Test GET request
-  const getRes = http.get('http://localhost:8080/api/v1/tables/items');
+  const getRes = http.get("http://localhost:8080/api/v1/tables/items");
   check(getRes, {
-    'GET status is 200': (r) => r.status === 200,
-    'GET response time < 500ms': (r) => r.timings.duration < 500,
+    "GET status is 200": (r) => r.status === 200,
+    "GET response time < 500ms": (r) => r.timings.duration < 500,
   });
 
   sleep(1);
 
   // Test POST request
   const postRes = http.post(
-    'http://localhost:8080/api/v1/tables/items',
-    JSON.stringify({ name: 'Test Item', quantity: 10 }),
+    "http://localhost:8080/api/v1/tables/items",
+    JSON.stringify({ name: "Test Item", quantity: 10 }),
     {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     }
   );
 
   check(postRes, {
-    'POST status is 201': (r) => r.status === 201,
-    'POST response time < 500ms': (r) => r.timings.duration < 500,
+    "POST status is 201": (r) => r.status === 201,
+    "POST response time < 500ms": (r) => r.timings.duration < 500,
   });
 
   sleep(1);

@@ -6,11 +6,11 @@ on:
     types: [published]
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Version bump type'
+        description: "Version bump type"
         required: true
         type: choice
         options:
@@ -18,9 +18,9 @@ on:
           - minor
           - major
           - rc
-        default: 'rc'
+        default: "rc"
       prerelease:
-        description: 'Mark as pre-release (automatically true for RC)'
+        description: "Mark as pre-release (automatically true for RC)"
         required: false
         type: boolean
         default: true
@@ -38,9 +38,9 @@ jobs:
       tag_name: ${{ steps.get_version.outputs.tag_name }}
       is_prerelease: ${{ steps.get_version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          fetch-depth: 0  # Fetch all history for all tags
+          fetch-depth: 0 # Fetch all history for all tags
 
       - name: Get version
         id: get_version
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Create and push tag
         run: |
@@ -147,7 +147,7 @@ jobs:
             goarch: arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -189,7 +189,7 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -234,7 +234,7 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -275,7 +275,7 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -298,7 +298,7 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -327,7 +327,7 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -347,12 +347,12 @@ jobs:
     needs: get-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'latest'
+          version: "latest"
 
       - name: Log in to GitHub Container Registry
         run: |

@@ -162,7 +162,11 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   // For now, we'll only show columns if we have data
 
   // Get column metadata from table info
-  const tableColumns = tableInfo?.columns || []
+  const tableColumns = useMemo(() => tableInfo?.columns || [], [tableInfo?.columns])
+
+  // Destructure stable functions from mutations
+  const updateMutateAsync = updateMutation.mutateAsync
+  const deleteMutate = deleteMutation.mutate
 
   // Generate columns dynamically
   const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
@@ -229,7 +233,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
               value={value}
               isReadOnly={isIdColumn}
               onSave={async (newValue) => {
-                await updateMutation.mutateAsync({
+                await updateMutateAsync({
                   id: recordId as string | number,
                   field: key,
                   value: newValue,
@@ -251,13 +255,13 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
         <TableRowActions
           row={row}
           onEdit={(record) => setEditingRecord(record)}
-          onDelete={(record) => deleteMutation.mutate(record)}
+          onDelete={(record) => deleteMutate(record)}
         />
       ),
     })
 
     return allColumns
-  }, [data, deleteMutation.mutate, tableColumns])
+  }, [data, deleteMutate, updateMutateAsync, tableColumns])
 
   const table = useReactTable<Record<string, unknown>>({
     data: (data || []) as Record<string, unknown>[],

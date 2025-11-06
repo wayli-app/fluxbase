@@ -84,6 +84,7 @@ The integration test suite is organized into test suites matching the admin exam
 Tests admin login, logout, token management, and credential validation.
 
 **Coverage:**
+
 - ✓ Admin login with valid credentials
 - ✓ Get admin info
 - ✓ Reject invalid credentials
@@ -94,6 +95,7 @@ Tests admin login, logout, token management, and credential validation.
 Tests user CRUD operations, role management, and search functionality.
 
 **Coverage:**
+
 - ✓ List users with pagination
 - ✓ Invite new users
 - ✓ Get user by ID
@@ -107,6 +109,7 @@ Tests user CRUD operations, role management, and search functionality.
 Tests OAuth provider management and authentication settings.
 
 **Coverage:**
+
 - ✓ List OAuth providers
 - ✓ Get authentication settings
 - ✓ Update authentication settings
@@ -116,6 +119,7 @@ Tests OAuth provider management and authentication settings.
 Tests system settings (key-value storage) and application settings.
 
 **Coverage:**
+
 - ✓ List system settings
 - ✓ Create/update system settings
 - ✓ Get specific settings
@@ -128,6 +132,7 @@ Tests system settings (key-value storage) and application settings.
 Tests database schema and table creation.
 
 **Coverage:**
+
 - ✓ List schemas
 - ✓ Create schema
 - ✓ Create table with columns
@@ -139,6 +144,7 @@ Tests database schema and table creation.
 Tests user impersonation, anonymous access, and audit trail.
 
 **Coverage:**
+
 - ✓ Check impersonation status
 - ✓ Impersonate specific user
 - ✓ Stop impersonation
@@ -152,6 +158,7 @@ Tests user impersonation, anonymous access, and audit trail.
 Tests a full admin workflow combining multiple features.
 
 **Coverage:**
+
 - ✓ End-to-end admin workflow
 - ✓ Schema creation
 - ✓ Table creation
@@ -167,17 +174,17 @@ Tests a full admin workflow combining multiple features.
 Tests have a 30-second timeout per test case:
 
 ```typescript
-testTimeout: 30000
-hookTimeout: 30000
+testTimeout: 30000;
+hookTimeout: 30000;
 ```
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `FLUXBASE_URL` | `http://localhost:8080` | Fluxbase server URL |
-| `ADMIN_EMAIL` | `admin@fluxbase.local` | Admin email |
-| `ADMIN_PASSWORD` | `password` | Admin password |
+| Variable         | Default                 | Description         |
+| ---------------- | ----------------------- | ------------------- |
+| `FLUXBASE_URL`   | `http://localhost:8080` | Fluxbase server URL |
+| `ADMIN_EMAIL`    | `admin@fluxbase.local`  | Admin email         |
+| `ADMIN_PASSWORD` | `password`              | Admin password      |
 
 ### Test Data
 
@@ -242,10 +249,10 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: npm install
@@ -269,6 +276,7 @@ jobs:
 **Problem:** Cannot connect to Fluxbase server
 
 **Solution:**
+
 1. Verify server is running: `curl http://localhost:8080/health`
 2. Check `FLUXBASE_URL` in `.env`
 3. Ensure no firewall blocking port 8080
@@ -278,6 +286,7 @@ jobs:
 **Problem:** Admin login fails
 
 **Solution:**
+
 1. Verify admin credentials in `.env`
 2. Reset admin password if needed
 3. Check server logs for authentication errors
@@ -287,6 +296,7 @@ jobs:
 **Problem:** Tests fail with permission denied
 
 **Solution:**
+
 1. Ensure user is actually an admin
 2. Check RLS policies aren't blocking operations
 3. Verify admin token is valid
@@ -296,6 +306,7 @@ jobs:
 **Problem:** Test data not cleaned up
 
 **Solution:**
+
 1. Tests cleanup in `afterAll` hooks
 2. Manually clean test data: `npm run example:users`
 3. Check for orphaned test schemas/users
@@ -305,29 +316,32 @@ jobs:
 ### Writing New Tests
 
 1. **Use descriptive test names**
+
    ```typescript
-   it('should create user with admin role', async () => {
+   it("should create user with admin role", async () => {
      // Test implementation
-   })
+   });
    ```
 
 2. **Clean up test data**
+
    ```typescript
    afterAll(async () => {
-     await client.admin.deleteUser(testUserId)
-   })
+     await client.admin.deleteUser(testUserId);
+   });
    ```
 
 3. **Use timestamps for unique data**
+
    ```typescript
-   const email = `test-${Date.now()}@example.com`
+   const email = `test-${Date.now()}@example.com`;
    ```
 
 4. **Test both success and failure cases**
    ```typescript
    await expect(
-     client.admin.login({ email, password: 'wrong' })
-   ).rejects.toThrow()
+     client.admin.login({ email, password: "wrong" })
+   ).rejects.toThrow();
    ```
 
 ### Test Organization

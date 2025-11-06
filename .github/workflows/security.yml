@@ -14,7 +14,7 @@ jobs:
     name: Trivy Vulnerability Scanner
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Run Trivy filesystem scanner
         uses: aquasecurity/trivy-action@master
@@ -45,7 +45,7 @@ jobs:
     env:
       GO111MODULE: on
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -68,7 +68,7 @@ jobs:
   #   name: golangci-lint
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v5
 
   #     - name: Set up Go
   #       uses: actions/setup-go@v5
@@ -88,7 +88,7 @@ jobs:
     name: Dependency Vulnerability Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
