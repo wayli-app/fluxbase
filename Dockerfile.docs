@@ -28,7 +28,8 @@ COPY docs/ ./docs/
 
 # Build the static site with TypeDoc generation
 WORKDIR /app/docs
-RUN npm run build
+RUN chmod +x build-with-fix.sh fix-typedoc-brackets.sh && \
+    bash build-with-fix.sh
 
 # Production image - serve with nginx
 FROM nginx:alpine AS runner
