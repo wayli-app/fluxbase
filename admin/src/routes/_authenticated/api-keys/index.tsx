@@ -41,32 +41,11 @@ import { Main } from '@/components/layout/main'
 import { Search as SearchComponent } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { apiKeysApi, type APIKey, type CreateAPIKeyRequest } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/api-keys/')({
   component: APIKeysPage,
 })
-
-interface APIKey {
-  id: string
-  name: string
-  description?: string
-  key_prefix: string
-  scopes: string[]
-  rate_limit_per_minute: number
-  last_used_at?: string
-  expires_at?: string
-  revoked_at?: string
-  created_at: string
-  updated_at: string
-}
-
-interface CreateAPIKeyRequest {
-  name: string
-  description?: string
-  scopes: string[]
-  rate_limit_per_minute: number
-  expires_at?: string
-}
 
 interface APIKeyWithPlaintext extends APIKey {
   key: string // Only returned on creation
@@ -103,34 +82,15 @@ function APIKeysPage() {
   // Fetch API keys
   const { data: apiKeys, isLoading } = useQuery<APIKey[]>({
     queryKey: ['api-keys'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/api-keys', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch API keys')
-      return response.json()
-    },
+    queryFn: apiKeysApi.list,
   })
 
   // Create API key
   const createMutation = useMutation({
-    mutationFn: async (request: CreateAPIKeyRequest) => {
-      const response = await fetch('/api/v1/api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: JSON.stringify(request),
-      })
-      if (!response.ok) throw new Error('Failed to create API key')
-      return response.json() as Promise<APIKeyWithPlaintext>
-    },
+    mutationFn: apiKeysApi.create,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      setCreatedKey(data)
+      setCreatedKey(data as unknown as APIKeyWithPlaintext)
       setShowCreateDialog(false)
       setShowKeyDialog(true)
       // Reset form
@@ -147,15 +107,7 @@ function APIKeysPage() {
 
   // Revoke API key
   const revokeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/api-keys/${id}/revoke`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to revoke API key')
-    },
+    mutationFn: apiKeysApi.revoke,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       toast.success('API key revoked successfully')
@@ -167,15 +119,7 @@ function APIKeysPage() {
 
   // Delete API key
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/api-keys/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to delete API key')
-    },
+    mutationFn: apiKeysApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
       toast.success('API key deleted successfully')

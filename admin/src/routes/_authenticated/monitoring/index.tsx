@@ -5,62 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
 import { useState } from 'react'
+import { monitoringApi, type SystemMetrics, type SystemHealth } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/monitoring/')({
   component: MonitoringPage,
 })
-
-interface SystemMetrics {
-  uptime_seconds: number
-  go_version: string
-  num_goroutines: number
-  memory_alloc_mb: number
-  memory_total_alloc_mb: number
-  memory_sys_mb: number
-  num_gc: number
-  gc_pause_ms: number
-  database: DatabaseStats
-  realtime: RealtimeStats
-  storage?: StorageStats
-}
-
-interface DatabaseStats {
-  acquire_count: number
-  acquired_conns: number
-  canceled_acquire_count: number
-  constructing_conns: number
-  empty_acquire_count: number
-  idle_conns: number
-  max_conns: number
-  total_conns: number
-  new_conns_count: number
-  max_lifetime_destroy_count: number
-  max_idle_destroy_count: number
-  acquire_duration_ms: number
-}
-
-interface RealtimeStats {
-  total_connections: number
-  active_channels: number
-  total_subscriptions: number
-}
-
-interface StorageStats {
-  total_buckets: number
-  total_files: number
-  total_size_gb: number
-}
-
-interface HealthStatus {
-  status: string
-  message?: string
-  latency_ms?: number
-}
-
-interface SystemHealth {
-  status: string
-  services: Record<string, HealthStatus>
-}
 
 function MonitoringPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
@@ -68,30 +17,14 @@ function MonitoringPage() {
   // Fetch metrics
   const { data: metrics } = useQuery<SystemMetrics>({
     queryKey: ['monitoring-metrics'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/monitoring/metrics', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch metrics')
-      return response.json()
-    },
+    queryFn: monitoringApi.getMetrics,
     refetchInterval: autoRefresh ? 5000 : false,
   })
 
   // Fetch health
   const { data: health } = useQuery<SystemHealth>({
     queryKey: ['monitoring-health'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/monitoring/health', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch health')
-      return response.json()
-    },
+    queryFn: monitoringApi.getHealth,
     refetchInterval: autoRefresh ? 10000 : false,
   })
 

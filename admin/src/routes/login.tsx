@@ -40,8 +40,9 @@ function LoginPage() {
         password: formData.password,
       })
 
-      // Store access token in localStorage
+      // Store access token and refresh token in localStorage
       localStorage.setItem('access_token', response.access_token)
+      localStorage.setItem('fluxbase_admin_refresh_token', response.refresh_token)
       localStorage.setItem('user', JSON.stringify(response.user))
 
       // Also set token in Fluxbase SDK

@@ -32,7 +32,7 @@ import { Main } from '@/components/layout/main'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ConfigDrawer } from '@/components/config-drawer'
-import { oauthProviderApi, authSettingsApi, type OAuthProviderConfig, type CreateOAuthProviderRequest, type UpdateOAuthProviderRequest, type AuthSettings } from '@/lib/api'
+import api, { oauthProviderApi, authSettingsApi, type OAuthProviderConfig, type CreateOAuthProviderRequest, type UpdateOAuthProviderRequest, type AuthSettings } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/authentication/')({
   component: AuthenticationPage,
@@ -771,25 +771,14 @@ function ActiveSessionsTab() {
   const { data: sessions, isLoading } = useQuery<Session[]>({
     queryKey: ['sessions'],
     queryFn: async () => {
-      const response = await fetch('/api/v1/tables/auth.sessions?select=*,user:user_id(email)', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch sessions')
-      return response.json()
+      const response = await api.get<Session[]>('/api/v1/tables/auth.sessions?select=*,user:user_id(email)')
+      return response.data
     },
   })
 
   const revokeSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
-      const response = await fetch(`/api/v1/tables/auth.sessions/${sessionId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to revoke session')
+      await api.delete(`/api/v1/tables/auth.sessions/${sessionId}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -802,13 +791,7 @@ function ActiveSessionsTab() {
 
   const revokeAllUserSessionsMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const response = await fetch(`/api/v1/tables/auth.sessions?user_id=eq.${userId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to revoke sessions')
+      await api.delete(`/api/v1/tables/auth.sessions?user_id=eq.${userId}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] })

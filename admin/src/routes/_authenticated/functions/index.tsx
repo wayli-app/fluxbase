@@ -49,30 +49,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import {
+  functionsApi,
+  rpcApi,
+  type EdgeFunction,
+  type EdgeFunctionExecution,
+  type RPCFunction,
+} from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
   component: FunctionsPage,
 })
 
-interface FunctionParam {
-  name: string
-  type: string
-  mode: string
-  has_default: boolean
-  position: number
-}
-
-interface RPCFunction {
-  schema: string
-  name: string
-  description: string
-  parameters: FunctionParam[]
-  return_type: string
-  is_set_of: boolean
-  volatility: string
-  language: string
-}
-
+// Local interfaces not in api.ts
 interface FunctionCall {
   function: RPCFunction
   params: Record<string, unknown>
@@ -85,37 +74,6 @@ interface FunctionResult {
   success: boolean
   data?: unknown
   error?: unknown
-}
-
-interface EdgeFunction {
-  id: string
-  name: string
-  description?: string
-  code: string
-  version: number
-  cron_schedule?: string
-  enabled: boolean
-  timeout_seconds: number
-  memory_limit_mb: number
-  allow_net: boolean
-  allow_env: boolean
-  allow_read: boolean
-  allow_write: boolean
-  created_at: string
-  updated_at: string
-}
-
-interface EdgeFunctionExecution {
-  id: string
-  function_id: string
-  trigger_type: string
-  status: string
-  status_code?: number
-  duration_ms?: number
-  result?: string
-  logs?: string
-  error_message?: string
-  executed_at: string
 }
 
 function FunctionsPage() {
@@ -163,36 +121,19 @@ function FunctionsPage() {
   const fetchFunctions = async () => {
     setLoading(true)
     try {
-      // Use impersonation token if active, otherwise use admin token
-      const impersonationToken = localStorage.getItem(
-        'fluxbase_impersonation_token'
+      const data = await rpcApi.list()
+      // Filter to show only user-defined functions (exclude internal PostgreSQL functions)
+      // User functions are typically in plpgsql or sql, while internal functions use c or internal
+      const userFunctions = data.filter(
+        (fn: RPCFunction) =>
+          // Keep functions in plpgsql, sql, or other high-level languages
+          fn.language !== 'c' &&
+          fn.language !== 'internal' &&
+          // Exclude trigger functions (usually internal housekeeping)
+          fn.return_type !== 'trigger'
       )
-      const adminToken = localStorage.getItem('access_token')
-      const token = impersonationToken || adminToken
-
-      const res = await fetch('/api/v1/rpc/', {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        // Filter to show only user-defined functions (exclude internal PostgreSQL functions)
-        // User functions are typically in plpgsql or sql, while internal functions use c or internal
-        const userFunctions = data.filter(
-          (fn: RPCFunction) =>
-            // Keep functions in plpgsql, sql, or other high-level languages
-            fn.language !== 'c' &&
-            fn.language !== 'internal' &&
-            // Exclude trigger functions (usually internal housekeeping)
-            fn.return_type !== 'trigger'
-        )
-        setFunctions(userFunctions)
-        setFilteredFunctions(userFunctions)
-      } else {
-        toast.error('Failed to fetch functions')
-      }
+      setFunctions(userFunctions)
+      setFilteredFunctions(userFunctions)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching functions:', error)
@@ -232,53 +173,21 @@ function FunctionsPage() {
     setResult(null)
 
     try {
-      // Use impersonation token if active, otherwise use admin token
-      const impersonationToken = localStorage.getItem(
-        'fluxbase_impersonation_token'
+      const data = await rpcApi.execute(
+        selectedFunction.schema,
+        selectedFunction.name,
+        paramValues
       )
-      const adminToken = localStorage.getItem('access_token')
-      const token = impersonationToken || adminToken
 
-      const path =
-        selectedFunction.schema === 'public'
-          ? `/api/v1/rpc/${selectedFunction.name}`
-          : `/api/v1/rpc/${selectedFunction.schema}/${selectedFunction.name}`
-
-      const res = await fetch(path, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify(paramValues),
+      setResult({ success: true, data })
+      toast.success('Function executed successfully')
+      saveHistory({
+        function: selectedFunction,
+        params: paramValues,
+        result: data,
+        timestamp: Date.now(),
+        status: 'success',
       })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        setResult({ success: true, data })
-        toast.success('Function executed successfully')
-        saveHistory({
-          function: selectedFunction,
-          params: paramValues,
-          result: data,
-          timestamp: Date.now(),
-          status: 'success',
-        })
-      } else {
-        setResult({
-          success: false,
-          error: data.error || 'Function execution failed',
-        })
-        toast.error(data.error || 'Function execution failed')
-        saveHistory({
-          function: selectedFunction,
-          params: paramValues,
-          result: data.error,
-          timestamp: Date.now(),
-          status: 'error',
-        })
-      }
     } catch (error: unknown) {
       // eslint-disable-next-line no-console
       console.error('Error executing function:', error)
@@ -286,6 +195,13 @@ function FunctionsPage() {
         error instanceof Error ? error.message : 'Unknown error'
       setResult({ success: false, error: errorMessage })
       toast.error('Failed to execute function')
+      saveHistory({
+        function: selectedFunction,
+        params: paramValues,
+        result: errorMessage,
+        timestamp: Date.now(),
+        status: 'error',
+      })
     } finally {
       setExecuting(false)
     }
@@ -794,6 +710,7 @@ async function handler(req: Request) {
   };
 }`,
     timeout_seconds: 30,
+    memory_limit_mb: 128,
     allow_net: true,
     allow_env: true,
     allow_read: false,
@@ -809,24 +726,11 @@ async function handler(req: Request) {
 
   const reloadFunctionsFromDisk = async () => {
     try {
-      const token = localStorage.getItem('access_token')
-      const res = await fetch('/api/v1/admin/functions/reload', {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const result = await res.json()
-        if (result.created?.length > 0 || result.updated?.length > 0) {
-          toast.success(
-            `Reloaded functions from disk: ${result.created?.length || 0} created, ${result.updated?.length || 0} updated`
-          )
-        }
-      } else {
-        // eslint-disable-next-line no-console
-        console.error('Failed to reload functions from disk')
+      const result = await functionsApi.reload()
+      if ((result.created?.length ?? 0) > 0 || (result.updated?.length ?? 0) > 0) {
+        toast.success(
+          `Reloaded functions from disk: ${result.created?.length ?? 0} created, ${result.updated?.length ?? 0} updated`
+        )
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -842,19 +746,8 @@ async function handler(req: Request) {
         await reloadFunctionsFromDisk()
       }
 
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch('/api/v1/functions', {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setEdgeFunctions(data || [])
-      } else {
-        toast.error('Failed to fetch edge functions')
-      }
+      const data = await functionsApi.list()
+      setEdgeFunctions(data || [])
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching edge functions:', error)
@@ -866,28 +759,14 @@ async function handler(req: Request) {
 
   const createFunction = async () => {
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch('/api/v1/functions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({
-          ...formData,
-          cron_schedule: formData.cron_schedule || null,
-        }),
+      await functionsApi.create({
+        ...formData,
+        cron_schedule: formData.cron_schedule || null,
       })
-
-      if (res.ok) {
-        toast.success('Edge function created successfully')
-        setShowCreateDialog(false)
-        resetForm()
-        fetchEdgeFunctions(false) // Don't reload from disk after creating
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to create edge function')
-      }
+      toast.success('Edge function created successfully')
+      setShowCreateDialog(false)
+      resetForm()
+      fetchEdgeFunctions(false) // Don't reload from disk after creating
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error creating edge function:', error)
@@ -899,33 +778,19 @@ async function handler(req: Request) {
     if (!selectedFunction) return
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/functions/${selectedFunction.name}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({
-          code: formData.code,
-          description: formData.description,
-          timeout_seconds: formData.timeout_seconds,
-          allow_net: formData.allow_net,
-          allow_env: formData.allow_env,
-          allow_read: formData.allow_read,
-          allow_write: formData.allow_write,
-          cron_schedule: formData.cron_schedule || null,
-        }),
+      await functionsApi.update(selectedFunction.name, {
+        code: formData.code,
+        description: formData.description,
+        timeout_seconds: formData.timeout_seconds,
+        allow_net: formData.allow_net,
+        allow_env: formData.allow_env,
+        allow_read: formData.allow_read,
+        allow_write: formData.allow_write,
+        cron_schedule: formData.cron_schedule || null,
       })
-
-      if (res.ok) {
-        toast.success('Edge function updated successfully')
-        setShowEditDialog(false)
-        fetchEdgeFunctions(false) // Don't reload from disk after updating
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to update edge function')
-      }
+      toast.success('Edge function updated successfully')
+      setShowEditDialog(false)
+      fetchEdgeFunctions(false) // Don't reload from disk after updating
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error updating edge function:', error)
@@ -937,21 +802,9 @@ async function handler(req: Request) {
     if (!confirm(`Are you sure you want to delete function "${name}"?`)) return
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/functions/${name}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        toast.success('Edge function deleted successfully')
-        fetchEdgeFunctions(false) // Don't reload from disk after deleting
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to delete edge function')
-      }
+      await functionsApi.delete(name)
+      toast.success('Edge function deleted successfully')
+      fetchEdgeFunctions(false) // Don't reload from disk after deleting
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error deleting edge function:', error)
@@ -963,33 +816,19 @@ async function handler(req: Request) {
     const newEnabledState = !fn.enabled
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/functions/${fn.name}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({
-          code: fn.code,
-          description: fn.description,
-          timeout_seconds: fn.timeout_seconds,
-          allow_net: fn.allow_net,
-          allow_env: fn.allow_env,
-          allow_read: fn.allow_read,
-          allow_write: fn.allow_write,
-          cron_schedule: fn.cron_schedule || null,
-          enabled: newEnabledState,
-        }),
+      await functionsApi.update(fn.name, {
+        code: fn.code,
+        description: fn.description,
+        timeout_seconds: fn.timeout_seconds,
+        allow_net: fn.allow_net,
+        allow_env: fn.allow_env,
+        allow_read: fn.allow_read,
+        allow_write: fn.allow_write,
+        cron_schedule: fn.cron_schedule || null,
+        enabled: newEnabledState,
       })
-
-      if (res.ok) {
-        toast.success(`Function ${newEnabledState ? 'enabled' : 'disabled'}`)
-        fetchEdgeFunctions(false) // Don't reload from disk after toggling
-      } else {
-        const error = await res.json()
-        toast.error(error.error || 'Failed to toggle function')
-      }
+      toast.success(`Function ${newEnabledState ? 'enabled' : 'disabled'}`)
+      fetchEdgeFunctions(false) // Don't reload from disk after toggling
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error toggling function:', error)
@@ -1002,32 +841,11 @@ async function handler(req: Request) {
 
     setInvoking(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(
-        `/api/v1/functions/${selectedFunction.name}/invoke`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-          body: invokeBody,
-        }
-      )
-
-      const result = await res.text()
-
-      if (res.ok) {
-        toast.success('Function invoked successfully')
-        setInvokeResult({ success: true, data: result })
-        setShowInvokeDialog(false)
-        setShowResultDialog(true)
-      } else {
-        toast.error('Function invocation failed')
-        setInvokeResult({ success: false, data: '', error: result })
-        setShowInvokeDialog(false)
-        setShowResultDialog(true)
-      }
+      const result = await functionsApi.invoke(selectedFunction.name, invokeBody)
+      toast.success('Function invoked successfully')
+      setInvokeResult({ success: true, data: result })
+      setShowInvokeDialog(false)
+      setShowResultDialog(true)
     } catch (error: unknown) {
       // eslint-disable-next-line no-console
       console.error('Error invoking function:', error)
@@ -1044,23 +862,9 @@ async function handler(req: Request) {
 
   const fetchExecutions = async (functionName: string) => {
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(
-        `/api/v1/functions/${functionName}/executions?limit=20`,
-        {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-        }
-      )
-
-      if (res.ok) {
-        const data = await res.json()
-        setExecutions(data || [])
-        setShowLogsDialog(true)
-      } else {
-        toast.error('Failed to fetch execution logs')
-      }
+      const data = await functionsApi.getExecutions(functionName, 20)
+      setExecutions(data || [])
+      setShowLogsDialog(true)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching executions:', error)
@@ -1075,6 +879,7 @@ async function handler(req: Request) {
       description: fn.description || '',
       code: fn.code,
       timeout_seconds: fn.timeout_seconds,
+      memory_limit_mb: fn.memory_limit_mb,
       allow_net: fn.allow_net,
       allow_env: fn.allow_env,
       allow_read: fn.allow_read,
@@ -1112,6 +917,7 @@ async function handler(req: Request) {
   };
 }`,
       timeout_seconds: 30,
+      memory_limit_mb: 128,
       allow_net: true,
       allow_env: true,
       allow_read: false,

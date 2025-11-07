@@ -55,31 +55,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
+import { storageApi, type StorageObject } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/storage/')({
   component: StorageBrowser,
 })
-
-// Types
-interface StorageObject {
-  key: string
-  size: number
-  last_modified: string
-  content_type?: string
-  etag?: string
-  metadata?: Record<string, string>
-}
-
-interface BucketListResponse {
-  buckets: string[]
-}
-
-interface ObjectListResponse {
-  bucket: string
-  objects: StorageObject[] | null
-  prefixes: string[]
-  truncated: boolean
-}
 
 function StorageBrowser() {
   // State
@@ -131,21 +111,10 @@ function StorageBrowser() {
   const loadBuckets = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch('/api/v1/storage/buckets', {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const data: BucketListResponse = await res.json()
-        setBuckets(data.buckets || [])
-        if (data.buckets && data.buckets.length > 0 && !selectedBucket) {
-          setSelectedBucket(data.buckets[0])
-        }
-      } else {
-        toast.error('Failed to load buckets')
+      const data = await storageApi.listBuckets()
+      setBuckets(data.buckets || [])
+      if (data.buckets && data.buckets.length > 0 && !selectedBucket) {
+        setSelectedBucket(data.buckets[0])
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -160,25 +129,9 @@ function StorageBrowser() {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const params = new URLSearchParams()
-      if (currentPrefix) params.append('prefix', currentPrefix)
-      params.append('delimiter', '/')
-
-      const url = `/api/v1/storage/${selectedBucket}?${params.toString()}`
-      const res = await fetch(url, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const data: ObjectListResponse = await res.json()
-        setObjects(data.objects || [])
-        setPrefixes(data.prefixes || [])
-      } else {
-        toast.error('Failed to load files')
-      }
+      const data = await storageApi.listObjects(selectedBucket, currentPrefix || undefined, '/')
+      setObjects(data.objects || [])
+      setPrefixes(data.prefixes || [])
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to load files: ${errorMessage}`)
@@ -195,24 +148,12 @@ function StorageBrowser() {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/storage/buckets/${newBucketName}`, {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        toast.success(`Bucket "${newBucketName}" created`)
-        setShowCreateBucket(false)
-        setNewBucketName('')
-        await loadBuckets()
-        setSelectedBucket(newBucketName)
-      } else {
-        const error = await res.text()
-        toast.error(`Failed to create bucket: ${error}`)
-      }
+      await storageApi.createBucket(newBucketName)
+      toast.success(`Bucket "${newBucketName}" created`)
+      setShowCreateBucket(false)
+      setNewBucketName('')
+      await loadBuckets()
+      setSelectedBucket(newBucketName)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to create bucket: ${errorMessage}`)
@@ -224,23 +165,11 @@ function StorageBrowser() {
   const deleteBucket = async (bucketName: string) => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/storage/buckets/${bucketName}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        toast.success(`Bucket "${bucketName}" deleted`)
-        await loadBuckets()
-        if (selectedBucket === bucketName) {
-          setSelectedBucket(buckets[0] || '')
-        }
-      } else {
-        const error = await res.text()
-        toast.error(`Failed to delete bucket: ${error}`)
+      await storageApi.deleteBucket(bucketName)
+      toast.success(`Bucket "${bucketName}" deleted`)
+      await loadBuckets()
+      if (selectedBucket === bucketName) {
+        setSelectedBucket(buckets[0] || '')
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -377,27 +306,16 @@ function StorageBrowser() {
     if (!selectedBucket) return
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/storage/${selectedBucket}/${key}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        const blob = await res.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = key.split('/').pop() || key
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        toast.success('File downloaded')
-      } else {
-        toast.error('Failed to download file')
-      }
+      const blob = await storageApi.downloadObject(selectedBucket, key)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = key.split('/').pop() || key
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast.success('File downloaded')
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to download file: ${errorMessage}`)
@@ -408,25 +326,14 @@ function StorageBrowser() {
     if (!selectedBucket) return
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/storage/${selectedBucket}/${key}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+      await storageApi.deleteObject(selectedBucket, key)
+      toast.success('File deleted')
+      await loadObjects()
+      setSelectedFiles(prev => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
       })
-
-      if (res.ok) {
-        toast.success('File deleted')
-        await loadObjects()
-        setSelectedFiles(prev => {
-          const next = new Set(prev)
-          next.delete(key)
-          return next
-        })
-      } else {
-        toast.error('Failed to delete file')
-      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to delete file: ${errorMessage}`)
@@ -442,17 +349,8 @@ function StorageBrowser() {
 
     for (const key of files) {
       try {
-        const token = localStorage.getItem('fluxbase-auth-token')
-        const res = await fetch(`/api/v1/storage/${selectedBucket}/${key}`, {
-          method: 'DELETE',
-          headers: {
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-        })
-
-        if (res.ok) {
-          successCount++
-        }
+        await storageApi.deleteObject(selectedBucket, key)
+        successCount++
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         // eslint-disable-next-line no-console
@@ -489,27 +387,16 @@ function StorageBrowser() {
     }
 
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(`/api/v1/storage/${selectedBucket}/${obj.key}`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-      })
-
-      if (res.ok) {
-        if (isImage) {
-          const blob = await res.blob()
-          const url = URL.createObjectURL(blob)
-          setPreviewUrl(url)
-        } else if (isText) {
-          const text = await res.text()
-          setPreviewUrl(text)
-        }
-        setPreviewFile(obj)
-        setShowFilePreview(true)
-      } else {
-        toast.error('Failed to load file preview')
+      const blob = await storageApi.downloadObject(selectedBucket, obj.key)
+      if (isImage) {
+        const url = URL.createObjectURL(blob)
+        setPreviewUrl(url)
+      } else if (isText) {
+        const text = await blob.text()
+        setPreviewUrl(text)
       }
+      setPreviewFile(obj)
+      setShowFilePreview(true)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to load file preview: ${errorMessage}`)
@@ -529,37 +416,16 @@ function StorageBrowser() {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      // Create a folder by uploading a placeholder file with .keep extension
+      // Create a folder by creating a path with .keep extension
       const folderPath = currentPrefix
         ? `${currentPrefix}${newFolderName.trim()}/.keep`
         : `${newFolderName.trim()}/.keep`
 
-      const formData = new FormData()
-      // Create an empty blob as a placeholder file
-      const emptyBlob = new Blob([''], { type: 'text/plain' })
-      formData.append('file', emptyBlob, '.keep')
-
-      // Encode each path segment separately, not the entire path
-      const encodedPath = folderPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-
-      const res = await fetch(`/api/v1/storage/${selectedBucket}/${encodedPath}`, {
-        method: 'POST',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        body: formData,
-      })
-
-      if (res.ok) {
-        toast.success(`Folder "${newFolderName}" created`)
-        setShowCreateFolder(false)
-        setNewFolderName('')
-        await loadObjects()
-      } else {
-        const error = await res.text()
-        toast.error(`Failed to create folder: ${error}`)
-      }
+      await storageApi.createFolder(selectedBucket, folderPath)
+      toast.success(`Folder "${newFolderName}" created`)
+      setShowCreateFolder(false)
+      setNewFolderName('')
+      await loadObjects()
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to create folder: ${errorMessage}`)
@@ -582,30 +448,9 @@ function StorageBrowser() {
 
     setGeneratingUrl(true)
     try {
-      const token = localStorage.getItem('fluxbase-auth-token')
-      const res = await fetch(
-        `/api/v1/storage/${selectedBucket}/${encodeURIComponent(metadataFile.key)}/signed-url`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : '',
-          },
-          body: JSON.stringify({
-            expires_in: signedUrlExpiry,
-            method: 'GET',
-          }),
-        }
-      )
-
-      if (res.ok) {
-        const data = await res.json()
-        setSignedUrl(data.url)
-        toast.success('Signed URL generated')
-      } else {
-        const error = await res.text()
-        toast.error(`Failed to generate signed URL: ${error}`)
-      }
+      const data = await storageApi.generateSignedUrl(selectedBucket, metadataFile.key, signedUrlExpiry)
+      setSignedUrl(data.url)
+      toast.success('Signed URL generated')
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to generate signed URL: ${errorMessage}`)

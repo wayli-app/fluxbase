@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
+import api from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/realtime/')({
   component: RealtimePage,
@@ -55,12 +56,8 @@ function RealtimePage() {
   // Fetch realtime stats
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/v1/realtime/stats')
-      if (!response.ok) {
-        throw new Error('Failed to fetch realtime stats')
-      }
-      const data = await response.json()
-      setStats(data)
+      const response = await api.get<RealtimeStats>('/api/v1/realtime/stats')
+      setStats(response.data)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching realtime stats:', error)

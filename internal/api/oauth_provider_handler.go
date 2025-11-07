@@ -397,7 +397,7 @@ func (h *OAuthProviderHandler) DeleteOAuthProvider(c *fiber.Ctx) error {
 func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	query := "SELECT setting_key, setting_value FROM dashboard.auth_settings"
+	query := "SELECT key, value FROM dashboard.auth_settings"
 	rows, err := h.db.Query(ctx, query)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get auth settings")
@@ -479,14 +479,11 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user ID from context
-	userID := getUserIDFromContext(c)
-
 	// Update each setting
 	updateQuery := `
 		UPDATE dashboard.auth_settings
-		SET setting_value = $1, updated_by = $2
-		WHERE setting_key = $3
+		SET value = $1, updated_at = NOW()
+		WHERE key = $2
 	`
 
 	updates := map[string]interface{}{
@@ -503,7 +500,7 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 	}
 
 	for key, value := range updates {
-		_, err := h.db.Exec(ctx, updateQuery, value, userID, key)
+		_, err := h.db.Exec(ctx, updateQuery, value, key)
 		if err != nil {
 			log.Error().Err(err).Str("setting", key).Msg("Failed to update auth setting")
 			return c.Status(500).JSON(fiber.Map{

@@ -104,7 +104,7 @@ func (h *DashboardAuthHandler) Login(c *fiber.Ctx) error {
 	ipAddress := getIPAddress(c)
 	userAgent := string(c.Request().Header.UserAgent())
 
-	user, token, err := h.authService.Login(c.Context(), req.Email, req.Password, ipAddress, userAgent)
+	user, loginResp, err := h.authService.Login(c.Context(), req.Email, req.Password, ipAddress, userAgent)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || err.Error() == "invalid credentials" {
 			return fiber.NewError(fiber.StatusUnauthorized, "Invalid email or password")
@@ -129,8 +129,10 @@ func (h *DashboardAuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"access_token": token,
-		"user":         user,
+		"access_token":  loginResp.AccessToken,
+		"refresh_token": loginResp.RefreshToken,
+		"expires_in":    loginResp.ExpiresIn,
+		"user":          user,
 	})
 }
 

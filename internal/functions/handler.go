@@ -35,9 +35,9 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 }
 
 // RegisterRoutes registers all edge function routes with authentication
-func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to management endpoints
-	authMiddleware := middleware.RequireAuthOrServiceKey(authService, apiKeyService, db)
+	authMiddleware := middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
 
 	functions := app.Group("/api/v1/functions")
 

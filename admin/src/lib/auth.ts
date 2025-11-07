@@ -14,6 +14,21 @@ export interface AdminUser {
   updated_at: string
 }
 
+// DashboardUser type (from dashboard authentication)
+export interface DashboardUser {
+  id: string
+  email: string
+  email_verified: boolean
+  full_name: string | null
+  avatar_url: string | null
+  totp_enabled: boolean
+  is_active: boolean
+  is_locked: boolean
+  last_login_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface TokenPair {
   access_token: string
   refresh_token: string
@@ -33,8 +48,8 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
-// Get stored user from localStorage
-export function getStoredUser(): AdminUser | null {
+// Get stored user from localStorage (can be either AdminUser or DashboardUser)
+export function getStoredUser(): AdminUser | DashboardUser | null {
   if (typeof window === 'undefined') return null
   // Check both new key and legacy key for backwards compatibility
   const userJson = localStorage.getItem(USER_KEY) || localStorage.getItem('user')

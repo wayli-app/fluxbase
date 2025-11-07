@@ -218,7 +218,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 
 // RequireAuthOrServiceKey requires either JWT, API key, OR service key authentication
 // This is the most comprehensive auth middleware that accepts all authentication methods
-func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) fiber.Handler {
+func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// First, try service key authentication (highest privilege)
 		serviceKey := c.Get("X-Service-Key")
@@ -243,7 +243,7 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
-			// Validate JWT token
+			// First, try to validate as auth.users token (app users)
 			claims, err := authService.ValidateToken(token)
 			if err == nil {
 				// Check if token has been revoked
@@ -260,6 +260,25 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 					// Set RLS context
 					c.Locals("rls_user_id", claims.UserID)
 					c.Locals("rls_role", claims.Role)
+
+					return c.Next()
+				}
+			}
+
+			// If auth.users validation failed and jwtManager is provided, try dashboard.users token
+			if len(jwtManager) > 0 && jwtManager[0] != nil {
+				dashboardClaims, err := jwtManager[0].ValidateAccessToken(token)
+				if err == nil {
+					// Successfully validated as dashboard.users token
+					c.Locals("user_id", dashboardClaims.Subject)
+					c.Locals("user_email", dashboardClaims.Email)
+					c.Locals("user_role", dashboardClaims.Role)
+					c.Locals("auth_type", "jwt")
+					c.Locals("is_anonymous", false)
+
+					// Set RLS context for dashboard admin
+					c.Locals("rls_user_id", dashboardClaims.Subject)
+					c.Locals("rls_role", dashboardClaims.Role)
 
 					return c.Next()
 				}

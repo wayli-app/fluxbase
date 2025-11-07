@@ -395,6 +395,445 @@ export const userManagementApi = {
   },
 }
 
+// Edge Functions API Types
+export interface EdgeFunction {
+  id: string
+  name: string
+  description?: string
+  code: string
+  version: number
+  cron_schedule?: string
+  enabled: boolean
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateEdgeFunctionRequest {
+  name: string
+  description?: string
+  code: string
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  cron_schedule?: string | null
+}
+
+export interface UpdateEdgeFunctionRequest {
+  code?: string
+  description?: string
+  timeout_seconds?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  cron_schedule?: string | null
+  enabled?: boolean
+}
+
+export interface EdgeFunctionExecution {
+  id: string
+  function_id: string
+  trigger_type: string
+  status: string
+  status_code?: number
+  duration_ms?: number
+  result?: string
+  logs?: string
+  error_message?: string
+  executed_at: string
+}
+
+export interface FunctionReloadResult {
+  created?: string[]
+  updated?: string[]
+}
+
+// RPC Functions API Types
+export interface FunctionParam {
+  name: string
+  type: string
+  mode: string
+  has_default: boolean
+  position: number
+}
+
+export interface RPCFunction {
+  schema: string
+  name: string
+  description: string
+  parameters: FunctionParam[]
+  return_type: string
+  is_set_of: boolean
+  volatility: string
+  language: string
+}
+
+// Edge Functions API
+export const functionsApi = {
+  // List all edge functions
+  list: async (): Promise<EdgeFunction[]> => {
+    const response = await api.get<EdgeFunction[]>('/api/v1/functions')
+    return response.data
+  },
+
+  // Create edge function
+  create: async (data: CreateEdgeFunctionRequest): Promise<EdgeFunction> => {
+    const response = await api.post<EdgeFunction>('/api/v1/functions', data)
+    return response.data
+  },
+
+  // Update edge function
+  update: async (name: string, data: UpdateEdgeFunctionRequest): Promise<EdgeFunction> => {
+    const response = await api.put<EdgeFunction>(`/api/v1/functions/${name}`, data)
+    return response.data
+  },
+
+  // Delete edge function
+  delete: async (name: string): Promise<void> => {
+    await api.delete(`/api/v1/functions/${name}`)
+  },
+
+  // Invoke edge function
+  invoke: async (name: string, body: string): Promise<string> => {
+    const response = await api.post(`/api/v1/functions/${name}/invoke`, body, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      transformResponse: [(data) => data], // Don't parse response, return as string
+    })
+    return response.data
+  },
+
+  // Get execution logs
+  getExecutions: async (name: string, limit = 20): Promise<EdgeFunctionExecution[]> => {
+    const response = await api.get<EdgeFunctionExecution[]>(
+      `/api/v1/functions/${name}/executions`,
+      { params: { limit } }
+    )
+    return response.data
+  },
+
+  // Reload functions from disk (admin only)
+  reload: async (): Promise<FunctionReloadResult> => {
+    const response = await api.post<FunctionReloadResult>('/api/v1/admin/functions/reload')
+    return response.data
+  },
+}
+
+// RPC Functions API
+export const rpcApi = {
+  // List all RPC functions
+  list: async (): Promise<RPCFunction[]> => {
+    const response = await api.get<RPCFunction[]>('/api/v1/rpc/')
+    return response.data
+  },
+
+  // Execute RPC function
+  execute: async (schema: string, name: string, params: Record<string, unknown>): Promise<unknown> => {
+    const path = schema === 'public'
+      ? `/api/v1/rpc/${name}`
+      : `/api/v1/rpc/${schema}/${name}`
+    const response = await api.post(path, params)
+    return response.data
+  },
+}
+
+// Storage API Types
+export interface StorageObject {
+  key: string
+  size: number
+  last_modified: string
+  content_type?: string
+  etag?: string
+  metadata?: Record<string, string>
+}
+
+export interface BucketListResponse {
+  buckets: string[]
+}
+
+export interface ObjectListResponse {
+  bucket: string
+  objects: StorageObject[] | null
+  prefixes: string[]
+  truncated: boolean
+}
+
+// Storage API
+export const storageApi = {
+  // List all buckets
+  listBuckets: async (): Promise<BucketListResponse> => {
+    const response = await api.get<BucketListResponse>('/api/v1/storage/buckets')
+    return response.data
+  },
+
+  // List objects in a bucket
+  listObjects: async (bucket: string, prefix?: string, delimiter?: string): Promise<ObjectListResponse> => {
+    const params = new URLSearchParams()
+    if (prefix) params.append('prefix', prefix)
+    if (delimiter) params.append('delimiter', delimiter)
+
+    const response = await api.get<ObjectListResponse>(
+      `/api/v1/storage/${bucket}${params.toString() ? `?${params.toString()}` : ''}`
+    )
+    return response.data
+  },
+
+  // Create a bucket
+  createBucket: async (bucketName: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/api/v1/storage/buckets/${bucketName}`)
+    return response.data
+  },
+
+  // Delete a bucket
+  deleteBucket: async (bucketName: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/api/v1/storage/buckets/${bucketName}`)
+    return response.data
+  },
+
+  // Download an object
+  downloadObject: async (bucket: string, key: string): Promise<Blob> => {
+    const response = await api.get(`/api/v1/storage/${bucket}/${key}`, {
+      responseType: 'blob',
+    })
+    return response.data
+  },
+
+  // Delete an object
+  deleteObject: async (bucket: string, key: string): Promise<void> => {
+    await api.delete(`/api/v1/storage/${bucket}/${key}`)
+  },
+
+  // Upload an object (create folder)
+  createFolder: async (bucket: string, folderPath: string): Promise<void> => {
+    const encodedPath = folderPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    await api.post(`/api/v1/storage/${bucket}/${encodedPath}`, null, {
+      headers: { 'Content-Type': 'application/x-directory' },
+    })
+  },
+
+  // Get object metadata
+  getObjectMetadata: async (bucket: string, key: string): Promise<StorageObject> => {
+    const response = await api.get<StorageObject>(`/api/v1/storage/${bucket}/${key}`, {
+      headers: { 'X-Metadata-Only': 'true' },
+    })
+    return response.data
+  },
+
+  // Generate signed URL
+  generateSignedUrl: async (bucket: string, key: string, expiresIn: number): Promise<{ url: string; expires_in: number }> => {
+    const response = await api.post<{ url: string; expires_in: number }>(
+      `/api/v1/storage/${bucket}/${encodeURIComponent(key)}/signed-url`,
+      { expires_in: expiresIn }
+    )
+    return response.data
+  },
+}
+
+// Webhooks API Types
+export interface EventConfig {
+  table: string
+  operations: string[]
+}
+
+export interface WebhookType {
+  id: string
+  name: string
+  description?: string
+  url: string
+  secret?: string
+  enabled: boolean
+  events: EventConfig[]
+  max_retries: number
+  retry_backoff_seconds: number
+  timeout_seconds: number
+  headers: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface WebhookDelivery {
+  id: string
+  webhook_id: string
+  event_type: string
+  table_name: string
+  record_id?: string
+  payload: unknown
+  attempt_number: number
+  status: string
+  http_status_code?: number
+  response_body?: string
+  error_message?: string
+  created_at: string
+  delivered_at?: string
+}
+
+// Webhooks API
+export const webhooksApi = {
+  // List all webhooks
+  list: async (): Promise<WebhookType[]> => {
+    const response = await api.get<WebhookType[]>('/api/v1/webhooks')
+    return response.data
+  },
+
+  // Get webhook deliveries
+  getDeliveries: async (webhookId: string, limit = 50): Promise<WebhookDelivery[]> => {
+    const response = await api.get<WebhookDelivery[]>(
+      `/api/v1/webhooks/${webhookId}/deliveries?limit=${limit}`
+    )
+    return response.data
+  },
+
+  // Create webhook
+  create: async (webhook: Partial<WebhookType>): Promise<WebhookType> => {
+    const response = await api.post<WebhookType>('/api/v1/webhooks', webhook)
+    return response.data
+  },
+
+  // Update webhook
+  update: async (id: string, updates: Partial<WebhookType>): Promise<WebhookType> => {
+    const response = await api.patch<WebhookType>(`/api/v1/webhooks/${id}`, updates)
+    return response.data
+  },
+
+  // Delete webhook
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/webhooks/${id}`)
+  },
+
+  // Test webhook
+  test: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/api/v1/webhooks/${id}/test`)
+    return response.data
+  },
+}
+
+// API Keys API Types
+export interface APIKey {
+  id: string
+  name: string
+  description?: string
+  key_prefix: string
+  scopes: string[]
+  rate_limit_per_minute: number
+  last_used_at?: string
+  expires_at?: string
+  revoked_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAPIKeyRequest {
+  name: string
+  description?: string
+  scopes: string[]
+  rate_limit_per_minute: number
+  expires_at?: string
+}
+
+export interface CreateAPIKeyResponse {
+  api_key: APIKey
+  key: string
+}
+
+// API Keys API
+export const apiKeysApi = {
+  // List all API keys
+  list: async (): Promise<APIKey[]> => {
+    const response = await api.get<APIKey[]>('/api/v1/api-keys')
+    return response.data
+  },
+
+  // Create API key
+  create: async (request: CreateAPIKeyRequest): Promise<CreateAPIKeyResponse> => {
+    const response = await api.post<CreateAPIKeyResponse>('/api/v1/api-keys', request)
+    return response.data
+  },
+
+  // Revoke API key
+  revoke: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/api/v1/api-keys/${id}/revoke`)
+    return response.data
+  },
+
+  // Delete API key
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/api/v1/api-keys/${id}`)
+    return response.data
+  },
+}
+
+// Monitoring API Types
+export interface SystemMetrics {
+  uptime_seconds: number
+  go_version: string
+  num_goroutines: number
+  memory_alloc_mb: number
+  memory_total_alloc_mb: number
+  memory_sys_mb: number
+  num_gc: number
+  gc_pause_ms: number
+  database: {
+    acquire_count: number
+    acquired_conns: number
+    canceled_acquire_count: number
+    constructing_conns: number
+    empty_acquire_count: number
+    idle_conns: number
+    max_conns: number
+    total_conns: number
+    new_conns_count: number
+    max_lifetime_destroy_count: number
+    max_idle_destroy_count: number
+    acquire_duration_ms: number
+  }
+  realtime: {
+    total_connections: number
+    active_channels: number
+    total_subscriptions: number
+  }
+  storage?: {
+    total_buckets: number
+    total_files: number
+    total_size_gb: number
+  }
+}
+
+export interface HealthStatus {
+  status: string
+  message?: string
+  latency_ms?: number
+}
+
+export interface SystemHealth {
+  status: string
+  services: Record<string, HealthStatus>
+}
+
+// Monitoring API
+export const monitoringApi = {
+  // Get monitoring metrics
+  getMetrics: async (): Promise<SystemMetrics> => {
+    const response = await api.get<SystemMetrics>('/api/v1/monitoring/metrics')
+    return response.data
+  },
+
+  // Get health status
+  getHealth: async (): Promise<SystemHealth> => {
+    const response = await api.get<SystemHealth>('/api/v1/monitoring/health')
+    return response.data
+  },
+}
+
 export default api
 export { api as apiClient }
 
@@ -466,6 +905,8 @@ export interface DashboardLoginRequest {
 
 export interface DashboardLoginResponse {
   access_token: string
+  refresh_token: string
+  expires_in: number
   user: DashboardUser
   requires_2fa?: boolean
   user_id?: string

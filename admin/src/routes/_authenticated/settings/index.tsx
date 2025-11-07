@@ -36,6 +36,16 @@ function SettingsProfilePage() {
     mutationFn: dashboardAuthAPI.updateProfile,
     onSuccess: (data) => {
       queryClient.setQueryData(['dashboard-user'], data)
+      // Also update the user in localStorage so the sidebar reflects the change
+      const currentUser = localStorage.getItem('user')
+      if (currentUser) {
+        try {
+          const user = JSON.parse(currentUser)
+          localStorage.setItem('user', JSON.stringify({ ...user, full_name: data.full_name, avatar_url: data.avatar_url }))
+        } catch (e) {
+          console.error('Failed to update user in localStorage', e)
+        }
+      }
       toast.success('Profile updated successfully')
     },
     onError: (error: unknown) => {

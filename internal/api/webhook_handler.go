@@ -22,10 +22,10 @@ func NewWebhookHandler(webhookService *webhook.WebhookService) *WebhookHandler {
 }
 
 // RegisterRoutes registers webhook routes with authentication
-func (h *WebhookHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+func (h *WebhookHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to all webhook routes
 	webhooks := app.Group("/api/v1/webhooks",
-		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
 	webhooks.Post("/", h.CreateWebhook)

@@ -50,47 +50,11 @@ import { Main } from '@/components/layout/main'
 import { Search as SearchComponent } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { webhooksApi, databaseApi, type WebhookDelivery, type WebhookType, type EventConfig } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/webhooks/')({
   component: WebhooksPage,
 })
-
-interface EventConfig {
-  table: string
-  operations: string[]
-}
-
-interface WebhookType {
-  id: string
-  name: string
-  description?: string
-  url: string
-  secret?: string
-  enabled: boolean
-  events: EventConfig[]
-  max_retries: number
-  retry_backoff_seconds: number
-  timeout_seconds: number
-  headers: Record<string, string>
-  created_at: string
-  updated_at: string
-}
-
-interface WebhookDelivery {
-  id: string
-  webhook_id: string
-  event_type: string
-  table_name: string
-  record_id?: string
-  payload: unknown
-  attempt_number: number
-  status: string
-  http_status_code?: number
-  response_body?: string
-  error_message?: string
-  created_at: string
-  delivered_at?: string
-}
 
 const OPERATIONS = ['INSERT', 'UPDATE', 'DELETE']
 
@@ -115,15 +79,7 @@ function WebhooksPage() {
   // Fetch webhooks
   const { data: webhooks, isLoading } = useQuery<WebhookType[]>({
     queryKey: ['webhooks'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/webhooks', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch webhooks')
-      return response.json()
-    },
+    queryFn: webhooksApi.list,
   })
 
   // Fetch deliveries for selected webhook
@@ -131,13 +87,7 @@ function WebhooksPage() {
     queryKey: ['webhook-deliveries', selectedWebhook?.id, selectedWebhook],
     queryFn: async () => {
       if (!selectedWebhook) return []
-      const response = await fetch(`/api/v1/webhooks/${selectedWebhook.id}/deliveries?limit=50`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch deliveries')
-      return response.json()
+      return webhooksApi.getDeliveries(selectedWebhook.id, 50)
     },
     enabled: !!selectedWebhook,
   })
@@ -145,31 +95,12 @@ function WebhooksPage() {
   // Fetch available tables
   const { data: tables } = useQuery<Array<{ schema: string; name: string }>>({
     queryKey: ['tables'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/admin/tables', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch tables')
-      return response.json()
-    },
+    queryFn: () => databaseApi.getTables(),
   })
 
   // Create webhook
   const createMutation = useMutation({
-    mutationFn: async (webhook: Partial<WebhookType>) => {
-      const response = await fetch('/api/v1/webhooks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: JSON.stringify(webhook),
-      })
-      if (!response.ok) throw new Error('Failed to create webhook')
-      return response.json()
-    },
+    mutationFn: webhooksApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       setShowCreateDialog(false)
@@ -183,15 +114,7 @@ function WebhooksPage() {
 
   // Delete webhook
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/webhooks/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to delete webhook')
-    },
+    mutationFn: webhooksApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })
       toast.success('Webhook deleted successfully')
@@ -203,16 +126,7 @@ function WebhooksPage() {
 
   // Test webhook
   const testMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/webhooks/${id}/test`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to test webhook')
-      return response.json()
-    },
+    mutationFn: webhooksApi.test,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhook-deliveries'] })
       toast.success('Test webhook sent successfully')
@@ -228,15 +142,7 @@ function WebhooksPage() {
       const webhook = webhooks?.find((w) => w.id === id)
       if (!webhook) throw new Error('Webhook not found')
 
-      const response = await fetch(`/api/v1/webhooks/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-        body: JSON.stringify({ ...webhook, enabled }),
-      })
-      if (!response.ok) throw new Error('Failed to toggle webhook')
+      return webhooksApi.update(id, { ...webhook, enabled })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks'] })

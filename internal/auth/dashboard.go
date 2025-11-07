@@ -52,10 +52,10 @@ type DashboardAuthService struct {
 }
 
 // NewDashboardAuthService creates a new dashboard authentication service
-func NewDashboardAuthService(db *pgxpool.Pool, jwtSecret string) *DashboardAuthService {
+func NewDashboardAuthService(db *pgxpool.Pool, jwtManager *JWTManager) *DashboardAuthService {
 	return &DashboardAuthService{
 		db:         db,
-		jwtManager: NewJWTManager(jwtSecret, 24*time.Hour, 168*time.Hour),
+		jwtManager: jwtManager,
 	}
 }
 
@@ -101,8 +101,15 @@ func (s *DashboardAuthService) HasExistingUsers(ctx context.Context) (bool, erro
 	return count > 0, nil
 }
 
+// LoginResponse contains the tokens returned from login
+type LoginResponse struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int64
+}
+
 // Login authenticates a dashboard user with email and password
-func (s *DashboardAuthService) Login(ctx context.Context, email, password string, ipAddress net.IP, userAgent string) (*DashboardUser, string, error) {
+func (s *DashboardAuthService) Login(ctx context.Context, email, password string, ipAddress net.IP, userAgent string) (*DashboardUser, *LoginResponse, error) {
 	// Fetch user with password hash
 	var user DashboardUser
 	var passwordHash string
@@ -121,19 +128,19 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", errors.New("invalid credentials")
+			return nil, nil, errors.New("invalid credentials")
 		}
-		return nil, "", fmt.Errorf("failed to fetch user: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
 
 	// Check if account is locked
 	if user.IsLocked {
-		return nil, "", errors.New("account is locked")
+		return nil, nil, errors.New("account is locked")
 	}
 
 	// Check if account is active
 	if !user.IsActive {
-		return nil, "", errors.New("account is inactive")
+		return nil, nil, errors.New("account is inactive")
 	}
 
 	// Verify password
@@ -147,7 +154,7 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 			    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END
 			WHERE id = $1
 		`, user.ID)
-		return nil, "", errors.New("invalid credentials")
+		return nil, nil, errors.New("invalid credentials")
 	}
 
 	// Reset failed attempts on successful login
@@ -158,17 +165,17 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		WHERE id = $1
 	`, user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to update login timestamp: %w", err)
+		return nil, nil, fmt.Errorf("failed to update login timestamp: %w", err)
 	}
 
-	// Generate JWT token
-	token, _, err := s.jwtManager.GenerateAccessToken(user.ID.String(), user.Email, "dashboard_admin")
+	// Generate JWT token pair (access + refresh)
+	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin")
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to generate token: %w", err)
+		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
 
-	// Hash the token using SHA-256
-	hash := sha256.Sum256([]byte(token))
+	// Hash the access token using SHA-256
+	hash := sha256.Sum256([]byte(accessToken))
 	tokenHash := hex.EncodeToString(hash[:])
 
 	// Handle nil IP address
@@ -182,22 +189,27 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		DELETE FROM dashboard.sessions WHERE user_id = $1
 	`, user.ID)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to clean up old sessions: %w", err)
+		return nil, nil, fmt.Errorf("failed to clean up old sessions: %w", err)
 	}
 
-	// Create new session record
+	// Create new session record with session ID from token
 	_, err = s.db.Exec(ctx, `
-		INSERT INTO dashboard.sessions (user_id, token, ip_address, user_agent, expires_at)
-		VALUES ($1, $2, $3, $4, NOW() + INTERVAL '24 hours')
-	`, user.ID, tokenHash, ipAddressStr, userAgent)
+		INSERT INTO dashboard.sessions (id, user_id, token, ip_address, user_agent, expires_at)
+		VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '24 hours')
+	`, sessionID, user.ID, tokenHash, ipAddressStr, userAgent)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to create session: %w", err)
+		return nil, nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// Log activity
 	s.logActivity(ctx, user.ID, "login", "", "", ipAddress, userAgent, nil)
 
-	return &user, token, nil
+	// Return user and tokens
+	return &user, &LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(24 * 60 * 60), // 24 hours in seconds
+	}, nil
 }
 
 // ChangePassword changes a dashboard user's password

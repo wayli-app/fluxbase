@@ -1,3 +1,5 @@
+import { Database } from 'lucide-react'
+import { getStoredUser, type AdminUser, type DashboardUser } from '@/lib/auth'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -12,8 +14,13 @@ import {
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
-import { getStoredUser } from '@/lib/auth'
-import { Database } from 'lucide-react'
+
+// Type guard to check if user is a DashboardUser
+function isDashboardUser(
+  user: AdminUser | DashboardUser
+): user is DashboardUser {
+  return 'full_name' in user
+}
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
@@ -22,11 +29,17 @@ export function AppSidebar() {
   const storedUser = getStoredUser()
 
   // Construct user data for NavUser component
+  // Handle both AdminUser (metadata.name) and DashboardUser (full_name) types
   const user = storedUser
     ? {
-        name: (storedUser.metadata?.name as string) || storedUser.email.split('@')[0],
+        name: isDashboardUser(storedUser)
+          ? storedUser.full_name || storedUser.email.split('@')[0]
+          : (storedUser.metadata?.name as string) ||
+            storedUser.email.split('@')[0],
         email: storedUser.email,
-        avatar: (storedUser.metadata?.avatar as string) || '',
+        avatar: isDashboardUser(storedUser)
+          ? storedUser.avatar_url || ''
+          : (storedUser.metadata?.avatar as string) || '',
       }
     : sidebarData.user // Fallback to default user if not logged in
 
@@ -35,7 +48,10 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size='lg' className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'>
+            <SidebarMenuButton
+              size='lg'
+              className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+            >
               <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
                 <Database className='size-4' />
               </div>

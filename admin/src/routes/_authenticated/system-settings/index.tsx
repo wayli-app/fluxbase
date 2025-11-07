@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Database, Mail, HardDrive, Download, Settings2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
+import { monitoringApi } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/system-settings/')({
   component: SystemSettingsPage,
@@ -82,15 +83,7 @@ function SystemSettingsPage() {
   // Fetch current config (placeholder)
   const { data: systemInfo } = useQuery({
     queryKey: ['system-info'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/monitoring/metrics', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch system info')
-      return response.json()
-    },
+    queryFn: monitoringApi.getMetrics,
     refetchInterval: 30000,
   })
 

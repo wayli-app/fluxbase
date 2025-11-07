@@ -150,23 +150,18 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 	}
 
 	// Log in the user to get access token
-	loggedInUser, accessToken, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
+	loggedInUser, loginResp, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": "User created but failed to generate access token",
 		})
 	}
 
-	// Generate refresh token (placeholder - dashboard currently doesn't support refresh tokens)
-	// Using same token for now
-	refreshToken := accessToken
-	expiresIn := int64(900) // 15 minutes in seconds
-
 	return c.Status(http.StatusCreated).JSON(InitialSetupResponse{
 		User:         loggedInUser,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    expiresIn,
+		AccessToken:  loginResp.AccessToken,
+		RefreshToken: loginResp.RefreshToken,
+		ExpiresIn:    loginResp.ExpiresIn,
 	})
 }
 
@@ -183,7 +178,7 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 	}
 
 	// Use the dashboard auth service to sign in (dashboard.users, not auth.users)
-	user, accessToken, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
+	user, loginResp, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
 		if err == auth.ErrInvalidCredentials {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
@@ -214,15 +209,11 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate refresh token (placeholder - dashboard currently doesn't support refresh tokens)
-	refreshToken := accessToken
-	expiresIn := int64(900) // 15 minutes in seconds
-
 	return c.JSON(AdminLoginResponse{
 		User:         user,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    expiresIn,
+		AccessToken:  loginResp.AccessToken,
+		RefreshToken: loginResp.RefreshToken,
+		ExpiresIn:    loginResp.ExpiresIn,
 	})
 }
 

@@ -255,22 +255,18 @@ func (h *InvitationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	}
 
 	// Log in the user to get access token
-	loggedInUser, accessToken, err := h.dashboardAuth.Login(ctx, invitation.Email, req.Password, nil, c.Get("User-Agent"))
+	loggedInUser, loginResp, err := h.dashboardAuth.Login(ctx, invitation.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error": "User created but failed to generate access token",
 		})
 	}
 
-	// Generate refresh token (placeholder - dashboard currently doesn't support refresh tokens)
-	refreshToken := accessToken
-	expiresIn := int64(900) // 15 minutes in seconds
-
 	return c.Status(http.StatusCreated).JSON(AcceptInvitationResponse{
 		User:         loggedInUser,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    expiresIn,
+		AccessToken:  loginResp.AccessToken,
+		RefreshToken: loginResp.RefreshToken,
+		ExpiresIn:    loginResp.ExpiresIn,
 	})
 }
 

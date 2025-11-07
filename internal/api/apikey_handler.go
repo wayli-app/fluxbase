@@ -41,10 +41,10 @@ type UpdateAPIKeyRequest struct {
 }
 
 // RegisterRoutes registers API key routes with authentication
-func (h *APIKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+func (h *APIKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to all API key routes
 	apiKeys := app.Group("/api/v1/api-keys",
-		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
 	apiKeys.Post("/", h.CreateAPIKey)

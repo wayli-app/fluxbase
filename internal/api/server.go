@@ -105,10 +105,11 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 
 	// Create handlers
 	authHandler := NewAuthHandler(authService)
-	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), cfg.Auth.JWTSecret)
+	// Create dashboard JWT manager first (shared between auth service and handler)
+	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
+	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), dashboardJWTManager)
 	systemSettingsService := auth.NewSystemSettingsService(db)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService)
-	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService)
@@ -290,20 +291,20 @@ func (s *Server) setupRoutes() {
 	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
 	// API Keys routes - require authentication
-	s.apiKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
+	s.apiKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Webhook routes - require authentication
-	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
+	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Monitoring routes - require authentication
-	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
+	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Edge functions routes - require authentication by default, but per-function config can override
-	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool())
+	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Storage routes - require authentication
 	storage := v1.Group("/storage",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 	)
 	s.setupStorageRoutes(storage)
 
@@ -313,13 +314,13 @@ func (s *Server) setupRoutes() {
 
 	// Realtime stats endpoint - require authentication
 	s.app.Get("/api/v1/realtime/stats",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		s.handleRealtimeStats,
 	)
 
 	// Realtime broadcast endpoint - require authentication
 	s.app.Post("/api/v1/realtime/broadcast",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		s.handleRealtimeBroadcast,
 	)
 

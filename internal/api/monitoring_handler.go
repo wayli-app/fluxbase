@@ -30,10 +30,10 @@ func NewMonitoringHandler(db *pgxpool.Pool, realtimeHandler *realtime.RealtimeHa
 }
 
 // RegisterRoutes registers monitoring routes with authentication
-func (h *MonitoringHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) {
+func (h *MonitoringHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to all monitoring routes
 	monitoring := app.Group("/api/v1/monitoring",
-		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db),
+		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
 	monitoring.Get("/metrics", h.GetMetrics)

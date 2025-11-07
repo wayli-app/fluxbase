@@ -188,7 +188,7 @@ function SetupPage() {
 
         {/* Security Note */}
         <Card className='border-muted-foreground/20'>
-          <CardContent className='pt-6'>
+          <CardContent>
             <p className='text-xs text-muted-foreground'>
               <strong>Security Note:</strong> This setup page will only be accessible when no users
               exist in the database. After creating your admin account, you'll need to sign in to
