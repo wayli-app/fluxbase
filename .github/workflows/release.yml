@@ -11,7 +11,16 @@ name: Release
 #   1. Go to Actions → Release → Run workflow
 #   2. Select branch (usually 'main')
 #   3. Choose 'rc' as bump_type
-#   4. Click "Run workflow"
+#   4. Select which components to publish (all enabled by default)
+#   5. Click "Run workflow"
+#
+# Component Toggles (workflow_dispatch only):
+#   - Publish binaries: Build and publish Go binaries for multiple platforms
+#   - Publish Docker image: Build and push the main Fluxbase Docker image
+#   - Publish docs Docker image: Build and push the documentation site image
+#   - Publish NPM SDK packages: Publish TypeScript and React SDK packages to NPM
+#   - Publish Helm chart: Package and publish Helm chart (automatically disabled for RC)
+#   Note: For release/tag push triggers, all components are published
 #
 # RC Release behavior:
 #   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v0.1.1-rc.1, v0.1.1-rc.2)
@@ -50,6 +59,31 @@ on:
         default: "rc"
       prerelease:
         description: "Mark as pre-release (automatically true for RC)"
+        required: false
+        type: boolean
+        default: true
+      publish_binaries:
+        description: "Publish binaries"
+        required: false
+        type: boolean
+        default: true
+      publish_docker:
+        description: "Publish Docker image"
+        required: false
+        type: boolean
+        default: true
+      publish_docs:
+        description: "Publish docs Docker image"
+        required: false
+        type: boolean
+        default: true
+      publish_npm_sdk:
+        description: "Publish NPM SDK packages"
+        required: false
+        type: boolean
+        default: true
+      publish_helm:
+        description: "Publish Helm chart"
         required: false
         type: boolean
         default: true
@@ -167,6 +201,7 @@ jobs:
     name: Publish Binaries
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_binaries
     strategy:
       matrix:
         include:
@@ -242,6 +277,7 @@ jobs:
     name: Publish Docker Image
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
     steps:
       - uses: actions/checkout@v5
 
@@ -288,6 +324,7 @@ jobs:
     name: Build and Push Documentation Image
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_docs
     steps:
       - uses: actions/checkout@v5
 
@@ -330,6 +367,7 @@ jobs:
     name: Publish TypeScript SDK to NPM
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
     steps:
       - uses: actions/checkout@v5
 
@@ -359,6 +397,7 @@ jobs:
     name: Publish React SDK to NPM
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_npm_sdk
     steps:
       - uses: actions/checkout@v5
 
@@ -414,8 +453,8 @@ jobs:
     name: Publish Helm Chart to GHCR
     needs: get-version
     runs-on: ubuntu-latest
-    # Skip Helm chart publishing for RC releases
-    if: needs.get-version.outputs.is_prerelease == 'false'
+    # Skip Helm chart publishing for RC releases or if disabled in workflow_dispatch
+    if: needs.get-version.outputs.is_prerelease == 'false' && (github.event_name != 'workflow_dispatch' || inputs.publish_helm)
     steps:
       - uses: actions/checkout@v5
 
