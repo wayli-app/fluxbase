@@ -13,12 +13,21 @@ RUN npm ci
 
 # Build the documentation
 FROM base AS builder
+WORKDIR /app
+
+# Install bash for build scripts
+RUN apk add --no-cache bash
+
+# Copy SDK source code for TypeDoc generation
+COPY sdk/ ./sdk/
+COPY sdk-react/ ./sdk-react/
+
+# Copy docs and node_modules
+COPY --from=deps /app/docs/node_modules ./docs/node_modules
+COPY docs/ ./docs/
+
+# Build the static site with TypeDoc generation
 WORKDIR /app/docs
-
-COPY --from=deps /app/docs/node_modules ./node_modules
-COPY docs/ ./
-
-# Build the static site
 RUN npm run build
 
 # Production image - serve with nginx
@@ -38,67 +47,7 @@ COPY --from=builder /app/docs/build /usr/share/nginx/html
 RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY <<EOF /etc/nginx/nginx.conf
-# Run as non-root user
-user nginx;
-worker_processes auto;
-error_log /var/log/nginx/error.log warn;
-pid /var/run/nginx.pid;
-
-events {
-    worker_connections 1024;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
-                    '\$status \$body_bytes_sent "\$http_referer" '
-                    '"\$http_user_agent" "\$http_x_forwarded_for"';
-
-    access_log /var/log/nginx/access.log main;
-
-    sendfile on;
-    tcp_nopush on;
-    keepalive_timeout 65;
-
-    # Enable gzip compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-
-    server {
-        listen 8080;
-        server_name _;
-
-        root /usr/share/nginx/html;
-        index index.html;
-
-        # Handle client-side routing
-        location / {
-            try_files \$uri \$uri/ /index.html;
-        }
-
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-
-        # Security headers
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-
-        # Health check endpoint
-        location /health {
-            access_log off;
-            return 200 "healthy\n";
-            add_header Content-Type text/plain;
-        }
-    }
-}
-EOF
+COPY nginx.docs.conf /etc/nginx/nginx.conf
 
 # Expose port 8080 (non-privileged port)
 EXPOSE 8080

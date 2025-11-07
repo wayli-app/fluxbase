@@ -26,7 +26,7 @@ coverage
 # Documentation
 *.md
 !README.md
-docs
+# Note: docs directory is needed for Dockerfile.docs, so it's not excluded
 
 # CI/CD
 .github

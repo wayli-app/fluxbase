@@ -5,7 +5,7 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "bash fix-typedoc-brackets.sh && SKIP_TYPEDOC=true docusaurus start",
-    "build": "bash fix-typedoc-brackets.sh && docusaurus build",
+    "build": "bash build-with-fix.sh",
     "build:ci": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",

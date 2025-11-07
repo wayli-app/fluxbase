@@ -178,6 +178,31 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build SDKs (required by Admin UI)
+        run: |
+          cd sdk
+          npm ci
+          npm run build
+          cd ../sdk-react
+          npm ci
+          npm run build
+
+      - name: Build Admin UI
+        working-directory: ./admin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy Admin UI to embed location
+        run: |
+          mkdir -p internal/adminui/dist
+          cp -r admin/dist/* internal/adminui/dist/
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
