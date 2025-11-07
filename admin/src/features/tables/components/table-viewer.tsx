@@ -263,6 +263,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     return allColumns
   }, [data, deleteMutate, updateMutateAsync, tableColumns])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable<Record<string, unknown>>({
     data: (data || []) as Record<string, unknown>[],
     columns,

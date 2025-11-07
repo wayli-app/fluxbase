@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   FileCode,
@@ -720,10 +720,6 @@ async function handler(req: Request) {
 
   const [invokeBody, setInvokeBody] = useState('{}')
 
-  useEffect(() => {
-    fetchEdgeFunctions()
-  }, [])
-
   const reloadFunctionsFromDisk = async () => {
     try {
       const result = await functionsApi.reload()
@@ -738,7 +734,7 @@ async function handler(req: Request) {
     }
   }
 
-  const fetchEdgeFunctions = async (shouldReload = true) => {
+  const fetchEdgeFunctions = useCallback(async (shouldReload = true) => {
     setLoading(true)
     try {
       // First, reload functions from disk (only on initial load or manual refresh)
@@ -755,7 +751,11 @@ async function handler(req: Request) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchEdgeFunctions()
+  }, [fetchEdgeFunctions])
 
   const createFunction = async () => {
     try {
