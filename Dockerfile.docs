@@ -18,9 +18,19 @@ WORKDIR /app
 # Install bash for build scripts
 RUN apk add --no-cache bash
 
-# Copy SDK source code for TypeDoc generation
+# Copy SDK source code and build them first (required for TypeDoc)
+COPY sdk/package*.json ./sdk/
+COPY sdk-react/package*.json ./sdk-react/
+
+# Install SDK dependencies and build
+RUN cd sdk && npm ci && cd ../sdk-react && npm ci
+
+# Copy SDK source files
 COPY sdk/ ./sdk/
 COPY sdk-react/ ./sdk-react/
+
+# Build SDKs
+RUN cd sdk && npm run build && cd ../sdk-react && npm run build
 
 # Copy docs and node_modules
 COPY --from=deps /app/docs/node_modules ./docs/node_modules

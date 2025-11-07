@@ -37,10 +37,29 @@ if [ $BUILD_EXIT_CODE -ne 0 ]; then
     echo "Retrying build after fixes..."
     echo "NOTE: Skipping TypeDoc regeneration to preserve fixes"
     echo "======================================"
-    SKIP_TYPEDOC=true npx docusaurus build
+    set +e
+    SKIP_TYPEDOC=true npx docusaurus build > /tmp/build-retry.log 2>&1
+    RETRY_EXIT_CODE=$?
+    set -e
+
+    cat /tmp/build-retry.log
+
+    if [ $RETRY_EXIT_CODE -ne 0 ]; then
+      echo "======================================"
+      echo "ERROR: Build still failed after fixes"
+      echo "This may indicate additional issues beyond angle brackets"
+      echo "======================================"
+      exit 1
+    fi
+
+    echo "======================================"
+    echo "Build succeeded after fixes!"
+    echo "======================================"
   else
     # Some other error, re-throw it
-    echo "Build failed with a different error"
+    echo "======================================"
+    echo "ERROR: Build failed with a different error (not angle brackets)"
+    echo "======================================"
     exit 1
   fi
 fi
