@@ -514,7 +514,7 @@ curl -X POST http://localhost:8080/api/rpc/get_todo_stats \
 - [Realtime](../guides/realtime.md) - Build collaborative features
 - [Storage](../guides/storage.md) - Handle file uploads
 - [React Hooks](../guides/typescript-sdk/react-hooks.md) - Build React applications
-- [API Reference](../api/rest.md) - Complete REST API documentation
+- [TypeScript SDK API Reference](../api/sdk/) - Complete SDK API documentation
 
 ## Example Applications
 

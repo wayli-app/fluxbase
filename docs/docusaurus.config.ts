@@ -146,15 +146,15 @@ const config: Config = {
             },
             {
               label: "Authentication",
-              to: "/docs/authentication",
+              to: "/docs/guides/authentication",
             },
             {
               label: "Realtime",
-              to: "/docs/realtime",
+              to: "/docs/guides/realtime",
             },
             {
               label: "Storage",
-              to: "/docs/storage",
+              to: "/docs/guides/storage",
             },
           ],
         },
@@ -163,15 +163,15 @@ const config: Config = {
           items: [
             {
               label: "Getting Started",
-              to: "/docs/sdks/getting-started",
+              to: "/docs/guides/typescript-sdk/getting-started",
             },
             {
               label: "Database Operations",
-              to: "/docs/sdks/database",
+              to: "/docs/guides/typescript-sdk/database",
             },
             {
               label: "React Hooks",
-              to: "/docs/sdks/react-hooks",
+              to: "/docs/guides/typescript-sdk/react-hooks",
             },
           ],
         },
@@ -195,10 +195,6 @@ const config: Config = {
         {
           title: "More",
           items: [
-            {
-              label: "Blog",
-              to: "/blog",
-            },
             {
               label: "Releases",
               href: "https://github.com/wayli-app/fluxbase/releases",

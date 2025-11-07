@@ -656,4 +656,4 @@ done
 ## Related Documentation
 
 - [Authentication](./authentication.md) - Securing storage endpoints
-- [API Reference](../api/storage.md) - Complete API documentation
+- [Storage API Reference](../api/sdk/classes/FluxbaseStorage.md) - Complete Storage API documentation
