@@ -19,6 +19,7 @@ name: Release
 #   - Publish Docker image: Build and push the main Fluxbase Docker image
 #   - Publish docs Docker image: Build and push the documentation site image
 #   - Publish NPM SDK packages: Publish TypeScript and React SDK packages to NPM
+#   - Publish Go module: Notify pkg.go.dev to index the new Go module version
 #   - Publish Helm chart: Package and publish Helm chart (automatically disabled for RC)
 #   Note: For release/tag push triggers, all components are published
 #
@@ -79,6 +80,11 @@ on:
         default: true
       publish_npm_sdk:
         description: "Publish NPM SDK packages"
+        required: false
+        type: boolean
+        default: true
+      publish_go_module:
+        description: "Publish Go module"
         required: false
         type: boolean
         default: true
@@ -433,6 +439,7 @@ jobs:
     name: Publish Go Module
     needs: get-version
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_go_module
     steps:
       - uses: actions/checkout@v5
 
