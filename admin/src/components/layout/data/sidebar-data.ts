@@ -16,6 +16,7 @@ import {
   Activity,
   Sliders,
   Server,
+  Code,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -45,6 +46,11 @@ export const sidebarData: SidebarData = {
           title: 'Tables',
           url: '/tables',
           icon: Database,
+        },
+        {
+          title: 'SQL Editor',
+          url: '/sql-editor',
+          icon: Code,
         },
         {
           title: 'Monitoring',

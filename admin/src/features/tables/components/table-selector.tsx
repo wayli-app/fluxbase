@@ -1,24 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Database, MoreVertical, Pencil, Trash2, Plus } from 'lucide-react'
+import { toast } from 'sonner'
+import { databaseApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -27,10 +14,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { databaseApi } from '@/lib/api'
-import { toast } from 'sonner'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface TableSelectorProps {
   selectedTable?: string
@@ -51,13 +60,23 @@ export function TableSelector({
   const [showCreateTable, setShowCreateTable] = useState(false)
   const [newTableName, setNewTableName] = useState('')
   const [newTableSchema, setNewTableSchema] = useState(selectedSchema)
-  const [columns, setColumns] = useState<Array<{
-    name: string
-    type: string
-    nullable: boolean
-    primaryKey: boolean
-    defaultValue: string
-  }>>([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
+  const [columns, setColumns] = useState<
+    Array<{
+      name: string
+      type: string
+      nullable: boolean
+      primaryKey: boolean
+      defaultValue: string
+    }>
+  >([
+    {
+      name: 'id',
+      type: 'uuid',
+      nullable: false,
+      primaryKey: true,
+      defaultValue: 'gen_random_uuid()',
+    },
+  ])
 
   const { data: schemas, isLoading: schemasLoading } = useQuery({
     queryKey: ['schemas'],
@@ -82,9 +101,11 @@ export function TableSelector({
       onSchemaChange(data.schema)
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
       toast.error(errorMessage || 'Failed to create schema')
     },
   })
@@ -108,13 +129,23 @@ export function TableSelector({
       queryClient.invalidateQueries({ queryKey: ['tables', data.schema] })
       setShowCreateTable(false)
       setNewTableName('')
-      setColumns([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
+      setColumns([
+        {
+          name: 'id',
+          type: 'uuid',
+          nullable: false,
+          primaryKey: true,
+          defaultValue: 'gen_random_uuid()',
+        },
+      ])
       onTableSelect(`${data.schema}.${data.table}`)
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
       toast.error(errorMessage || 'Failed to create table')
     },
   })
@@ -125,13 +156,20 @@ export function TableSelector({
       databaseApi.deleteTable(schema, table),
     onSuccess: (data, variables) => {
       toast.success(data.message)
+      // If the deleted table is currently selected, clear the selection
+      const deletedTableFull = `${variables.schema}.${variables.table}`
+      if (selectedTable === deletedTableFull) {
+        onTableSelect('')
+      }
       // Invalidate queries for the affected schema
       queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
       toast.error(errorMessage || 'Failed to delete table')
     },
   })
@@ -151,15 +189,15 @@ export function TableSelector({
   }
 
   // Map tables to display format (already filtered by schema in API call)
-  const filteredTables = (tables || []).map(table => ({
+  const filteredTables = (tables || []).map((table) => ({
     full: `${table.schema}.${table.name}`,
-    name: table.name
+    name: table.name,
   }))
 
   return (
     <div className='flex h-full flex-col border-r'>
       <div className='border-b p-4'>
-        <h2 className='flex items-center gap-2 text-lg font-semibold mb-3'>
+        <h2 className='mb-3 flex items-center gap-2 text-lg font-semibold'>
           <Database className='size-5' />
           Tables
         </h2>
@@ -190,7 +228,7 @@ export function TableSelector({
         <div className='p-2'>
           <Button
             variant='outline'
-            className='w-full mb-2'
+            className='mb-2 w-full'
             onClick={() => {
               setNewTableSchema(selectedSchema)
               setShowCreateTable(true)
@@ -205,7 +243,7 @@ export function TableSelector({
                 <Button
                   variant={selectedTable === full ? 'secondary' : 'ghost'}
                   className={cn(
-                    'flex-1 justify-start font-normal pr-8',
+                    'flex-1 justify-start pr-8 font-normal',
                     selectedTable === full && 'bg-secondary'
                   )}
                   onClick={() => onTableSelect(full)}
@@ -239,7 +277,11 @@ export function TableSelector({
                       onClick={(e) => {
                         e.stopPropagation()
                         const [schema, table] = full.split('.')
-                        if (confirm(`Are you sure you want to delete table "${full}"? This action cannot be undone.`)) {
+                        if (
+                          confirm(
+                            `Are you sure you want to delete table "${full}"? This action cannot be undone.`
+                          )
+                        ) {
                           deleteTableMutation.mutate({ schema, table })
                         }
                       }}
@@ -274,8 +316,9 @@ export function TableSelector({
                 onChange={(e) => setNewSchemaName(e.target.value)}
                 autoFocus
               />
-              <p className='text-xs text-muted-foreground'>
-                Must start with a letter and contain only letters, numbers, and underscores.
+              <p className='text-muted-foreground text-xs'>
+                Must start with a letter and contain only letters, numbers, and
+                underscores.
               </p>
             </div>
           </div>
@@ -305,30 +348,42 @@ export function TableSelector({
         </DialogContent>
       </Dialog>
 
-      {/* Create Table Dialog */}
-      <Dialog open={showCreateTable} onOpenChange={setShowCreateTable}>
-        <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
-          <DialogHeader>
-            <DialogTitle>Create New Table</DialogTitle>
-            <DialogDescription>
+      {/* Create Table Sheet */}
+      <Sheet open={showCreateTable} onOpenChange={setShowCreateTable}>
+        <SheetContent className='w-full overflow-y-auto px-8 sm:max-w-2xl'>
+          <SheetHeader>
+            <SheetTitle>Create New Table</SheetTitle>
+            <SheetDescription>
               Define a new table with columns, types, and constraints.
-            </DialogDescription>
-          </DialogHeader>
-          <div className='grid gap-4 py-4'>
-            <div className='grid grid-cols-2 gap-4'>
-              <div className='grid gap-2'>
-                <Label htmlFor='tableName'>Table Name</Label>
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className='flex flex-col gap-6 py-6'>
+            {/* Table Name and Schema */}
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='tableName'>
+                  Table Name <span className='text-destructive'>*</span>
+                </Label>
                 <Input
                   id='tableName'
-                  placeholder='e.g., users'
+                  placeholder='e.g., users, products, orders'
                   value={newTableName}
                   onChange={(e) => setNewTableName(e.target.value)}
+                  autoFocus
                 />
+                <p className='text-muted-foreground text-xs'>
+                  Use lowercase with underscores (snake_case)
+                </p>
               </div>
-              <div className='grid gap-2'>
+
+              <div className='space-y-2'>
                 <Label htmlFor='tableSchema'>Schema</Label>
-                <Select value={newTableSchema} onValueChange={setNewTableSchema}>
-                  <SelectTrigger>
+                <Select
+                  value={newTableSchema}
+                  onValueChange={setNewTableSchema}
+                >
+                  <SelectTrigger id='tableSchema'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -339,12 +394,21 @@ export function TableSelector({
                     ))}
                   </SelectContent>
                 </Select>
+                <p className='text-muted-foreground text-xs'>
+                  The schema where this table will be created
+                </p>
               </div>
             </div>
 
-            <div className='space-y-2'>
+            {/* Columns Section */}
+            <div className='space-y-4'>
               <div className='flex items-center justify-between'>
-                <Label>Columns</Label>
+                <div>
+                  <Label className='text-base'>Columns</Label>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    Define the structure of your table
+                  </p>
+                </div>
                 <Button
                   type='button'
                   variant='outline'
@@ -352,118 +416,202 @@ export function TableSelector({
                   onClick={() => {
                     setColumns([
                       ...columns,
-                      { name: '', type: 'text', nullable: true, primaryKey: false, defaultValue: '' }
+                      {
+                        name: '',
+                        type: 'text',
+                        nullable: true,
+                        primaryKey: false,
+                        defaultValue: '',
+                      },
                     ])
                   }}
                 >
-                  <Plus className='mr-1 h-3 w-3' />
+                  <Plus className='mr-2 h-4 w-4' />
                   Add Column
                 </Button>
               </div>
 
-              <div className='space-y-2 border rounded-md p-3'>
+              <div className='space-y-4'>
                 {columns.map((column, index) => (
-                  <div key={index} className='grid grid-cols-12 gap-2 items-start'>
-                    <Input
-                      className='col-span-3'
-                      placeholder='Column name'
-                      value={column.name}
-                      onChange={(e) => {
-                        const newColumns = [...columns]
-                        newColumns[index].name = e.target.value
-                        setColumns(newColumns)
-                      }}
-                    />
-                    <Select
-                      value={column.type}
-                      onValueChange={(value) => {
-                        const newColumns = [...columns]
-                        newColumns[index].type = value
-                        setColumns(newColumns)
-                      }}
-                    >
-                      <SelectTrigger className='col-span-2'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='text'>Text</SelectItem>
-                        <SelectItem value='varchar'>Varchar</SelectItem>
-                        <SelectItem value='integer'>Integer</SelectItem>
-                        <SelectItem value='bigint'>Bigint</SelectItem>
-                        <SelectItem value='uuid'>UUID</SelectItem>
-                        <SelectItem value='boolean'>Boolean</SelectItem>
-                        <SelectItem value='timestamp'>Timestamp</SelectItem>
-                        <SelectItem value='timestamptz'>Timestamptz</SelectItem>
-                        <SelectItem value='date'>Date</SelectItem>
-                        <SelectItem value='jsonb'>JSONB</SelectItem>
-                        <SelectItem value='numeric'>Numeric</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      className='col-span-3'
-                      placeholder='Default value'
-                      value={column.defaultValue}
-                      onChange={(e) => {
-                        const newColumns = [...columns]
-                        newColumns[index].defaultValue = e.target.value
-                        setColumns(newColumns)
-                      }}
-                    />
-                    <div className='col-span-2 flex items-center gap-2'>
-                      <label className='flex items-center gap-1 text-xs'>
-                        <input
-                          type='checkbox'
-                          checked={column.primaryKey}
-                          onChange={(e) => {
-                            const newColumns = [...columns]
-                            newColumns[index].primaryKey = e.target.checked
-                            if (e.target.checked) {
-                              newColumns[index].nullable = false
-                            }
-                            setColumns(newColumns)
-                          }}
-                        />
-                        PK
-                      </label>
-                      <label className='flex items-center gap-1 text-xs'>
-                        <input
-                          type='checkbox'
-                          checked={column.nullable}
-                          disabled={column.primaryKey}
-                          onChange={(e) => {
-                            const newColumns = [...columns]
-                            newColumns[index].nullable = e.target.checked
-                            setColumns(newColumns)
-                          }}
-                        />
-                        NULL
-                      </label>
-                    </div>
+                  <div
+                    key={index}
+                    className='bg-muted/30 relative space-y-4 rounded-lg border p-4'
+                  >
+                    {/* Delete button in top-right */}
                     <Button
                       type='button'
                       variant='ghost'
                       size='sm'
-                      className='col-span-2 h-8'
+                      className='absolute top-2 right-2 h-8 w-8 p-0'
                       onClick={() => {
                         setColumns(columns.filter((_, i) => i !== index))
                       }}
                       disabled={columns.length === 1}
+                      title='Remove column'
                     >
                       <Trash2 className='h-4 w-4' />
                     </Button>
+
+                    {/* Column Name */}
+                    <div className='space-y-2 pr-10'>
+                      <Label htmlFor={`column-name-${index}`}>
+                        Column Name <span className='text-destructive'>*</span>
+                      </Label>
+                      <Input
+                        id={`column-name-${index}`}
+                        placeholder='e.g., email, created_at, user_id'
+                        value={column.name}
+                        onChange={(e) => {
+                          const newColumns = [...columns]
+                          newColumns[index].name = e.target.value
+                          setColumns(newColumns)
+                        }}
+                      />
+                    </div>
+
+                    {/* Data Type */}
+                    <div className='space-y-2'>
+                      <Label htmlFor={`column-type-${index}`}>Data Type</Label>
+                      <Select
+                        value={column.type}
+                        onValueChange={(value) => {
+                          const newColumns = [...columns]
+                          newColumns[index].type = value
+                          setColumns(newColumns)
+                        }}
+                      >
+                        <SelectTrigger id={`column-type-${index}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='text'>
+                            text - Unlimited length text
+                          </SelectItem>
+                          <SelectItem value='varchar'>
+                            varchar - Variable length text
+                          </SelectItem>
+                          <SelectItem value='integer'>
+                            integer - Whole numbers
+                          </SelectItem>
+                          <SelectItem value='bigint'>
+                            bigint - Large whole numbers
+                          </SelectItem>
+                          <SelectItem value='uuid'>
+                            uuid - Unique identifier
+                          </SelectItem>
+                          <SelectItem value='boolean'>
+                            boolean - True/false
+                          </SelectItem>
+                          <SelectItem value='timestamp'>
+                            timestamp - Date and time
+                          </SelectItem>
+                          <SelectItem value='timestamptz'>
+                            timestamptz - Date and time with timezone
+                          </SelectItem>
+                          <SelectItem value='date'>date - Date only</SelectItem>
+                          <SelectItem value='jsonb'>
+                            jsonb - JSON data
+                          </SelectItem>
+                          <SelectItem value='numeric'>
+                            numeric - Precise decimal numbers
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className='text-muted-foreground text-xs'>
+                        The PostgreSQL data type for this column
+                      </p>
+                    </div>
+
+                    {/* Default Value */}
+                    <div className='space-y-2'>
+                      <Label htmlFor={`column-default-${index}`}>
+                        Default Value
+                      </Label>
+                      <Input
+                        id={`column-default-${index}`}
+                        placeholder='e.g., gen_random_uuid(), now(), 0'
+                        value={column.defaultValue}
+                        onChange={(e) => {
+                          const newColumns = [...columns]
+                          newColumns[index].defaultValue = e.target.value
+                          setColumns(newColumns)
+                        }}
+                      />
+                      <p className='text-muted-foreground text-xs'>
+                        Optional default value or function
+                      </p>
+                    </div>
+
+                    {/* Constraints */}
+                    <div className='space-y-3'>
+                      <Label className='text-sm'>Constraints</Label>
+                      <div className='flex flex-col gap-2'>
+                        <div className='flex items-center gap-2'>
+                          <Checkbox
+                            id={`column-pk-${index}`}
+                            checked={column.primaryKey}
+                            onCheckedChange={(checked) => {
+                              const newColumns = [...columns]
+                              newColumns[index].primaryKey = checked === true
+                              if (checked) {
+                                newColumns[index].nullable = false
+                              }
+                              setColumns(newColumns)
+                            }}
+                          />
+                          <Label
+                            htmlFor={`column-pk-${index}`}
+                            className='cursor-pointer text-sm font-normal'
+                          >
+                            Primary Key - Unique identifier for each row
+                          </Label>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <Checkbox
+                            id={`column-nullable-${index}`}
+                            checked={column.nullable}
+                            disabled={column.primaryKey}
+                            onCheckedChange={(checked) => {
+                              const newColumns = [...columns]
+                              newColumns[index].nullable = checked === true
+                              setColumns(newColumns)
+                            }}
+                          />
+                          <Label
+                            htmlFor={`column-nullable-${index}`}
+                            className={cn(
+                              'cursor-pointer text-sm font-normal',
+                              column.primaryKey && 'opacity-50'
+                            )}
+                          >
+                            Nullable - Allow NULL values
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-          <DialogFooter>
+
+          <SheetFooter className='flex flex-row gap-2 border-t pt-4'>
             <Button
               variant='outline'
               onClick={() => {
                 setShowCreateTable(false)
                 setNewTableName('')
-                setColumns([{ name: 'id', type: 'uuid', nullable: false, primaryKey: true, defaultValue: 'gen_random_uuid()' }])
+                setColumns([
+                  {
+                    name: 'id',
+                    type: 'uuid',
+                    nullable: false,
+                    primaryKey: true,
+                    defaultValue: 'gen_random_uuid()',
+                  },
+                ])
               }}
+              className='flex-1'
             >
               Cancel
             </Button>
@@ -477,7 +625,7 @@ export function TableSelector({
                   toast.error('Please add at least one column')
                   return
                 }
-                const hasInvalidColumn = columns.some(c => !c.name.trim())
+                const hasInvalidColumn = columns.some((c) => !c.name.trim())
                 if (hasInvalidColumn) {
                   toast.error('All columns must have a name')
                   return
@@ -485,16 +633,17 @@ export function TableSelector({
                 createTableMutation.mutate({
                   schema: newTableSchema,
                   name: newTableName,
-                  columns
+                  columns,
                 })
               }}
               disabled={createTableMutation.isPending}
+              className='flex-1'
             >
               {createTableMutation.isPending ? 'Creating...' : 'Create Table'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

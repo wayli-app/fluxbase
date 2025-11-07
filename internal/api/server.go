@@ -46,6 +46,7 @@ type Server struct {
 	oauthHandler          *OAuthHandler
 	systemSettingsHandler *SystemSettingsHandler
 	appSettingsHandler    *AppSettingsHandler
+	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
 	realtimeManager       *realtime.Manager
@@ -124,6 +125,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService)
+	sqlHandler := NewSQLHandler(db.Pool())
 	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
 	functionsScheduler := functions.NewScheduler(db.Pool())
 	functionsHandler.SetScheduler(functionsScheduler)
@@ -159,6 +161,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		oauthHandler:          oauthHandler,
 		systemSettingsHandler: systemSettingsHandler,
 		appSettingsHandler:    appSettingsHandler,
+		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
 		realtimeManager:       realtimeManager,
@@ -513,6 +516,9 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.CreateInvitation)
 	router.Get("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.ListInvitations)
 	router.Delete("/invitations/:token", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.RevokeInvitation)
+
+	// SQL Editor route (require dashboard_admin role only)
+	router.Post("/sql/execute", unifiedAuth, RequireRole("dashboard_admin"), s.sqlHandler.ExecuteSQL)
 
 	// Functions management routes (require admin or dashboard_admin role)
 	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.functionsHandler.ReloadFunctions)

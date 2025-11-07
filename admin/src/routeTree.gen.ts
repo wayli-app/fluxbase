@@ -29,6 +29,7 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTablesIndexRouteImport } from './routes/_authenticated/tables/index'
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedStorageIndexRouteImport } from './routes/_authenticated/storage/index'
+import { Route as AuthenticatedSqlEditorIndexRouteImport } from './routes/_authenticated/sql-editor/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
@@ -145,6 +146,12 @@ const AuthenticatedStorageIndexRoute =
     path: '/storage/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSqlEditorIndexRoute =
+  AuthenticatedSqlEditorIndexRouteImport.update({
+    id: '/sql-editor/',
+    path: '/sql-editor/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/',
@@ -237,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
   '/storage': typeof AuthenticatedStorageIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/tables': typeof AuthenticatedTablesIndexRoute
@@ -268,6 +276,7 @@ export interface FileRoutesByTo {
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
   '/storage': typeof AuthenticatedStorageIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/tables': typeof AuthenticatedTablesIndexRoute
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/sql-editor/': typeof AuthenticatedSqlEditorIndexRoute
   '/_authenticated/storage/': typeof AuthenticatedStorageIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/tables/': typeof AuthenticatedTablesIndexRoute
@@ -336,6 +346,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/realtime'
     | '/settings/'
+    | '/sql-editor'
     | '/storage'
     | '/system-settings'
     | '/tables'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/realtime'
     | '/settings'
+    | '/sql-editor'
     | '/storage'
     | '/system-settings'
     | '/tables'
@@ -400,6 +412,7 @@ export interface FileRouteTypes {
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
     | '/_authenticated/settings/'
+    | '/_authenticated/sql-editor/'
     | '/_authenticated/storage/'
     | '/_authenticated/system-settings/'
     | '/_authenticated/tables/'
@@ -565,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStorageIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sql-editor/': {
+      id: '/_authenticated/sql-editor/'
+      path: '/sql-editor'
+      fullPath: '/sql-editor'
+      preLoaderRoute: typeof AuthenticatedSqlEditorIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings/': {
       id: '/_authenticated/settings/'
       path: '/'
@@ -674,6 +694,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
+  AuthenticatedSqlEditorIndexRoute: typeof AuthenticatedSqlEditorIndexRoute
   AuthenticatedStorageIndexRoute: typeof AuthenticatedStorageIndexRoute
   AuthenticatedSystemSettingsIndexRoute: typeof AuthenticatedSystemSettingsIndexRoute
   AuthenticatedTablesIndexRoute: typeof AuthenticatedTablesIndexRoute
@@ -692,6 +713,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
+  AuthenticatedSqlEditorIndexRoute: AuthenticatedSqlEditorIndexRoute,
   AuthenticatedStorageIndexRoute: AuthenticatedStorageIndexRoute,
   AuthenticatedSystemSettingsIndexRoute: AuthenticatedSystemSettingsIndexRoute,
   AuthenticatedTablesIndexRoute: AuthenticatedTablesIndexRoute,

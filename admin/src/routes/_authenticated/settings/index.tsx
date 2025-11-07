@@ -1,13 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { dashboardAuthAPI, type DashboardUser } from '@/lib/api'
-import { Loader2 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { dashboardAuthAPI, type DashboardUser } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export const Route = createFileRoute('/_authenticated/settings/')({
   component: SettingsProfilePage,
@@ -23,7 +29,10 @@ function SettingsProfilePage() {
   })
 
   // Initialize fullName from user data
-  const initialFullName = useMemo(() => user?.full_name || '', [user?.full_name])
+  const initialFullName = useMemo(
+    () => user?.full_name || '',
+    [user?.full_name]
+  )
   const [fullName, setFullName] = useState(initialFullName)
 
   // Update fullName when initialFullName changes
@@ -41,17 +50,26 @@ function SettingsProfilePage() {
       if (currentUser) {
         try {
           const user = JSON.parse(currentUser)
-          localStorage.setItem('user', JSON.stringify({ ...user, full_name: data.full_name, avatar_url: data.avatar_url }))
-        } catch (e) {
-          console.error('Failed to update user in localStorage', e)
+          localStorage.setItem(
+            'user',
+            JSON.stringify({
+              ...user,
+              full_name: data.full_name,
+              avatar_url: data.avatar_url,
+            })
+          )
+        } catch {
+          // Silently fail if localStorage update fails
         }
       }
       toast.success('Profile updated successfully')
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || (error as Error).message
-        : 'Failed to update profile'
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error || (error as Error).message
+          : 'Failed to update profile'
       toast.error(errorMessage)
     },
   })
@@ -80,14 +98,12 @@ function SettingsProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle>Personal Information</CardTitle>
-          <CardDescription>
-            Update your personal details.
-          </CardDescription>
+          <CardDescription>Update your personal details.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className='flex items-center justify-center py-8'>
-              <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+              <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
             </div>
           ) : (
             <form onSubmit={handleSubmit} className='space-y-4'>
@@ -109,7 +125,7 @@ function SettingsProfilePage() {
                   value={user?.email || ''}
                   disabled
                 />
-                <p className='text-xs text-muted-foreground'>
+                <p className='text-muted-foreground text-xs'>
                   Your email address cannot be changed.
                 </p>
               </div>
