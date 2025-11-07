@@ -231,6 +231,16 @@ docs-build: ## Build static documentation site for production
 	@echo "${YELLOW}Output:${NC} docs/build/"
 	@echo "${YELLOW}To serve locally:${NC} cd docs && npm run serve"
 
+docker-build-docs: ## Build documentation Docker image
+	@echo "${YELLOW}Building documentation Docker image...${NC}"
+	@docker build \
+		-t $(DOCKER_IMAGE)-docs:$(VERSION) \
+		-t $(DOCKER_IMAGE)-docs:latest \
+		-f Dockerfile.docs .
+	@echo "${GREEN}Documentation Docker image built!${NC}"
+	@echo "${YELLOW}To run locally:${NC} docker run -p 8080:8080 $(DOCKER_IMAGE)-docs:latest"
+	@echo "${YELLOW}Access at:${NC} http://localhost:8080"
+
 docker-build: ## Build Docker image
 	@echo "${YELLOW}Building Docker image $(DOCKER_IMAGE):$(VERSION)...${NC}"
 	@docker build \
