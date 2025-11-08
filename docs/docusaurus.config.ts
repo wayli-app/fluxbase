@@ -192,11 +192,7 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/fluxbase",
-            },
-            {
-              label: "Twitter",
-              href: "https://twitter.com/fluxbase",
+              href: "https://discord.gg/BXPRHkQzkA",
             },
           ],
         },

@@ -120,9 +120,18 @@ jobs:
             LATEST_VERSION=${LATEST_TAG#v}
 
             # Parse version components
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
-            # Remove any pre-release suffix from PATCH
-            PATCH=${PATCH%%-*}
+            # Check if latest version is an RC
+            if [[ "$LATEST_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-rc\.([0-9]+)$ ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
+              PATCH="${BASH_REMATCH[3]}"
+              RC_NUM="${BASH_REMATCH[4]}"
+            else
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
+              # Remove any pre-release suffix from PATCH
+              PATCH=${PATCH%%-*}
+              RC_NUM=0
+            fi
 
             # Determine new version based on bump type
             BUMP_TYPE="${{ github.event.inputs.bump_type }}"
@@ -140,10 +149,16 @@ jobs:
                 IS_PRERELEASE="false"
                 ;;
               rc)
-                # For RC, bump patch and add -rc.N suffix
-                # Find existing RC number if any
-                RC_COUNT=$(git tag -l "v${MAJOR}.${MINOR}.$((PATCH + 1))-rc.*" | wc -l | tr -d ' ')
-                NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-rc.$((RC_COUNT + 1))"
+                # For RC releases:
+                # - If current version is already an RC, increment RC number only
+                # - If current version is stable, bump patch and start at rc.1
+                if [[ "$LATEST_VERSION" =~ -rc\. ]]; then
+                  # Already on an RC, just increment RC number
+                  NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-rc.$((RC_NUM + 1))"
+                else
+                  # Coming from stable version, bump patch and start RC
+                  NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))-rc.1"
+                fi
                 IS_PRERELEASE="true"
                 ;;
             esac
