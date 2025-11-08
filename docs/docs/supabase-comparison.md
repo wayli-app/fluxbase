@@ -158,10 +158,13 @@ const {
 
 ### Realtime Subscriptions
 
-✅ **Identical API** - Same channel and subscription patterns
+✅ **Compatible API** - Similar channel and subscription patterns with minor syntax differences
 
 ```typescript
-// Identical in both Supabase and Fluxbase
+// Supabase
+import { createClient } from "@supabase/supabase-js";
+const client = createClient("https://your-project.supabase.co", "your-anon-key");
+
 const subscription = client
   .channel("table-changes")
   .on(
@@ -171,11 +174,32 @@ const subscription = client
   )
   .subscribe();
 
-// Unsubscribe - identical in both
-await client.removeChannel(subscription);
+// Fluxbase - Similar pattern, different event syntax
+import { createClient } from "@fluxbase/sdk";
+const client = createClient("http://localhost:8080", "your-api-key");
+
+const channel = client.realtime
+  .channel("table:public.posts")
+  .on("INSERT", (payload) => console.log("New:", payload.new_record))
+  .on("UPDATE", (payload) => console.log("Updated:", payload.new_record))
+  .on("DELETE", (payload) => console.log("Deleted:", payload.old_record))
+  .subscribe();
+
+// Or use wildcard for all events
+const channel = client.realtime
+  .channel("table:public.posts")
+  .on("*", (payload) => console.log(payload))
+  .subscribe();
+
+// Unsubscribe - similar in both
+channel.unsubscribe(); // Fluxbase
+await client.removeChannel(subscription); // Supabase
 ```
 
-**Realtime events**: `INSERT`, `UPDATE`, `DELETE`, `*` - all work identically.
+**Key differences:**
+- Supabase uses `postgres_changes` event with filter object, Fluxbase uses direct event names (`INSERT`, `UPDATE`, `DELETE`, `*`)
+- Channel naming: Supabase uses custom names, Fluxbase uses `table:schema.table` format
+- Payload structure is similar (both provide `new_record`, `old_record`)
 
 ### File Storage
 

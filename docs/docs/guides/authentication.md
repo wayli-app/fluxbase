@@ -633,7 +633,7 @@ CREATE INDEX idx_sessions_access_token ON auth.sessions(access_token);
 ### JavaScript/TypeScript
 
 ```typescript
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({
   url: "http://localhost:8080",
@@ -827,7 +827,7 @@ try {
 
 ```tsx
 import { useState } from "react";
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1033,7 +1033,7 @@ auth:
 **JavaScript/TypeScript:**
 
 ```typescript
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1073,7 +1073,7 @@ if (code) {
 ```tsx
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1215,7 +1215,7 @@ auth:
 **JavaScript/TypeScript:**
 
 ```typescript
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1246,7 +1246,7 @@ if (token) {
 ```tsx
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1402,7 +1402,7 @@ console.log("Anonymous user ID:", session.user.id);
 
 ```tsx
 import { useState, useEffect } from "react";
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({ url: "http://localhost:8080" });
 
@@ -1636,7 +1636,7 @@ If a service key is provided, other auth methods are ignored.
 **TypeScript:**
 
 ```typescript
-import { FluxbaseClient } from "@fluxbase/client";
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 // Using JWT (after login)
 const client = new FluxbaseClient({

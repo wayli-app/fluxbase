@@ -99,7 +99,188 @@ FLUXBASE_STORAGE_S3_BUCKET=default-bucket
 - Large file storage
 - Global distribution
 
-## API Reference
+## Using the SDK (Recommended)
+
+The easiest way to interact with storage is using the Fluxbase SDK:
+
+### Installation
+
+```bash
+npm install @fluxbase/sdk
+```
+
+### Basic Usage
+
+```typescript
+import { createClient } from "@fluxbase/sdk";
+
+// Create client
+const client = createClient("http://localhost:8080", "your-api-key");
+
+// Upload a file
+const file = document.getElementById("fileInput").files[0];
+const { data, error } = await client.storage
+  .from("avatars")
+  .upload("user1.png", file);
+
+if (error) {
+  console.error("Upload failed:", error);
+} else {
+  console.log("File uploaded:", data);
+}
+
+// Download a file
+const { data: blob, error: downloadError } = await client.storage
+  .from("avatars")
+  .download("user1.png");
+
+if (!downloadError && blob) {
+  // Create a download link
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "user1.png";
+  a.click();
+}
+
+// List files in a bucket
+const { data: files, error: listError } = await client.storage
+  .from("avatars")
+  .list();
+
+console.log("Files:", files);
+
+// Delete files
+const { error: removeError } = await client.storage
+  .from("avatars")
+  .remove(["user1.png", "user2.png"]);
+
+// Get public URL
+const { data: publicUrl } = client.storage
+  .from("avatars")
+  .getPublicUrl("user1.png");
+
+console.log("Public URL:", publicUrl.publicUrl);
+
+// Create signed URL (temporary access)
+const { data: signedUrl, error: signError } = await client.storage
+  .from("avatars")
+  .createSignedUrl("user1.png", { expiresIn: 3600 }); // 1 hour
+
+console.log("Signed URL:", signedUrl?.signedUrl);
+```
+
+### Bucket Management
+
+```typescript
+// List all buckets
+const { data: buckets, error } = await client.storage.listBuckets();
+console.log("Buckets:", buckets);
+
+// Create a new bucket
+await client.storage.createBucket("my-new-bucket");
+
+// Delete a bucket
+await client.storage.deleteBucket("old-bucket");
+
+// Empty a bucket (delete all files)
+await client.storage.emptyBucket("temp-bucket");
+```
+
+### File Operations
+
+```typescript
+// Upload with options
+const { data, error } = await client.storage
+  .from("documents")
+  .upload("report.pdf", file, {
+    contentType: "application/pdf",
+    cacheControl: "3600",
+    upsert: true, // Overwrite if exists
+    metadata: {
+      author: "John Doe",
+      department: "Engineering"
+    }
+  });
+
+// Move a file
+const { data: movedFile, error: moveError } = await client.storage
+  .from("documents")
+  .move("old-path/file.pdf", "new-path/file.pdf");
+
+// Copy a file
+const { data: copiedFile, error: copyError } = await client.storage
+  .from("documents")
+  .copy("source/file.pdf", "backup/file.pdf");
+```
+
+### React Example
+
+```typescript
+import { useState } from "react";
+import { createClient } from "@fluxbase/sdk";
+
+const client = createClient("http://localhost:8080", "your-api-key");
+
+function FileUploader() {
+  const [uploading, setUploading] = useState(false);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+
+    try {
+      // Upload file
+      const { data, error } = await client.storage
+        .from("uploads")
+        .upload(`${Date.now()}-${file.name}`, file);
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: urlData } = client.storage
+        .from("uploads")
+        .getPublicUrl(data.key);
+
+      setFileUrl(urlData.publicUrl);
+      alert("File uploaded successfully!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        onChange={handleUpload}
+        disabled={uploading}
+      />
+      {uploading && <p>Uploading...</p>}
+      {fileUrl && (
+        <div>
+          <p>File uploaded!</p>
+          <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+            View File
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Advanced: REST API Reference
+
+For advanced use cases or non-JavaScript environments, you can use the REST API directly.
 
 ### Bucket Management
 

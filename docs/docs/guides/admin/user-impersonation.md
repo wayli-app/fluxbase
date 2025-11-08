@@ -6,6 +6,10 @@ sidebar_position: 1
 
 User impersonation allows admins to view the database explorer as different user types to debug issues, test Row Level Security (RLS) policies, and provide customer support.
 
+:::info Admin Dashboard Feature
+This is an **admin dashboard feature** designed for debugging and support. It is **not available in the SDK** - you can only use impersonation through the Fluxbase admin UI or by directly calling the REST API with an admin token.
+:::
+
 ## Overview
 
 The impersonation feature enables admins to see exactly what data users can query based on their RLS policies. This is invaluable for:
@@ -22,11 +26,13 @@ The impersonation feature enables admins to see exactly what data users can quer
 Impersonate a real user by their ID to see data exactly as they would see it.
 
 **Use cases:**
+
 - Debugging user-reported data issues
 - Verifying RLS policies for specific users
 - Customer support investigations
 
 **How it works:**
+
 - Respects all RLS policies for that user
 - Uses the user's actual permissions
 - All queries execute in their security context
@@ -36,11 +42,13 @@ Impersonate a real user by their ID to see data exactly as they would see it.
 See data as an unauthenticated visitor would see it.
 
 **Use cases:**
+
 - Testing public data access
 - Verifying anon-level RLS policies
 - Ensuring sensitive data is protected from public access
 
 **How it works:**
+
 - Generates a temporary JWT with `role: "anon"`
 - No user account required
 - Only public data should be accessible
@@ -50,11 +58,13 @@ See data as an unauthenticated visitor would see it.
 View data with service-level permissions.
 
 **Use cases:**
+
 - Administrative queries
 - Testing privileged operations
 - Bypassing RLS for data management
 
 **How it works:**
+
 - Generates a JWT with `role: "service"`
 - May bypass RLS (depending on configuration)
 - Elevated permissions for admin tasks
@@ -101,11 +111,11 @@ The system maintains two separate JWT tokens:
 
 ```typescript
 // In localStorage
-fluxbase_admin_access_token      // Your admin token
-fluxbase_admin_user              // Your admin user info
-fluxbase_impersonation_token     // Target user's token (when active)
-fluxbase_impersonated_user       // Target user info
-fluxbase_impersonation_session   // Session metadata
+fluxbase_admin_access_token; // Your admin token
+fluxbase_admin_user; // Your admin user info
+fluxbase_impersonation_token; // Target user's token (when active)
+fluxbase_impersonated_user; // Target user info
+fluxbase_impersonation_session; // Session metadata
 ```
 
 ### Token Selection
@@ -114,10 +124,10 @@ All API requests automatically use the appropriate token:
 
 ```typescript
 const getActiveToken = () => {
-  const impToken = localStorage.getItem('fluxbase_impersonation_token')
-  const adminToken = localStorage.getItem('fluxbase_admin_access_token')
-  return impToken || adminToken  // Impersonation takes precedence
-}
+  const impToken = localStorage.getItem("fluxbase_impersonation_token");
+  const adminToken = localStorage.getItem("fluxbase_admin_access_token");
+  return impToken || adminToken; // Impersonation takes precedence
+};
 ```
 
 ### RLS Integration
@@ -141,18 +151,18 @@ When querying data while impersonating:
 
 Every impersonation session is logged in the `auth.impersonation_sessions` table:
 
-| Field | Description |
-|-------|-------------|
-| `admin_user_id` | Who performed the impersonation |
-| `target_user_id` | Which user was impersonated (nullable for anon/service) |
-| `impersonation_type` | Type: 'user', 'anon', or 'service' |
-| `target_role` | Role being impersonated |
-| `reason` | Why the impersonation occurred |
-| `started_at` | When it started |
-| `ended_at` | When it ended |
-| `ip_address` | IP address of the admin |
-| `user_agent` | Browser/client information |
-| `is_active` | Whether session is currently active |
+| Field                | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `admin_user_id`      | Who performed the impersonation                         |
+| `target_user_id`     | Which user was impersonated (nullable for anon/service) |
+| `impersonation_type` | Type: 'user', 'anon', or 'service'                      |
+| `target_role`        | Role being impersonated                                 |
+| `reason`             | Why the impersonation occurred                          |
+| `started_at`         | When it started                                         |
+| `ended_at`           | When it ended                                           |
+| `ip_address`         | IP address of the admin                                 |
+| `user_agent`         | Browser/client information                              |
+| `is_active`          | Whether session is currently active                     |
 
 ### Access Control
 
@@ -259,6 +269,7 @@ Authorization: Bearer <admin_token>
 **Symptoms:** Queries return admin data instead of impersonated user's data
 
 **Solutions:**
+
 - Check localStorage for `fluxbase_impersonation_token`
 - Verify token is being sent in Authorization header
 - Check backend logs for JWT validation errors
@@ -269,6 +280,7 @@ Authorization: Bearer <admin_token>
 **Symptoms:** Seeing more/less data than expected
 
 **Solutions:**
+
 - Verify RLS policies exist on the tables
 - Check PostgreSQL session variables: `SHOW app.user_id`
 - Ensure RLS middleware is enabled in backend config
@@ -279,6 +291,7 @@ Authorization: Bearer <admin_token>
 **Symptoms:** Stop button doesn't work or session persists
 
 **Solutions:**
+
 - Clear localStorage manually via browser DevTools
 - Check for active session in `auth.impersonation_sessions` table
 - Verify DELETE endpoint is accessible (check CORS/network)
@@ -289,6 +302,7 @@ Authorization: Bearer <admin_token>
 **Symptoms:** User search returns no results
 
 **Solutions:**
+
 - Verify `exclude_admins` filter isn't hiding all users
 - Check user has non-admin role in database
 - Ensure user exists and is not deleted
@@ -300,15 +314,16 @@ Authorization: Bearer <admin_token>
 
 ```typescript
 // ✅ Good
-reason: "Support ticket #12345 - user reports missing data"
+reason: "Support ticket #12345 - user reports missing data";
 
 // ❌ Bad
-reason: "testing"
+reason: "testing";
 ```
 
 ### 2. Stop Impersonation When Done
 
 Don't leave impersonation sessions running. Always click "Stop Impersonation" when finished to:
+
 - Clear audit trail properly
 - Avoid confusion
 - Prevent accidental data modifications
@@ -334,6 +349,7 @@ ORDER BY started_at DESC;
 ### 4. Test RLS Policies with Multiple Scenarios
 
 Use all three impersonation modes to thoroughly test:
+
 - **User mode**: Test with regular users
 - **Anon mode**: Verify public data access
 - **Service mode**: Test admin operations

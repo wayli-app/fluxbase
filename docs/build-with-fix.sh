@@ -1,64 +1,60 @@
 #!/bin/bash
 
-# Try building - this will generate TypeDoc files
-# Don't exit on error yet
+echo "======================================"
+echo "Starting optimized docs build process"
+echo "======================================"
+
+# Step 1: Run a minimal build just to generate TypeDoc markdown files
+# We use 'docusaurus build' which will fail due to angle brackets, but will generate the files
+echo "Generating TypeDoc API documentation..."
 set +e
-npx docusaurus build > /tmp/build.log 2>&1
-BUILD_EXIT_CODE=$?
+npx docusaurus build > /tmp/typedoc-gen.log 2>&1
+TYPEDOC_GEN_EXIT=$?
 set -e
 
-# Always show the build log
-cat /tmp/build.log
+# Check if TypeDoc files were generated (even if build failed)
+if [ -d "docs/api/sdk" ] || [ -d "docs/api/sdk-react" ]; then
+  echo "TypeDoc files generated successfully"
 
-if [ $BUILD_EXIT_CODE -ne 0 ]; then
-  # Build failed, check if it's due to angle bracket issues
-  if grep -q "Expected a closing tag" /tmp/build.log; then
+  # Step 2: Apply angle bracket fixes to generated files
+  echo "======================================"
+  echo "Applying angle bracket fixes..."
+  echo "======================================"
+  bash fix-typedoc-brackets.sh
+
+  # Step 3: Build again with SKIP_TYPEDOC to use fixed files
+  echo "======================================"
+  echo "Building Docusaurus site with fixed files..."
+  echo "======================================"
+  set +e
+  SKIP_TYPEDOC=true npx docusaurus build > /tmp/build.log 2>&1
+  BUILD_EXIT_CODE=$?
+  set -e
+
+  cat /tmp/build.log
+
+  if [ $BUILD_EXIT_CODE -ne 0 ]; then
     echo "======================================"
-    echo "Build failed due to angle bracket issues in generated markdown"
-    echo "Applying fixes to TypeDoc-generated files..."
+    echo "ERROR: Build failed even after fixes"
     echo "======================================"
+    exit 1
+  fi
 
-    # Check if docs/api exists
-    if [ -d "docs/api" ]; then
-      echo "Found docs/api directory"
-      echo "Files to fix:"
-      find docs/api -name "*.md" -type f | head -5
-    else
-      echo "WARNING: docs/api directory not found!"
-    fi
+  echo "======================================"
+  echo "Build succeeded!"
+  echo "======================================"
+else
+  # No TypeDoc files generated, might be a clean build without API source
+  # Just show the log and check if it succeeded
+  cat /tmp/typedoc-gen.log
 
-    bash fix-typedoc-brackets.sh
-
-    # Show a sample of what was fixed
-    echo "Sample of fixes applied:"
-    grep -n "&lt;void&gt;" docs/api/sdk/classes/SystemSettingsManager.md 2>/dev/null | head -3 || echo "No <void> fixes found in SystemSettingsManager.md"
-
+  if [ $TYPEDOC_GEN_EXIT -eq 0 ]; then
     echo "======================================"
-    echo "Retrying build after fixes..."
-    echo "NOTE: Skipping TypeDoc regeneration to preserve fixes"
-    echo "======================================"
-    set +e
-    SKIP_TYPEDOC=true npx docusaurus build > /tmp/build-retry.log 2>&1
-    RETRY_EXIT_CODE=$?
-    set -e
-
-    cat /tmp/build-retry.log
-
-    if [ $RETRY_EXIT_CODE -ne 0 ]; then
-      echo "======================================"
-      echo "ERROR: Build still failed after fixes"
-      echo "This may indicate additional issues beyond angle brackets"
-      echo "======================================"
-      exit 1
-    fi
-
-    echo "======================================"
-    echo "Build succeeded after fixes!"
+    echo "Build succeeded!"
     echo "======================================"
   else
-    # Some other error, re-throw it
     echo "======================================"
-    echo "ERROR: Build failed with a different error (not angle brackets)"
+    echo "ERROR: Build failed and no TypeDoc files were generated"
     echo "======================================"
     exit 1
   fi

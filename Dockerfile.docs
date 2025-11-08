@@ -44,14 +44,12 @@ RUN chmod +x build-with-fix.sh fix-typedoc-brackets.sh && \
 # Production image - serve with nginx
 FROM nginx:alpine AS runner
 
-# Create non-root user
-RUN addgroup -g 101 -S nginx && \
-    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx 2>/dev/null || true
-
-# Create necessary directories and set permissions
-RUN mkdir -p /var/cache/nginx /var/log/nginx /var/run && \
-    chown -R nginx:nginx /var/cache/nginx /var/log/nginx /var/run && \
-    chmod -R 755 /var/cache/nginx /var/log/nginx
+# Create necessary directories with correct permissions for non-root user
+RUN mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp \
+             /var/cache/nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp \
+                         /var/cache/nginx /usr/share/nginx/html && \
+    chmod -R 755 /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
 
 # Copy built site to nginx
 COPY --from=builder /app/docs/build /usr/share/nginx/html
@@ -70,5 +68,6 @@ USER nginx
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Start nginx
+# Start nginx directly, bypassing the default entrypoint
+ENTRYPOINT []
 CMD ["nginx", "-g", "daemon off;"]

@@ -33,11 +33,6 @@ const sidebars: SidebarsConfig = {
       id: "supabase-comparison",
       label: "🔄 Supabase Comparison",
     },
-    {
-      type: "doc",
-      id: "advanced-guides",
-      label: "🚀 Advanced Guides",
-    },
   ],
 
   // 📖 Guides sidebar - Feature-specific guides

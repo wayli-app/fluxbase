@@ -2,7 +2,116 @@
 
 Fluxbase provides real-time database change notifications via WebSockets, powered by PostgreSQL's LISTEN/NOTIFY system.
 
-## Quick Start
+## Using the SDK (Recommended)
+
+The easiest way to use realtime subscriptions is with the Fluxbase SDK:
+
+### Installation
+
+```bash
+npm install @fluxbase/sdk
+```
+
+### Basic Usage
+
+```typescript
+import { createClient } from "@fluxbase/sdk";
+
+// Create client
+const client = createClient("http://localhost:8080", "your-api-key");
+
+// Subscribe to table changes
+const channel = client.realtime
+  .channel("table:public.products")
+  .on("INSERT", (payload) => {
+    console.log("New product:", payload.new_record);
+  })
+  .on("UPDATE", (payload) => {
+    console.log("Updated product:", payload.new_record);
+    console.log("Previous data:", payload.old_record);
+  })
+  .on("DELETE", (payload) => {
+    console.log("Deleted product:", payload.old_record);
+  })
+  .subscribe();
+
+// Or use wildcard to listen to all events
+const channel = client.realtime
+  .channel("table:public.products")
+  .on("*", (payload) => {
+    console.log("Change type:", payload.type); // INSERT, UPDATE, or DELETE
+    console.log("Payload:", payload);
+  })
+  .subscribe();
+
+// Later: Unsubscribe
+channel.unsubscribe();
+```
+
+### React Example
+
+```typescript
+import { useEffect, useState } from "react";
+import { createClient } from "@fluxbase/sdk";
+
+function ProductList() {
+  const [products, setProducts] = useState([]);
+  const [client] = useState(() =>
+    createClient("http://localhost:8080", "your-api-key")
+  );
+
+  useEffect(() => {
+    // Subscribe to realtime changes
+    const channel = client.realtime
+      .channel("table:public.products")
+      .on("INSERT", (payload) => {
+        setProducts((prev) => [...prev, payload.new_record]);
+      })
+      .on("UPDATE", (payload) => {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === payload.new_record.id ? payload.new_record : p))
+        );
+      })
+      .on("DELETE", (payload) => {
+        setProducts((prev) => prev.filter((p) => p.id !== payload.old_record.id));
+      })
+      .subscribe();
+
+    // Cleanup on unmount
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [client]);
+
+  return (
+    <div>
+      <h2>Products</h2>
+      {products.map((product) => (
+        <div key={product.id}>{product.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Payload Structure
+
+```typescript
+interface RealtimeChangePayload {
+  type: "INSERT" | "UPDATE" | "DELETE";
+  schema: string;
+  table: string;
+  new_record?: Record<string, unknown>; // Present for INSERT and UPDATE
+  old_record?: Record<string, unknown>; // Present for UPDATE and DELETE
+  timestamp: string;
+}
+```
+
+---
+
+## Advanced: Raw WebSocket Protocol
+
+For advanced use cases or non-JavaScript environments, you can use the raw WebSocket protocol directly.
 
 ### 1. Connect to WebSocket
 
@@ -51,11 +160,11 @@ ws.onmessage = (event) => {
 };
 ```
 
-## Message Protocol
+### Message Protocol
 
-### Client → Server Messages
+#### Client → Server Messages
 
-#### Subscribe
+##### Subscribe
 
 ```json
 {
@@ -64,7 +173,7 @@ ws.onmessage = (event) => {
 }
 ```
 
-#### Unsubscribe
+##### Unsubscribe
 
 ```json
 {
@@ -73,9 +182,9 @@ ws.onmessage = (event) => {
 }
 ```
 
-### Server → Client Messages
+#### Server → Client Messages
 
-#### Broadcast (Database Change)
+##### Broadcast (Database Change)
 
 ```json
 {
@@ -94,7 +203,7 @@ ws.onmessage = (event) => {
 }
 ```
 
-#### Update Event (includes old record)
+##### Update Event (includes old record)
 
 ```json
 {
@@ -118,7 +227,7 @@ ws.onmessage = (event) => {
 }
 ```
 
-#### Delete Event
+##### Delete Event
 
 ```json
 {
@@ -137,7 +246,7 @@ ws.onmessage = (event) => {
 }
 ```
 
-#### Acknowledgment
+##### Acknowledgment
 
 ```json
 {
@@ -146,7 +255,7 @@ ws.onmessage = (event) => {
 }
 ```
 
-#### Heartbeat
+##### Heartbeat
 
 ```json
 {
@@ -156,7 +265,7 @@ ws.onmessage = (event) => {
 
 Sent every 30 seconds to keep the connection alive.
 
-#### Error
+##### Error
 
 ```json
 {
@@ -165,7 +274,7 @@ Sent every 30 seconds to keep the connection alive.
 }
 ```
 
-## Channel Naming
+### Channel Naming
 
 Channels follow the format: `table:{schema}.{table_name}`
 
@@ -176,16 +285,16 @@ Examples:
 - `table:auth.users`
 - `table:inventory.items`
 
-## Authentication
+### Authentication
 
-### Unauthenticated Connections
+#### Unauthenticated Connections
 
 ```javascript
 const ws = new WebSocket("ws://localhost:8080/realtime");
 // Can subscribe to tables without RLS
 ```
 
-### Authenticated Connections
+#### Authenticated Connections
 
 ```javascript
 const token = "your.jwt.token.here";
@@ -218,86 +327,6 @@ SELECT
   trigger_name
 FROM information_schema.triggers
 WHERE trigger_name LIKE '%_notify_change';
-```
-
-## React Example
-
-```typescript
-import { useEffect, useState } from "react";
-
-function useRealtime<T>(channel: string, token?: string) {
-  const [data, setData] = useState<T[]>([]);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    const url = token
-      ? `ws://localhost:8080/realtime?token=${token}`
-      : "ws://localhost:8080/realtime";
-
-    const ws = new WebSocket(url);
-
-    ws.onopen = () => {
-      setConnected(true);
-      // Subscribe to channel
-      ws.send(
-        JSON.stringify({
-          type: "subscribe",
-          channel,
-        })
-      );
-    };
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-
-      if (message.type === "broadcast") {
-        const { type, record, old_record } = message.payload;
-
-        setData((prev) => {
-          switch (type) {
-            case "INSERT":
-              return [...prev, record];
-            case "UPDATE":
-              return prev.map((item) =>
-                item.id === record.id ? record : item
-              );
-            case "DELETE":
-              return prev.filter((item) => item.id !== old_record.id);
-            default:
-              return prev;
-          }
-        });
-      }
-    };
-
-    ws.onclose = () => {
-      setConnected(false);
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, [channel, token]);
-
-  return { data, connected };
-}
-
-// Usage
-function ProductList() {
-  const { data: products, connected } = useRealtime<Product>(
-    "table:public.products",
-    localStorage.getItem("token")
-  );
-
-  return (
-    <div>
-      <div>Status: {connected ? "Connected" : "Disconnected"}</div>
-      {products.map((product) => (
-        <div key={product.id}>{product.name}</div>
-      ))}
-    </div>
-  );
-}
 ```
 
 ## Architecture
