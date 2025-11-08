@@ -20,6 +20,14 @@ const config: Config = {
     locales: ["en"],
   },
 
+  scripts: [
+    {
+      src: "https://umami.wayli.app/umami",
+      defer: true,
+      "data-website-id": "846445c5-4f05-4ec7-a3ec-46f06f94a314",
+    },
+  ],
+
   markdown: {
     mermaid: true,
     hooks: {
