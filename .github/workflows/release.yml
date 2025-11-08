@@ -334,6 +334,41 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            sdk/package-lock.json
+            sdk-react/package-lock.json
+            docs/package-lock.json
+
+      - name: Build SDKs (required for TypeDoc)
+        run: |
+          # Build SDK
+          cd sdk
+          npm ci
+          npm run build
+
+          # Build SDK React
+          cd ../sdk-react
+          npm ci
+          npm run build
+
+      - name: Pre-generate TypeDoc API documentation
+        working-directory: ./docs
+        run: |
+          npm ci
+
+          # Generate TypeDoc markdown files (build will fail due to angle brackets, but files are generated)
+          npx docusaurus build || true
+
+          # Apply angle bracket fixes
+          bash fix-typedoc-brackets.sh
+
+          echo "TypeDoc files pre-generated and fixed"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -362,7 +397,7 @@ jobs:
         with:
           context: .
           file: Dockerfile.docs
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta-docs.outputs.tags }}
           labels: ${{ steps.meta-docs.outputs.labels }}
