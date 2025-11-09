@@ -265,7 +265,7 @@ const resultWithHeaders = await client.functions.invoke(
     headers: {
       "X-Custom-Header": "value",
     },
-  }
+  },
 );
 ```
 
@@ -1020,7 +1020,7 @@ async function handler(request) {
 - **Execution Time**: Maximum 300 seconds (5 minutes)
 - **Memory**: Maximum 1024MB
 - **Concurrency**: Each invocation runs in a separate process
-- **Code Size**: Recommended <1MB for faster cold starts
+- **Code Size**: Recommended &lt;1MB for faster cold starts
 - **Log Retention**: 30 days
 
 ---
