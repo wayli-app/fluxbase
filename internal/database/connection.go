@@ -4,11 +4,13 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -80,18 +82,36 @@ func (c *Connection) Pool() *pgxpool.Pool {
 	return c.pool
 }
 
-// Migrate runs database migrations
+// Migrate runs database migrations from both system and user sources
 func (c *Connection) Migrate() error {
+	// Step 1: Run system migrations (embedded in binary)
+	log.Info().Msg("Running system migrations...")
+	if err := c.runSystemMigrations(); err != nil {
+		return fmt.Errorf("failed to run system migrations: %w", err)
+	}
+
+	// Step 2: Run user migrations (from file system) if path is configured
+	if c.config.UserMigrationsPath != "" {
+		log.Info().Str("path", c.config.UserMigrationsPath).Msg("Running user migrations...")
+		if err := c.runUserMigrations(); err != nil {
+			return fmt.Errorf("failed to run user migrations: %w", err)
+		}
+	} else {
+		log.Debug().Msg("No user migrations path configured, skipping user migrations")
+	}
+
+	return nil
+}
+
+// runSystemMigrations runs migrations embedded in the binary
+func (c *Connection) runSystemMigrations() error {
 	// Create migrations source from embedded filesystem
 	sourceDriver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
 
-	// Use connection string with custom migrations table in _fluxbase schema
-	// Note: dashboard.schema_migrations is for tracking DDL migrations, not golang-migrate migrations
-	// We use "pgx5" scheme which is registered by the pgx/v5 driver
-	// x-migrations-table-quoted=1 requires quoted schema.table format
+	// Use connection string with system migrations table
 	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"schema_migrations\"&x-migrations-table-quoted=1",
 		c.config.User,
 		c.config.Password,
@@ -101,8 +121,6 @@ func (c *Connection) Migrate() error {
 		c.config.SSLMode,
 	)
 
-	log.Debug().Str("connection_string", connStr).Msg("Migration connection string")
-
 	// Create migration instance
 	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr)
 	if err != nil {
@@ -110,6 +128,50 @@ func (c *Connection) Migrate() error {
 	}
 	defer m.Close()
 
+	// Run migrations with error handling
+	if err := c.applyMigrations(m, "system"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// runUserMigrations runs migrations from the user-specified directory
+func (c *Connection) runUserMigrations() error {
+	// Check if directory exists
+	if _, err := os.Stat(c.config.UserMigrationsPath); os.IsNotExist(err) {
+		log.Warn().Str("path", c.config.UserMigrationsPath).Msg("User migrations directory does not exist, skipping")
+		return nil
+	}
+
+	// Use connection string with user migrations table
+	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"user_migrations\"&x-migrations-table-quoted=1",
+		c.config.User,
+		c.config.Password,
+		c.config.Host,
+		c.config.Port,
+		c.config.Database,
+		c.config.SSLMode,
+	)
+
+	// Create migration instance from file system
+	sourceURL := fmt.Sprintf("file://%s", c.config.UserMigrationsPath)
+	m, err := migrate.New(sourceURL, connStr)
+	if err != nil {
+		return fmt.Errorf("failed to create user migration instance: %w", err)
+	}
+	defer m.Close()
+
+	// Run migrations with error handling
+	if err := c.applyMigrations(m, "user"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyMigrations applies pending migrations and handles errors
+func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 	// Check current version and dirty state
 	version, dirty, err := m.Version()
 	if err != nil && err != migrate.ErrNilVersion {
@@ -118,7 +180,7 @@ func (c *Connection) Migrate() error {
 
 	// If database is in dirty state, force the version to clean it
 	if dirty {
-		log.Warn().Uint("version", version).Msg("Database is in dirty state, forcing version to clean")
+		log.Warn().Str("source", source).Uint("version", version).Msg("Database is in dirty state, forcing version to clean")
 		if err := m.Force(int(version)); err != nil {
 			return fmt.Errorf("failed to force migration version: %w", err)
 		}
@@ -126,14 +188,14 @@ func (c *Connection) Migrate() error {
 
 	// Run migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("failed to run migrations: %w", err)
+		return fmt.Errorf("failed to run %s migrations: %w", source, err)
 	}
 
 	if err == migrate.ErrNoChange {
-		log.Info().Msg("No new migrations to apply")
+		log.Info().Str("source", source).Msg("No new migrations to apply")
 	} else {
 		version, _, _ := m.Version()
-		log.Info().Uint("version", version).Msg("Migrations applied successfully")
+		log.Info().Str("source", source).Uint("version", version).Msg("Migrations applied successfully")
 	}
 
 	return nil

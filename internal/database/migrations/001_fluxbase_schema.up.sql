@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 --
 
 CREATE SCHEMA IF NOT EXISTS _fluxbase;
-GRANT USAGE ON SCHEMA _fluxbase TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app;
 
 --
 -- AUTH SCHEMA

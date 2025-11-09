@@ -119,6 +119,10 @@ spec:
                   key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
             - name: DB_SSL_MODE
               value: {{ .Values.config.database.sslMode | quote }}
+            {{- if and .Values.migrationsPersistence.enabled .Values.config.database.userMigrationsPath }}
+            - name: DB_USER_MIGRATIONS_PATH
+              value: {{ .Values.config.database.userMigrationsPath | quote }}
+            {{- end }}
             # Server Configuration
             - name: SERVER_PORT
               value: {{ .Values.config.server.port | quote }}
@@ -229,6 +233,11 @@ spec:
             - name: functions
               mountPath: /app/functions
             {{- end }}
+            {{- if and .Values.migrationsPersistence.enabled .Values.config.database.userMigrationsPath }}
+            - name: migrations
+              mountPath: {{ .Values.config.database.userMigrationsPath }}
+              readOnly: true
+            {{- end }}
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -248,6 +257,11 @@ spec:
         - name: functions
           persistentVolumeClaim:
             claimName: {{ .Values.functionsPersistence.existingClaim | default (printf "%s-functions" (include "fluxbase.fullname" .)) }}
+        {{- end }}
+        {{- if .Values.migrationsPersistence.enabled }}
+        - name: migrations
+          persistentVolumeClaim:
+            claimName: {{ .Values.migrationsPersistence.existingClaim | default (printf "%s-migrations" (include "fluxbase.fullname" .)) }}
         {{- end }}
         {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

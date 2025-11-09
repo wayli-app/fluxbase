@@ -60,6 +60,9 @@ services:
       DB_PASSWORD: fluxbase
       DB_SSL_MODE: disable
 
+      # User Migrations (optional - uncomment to enable)
+      # DB_USER_MIGRATIONS_PATH: /migrations/user
+
       # Server Configuration
       SERVER_PORT: 8080
       SERVER_HOST: 0.0.0.0
@@ -93,6 +96,8 @@ services:
       # FLUXBASE_SERVICE_KEY: sk_test_your_service_key_here
     volumes:
       - functions_data:/app/functions
+      # Uncomment to enable user migrations:
+      # - ./migrations/user:/migrations/user:ro
     depends_on:
       postgres:
         condition: service_healthy

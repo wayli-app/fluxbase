@@ -55,3 +55,32 @@ spec:
   selector: {{- toYaml .Values.functionsPersistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
+---
+{{- if and .Values.migrationsPersistence.enabled (not .Values.migrationsPersistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-migrations
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if or .Values.migrationsPersistence.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.migrationsPersistence.annotations }}
+    {{- toYaml .Values.migrationsPersistence.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes: {{- toYaml .Values.migrationsPersistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.migrationsPersistence.size | quote }}
+  {{- if .Values.migrationsPersistence.storageClass }}
+  storageClassName: {{ .Values.migrationsPersistence.storageClass | quote }}
+  {{- end }}
+  {{- if .Values.migrationsPersistence.selector }}
+  selector: {{- toYaml .Values.migrationsPersistence.selector | nindent 4 }}
+  {{- end }}
+{{- end }}

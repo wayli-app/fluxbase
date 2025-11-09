@@ -75,4 +75,14 @@ You are using an external PostgreSQL database at {{ .Values.externalDatabase.hos
 
 {{- end }}
 
+{{- if .Values.migrationsPersistence.enabled }}
+
+Note: User Migrations are enabled
+  - Migration path: {{ .Values.config.database.userMigrationsPath }}
+  - PVC: {{ .Values.migrationsPersistence.existingClaim | default (printf "%s-migrations" (include "fluxbase.fullname" .)) }}
+  - Place your migration files in the PVC directory
+  - Migrations will run automatically on startup after system migrations
+
+{{- end }}
+
 {{ include "fluxbase.validateValues" . }}

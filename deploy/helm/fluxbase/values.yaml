@@ -84,6 +84,7 @@ image:
 ## @param config.database.user PostgreSQL database user
 ## @param config.database.password PostgreSQL database password (use existingSecret instead)
 ## @param config.database.sslMode PostgreSQL SSL mode (disable, require, verify-ca, verify-full)
+## @param config.database.userMigrationsPath Path to user-provided migration files (optional)
 ## @param config.server.port HTTP server port
 ## @param config.server.host HTTP server host
 ## @param config.jwt.secret JWT secret key (use existingSecret instead)
@@ -104,6 +105,7 @@ config:
     user: fluxbase
     password: "" # Use existingSecret instead
     sslMode: disable
+    userMigrationsPath: "" # Optional: Path to user-provided migration files (e.g., /migrations/user)
   server:
     port: 8080
     host: "0.0.0.0"
@@ -643,6 +645,44 @@ functionsPersistence:
   ##
   selector: {}
   ## @param functionsPersistence.dataSource Custom PVC data source for functions
+  ##
+  dataSource: {}
+
+## Persistence for user migrations
+##
+migrationsPersistence:
+  ## @param migrationsPersistence.enabled Enable persistence for user migrations using Persistent Volume Claims
+  ##
+  enabled: false
+  ## @param migrationsPersistence.storageClass Storage class of backing PVC for user migrations
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.
+  ##
+  storageClass: ""
+  ## @param migrationsPersistence.annotations Persistent Volume Claim annotations for user migrations
+  ##
+  annotations: {}
+  ## @param migrationsPersistence.accessModes Persistent Volume Access Modes for user migrations
+  ##
+  accessModes:
+    - ReadWriteMany
+  ## @param migrationsPersistence.size Size of user migrations volume
+  ##
+  size: 100Mi
+  ## @param migrationsPersistence.existingClaim The name of an existing PVC to use for user migrations persistence
+  ##
+  existingClaim: ""
+  ## @param migrationsPersistence.selector Selector to match an existing Persistent Volume for user migrations data PVC
+  ## If set, the PVC can't have a PV dynamically provisioned for it
+  ## E.g.
+  ## selector:
+  ##   matchLabels:
+  ##     app: my-app
+  ##
+  selector: {}
+  ## @param migrationsPersistence.dataSource Custom PVC data source for user migrations
   ##
   dataSource: {}
 

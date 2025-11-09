@@ -30,7 +30,7 @@ type ClientMessage struct {
 	Event   string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
 	Schema  string                 `json:"schema,omitempty"`
 	Table   string                 `json:"table,omitempty"`
-	Filter  string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Filter  string                 `json:"filter,omitempty"`  // Supabase-compatible filter: column=operator.value
 	Filters map[string]interface{} `json:"filters,omitempty"` // Legacy simple filters (deprecated)
 	Payload json.RawMessage        `json:"payload,omitempty"`
 	Config  *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
@@ -38,9 +38,9 @@ type ClientMessage struct {
 
 // PostgresChangesConfig represents the config object in postgres_changes subscriptions
 type PostgresChangesConfig struct {
-	Event  string `json:"event"`  // INSERT, UPDATE, DELETE, or *
-	Schema string `json:"schema"` // Database schema
-	Table  string `json:"table"`  // Table name
+	Event  string `json:"event"`            // INSERT, UPDATE, DELETE, or *
+	Schema string `json:"schema"`           // Database schema
+	Table  string `json:"table"`            // Table name
 	Filter string `json:"filter,omitempty"` // Optional filter: column=operator.value
 }
 

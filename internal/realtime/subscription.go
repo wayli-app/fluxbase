@@ -18,10 +18,10 @@ type Subscription struct {
 	Role       string
 	Table      string
 	Schema     string
-	Event      string  // INSERT, UPDATE, DELETE, or * for all
-	Filter     *Filter // Supabase-compatible filter (column=operator.value)
+	Event      string                 // INSERT, UPDATE, DELETE, or * for all
+	Filter     *Filter                // Supabase-compatible filter (column=operator.value)
 	OldFilters map[string]interface{} // Legacy simple filters (deprecated)
-	ConnID     string // Connection ID this subscription belongs to
+	ConnID     string                 // Connection ID this subscription belongs to
 }
 
 // SubscriptionFilter represents filters for a subscription

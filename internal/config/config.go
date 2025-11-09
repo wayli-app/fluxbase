@@ -37,17 +37,18 @@ type ServerConfig struct {
 
 // DatabaseConfig contains PostgreSQL connection settings
 type DatabaseConfig struct {
-	Host            string        `mapstructure:"host"`
-	Port            int           `mapstructure:"port"`
-	User            string        `mapstructure:"user"`
-	Password        string        `mapstructure:"password"`
-	Database        string        `mapstructure:"database"`
-	SSLMode         string        `mapstructure:"ssl_mode"`
-	MaxConnections  int32         `mapstructure:"max_connections"`
-	MinConnections  int32         `mapstructure:"min_connections"`
-	MaxConnLifetime time.Duration `mapstructure:"max_conn_lifetime"`
-	MaxConnIdleTime time.Duration `mapstructure:"max_conn_idle_time"`
-	HealthCheck     time.Duration `mapstructure:"health_check_period"`
+	Host               string        `mapstructure:"host"`
+	Port               int           `mapstructure:"port"`
+	User               string        `mapstructure:"user"`
+	Password           string        `mapstructure:"password"`
+	Database           string        `mapstructure:"database"`
+	SSLMode            string        `mapstructure:"ssl_mode"`
+	MaxConnections     int32         `mapstructure:"max_connections"`
+	MinConnections     int32         `mapstructure:"min_connections"`
+	MaxConnLifetime    time.Duration `mapstructure:"max_conn_lifetime"`
+	MaxConnIdleTime    time.Duration `mapstructure:"max_conn_idle_time"`
+	HealthCheck        time.Duration `mapstructure:"health_check_period"`
+	UserMigrationsPath string        `mapstructure:"user_migrations_path"` // Path to user-provided migration files
 }
 
 // AuthConfig contains authentication settings
@@ -244,6 +245,7 @@ func setDefaults() {
 	viper.SetDefault("database.max_conn_lifetime", "1h")
 	viper.SetDefault("database.max_conn_idle_time", "30m")
 	viper.SetDefault("database.health_check_period", "1m")
+	viper.SetDefault("database.user_migrations_path", "") // Empty means no user migrations
 
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")

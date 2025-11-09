@@ -123,13 +123,14 @@ Environment variables take precedence over configuration file values.
 
 ### Database
 
-| Variable                 | Description                  | Default        | Example                                  |
-| ------------------------ | ---------------------------- | -------------- | ---------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string | **(required)** | `postgres://user:pass@localhost:5432/db` |
-| `DB_MAX_CONNECTIONS`     | Max connection pool size     | `100`          | `100`                                    |
-| `DB_IDLE_CONNECTIONS`    | Idle connections in pool     | `10`           | `10`                                     |
-| `DB_CONNECTION_LIFETIME` | Connection max lifetime      | `60m`          | `60m`                                    |
-| `DB_CONNECTION_TIMEOUT`  | Connection timeout           | `10s`          | `10s`                                    |
+| Variable                  | Description                  | Default         | Example                                  |
+| ------------------------- | ---------------------------- | --------------- | ---------------------------------------- |
+| `DATABASE_URL`            | PostgreSQL connection string | **(required)**  | `postgres://user:pass@localhost:5432/db` |
+| `DB_MAX_CONNECTIONS`      | Max connection pool size     | `100`           | `100`                                    |
+| `DB_IDLE_CONNECTIONS`     | Idle connections in pool     | `10`            | `10`                                     |
+| `DB_CONNECTION_LIFETIME`  | Connection max lifetime      | `60m`           | `60m`                                    |
+| `DB_CONNECTION_TIMEOUT`   | Connection timeout           | `10s`           | `10s`                                    |
+| `DB_USER_MIGRATIONS_PATH` | Path to user migrations      | `""` (disabled) | `/migrations/user`                       |
 
 **Connection String Format:**
 
