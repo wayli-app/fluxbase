@@ -271,6 +271,11 @@ func setDefaults() {
 	// Storage defaults
 	viper.SetDefault("storage.provider", "local")
 	viper.SetDefault("storage.local_path", "./storage")
+	viper.SetDefault("storage.s3_endpoint", "")
+	viper.SetDefault("storage.s3_access_key", "")
+	viper.SetDefault("storage.s3_secret_key", "")
+	viper.SetDefault("storage.s3_bucket", "")
+	viper.SetDefault("storage.s3_region", "")
 	viper.SetDefault("storage.max_upload_size", 2*1024*1024*1024) // 2GB
 
 	// Realtime defaults

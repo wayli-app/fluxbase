@@ -46,55 +46,56 @@ services:
   fluxbase:
     image: ghcr.io/wayli-app/fluxbase:latest
     container_name: fluxbase-api
-    build:
-      context: ..
-      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
       # Database Configuration
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: fluxbase
-      DB_USER: fluxbase
-      DB_PASSWORD: fluxbase
-      DB_SSL_MODE: disable
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_DATABASE: fluxbase
+      FLUXBASE_DATABASE_USER: fluxbase
+      FLUXBASE_DATABASE_PASSWORD: fluxbase
+      FLUXBASE_DATABASE_SSL_MODE: disable
 
       # User Migrations (optional - uncomment to enable)
-      # DB_USER_MIGRATIONS_PATH: /migrations/user
+      # FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
 
       # Server Configuration
-      SERVER_PORT: 8080
-      SERVER_HOST: 0.0.0.0
+      FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
 
       # JWT Configuration
-      JWT_SECRET: your-super-secret-jwt-key-change-me-in-production
-      JWT_EXPIRATION_MINUTES: 60
+      # ⚠️  CRITICAL SECURITY WARNING ⚠️
+      # The JWT secret below is a randomly generated example for development only.
+      # For production, you MUST generate a new secret using:
+      #   openssl rand -base64 32
+      # Never commit your production JWT secret to version control!
+      FLUXBASE_AUTH_JWT_SECRET: haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=
+      FLUXBASE_AUTH_JWT_EXPIRY: 15m
 
-      # Storage Configuration (using MinIO)
-      STORAGE_PROVIDER: s3
-      STORAGE_S3_BUCKET: fluxbase
-      STORAGE_S3_REGION: us-east-1
-      STORAGE_S3_ENDPOINT: http://minio:9000
-      STORAGE_S3_ACCESS_KEY_ID: minioadmin
-      STORAGE_S3_SECRET_ACCESS_KEY: minioadmin
+      # Storage Configuration (using local storage for development)
+      FLUXBASE_STORAGE_PROVIDER: local
+      FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
 
-      # Observability
-      LOG_LEVEL: info
-      LOG_FORMAT: json
-      METRICS_ENABLED: "true"
+      # For S3-compatible storage (e.g., MinIO), uncomment below and comment out local storage:
+      # FLUXBASE_STORAGE_PROVIDER: s3
+      # FLUXBASE_STORAGE_S3_BUCKET: fluxbase
+      # FLUXBASE_STORAGE_S3_REGION: us-east-1
+      # FLUXBASE_STORAGE_S3_ENDPOINT: http://minio:9000
+      # FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+      # FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
 
-      # Security
-      RATE_LIMIT_ENABLED: "true"
-      RATE_LIMIT_REQUESTS_PER_MINUTE: 100
+      # Realtime Configuration
+      FLUXBASE_REALTIME_ENABLED: "true"
 
-      # Service Keys (optional - for backend services only)
-      # Generate with: openssl rand -base64 32
-      # Format as: sk_live_<random> or sk_test_<random>
-      # Then add to auth.service_keys table with bcrypt hash
-      # Uncomment to use:
-      # FLUXBASE_SERVICE_KEY: sk_test_your_service_key_here
+      # Edge Functions Configuration
+      FLUXBASE_FUNCTIONS_ENABLED: "true"
+      FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /app/functions
+
+      # General Configuration
+      FLUXBASE_BASE_URL: http://localhost:8080
+      FLUXBASE_DEBUG: "false"
     volumes:
+      - storage_data:/app/storage
       - functions_data:/app/functions
       # Uncomment to enable user migrations:
       # - ./migrations/user:/migrations/user:ro
@@ -125,6 +126,8 @@ volumes:
   postgres_data:
     driver: local
   minio_data:
+    driver: local
+  storage_data:
     driver: local
   functions_data:
     driver: local
