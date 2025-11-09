@@ -13,13 +13,15 @@ import (
 
 // Subscription represents an RLS-aware subscription to table changes
 type Subscription struct {
-	ID      string
-	UserID  string
-	Role    string
-	Table   string
-	Schema  string
-	Filters map[string]interface{}
-	ConnID  string // Connection ID this subscription belongs to
+	ID         string
+	UserID     string
+	Role       string
+	Table      string
+	Schema     string
+	Event      string  // INSERT, UPDATE, DELETE, or * for all
+	Filter     *Filter // Supabase-compatible filter (column=operator.value)
+	OldFilters map[string]interface{} // Legacy simple filters (deprecated)
+	ConnID     string // Connection ID this subscription belongs to
 }
 
 // SubscriptionFilter represents filters for a subscription
@@ -56,7 +58,9 @@ func (sm *SubscriptionManager) CreateSubscription(
 	role string,
 	schema string,
 	table string,
-	filters map[string]interface{},
+	event string,
+	filterStr string,
+	legacyFilters map[string]interface{},
 ) (*Subscription, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -66,14 +70,27 @@ func (sm *SubscriptionManager) CreateSubscription(
 		return nil, fmt.Errorf("table %s.%s not enabled for realtime", schema, table)
 	}
 
+	// Parse Supabase-compatible filter
+	filter, err := ParseFilter(filterStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid filter: %w", err)
+	}
+
+	// Default event to "*" (all events)
+	if event == "" {
+		event = "*"
+	}
+
 	sub := &Subscription{
-		ID:      subID,
-		UserID:  userID,
-		Role:    role,
-		Table:   table,
-		Schema:  schema,
-		Filters: filters,
-		ConnID:  connID,
+		ID:         subID,
+		UserID:     userID,
+		Role:       role,
+		Table:      table,
+		Schema:     schema,
+		Event:      event,
+		Filter:     filter,
+		OldFilters: legacyFilters,
+		ConnID:     connID,
 	}
 
 	// Store subscription
@@ -186,16 +203,44 @@ func (sm *SubscriptionManager) FilterEventForSubscribers(ctx context.Context, ev
 			continue
 		}
 
+		// Check if event type matches subscription
+		if !sm.matchesEvent(event.Type, sub.Event) {
+			continue
+		}
+
 		// Check RLS access
 		if sm.checkRLSAccess(ctx, sub, event) {
-			// Check additional filters
-			if sm.matchesFilters(event, sub.Filters) {
+			// Check Supabase-compatible filter
+			if sm.matchesFilter(event, sub) {
 				result[sub.ConnID] = event
 			}
 		}
 	}
 
 	return result
+}
+
+// matchesEvent checks if an event type matches the subscription event filter
+func (sm *SubscriptionManager) matchesEvent(eventType, subEvent string) bool {
+	if subEvent == "*" {
+		return true
+	}
+	return eventType == subEvent
+}
+
+// matchesFilter checks if an event matches the subscription filter
+func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscription) bool {
+	// Use new Supabase-compatible filter if present
+	if sub.Filter != nil {
+		record := event.Record
+		if record == nil {
+			record = event.OldRecord
+		}
+		return sub.Filter.Matches(record)
+	}
+
+	// Fall back to legacy filters for backwards compatibility
+	return sm.matchesFilters(event, sub.OldFilters)
 }
 
 // checkRLSAccess verifies if a user can access a record based on RLS policies

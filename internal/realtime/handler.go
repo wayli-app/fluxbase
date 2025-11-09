@@ -27,10 +27,21 @@ const (
 type ClientMessage struct {
 	Type    MessageType            `json:"type"`
 	Channel string                 `json:"channel,omitempty"`
+	Event   string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
 	Schema  string                 `json:"schema,omitempty"`
 	Table   string                 `json:"table,omitempty"`
-	Filters map[string]interface{} `json:"filters,omitempty"`
+	Filter  string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Filters map[string]interface{} `json:"filters,omitempty"` // Legacy simple filters (deprecated)
 	Payload json.RawMessage        `json:"payload,omitempty"`
+	Config  *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
+}
+
+// PostgresChangesConfig represents the config object in postgres_changes subscriptions
+type PostgresChangesConfig struct {
+	Event  string `json:"event"`  // INSERT, UPDATE, DELETE, or *
+	Schema string `json:"schema"` // Database schema
+	Table  string `json:"table"`  // Table name
+	Filter string `json:"filter,omitempty"` // Optional filter: column=operator.value
 }
 
 // ServerMessage represents a message to the client
@@ -158,8 +169,25 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	switch msg.Type {
 	case MessageTypeSubscribe:
-		// All subscriptions must be RLS-aware table subscriptions
-		if msg.Table == "" {
+		// Extract subscription details from either direct fields or config object
+		var event, schema, table, filter string
+
+		if msg.Config != nil {
+			// New format: { type: "subscribe", channel: "...", config: { event, schema, table, filter } }
+			event = msg.Config.Event
+			schema = msg.Config.Schema
+			table = msg.Config.Table
+			filter = msg.Config.Filter
+		} else {
+			// Legacy format: { type: "subscribe", event, schema, table, filter }
+			event = msg.Event
+			schema = msg.Schema
+			table = msg.Table
+			filter = msg.Filter
+		}
+
+		// Validate table is provided
+		if table == "" {
 			_ = conn.SendMessage(ServerMessage{
 				Type:  MessageTypeError,
 				Error: "table is required for subscribe",
@@ -176,9 +204,14 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			return
 		}
 
-		schema := msg.Schema
+		// Default schema to "public"
 		if schema == "" {
-			schema = "public" // Default schema
+			schema = "public"
+		}
+
+		// Default event to "*" (all events)
+		if event == "" {
+			event = "*"
 		}
 
 		// Get user's role from connection or default to "authenticated"
@@ -193,8 +226,10 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			*conn.UserID,
 			role,
 			schema,
-			msg.Table,
-			msg.Filters,
+			table,
+			event,
+			filter,
+			msg.Filters, // Legacy filters for backwards compatibility
 		)
 
 		if err != nil {
@@ -205,14 +240,21 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			return
 		}
 
+		// Send acknowledgment
+		ackPayload := map[string]interface{}{
+			"subscribed":      true,
+			"subscription_id": subID,
+			"schema":          schema,
+			"table":           table,
+			"event":           event,
+		}
+		if filter != "" {
+			ackPayload["filter"] = filter
+		}
+
 		_ = conn.SendMessage(ServerMessage{
-			Type: MessageTypeAck,
-			Payload: map[string]interface{}{
-				"subscribed":      true,
-				"subscription_id": subID,
-				"schema":          schema,
-				"table":           msg.Table,
-			},
+			Type:    MessageTypeAck,
+			Payload: ackPayload,
 		})
 
 	case MessageTypeUnsubscribe:

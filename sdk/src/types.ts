@@ -182,8 +182,20 @@ export interface OrderBy {
 export interface RealtimeMessage {
   type: 'subscribe' | 'unsubscribe' | 'heartbeat' | 'broadcast' | 'ack' | 'error'
   channel?: string
+  event?: string // INSERT, UPDATE, DELETE, or *
+  schema?: string
+  table?: string
+  filter?: string // Supabase-compatible filter: column=operator.value
   payload?: unknown
   error?: string
+  config?: PostgresChangesConfig // Alternative format for postgres_changes
+}
+
+export interface PostgresChangesConfig {
+  event: 'INSERT' | 'UPDATE' | 'DELETE' | '*'
+  schema: string
+  table: string
+  filter?: string // Optional filter: column=operator.value
 }
 
 export interface RealtimeChangePayload {

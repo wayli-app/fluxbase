@@ -2,7 +2,12 @@
  * Realtime subscriptions using WebSockets
  */
 
-import type { RealtimeCallback, RealtimeChangePayload, RealtimeMessage } from './types'
+import type {
+  RealtimeCallback,
+  RealtimeChangePayload,
+  RealtimeMessage,
+  PostgresChangesConfig,
+} from './types'
 
 export class RealtimeChannel {
   private ws: WebSocket | null = null
@@ -10,6 +15,7 @@ export class RealtimeChannel {
   private token: string | null
   private channelName: string
   private callbacks: Map<string, Set<RealtimeCallback>> = new Map()
+  private subscriptionConfig: PostgresChangesConfig | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 10
   private reconnectDelay = 1000
@@ -22,15 +28,72 @@ export class RealtimeChannel {
   }
 
   /**
-   * Listen to a specific event type
+   * Listen to postgres_changes with optional row-level filtering
+   *
+   * @param event - 'postgres_changes'
+   * @param config - Configuration including optional filter
+   * @param callback - Function to call when changes occur
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.on('postgres_changes', {
+   *   event: '*',
+   *   schema: 'public',
+   *   table: 'jobs',
+   *   filter: 'created_by=eq.user123'
+   * }, (payload) => {
+   *   console.log('Job updated:', payload)
+   * })
+   * ```
+   */
+  on(event: 'postgres_changes', config: PostgresChangesConfig, callback: RealtimeCallback): this
+
+  /**
+   * Listen to a specific event type (backwards compatibility)
+   *
    * @param event - The event type (INSERT, UPDATE, DELETE, or '*' for all)
    * @param callback - The callback function
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.on('INSERT', (payload) => {
+   *   console.log('New record inserted:', payload.new_record)
+   * })
+   * ```
    */
-  on(event: 'INSERT' | 'UPDATE' | 'DELETE' | '*', callback: RealtimeCallback): this {
-    if (!this.callbacks.has(event)) {
-      this.callbacks.set(event, new Set())
+  on(event: 'INSERT' | 'UPDATE' | 'DELETE' | '*', callback: RealtimeCallback): this
+
+  // Implementation
+  on(
+    event: 'postgres_changes' | 'INSERT' | 'UPDATE' | 'DELETE' | '*',
+    configOrCallback: PostgresChangesConfig | RealtimeCallback,
+    callback?: RealtimeCallback
+  ): this {
+    if (event === 'postgres_changes' && typeof configOrCallback !== 'function') {
+      // New API: on('postgres_changes', config, callback)
+      const config = configOrCallback as PostgresChangesConfig
+      this.subscriptionConfig = config
+      const actualCallback = callback!
+
+      // Store callback with event type
+      const eventType = config.event
+      if (!this.callbacks.has(eventType)) {
+        this.callbacks.set(eventType, new Set())
+      }
+      this.callbacks.get(eventType)!.add(actualCallback)
+    } else {
+      // Old API: on('INSERT', callback)
+      const actualEvent = event as 'INSERT' | 'UPDATE' | 'DELETE' | '*'
+      const actualCallback = configOrCallback as RealtimeCallback
+
+      if (!this.callbacks.has(actualEvent)) {
+        this.callbacks.set(actualEvent, new Set())
+      }
+      this.callbacks.get(actualEvent)!.add(actualCallback)
     }
-    this.callbacks.get(event)!.add(callback)
+
     return this
   }
 
@@ -89,11 +152,18 @@ export class RealtimeChannel {
       console.log('[Fluxbase Realtime] Connected')
       this.reconnectAttempts = 0
 
-      // Subscribe to channel
-      this.send({
+      // Subscribe to channel with optional config
+      const subscribeMessage: RealtimeMessage = {
         type: 'subscribe',
         channel: this.channelName,
-      })
+      }
+
+      // Add subscription config if using new postgres_changes API
+      if (this.subscriptionConfig) {
+        subscribeMessage.config = this.subscriptionConfig
+      }
+
+      this.send(subscribeMessage)
 
       // Start heartbeat
       this.startHeartbeat()
