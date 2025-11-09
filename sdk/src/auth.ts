@@ -23,6 +23,9 @@ import type {
   OAuthProvidersResponse,
   OAuthOptions,
   OAuthUrlResponse,
+  AuthChangeEvent,
+  AuthStateChangeCallback,
+  AuthSubscription,
 } from './types'
 
 const AUTH_STORAGE_KEY = 'fluxbase.auth.session'
@@ -33,6 +36,7 @@ export class FluxbaseAuth {
   private persist: boolean
   private autoRefresh: boolean
   private refreshTimer: ReturnType<typeof setTimeout> | null = null
+  private stateChangeListeners: Set<AuthStateChangeCallback> = new Set()
 
   constructor(fetch: FluxbaseFetch, autoRefresh = true, persist = true) {
     this.fetch = fetch
@@ -76,6 +80,31 @@ export class FluxbaseAuth {
    */
   getAccessToken(): string | null {
     return this.session?.access_token ?? null
+  }
+
+  /**
+   * Listen to auth state changes
+   * @param callback - Function called when auth state changes
+   * @returns Subscription object with unsubscribe method
+   *
+   * @example
+   * ```typescript
+   * const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+   *   console.log('Auth event:', event, session)
+   * })
+   *
+   * // Later, to unsubscribe:
+   * subscription.unsubscribe()
+   * ```
+   */
+  onAuthStateChange(callback: AuthStateChangeCallback): AuthSubscription {
+    this.stateChangeListeners.add(callback)
+
+    return {
+      unsubscribe: () => {
+        this.stateChangeListeners.delete(callback)
+      },
+    }
   }
 
   /**
@@ -147,7 +176,7 @@ export class FluxbaseAuth {
       expires_at: Date.now() + response.expires_in * 1000,
     }
 
-    this.setSession(session)
+    this.setSession(session, 'TOKEN_REFRESHED')
     return session
   }
 
@@ -176,6 +205,7 @@ export class FluxbaseAuth {
     if (this.session) {
       this.session.user = user
       this.saveSession()
+      this.emitAuthChange('USER_UPDATED', this.session)
     }
 
     return user
@@ -250,7 +280,7 @@ export class FluxbaseAuth {
       expires_at: Date.now() + response.expires_in * 1000,
     }
 
-    this.setSession(session)
+    this.setSession(session, 'MFA_CHALLENGE_VERIFIED')
     return session
   }
 
@@ -399,11 +429,12 @@ export class FluxbaseAuth {
   /**
    * Internal: Set the session and persist it
    */
-  private setSession(session: AuthSession) {
+  private setSession(session: AuthSession, event: AuthChangeEvent = 'SIGNED_IN') {
     this.session = session
     this.fetch.setAuthToken(session.access_token)
     this.saveSession()
     this.scheduleTokenRefresh()
+    this.emitAuthChange(event, session)
   }
 
   /**
@@ -421,6 +452,8 @@ export class FluxbaseAuth {
       clearTimeout(this.refreshTimer)
       this.refreshTimer = null
     }
+
+    this.emitAuthChange('SIGNED_OUT', null)
   }
 
   /**
@@ -457,5 +490,18 @@ export class FluxbaseAuth {
         })
       }, delay)
     }
+  }
+
+  /**
+   * Internal: Emit auth state change event to all listeners
+   */
+  private emitAuthChange(event: AuthChangeEvent, session: AuthSession | null) {
+    this.stateChangeListeners.forEach((callback) => {
+      try {
+        callback(event, session)
+      } catch (error) {
+        console.error('Error in auth state change listener:', error)
+      }
+    })
   }
 }

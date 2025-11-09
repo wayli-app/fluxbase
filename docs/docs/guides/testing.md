@@ -1267,12 +1267,12 @@ docker run --network="host" -i grafana/k6 run - <test/k6/load-test.js
 
 Fluxbase provides comprehensive testing infrastructure:
 
-✅ **Backend Testing**: Unit, integration, E2E, performance tests with Go
-✅ **SDK Testing**: Vitest-based TypeScript testing with mocking
-✅ **Test Helpers**: TestContext, HTTP builders, database utilities
-✅ **CI/CD Integration**: Automated tests on every push
-✅ **Coverage Reporting**: Track test coverage over time
-✅ **Performance Testing**: Benchmarks and load tests
-✅ **Debugging Tools**: Race detector, verbose logging, debugger support
+- ✅ **Backend Testing**: Unit, integration, E2E, performance tests with Go
+- ✅ **SDK Testing**: Vitest-based TypeScript testing with mocking
+- ✅ **Test Helpers**: TestContext, HTTP builders, database utilities
+- ✅ **CI/CD Integration**: Automated tests on every push
+- ✅ **Coverage Reporting**: Track test coverage over time
+- ✅ **Performance Testing**: Benchmarks and load tests
+- ✅ **Debugging Tools**: Race detector, verbose logging, debugger support
 
 Write tests early, test all paths (happy and error), maintain high coverage, and run tests frequently to ensure code quality and prevent regressions.

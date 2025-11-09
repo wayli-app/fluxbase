@@ -33,32 +33,32 @@ auth:
   password_require_lowercase: true
   password_require_number: true
   password_require_special: true
-  password_max_age_days: 90  # Force password rotation
+  password_max_age_days: 90 # Force password rotation
 ```
 
 **Client-side validation:**
 
 ```typescript
 function validatePassword(password: string): string[] {
-  const errors: string[] = []
+  const errors: string[] = [];
 
   if (password.length < 12) {
-    errors.push('Password must be at least 12 characters')
+    errors.push("Password must be at least 12 characters");
   }
   if (!/[A-Z]/.test(password)) {
-    errors.push('Password must contain an uppercase letter')
+    errors.push("Password must contain an uppercase letter");
   }
   if (!/[a-z]/.test(password)) {
-    errors.push('Password must contain a lowercase letter')
+    errors.push("Password must contain a lowercase letter");
   }
   if (!/[0-9]/.test(password)) {
-    errors.push('Password must contain a number')
+    errors.push("Password must contain a number");
   }
   if (!/[!@#$%^&*]/.test(password)) {
-    errors.push('Password must contain a special character')
+    errors.push("Password must contain a special character");
   }
 
-  return errors
+  return errors;
 }
 ```
 
@@ -66,13 +66,13 @@ function validatePassword(password: string): string[] {
 
 ```typescript
 // Enable 2FA for user
-const { qr_code, secret } = await client.auth.setup2FA()
+const { qr_code, secret } = await client.auth.setup2FA();
 
 // Display QR code to user
-showQRCode(qr_code)
+showQRCode(qr_code);
 
 // Verify and enable
-await client.auth.enable2FA({ code: userEnteredCode })
+await client.auth.enable2FA({ code: userEnteredCode });
 ```
 
 **Enforce 2FA for sensitive operations:**
@@ -87,8 +87,8 @@ auth:
 
 ```yaml
 auth:
-  access_token_expiry: "15m"  # Short-lived access tokens
-  refresh_token_expiry: "7d"   # Longer refresh tokens
+  access_token_expiry: "15m" # Short-lived access tokens
+  refresh_token_expiry: "7d" # Longer refresh tokens
   refresh_token_rotation: true # Rotate on each use
 ```
 
@@ -96,12 +96,12 @@ auth:
 
 ```typescript
 // Logout revokes tokens
-await client.auth.signOut()  // Token added to blacklist
+await client.auth.signOut(); // Token added to blacklist
 
 // Verify token isn't blacklisted in middleware
-const isBlacklisted = await checkTokenBlacklist(token)
+const isBlacklisted = await checkTokenBlacklist(token);
 if (isBlacklisted) {
-  throw new Error('Token has been revoked')
+  throw new Error("Token has been revoked");
 }
 ```
 
@@ -111,7 +111,7 @@ if (isBlacklisted) {
 auth:
   max_login_attempts: 5
   lockout_duration: "15m"
-  lockout_type: "ip_and_email"  # Lock both IP and email
+  lockout_type: "ip_and_email" # Lock both IP and email
 ```
 
 ### 6. Implement Row Level Security
@@ -162,7 +162,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
 database:
   url: "postgres://user:pass@host:5432/db?sslmode=require"
   max_connections: 50
-  ssl_mode: "require"  # or "verify-full" for production
+  ssl_mode: "require" # or "verify-full" for production
 ```
 
 **PostgreSQL SSL Configuration:**
@@ -217,13 +217,13 @@ SELECT pg_reload_conf();
 ```typescript
 // ✅ GOOD: Parameterized queries
 const { data } = await client
-  .from('users')
-  .select('*')
-  .eq('email', userEmail)  // Safely parameterized
-  .execute()
+  .from("users")
+  .select("*")
+  .eq("email", userEmail) // Safely parameterized
+  .execute();
 
 // ❌ BAD: String concatenation
-const query = `SELECT * FROM users WHERE email = '${userEmail}'`
+const query = `SELECT * FROM users WHERE email = '${userEmail}'`;
 // NEVER DO THIS!
 ```
 
@@ -241,7 +241,7 @@ server:
     enabled: true
     cert_file: /etc/letsencrypt/live/example.com/fullchain.pem
     key_file: /etc/letsencrypt/live/example.com/privkey.pem
-    min_version: "1.2"  # TLS 1.2 minimum
+    min_version: "1.2" # TLS 1.2 minimum
 ```
 
 **Automatic certificate renewal with Let's Encrypt:**
@@ -324,7 +324,7 @@ server:
 
     allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allowed_headers: ["Content-Type", "Authorization", "X-CSRF-Token"]
-    allow_credentials: true  # Required for cookies
+    allow_credentials: true # Required for cookies
     max_age: 3600
 ```
 
@@ -425,17 +425,17 @@ env:
 **AWS Secrets Manager:**
 
 ```typescript
-import { SecretsManager } from '@aws-sdk/client-secrets-manager'
+import { SecretsManager } from "@aws-sdk/client-secrets-manager";
 
-const client = new SecretsManager({ region: 'us-east-1' })
+const client = new SecretsManager({ region: "us-east-1" });
 
 async function getSecret(secretName: string): Promise<string> {
-  const response = await client.getSecretValue({ SecretId: secretName })
-  return response.SecretString || ''
+  const response = await client.getSecretValue({ SecretId: secretName });
+  return response.SecretString || "";
 }
 
 // Use in application
-const jwtSecret = await getSecret('fluxbase/jwt-secret')
+const jwtSecret = await getSecret("fluxbase/jwt-secret");
 ```
 
 ### 4. Rotate Secrets Regularly
@@ -494,92 +494,92 @@ roleRef:
 ### 1. Validate All User Input
 
 ```typescript
-import validator from 'validator'
+import validator from "validator";
 
 interface CreateUserInput {
-  email: string
-  name: string
-  age?: number
-  website?: string
+  email: string;
+  name: string;
+  age?: number;
+  website?: string;
 }
 
 function validateUserInput(input: CreateUserInput): string[] {
-  const errors: string[] = []
+  const errors: string[] = [];
 
   // Email validation
   if (!validator.isEmail(input.email)) {
-    errors.push('Invalid email address')
+    errors.push("Invalid email address");
   }
 
   // Name validation
   if (!input.name || input.name.length < 2 || input.name.length > 100) {
-    errors.push('Name must be between 2 and 100 characters')
+    errors.push("Name must be between 2 and 100 characters");
   }
 
   // Age validation
   if (input.age !== undefined) {
     if (!Number.isInteger(input.age) || input.age < 0 || input.age > 150) {
-      errors.push('Age must be between 0 and 150')
+      errors.push("Age must be between 0 and 150");
     }
   }
 
   // URL validation
   if (input.website && !validator.isURL(input.website)) {
-    errors.push('Invalid website URL')
+    errors.push("Invalid website URL");
   }
 
-  return errors
+  return errors;
 }
 ```
 
 ### 2. Sanitize User Input
 
 ```typescript
-import DOMPurify from 'isomorphic-dompurify'
+import DOMPurify from "isomorphic-dompurify";
 
 // Sanitize HTML
-const safeHTML = DOMPurify.sanitize(userInput)
+const safeHTML = DOMPurify.sanitize(userInput);
 
 // Escape for SQL (use parameterized queries instead!)
-import escape from 'pg-escape'
+import escape from "pg-escape";
 
 // Validate and sanitize file uploads
 function validateUpload(file: File): boolean {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
-  const maxSize = 5 * 1024 * 1024 // 5MB
+  const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+  const maxSize = 5 * 1024 * 1024; // 5MB
 
   if (!allowedTypes.includes(file.type)) {
-    throw new Error('Invalid file type')
+    throw new Error("Invalid file type");
   }
 
   if (file.size > maxSize) {
-    throw new Error('File too large')
+    throw new Error("File too large");
   }
 
-  return true
+  return true;
 }
 ```
 
 ### 3. Use Type Validation Libraries
 
 ```typescript
-import { z } from 'zod'
+import { z } from "zod";
 
 // Define schema
 const userSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2).max(100),
   age: z.number().int().min(0).max(150).optional(),
-  website: z.string().url().optional()
-})
+  website: z.string().url().optional(),
+});
 
 // Validate input
 try {
-  const validatedData = userSchema.parse(userInput)
+  const validatedData = userSchema.parse(userInput);
   // Use validatedData safely
 } catch (error) {
   if (error instanceof z.ZodError) {
-    console.error('Validation errors:', error.errors)
+    console.error("Validation errors:", error.errors);
   }
 }
 ```
@@ -588,11 +588,15 @@ try {
 
 ```typescript
 // Client-side debouncing
-import { debounce } from 'lodash'
+import { debounce } from "lodash";
 
-const debouncedSubmit = debounce(async (data) => {
-  await submitForm(data)
-}, 1000, { leading: true, trailing: false })
+const debouncedSubmit = debounce(
+  async (data) => {
+    await submitForm(data);
+  },
+  1000,
+  { leading: true, trailing: false }
+);
 ```
 
 ---
@@ -604,23 +608,23 @@ const debouncedSubmit = debounce(async (data) => {
 ```typescript
 // ✅ GOOD: Generic error messages
 try {
-  await client.auth.signIn({ email, password })
+  await client.auth.signIn({ email, password });
 } catch (error) {
-  throw new Error('Invalid email or password')
+  throw new Error("Invalid email or password");
 }
 
 // ❌ BAD: Reveals whether user exists
 try {
-  const user = await findUser(email)
+  const user = await findUser(email);
   if (!user) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
   if (!verifyPassword(password, user.password_hash)) {
-    throw new Error('Incorrect password')
+    throw new Error("Incorrect password");
   }
 } catch (error) {
   // Reveals too much information
-  throw error
+  throw error;
 }
 ```
 
@@ -628,18 +632,18 @@ try {
 
 ```typescript
 // ✅ GOOD: Log without sensitive data
-logger.error('Authentication failed', {
+logger.error("Authentication failed", {
   ip: req.ip,
-  user_agent: req.headers['user-agent'],
-  timestamp: new Date().toISOString()
-})
+  user_agent: req.headers["user-agent"],
+  timestamp: new Date().toISOString(),
+});
 
 // ❌ BAD: Logs sensitive data
-logger.error('Authentication failed', {
+logger.error("Authentication failed", {
   email: req.body.email,
-  password: req.body.password,  // NEVER LOG PASSWORDS!
-  token: req.headers.authorization
-})
+  password: req.body.password, // NEVER LOG PASSWORDS!
+  token: req.headers.authorization,
+});
 ```
 
 ### 3. Implement Error Boundaries
@@ -648,16 +652,17 @@ logger.error('Authentication failed', {
 // Global error handler
 app.use((err: Error, req, res, next) => {
   // Log full error internally
-  logger.error('Unhandled error', { error: err, stack: err.stack })
+  logger.error("Unhandled error", { error: err, stack: err.stack });
 
   // Return generic error to client
   res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development'
-      ? err.message
-      : 'An unexpected error occurred'
-  })
-})
+    error: "Internal server error",
+    message:
+      process.env.NODE_ENV === "development"
+        ? err.message
+        : "An unexpected error occurred",
+  });
+});
 ```
 
 ---
@@ -689,41 +694,41 @@ logging:
 const alerts = {
   failed_logins: {
     threshold: 10,
-    window: '5m',
-    action: 'notify_admin'
+    window: "5m",
+    action: "notify_admin",
   },
   unusual_api_activity: {
     threshold: 1000,
-    window: '1m',
-    action: 'rate_limit'
+    window: "1m",
+    action: "rate_limit",
   },
   admin_actions: {
     threshold: 1,
-    window: '0s',
-    action: 'log_and_notify'
-  }
-}
+    window: "0s",
+    action: "log_and_notify",
+  },
+};
 ```
 
 ### 3. Use Structured Logging
 
 ```typescript
-import winston from 'winston'
+import winston from "winston";
 
 const logger = winston.createLogger({
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
-})
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
+  ],
+});
 
-logger.info('User logged in', {
+logger.info("User logged in", {
   user_id: user.id,
   ip: req.ip,
-  user_agent: req.headers['user-agent'],
-  timestamp: new Date().toISOString()
-})
+  user_agent: req.headers["user-agent"],
+  timestamp: new Date().toISOString(),
+});
 ```
 
 ### 4. Monitor Performance Metrics
@@ -785,7 +790,7 @@ CMD ["node", "server.js"]
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     read_only: true
     tmpfs:
       - /tmp
@@ -801,10 +806,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
 ```
 
@@ -822,13 +827,13 @@ spec:
         runAsUser: 1001
         fsGroup: 1001
       containers:
-      - name: fluxbase
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-              - ALL
+        - name: fluxbase
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
 ```
 
 ---
@@ -841,29 +846,34 @@ spec:
 # Incident Response Plan
 
 ## Detection
+
 - Monitor logs for suspicious activity
 - Set up automated alerts
 - Regular security audits
 
 ## Containment
+
 1. Isolate affected systems
 2. Block malicious IPs
 3. Revoke compromised credentials
 4. Enable additional logging
 
 ## Eradication
+
 1. Identify root cause
 2. Patch vulnerabilities
 3. Remove malicious code
 4. Update security rules
 
 ## Recovery
+
 1. Restore from clean backups
 2. Verify system integrity
 3. Monitor for persistence
 4. Gradually restore services
 
 ## Post-Incident
+
 1. Document incident
 2. Update security measures
 3. Train team members
@@ -968,14 +978,14 @@ external_contacts:
 
 Security is a continuous process, not a one-time task:
 
-✅ **Authentication**: Strong passwords, 2FA, short-lived tokens
-✅ **Authorization**: RLS, RBAC, least privilege
-✅ **Network**: HTTPS, firewall, rate limiting
-✅ **Secrets**: Environment variables, secrets management
-✅ **Validation**: Input validation, sanitization, type checking
-✅ **Errors**: Generic messages, secure logging
-✅ **Monitoring**: Audit logs, alerts, metrics
-✅ **Deployment**: Container security, non-root user
-✅ **Response**: Incident plan, recovery procedures
+- ✅ **Authentication**: Strong passwords, 2FA, short-lived tokens
+- ✅ **Authorization**: RLS, RBAC, least privilege
+- ✅ **Network**: HTTPS, firewall, rate limiting
+- ✅ **Secrets**: Environment variables, secrets management
+- ✅ **Validation**: Input validation, sanitization, type checking
+- ✅ **Errors**: Generic messages, secure logging
+- ✅ **Monitoring**: Audit logs, alerts, metrics
+- ✅ **Deployment**: Container security, non-root user
+- ✅ **Response**: Incident plan, recovery procedures
 
 Follow these best practices and stay vigilant to maintain a secure Fluxbase instance.

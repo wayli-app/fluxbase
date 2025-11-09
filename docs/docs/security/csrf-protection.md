@@ -68,7 +68,7 @@ security:
     token_length: 32
     token_lookup: "header:X-CSRF-Token"
     cookie_name: "csrf_token"
-    cookie_secure: true  # Set to true in production
+    cookie_secure: true # Set to true in production
     cookie_http_only: true
     cookie_same_site: "Strict"
     expiration: "24h"
@@ -86,16 +86,16 @@ FLUXBASE_SECURITY_CSRF_COOKIE_SAME_SITE=Strict
 
 ### Configuration Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `true` | Enable/disable CSRF protection |
-| `token_length` | `32` | Length of CSRF token in bytes |
-| `token_lookup` | `header:X-CSRF-Token` | Where to find the token in requests |
-| `cookie_name` | `csrf_token` | Name of the CSRF cookie |
-| `cookie_secure` | `false` | Mark cookie as HTTPS-only |
-| `cookie_http_only` | `true` | Prevent JavaScript access to cookie |
-| `cookie_same_site` | `Strict` | SameSite attribute (`Strict`, `Lax`, `None`) |
-| `expiration` | `24h` | How long tokens are valid |
+| Option             | Default               | Description                                  |
+| ------------------ | --------------------- | -------------------------------------------- |
+| `enabled`          | `true`                | Enable/disable CSRF protection               |
+| `token_length`     | `32`                  | Length of CSRF token in bytes                |
+| `token_lookup`     | `header:X-CSRF-Token` | Where to find the token in requests          |
+| `cookie_name`      | `csrf_token`          | Name of the CSRF cookie                      |
+| `cookie_secure`    | `false`               | Mark cookie as HTTPS-only                    |
+| `cookie_http_only` | `true`                | Prevent JavaScript access to cookie          |
+| `cookie_same_site` | `Strict`              | SameSite attribute (`Strict`, `Lax`, `None`) |
+| `expiration`       | `24h`                 | How long tokens are valid                    |
 
 ### SameSite Cookie Attributes
 
@@ -124,37 +124,37 @@ cookie_secure: true
 ```typescript
 // 1. Get CSRF token from cookie
 function getCsrfToken(): string | null {
-  const match = document.cookie.match(/csrf_token=([^;]+)/)
-  return match ? match[1] : null
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : null;
 }
 
 // 2. Include token in requests
 async function makeRequest(url: string, data: any) {
-  const csrfToken = getCsrfToken()
+  const csrfToken = getCsrfToken();
 
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken || '',  // Include CSRF token
-      'Authorization': `Bearer ${accessToken}`
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken || "", // Include CSRF token
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(data),
-    credentials: 'include'  // Include cookies
-  })
+    credentials: "include", // Include cookies
+  });
 
   if (!response.ok) {
-    throw new Error('Request failed')
+    throw new Error("Request failed");
   }
 
-  return response.json()
+  return response.json();
 }
 
 // Example usage
-makeRequest('/api/v1/tables/users', {
-  name: 'John Doe',
-  email: 'john@example.com'
-})
+makeRequest("/api/v1/tables/users", {
+  name: "John Doe",
+  email: "john@example.com",
+});
 ```
 
 ### Fluxbase SDK (Automatic)
@@ -162,64 +162,67 @@ makeRequest('/api/v1/tables/users', {
 The Fluxbase SDK handles CSRF tokens automatically:
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
 const client = createClient({
-  url: 'http://localhost:8080'
-})
+  url: "http://localhost:8080",
+});
 
 // CSRF token is automatically included
-await client.from('users').insert({
-  name: 'John Doe',
-  email: 'john@example.com'
-}).execute()
+await client
+  .from("users")
+  .insert({
+    name: "John Doe",
+    email: "john@example.com",
+  })
+  .execute();
 ```
 
 ### React Example
 
 ```tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 
 function getCsrfToken(): string | null {
-  const match = document.cookie.match(/csrf_token=([^;]+)/)
-  return match ? match[1] : null
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : null;
 }
 
 function UserForm() {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null)
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
     // Get CSRF token on mount
-    setCsrfToken(getCsrfToken())
-  }, [])
+    setCsrfToken(getCsrfToken());
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    const response = await fetch('/api/v1/tables/users', {
-      method: 'POST',
+    const response = await fetch("/api/v1/tables/users", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': csrfToken || '',
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken || "",
       },
       body: JSON.stringify({
-        name: 'John Doe',
-        email: 'john@example.com'
+        name: "John Doe",
+        email: "john@example.com",
       }),
-      credentials: 'include'
-    })
+      credentials: "include",
+    });
 
     if (!response.ok) {
-      console.error('Request failed')
+      console.error("Request failed");
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit}>
       {/* Form fields */}
       <button type="submit">Submit</button>
     </form>
-  )
+  );
 }
 ```
 
@@ -237,63 +240,63 @@ function UserForm() {
 export default {
   methods: {
     getCsrfToken() {
-      const match = document.cookie.match(/csrf_token=([^;]+)/)
-      return match ? match[1] : null
+      const match = document.cookie.match(/csrf_token=([^;]+)/);
+      return match ? match[1] : null;
     },
 
     async handleSubmit() {
-      const csrfToken = this.getCsrfToken()
+      const csrfToken = this.getCsrfToken();
 
-      const response = await fetch('/api/v1/tables/users', {
-        method: 'POST',
+      const response = await fetch("/api/v1/tables/users", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken || '',
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken || "",
         },
         body: JSON.stringify({
-          name: 'John Doe',
-          email: 'john@example.com'
+          name: "John Doe",
+          email: "john@example.com",
         }),
-        credentials: 'include'
-      })
+        credentials: "include",
+      });
 
       if (!response.ok) {
-        console.error('Request failed')
+        console.error("Request failed");
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>
 ```
 
 ### Axios Interceptor
 
 ```typescript
-import axios from 'axios'
+import axios from "axios";
 
 // Create Axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8080',
-  withCredentials: true  // Include cookies
-})
+  baseURL: "http://localhost:8080",
+  withCredentials: true, // Include cookies
+});
 
 // Add CSRF token to all requests
 api.interceptors.request.use((config) => {
-  const match = document.cookie.match(/csrf_token=([^;]+)/)
-  const csrfToken = match ? match[1] : null
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  const csrfToken = match ? match[1] : null;
 
   if (csrfToken && config.headers) {
-    config.headers['X-CSRF-Token'] = csrfToken
+    config.headers["X-CSRF-Token"] = csrfToken;
   }
 
-  return config
-})
+  return config;
+});
 
 // Usage
-api.post('/api/v1/tables/users', {
-  name: 'John Doe',
-  email: 'john@example.com'
-})
+api.post("/api/v1/tables/users", {
+  name: "John Doe",
+  email: "john@example.com",
+});
 ```
 
 ---
@@ -376,53 +379,56 @@ curl -X POST http://localhost:8080/api/v1/tables/users \
 ### Automated Testing
 
 ```typescript
-import { describe, it, expect } from 'vitest'
-import { createClient } from '@fluxbase/sdk'
+import { describe, it, expect } from "vitest";
+import { createClient } from "@fluxbase/sdk";
 
-describe('CSRF Protection', () => {
-  it('should reject requests without CSRF token', async () => {
-    const client = createClient({ url: 'http://localhost:8080' })
+describe("CSRF Protection", () => {
+  it("should reject requests without CSRF token", async () => {
+    const client = createClient({ url: "http://localhost:8080" });
 
     await client.auth.signIn({
-      email: 'user@example.com',
-      password: 'password'
-    })
+      email: "user@example.com",
+      password: "password",
+    });
 
     try {
       // Manually make request without CSRF token
-      await fetch('http://localhost:8080/api/v1/tables/users', {
-        method: 'POST',
+      await fetch("http://localhost:8080/api/v1/tables/users", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${client.getAuthToken()}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${client.getAuthToken()}`,
         },
-        body: JSON.stringify({ name: 'John' })
-      })
+        body: JSON.stringify({ name: "John" }),
+      });
 
       // Should not reach here
-      expect(true).toBe(false)
+      expect(true).toBe(false);
     } catch (error) {
-      expect(error.response.status).toBe(403)
+      expect(error.response.status).toBe(403);
     }
-  })
+  });
 
-  it('should accept requests with valid CSRF token', async () => {
-    const client = createClient({ url: 'http://localhost:8080' })
+  it("should accept requests with valid CSRF token", async () => {
+    const client = createClient({ url: "http://localhost:8080" });
 
     await client.auth.signIn({
-      email: 'user@example.com',
-      password: 'password'
-    })
+      email: "user@example.com",
+      password: "password",
+    });
 
     // SDK automatically handles CSRF
-    const { data, error } = await client.from('users').insert({
-      name: 'John Doe'
-    }).execute()
+    const { data, error } = await client
+      .from("users")
+      .insert({
+        name: "John Doe",
+      })
+      .execute();
 
-    expect(error).toBeNull()
-    expect(data).toBeDefined()
-  })
-})
+    expect(error).toBeNull();
+    expect(data).toBeDefined();
+  });
+});
 ```
 
 ---
@@ -436,17 +442,19 @@ describe('CSRF Protection', () => {
 **Solutions**:
 
 1. Ensure cookie is being sent:
+
    ```typescript
    fetch(url, {
-     credentials: 'include'  // Include cookies
-   })
+     credentials: "include", // Include cookies
+   });
    ```
 
 2. Check cookie domain matches:
+
    ```yaml
    security:
      csrf:
-       cookie_domain: ".yourdomain.com"  # Allows subdomain.yourdomain.com
+       cookie_domain: ".yourdomain.com" # Allows subdomain.yourdomain.com
    ```
 
 3. Verify token is included in header:
@@ -464,10 +472,10 @@ describe('CSRF Protection', () => {
 
 ```typescript
 // Make a simple GET request to get new CSRF token
-await fetch('/api/v1/health')
+await fetch("/api/v1/health");
 
 // Token is now refreshed in cookie
-const newToken = getCsrfToken()
+const newToken = getCsrfToken();
 ```
 
 ### Issue: CSRF with CORS
@@ -481,17 +489,17 @@ server:
   cors:
     allowed_origins:
       - "https://yourdomain.com"
-    allow_credentials: true  # Required for cookies
+    allow_credentials: true # Required for cookies
 ```
 
 ```typescript
 // Client must include credentials
 fetch(url, {
-  credentials: 'include',  // Send cookies cross-origin
+  credentials: "include", // Send cookies cross-origin
   headers: {
-    'X-CSRF-Token': csrfToken
-  }
-})
+    "X-CSRF-Token": csrfToken,
+  },
+});
 ```
 
 ### Issue: CSRF in mobile apps
@@ -503,11 +511,11 @@ fetch(url, {
 ```typescript
 // Mobile app using API key (no CSRF needed)
 const client = createClient({
-  url: 'https://api.yourdomain.com',
+  url: "https://api.yourdomain.com",
   headers: {
-    'X-API-Key': 'your-api-key'
-  }
-})
+    "X-API-Key": "your-api-key",
+  },
+});
 ```
 
 ---
@@ -524,6 +532,7 @@ security:
 ```
 
 ⚠️ **Warning**: Only disable CSRF if:
+
 - You're in development
 - Using API key authentication exclusively
 - Using a different CSRF protection mechanism
@@ -544,7 +553,7 @@ server:
 
 security:
   csrf:
-    cookie_secure: true  # Requires HTTPS
+    cookie_secure: true # Requires HTTPS
 ```
 
 ### 2. Use Strict SameSite Cookies
@@ -552,7 +561,7 @@ security:
 ```yaml
 security:
   csrf:
-    cookie_same_site: "Strict"  # Most secure
+    cookie_same_site: "Strict" # Most secure
 ```
 
 ### 3. Set Reasonable Expiration
@@ -560,17 +569,17 @@ security:
 ```yaml
 security:
   csrf:
-    expiration: "24h"  # Balance security and UX
+    expiration: "24h" # Balance security and UX
 ```
 
 ### 4. Rotate Tokens After Sensitive Actions
 
 ```typescript
 // After password change, force token refresh
-await client.auth.changePassword(oldPassword, newPassword)
+await client.auth.changePassword(oldPassword, newPassword);
 
 // Make a GET request to get new CSRF token
-await fetch('/api/v1/health')
+await fetch("/api/v1/health");
 ```
 
 ### 5. Monitor CSRF Failures
@@ -596,6 +605,7 @@ app.Use(func(c *fiber.Ctx) error {
 ### CSRF vs XSS
 
 CSRF protection doesn't prevent XSS attacks. Always:
+
 - Implement Content Security Policy
 - Sanitize user input
 - Use secure templating
@@ -604,6 +614,7 @@ CSRF protection doesn't prevent XSS attacks. Always:
 ### CSRF vs API Keys
 
 API key authentication bypasses CSRF protection:
+
 - API keys are not stored in cookies
 - Intended for server-to-server communication
 - Still need proper authentication and authorization
@@ -611,6 +622,7 @@ API key authentication bypasses CSRF protection:
 ### Token Storage
 
 Never store CSRF tokens in:
+
 - ❌ LocalStorage (vulnerable to XSS)
 - ❌ SessionStorage (vulnerable to XSS)
 - ✅ HTTP-only cookies (safe from JavaScript)
@@ -630,11 +642,11 @@ Never store CSRF tokens in:
 
 Fluxbase provides robust CSRF protection out of the box:
 
-✅ **Double-submit cookie pattern**
-✅ **Automatic token generation**
-✅ **HTTP-only cookies**
-✅ **SameSite attribute support**
-✅ **Configurable expiration**
-✅ **SDK handles tokens automatically**
+- ✅ **Double-submit cookie pattern**
+- ✅ **Automatic token generation**
+- ✅ **HTTP-only cookies**
+- ✅ **SameSite attribute support**
+- ✅ **Configurable expiration**
+- ✅ **SDK handles tokens automatically**
 
 Enable CSRF protection in production and follow best practices to protect your users from CSRF attacks.

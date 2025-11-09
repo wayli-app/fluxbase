@@ -3,7 +3,7 @@ name: fluxbase
 description: A production-ready, single-binary Backend-as-a-Service (BaaS) for PostgreSQL
 type: application
 # Chart version - should be bumped on chart changes
-version: 0.1.0
+version: 0.2.0
 # App version - matches Fluxbase version (automatically updated by release workflow)
 appVersion: "0.1.0"
 keywords:
@@ -24,3 +24,9 @@ icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/i
 annotations:
   category: Database
   licenses: MIT
+dependencies:
+  - name: cluster
+    alias: cnpg
+    version: "~0.0.10"
+    repository: https://cloudnative-pg.github.io/charts
+    condition: postgresql.cnpg.enabled

@@ -41,6 +41,7 @@ The `/VERSION` file contains the current version number:
 ```
 
 This file is:
+
 - ✅ **Read by**: Makefile, GitHub Actions, Docker builds, Helm charts
 - ✅ **Updated by**: `make bump-*` commands or manually
 - ✅ **Tracked in**: Git (committed to main branch)
@@ -96,10 +97,10 @@ make docker-build-production
 
 All builds automatically inject version information:
 
-| Variable | Source | Example |
-|----------|--------|---------|
-| `VERSION` | [VERSION](VERSION) file | `0.1.0` |
-| `COMMIT` | `git rev-parse --short HEAD` | `abc1234` |
+| Variable     | Source                          | Example                |
+| ------------ | ------------------------------- | ---------------------- |
+| `VERSION`    | [VERSION](VERSION) file         | `0.1.0`                |
+| `COMMIT`     | `git rev-parse --short HEAD`    | `abc1234`              |
 | `BUILD_DATE` | `date -u +"%Y-%m-%dT%H:%M:%SZ"` | `2025-10-31T14:30:00Z` |
 
 ---
@@ -164,6 +165,7 @@ make release-tag
 The project uses [Release Please](https://github.com/googleapis/release-please-action) for automated releases.
 
 **When you merge to `main`**:
+
 1. Release Please creates a PR with changelog and version bump
 2. When you merge the Release PR:
    - Binaries are built for all platforms
@@ -192,6 +194,7 @@ See [.github/workflows/release.yml](.github/workflows/release.yml) for details.
 **Registry**: `ghcr.io/wayli-app/fluxbase`
 
 **Tags**:
+
 - `latest` - Latest stable release
 - `0.1.0` - Specific version (SemVer)
 - `0.1` - Latest patch of minor version
@@ -215,19 +218,21 @@ export FLUXBASE_VERSION=0.1.0
 docker-compose -f deploy/docker-compose.production.yml up
 
 # Docker CLI
-docker pull ghcr.io/wayli-app/fluxbase:0.1.0
-docker run ghcr.io/wayli-app/fluxbase:0.1.0
+docker pull ghcr.io/wayli-app/fluxbase:latest
+docker run ghcr.io/wayli-app/fluxbase:latest
 ```
 
 ### 2. Helm Chart
 
 **Registries**:
+
 - **OCI Registry**: `oci://ghcr.io/wayli-app/charts/fluxbase`
 - **HTTP Repository**: `https://wayli-app.github.io/fluxbase` (gh-pages)
 
 **Chart.yaml**:
+
 ```yaml
-version: 0.1.0      # Chart version (auto-updated on release)
+version: 0.1.0 # Chart version (auto-updated on release)
 appVersion: "0.1.0" # Fluxbase version (auto-updated on release)
 ```
 
@@ -333,6 +338,7 @@ make build
 #### CI Workflow (`.github/workflows/ci.yml`)
 
 Runs on every push/PR:
+
 - ✅ Linting
 - ✅ Tests with coverage
 - ✅ Multi-platform builds (Linux, macOS)
@@ -350,6 +356,7 @@ Runs on every push/PR:
 #### Release Workflow (`.github/workflows/release.yml`)
 
 Triggered by Release Please:
+
 - ✅ Builds binaries for all platforms
 - ✅ Creates checksums
 - ✅ Builds and pushes Docker images
@@ -398,6 +405,7 @@ git push origin v0.1.0
 ### Docker Image Tags
 
 Always tag images with:
+
 - **Specific version**: `0.1.0` (immutable, recommended for production)
 - **Latest**: `latest` (mutable, for testing)
 
@@ -414,6 +422,7 @@ image: ghcr.io/wayli-app/fluxbase:0.1.0
 ### Helm Chart Updates
 
 Update `Chart.yaml` when:
+
 - **Chart version**: Changes to Helm templates or values
 - **App version**: New Fluxbase release
 
@@ -476,13 +485,13 @@ helm install fluxbase deploy/helm/fluxbase --set image.tag=0.1.0
 
 ## Summary
 
-| Component | Version Source | Update Method |
-|-----------|---------------|---------------|
-| **Fluxbase Binary** | `VERSION` file | `make bump-*` |
-| **Docker Image** | `VERSION` file | `make docker-build-production` |
-| **Helm Chart** | `Chart.yaml` | Manual edit |
-| **TypeScript SDK** | `VERSION` file | GitHub Actions |
-| **Go Module** | Git tags | `make release-tag` |
+| Component           | Version Source | Update Method                  |
+| ------------------- | -------------- | ------------------------------ |
+| **Fluxbase Binary** | `VERSION` file | `make bump-*`                  |
+| **Docker Image**    | `VERSION` file | `make docker-build-production` |
+| **Helm Chart**      | `Chart.yaml`   | Manual edit                    |
+| **TypeScript SDK**  | `VERSION` file | GitHub Actions                 |
+| **Go Module**       | Git tags       | `make release-tag`             |
 
 **Key Commands**:
 

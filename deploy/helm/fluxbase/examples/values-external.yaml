@@ -1,0 +1,196 @@
+# Example Helm values for External PostgreSQL database
+# Use this when you have an existing PostgreSQL instance:
+# - Managed cloud database (AWS RDS, GCP Cloud SQL, Azure PostgreSQL, etc.)
+# - Existing on-premise PostgreSQL server
+# - Supabase, DigitalOcean, or other managed PostgreSQL
+
+# PostgreSQL deployment mode
+postgresql:
+  mode: none # Don't deploy PostgreSQL - use external database
+
+# External database configuration
+externalDatabase:
+  # Database connection details
+  host: "" # REQUIRED: postgres.example.com or RDS endpoint
+  port: 5432
+  user: fluxbase
+  password: "" # Use existingSecret instead for production
+  database: fluxbase
+
+  # For production, use existing secret:
+  # existingSecret: fluxbase-external-db
+  # existingSecretPasswordKey: password
+  #
+  # Create with:
+  # kubectl create secret generic fluxbase-external-db \
+  #   --from-literal=password=your-db-password
+
+# Fluxbase database configuration
+config:
+  database:
+    # Override host if needed (otherwise uses externalDatabase.host)
+    host: ""
+    port: 5432
+    sslMode: require # require, verify-ca, verify-full, or disable
+
+  # JWT secret - REQUIRED
+  jwt:
+    secret: "" # Generate with: openssl rand -base64 32
+
+  # Server configuration
+  server:
+    port: 8080
+    host: "0.0.0.0"
+
+  # Storage configuration
+  storage:
+    provider: s3 # Using S3 for cloud deployments
+    s3:
+      bucket: "" # Your S3 bucket name
+      region: us-east-1
+      endpoint: "" # Leave empty for AWS S3
+      # Credentials in existingSecret
+
+# Application replicas
+replicaCount: 3
+
+# Resource allocation
+resourcesPreset: "medium"
+
+# Storage volumes (not needed if using S3)
+persistence:
+  enabled: false # Disable if using S3 storage
+
+functionsPersistence:
+  enabled: true
+  size: 5Gi
+  accessModes:
+    - ReadWriteMany
+
+# Use existing secret for all sensitive data
+# existingSecret: fluxbase-secrets
+# Create with:
+# kubectl create secret generic fluxbase-secrets \
+#   --from-literal=database-password=your-db-password \
+#   --from-literal=jwt-secret=$(openssl rand -base64 32) \
+#   --from-literal=s3-access-key-id=your-s3-key \
+#   --from-literal=s3-secret-access-key=your-s3-secret
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hostname: api.example.com
+  tls: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# Monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPU: 70
+# Examples for different cloud providers:
+#
+# ===== AWS RDS =====
+# externalDatabase:
+#   host: mydb.abc123.us-east-1.rds.amazonaws.com
+#   port: 5432
+#   user: fluxbase
+#   database: fluxbase
+# config:
+#   database:
+#     sslMode: require
+#
+# ===== Google Cloud SQL =====
+# externalDatabase:
+#   host: 10.0.0.1  # Private IP
+#   port: 5432
+#   user: fluxbase
+#   database: fluxbase
+# config:
+#   database:
+#     sslMode: require
+# Notes:
+# - Use Cloud SQL Proxy for external connections
+# - Or use Private IP with VPC peering
+#
+# ===== Azure Database for PostgreSQL =====
+# externalDatabase:
+#   host: myserver.postgres.database.azure.com
+#   port: 5432
+#   user: fluxbase@myserver  # Note the @myserver suffix
+#   database: fluxbase
+# config:
+#   database:
+#     sslMode: require
+#
+# ===== DigitalOcean Managed Database =====
+# externalDatabase:
+#   host: your-db-cluster.db.ondigitalocean.com
+#   port: 25060  # Default managed DB port
+#   user: fluxbase
+#   database: fluxbase
+# config:
+#   database:
+#     sslMode: require
+#
+# ===== Supabase =====
+# externalDatabase:
+#   host: db.your-project.supabase.co
+#   port: 5432
+#   user: postgres
+#   database: postgres
+# config:
+#   database:
+#     sslMode: require
+# Notes:
+# - Use connection pooler for better performance
+# - Transaction mode recommended
+#
+# ===== Self-hosted PostgreSQL =====
+# externalDatabase:
+#   host: postgres.internal.example.com
+#   port: 5432
+#   user: fluxbase
+#   database: fluxbase
+# config:
+#   database:
+#     sslMode: disable  # or require if using SSL
+
+# Database requirements:
+# ----------------------
+# - PostgreSQL 13 or higher (18 recommended)
+# - Required extensions: uuid-ossp, pg_trgm, pgcrypto
+# - User needs CREATE privileges on database
+# - Minimum 2GB RAM, 20GB storage recommended for production
+#
+# Installation:
+# -------------
+# 1. Prepare your external database:
+#    - Create database: CREATE DATABASE fluxbase;
+#    - Create user: CREATE USER fluxbase WITH PASSWORD 'secure-password';
+#    - Grant privileges: GRANT ALL PRIVILEGES ON DATABASE fluxbase TO fluxbase;
+#
+# 2. Create Kubernetes secrets:
+#    kubectl create secret generic fluxbase-secrets \
+#      --from-literal=database-password=your-db-password \
+#      --from-literal=jwt-secret=$(openssl rand -base64 32) \
+#      --from-literal=s3-access-key-id=your-s3-key \
+#      --from-literal=s3-secret-access-key=your-s3-secret
+#
+# 3. Update this file with your database connection details
+#
+# 4. Install Fluxbase:
+#    helm install fluxbase ./deploy/helm/fluxbase \
+#      -f ./deploy/helm/fluxbase/examples/values-external.yaml \
+#      --set externalDatabase.host=your-db-host \
+#      --set config.storage.s3.bucket=your-bucket \
+#      --set existingSecret=fluxbase-secrets

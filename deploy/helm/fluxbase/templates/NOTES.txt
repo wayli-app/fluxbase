@@ -6,12 +6,30 @@ APP VERSION: {{ .Chart.AppVersion }}
 
 Fluxbase has been installed successfully!
 
-{{- if .Values.postgresql.enabled }}
+{{- if eq .Values.postgresql.mode "standalone" }}
 
-PostgreSQL is starting as part of this installation.
+PostgreSQL Mode: Standalone
+A single-instance PostgreSQL 18 server has been deployed.
+Connection: {{ include "fluxbase.databaseHost" . }}:{{ include "fluxbase.databasePort" . }}
+
+{{- else if eq .Values.postgresql.mode "cnpg" }}
+
+PostgreSQL Mode: CloudNativePG
+A CloudNativePG cluster with {{ .Values.postgresql.cnpg.instances }} instance(s) has been deployed.
+{{- if .Values.postgresql.cnpg.pooler.enabled }}
+Connection (via PgBouncer pooler): {{ include "fluxbase.databaseHost" . }}:{{ include "fluxbase.databasePort" . }}
 {{- else }}
+Connection: {{ include "fluxbase.databaseHost" . }}:{{ include "fluxbase.databasePort" . }}
+{{- end }}
 
+To check cluster status:
+  kubectl get cluster {{ include "fluxbase.fullname" . }}-postgresql -n {{ include "fluxbase.namespace" . }}
+
+{{- else if eq .Values.postgresql.mode "none" }}
+
+PostgreSQL Mode: External Database
 You are using an external PostgreSQL database at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}
+
 {{- end }}
 
 1. Get the application URL by running these commands:

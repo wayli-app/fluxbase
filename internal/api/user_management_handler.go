@@ -71,6 +71,26 @@ func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 	})
 }
 
+// GetUserByID gets a single user by ID with enriched metadata
+func (h *UserManagementHandler) GetUserByID(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
+
+	user, err := h.userMgmtService.GetEnrichedUserByID(c.Context(), userID, userType)
+	if err != nil {
+		if err == auth.ErrUserNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(user)
+}
+
 // contains is a simple case-insensitive substring check
 func contains(s, substr string) bool {
 	if len(substr) > len(s) {
@@ -187,6 +207,7 @@ func (h *UserManagementHandler) RegisterRoutes(app *fiber.App) {
 
 	// User management routes (admin only)
 	admin.Get("/users", h.ListUsers)
+	admin.Get("/users/:id", h.GetUserByID)
 	admin.Post("/users/invite", h.InviteUser)
 	admin.Delete("/users/:id", h.DeleteUser)
 	admin.Patch("/users/:id/role", h.UpdateUserRole)

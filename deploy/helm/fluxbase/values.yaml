@@ -98,17 +98,17 @@ image:
 ##
 config:
   database:
-    host: postgresql
+    host: "" # Auto-determined based on postgresql.mode (can be overridden)
     port: 5432
     name: fluxbase
     user: fluxbase
-    password: ""  # Use existingSecret instead
+    password: "" # Use existingSecret instead
     sslMode: disable
   server:
     port: 8080
     host: "0.0.0.0"
   jwt:
-    secret: ""  # Use existingSecret instead
+    secret: "" # Use existingSecret instead
     expirationMinutes: 60
   storage:
     provider: local
@@ -118,8 +118,8 @@ config:
       bucket: ""
       region: ""
       endpoint: ""
-      accessKeyID: ""  # Use existingSecret instead
-      secretAccessKey: ""  # Use existingSecret instead
+      accessKeyID: "" # Use existingSecret instead
+      secretAccessKey: "" # Use existingSecret instead
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
 ## The secret should contain the following keys:
@@ -148,8 +148,8 @@ existingSecret: ""
 ##
 serviceKey:
   enabled: false
-  existingSecret: ""  # Name of Kubernetes secret containing service key
-  secretKey: "service-key"  # Key name within the secret
+  existingSecret: "" # Name of Kubernetes secret containing service key
+  secretKey: "service-key" # Key name within the secret
 
 ## @section Fluxbase Deployment Parameters
 
@@ -648,36 +648,124 @@ functionsPersistence:
 
 ## @section PostgreSQL Parameters
 ## @descriptionStart
-## PostgreSQL chart configuration
-## ref: https://github.com/bitnami/charts/blob/main/bitnami/postgresql/values.yaml
+## PostgreSQL deployment configuration
+## Choose between CloudNativePG (cnpg), standalone StatefulSet, or external database
 ## @descriptionEnd
 
-## @param postgresql.enabled Deploy PostgreSQL container(s). Allowed values: `true` or `false`
+## PostgreSQL Configuration
+## @param postgresql.mode PostgreSQL deployment mode. Options: 'none' (external only), 'standalone' (simple StatefulSet), 'cnpg' (CloudNativePG operator)
+## @param postgresql.auth.username PostgreSQL username
+## @param postgresql.auth.password PostgreSQL password (use existingSecret in production)
+## @param postgresql.auth.database PostgreSQL database name
+## @param postgresql.auth.existingSecret Name of existing secret containing PostgreSQL credentials
 ##
 postgresql:
-  enabled: true
-  ## @param postgresql.auth.username PostgreSQL username
-  ## @param postgresql.auth.password PostgreSQL password
-  ## @param postgresql.auth.database PostgreSQL database
-  ##
+  # Deployment mode: none, standalone, or cnpg
+  mode: standalone
+
+  # Authentication settings (used by standalone and cnpg modes)
   auth:
     username: fluxbase
     password: fluxbase
     database: fluxbase
-  ## @param postgresql.primary.persistence.enabled Enable PostgreSQL Primary data persistence using PVC
-  ## @param postgresql.primary.persistence.size PostgreSQL Primary Persistent Volume size
-  ##
-  primary:
+    # Name of existing secret with keys: username, password, database
+    existingSecret: ""
+
+  ## Standalone PostgreSQL Configuration (when mode=standalone)
+  ## Simple StatefulSet deployment using official PostgreSQL image
+  standalone:
+    ## @param postgresql.standalone.enabled Enable standalone PostgreSQL deployment
+    enabled: true
+    ## @param postgresql.standalone.image.registry PostgreSQL image registry
+    ## @param postgresql.standalone.image.repository PostgreSQL image repository
+    ## @param postgresql.standalone.image.tag PostgreSQL image tag
+    ##
+    image:
+      registry: docker.io
+      repository: postgres
+      tag: "18-alpine"
+      pullPolicy: IfNotPresent
+    ## @param postgresql.standalone.persistence.enabled Enable persistence for standalone PostgreSQL
+    ## @param postgresql.standalone.persistence.size Size of PostgreSQL data volume
+    ## @param postgresql.standalone.persistence.storageClass Storage class for PostgreSQL PVC
+    ##
     persistence:
       enabled: true
       size: 8Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    ## @param postgresql.standalone.resources Resource requests and limits for standalone PostgreSQL
+    ##
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    ## @param postgresql.standalone.securityContext Security context for PostgreSQL pod
+    ##
+    securityContext:
+      fsGroup: 999
+      runAsUser: 999
+      runAsNonRoot: true
+
+  ## CloudNativePG Configuration (when mode=cnpg)
+  ## Requires CloudNativePG operator to be installed
+  ## ref: https://cloudnative-pg.io/
+  cnpg:
+    ## @param postgresql.cnpg.enabled Enable CloudNativePG deployment
+    enabled: false
+    ## @param postgresql.cnpg.instances Number of PostgreSQL instances in the cluster
+    ##
+    instances: 3
+    ## @param postgresql.cnpg.imageName PostgreSQL image for CNPG (defaults to PostgreSQL 18)
+    ##
+    imageName: "ghcr.io/cloudnative-pg/postgresql:18"
+    ## @param postgresql.cnpg.storage.size Size of PostgreSQL data volume per instance
+    ## @param postgresql.cnpg.storage.storageClass Storage class for PostgreSQL PVCs
+    ##
+    storage:
+      size: 8Gi
+      storageClass: ""
+    ## @param postgresql.cnpg.monitoring.enabled Enable Prometheus monitoring for CNPG
+    ##
+    monitoring:
+      enabled: true
+    ## @param postgresql.cnpg.backup.enabled Enable automated backups
+    ## @param postgresql.cnpg.backup.retentionPolicy Backup retention policy
+    ## @param postgresql.cnpg.backup.schedule Backup schedule (cron format)
+    ##
+    backup:
+      enabled: false
+      retentionPolicy: "30d"
+      schedule: "0 0 * * *"
+      # S3 configuration for backups (optional)
+      s3:
+        enabled: false
+        bucket: ""
+        region: ""
+        endpoint: ""
+        # Credentials should be provided via existingSecret
+    ## @param postgresql.cnpg.pooler.enabled Enable PgBouncer connection pooler
+    ## @param postgresql.cnpg.pooler.instances Number of pooler instances
+    ##
+    pooler:
+      enabled: false
+      instances: 2
+      type: rw # rw (read-write) or ro (read-only)
+      poolMode: session # session, transaction, or statement
+      parameters:
+        max_client_conn: "1000"
+        default_pool_size: "25"
 
 ## External PostgreSQL configuration
-## All of these values are only used when postgresql.enabled is set to false
-## @param externalDatabase.host Database host
+## Used when postgresql.mode is set to 'none'
+## @param externalDatabase.host Database host (required when mode=none)
 ## @param externalDatabase.port Database port number
 ## @param externalDatabase.user Non-root username
-## @param externalDatabase.password Password for the non-root username
+## @param externalDatabase.password Password for the non-root username (use existingSecret in production)
 ## @param externalDatabase.database Database name
 ## @param externalDatabase.existingSecret Name of an existing secret resource containing the database credentials
 ## @param externalDatabase.existingSecretPasswordKey Name of an existing secret key containing the database credentials
@@ -689,7 +777,7 @@ externalDatabase:
   password: ""
   database: fluxbase
   existingSecret: ""
-  existingSecretPasswordKey: ""
+  existingSecretPasswordKey: "password"
 
 ## @section ServiceAccount Parameters
 

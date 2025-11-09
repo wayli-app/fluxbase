@@ -1,0 +1,155 @@
+{{- if eq .Values.postgresql.mode "standalone" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+      protocol: TCP
+  selector:
+    {{- include "fluxbase.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+type: Opaque
+data:
+  {{- if .Values.postgresql.auth.existingSecret }}
+  # Using existing secret - this is just a placeholder
+  {{- else }}
+  password: {{ .Values.postgresql.auth.password | b64enc | quote }}
+  username: {{ .Values.postgresql.auth.username | b64enc | quote }}
+  database: {{ .Values.postgresql.auth.database | b64enc | quote }}
+  {{- end }}
+---
+{{- if .Values.postgresql.standalone.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    {{- range .Values.postgresql.standalone.persistence.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.standalone.persistence.size | quote }}
+  {{- if .Values.postgresql.standalone.persistence.storageClass }}
+  {{- if (eq "-" .Values.postgresql.standalone.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.postgresql.standalone.persistence.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  serviceName: {{ include "fluxbase.fullname" . }}-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "fluxbase.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        {{- include "fluxbase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: database
+    spec:
+      {{- if .Values.postgresql.standalone.securityContext }}
+      securityContext:
+        {{- toYaml .Values.postgresql.standalone.securityContext | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.postgresql.standalone.image.registry }}/{{ .Values.postgresql.standalone.image.repository }}:{{ .Values.postgresql.standalone.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.standalone.image.pullPolicy }}
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
+                  key: database
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          {{- if .Values.postgresql.standalone.resources }}
+          resources:
+            {{- toYaml .Values.postgresql.standalone.resources | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        {{- if .Values.postgresql.standalone.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "fluxbase.fullname" . }}-postgresql
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+{{- end }}

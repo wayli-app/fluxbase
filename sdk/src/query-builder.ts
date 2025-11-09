@@ -6,7 +6,7 @@
 import type { FluxbaseFetch } from './fetch'
 import type { FilterOperator, OrderBy, PostgrestResponse } from './types'
 
-export class QueryBuilder<T = unknown> {
+export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<T>> {
   private fetch: FluxbaseFetch
   private table: string
   private selectQuery: string = '*'
@@ -537,6 +537,26 @@ export class QueryBuilder<T = unknown> {
         statusText: 'Internal Server Error',
       }
     }
+  }
+
+  /**
+   * Make QueryBuilder awaitable (implements PromiseLike)
+   * This allows using `await client.from('table').select()` without calling `.execute()`
+   *
+   * @example
+   * ```typescript
+   * // Without .execute() (new way)
+   * const { data } = await client.from('users').select('*')
+   *
+   * // With .execute() (old way, still supported)
+   * const { data } = await client.from('users').select('*').execute()
+   * ```
+   */
+  then<TResult1 = PostgrestResponse<T>, TResult2 = never>(
+    onfulfilled?: ((value: PostgrestResponse<T>) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2> {
+    return this.execute().then(onfulfilled, onrejected)
   }
 
   /**

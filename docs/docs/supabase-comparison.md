@@ -111,7 +111,7 @@ Fluxbase is designed to be compatible with Supabase's API patterns, making evalu
 import { createClient } from "@supabase/supabase-js";
 const client = createClient(
   "https://your-project.supabase.co",
-  "your-anon-key",
+  "your-anon-key"
 );
 
 // Fluxbase
@@ -127,6 +127,14 @@ const { data, error } = await client
 ```
 
 **Query methods**: `.select()`, `.insert()`, `.update()`, `.delete()`, `.eq()`, `.neq()`, `.gt()`, `.gte()`, `.lt()`, `.lte()`, `.like()`, `.ilike()`, `.is()`, `.in()`, `.order()`, `.limit()`, `.range()` - all work identically.
+
+**Recent improvements**: Fluxbase now supports awaiting queries directly without calling `.execute()`:
+
+```typescript
+// Both of these work identically in Fluxbase (just like Supabase)
+const { data } = await client.from('users').select('*')
+const { data } = await client.from('users').select('*').execute()
+```
 
 ### Authentication
 
@@ -156,6 +164,30 @@ const {
 
 **Auth methods**: `.signUp()`, `.signInWithPassword()`, `.signInWithOAuth()`, `.signOut()`, `.getSession()`, `.getUser()`, `.resetPasswordForEmail()` - all work identically.
 
+**Recent improvements**: Fluxbase now supports auth state change listeners:
+
+```typescript
+// Listen to auth state changes - identical in both
+const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+  console.log('Auth event:', event, session)
+  // Events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, etc.
+})
+
+// Unsubscribe when done
+subscription.unsubscribe()
+```
+
+**Admin API improvements**: Fluxbase now includes `admin.getUserById()` for easier user management:
+
+```typescript
+// Fluxbase - new method
+const user = await client.admin.getUserById('user-id-123')
+
+// Previously required filtering (still works)
+const { users } = await client.admin.listUsers()
+const user = users.find(u => u.id === 'user-id-123')
+```
+
 ### Realtime Subscriptions
 
 ✅ **Compatible API** - Similar channel and subscription patterns with minor syntax differences
@@ -163,14 +195,17 @@ const {
 ```typescript
 // Supabase
 import { createClient } from "@supabase/supabase-js";
-const client = createClient("https://your-project.supabase.co", "your-anon-key");
+const client = createClient(
+  "https://your-project.supabase.co",
+  "your-anon-key"
+);
 
 const subscription = client
   .channel("table-changes")
   .on(
     "postgres_changes",
     { event: "*", schema: "public", table: "posts" },
-    (payload) => console.log(payload),
+    (payload) => console.log(payload)
   )
   .subscribe();
 
@@ -197,6 +232,7 @@ await client.removeChannel(subscription); // Supabase
 ```
 
 **Key differences:**
+
 - Supabase uses `postgres_changes` event with filter object, Fluxbase uses direct event names (`INSERT`, `UPDATE`, `DELETE`, `*`)
 - Channel naming: Supabase uses custom names, Fluxbase uses `table:schema.table` format
 - Payload structure is similar (both provide `new_record`, `old_record`)
@@ -277,7 +313,7 @@ EOF
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     volumes:
       - ./functions:/app/functions
     environment:
@@ -308,7 +344,7 @@ spec:
     spec:
       containers:
         - name: fluxbase
-          image: fluxbase/fluxbase:latest
+          image: ghcr.io/wayli-app/fluxbase:latest:latest
           env:
             - name: FLUXBASE_FUNCTIONS_ENABLED
               value: "true"

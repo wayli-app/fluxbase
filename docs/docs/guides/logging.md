@@ -22,13 +22,13 @@ All Fluxbase logs are structured JSON messages that include:
 
 Fluxbase uses standard log levels from least to most severe:
 
-| Level | Description | Use Case | Production |
-|-------|-------------|----------|------------|
-| **debug** | Detailed diagnostic information | Development debugging | ❌ Disabled |
-| **info** | General informational messages | Normal operations | ✅ Enabled |
-| **warn** | Warning messages, degraded state | Non-critical issues | ✅ Enabled |
-| **error** | Error messages, recoverable errors | Failed operations | ✅ Enabled |
-| **fatal** | Fatal errors, application crash | Critical failures | ✅ Enabled |
+| Level     | Description                        | Use Case              | Production  |
+| --------- | ---------------------------------- | --------------------- | ----------- |
+| **debug** | Detailed diagnostic information    | Development debugging | ❌ Disabled |
+| **info**  | General informational messages     | Normal operations     | ✅ Enabled  |
+| **warn**  | Warning messages, degraded state   | Non-critical issues   | ✅ Enabled  |
+| **error** | Error messages, recoverable errors | Failed operations     | ✅ Enabled  |
+| **fatal** | Fatal errors, application crash    | Critical failures     | ✅ Enabled  |
 
 ---
 
@@ -57,7 +57,7 @@ docker run -e FLUXBASE_DEBUG=true fluxbase/fluxbase:latest
 ```yaml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     environment:
       - FLUXBASE_DEBUG=true
 ```
@@ -80,11 +80,11 @@ spec:
   template:
     spec:
       containers:
-      - name: fluxbase
-        image: fluxbase/fluxbase:latest
-        envFrom:
-          - configMapRef:
-              name: fluxbase-config
+        - name: fluxbase
+          image: ghcr.io/wayli-app/fluxbase:latest:latest
+          envFrom:
+            - configMapRef:
+                name: fluxbase-config
 ```
 
 ---
@@ -112,19 +112,19 @@ All logs are output as single-line JSON:
 
 ### Field Descriptions
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `level` | string | Log level (debug, info, warn, error, fatal) |
-| `time` | string | ISO 8601 timestamp with timezone |
-| `message` | string | Human-readable log message |
-| `method` | string | HTTP method (GET, POST, etc.) |
-| `path` | string | Request path |
-| `status` | integer | HTTP status code |
-| `duration_ms` | float | Request duration in milliseconds |
-| `ip` | string | Client IP address |
-| `user_id` | string | Authenticated user ID (if available) |
-| `request_id` | string | Unique request identifier |
-| `error` | string | Error message (for error logs) |
+| Field         | Type    | Description                                 |
+| ------------- | ------- | ------------------------------------------- |
+| `level`       | string  | Log level (debug, info, warn, error, fatal) |
+| `time`        | string  | ISO 8601 timestamp with timezone            |
+| `message`     | string  | Human-readable log message                  |
+| `method`      | string  | HTTP method (GET, POST, etc.)               |
+| `path`        | string  | Request path                                |
+| `status`      | integer | HTTP status code                            |
+| `duration_ms` | float   | Request duration in milliseconds            |
+| `ip`          | string  | Client IP address                           |
+| `user_id`     | string  | Authenticated user ID (if available)        |
+| `request_id`  | string  | Unique request identifier                   |
+| `error`       | string  | Error message (for error logs)              |
 
 ---
 
@@ -452,7 +452,7 @@ docker logs fluxbase 2>&1 | grep '"message":"User authenticated"'
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     logging:
       driver: "json-file"
       options:
@@ -498,11 +498,11 @@ scrape_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
     relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: 'container'
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: 'stream'
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "container"
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: "stream"
 ```
 
 #### 3. Elasticsearch (ELK Stack)
@@ -514,7 +514,7 @@ scrape_configs:
 filebeat.inputs:
   - type: container
     paths:
-      - '/var/lib/docker/containers/*/*.log'
+      - "/var/lib/docker/containers/*/*.log"
     json.keys_under_root: true
     json.add_error_key: true
 
@@ -537,7 +537,7 @@ setup.kibana:
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     logging:
       driver: awslogs
       options:
@@ -554,7 +554,7 @@ services:
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     logging:
       driver: gcplogs
       options:
@@ -680,13 +680,13 @@ Configure log rotation to prevent disk space issues:
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"      # Max size per log file
-        max-file: "3"        # Keep 3 log files
-        compress: "true"     # Compress rotated logs
+        max-size: "10m" # Max size per log file
+        max-file: "3" # Keep 3 log files
+        compress: "true" # Compress rotated logs
 ```
 
 ### Kubernetes Log Rotation
@@ -701,10 +701,10 @@ metadata:
   name: fluxbase
 spec:
   containers:
-  - name: fluxbase
-    image: fluxbase/fluxbase:latest
-    # Logs are automatically rotated by kubelet
-    # Default: 10MB per file, max 5 files
+    - name: fluxbase
+      image: ghcr.io/wayli-app/fluxbase:latest:latest
+      # Logs are automatically rotated by kubelet
+      # Default: 10MB per file, max 5 files
 ```
 
 ### External Log Storage
@@ -715,7 +715,7 @@ spec:
 # loki-config.yml
 table_manager:
   retention_deletes_enabled: true
-  retention_period: 720h  # 30 days
+  retention_period: 720h # 30 days
 ```
 
 **Elasticsearch Retention:**
@@ -799,12 +799,14 @@ if level == "debug" && rand.Float64() > 0.1 {
 ### 4. Redact Sensitive Data
 
 Fluxbase automatically redacts:
+
 - Passwords
 - API keys
 - JWT tokens
 - Credit card numbers
 
 Never log:
+
 - ❌ User passwords (plaintext or hashed)
 - ❌ API keys or secrets
 - ❌ JWT tokens (except for debugging)
@@ -921,11 +923,11 @@ kubectl logs --tail=100 pod-name
 
 Fluxbase provides comprehensive structured logging:
 
-✅ **Structured JSON logs** for easy parsing
-✅ **Multiple log levels** (debug, info, warn, error, fatal)
-✅ **Automatic request logging** with detailed context
-✅ **Security event logging** (auth, CSRF, RLS)
-✅ **Integration with log aggregators** (Loki, ELK, CloudWatch)
-✅ **Redaction of sensitive data**
+- ✅ **Structured JSON logs** for easy parsing
+- ✅ **Multiple log levels** (debug, info, warn, error, fatal)
+- ✅ **Automatic request logging** with detailed context
+- ✅ **Security event logging** (auth, CSRF, RLS)
+- ✅ **Integration with log aggregators** (Loki, ELK, CloudWatch)
+- ✅ **Redaction of sensitive data**
 
 Configure appropriate log levels, set up log rotation, send logs to an aggregator, and use structured queries to monitor and troubleshoot your Fluxbase instance.

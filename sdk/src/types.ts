@@ -995,3 +995,33 @@ export interface ListImpersonationSessionsResponse {
   sessions: ImpersonationSession[]
   total: number
 }
+
+// ============================================================================
+// Auth State Change Types
+// ============================================================================
+
+/**
+ * Auth state change events
+ */
+export type AuthChangeEvent =
+  | 'SIGNED_IN'
+  | 'SIGNED_OUT'
+  | 'TOKEN_REFRESHED'
+  | 'USER_UPDATED'
+  | 'PASSWORD_RECOVERY'
+  | 'MFA_CHALLENGE_VERIFIED'
+
+/**
+ * Callback for auth state changes
+ */
+export type AuthStateChangeCallback = (event: AuthChangeEvent, session: AuthSession | null) => void
+
+/**
+ * Subscription object returned by onAuthStateChange
+ */
+export interface AuthSubscription {
+  /**
+   * Unsubscribe from auth state changes
+   */
+  unsubscribe: () => void
+}

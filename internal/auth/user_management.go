@@ -116,6 +116,67 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 	return users, rows.Err()
 }
 
+// GetEnrichedUserByID returns a single user with enriched metadata
+// userType can be "app" for auth.users or "dashboard" for dashboard.users
+func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID string, userType string) (*EnrichedUser, error) {
+	// Default to app users if not specified
+	if userType == "" {
+		userType = "app"
+	}
+
+	// Determine which table to query
+	usersTable := "auth.users"
+	sessionsTable := "auth.sessions"
+	if userType == "dashboard" {
+		usersTable = "dashboard.users"
+		sessionsTable = "dashboard.sessions"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			u.id,
+			u.email,
+			u.email_verified,
+			u.role,
+			u.metadata,
+			u.created_at,
+			u.updated_at,
+			COALESCE(COUNT(DISTINCT CASE WHEN s.expires_at > NOW() THEN s.id END), 0) as active_sessions,
+			MAX(s.created_at) as last_sign_in,
+			CASE
+				WHEN u.password_hash IS NOT NULL THEN 'email'
+				WHEN u.email_verified = false THEN 'invite_pending'
+				ELSE 'email'
+			END as provider
+		FROM %s u
+		LEFT JOIN %s s ON u.id = s.user_id
+		WHERE u.id = $1
+		GROUP BY u.id, u.email, u.email_verified, u.role, u.metadata, u.created_at, u.updated_at, u.password_hash
+	`, usersTable, sessionsTable)
+
+	user := &EnrichedUser{}
+	err := s.userRepo.db.QueryRow(ctx, query, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.EmailVerified,
+		&user.Role,
+		&user.Metadata,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.ActiveSessions,
+		&user.LastSignIn,
+		&user.Provider,
+	)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to query enriched user: %w", err)
+	}
+
+	return user, nil
+}
+
 // InviteUserRequest represents a request to invite a new user
 type InviteUserRequest struct {
 	Email    string `json:"email"`

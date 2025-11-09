@@ -38,20 +38,21 @@ Row Level Security is a PostgreSQL security feature that enables fine-grained ac
 ### Without RLS vs. With RLS
 
 **Without RLS** (application-level filtering):
+
 ```typescript
 // Application code must remember to filter by user_id
-const tasks = await client.from('tasks')
-  .select('*')
-  .eq('user_id', currentUser.id)  // Easy to forget!
-  .execute()
+const tasks = await client
+  .from("tasks")
+  .select("*")
+  .eq("user_id", currentUser.id) // Easy to forget!
+  .execute();
 ```
 
 **With RLS** (database-level enforcement):
+
 ```typescript
 // No filtering needed - database automatically enforces access
-const tasks = await client.from('tasks')
-  .select('*')
-  .execute()  // Only returns current user's tasks
+const tasks = await client.from("tasks").select("*").execute(); // Only returns current user's tasks
 ```
 
 ---
@@ -67,6 +68,7 @@ When a user authenticates, Fluxbase's auth middleware extracts the user ID and r
 ### 2. RLS Middleware
 
 Before each database query, the RLS middleware sets PostgreSQL session variables:
+
 - `app.user_id`: The authenticated user's UUID
 - `app.role`: The user's role (`anon`, `authenticated`, `admin`, etc.)
 
@@ -111,12 +113,14 @@ Response (only authorized rows)
 RLS is **enabled by default**. To disable it (not recommended for production):
 
 **Via `fluxbase.yaml`:**
+
 ```yaml
 auth:
   enable_rls: false
 ```
 
 **Via Environment Variable:**
+
 ```bash
 FLUXBASE_AUTH_ENABLE_RLS=false
 ```
@@ -155,6 +159,7 @@ CREATE POLICY user_data ON my_table
 ```
 
 **Returns:**
+
 - User's UUID if authenticated
 - `NULL` if not authenticated (anonymous request)
 
@@ -169,6 +174,7 @@ CREATE POLICY admin_access ON sensitive_data
 ```
 
 **Common Roles:**
+
 - `anon`: Unauthenticated/anonymous users
 - `authenticated`: Logged-in users
 - `admin`: Admin users
@@ -596,41 +602,44 @@ SELECT * FROM public.tasks;  -- Should follow anonymous policies
 ### 3. API Testing
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient({ url: "http://localhost:8080" });
 
 // Create test users
 const { user: user1 } = await client.auth.signUp({
-  email: 'user1@example.com',
-  password: 'password123'
-})
+  email: "user1@example.com",
+  password: "password123",
+});
 
 const { user: user2 } = await client.auth.signUp({
-  email: 'user2@example.com',
-  password: 'password123'
-})
+  email: "user2@example.com",
+  password: "password123",
+});
 
 // User 1 creates a task
 await client.auth.signIn({
-  email: 'user1@example.com',
-  password: 'password123'
-})
+  email: "user1@example.com",
+  password: "password123",
+});
 
-await client.from('tasks').insert({
-  user_id: user1.id,
-  title: 'User 1 Task'
-}).execute()
+await client
+  .from("tasks")
+  .insert({
+    user_id: user1.id,
+    title: "User 1 Task",
+  })
+  .execute();
 
 // User 2 should NOT see User 1's task
 await client.auth.signIn({
-  email: 'user2@example.com',
-  password: 'password123'
-})
+  email: "user2@example.com",
+  password: "password123",
+});
 
-const { data } = await client.from('tasks').select('*').execute()
-console.assert(data.length === 0, 'User 2 should not see User 1 tasks')
-console.log('✅ RLS test passed')
+const { data } = await client.from("tasks").select("*").execute();
+console.assert(data.length === 0, "User 2 should not see User 1 tasks");
+console.log("✅ RLS test passed");
 ```
 
 ### 4. Automated E2E Tests
@@ -682,12 +691,14 @@ CREATE INDEX idx_documents_organization_id ON public.documents(organization_id);
 ```
 
 **Without index:**
+
 ```
 Seq Scan on tasks (cost=0.00..1000.00 rows=10000 width=100)
   Filter: (user_id = current_setting('app.user_id')::uuid)
 ```
 
 **With index:**
+
 ```
 Index Scan using idx_tasks_user_id on tasks (cost=0.15..8.20 rows=5 width=100)
   Index Cond: (user_id = current_setting('app.user_id')::uuid)
@@ -698,6 +709,7 @@ Index Scan using idx_tasks_user_id on tasks (cost=0.15..8.20 rows=5 width=100)
 Complex policies with subqueries can be slow. Optimize by:
 
 **Bad (slow subquery):**
+
 ```sql
 CREATE POLICY complex_access ON documents
   FOR SELECT
@@ -711,6 +723,7 @@ CREATE POLICY complex_access ON documents
 ```
 
 **Good (simple check with indexed column):**
+
 ```sql
 -- Add org_id directly to documents table
 ALTER TABLE documents ADD COLUMN org_id UUID;
@@ -837,12 +850,12 @@ CREATE POLICY tasks_insert ON tasks
 
 Test matrix:
 
-| User Type | SELECT | INSERT | UPDATE | DELETE |
-|-----------|--------|--------|--------|--------|
-| Anonymous | ✓ (public) | ✗ | ✗ | ✗ |
-| Authenticated (own) | ✓ | ✓ | ✓ | ✓ |
-| Authenticated (other) | ✗ | ✗ | ✗ | ✗ |
-| Admin | ✓ (all) | ✓ (all) | ✓ (all) | ✓ (all) |
+| User Type             | SELECT     | INSERT  | UPDATE  | DELETE  |
+| --------------------- | ---------- | ------- | ------- | ------- |
+| Anonymous             | ✓ (public) | ✗       | ✗       | ✗       |
+| Authenticated (own)   | ✓          | ✓       | ✓       | ✓       |
+| Authenticated (other) | ✗          | ✗       | ✗       | ✗       |
+| Admin                 | ✓ (all)    | ✓ (all) | ✓ (all) | ✓ (all) |
 
 ### 5. Audit Policies Regularly
 
@@ -948,12 +961,14 @@ FLUXBASE_DATABASE_LOG_QUERIES=true
 ### Common Issues
 
 **Issue: "Permission denied for table"**
+
 ```sql
 -- Solution: Grant permissions to role
 GRANT SELECT ON public.tasks TO authenticated;
 ```
 
 **Issue: "RLS policy prevents access"**
+
 ```sql
 -- Solution: Check if policy is too restrictive
 SELECT * FROM pg_policies WHERE tablename = 'tasks';
@@ -961,6 +976,7 @@ SELECT * FROM pg_policies WHERE tablename = 'tasks';
 ```
 
 **Issue: "Infinite recursion in RLS policy"**
+
 ```sql
 -- Problem: Policy references itself
 CREATE POLICY bad_policy ON tasks
@@ -1137,12 +1153,12 @@ COMMIT;
 
 Row Level Security is a powerful tool for building secure, multi-tenant applications. Key takeaways:
 
-✅ **Enable RLS on all tables with sensitive data**
-✅ **Use `FORCE ROW LEVEL SECURITY` to prevent bypass**
-✅ **Index columns used in policies (especially user_id)**
-✅ **Keep policies simple for better performance**
-✅ **Test policies thoroughly with different user contexts**
-✅ **Grant minimal necessary permissions**
-✅ **Document your policies and audit them regularly**
+- ✅ **Enable RLS on all tables with sensitive data**
+- ✅ **Use `FORCE ROW LEVEL SECURITY` to prevent bypass**
+- ✅ **Index columns used in policies (especially user_id)**
+- ✅ **Keep policies simple for better performance**
+- ✅ **Test policies thoroughly with different user contexts**
+- ✅ **Grant minimal necessary permissions**
+- ✅ **Document your policies and audit them regularly**
 
 With Fluxbase's RLS integration, you get automatic, database-level data isolation with minimal application code changes. Start with simple user isolation policies and expand to more complex organizational or role-based access as needed.

@@ -51,71 +51,71 @@ Fluxbase exposes Prometheus-compatible metrics at `/metrics` endpoint.
 
 #### HTTP Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_http_requests_total` | Counter | `method`, `path`, `status` | Total number of HTTP requests |
-| `fluxbase_http_request_duration_seconds` | Histogram | `method`, `path`, `status` | HTTP request latency |
-| `fluxbase_http_request_size_bytes` | Histogram | `method`, `path` | HTTP request size |
-| `fluxbase_http_response_size_bytes` | Histogram | `method`, `path`, `status` | HTTP response size |
-| `fluxbase_http_requests_in_flight` | Gauge | - | Current number of active requests |
+| Metric                                   | Type      | Labels                     | Description                       |
+| ---------------------------------------- | --------- | -------------------------- | --------------------------------- |
+| `fluxbase_http_requests_total`           | Counter   | `method`, `path`, `status` | Total number of HTTP requests     |
+| `fluxbase_http_request_duration_seconds` | Histogram | `method`, `path`, `status` | HTTP request latency              |
+| `fluxbase_http_request_size_bytes`       | Histogram | `method`, `path`           | HTTP request size                 |
+| `fluxbase_http_response_size_bytes`      | Histogram | `method`, `path`, `status` | HTTP response size                |
+| `fluxbase_http_requests_in_flight`       | Gauge     | -                          | Current number of active requests |
 
 **Histogram Buckets (Latency)**:
 `.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10` seconds
 
 #### Database Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_db_queries_total` | Counter | `operation`, `table` | Total database queries executed |
-| `fluxbase_db_query_duration_seconds` | Histogram | `operation`, `table` | Database query latency |
-| `fluxbase_db_connections` | Gauge | - | Current database connections |
-| `fluxbase_db_connections_idle` | Gauge | - | Idle database connections |
-| `fluxbase_db_connections_max` | Gauge | - | Maximum database connections |
+| Metric                               | Type      | Labels               | Description                     |
+| ------------------------------------ | --------- | -------------------- | ------------------------------- |
+| `fluxbase_db_queries_total`          | Counter   | `operation`, `table` | Total database queries executed |
+| `fluxbase_db_query_duration_seconds` | Histogram | `operation`, `table` | Database query latency          |
+| `fluxbase_db_connections`            | Gauge     | -                    | Current database connections    |
+| `fluxbase_db_connections_idle`       | Gauge     | -                    | Idle database connections       |
+| `fluxbase_db_connections_max`        | Gauge     | -                    | Maximum database connections    |
 
 **Histogram Buckets (Query Duration)**:
 `.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5` seconds
 
 #### Realtime Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_realtime_connections` | Gauge | - | Current WebSocket connections |
-| `fluxbase_realtime_channels` | Gauge | - | Active realtime channels |
-| `fluxbase_realtime_subscriptions` | Gauge | - | Total realtime subscriptions |
-| `fluxbase_realtime_messages_total` | Counter | `channel_type` | Messages sent via realtime |
-| `fluxbase_realtime_connection_errors_total` | Counter | `error_type` | WebSocket connection errors |
+| Metric                                      | Type    | Labels         | Description                   |
+| ------------------------------------------- | ------- | -------------- | ----------------------------- |
+| `fluxbase_realtime_connections`             | Gauge   | -              | Current WebSocket connections |
+| `fluxbase_realtime_channels`                | Gauge   | -              | Active realtime channels      |
+| `fluxbase_realtime_subscriptions`           | Gauge   | -              | Total realtime subscriptions  |
+| `fluxbase_realtime_messages_total`          | Counter | `channel_type` | Messages sent via realtime    |
+| `fluxbase_realtime_connection_errors_total` | Counter | `error_type`   | WebSocket connection errors   |
 
 #### Storage Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_storage_bytes_total` | Counter | `operation`, `bucket` | Total bytes stored/retrieved |
-| `fluxbase_storage_operations_total` | Counter | `operation`, `bucket`, `status` | Storage operations count |
-| `fluxbase_storage_operation_duration_seconds` | Histogram | `operation`, `bucket` | Storage operation latency |
+| Metric                                        | Type      | Labels                          | Description                  |
+| --------------------------------------------- | --------- | ------------------------------- | ---------------------------- |
+| `fluxbase_storage_bytes_total`                | Counter   | `operation`, `bucket`           | Total bytes stored/retrieved |
+| `fluxbase_storage_operations_total`           | Counter   | `operation`, `bucket`, `status` | Storage operations count     |
+| `fluxbase_storage_operation_duration_seconds` | Histogram | `operation`, `bucket`           | Storage operation latency    |
 
 **Histogram Buckets (Storage)**:
 `.01, .05, .1, .25, .5, 1, 2.5, 5, 10` seconds
 
 #### Authentication Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_auth_attempts_total` | Counter | `method`, `result` | Authentication attempts |
-| `fluxbase_auth_success_total` | Counter | `method` | Successful authentications |
-| `fluxbase_auth_failure_total` | Counter | `method`, `reason` | Failed authentications |
-| `fluxbase_auth_tokens_issued_total` | Counter | `token_type` | Auth tokens issued |
+| Metric                              | Type    | Labels             | Description                |
+| ----------------------------------- | ------- | ------------------ | -------------------------- |
+| `fluxbase_auth_attempts_total`      | Counter | `method`, `result` | Authentication attempts    |
+| `fluxbase_auth_success_total`       | Counter | `method`           | Successful authentications |
+| `fluxbase_auth_failure_total`       | Counter | `method`, `reason` | Failed authentications     |
+| `fluxbase_auth_tokens_issued_total` | Counter | `token_type`       | Auth tokens issued         |
 
 #### Rate Limiting Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
+| Metric                           | Type    | Labels                       | Description     |
+| -------------------------------- | ------- | ---------------------------- | --------------- |
 | `fluxbase_rate_limit_hits_total` | Counter | `limiter_type`, `identifier` | Rate limit hits |
 
 #### System Metrics
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `fluxbase_system_uptime_seconds` | Gauge | - | System uptime in seconds |
+| Metric                           | Type  | Labels | Description              |
+| -------------------------------- | ----- | ------ | ------------------------ |
+| `fluxbase_system_uptime_seconds` | Gauge | -      | System uptime in seconds |
 
 ---
 
@@ -131,10 +131,10 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'fluxbase'
+  - job_name: "fluxbase"
     static_configs:
-      - targets: ['localhost:8080']
-    metrics_path: '/metrics'
+      - targets: ["localhost:8080"]
+    metrics_path: "/metrics"
     scrape_interval: 15s
 ```
 
@@ -156,7 +156,7 @@ docker run -d \
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     ports:
       - "8080:8080"
     environment:
@@ -169,8 +169,8 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
 ```
 
 **Verify Prometheus is scraping:**
@@ -333,16 +333,16 @@ metadata:
   name: fluxbase
 spec:
   containers:
-  - name: fluxbase
-    image: fluxbase/fluxbase:latest
-    livenessProbe:
-      httpGet:
-        path: /api/v1/monitoring/health
-        port: 8080
-      initialDelaySeconds: 30
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 3
+    - name: fluxbase
+      image: ghcr.io/wayli-app/fluxbase:latest:latest
+      livenessProbe:
+        httpGet:
+          path: /api/v1/monitoring/health
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
 ```
 
 **Docker Healthcheck:**
@@ -357,9 +357,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 ```yaml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/monitoring/health"]
+      test:
+        ["CMD", "curl", "-f", "http://localhost:8080/api/v1/monitoring/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -568,27 +569,27 @@ global:
   resolve_timeout: 5m
 
 route:
-  group_by: ['alertname', 'severity']
+  group_by: ["alertname", "severity"]
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 12h
-  receiver: 'email'
+  receiver: "email"
 
 receivers:
-  - name: 'email'
+  - name: "email"
     email_configs:
-      - to: 'alerts@example.com'
-        from: 'alertmanager@example.com'
+      - to: "alerts@example.com"
+        from: "alertmanager@example.com"
         smarthost: smtp.gmail.com:587
-        auth_username: 'your-email@gmail.com'
-        auth_password: 'your-app-password'
+        auth_username: "your-email@gmail.com"
+        auth_password: "your-app-password"
 
-  - name: 'slack'
+  - name: "slack"
     slack_configs:
-      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
-        channel: '#alerts'
-        title: 'Fluxbase Alert'
-        text: '{{ .CommonAnnotations.description }}'
+      - api_url: "YOUR_SLACK_WEBHOOK_URL"
+        channel: "#alerts"
+        title: "Fluxbase Alert"
+        text: "{{ .CommonAnnotations.description }}"
 ```
 
 ---
@@ -761,6 +762,7 @@ Monitor: `num_goroutines` over time
 **Symptoms**: Slow API responses
 
 **Diagnosis**:
+
 ```promql
 # Check which endpoints are slow
 topk(10, histogram_quantile(0.95, rate(fluxbase_http_request_duration_seconds_bucket[5m])))
@@ -770,6 +772,7 @@ histogram_quantile(0.95, rate(fluxbase_db_query_duration_seconds_bucket[5m]))
 ```
 
 **Solutions**:
+
 - Add database indexes
 - Enable query caching
 - Increase connection pool size
@@ -780,11 +783,13 @@ histogram_quantile(0.95, rate(fluxbase_db_query_duration_seconds_bucket[5m]))
 **Symptoms**: 5xx errors
 
 **Diagnosis**:
+
 ```promql
 rate(fluxbase_http_requests_total{status="5xx"}[5m])
 ```
 
 **Solutions**:
+
 - Check application logs
 - Verify database connectivity
 - Check storage availability
@@ -795,10 +800,12 @@ rate(fluxbase_http_requests_total{status="5xx"}[5m])
 **Symptoms**: Increasing memory usage
 
 **Diagnosis**:
+
 - Monitor `memory_alloc_mb` over time
 - Check goroutine count growth
 
 **Solutions**:
+
 - Review long-running operations
 - Check for unclosed connections
 - Update to latest version
@@ -809,11 +816,13 @@ rate(fluxbase_http_requests_total{status="5xx"}[5m])
 **Symptoms**: Slow queries, timeouts
 
 **Diagnosis**:
+
 ```promql
 fluxbase_db_connections >= fluxbase_db_connections_max
 ```
 
 **Solutions**:
+
 - Increase `max_connections` in config
 - Reduce query execution time
 - Check for connection leaks
@@ -826,6 +835,7 @@ fluxbase_db_connections >= fluxbase_db_connections_max
 ### 1. Set Up Monitoring Early
 
 Configure monitoring before deploying to production:
+
 - ✅ Prometheus scraping
 - ✅ Health checks
 - ✅ Log aggregation
@@ -834,6 +844,7 @@ Configure monitoring before deploying to production:
 ### 2. Monitor Key Metrics
 
 Focus on:
+
 - Request latency (P95, P99)
 - Error rate
 - Database performance
@@ -843,6 +854,7 @@ Focus on:
 ### 3. Set Up Alerts
 
 Create alerts for:
+
 - High error rate (> 1%)
 - High latency (P95 > 500ms)
 - Service unavailable
@@ -859,6 +871,7 @@ Create alerts for:
 ### 5. Document Runbooks
 
 Create runbooks for common issues:
+
 - High latency → Check database indexes
 - 5xx errors → Check logs and database
 - Memory leaks → Restart and investigate
@@ -870,11 +883,11 @@ Create runbooks for common issues:
 
 Fluxbase provides comprehensive monitoring and observability:
 
-✅ **Prometheus metrics** for all components
-✅ **Health checks** for service status
-✅ **Structured logging** with JSON format
-✅ **System statistics** via JSON API
-✅ **Pre-built Grafana dashboards**
-✅ **Alert rules** for critical issues
+- ✅ **Prometheus metrics** for all components
+- ✅ **Health checks** for service status
+- ✅ **Structured logging** with JSON format
+- ✅ **System statistics** via JSON API
+- ✅ **Pre-built Grafana dashboards**
+- ✅ **Alert rules** for critical issues
 
 Set up monitoring early, create dashboards, configure alerts, and regularly review metrics to ensure optimal performance and reliability.

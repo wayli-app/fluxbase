@@ -11,15 +11,15 @@ HTTP security headers are an essential part of web application security. They in
 
 Fluxbase sets the following security headers by default:
 
-| Header | Value | Purpose |
-|--------|-------|---------|
-| Content-Security-Policy | Restrictive policy | Prevents XSS attacks |
-| X-Frame-Options | DENY | Prevents clickjacking |
-| X-Content-Type-Options | nosniff | Prevents MIME sniffing |
-| X-XSS-Protection | 1; mode=block | Legacy XSS protection |
-| Strict-Transport-Security | max-age=31536000 | Forces HTTPS |
-| Referrer-Policy | strict-origin-when-cross-origin | Controls referrer information |
-| Permissions-Policy | Restrictive policy | Controls browser features |
+| Header                    | Value                           | Purpose                       |
+| ------------------------- | ------------------------------- | ----------------------------- |
+| Content-Security-Policy   | Restrictive policy              | Prevents XSS attacks          |
+| X-Frame-Options           | DENY                            | Prevents clickjacking         |
+| X-Content-Type-Options    | nosniff                         | Prevents MIME sniffing        |
+| X-XSS-Protection          | 1; mode=block                   | Legacy XSS protection         |
+| Strict-Transport-Security | max-age=31536000                | Forces HTTPS                  |
+| Referrer-Policy           | strict-origin-when-cross-origin | Controls referrer information |
+| Permissions-Policy        | Restrictive policy              | Controls browser features     |
 
 ---
 
@@ -94,7 +94,7 @@ security:
 ```html
 <!-- Use nonce for inline scripts -->
 <script nonce="random-nonce-here">
-  console.log('This script is allowed')
+  console.log("This script is allowed");
 </script>
 ```
 
@@ -178,7 +178,7 @@ Without this header, browsers might execute JavaScript disguised as images:
 
 ```html
 <!-- Attacker uploads "image.jpg" that's actually JavaScript -->
-<img src="/uploads/image.jpg">
+<img src="/uploads/image.jpg" />
 <!-- Browser might execute it as JS without nosniff -->
 ```
 
@@ -189,7 +189,7 @@ With `nosniff`, the browser will only execute files with `Content-Type: applicat
 ```yaml
 security:
   headers:
-    x_content_type_options: "nosniff"  # Always use this
+    x_content_type_options: "nosniff" # Always use this
 ```
 
 ---
@@ -224,7 +224,7 @@ Instead of relying on X-XSS-Protection, use a strong Content Security Policy:
 security:
   headers:
     content_security_policy: "default-src 'self'; script-src 'self'"
-    x_xss_protection: "0"  # Disable legacy protection, rely on CSP
+    x_xss_protection: "0" # Disable legacy protection, rely on CSP
 ```
 
 ---
@@ -264,6 +264,7 @@ security:
 ```
 
 **Requirements:**
+
 1. Valid TLS certificate
 2. Redirect all HTTP to HTTPS
 3. Serve HSTS header on base domain
@@ -325,27 +326,30 @@ security:
 
 ### Policy Comparison
 
-| Policy | Same-Origin | Cross-Origin HTTPS | Cross-Origin HTTP |
-|--------|-------------|-------------------|-------------------|
-| no-referrer | ❌ | ❌ | ❌ |
-| same-origin | ✅ Full URL | ❌ | ❌ |
-| origin | ✅ Origin only | ✅ Origin only | ✅ Origin only |
-| strict-origin | ✅ Origin only | ✅ Origin only | ❌ |
-| strict-origin-when-cross-origin | ✅ Full URL | ✅ Origin only | ❌ |
+| Policy                          | Same-Origin    | Cross-Origin HTTPS | Cross-Origin HTTP |
+| ------------------------------- | -------------- | ------------------ | ----------------- |
+| no-referrer                     | ❌             | ❌                 | ❌                |
+| same-origin                     | ✅ Full URL    | ❌                 | ❌                |
+| origin                          | ✅ Origin only | ✅ Origin only     | ✅ Origin only    |
+| strict-origin                   | ✅ Origin only | ✅ Origin only     | ❌                |
+| strict-origin-when-cross-origin | ✅ Full URL    | ✅ Origin only     | ❌                |
 
 ### Use Cases
 
 **Maximum Privacy:**
+
 ```yaml
 referrer_policy: "no-referrer"
 ```
 
 **Analytics-Friendly:**
+
 ```yaml
-referrer_policy: "strict-origin-when-cross-origin"  # Default
+referrer_policy: "strict-origin-when-cross-origin" # Default
 ```
 
 **Internal Links Only:**
+
 ```yaml
 referrer_policy: "same-origin"
 ```
@@ -501,7 +505,7 @@ security:
     strict_transport_security: ""
 
     referrer_policy: "no-referrer-when-downgrade"
-    permissions_policy: ""  # Allow all in development
+    permissions_policy: "" # Allow all in development
 ```
 
 ---
@@ -521,11 +525,13 @@ curl -I https://yourapp.com/ | grep -i "content-security-policy"
 ### Online Testing Tools
 
 1. **Security Headers** (https://securityheaders.com/)
+
    - Comprehensive security header analysis
    - Letter grade rating
    - Recommendations for improvement
 
 2. **Mozilla Observatory** (https://observatory.mozilla.org/)
+
    - Security and privacy analysis
    - Detailed scoring
    - Specific recommendations
@@ -538,24 +544,28 @@ curl -I https://yourapp.com/ | grep -i "content-security-policy"
 ### Automated Testing
 
 ```typescript
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from "vitest";
 
-describe('Security Headers', () => {
-  it('should set Content-Security-Policy', async () => {
-    const response = await fetch('https://yourapp.com/')
-    expect(response.headers.get('content-security-policy')).toContain("default-src 'self'")
-  })
+describe("Security Headers", () => {
+  it("should set Content-Security-Policy", async () => {
+    const response = await fetch("https://yourapp.com/");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "default-src 'self'"
+    );
+  });
 
-  it('should set X-Frame-Options', async () => {
-    const response = await fetch('https://yourapp.com/')
-    expect(response.headers.get('x-frame-options')).toBe('DENY')
-  })
+  it("should set X-Frame-Options", async () => {
+    const response = await fetch("https://yourapp.com/");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+  });
 
-  it('should set HSTS on HTTPS', async () => {
-    const response = await fetch('https://yourapp.com/')
-    expect(response.headers.get('strict-transport-security')).toContain('max-age=')
-  })
-})
+  it("should set HSTS on HTTPS", async () => {
+    const response = await fetch("https://yourapp.com/");
+    expect(response.headers.get("strict-transport-security")).toContain(
+      "max-age="
+    );
+  });
+});
 ```
 
 ---
@@ -689,6 +699,7 @@ app.Post("/api/v1/csp-report", func(c *fiber.Ctx) error {
 ### 5. Test on All Browsers
 
 Different browsers have different CSP support:
+
 - Test on Chrome, Firefox, Safari, Edge
 - Check mobile browsers (iOS Safari, Chrome Mobile)
 - Verify old browser fallbacks
@@ -736,11 +747,11 @@ content_security_policy: >
 
 Security headers are a critical defense layer:
 
-✅ **Content Security Policy** - Prevents XSS attacks
-✅ **X-Frame-Options** - Prevents clickjacking
-✅ **X-Content-Type-Options** - Prevents MIME sniffing
-✅ **HSTS** - Forces HTTPS
-✅ **Referrer-Policy** - Controls referrer information
-✅ **Permissions-Policy** - Restricts browser features
+- ✅ **Content Security Policy** - Prevents XSS attacks
+- ✅ **X-Frame-Options** - Prevents clickjacking
+- ✅ **X-Content-Type-Options** - Prevents MIME sniffing
+- ✅ **HSTS** - Forces HTTPS
+- ✅ **Referrer-Policy** - Controls referrer information
+- ✅ **Permissions-Policy** - Restricts browser features
 
 Fluxbase sets secure defaults, but customize them for your specific needs. Test thoroughly and monitor for violations.

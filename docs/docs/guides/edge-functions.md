@@ -7,9 +7,9 @@ Edge Functions are serverless functions powered by the Deno runtime that execute
 Edge Functions in Fluxbase provide:
 
 - **Deno Runtime** - Execute TypeScript/JavaScript code with modern ES modules
-- **HTTP Triggered** - Invoke functions via REST API
+- **HTTP Triggered** - Invoke functions via REST API or SDK
 - **Secure Sandbox** - Configurable permissions for network, environment, and filesystem access
-- **Database Access** - Query your Fluxbase database via REST API
+- **Database Access** - Query your Fluxbase database directly
 - **Execution Logging** - Track function invocations and debug issues
 - **Version Control** - Each function update increments version
 - **Timeout Protection** - Configurable execution limits
@@ -24,202 +24,443 @@ Edge Functions in Fluxbase provide:
 - **Authentication Extensions** - Custom OAuth flows, SSO integration
 - **Email Templates** - Generate and send personalized emails
 
-## Quick Start
+---
 
-### 1. Create Your First Function
+## Using the SDK (Recommended)
 
-```bash
-curl -X POST http://localhost:8080/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "name": "hello-world",
-    "description": "My first edge function",
-    "code": "async function handler(req) { return { status: 200, body: JSON.stringify({ message: \"Hello World!\" }) }; }",
-    "enabled": true
-  }'
-```
+### Installation
 
-### 2. Invoke the Function
+**TypeScript/JavaScript:**
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/functions/hello-world/invoke \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_ANON_KEY" \
-  -d '{"name": "Alice"}'
+npm install @fluxbase/sdk
 ```
 
-Response:
-
-```json
-{
-  "message": "Hello World!"
-}
-```
-
-> **Note:** Function invocation requires at minimum an **anon key** (JWT token with `role=anon`). See the [Authentication](#authentication) section below for details.
-
-### 3. View Execution History
+**Python:**
 
 ```bash
-curl http://localhost:8080/api/v1/functions/hello-world/executions \
-  -H "Authorization: Bearer YOUR_TOKEN"
+pip install fluxbase
 ```
 
-## Authentication
+### Quick Start
 
-Edge function invocation requires **at minimum an anon key** (JWT token with `role=anon`) by default. This follows the Supabase authentication model where even "public" endpoints require project identification for security and usage tracking.
+#### TypeScript/JavaScript
 
-### Authentication Options
+```typescript
+import { FluxbaseClient } from "@fluxbase/sdk";
 
-Functions accept multiple authentication methods, in order of privilege:
+// Initialize client (requires authentication)
+const client = new FluxbaseClient({
+  url: "http://localhost:8080",
+  apiKey: process.env.FLUXBASE_API_KEY,
+});
 
-#### 1. Anon Key (Minimum Required)
+// Create an edge function
+const func = await client.functions.create({
+  name: "hello-world",
+  description: "My first edge function",
+  code: `
+    async function handler(req) {
+      const data = JSON.parse(req.body || '{}');
+      return {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: \`Hello \${data.name || 'World'}!\`
+        })
+      };
+    }
+  `,
+  enabled: true,
+});
 
-An anon key is a JWT token with `role=anon` that allows anonymous access while still identifying your project.
+console.log("Function created:", func.name);
 
-**Generate an anon key:**
+// Invoke the function
+const result = await client.functions.invoke("hello-world", {
+  name: "Alice",
+});
 
-```bash
-# Using the helper script
-./scripts/generate-keys.sh
-# Select option 3: Generate Anon Key
-```
+console.log("Result:", result); // { message: "Hello Alice!" }
 
-**Use in requests:**
+// List all functions
+const functions = await client.functions.list();
 
-```bash
-curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
-  -H "Authorization: Bearer YOUR_ANON_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"data": "value"}'
-```
+// Get function details
+const details = await client.functions.get("hello-world");
 
-**Client-side usage:**
-
-```javascript
-// Store anon key in your environment
-const FLUXBASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
-
-// Use in API calls
-fetch("http://localhost:8080/api/v1/functions/my-function/invoke", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${FLUXBASE_ANON_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ data: "value" }),
+// View execution history
+const executions = await client.functions.getExecutions("hello-world", {
+  limit: 10,
 });
 ```
 
-#### 2. User JWT Token
+#### Python
 
-Authenticated user tokens from sign-in provide user context to functions.
+```python
+from fluxbase import FluxbaseClient
+import os
 
-```bash
-curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
-  -H "Authorization: Bearer USER_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"data": "value"}'
-```
+# Initialize client
+client = FluxbaseClient(
+    url="http://localhost:8080",
+    api_key=os.environ['FLUXBASE_API_KEY']
+)
 
-Functions can access the authenticated user ID:
-
-```typescript
-async function handler(request) {
-  const userId = request.user_id; // Available when user is authenticated
-
-  if (userId) {
-    console.log("Authenticated user:", userId);
-  } else {
-    console.log("Anonymous user (anon key)");
-  }
-
-  // Your logic here
-}
-```
-
-#### 3. API Key
-
-API keys provide scoped access with specific permissions.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"data": "value"}'
-```
-
-Create an API key with `execute:functions` scope:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/api-keys \
-  -H "Authorization: Bearer ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My API Key",
-    "scopes": ["execute:functions"],
-    "rate_limit_per_minute": 100
-  }'
-```
-
-#### 4. Service Key
-
-Service keys have elevated privileges and bypass RLS policies. Use only for backend services.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/functions/my-function/invoke \
-  -H "X-Service-Key: YOUR_SERVICE_KEY" \
-  -H "Content-Type": "application/json" \
-  -d '{"data": "value"}'
-```
-
-### Allowing Completely Unauthenticated Access
-
-For truly public endpoints that don't require any authentication (not even an anon key), set `allow_unauthenticated: true`. This is useful for public webhooks or endpoints that must be accessible without credentials.
-
-**Via API:**
-
-```json
-{
-  "name": "public-webhook",
-  "code": "async function handler(req) { ... }",
-  "allow_unauthenticated": true
-}
-```
-
-**Via code comment:**
-
-```typescript
-// @fluxbase:allow-unauthenticated
-async function handler(request) {
-  // Process webhook without authentication
+# Create an edge function
+func = client.functions.create(
+    name="hello-world",
+    description="My first edge function",
+    code="""
+async function handler(req) {
+  const data = JSON.parse(req.body || '{}');
   return {
     status: 200,
-    body: JSON.stringify({ success: true }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: `Hello ${data.name || 'World'}!`
+    })
   };
 }
+    """,
+    enabled=True
+)
+
+print(f"Function created: {func['name']}")
+
+# Invoke the function
+result = client.functions.invoke("hello-world", {"name": "Alice"})
+print(f"Result: {result}")  # { message: "Hello Alice!" }
+
+# List all functions
+functions = client.functions.list()
+
+# Get function details
+details = client.functions.get("hello-world")
+
+# View execution history
+executions = client.functions.get_executions("hello-world", limit=10)
 ```
 
-> **Security Note:** Use `allow_unauthenticated: true` sparingly. Anon keys provide better security, rate limiting, and usage tracking for most public endpoints.
+---
 
-### Authentication Error Responses
+### Managing Edge Functions
 
-**No authentication provided (401):**
+#### Create a Function
 
-```json
-{
-  "error": "Authentication required. Provide an anon key (Bearer token with role=anon), API key (X-API-Key header), or service key (X-Service-Key header). To allow completely unauthenticated access, set allow_unauthenticated=true on the function."
+**TypeScript:**
+
+```typescript
+const func = await client.functions.create({
+  name: "process-webhook",
+  description: "Process incoming webhooks from Stripe",
+  code: `
+    async function handler(request) {
+      const payload = JSON.parse(request.body || '{}');
+
+      // Validate webhook signature
+      const signature = request.headers['stripe-signature'];
+      if (!signature) {
+        return {
+          status: 401,
+          body: JSON.stringify({ error: 'Missing signature' })
+        };
+      }
+
+      // Process webhook event
+      console.log('Webhook event:', payload.type);
+
+      return {
+        status: 200,
+        body: JSON.stringify({ received: true })
+      };
+    }
+  `,
+  enabled: true,
+  timeout_seconds: 30,
+  memory_limit_mb: 128,
+  allow_net: true,
+  allow_env: true,
+  allow_read: false,
+  allow_write: false,
+});
+
+console.log("Created function:", func.id);
+```
+
+**Python:**
+
+```python
+func = client.functions.create(
+    name="process-webhook",
+    description="Process incoming webhooks from Stripe",
+    code="""
+async function handler(request) {
+  const payload = JSON.parse(request.body || '{}');
+
+  // Validate webhook signature
+  const signature = request.headers['stripe-signature'];
+  if (!signature) {
+    return {
+      status: 401,
+      body: JSON.stringify({ error: 'Missing signature' })
+    };
+  }
+
+  // Process webhook event
+  console.log('Webhook event:', payload.type);
+
+  return {
+    status: 200,
+    body: JSON.stringify({ received: true })
+  };
 }
+    """,
+    enabled=True,
+    timeout_seconds=30,
+    memory_limit_mb=128,
+    allow_net=True,
+    allow_env=True,
+    allow_read=False,
+    allow_write=False
+)
+
+print(f"Created function: {func['id']}")
 ```
 
-**Function disabled (403):**
+**Configuration Options:**
 
-```json
-{
-  "error": "Function is disabled"
+| Field             | Type    | Description                           | Default |
+| ----------------- | ------- | ------------------------------------- | ------- |
+| `name`            | string  | Function name (used in URL)           | -       |
+| `description`     | string  | Optional description                  | -       |
+| `code`            | string  | Function code (must export `handler`) | -       |
+| `enabled`         | boolean | Whether function is active            | `true`  |
+| `timeout_seconds` | number  | Max execution time (max 300s)         | `30`    |
+| `memory_limit_mb` | number  | Max memory usage (max 1024MB)         | `128`   |
+| `allow_net`       | boolean | Network access (fetch, WebSocket)     | `true`  |
+| `allow_env`       | boolean | Environment variables access          | `true`  |
+| `allow_read`      | boolean | Filesystem read access                | `false` |
+| `allow_write`     | boolean | Filesystem write access               | `false` |
+| `cron_schedule`   | string  | Cron schedule (future feature)        | `null`  |
+
+#### Invoke a Function
+
+**TypeScript:**
+
+```typescript
+// Simple invocation
+const result = await client.functions.invoke("my-function", {
+  email: "user@example.com",
+  action: "send_welcome",
+});
+
+console.log("Function result:", result);
+
+// With custom headers
+const resultWithHeaders = await client.functions.invoke(
+  "my-function",
+  { data: "value" },
+  {
+    headers: {
+      "X-Custom-Header": "value",
+    },
+  }
+);
+```
+
+**Python:**
+
+```python
+# Simple invocation
+result = client.functions.invoke(
+    "my-function",
+    {
+        "email": "user@example.com",
+        "action": "send_welcome"
+    }
+)
+
+print(f"Function result: {result}")
+
+# With custom headers
+result_with_headers = client.functions.invoke(
+    "my-function",
+    {"data": "value"},
+    headers={"X-Custom-Header": "value"}
+)
+```
+
+#### List Functions
+
+**TypeScript:**
+
+```typescript
+const functions = await client.functions.list();
+
+functions.forEach((func) => {
+  console.log(`${func.name} (v${func.version})`);
+  console.log(`  Status: ${func.enabled ? "Enabled" : "Disabled"}`);
+  console.log(`  Timeout: ${func.timeout_seconds}s`);
+  console.log(`  Memory: ${func.memory_limit_mb}MB`);
+});
+```
+
+**Python:**
+
+```python
+functions = client.functions.list()
+
+for func in functions:
+    status = "Enabled" if func['enabled'] else "Disabled"
+    print(f"{func['name']} (v{func['version']})")
+    print(f"  Status: {status}")
+    print(f"  Timeout: {func['timeout_seconds']}s")
+    print(f"  Memory: {func['memory_limit_mb']}MB")
+```
+
+#### Get Function Details
+
+**TypeScript:**
+
+```typescript
+const func = await client.functions.get("my-function");
+
+console.log("Name:", func.name);
+console.log("Version:", func.version);
+console.log("Code:", func.code);
+console.log("Created:", func.created_at);
+console.log("Updated:", func.updated_at);
+```
+
+**Python:**
+
+```python
+func = client.functions.get("my-function")
+
+print(f"Name: {func['name']}")
+print(f"Version: {func['version']}")
+print(f"Code: {func['code']}")
+print(f"Created: {func['created_at']}")
+```
+
+#### Update Function
+
+**TypeScript:**
+
+```typescript
+// Update function code
+await client.functions.update("my-function", {
+  code: `
+    async function handler(req) {
+      // Updated implementation
+      return {
+        status: 200,
+        body: JSON.stringify({ version: 2 })
+      };
+    }
+  `,
+});
+
+// Enable/disable function
+await client.functions.update("my-function", {
+  enabled: false,
+});
+
+// Update timeout and permissions
+await client.functions.update("my-function", {
+  timeout_seconds: 60,
+  allow_net: false,
+});
+```
+
+**Python:**
+
+```python
+# Update function code
+client.functions.update(
+    "my-function",
+    code="""
+async function handler(req) {
+  // Updated implementation
+  return {
+    status: 200,
+    body: JSON.stringify({ version: 2 })
+  };
 }
+    """
+)
+
+# Enable/disable function
+client.functions.update("my-function", enabled=False)
+
+# Update timeout and permissions
+client.functions.update(
+    "my-function",
+    timeout_seconds=60,
+    allow_net=False
+)
 ```
+
+#### Delete Function
+
+**TypeScript:**
+
+```typescript
+await client.functions.delete("my-function");
+console.log("Function deleted");
+```
+
+**Python:**
+
+```python
+client.functions.delete("my-function")
+print("Function deleted")
+```
+
+#### View Execution History
+
+**TypeScript:**
+
+```typescript
+const executions = await client.functions.getExecutions("my-function", {
+  limit: 50,
+  offset: 0,
+});
+
+executions.forEach((exec) => {
+  console.log(`${exec.executed_at}: ${exec.status}`);
+  console.log(`  Duration: ${exec.duration_ms}ms`);
+  console.log(`  Status Code: ${exec.status_code}`);
+  if (exec.error_message) {
+    console.log(`  Error: ${exec.error_message}`);
+  }
+  if (exec.logs) {
+    console.log(`  Logs: ${exec.logs}`);
+  }
+});
+```
+
+**Python:**
+
+```python
+executions = client.functions.get_executions(
+    "my-function",
+    limit=50,
+    offset=0
+)
+
+for exec in executions:
+    print(f"{exec['executed_at']}: {exec['status']}")
+    print(f"  Duration: {exec['duration_ms']}ms")
+    print(f"  Status Code: {exec['status_code']}")
+    if exec.get('error_message'):
+        print(f"  Error: {exec['error_message']}")
+    if exec.get('logs'):
+        print(f"  Logs: {exec['logs']}")
+```
+
+---
 
 ## Writing Functions
 
@@ -264,7 +505,9 @@ interface Response {
 }
 ```
 
-## Examples
+---
+
+## Function Examples
 
 ### Simple Hello World
 
@@ -469,28 +712,80 @@ async function handler(request) {
 }
 ```
 
+---
+
+## Authentication
+
+Edge function invocation requires **at minimum an anon key** (JWT token with `role=anon`) by default for security and usage tracking.
+
+### Using SDK (Automatic)
+
+The SDK automatically handles authentication when you initialize the client:
+
+```typescript
+const client = new FluxbaseClient({
+  url: "http://localhost:8080",
+  apiKey: process.env.FLUXBASE_API_KEY, // Anon key, user token, or API key
+});
+
+// Authentication is automatic
+const result = await client.functions.invoke("my-function", { data: "value" });
+```
+
+### Authentication Options
+
+Functions accept multiple authentication methods, in order of privilege:
+
+1. **Anon Key** (Minimum required) - JWT token with `role=anon`
+2. **User JWT Token** - Authenticated user tokens from sign-in
+3. **API Key** - Scoped access with specific permissions
+4. **Service Key** - Elevated privileges (backend only)
+
+**Accessing User Context in Functions:**
+
+```typescript
+async function handler(request) {
+  const userId = request.user_id; // Available when user is authenticated
+
+  if (userId) {
+    console.log("Authenticated user:", userId);
+  } else {
+    console.log("Anonymous user (anon key)");
+  }
+
+  // Your logic here
+}
+```
+
+### Allowing Unauthenticated Access
+
+For truly public endpoints (e.g., webhooks):
+
+```typescript
+await client.functions.create({
+  name: "public-webhook",
+  code: `...`,
+  allow_unauthenticated: true,
+});
+```
+
+---
+
 ## Deployment Methods
 
-Fluxbase supports two ways to deploy edge functions:
+Fluxbase supports two deployment methods:
 
-### 1. API-Based Deployment (Default)
+### 1. API-Based Deployment (SDK)
 
-Create and manage functions via the REST API. This is ideal for:
+Create and manage functions via the SDK (shown above). Ideal for:
 
 - Dynamic function creation from admin dashboards
 - Programmatic deployment workflows
 - Quick prototyping and testing
 
-See the [Management API](#management-api) section below for details.
-
 ### 2. File-Based Deployment
 
-Deploy functions as TypeScript files mounted to the functions directory. This is ideal for:
-
-- GitOps workflows and version control
-- Docker/Kubernetes deployments
-- CI/CD pipelines
-- Team collaboration
+Deploy functions as TypeScript files for GitOps workflows.
 
 #### Configuration
 
@@ -500,26 +795,13 @@ Enable file-based functions in your `fluxbase.yaml`:
 functions:
   enabled: true
   functions_dir: "./functions" # Path to functions directory
-  default_timeout: 30 # Default timeout in seconds
-  max_timeout: 300 # Maximum timeout (5 minutes)
-  default_memory_limit: 128 # Default memory limit in MB
-  max_memory_limit: 1024 # Maximum memory limit (1GB)
-```
-
-Or via environment variables:
-
-```bash
-FLUXBASE_FUNCTIONS_ENABLED=true
-FLUXBASE_FUNCTIONS_DIR=./functions
-FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT=30
-FLUXBASE_FUNCTIONS_MAX_TIMEOUT=300
-FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT=128
-FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT=1024
+  default_timeout: 30
+  max_timeout: 300
+  default_memory_limit: 128
+  max_memory_limit: 1024
 ```
 
 #### Creating Functions
-
-Create a TypeScript file in your functions directory:
 
 ```bash
 # Create functions directory
@@ -542,13 +824,11 @@ EOF
 
 #### Docker Deployment
 
-Mount your functions directory as a volume:
-
 ```yaml
 # docker-compose.yml
 services:
   fluxbase:
-    image: fluxbase/fluxbase:latest
+    image: ghcr.io/wayli-app/fluxbase:latest:latest
     volumes:
       - ./functions:/app/functions
     environment:
@@ -556,71 +836,14 @@ services:
       FLUXBASE_FUNCTIONS_DIR: /app/functions
 ```
 
-#### Kubernetes Deployment
-
-Use a PersistentVolumeClaim or ConfigMap:
-
-```yaml
-# Using PVC (recommended for production)
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: fluxbase-functions
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: fluxbase
-spec:
-  template:
-    spec:
-      containers:
-        - name: fluxbase
-          image: fluxbase/fluxbase:latest
-          env:
-            - name: FLUXBASE_FUNCTIONS_ENABLED
-              value: "true"
-            - name: FLUXBASE_FUNCTIONS_DIR
-              value: /app/functions
-          volumeMounts:
-            - name: functions
-              mountPath: /app/functions
-      volumes:
-        - name: functions
-          persistentVolumeClaim:
-            claimName: fluxbase-functions
-```
-
 #### Reloading Functions
 
-Functions are automatically detected from the filesystem at runtime. To reload functions after updating files:
+Use the SDK to reload functions from disk:
 
-**Via API (Admin Only):**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
-  -H "Authorization: Bearer ADMIN_TOKEN"
+```typescript
+// Reload all functions from filesystem
+await client.admin.reloadFunctions();
 ```
-
-**Via Dashboard:**
-
-1. Navigate to the Functions page
-2. Functions are automatically reloaded when the page loads
-3. Or click the "Reload from Disk" button (if available)
-
-The reload endpoint will:
-
-- Scan the functions directory for `.ts` files
-- Create new functions in the database
-- Update existing functions if code has changed
-- Skip invalid or malformed files
-- Return a summary of created, updated, and error counts
 
 **Response:**
 
@@ -634,236 +857,109 @@ The reload endpoint will:
 }
 ```
 
-#### File Naming Rules
+---
 
-- Function names are derived from filenames
-- Only `.ts` files are processed
-- Valid characters: `a-z`, `A-Z`, `0-9`, `-`, `_`
-- Reserved names are blocked: `.`, `..`, `index`, `main`, `handler`, `_`, `-`
-- Path traversal attempts (e.g., `../malicious.ts`) are rejected
+## Best Practices
 
-#### Security
+### 1. Always Validate Input
 
-File-based deployment includes security measures:
+```typescript
+async function handler(request) {
+  const data = JSON.parse(request.body || "{}");
 
-- **Path traversal prevention**: Strict validation prevents directory traversal attacks
-- **Name validation**: Function names are validated against a regex pattern
-- **Admin-only reload**: Only dashboard admins can trigger function reloads
-- **Filesystem as source of truth**: Files override database entries
-- **Audit logging**: All reload operations are logged
-
-#### GitOps Workflow Example
-
-```bash
-# 1. Add function to Git repository
-git add functions/new-feature.ts
-git commit -m "Add new-feature function"
-git push
-
-# 2. Deploy to staging (CI/CD pipeline)
-kubectl apply -f k8s/staging/
-# Wait for pods to restart with new volume
-
-# 3. Reload functions via API
-curl -X POST https://staging-api.example.com/api/v1/admin/functions/reload \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# 4. Test the function
-curl -X POST https://staging-api.example.com/api/v1/functions/new-feature/invoke \
-  -H "Content-Type: application/json" \
-  -d '{"test": true}'
-
-# 5. Deploy to production
-kubectl apply -f k8s/production/
-curl -X POST https://api.example.com/api/v1/admin/functions/reload \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-```
-
-## Management API
-
-### Create Function
-
-**POST** `/api/v1/functions`
-
-```json
-{
-  "name": "my-function",
-  "description": "Function description",
-  "code": "async function handler(req) { ... }",
-  "enabled": true,
-  "timeout_seconds": 30,
-  "memory_limit_mb": 128,
-  "allow_net": true,
-  "allow_env": true,
-  "allow_read": false,
-  "allow_write": false,
-  "cron_schedule": null
-}
-```
-
-**Response (201 Created):**
-
-```json
-{
-  "id": "uuid",
-  "name": "my-function",
-  "description": "Function description",
-  "code": "...",
-  "version": 1,
-  "enabled": true,
-  "timeout_seconds": 30,
-  "memory_limit_mb": 128,
-  "allow_net": true,
-  "allow_env": true,
-  "allow_read": false,
-  "allow_write": false,
-  "cron_schedule": null,
-  "created_at": "2024-10-26T10:00:00Z",
-  "updated_at": "2024-10-26T10:00:00Z",
-  "created_by": "user-uuid"
-}
-```
-
-### List Functions
-
-**GET** `/api/v1/functions`
-
-**Response (200 OK):**
-
-```json
-[
-  {
-    "id": "uuid",
-    "name": "my-function",
-    "description": "Function description",
-    "version": 1,
-    "enabled": true,
-    "created_at": "2024-10-26T10:00:00Z",
-    "updated_at": "2024-10-26T10:00:00Z"
+  if (!data.email) {
+    return {
+      status: 400,
+      body: JSON.stringify({ error: "email is required" }),
+    };
   }
-]
-```
 
-### Get Function
-
-**GET** `/api/v1/functions/:name`
-
-**Response (200 OK):**
-
-Returns full function details including code.
-
-### Update Function
-
-**PUT** `/api/v1/functions/:name`
-
-```json
-{
-  "code": "async function handler(req) { /* updated */ }",
-  "enabled": true,
-  "timeout_seconds": 60
+  // Process valid input
 }
 ```
 
-**Response (200 OK):**
+### 2. Use Environment Variables for Secrets
 
-Returns updated function with incremented version.
+```typescript
+// ❌ Bad - hardcoded secrets
+const apiKey = "sk_live_123456789";
 
-### Delete Function
-
-**DELETE** `/api/v1/functions/:name`
-
-**Response (204 No Content)**
-
-### Invoke Function
-
-**POST** `/api/v1/functions/:name/invoke`
-
-```json
-{
-  "key": "value",
-  "data": ["array", "of", "values"]
-}
+// ✅ Good - use environment variables
+const apiKey = Deno.env.get("EXTERNAL_API_KEY");
 ```
 
-**Response (200 OK):**
+### 3. Set Appropriate Timeouts
 
-Returns whatever your function's handler returns.
+```typescript
+await client.functions.create({
+  name: "long-running-task",
+  timeout_seconds: 120,
+  code: "...",
+});
+```
 
-### Get Execution History
+### 4. Handle Errors Gracefully
 
-**GET** `/api/v1/functions/:name/executions?limit=50`
-
-**Response (200 OK):**
-
-```json
-[
-  {
-    "id": "uuid",
-    "function_id": "uuid",
-    "trigger_type": "http",
-    "status": "success",
-    "status_code": 200,
-    "duration_ms": 125,
-    "result": "{\"message\":\"Success\"}",
-    "logs": "console.log output here",
-    "error_message": null,
-    "executed_at": "2024-10-26T10:00:00Z",
-    "completed_at": "2024-10-26T10:00:01Z"
+```typescript
+async function handler(request) {
+  try {
+    // Main logic
+  } catch (error) {
+    console.error(error);
+    return {
+      status: 500,
+      body: JSON.stringify({ error: "Internal server error" }),
+    };
   }
-]
-```
-
-## Configuration Options
-
-### Permissions
-
-Configure what your function can access:
-
-| Permission    | Description                       | Default |
-| ------------- | --------------------------------- | ------- |
-| `allow_net`   | Network access (fetch, WebSocket) | `true`  |
-| `allow_env`   | Environment variables             | `true`  |
-| `allow_read`  | Filesystem read access            | `false` |
-| `allow_write` | Filesystem write access           | `false` |
-
-**Example:**
-
-```json
-{
-  "name": "secure-function",
-  "code": "...",
-  "allow_net": false,
-  "allow_env": false,
-  "allow_read": false,
-  "allow_write": false
 }
 ```
 
-### Execution Limits
+### 5. Return Proper HTTP Status Codes
 
-| Setting           | Description            | Default | Max    |
-| ----------------- | ---------------------- | ------- | ------ |
-| `timeout_seconds` | Maximum execution time | 30s     | 300s   |
-| `memory_limit_mb` | Maximum memory usage   | 128MB   | 1024MB |
+```typescript
+// Success
+return { status: 200, body: "..." };
 
-### Environment Variables
+// Created
+return { status: 201, body: "..." };
 
-Functions have access to these environment variables:
+// Bad Request
+return { status: 400, body: "..." };
 
-- `FLUXBASE_URL` - Your Fluxbase API endpoint
-- `FLUXBASE_TOKEN` - Service token for API access
-- `DENO_DEPLOYMENT_ID` - Unique ID for this deployment
+// Not Found
+return { status: 404, body: "..." };
 
-You can also set custom environment variables via your function configuration (future feature).
+// Internal Server Error
+return { status: 500, body: "..." };
+```
+
+### 6. Minimize Cold Start Time
+
+- Keep function code concise
+- Avoid large dependencies
+- Cache external API responses when possible
+
+---
 
 ## Debugging
 
 ### View Execution Logs
 
-Check execution history to see logs and errors:
+Use the SDK to check execution history:
 
-```bash
-curl http://localhost:8080/api/v1/functions/my-function/executions?limit=10
+```typescript
+const executions = await client.functions.getExecutions("my-function", {
+  limit: 10,
+});
+
+executions.forEach((exec) => {
+  console.log("Status:", exec.status);
+  console.log("Duration:", exec.duration_ms, "ms");
+  console.log("Logs:", exec.logs);
+  if (exec.error_message) {
+    console.log("Error:", exec.error_message);
+  }
+});
 ```
 
 ### Console Logging
@@ -917,93 +1013,17 @@ async function handler(request) {
 }
 ```
 
-## Best Practices
-
-### 1. Always Validate Input
-
-```typescript
-async function handler(request) {
-  const data = JSON.parse(request.body || "{}");
-
-  if (!data.email) {
-    return {
-      status: 400,
-      body: JSON.stringify({ error: "email is required" }),
-    };
-  }
-
-  // Process valid input
-}
-```
-
-### 2. Use Environment Variables for Secrets
-
-```typescript
-// ❌ Bad - hardcoded secrets
-const apiKey = "sk_live_123456789";
-
-// ✅ Good - use environment variables
-const apiKey = Deno.env.get("EXTERNAL_API_KEY");
-```
-
-### 3. Set Appropriate Timeouts
-
-```json
-{
-  "name": "long-running-task",
-  "timeout_seconds": 120,
-  "code": "..."
-}
-```
-
-### 4. Handle Errors Gracefully
-
-```typescript
-async function handler(request) {
-  try {
-    // Main logic
-  } catch (error) {
-    console.error(error);
-    return {
-      status: 500,
-      body: JSON.stringify({ error: "Internal server error" }),
-    };
-  }
-}
-```
-
-### 5. Return Proper HTTP Status Codes
-
-```typescript
-// Success
-return { status: 200, body: "..." };
-
-// Created
-return { status: 201, body: "..." };
-
-// Bad Request
-return { status: 400, body: "..." };
-
-// Not Found
-return { status: 404, body: "..." };
-
-// Internal Server Error
-return { status: 500, body: "..." };
-```
-
-### 6. Minimize Cold Start Time
-
-- Keep function code concise
-- Avoid large dependencies
-- Cache external API responses when possible
+---
 
 ## Limitations
 
 - **Execution Time**: Maximum 300 seconds (5 minutes)
 - **Memory**: Maximum 1024MB
 - **Concurrency**: Each invocation runs in a separate process
-- **Code Size**: Recommended &lt;1MB for faster cold starts
+- **Code Size**: Recommended <1MB for faster cold starts
 - **Log Retention**: 30 days
+
+---
 
 ## Security Considerations
 
@@ -1029,35 +1049,205 @@ return { status: 500, body: "..." };
 5. **Rate limiting** - Implement rate limits for public endpoints
 6. **Error messages** - Don't leak sensitive information in errors
 
-## Future Features
+---
 
-The following features are planned for future releases:
+## Advanced: REST API Reference
 
-- **Cron Scheduler** - Schedule periodic function execution
-- **Database Triggers** - Execute functions on table INSERT/UPDATE/DELETE
-- **Function Templates** - Pre-built examples for common use cases
-- **Admin UI** - Monaco editor for code editing with syntax highlighting
-- **NPM Packages** - Import external packages from npm/deno.land
-- **Function Versioning** - Deploy and rollback specific versions
-- **A/B Testing** - Split traffic between function versions
+For direct HTTP access or custom integrations, Fluxbase provides a complete REST API.
+
+### Create Function
+
+**POST** `/api/v1/functions`
+
+**Headers:**
+
+```
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "my-function",
+  "description": "Function description",
+  "code": "async function handler(req) { ... }",
+  "enabled": true,
+  "timeout_seconds": 30,
+  "memory_limit_mb": 128,
+  "allow_net": true,
+  "allow_env": true,
+  "allow_read": false,
+  "allow_write": false,
+  "cron_schedule": null
+}
+```
+
+**Response (201 Created):**
+
+```json
+{
+  "id": "uuid",
+  "name": "my-function",
+  "description": "Function description",
+  "code": "...",
+  "version": 1,
+  "enabled": true,
+  "timeout_seconds": 30,
+  "memory_limit_mb": 128,
+  "allow_net": true,
+  "allow_env": true,
+  "allow_read": false,
+  "allow_write": false,
+  "cron_schedule": null,
+  "created_at": "2024-10-26T10:00:00Z",
+  "updated_at": "2024-10-26T10:00:00Z",
+  "created_by": "user-uuid"
+}
+```
+
+---
+
+### List Functions
+
+**GET** `/api/v1/functions`
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "name": "my-function",
+    "description": "Function description",
+    "version": 1,
+    "enabled": true,
+    "created_at": "2024-10-26T10:00:00Z",
+    "updated_at": "2024-10-26T10:00:00Z"
+  }
+]
+```
+
+---
+
+### Get Function
+
+**GET** `/api/v1/functions/:name`
+
+**Response (200 OK):**
+
+Returns full function details including code.
+
+---
+
+### Update Function
+
+**PUT** `/api/v1/functions/:name`
+
+```json
+{
+  "code": "async function handler(req) { /* updated */ }",
+  "enabled": true,
+  "timeout_seconds": 60
+}
+```
+
+**Response (200 OK):**
+
+Returns updated function with incremented version.
+
+---
+
+### Delete Function
+
+**DELETE** `/api/v1/functions/:name`
+
+**Response (204 No Content)**
+
+---
+
+### Invoke Function
+
+**POST** `/api/v1/functions/:name/invoke`
+
+```json
+{
+  "key": "value",
+  "data": ["array", "of", "values"]
+}
+```
+
+**Response (200 OK):**
+
+Returns whatever your function's handler returns.
+
+---
+
+### Get Execution History
+
+**GET** `/api/v1/functions/:name/executions?limit=50`
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "id": "uuid",
+    "function_id": "uuid",
+    "trigger_type": "http",
+    "status": "success",
+    "status_code": 200,
+    "duration_ms": 125,
+    "result": "{\"message\":\"Success\"}",
+    "logs": "console.log output here",
+    "error_message": null,
+    "executed_at": "2024-10-26T10:00:00Z",
+    "completed_at": "2024-10-26T10:00:01Z"
+  }
+]
+```
+
+---
+
+## Troubleshooting
+
+### Function Not Executing
+
+1. Check if function is enabled via SDK: `await client.functions.get("name")`
+2. View execution logs: `await client.functions.getExecutions("name")`
+3. Verify Deno is installed: `deno --version`
+
+### Timeout Errors
+
+Increase `timeout_seconds` using SDK:
+
+```typescript
+await client.functions.update("my-function", {
+  timeout_seconds: 60,
+});
+```
+
+### Permission Denied
+
+Enable required permissions:
+
+```typescript
+await client.functions.update("my-function", {
+  allow_net: true,
+  allow_env: true,
+});
+```
+
+### Network Errors
+
+Check that `allow_net` is enabled and external API is accessible.
+
+---
 
 ## Migration from Supabase
 
-Fluxbase Edge Functions are similar to Supabase Edge Functions:
-
-**Similarities:**
-
-- Deno runtime
-- TypeScript/JavaScript support
-- HTTP invocation
-- Database access via REST API
-- Environment variables
-
-**Differences:**
-
-- **Invocation**: Fluxbase uses `/functions/:name/invoke` instead of URL routing
-- **Deployment**: Managed via REST API instead of CLI
-- **Triggers**: Database triggers coming in future release
+Fluxbase Edge Functions are similar to Supabase Edge Functions with some differences.
 
 **Migration Example:**
 
@@ -1084,42 +1274,10 @@ async function handler(req) {
 }
 ```
 
-## Troubleshooting
+---
 
-### Function Not Executing
+## Learn More
 
-1. Check if function is enabled: `GET /api/v1/functions/:name`
-2. View execution logs for errors: `GET /api/v1/functions/:name/executions`
-3. Verify Deno is installed: `deno --version`
-
-### Timeout Errors
-
-Increase `timeout_seconds`:
-
-```json
-{
-  "timeout_seconds": 60
-}
-```
-
-### Permission Denied
-
-Enable required permissions:
-
-```json
-{
-  "allow_net": true,
-  "allow_env": true
-}
-```
-
-### Network Errors
-
-Check that `allow_net` is enabled and external API is accessible.
-
-## Next Steps
-
-- [API Reference](/api/edge-functions) - Complete API documentation
-- [Database Access](database) - Query your data from functions
-- [Authentication](authentication) - Secure your functions
-- [Examples Repository](https://github.com/your-org/fluxbase-examples) - More code examples
+- [Authentication](/docs/guides/authentication) - Authenticate to manage functions
+- [Database Operations](/docs/guides/typescript-sdk/database) - Query data from functions
+- [Webhooks](/docs/guides/webhooks) - Alternative event handling

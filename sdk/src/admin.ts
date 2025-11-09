@@ -1,4 +1,4 @@
-import type { FluxbaseFetch } from './fetch'
+import type { FluxbaseFetch } from "./fetch";
 import type {
   AdminAuthResponse,
   AdminLoginRequest,
@@ -14,75 +14,75 @@ import type {
   ListUsersOptions,
   ListUsersResponse,
   ResetUserPasswordResponse,
-} from './types'
-import { FluxbaseSettings } from './settings'
-import { DDLManager } from './ddl'
-import { FluxbaseOAuth } from './oauth'
-import { ImpersonationManager } from './impersonation'
-import { FluxbaseManagement } from './management'
+} from "./types";
+import { FluxbaseSettings } from "./settings";
+import { DDLManager } from "./ddl";
+import { FluxbaseOAuth } from "./oauth";
+import { ImpersonationManager } from "./impersonation";
+import { FluxbaseManagement } from "./management";
 
 /**
  * Admin client for managing Fluxbase instance
  */
 export class FluxbaseAdmin {
-  private fetch: FluxbaseFetch
-  private adminToken: string | null = null
+  private fetch: FluxbaseFetch;
+  private adminToken: string | null = null;
 
   /**
    * Settings manager for system and application settings
    */
-  public settings: FluxbaseSettings
+  public settings: FluxbaseSettings;
 
   /**
    * DDL manager for database schema and table operations
    */
-  public ddl: DDLManager
+  public ddl: DDLManager;
 
   /**
    * OAuth configuration manager for provider and auth settings
    */
-  public oauth: FluxbaseOAuth
+  public oauth: FluxbaseOAuth;
 
   /**
    * Impersonation manager for user impersonation and audit trail
    */
-  public impersonation: ImpersonationManager
+  public impersonation: ImpersonationManager;
 
   /**
    * Management namespace for API keys, webhooks, and invitations
    */
-  public management: FluxbaseManagement
+  public management: FluxbaseManagement;
 
   constructor(fetch: FluxbaseFetch) {
-    this.fetch = fetch
-    this.settings = new FluxbaseSettings(fetch)
-    this.ddl = new DDLManager(fetch)
-    this.oauth = new FluxbaseOAuth(fetch)
-    this.impersonation = new ImpersonationManager(fetch)
-    this.management = new FluxbaseManagement(fetch)
+    this.fetch = fetch;
+    this.settings = new FluxbaseSettings(fetch);
+    this.ddl = new DDLManager(fetch);
+    this.oauth = new FluxbaseOAuth(fetch);
+    this.impersonation = new ImpersonationManager(fetch);
+    this.management = new FluxbaseManagement(fetch);
   }
 
   /**
    * Set admin authentication token
    */
   setToken(token: string) {
-    this.adminToken = token
-    this.fetch.setAuthToken(token)
+    this.adminToken = token;
+    this.fetch.setAuthToken(token);
   }
 
   /**
    * Get current admin token
    */
   getToken(): string | null {
-    return this.adminToken
+    return this.adminToken;
   }
 
   /**
    * Clear admin token
    */
   clearToken() {
-    this.adminToken = null
-    this.fetch.setAuthToken(null)
+    this.adminToken = null;
+    this.fetch.setAuthToken(null);
   }
 
   // ============================================================================
@@ -103,7 +103,9 @@ export class FluxbaseAdmin {
    * ```
    */
   async getSetupStatus(): Promise<AdminSetupStatusResponse> {
-    return await this.fetch.get<AdminSetupStatusResponse>('/api/v1/admin/setup/status')
+    return await this.fetch.get<AdminSetupStatusResponse>(
+      "/api/v1/admin/setup/status",
+    );
   }
 
   /**
@@ -130,9 +132,12 @@ export class FluxbaseAdmin {
    * ```
    */
   async setup(request: AdminSetupRequest): Promise<AdminAuthResponse> {
-    const response = await this.fetch.post<AdminAuthResponse>('/api/v1/admin/setup', request)
-    this.setToken(response.access_token)
-    return response
+    const response = await this.fetch.post<AdminAuthResponse>(
+      "/api/v1/admin/setup",
+      request,
+    );
+    this.setToken(response.access_token);
+    return response;
   }
 
   /**
@@ -156,9 +161,12 @@ export class FluxbaseAdmin {
    * ```
    */
   async login(request: AdminLoginRequest): Promise<AdminAuthResponse> {
-    const response = await this.fetch.post<AdminAuthResponse>('/api/v1/admin/login', request)
-    this.setToken(response.access_token)
-    return response
+    const response = await this.fetch.post<AdminAuthResponse>(
+      "/api/v1/admin/login",
+      request,
+    );
+    this.setToken(response.access_token);
+    return response;
   }
 
   /**
@@ -177,10 +185,15 @@ export class FluxbaseAdmin {
    * localStorage.setItem('admin_refresh_token', response.refresh_token);
    * ```
    */
-  async refreshToken(request: AdminRefreshRequest): Promise<AdminRefreshResponse> {
-    const response = await this.fetch.post<AdminRefreshResponse>('/api/v1/admin/refresh', request)
-    this.setToken(response.access_token)
-    return response
+  async refreshToken(
+    request: AdminRefreshRequest,
+  ): Promise<AdminRefreshResponse> {
+    const response = await this.fetch.post<AdminRefreshResponse>(
+      "/api/v1/admin/refresh",
+      request,
+    );
+    this.setToken(response.access_token);
+    return response;
   }
 
   /**
@@ -195,8 +208,8 @@ export class FluxbaseAdmin {
    * ```
    */
   async logout(): Promise<void> {
-    await this.fetch.post<{ message: string }>('/api/v1/admin/logout', {})
-    this.clearToken()
+    await this.fetch.post<{ message: string }>("/api/v1/admin/logout", {});
+    this.clearToken();
   }
 
   /**
@@ -212,7 +225,7 @@ export class FluxbaseAdmin {
    * ```
    */
   async me(): Promise<AdminMeResponse> {
-    return await this.fetch.get<AdminMeResponse>('/api/v1/admin/me')
+    return await this.fetch.get<AdminMeResponse>("/api/v1/admin/me");
   }
 
   // ============================================================================
@@ -240,25 +253,55 @@ export class FluxbaseAdmin {
    * ```
    */
   async listUsers(options: ListUsersOptions = {}): Promise<ListUsersResponse> {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams();
 
     if (options.exclude_admins !== undefined) {
-      params.append('exclude_admins', String(options.exclude_admins))
+      params.append("exclude_admins", String(options.exclude_admins));
     }
     if (options.search) {
-      params.append('search', options.search)
+      params.append("search", options.search);
     }
     if (options.limit !== undefined) {
-      params.append('limit', String(options.limit))
+      params.append("limit", String(options.limit));
     }
     if (options.type) {
-      params.append('type', options.type)
+      params.append("type", options.type);
     }
 
-    const queryString = params.toString()
-    const url = queryString ? `/api/v1/admin/users?${queryString}` : '/api/v1/admin/users'
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/v1/admin/users?${queryString}`
+      : "/api/v1/admin/users";
 
-    return await this.fetch.get<ListUsersResponse>(url)
+    return await this.fetch.get<ListUsersResponse>(url);
+  }
+
+  /**
+   * Get a user by ID
+   *
+   * Fetch a single user's details by their user ID
+   *
+   * @param userId - User ID to fetch
+   * @param type - User type ('app' or 'dashboard')
+   * @returns User details with metadata
+   *
+   * @example
+   * ```typescript
+   * // Get an app user
+   * const user = await admin.getUserById('user-123');
+   *
+   * // Get a dashboard user
+   * const dashboardUser = await admin.getUserById('admin-456', 'dashboard');
+   * console.log('User email:', dashboardUser.email);
+   * console.log('Last login:', dashboardUser.last_login_at);
+   * ```
+   */
+  async getUserById(
+    userId: string,
+    type: "app" | "dashboard" = "app",
+  ): Promise<EnrichedUser> {
+    const url = `/api/v1/admin/users/${userId}?type=${type}`;
+    return await this.fetch.get<EnrichedUser>(url);
   }
 
   /**
@@ -284,10 +327,10 @@ export class FluxbaseAdmin {
    */
   async inviteUser(
     request: InviteUserRequest,
-    type: 'app' | 'dashboard' = 'app',
+    type: "app" | "dashboard" = "app",
   ): Promise<InviteUserResponse> {
-    const url = `/api/v1/admin/users/invite?type=${type}`
-    return await this.fetch.post<InviteUserResponse>(url, request)
+    const url = `/api/v1/admin/users/invite?type=${type}`;
+    return await this.fetch.post<InviteUserResponse>(url, request);
   }
 
   /**
@@ -305,9 +348,12 @@ export class FluxbaseAdmin {
    * console.log('User deleted');
    * ```
    */
-  async deleteUser(userId: string, type: 'app' | 'dashboard' = 'app'): Promise<DeleteUserResponse> {
-    const url = `/api/v1/admin/users/${userId}?type=${type}`
-    return await this.fetch.delete<DeleteUserResponse>(url)
+  async deleteUser(
+    userId: string,
+    type: "app" | "dashboard" = "app",
+  ): Promise<DeleteUserResponse> {
+    const url = `/api/v1/admin/users/${userId}?type=${type}`;
+    return await this.fetch.delete<DeleteUserResponse>(url);
   }
 
   /**
@@ -329,10 +375,10 @@ export class FluxbaseAdmin {
   async updateUserRole(
     userId: string,
     role: string,
-    type: 'app' | 'dashboard' = 'app',
+    type: "app" | "dashboard" = "app",
   ): Promise<EnrichedUser> {
-    const url = `/api/v1/admin/users/${userId}/role?type=${type}`
-    return await this.fetch.patch<EnrichedUser>(url, { role })
+    const url = `/api/v1/admin/users/${userId}/role?type=${type}`;
+    return await this.fetch.patch<EnrichedUser>(url, { role });
   }
 
   /**
@@ -352,9 +398,9 @@ export class FluxbaseAdmin {
    */
   async resetUserPassword(
     userId: string,
-    type: 'app' | 'dashboard' = 'app',
+    type: "app" | "dashboard" = "app",
   ): Promise<ResetUserPasswordResponse> {
-    const url = `/api/v1/admin/users/${userId}/reset-password?type=${type}`
-    return await this.fetch.post<ResetUserPasswordResponse>(url, {})
+    const url = `/api/v1/admin/users/${userId}/reset-password?type=${type}`;
+    return await this.fetch.post<ResetUserPasswordResponse>(url, {});
   }
 }

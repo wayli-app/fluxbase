@@ -116,8 +116,18 @@ imagePullSecrets:
 Return the proper PostgreSQL host
 */}}
 {{- define "fluxbase.databaseHost" -}}
-{{- if .Values.postgresql.enabled }}
+{{- if .Values.config.database.host }}
+    {{- .Values.config.database.host -}}
+{{- else if eq .Values.postgresql.mode "standalone" }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
+{{- else if eq .Values.postgresql.mode "cnpg" }}
+    {{- if .Values.postgresql.cnpg.pooler.enabled }}
+        {{- printf "%s-postgresql-pooler-rw" (include "fluxbase.fullname" .) -}}
+    {{- else }}
+        {{- printf "%s-postgresql-rw" (include "fluxbase.fullname" .) -}}
+    {{- end }}
+{{- else if eq .Values.postgresql.mode "none" }}
+    {{- .Values.externalDatabase.host -}}
 {{- else }}
     {{- .Values.externalDatabase.host -}}
 {{- end }}
@@ -127,7 +137,7 @@ Return the proper PostgreSQL host
 Return the proper PostgreSQL port
 */}}
 {{- define "fluxbase.databasePort" -}}
-{{- if .Values.postgresql.enabled }}
+{{- if ne .Values.postgresql.mode "none" }}
     {{- print "5432" -}}
 {{- else }}
     {{- .Values.externalDatabase.port -}}
@@ -138,7 +148,7 @@ Return the proper PostgreSQL port
 Return the proper PostgreSQL database name
 */}}
 {{- define "fluxbase.databaseName" -}}
-{{- if .Values.postgresql.enabled }}
+{{- if ne .Values.postgresql.mode "none" }}
     {{- .Values.postgresql.auth.database -}}
 {{- else }}
     {{- .Values.externalDatabase.database -}}
@@ -149,7 +159,7 @@ Return the proper PostgreSQL database name
 Return the proper PostgreSQL username
 */}}
 {{- define "fluxbase.databaseUser" -}}
-{{- if .Values.postgresql.enabled }}
+{{- if ne .Values.postgresql.mode "none" }}
     {{- .Values.postgresql.auth.username -}}
 {{- else }}
     {{- .Values.externalDatabase.user -}}
@@ -162,10 +172,16 @@ Return the proper PostgreSQL password secret name
 {{- define "fluxbase.databaseSecretName" -}}
 {{- if .Values.existingSecret }}
     {{- .Values.existingSecret -}}
-{{- else if .Values.postgresql.enabled }}
+{{- else if eq .Values.postgresql.mode "standalone" }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
-{{- else if .Values.externalDatabase.existingSecret }}
-    {{- .Values.externalDatabase.existingSecret -}}
+{{- else if eq .Values.postgresql.mode "cnpg" }}
+    {{- printf "%s-postgresql-app" (include "fluxbase.fullname" .) -}}
+{{- else if eq .Values.postgresql.mode "none" }}
+    {{- if .Values.externalDatabase.existingSecret }}
+        {{- .Values.externalDatabase.existingSecret -}}
+    {{- else }}
+        {{- printf "%s" (include "fluxbase.fullname" .) -}}
+    {{- end }}
 {{- else }}
     {{- printf "%s" (include "fluxbase.fullname" .) -}}
 {{- end }}
@@ -177,13 +193,15 @@ Return the proper PostgreSQL password secret key
 {{- define "fluxbase.databaseSecretPasswordKey" -}}
 {{- if .Values.existingSecret }}
     {{- print "database-password" -}}
-{{- else if .Values.postgresql.enabled }}
+{{- else if eq .Values.postgresql.mode "standalone" }}
     {{- print "password" -}}
-{{- else if .Values.externalDatabase.existingSecret }}
-    {{- if .Values.externalDatabase.existingSecretPasswordKey }}
+{{- else if eq .Values.postgresql.mode "cnpg" }}
+    {{- print "password" -}}
+{{- else if eq .Values.postgresql.mode "none" }}
+    {{- if .Values.externalDatabase.existingSecret }}
         {{- .Values.externalDatabase.existingSecretPasswordKey -}}
     {{- else }}
-        {{- print "password" -}}
+        {{- print "database-password" -}}
     {{- end }}
 {{- else }}
     {{- print "database-password" -}}

@@ -1,4 +1,4 @@
-version: '3.9'
+version: "3.9"
 
 # Production Docker Compose for Fluxbase
 # Full stack with all dependencies
@@ -6,7 +6,7 @@ version: '3.9'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: fluxbase-postgres
     restart: unless-stopped
     environment:
@@ -173,11 +173,11 @@ services:
     container_name: fluxbase-prometheus
     restart: unless-stopped
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus

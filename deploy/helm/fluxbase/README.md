@@ -101,23 +101,96 @@ helm delete my-fluxbase
 
 ### PostgreSQL Parameters
 
-| Name                       | Description                    | Value      |
-| -------------------------- | ------------------------------ | ---------- |
-| `postgresql.enabled`       | Deploy PostgreSQL container(s) | `true`     |
-| `postgresql.auth.username` | PostgreSQL username            | `fluxbase` |
-| `postgresql.auth.password` | PostgreSQL password            | `fluxbase` |
-| `postgresql.auth.database` | PostgreSQL database            | `fluxbase` |
+Fluxbase supports three PostgreSQL deployment modes:
+
+1. **`standalone`** - Simple StatefulSet with official PostgreSQL 18 image (default)
+2. **`cnpg`** - CloudNativePG operator for high availability and automated backups
+3. **`none`** - Use external PostgreSQL database (AWS RDS, GCP Cloud SQL, etc.)
+
+#### Common PostgreSQL Parameters
+
+| Name                             | Description                                            | Value        |
+| -------------------------------- | ------------------------------------------------------ | ------------ |
+| `postgresql.mode`                | Deployment mode: `standalone`, `cnpg`, or `none`       | `standalone` |
+| `postgresql.auth.username`       | PostgreSQL username                                    | `fluxbase`   |
+| `postgresql.auth.password`       | PostgreSQL password (use existingSecret in production) | `fluxbase`   |
+| `postgresql.auth.database`       | PostgreSQL database name                               | `fluxbase`   |
+| `postgresql.auth.existingSecret` | Name of existing secret with database credentials      | `""`         |
+
+#### Standalone Mode Parameters
+
+| Name                                              | Description                             | Value       |
+| ------------------------------------------------- | --------------------------------------- | ----------- |
+| `postgresql.standalone.enabled`                   | Enable standalone PostgreSQL deployment | `true`      |
+| `postgresql.standalone.image.tag`                 | PostgreSQL image tag                    | `18-alpine` |
+| `postgresql.standalone.persistence.enabled`       | Enable persistence for PostgreSQL       | `true`      |
+| `postgresql.standalone.persistence.size`          | Size of PostgreSQL data volume          | `8Gi`       |
+| `postgresql.standalone.resources.requests.cpu`    | CPU request for PostgreSQL              | `250m`      |
+| `postgresql.standalone.resources.requests.memory` | Memory request for PostgreSQL           | `256Mi`     |
+
+#### CloudNativePG Mode Parameters
+
+Requires CloudNativePG operator: `kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.0.yaml`
+
+| Name                                     | Description                                   | Value                                  |
+| ---------------------------------------- | --------------------------------------------- | -------------------------------------- |
+| `postgresql.cnpg.enabled`                | Enable CloudNativePG deployment               | `false`                                |
+| `postgresql.cnpg.instances`              | Number of PostgreSQL instances in the cluster | `3`                                    |
+| `postgresql.cnpg.imageName`              | PostgreSQL image for CNPG                     | `ghcr.io/cloudnative-pg/postgresql:18` |
+| `postgresql.cnpg.storage.size`           | Size of PostgreSQL data volume per instance   | `8Gi`                                  |
+| `postgresql.cnpg.monitoring.enabled`     | Enable Prometheus monitoring                  | `true`                                 |
+| `postgresql.cnpg.backup.enabled`         | Enable automated backups                      | `false`                                |
+| `postgresql.cnpg.backup.retentionPolicy` | Backup retention policy                       | `30d`                                  |
+| `postgresql.cnpg.pooler.enabled`         | Enable PgBouncer connection pooler            | `false`                                |
+| `postgresql.cnpg.pooler.instances`       | Number of pooler instances                    | `2`                                    |
+
+#### External Database Parameters
+
+| Name                                         | Description                              | Value      |
+| -------------------------------------------- | ---------------------------------------- | ---------- |
+| `externalDatabase.host`                      | External database host                   | `""`       |
+| `externalDatabase.port`                      | External database port                   | `5432`     |
+| `externalDatabase.user`                      | External database user                   | `fluxbase` |
+| `externalDatabase.password`                  | External database password               | `""`       |
+| `externalDatabase.database`                  | External database name                   | `fluxbase` |
+| `externalDatabase.existingSecret`            | Name of existing secret with credentials | `""`       |
+| `externalDatabase.existingSecretPasswordKey` | Key in secret containing password        | `password` |
 
 ## Configuration Examples
+
+Fluxbase includes pre-configured example values files in the `examples/` directory:
+
+- **`values-standalone.yaml`** - Standalone PostgreSQL deployment (simple, single-instance)
+- **`values-cnpg.yaml`** - CloudNativePG deployment (high availability, automated backups)
+- **`values-external.yaml`** - External database configuration (AWS RDS, GCP Cloud SQL, etc.)
+
+### Quick Start - Standalone Mode (Default)
+
+```bash
+# Install with default standalone PostgreSQL
+helm install fluxbase ./fluxbase \
+  --set config.jwt.secret=$(openssl rand -base64 32)
+```
+
+### CloudNativePG Mode (High Availability)
+
+```bash
+# 1. Install CloudNativePG operator
+kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.0.yaml
+
+# 2. Install Fluxbase with CNPG
+helm install fluxbase ./fluxbase \
+  -f examples/values-cnpg.yaml \
+  --set config.jwt.secret=$(openssl rand -base64 32) \
+  --set postgresql.mode=cnpg
+```
 
 ### Production with External Database
 
 ```yaml
 # production-values.yaml
-replicaCount: 5
-
 postgresql:
-  enabled: false
+  mode: none # Use external database
 
 externalDatabase:
   host: my-postgres.example.com
@@ -125,6 +198,14 @@ externalDatabase:
   user: fluxbase
   database: fluxbase
   existingSecret: fluxbase-db-secret
+
+config:
+  database:
+    sslMode: require
+  jwt:
+    secret: "" # Set via existingSecret
+
+replicaCount: 5
 
 ingress:
   enabled: true
@@ -145,16 +226,18 @@ metrics:
   serviceMonitor:
     enabled: true
 
-# Optional: Enable service key for backend services
-serviceKey:
-  enabled: true
-  existingSecret: fluxbase-service-key
-  secretKey: service-key
+existingSecret: fluxbase-secrets # Contains DB password, JWT secret, etc.
 ```
 
 Deploy:
 
 ```bash
+# Create secrets
+kubectl create secret generic fluxbase-secrets \
+  --from-literal=database-password=your-db-password \
+  --from-literal=jwt-secret=$(openssl rand -base64 32)
+
+# Install
 helm install fluxbase ./fluxbase -f production-values.yaml
 ```
 

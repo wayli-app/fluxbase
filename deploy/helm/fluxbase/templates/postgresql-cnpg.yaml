@@ -1,0 +1,177 @@
+{{- if eq .Values.postgresql.mode "cnpg" }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql-app
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+type: kubernetes.io/basic-auth
+data:
+  {{- if .Values.postgresql.auth.existingSecret }}
+  # Using existing secret - reference it in the Cluster spec
+  {{- else }}
+  username: {{ .Values.postgresql.auth.username | b64enc | quote }}
+  password: {{ .Values.postgresql.auth.password | b64enc | quote }}
+  {{- end }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  instances: {{ .Values.postgresql.cnpg.instances }}
+  imageName: {{ .Values.postgresql.cnpg.imageName }}
+
+  # Bootstrap configuration
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.auth.database }}
+      owner: {{ .Values.postgresql.auth.username }}
+      secret:
+        name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql-app" (include "fluxbase.fullname" .)) }}
+
+  # Storage configuration
+  storage:
+    size: {{ .Values.postgresql.cnpg.storage.size }}
+    {{- if .Values.postgresql.cnpg.storage.storageClass }}
+    storageClass: {{ .Values.postgresql.cnpg.storage.storageClass }}
+    {{- end }}
+
+  # High Availability configuration
+  {{- if gt (int .Values.postgresql.cnpg.instances) 1 }}
+  minSyncReplicas: 1
+  maxSyncReplicas: 2
+  {{- end }}
+
+  # PostgreSQL configuration
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      maintenance_work_mem: "64MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+      work_mem: "4MB"
+      min_wal_size: "1GB"
+      max_wal_size: "4GB"
+
+  # Monitoring configuration
+  {{- if .Values.postgresql.cnpg.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+
+  # Backup configuration
+  {{- if .Values.postgresql.cnpg.backup.enabled }}
+  backup:
+    retentionPolicy: {{ .Values.postgresql.cnpg.backup.retentionPolicy | quote }}
+    {{- if .Values.postgresql.cnpg.backup.s3.enabled }}
+    barmanObjectStore:
+      destinationPath: s3://{{ .Values.postgresql.cnpg.backup.s3.bucket }}/{{ include "fluxbase.fullname" . }}
+      endpointURL: {{ .Values.postgresql.cnpg.backup.s3.endpoint }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ include "fluxbase.fullname" . }}-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ include "fluxbase.fullname" . }}-backup-s3
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        encryption: AES256
+      data:
+        compression: gzip
+        encryption: AES256
+    {{- end }}
+  {{- end }}
+
+  # Resources - use PostgreSQL pod resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+  # Node affinity and scheduling
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                {{- include "fluxbase.selectorLabels" . | nindent 16 }}
+                app.kubernetes.io/component: database
+            topologyKey: kubernetes.io/hostname
+
+{{- if .Values.postgresql.cnpg.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql-backup
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  schedule: {{ .Values.postgresql.cnpg.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "fluxbase.fullname" . }}-postgresql
+{{- end }}
+
+{{- if .Values.postgresql.cnpg.pooler.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-postgresql-pooler
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels:
+    {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database-pooler
+spec:
+  cluster:
+    name: {{ include "fluxbase.fullname" . }}-postgresql
+
+  instances: {{ .Values.postgresql.cnpg.pooler.instances }}
+  type: {{ .Values.postgresql.cnpg.pooler.type }}
+
+  pgbouncer:
+    poolMode: {{ .Values.postgresql.cnpg.pooler.poolMode }}
+    parameters:
+      {{- range $key, $value := .Values.postgresql.cnpg.pooler.parameters }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+
+  template:
+    metadata:
+      labels:
+        {{- include "fluxbase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: database-pooler
+    spec:
+      containers:
+        - name: pgbouncer
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+{{- end }}
+{{- end }}

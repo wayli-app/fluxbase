@@ -23,7 +23,8 @@ open http://localhost:8080/admin  # Admin UI
 ```
 
 **Default Credentials:**
-- PostgreSQL: `fluxbase/fluxbase`
+
+- PostgreSQL 18: `fluxbase/fluxbase`
 - MinIO: `minioadmin/minioadmin`
 - JWT Secret: `your-super-secret-jwt-key-change-me-in-production`
 
@@ -53,25 +54,46 @@ helm install my-fluxbase ./fluxbase -f production-values.yaml
 **Use Case:** Local development, testing, demos
 
 **Features:**
+
 - One-command setup
 - Includes PostgreSQL and MinIO
 - Hot-reload support
 - Easy debugging
 
 **Setup:**
+
 ```bash
 cd deploy
 docker-compose up -d
 ```
 
+**Docker Compose Variants:**
+
+- `docker-compose.yml` - Development setup with PostgreSQL 18, MinIO, MailHog
+- `docker-compose.production.yml` - Full production stack with monitoring
+- `docker-compose.external-db.yml` - For use with external PostgreSQL database
+
+**Using External Database:**
+
+```bash
+# Copy and edit environment file
+cp .env.example .env
+# Edit .env with your external database credentials
+
+# Start with external database
+docker-compose -f docker-compose.external-db.yml up -d
+```
+
 **Configuration:**
 Edit `docker-compose.yml` to customize:
+
 - Database credentials
 - Storage provider (local or S3/MinIO)
 - JWT secret
 - Port mappings
 
 **Stopping:**
+
 ```bash
 docker-compose down          # Stop services
 docker-compose down -v       # Stop and remove volumes
@@ -82,6 +104,7 @@ docker-compose down -v       # Stop and remove volumes
 **Use Case:** Production deployments, staging, multi-tenant
 
 **Features:**
+
 - High availability (3+ replicas)
 - Auto-scaling (HPA)
 - Rolling updates
@@ -90,11 +113,13 @@ docker-compose down -v       # Stop and remove volumes
 - TLS/Ingress support
 
 **Prerequisites:**
+
 - Kubernetes 1.19+
 - Helm 3.2.0+
 - kubectl configured
 
 **Basic Installation:**
+
 ```bash
 cd deploy/helm
 
@@ -110,20 +135,32 @@ kubectl port-forward svc/fluxbase 8080:8080
 ```
 
 **Production Installation:**
-```bash
-# Create namespace
-kubectl create namespace production
 
-# Create secrets
+Choose your PostgreSQL deployment strategy:
+
+```bash
+# Option 1: Standalone PostgreSQL (Simple, single-instance)
+helm install fluxbase ./fluxbase \
+  -f helm/fluxbase/examples/values-standalone.yaml \
+  --set config.jwt.secret=$(openssl rand -base64 32)
+
+# Option 2: CloudNativePG (High Availability with automated backups)
+# Requires CNPG operator to be installed first
+kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.0.yaml
+
+helm install fluxbase ./fluxbase \
+  -f helm/fluxbase/examples/values-cnpg.yaml \
+  --set config.jwt.secret=$(openssl rand -base64 32)
+
+# Option 3: External Database (AWS RDS, GCP Cloud SQL, etc.)
 kubectl create secret generic fluxbase-secrets \
   --from-literal=database-password='<db-password>' \
-  --from-literal=jwt-secret='<jwt-secret>' \
-  -n production
+  --from-literal=jwt-secret=$(openssl rand -base64 32) \
+  --namespace production
 
-# Install with production values
 helm install fluxbase ./fluxbase \
+  -f helm/fluxbase/examples/values-external.yaml \
   --namespace production \
-  --set postgresql.enabled=false \
   --set externalDatabase.host=postgres.production.svc \
   --set existingSecret=fluxbase-secrets \
   --set replicaCount=5 \
@@ -135,6 +172,7 @@ helm install fluxbase ./fluxbase \
 ```
 
 **Upgrading:**
+
 ```bash
 # Update chart
 helm upgrade fluxbase ./fluxbase \
@@ -146,6 +184,7 @@ helm rollback fluxbase --namespace production
 ```
 
 **Uninstalling:**
+
 ```bash
 helm uninstall fluxbase --namespace production
 ```
@@ -155,6 +194,7 @@ helm uninstall fluxbase --namespace production
 **Use Case:** Single-server deployments, VPS, bare metal
 
 **Setup:**
+
 ```bash
 # Build binary
 make build
@@ -171,6 +211,7 @@ export JWT_SECRET=your-secret-key
 ```
 
 **Systemd Service:**
+
 ```bash
 # Create systemd service file
 sudo nano /etc/systemd/system/fluxbase.service
@@ -213,37 +254,38 @@ sudo systemctl status fluxbase
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `DB_HOST` | PostgreSQL host | `localhost` | Yes |
-| `DB_PORT` | PostgreSQL port | `5432` | Yes |
-| `DB_NAME` | Database name | `fluxbase` | Yes |
-| `DB_USER` | Database user | `fluxbase` | Yes |
-| `DB_PASSWORD` | Database password | - | Yes |
-| `DB_SSL_MODE` | SSL mode | `disable` | No |
-| `SERVER_PORT` | HTTP server port | `8080` | No |
-| `SERVER_HOST` | HTTP server host | `0.0.0.0` | No |
-| `JWT_SECRET` | JWT signing key | - | Yes |
-| `JWT_EXPIRATION_MINUTES` | Token expiration | `60` | No |
-| `STORAGE_PROVIDER` | Storage type (`local` or `s3`) | `local` | No |
-| `STORAGE_LOCAL_BASE_PATH` | Local storage path | `/data/storage` | No |
-| `STORAGE_S3_BUCKET` | S3 bucket name | - | If using S3 |
-| `STORAGE_S3_REGION` | S3 region | - | If using S3 |
-| `STORAGE_S3_ENDPOINT` | S3 endpoint (for MinIO) | - | If using S3 |
-| `STORAGE_S3_ACCESS_KEY_ID` | S3 access key | - | If using S3 |
-| `STORAGE_S3_SECRET_ACCESS_KEY` | S3 secret key | - | If using S3 |
-| `LOG_LEVEL` | Log level | `info` | No |
-| `LOG_FORMAT` | Log format (`json` or `text`) | `json` | No |
-| `METRICS_ENABLED` | Enable Prometheus metrics | `true` | No |
+| Variable                       | Description                    | Default         | Required    |
+| ------------------------------ | ------------------------------ | --------------- | ----------- |
+| `DB_HOST`                      | PostgreSQL host                | `localhost`     | Yes         |
+| `DB_PORT`                      | PostgreSQL port                | `5432`          | Yes         |
+| `DB_NAME`                      | Database name                  | `fluxbase`      | Yes         |
+| `DB_USER`                      | Database user                  | `fluxbase`      | Yes         |
+| `DB_PASSWORD`                  | Database password              | -               | Yes         |
+| `DB_SSL_MODE`                  | SSL mode                       | `disable`       | No          |
+| `SERVER_PORT`                  | HTTP server port               | `8080`          | No          |
+| `SERVER_HOST`                  | HTTP server host               | `0.0.0.0`       | No          |
+| `JWT_SECRET`                   | JWT signing key                | -               | Yes         |
+| `JWT_EXPIRATION_MINUTES`       | Token expiration               | `60`            | No          |
+| `STORAGE_PROVIDER`             | Storage type (`local` or `s3`) | `local`         | No          |
+| `STORAGE_LOCAL_BASE_PATH`      | Local storage path             | `/data/storage` | No          |
+| `STORAGE_S3_BUCKET`            | S3 bucket name                 | -               | If using S3 |
+| `STORAGE_S3_REGION`            | S3 region                      | -               | If using S3 |
+| `STORAGE_S3_ENDPOINT`          | S3 endpoint (for MinIO)        | -               | If using S3 |
+| `STORAGE_S3_ACCESS_KEY_ID`     | S3 access key                  | -               | If using S3 |
+| `STORAGE_S3_SECRET_ACCESS_KEY` | S3 secret key                  | -               | If using S3 |
+| `LOG_LEVEL`                    | Log level                      | `info`          | No          |
+| `LOG_FORMAT`                   | Log format (`json` or `text`)  | `json`          | No          |
+| `METRICS_ENABLED`              | Enable Prometheus metrics      | `true`          | No          |
 
 ### Helm Chart Values
 
 See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configuration options.
 
 **Key Values:**
+
 - `replicaCount` - Number of replicas (default: 3)
 - `resourcesPreset` - Resource allocation (nano/micro/small/medium/large/xlarge/2xlarge)
-- `postgresql.enabled` - Deploy PostgreSQL (default: true)
+- `postgresql.mode` - PostgreSQL deployment mode: `standalone`, `cnpg`, or `none` (default: standalone)
 - `ingress.enabled` - Enable ingress (default: false)
 - `autoscaling.enabled` - Enable HPA (default: false)
 - `metrics.enabled` - Enable Prometheus metrics (default: true)
@@ -313,6 +355,7 @@ See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configu
 ### Common Issues
 
 **1. Database Connection Failed**
+
 ```bash
 # Check PostgreSQL is running
 kubectl get pods -l app.kubernetes.io/name=postgresql
@@ -325,6 +368,7 @@ kubectl exec -it <fluxbase-pod> -- psql -h $DB_HOST -U $DB_USER -d $DB_NAME
 ```
 
 **2. Pods Not Starting**
+
 ```bash
 # Check pod status
 kubectl describe pod <pod-name>
@@ -337,6 +381,7 @@ kubectl top pods
 ```
 
 **3. Ingress Not Working**
+
 ```bash
 # Check ingress status
 kubectl get ingress
@@ -349,11 +394,13 @@ nslookup api.example.com
 ```
 
 **4. High Memory Usage**
+
 - Reduce `DB_MAX_CONNECTIONS`
 - Lower `replicaCount` or adjust `resources.limits.memory`
 - Check for memory leaks in logs
 
 **5. High CPU Usage**
+
 - Enable autoscaling with HPA
 - Check slow queries in database
 - Review rate limiting configuration
@@ -387,6 +434,7 @@ curl http://localhost:8080/api/v1/realtime/stats
 ### Grafana Dashboard
 
 Import the provided Grafana dashboard:
+
 ```bash
 kubectl apply -f deploy/grafana-dashboard.json
 ```
@@ -406,6 +454,7 @@ kubectl exec -i <postgres-pod> -- psql -U fluxbase fluxbase < backup.sql
 ### Automated Backups
 
 Use managed database services or configure automated backups:
+
 - AWS RDS: Automated snapshots
 - Google Cloud SQL: Automated backups
 - Self-hosted: Use `pg_dump` with cron

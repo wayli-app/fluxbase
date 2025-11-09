@@ -43,24 +43,28 @@ Fluxbase implements multiple layers of security to protect your data and applica
 ### 1. Authentication & Authorization
 
 #### JWT-Based Authentication
+
 - Secure token-based authentication
 - Short-lived access tokens (15 minutes default)
 - Long-lived refresh tokens with rotation
 - Token blacklisting on logout
 
 #### Multi-Factor Authentication (2FA)
+
 - TOTP (Time-based One-Time Password) support
 - QR code generation for authenticator apps
 - Backup codes for account recovery
 - Configurable 2FA enforcement
 
 #### OAuth 2.0 Integration
+
 - Support for major providers (Google, GitHub, Facebook, etc.)
 - Secure token exchange
 - State parameter for CSRF protection
 - Automatic account linking
 
 #### Row Level Security (RLS)
+
 - Database-level access control
 - Automatic row filtering based on user context
 - Policy-based permissions
@@ -73,12 +77,14 @@ Fluxbase implements multiple layers of security to protect your data and applica
 ### 2. Network Security
 
 #### TLS/HTTPS
+
 - TLS 1.2+ required in production
 - Automatic HTTPS redirect
 - HSTS (HTTP Strict Transport Security) headers
 - Secure cookie attributes
 
 #### CSRF Protection
+
 - Token-based CSRF protection
 - Double-submit cookie pattern
 - Automatic token generation
@@ -87,6 +93,7 @@ Fluxbase implements multiple layers of security to protect your data and applica
 [Learn more about CSRF Protection →](./csrf-protection.md)
 
 #### Security Headers
+
 - Content Security Policy (CSP)
 - X-Frame-Options (Clickjacking protection)
 - X-Content-Type-Options (MIME sniffing protection)
@@ -97,6 +104,7 @@ Fluxbase implements multiple layers of security to protect your data and applica
 [Learn more about Security Headers →](./security-headers.md)
 
 #### Rate Limiting
+
 - IP-based rate limiting
 - User-based rate limiting
 - API key-based rate limiting
@@ -110,18 +118,21 @@ Fluxbase implements multiple layers of security to protect your data and applica
 ### 3. Data Security
 
 #### Encryption at Rest
+
 - Database encryption (PostgreSQL native encryption)
 - File storage encryption
 - Secrets management with environment variables
 - Password hashing with bcrypt (cost factor 10)
 
 #### Encryption in Transit
+
 - TLS for all API communications
 - Secure WebSocket connections (WSS)
 - Encrypted database connections
 - HTTPS-only cookies
 
 #### Data Isolation
+
 - Row Level Security for multi-tenancy
 - Schema-based isolation options
 - Organization/team-based access control
@@ -132,18 +143,21 @@ Fluxbase implements multiple layers of security to protect your data and applica
 ### 4. Input Validation & Sanitization
 
 #### SQL Injection Prevention
+
 - Parameterized queries throughout
 - No string concatenation in SQL
 - Input validation at API level
 - PostgreSQL prepared statements
 
 #### XSS Prevention
+
 - Content Security Policy headers
 - Output encoding
 - Safe HTML rendering
 - React/Vue automatic escaping
 
 #### Command Injection Prevention
+
 - No shell command execution with user input
 - Validation of file paths
 - Whitelist-based validation
@@ -215,38 +229,38 @@ CREATE POLICY user_isolation ON public.my_table
 ```yaml
 rate_limiting:
   enabled: true
-  per_minute: 60  # Global limit
+  per_minute: 60 # Global limit
   per_hour: 1000
 
   # Per-endpoint limits
   endpoints:
     - path: "/api/v1/auth/login"
-      per_minute: 5  # Stricter limit for sensitive endpoints
+      per_minute: 5 # Stricter limit for sensitive endpoints
 ```
 
 #### 6. Use API Keys Securely
 
 ```typescript
 // ✅ GOOD: Store API keys in environment variables
-const apiKey = process.env.FLUXBASE_API_KEY
+const apiKey = process.env.FLUXBASE_API_KEY;
 
 // ❌ BAD: Don't commit API keys to source control
-const apiKey = 'fb_live_abc123def456'
+const apiKey = "fb_live_abc123def456";
 ```
 
 #### 7. Validate All User Input
 
 ```typescript
 // ✅ GOOD: Validate and sanitize
-const email = validator.normalizeEmail(req.body.email)
-const age = parseInt(req.body.age, 10)
+const email = validator.normalizeEmail(req.body.email);
+const age = parseInt(req.body.age, 10);
 
 if (!validator.isEmail(email)) {
-  throw new Error('Invalid email')
+  throw new Error("Invalid email");
 }
 
 if (isNaN(age) || age < 0 || age > 150) {
-  throw new Error('Invalid age')
+  throw new Error("Invalid age");
 }
 ```
 
@@ -255,20 +269,20 @@ if (isNaN(age) || age < 0 || age > 150) {
 ```typescript
 // ✅ GOOD: Generic error messages
 try {
-  await client.auth.signIn({ email, password })
+  await client.auth.signIn({ email, password });
 } catch (error) {
   // Don't reveal whether user exists
-  throw new Error('Invalid email or password')
+  throw new Error("Invalid email or password");
 }
 
 // ❌ BAD: Reveals too much information
 try {
-  await client.auth.signIn({ email, password })
+  await client.auth.signIn({ email, password });
 } catch (error) {
-  if (error.message === 'User not found') {
-    throw new Error('No account with that email')
+  if (error.message === "User not found") {
+    throw new Error("No account with that email");
   }
-  throw new Error('Incorrect password')
+  throw new Error("Incorrect password");
 }
 ```
 
@@ -485,11 +499,11 @@ Subscribe to security updates:
 
 Fluxbase implements defense-in-depth security with multiple layers of protection:
 
-✅ **Authentication**: JWT, OAuth, 2FA
-✅ **Authorization**: RLS, RBAC, policies
-✅ **Network Security**: HTTPS, CSRF, security headers
-✅ **Data Security**: Encryption, isolation, access control
-✅ **Input Validation**: SQL injection, XSS, command injection prevention
-✅ **Monitoring**: Audit logs, rate limiting, alerts
+- ✅ **Authentication**: JWT, OAuth, 2FA
+- ✅ **Authorization**: RLS, RBAC, policies
+- ✅ **Network Security**: HTTPS, CSRF, security headers
+- ✅ **Data Security**: Encryption, isolation, access control
+- ✅ **Input Validation**: SQL injection, XSS, command injection prevention
+- ✅ **Monitoring**: Audit logs, rate limiting, alerts
 
 Follow the security best practices and keep your instance updated to maintain a strong security posture.
