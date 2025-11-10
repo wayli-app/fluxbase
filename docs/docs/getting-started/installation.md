@@ -96,13 +96,9 @@ docker run -d \
   ghcr.io/wayli-app/fluxbase:latest
 ```
 
-### Method 3: Docker Compose (Full Stack)
-
-Create `docker-compose.yml`:
+### Method 3: Docker Compose
 
 ```yaml
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -110,122 +106,50 @@ services:
       POSTGRES_DB: fluxbase
       POSTGRES_USER: fluxbase
       POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fluxbase"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   fluxbase:
     image: ghcr.io/wayli-app/fluxbase:latest
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       DATABASE_URL: postgres://fluxbase:postgres@postgres:5432/fluxbase?sslmode=disable
       JWT_SECRET: change-this-to-a-secure-random-string
-      PORT: 8080
     ports:
       - "8080:8080"
-    volumes:
-      - ./storage:/app/storage
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-
-volumes:
-  postgres_data:
-  minio_data:
 ```
 
-Start the stack:
-
-```bash
-docker-compose up -d
-```
+Start: `docker-compose up -d`
 
 ### Method 4: Build from Source
 
-Requirements:
-
-- Go 1.22 or later
-- Make
-- Git
-
 ```bash
-# Clone the repository
 git clone https://github.com/wayli-app/fluxbase.git
 cd fluxbase
-
-# Build the binary
 make build
-
-# Install to /usr/local/bin (optional)
-sudo make install
 ```
-
-The binary will be created at `./fluxbase`.
 
 ## Configuration
 
-Create a configuration file `fluxbase.yaml`:
-
-```yaml
-# Server Configuration
-server:
-  port: 8080
-  host: 0.0.0.0
-
-# Database Configuration
-database:
-  url: postgres://fluxbase:password@localhost:5432/fluxbase?sslmode=disable
-  max_connections: 100
-  idle_connections: 10
-
-# JWT Authentication
-jwt:
-  secret: your-secret-key-change-this-in-production
-  access_token_expiry: 15m
-  refresh_token_expiry: 7d
-
-# Storage Configuration
-storage:
-  provider: local # or "s3"
-  local_path: ./storage
-  max_upload_size: 10485760 # 10MB
-
-# Realtime Configuration
-realtime:
-  enabled: true
-  heartbeat_interval: 30s
-
-# Admin UI
-admin:
-  enabled: true
-  path: /admin
-```
-
-Or use environment variables:
+**Environment variables:**
 
 ```bash
 export DATABASE_URL=postgres://fluxbase:password@localhost:5432/fluxbase
 export JWT_SECRET=your-secret-key
 export PORT=8080
-export STORAGE_PROVIDER=local
-export STORAGE_LOCAL_PATH=./storage
+```
+
+**Or create `fluxbase.yaml`:**
+
+```yaml
+database:
+  url: postgres://fluxbase:password@localhost:5432/fluxbase
+jwt:
+  secret: your-secret-key
+storage:
+  provider: local
+  local_path: ./storage
 ```
 
 ## Initialize Database
@@ -319,133 +243,53 @@ curl http://localhost:8080/api/v1/tables/tasks
 
 ## Troubleshooting
 
-### Database Connection Failed
-
-```
-Error: failed to connect to database
-```
-
-**Solution:**
-
-- Check PostgreSQL is running: `sudo systemctl status postgresql`
-- Verify connection string in `DATABASE_URL`
-- Ensure database exists: `psql -U postgres -l`
-
-### Port Already in Use
-
-```
-Error: listen tcp :8080: bind: address already in use
-```
-
-**Solution:**
-
-- Change port: `PORT=8081 fluxbase`
-- Or kill existing process: `lsof -ti:8080 | xargs kill`
-
-### Migrations Failed
-
-```
-Error: migration 001_init.up.sql failed
-```
-
-**Solution:**
-
-- Drop and recreate database (development only!)
-- Check PostgreSQL logs: `sudo journalctl -u postgresql`
-- Ensure fluxbase user has proper permissions
-
-### Permission Denied
-
-```
-Error: permission denied for schema public
-```
-
-**Solution:**
-
-```sql
-GRANT ALL PRIVILEGES ON DATABASE fluxbase TO fluxbase;
-GRANT ALL ON SCHEMA public TO fluxbase;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fluxbase;
-```
+| Issue                          | Solution                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **Database connection failed** | Check PostgreSQL running: `systemctl status postgresql`, verify `DATABASE_URL`, ensure database exists |
+| **Port already in use**        | Change port: `PORT=8081 fluxbase` or kill process: `lsof -ti:8080 \| xargs kill`                       |
+| **Migrations failed**          | Check PostgreSQL logs, ensure user has permissions, drop/recreate DB (dev only)                        |
+| **Permission denied**          | Grant permissions: `GRANT ALL ON SCHEMA public TO fluxbase;`                                           |
 
 ## Upgrading
 
-### Binary Installation
+**Binary:**
 
 ```bash
-# Backup your database first!
-pg_dump fluxbase > backup.sql
-
-# Download new version
+pg_dump fluxbase > backup.sql  # Backup first!
 curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
-chmod +x fluxbase
-
-# Stop old version
-sudo systemctl stop fluxbase  # or kill the process
-
-# Run migrations
-./fluxbase migrate
-
-# Start new version
-./fluxbase
+chmod +x fluxbase && ./fluxbase migrate && ./fluxbase
 ```
 
-### Docker
+**Docker:**
 
 ```bash
-# Pull latest image
-docker pull ghcr.io/wayli-app/fluxbase:latest
-
-# Recreate container
-docker-compose down
-docker-compose up -d
+docker pull ghcr.io/wayli-app/fluxbase:latest && docker-compose up -d
 ```
 
-## Running as a Service
-
-### systemd (Linux)
+## Running as systemd Service
 
 Create `/etc/systemd/system/fluxbase.service`:
 
 ```ini
 [Unit]
-Description=Fluxbase Backend as a Service
+Description=Fluxbase
 After=postgresql.service
-Requires=postgresql.service
 
 [Service]
 Type=simple
-User=fluxbase
-WorkingDirectory=/opt/fluxbase
 Environment="DATABASE_URL=postgres://fluxbase:password@localhost:5432/fluxbase"
 Environment="JWT_SECRET=your-secret-key"
-Environment="PORT=8080"
 ExecStart=/usr/local/bin/fluxbase
 Restart=on-failure
-RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable fluxbase
-sudo systemctl start fluxbase
-sudo systemctl status fluxbase
-```
+Enable: `systemctl enable fluxbase && systemctl start fluxbase`
 
 ## Next Steps
 
-- [Quick Start Tutorial](./quick-start.md) - Build your first app
-- [Configuration Reference](../reference/configuration.md) - Customize Fluxbase
-- [SDK Documentation](../guides/typescript-sdk/getting-started.md) - Use TypeScript or Go SDKs
-- [Authentication Guide](../guides/authentication.md) - Set up auth in your app
-
-## Need Help?
-
-- **GitHub Issues**: [github.com/wayli-app/fluxbase/issues](https://github.com/wayli-app/fluxbase/issues)
-- **GitHub Discussions**: [github.com/wayli-app/fluxbase/discussions](https://github.com/wayli-app/fluxbase/discussions)
-- **Discord**: [discord.gg/fluxbase](https://discord.gg/fluxbase)
+- [Quick Start Tutorial](./quick-start.md)
+- [Configuration Reference](../reference/configuration.md)
+- [TypeScript SDK](../guides/typescript-sdk/getting-started.md)
