@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	// ErrNotAdmin is returned when a non-admin tries to impersonate
-	ErrNotAdmin = errors.New("only admins can impersonate users")
+	// ErrNotAdmin is returned when a non-dashboard-admin tries to impersonate
+	ErrNotAdmin = errors.New("only dashboard admins can impersonate users")
 	// ErrSelfImpersonation is returned when trying to impersonate yourself
 	ErrSelfImpersonation = errors.New("cannot impersonate yourself")
 	// ErrNoActiveImpersonation is returned when trying to stop non-existent impersonation
@@ -243,7 +243,7 @@ func (s *ImpersonationService) StartImpersonation(
 		return nil, fmt.Errorf("admin user not found: %w", err)
 	}
 
-	if adminUser.Role != "admin" {
+	if adminUser.Role != "dashboard_admin" {
 		return nil, ErrNotAdmin
 	}
 
@@ -322,7 +322,7 @@ func (s *ImpersonationService) StartAnonImpersonation(
 		return nil, fmt.Errorf("admin user not found: %w", err)
 	}
 
-	if adminUser.Role != "admin" {
+	if adminUser.Role != "dashboard_admin" {
 		return nil, ErrNotAdmin
 	}
 
@@ -397,7 +397,7 @@ func (s *ImpersonationService) StartServiceImpersonation(
 		return nil, fmt.Errorf("admin user not found: %w", err)
 	}
 
-	if adminUser.Role != "admin" {
+	if adminUser.Role != "dashboard_admin" {
 		return nil, ErrNotAdmin
 	}
 

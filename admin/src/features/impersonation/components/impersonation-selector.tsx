@@ -23,9 +23,14 @@ import { toast } from 'sonner'
 import { UserSearch } from './user-search'
 import { useImpersonationStore, type ImpersonationType } from '@/stores/impersonation-store'
 import { impersonationApi } from '@/lib/impersonation-api'
+import { setAuthToken as setSDKAuthToken } from '@/lib/fluxbase-client'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/hooks/use-auth'
 
 export function ImpersonationSelector() {
+  const { user } = useAuth()
   const { isImpersonating, startImpersonation } = useImpersonationStore()
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [impersonationType, setImpersonationType] =
@@ -71,6 +76,9 @@ export function ImpersonationSelector() {
         impersonationType
       )
 
+      // Update SDK client token to use impersonation token
+      setSDKAuthToken(response.access_token)
+
       toast.success(
         `Started impersonating ${
           impersonationType === 'user'
@@ -86,8 +94,8 @@ export function ImpersonationSelector() {
       setSelectedUserId('')
       setReason('')
 
-      // Reload the page to refresh data with new context
-      window.location.reload()
+      // Invalidate all queries to refetch data with new impersonation context
+      queryClient.invalidateQueries()
     } catch (error: unknown) {
       const errorMessage = error instanceof Error && 'response' in error
         ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
@@ -111,6 +119,12 @@ export function ImpersonationSelector() {
       case 'service':
         return <Shield className="h-4 w-4" />
     }
+  }
+
+  // Only show impersonation button to dashboard_admin users
+  const isDashboardAdmin = user?.role === 'dashboard_admin'
+  if (!isDashboardAdmin) {
+    return null
   }
 
   return (

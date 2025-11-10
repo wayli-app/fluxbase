@@ -76,10 +76,10 @@ func TestMain(m *testing.M) {
 //   - RLS: Enabled and enforced
 //   - Purpose: Test Row-Level Security policies
 //   - Policies:
-//     * tasks_select_own: Users can SELECT their own tasks OR public tasks
-//     * tasks_insert_own: Users can INSERT tasks where user_id matches their ID
-//     * tasks_update_own: Users can UPDATE only their own tasks
-//     * tasks_delete_own: Users can DELETE only their own tasks
+//   - tasks_select_own: Users can SELECT their own tasks OR public tasks
+//   - tasks_insert_own: Users can INSERT tasks where user_id matches their ID
+//   - tasks_update_own: Users can UPDATE only their own tasks
+//   - tasks_delete_own: Users can DELETE only their own tasks
 //
 // # Database Users
 //

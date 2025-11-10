@@ -358,9 +358,9 @@ func TestExampleWaitForCondition(t *testing.T) {
 // setupExampleTest creates a clean test context for example tests.
 //
 // This pattern should be used in all test files:
-//   1. Create a setup function per test file
-//   2. Clean relevant tables for test isolation
-//   3. Return the test context
+//  1. Create a setup function per test file
+//  2. Clean relevant tables for test isolation
+//  3. Return the test context
 func setupExampleTest(t *testing.T) *test.TestContext {
 	tc := test.NewTestContext(t)
 
