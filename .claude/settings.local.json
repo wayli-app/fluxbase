@@ -33,7 +33,10 @@
       "Bash(timeout 60 bash -c:*)",
       "Bash(timeout 30 npm test -- src/oauth.test.ts)",
       "Bash(timeout 60 npm run build:*)",
-      "Bash(timeout 60 npm test:*)"
+      "Bash(timeout 60 npm test:*)",
+      "Bash(timeout 60 go test:*)",
+      "Bash(timeout 120 go test:*)",
+      "Bash(make test:*)"
     ],
     "deny": [],
     "ask": []

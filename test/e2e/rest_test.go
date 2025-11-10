@@ -34,25 +34,37 @@ func setupRESTTest(t *testing.T) *RESTTestContext {
 
 // TestRESTCreateRecord tests inserting data into an existing table
 func TestRESTCreateRecord(t *testing.T) {
+	// GIVEN: A clean products table and authenticated API client
 	tc := setupRESTTest(t)
 	defer tc.Close()
 
-	// Insert a product via REST API
+	// WHEN: Creating a new product via POST request
 	resp := tc.NewRequest("POST", "/api/v1/tables/products").
-		WithAPIKey(tc.APIKey).
 		WithAPIKey(tc.APIKey).
 		WithBody(map[string]interface{}{
 			"name":  "Test Product",
 			"price": 29.99,
 		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
+		Send()
+
+	// THEN: Product is created successfully
+	resp.AssertStatus(fiber.StatusCreated)
 
 	var result map[string]interface{}
 	resp.JSON(&result)
 
 	require.NotNil(t, result["id"], "Should return created product ID")
 	require.Equal(t, "Test Product", result["name"])
+	require.Equal(t, 29.99, result["price"], "Should return correct price")
+
+	// AND: Product exists in database with correct values
+	productID := result["id"]
+	rows := tc.QuerySQL("SELECT * FROM products WHERE id = $1", productID)
+	require.Len(t, rows, 1, "Product should exist in database")
+	require.Equal(t, "Test Product", rows[0]["name"])
+	require.Equal(t, 29.99, rows[0]["price"], "Price should match")
+	require.NotNil(t, rows[0]["created_at"])
+	require.NotNil(t, rows[0]["updated_at"])
 }
 
 // TestRESTRead tests reading data from a table
@@ -290,8 +302,8 @@ func TestRESTUpsert(t *testing.T) {
 		}).
 		Send()
 
-	// Should return error for duplicate
-	require.True(t, resp.Status() >= 400, "Should return error for duplicate unique key")
+	// THEN: Request fails with 409 Conflict
+	resp.AssertStatus(fiber.StatusConflict)
 
 	// Clean up: remove unique constraint
 	tc.ExecuteSQL("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_key")
@@ -356,6 +368,6 @@ func TestRESTBadRequest(t *testing.T) {
 		}).
 		Send()
 
-	// Should return error (400 or 500)
-	require.True(t, resp.Status() >= 400, "Should return error status for invalid data")
+	// THEN: Request fails with 400 Bad Request for invalid data type
+	resp.AssertStatus(fiber.StatusBadRequest)
 }

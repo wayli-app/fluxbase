@@ -30,7 +30,7 @@ func TestGenerateAccessToken(t *testing.T) {
 	email := "test@example.com"
 	role := "user"
 
-	token, claims, err := manager.GenerateAccessToken(userID, email, role)
+	token, claims, err := manager.GenerateAccessToken(userID, email, role, nil, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
@@ -60,7 +60,7 @@ func TestGenerateRefreshToken(t *testing.T) {
 	email := "test@example.com"
 	sessionID := "session123"
 
-	token, claims, err := manager.GenerateRefreshToken(userID, email, sessionID)
+	token, claims, err := manager.GenerateRefreshToken(userID, email, sessionID, nil, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
@@ -85,7 +85,7 @@ func TestGenerateTokenPair(t *testing.T) {
 	email := "test@example.com"
 	role := "admin"
 
-	accessToken, refreshToken, sessionID, err := manager.GenerateTokenPair(userID, email, role)
+	accessToken, refreshToken, sessionID, err := manager.GenerateTokenPair(userID, email, role, nil, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
@@ -112,7 +112,7 @@ func TestValidateToken_Success(t *testing.T) {
 	email := "test@example.com"
 	role := "user"
 
-	token, originalClaims, err := manager.GenerateAccessToken(userID, email, role)
+	token, originalClaims, err := manager.GenerateAccessToken(userID, email, role, nil, nil)
 	require.NoError(t, err)
 
 	// Validate the token
@@ -152,7 +152,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 	manager1 := NewJWTManager("secret1", 15*time.Minute, 7*24*time.Hour)
 	manager2 := NewJWTManager("secret2", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager1.GenerateAccessToken("user123", "test@example.com", "user")
+	token, _, err := manager1.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	// Try to validate with wrong secret
@@ -166,7 +166,7 @@ func TestValidateToken_ExpiredToken(t *testing.T) {
 	// Create manager with very short TTL
 	manager := NewJWTManager("test-secret", 1*time.Millisecond, 1*time.Millisecond)
 
-	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user")
+	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	// Wait for token to expire
@@ -182,7 +182,7 @@ func TestValidateToken_ExpiredToken(t *testing.T) {
 func TestValidateAccessToken_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user")
+	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateAccessToken(token)
@@ -194,7 +194,7 @@ func TestValidateAccessToken_Success(t *testing.T) {
 func TestValidateAccessToken_RefreshTokenFails(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123")
+	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateAccessToken(token)
@@ -207,7 +207,7 @@ func TestValidateAccessToken_RefreshTokenFails(t *testing.T) {
 func TestValidateRefreshToken_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123")
+	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateRefreshToken(token)
@@ -219,7 +219,7 @@ func TestValidateRefreshToken_Success(t *testing.T) {
 func TestValidateRefreshToken_AccessTokenFails(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user")
+	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateRefreshToken(token)
@@ -233,7 +233,7 @@ func TestRefreshAccessToken_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
 	// Generate initial token pair
-	_, refreshToken, sessionID, err := manager.GenerateTokenPair("user123", "test@example.com", "user")
+	_, refreshToken, sessionID, err := manager.GenerateTokenPair("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	// Refresh the access token
@@ -265,7 +265,7 @@ func TestRefreshAccessToken_InvalidRefreshToken(t *testing.T) {
 func TestRefreshAccessToken_AccessTokenFails(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	accessToken, _, _, err := manager.GenerateTokenPair("user123", "test@example.com", "user")
+	accessToken, _, _, err := manager.GenerateTokenPair("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	// Try to refresh using access token (should fail)
@@ -280,7 +280,7 @@ func TestExtractUserID_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
 	userID := "user123"
-	token, _, err := manager.GenerateAccessToken(userID, "test@example.com", "user")
+	token, _, err := manager.GenerateAccessToken(userID, "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	extractedUserID, err := manager.ExtractUserID(token)
@@ -301,7 +301,7 @@ func TestExtractUserID_InvalidToken(t *testing.T) {
 func TestGetTokenExpiry_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, claims, err := manager.GenerateAccessToken("user123", "test@example.com", "user")
+	token, claims, err := manager.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	expiry, err := manager.GetTokenExpiry(token)
@@ -323,7 +323,7 @@ func TestGetTokenExpiry_InvalidToken(t *testing.T) {
 func TestTokenClaims_StandardCompliance(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, claims, err := manager.GenerateAccessToken("user123", "test@example.com", "user")
+	token, claims, err := manager.GenerateAccessToken("user123", "test@example.com", "user", nil, nil)
 	require.NoError(t, err)
 
 	// Parse token to verify standard JWT compliance
@@ -356,6 +356,8 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 				"user123",
 				"test@example.com",
 				"user",
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 			results <- token

@@ -1,3 +1,27 @@
+// Package e2e contains end-to-end tests for Fluxbase.
+//
+// # Test Setup
+//
+// TestMain creates two test tables before running all tests:
+//
+//  1. products - Simple table for REST API testing (no RLS)
+//  2. tasks - Complex table for RLS policy testing (RLS enabled)
+//
+// # Database Users
+//
+// Three database users are used for different purposes:
+//
+//  1. postgres (superuser) - Used only for granting permissions
+//  2. fluxbase_app (has BYPASSRLS) - Used by NewTestContext for general testing
+//  3. fluxbase_rls_test (no BYPASSRLS) - Used by NewRLSTestContext for RLS testing
+//
+// # Test Execution Flow
+//
+//  1. TestMain runs setupTestTables() - Creates products and tasks tables
+//  2. Individual tests run (each should truncate tables for isolation)
+//  3. TestMain runs teardownTestTables() - Drops all test tables
+//
+// See test/README.md for detailed testing guide.
 package e2e
 
 import (
@@ -11,12 +35,19 @@ import (
 	"github.com/wayli-app/fluxbase/test"
 )
 
-// getDatabase creates a database connection for setup/teardown
+// getDatabase creates a database connection for setup/teardown operations.
 func getDatabase(cfg *config.Config) (*database.Connection, error) {
 	return database.NewConnection(cfg.Database)
 }
 
-// TestMain runs before all tests to set up test tables and after all tests to clean up
+// TestMain runs before all e2e tests to set up test tables and after all tests to clean up.
+//
+// Execution Flow:
+//  1. setupTestTables() - Creates products and tasks tables with RLS policies
+//  2. m.Run() - Runs all test functions in the e2e package
+//  3. teardownTestTables() - Drops all test tables
+//
+// Note: Individual tests should truncate tables for test isolation.
 func TestMain(m *testing.M) {
 	// Setup: Create test tables before running tests
 	setupTestTables()
@@ -31,7 +62,29 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// setupTestTables creates the test tables needed for e2e tests
+// setupTestTables creates the test tables needed for e2e tests.
+//
+// # Tables Created
+//
+// 1. products table:
+//   - Schema: id, name, price, created_at, updated_at
+//   - RLS: Disabled (for general REST API testing)
+//   - Purpose: Test basic CRUD operations without RLS complexity
+//
+// 2. tasks table:
+//   - Schema: id, user_id, title, description, completed, is_public, created_at, updated_at
+//   - RLS: Enabled and enforced
+//   - Purpose: Test Row-Level Security policies
+//   - Policies:
+//     * tasks_select_own: Users can SELECT their own tasks OR public tasks
+//     * tasks_insert_own: Users can INSERT tasks where user_id matches their ID
+//     * tasks_update_own: Users can UPDATE only their own tasks
+//     * tasks_delete_own: Users can DELETE only their own tasks
+//
+// # Database Users
+//
+// This function uses fluxbase_app (with BYPASSRLS) to create tables,
+// then calls grantRLSTestPermissions() to grant permissions to fluxbase_rls_test user.
 func setupTestTables() {
 	ctx := context.Background()
 
@@ -164,8 +217,20 @@ func setupTestTables() {
 	log.Info().Msg("E2E test tables setup complete")
 }
 
-// grantRLSTestPermissions grants permissions to the fluxbase_rls_test user
-// This must be done as postgres superuser
+// grantRLSTestPermissions grants necessary permissions to the fluxbase_rls_test database user.
+//
+// This function connects as the postgres superuser to grant permissions because
+// fluxbase_app does not own the schemas and cannot grant permissions on them.
+//
+// Permissions Granted:
+//   - Schema USAGE and CREATE on: auth, dashboard, functions, storage, realtime
+//   - ALL privileges on tables and sequences in those schemas
+//   - EXECUTE on all functions in functions schema
+//
+// The fluxbase_rls_test user needs these permissions to:
+//   - Create test users in auth.users
+//   - Query and insert test data
+//   - Test RLS policies without BYPASSRLS privilege
 func grantRLSTestPermissions() {
 	ctx := context.Background()
 

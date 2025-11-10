@@ -29,6 +29,52 @@ func NewRESTHandler(db *database.Connection, parser *QueryParser) *RESTHandler {
 	}
 }
 
+// handleDatabaseError returns an appropriate HTTP error response based on the database error.
+// This centralizes error handling logic for all REST operations.
+func handleDatabaseError(c *fiber.Ctx, err error, operation string) error {
+	errMsg := err.Error()
+
+	// Duplicate key violation (unique constraint)
+	if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {
+		return c.Status(409).JSON(fiber.Map{
+			"error": "Record with this value already exists",
+		})
+	}
+
+	// Foreign key constraint violation
+	if strings.Contains(errMsg, "foreign key constraint") {
+		return c.Status(409).JSON(fiber.Map{
+			"error": "Cannot complete operation due to foreign key constraint",
+		})
+	}
+
+	// NOT NULL constraint violation (missing required field)
+	if strings.Contains(errMsg, "null value in column") || strings.Contains(errMsg, "not-null constraint") {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Missing required field",
+		})
+	}
+
+	// Invalid input syntax (type mismatch, invalid data)
+	if strings.Contains(errMsg, "invalid input syntax") {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Invalid data type provided",
+		})
+	}
+
+	// Check constraint violation
+	if strings.Contains(errMsg, "check constraint") {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Data violates table constraints",
+		})
+	}
+
+	// Generic server error for other cases
+	return c.Status(500).JSON(fiber.Map{
+		"error": fmt.Sprintf("Failed to %s", operation),
+	})
+}
+
 // RegisterTableRoutes registers REST routes for a table
 func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.TableInfo) {
 	// Build the REST path for this table
@@ -302,9 +348,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 			results, err = pgxRowsToJSON(rows)
 			return err
 		}); err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to create record",
-			})
+			return handleDatabaseError(c, err, "create record")
 		}
 
 		if len(results) == 0 {
@@ -412,9 +456,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 		return err
 	})
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to create records",
-		})
+		return handleDatabaseError(c, err, "create records")
 	}
 
 	c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))
@@ -488,9 +530,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 			return err
 		})
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to update record",
-			})
+			return handleDatabaseError(c, err, "update record")
 		}
 
 		if len(results) == 0 {
@@ -541,9 +581,7 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 			return err
 		})
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to delete record",
-			})
+			return handleDatabaseError(c, err, "delete record")
 		}
 
 		if len(results) == 0 {
@@ -637,9 +675,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 			return err
 		})
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to update records",
-			})
+			return handleDatabaseError(c, err, "update records")
 		}
 
 		c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))
@@ -698,9 +734,7 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 			return err
 		})
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to delete records",
-			})
+			return handleDatabaseError(c, err, "delete records")
 		}
 
 		c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))

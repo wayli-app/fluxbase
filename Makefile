@@ -100,6 +100,26 @@ test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
 	@go test -v -race -timeout=5m ./test/e2e/...
 	@echo "${GREEN}E2E tests complete!${NC}"
 
+test-auth: ## Run authentication tests only
+	@echo "${YELLOW}Running authentication tests...${NC}"
+	@go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
+	@echo "${GREEN}Authentication tests complete!${NC}"
+
+test-rls: ## Run RLS security tests only
+	@echo "${YELLOW}Running RLS security tests...${NC}"
+	@go test -v -race -timeout=5m ./test/e2e/ -run TestRLS
+	@echo "${GREEN}RLS tests complete!${NC}"
+
+test-rest: ## Run REST API tests only
+	@echo "${YELLOW}Running REST API tests...${NC}"
+	@go test -v -race -timeout=5m ./test/e2e/ -run TestREST
+	@echo "${GREEN}REST API tests complete!${NC}"
+
+test-storage: ## Run storage tests only
+	@echo "${YELLOW}Running storage tests...${NC}"
+	@go test -v -race -timeout=5m ./test/e2e/ -run TestStorage
+	@echo "${GREEN}Storage tests complete!${NC}"
+
 test-sdk: ## Run SDK tests (TypeScript)
 	@echo "${YELLOW}Running SDK tests...${NC}"
 	@cd sdk && npm test -- src/admin.test.ts src/auth.test.ts src/management.test.ts src/ddl.test.ts src/impersonation.test.ts src/settings.test.ts src/oauth.test.ts

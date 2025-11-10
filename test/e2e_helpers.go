@@ -1,3 +1,52 @@
+// Package test provides testing utilities and helpers for Fluxbase e2e tests.
+//
+// # Test Contexts
+//
+// Two test contexts are available, each using a different database user:
+//
+//   - NewTestContext: Uses fluxbase_app user WITH BYPASSRLS privilege (RLS policies are NOT enforced)
+//   - NewRLSTestContext: Uses fluxbase_rls_test user WITHOUT BYPASSRLS privilege (RLS policies ARE enforced)
+//
+// Using the correct context is critical for test correctness. Use NewRLSTestContext ONLY when explicitly
+// testing Row-Level Security policies. For all other tests, use NewTestContext.
+//
+// # Helper Method Categories
+//
+// Context Creation:
+//   - NewTestContext() - Standard context (with BYPASSRLS)
+//   - NewRLSTestContext() - RLS testing context (no BYPASSRLS)
+//
+// User Management:
+//   - CreateTestUser() - Create regular app user
+//   - CreateDashboardAdminUser() - Create platform admin user
+//
+// Authentication:
+//   - CreateAPIKey() - Create API key (respects RLS)
+//   - CreateServiceKey() - Create service key (bypasses RLS!)
+//   - GenerateAnonKey() - Generate anonymous JWT token
+//   - GetAuthToken() - Sign in and get JWT
+//   - GetDashboardAuthToken() - Admin sign in
+//
+// Database Operations:
+//   - ExecuteSQL() - Execute as fluxbase_app
+//   - ExecuteSQLAsSuperuser() - Execute as postgres superuser
+//   - QuerySQL() - Query as fluxbase_app
+//   - QuerySQLAsSuperuser() - Query as postgres superuser
+//
+// Email Testing:
+//   - GetMailHogEmails() - Get all emails
+//   - ClearMailHogEmails() - Clear all emails
+//   - WaitForEmail() - Wait for specific email with timeout
+//
+// Schema Management:
+//   - EnsureAuthSchema() - Ensure auth tables exist
+//   - EnsureStorageSchema() - Ensure storage tables exist
+//   - EnsureFunctionsSchema() - Ensure functions tables exist
+//
+// Utilities:
+//   - WaitForCondition() - Poll until condition met or timeout
+//   - CleanupStorageFiles() - Clean storage bucket
+//   - CleanDatabase() - Truncate all tables
 package test
 
 import (
@@ -17,6 +66,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
@@ -27,7 +77,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// TestContext holds all testing dependencies
+// TestContext holds all testing dependencies including database connection,
+// API server, Fiber app, and configuration.
+//
+// Always close the context with defer tc.Close() to ensure proper cleanup.
 type TestContext struct {
 	DB     *database.Connection
 	Server *api.Server
@@ -36,7 +89,31 @@ type TestContext struct {
 	T      *testing.T
 }
 
-// NewTestContext creates a new test context with database and server
+// NewTestContext creates a test context using the fluxbase_app database user.
+//
+// Database User: fluxbase_app
+// Privilege: Has BYPASSRLS (Row-Level Security policies are NOT enforced)
+//
+// Use this context for:
+//   - General REST API testing
+//   - Authentication flows
+//   - Storage operations
+//   - Any test where RLS should be bypassed
+//
+// Do NOT use for:
+//   - Testing RLS policies (use NewRLSTestContext instead)
+//
+// Example:
+//
+//	func TestRESTAPI(t *testing.T) {
+//	    tc := test.NewTestContext(t)
+//	    defer tc.Close()
+//
+//	    resp := tc.NewRequest("GET", "/api/v1/tables/products").
+//	        WithAPIKey(tc.CreateAPIKey("test", nil)).
+//	        Send().
+//	        AssertStatus(fiber.StatusOK)
+//	}
 func NewTestContext(t *testing.T) *TestContext {
 	cfg := GetTestConfig()
 
@@ -80,8 +157,46 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 }
 
-// NewRLSTestContext creates a test context using the RLS test user (without BYPASSRLS)
-// This is used specifically for testing RLS policies
+// NewRLSTestContext creates a test context using the fluxbase_rls_test database user.
+//
+// Database User: fluxbase_rls_test
+// Privilege: Does NOT have BYPASSRLS (Row-Level Security policies ARE enforced)
+//
+// Use this context ONLY for:
+//   - Testing RLS policies
+//   - Verifying data isolation between users
+//   - Testing security boundaries
+//
+// Do NOT use for:
+//   - General API testing (use NewTestContext instead)
+//   - Any test where RLS should be bypassed
+//
+// Example:
+//
+//	func TestRLSUserIsolation(t *testing.T) {
+//	    tc := test.NewRLSTestContext(t)  // RLS policies will be enforced
+//	    defer tc.Close()
+//
+//	    user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
+//	    user2ID, token2 := tc.CreateTestUser("user2@example.com", "password123")
+//
+//	    // Create task as user1
+//	    tc.NewRequest("POST", "/api/v1/tables/tasks").
+//	        WithAuth(token1).
+//	        WithBody(map[string]interface{}{"title": "User 1 Task", "user_id": user1ID}).
+//	        Send().
+//	        AssertStatus(fiber.StatusCreated)
+//
+//	    // User2 should NOT see user1's task
+//	    resp := tc.NewRequest("GET", "/api/v1/tables/tasks").
+//	        WithAuth(token2).
+//	        Send().
+//	        AssertStatus(fiber.StatusOK)
+//
+//	    var tasks []map[string]interface{}
+//	    resp.JSON(&tasks)
+//	    require.Len(t, tasks, 0, "User 2 should not see User 1's private tasks")
+//	}
 func NewRLSTestContext(t *testing.T) *TestContext {
 	cfg := GetTestConfig()
 
@@ -279,34 +394,96 @@ func (r *APIRequest) WithHeader(key, value string) *APIRequest {
 	return r
 }
 
-// WithAuth sets the Authorization header with Bearer token
-// Alias for WithBearerToken for backward compatibility
+// WithAuth sets the Authorization header with Bearer token (JWT).
+//
+// This is an alias for WithBearerToken for backward compatibility.
+//
+// Use for: User authentication with JWT tokens
+// RLS: Respects RLS policies for the authenticated user
+//
+// Example:
+//
+//	userID, token := tc.CreateTestUser("user@example.com", "password123")
+//	resp := tc.NewRequest("GET", "/api/v1/auth/user").
+//	    WithAuth(token).
+//	    Send()
 func (r *APIRequest) WithAuth(token string) *APIRequest {
 	return r.WithBearerToken(token)
 }
 
-// WithBearerToken sets the Authorization header with a Bearer token (JWT)
+// WithBearerToken sets the Authorization header with a Bearer token (JWT).
+//
+// Header Set: Authorization: Bearer {token}
+// Use for: User authentication with JWT tokens
+// RLS: Respects RLS policies for the authenticated user
+//
+// Example:
+//
+//	userID, token := tc.CreateTestUser("user@example.com", "password123")
+//	resp := tc.NewRequest("GET", "/api/v1/tables/tasks").
+//	    WithBearerToken(token).
+//	    Send()
 func (r *APIRequest) WithBearerToken(token string) *APIRequest {
 	r.headers["Authorization"] = "Bearer " + token
 	return r
 }
 
-// WithAPIKey sets the X-API-Key header for API key authentication
+// WithAPIKey sets the X-API-Key header for API key authentication.
+//
+// Header Set: X-API-Key: {apiKey}
+// Use for: Project-level API key authentication
+// RLS: Respects RLS policies
+//
+// Example:
+//
+//	apiKey := tc.CreateAPIKey("My API Key", []string{"read", "write"})
+//	resp := tc.NewRequest("GET", "/api/v1/tables/products").
+//	    WithAPIKey(apiKey).
+//	    Send()
 func (r *APIRequest) WithAPIKey(apiKey string) *APIRequest {
 	r.headers["X-API-Key"] = apiKey
 	return r
 }
 
-// WithServiceKey sets the X-Service-Key header for service key authentication
-// Service keys have elevated privileges and bypass RLS
+// WithServiceKey sets the X-Service-Key header for service role authentication.
+//
+// ⚠️ WARNING: Service keys BYPASS RLS POLICIES!
+//
+// Header Set: X-Service-Key: {serviceKey}
+// Use for: Admin operations, bypassing RLS
+// RLS: BYPASSES all RLS policies (full database access)
+//
+// Only use service keys for:
+//   - Administrative operations
+//   - System-level tasks
+//   - Operations that need to bypass RLS
+//
+// Example:
+//
+//	serviceKey := tc.CreateServiceKey("Admin Service Key")
+//	resp := tc.NewRequest("DELETE", "/api/v1/admin/users/"+userID).
+//	    WithServiceKey(serviceKey).
+//	    Send()
 func (r *APIRequest) WithServiceKey(serviceKey string) *APIRequest {
 	r.headers["X-Service-Key"] = serviceKey
 	return r
 }
 
-// Unauthenticated explicitly marks this request as unauthenticated
-// Useful for testing authentication failures
-// This is the default behavior, but makes intent clear in tests
+// Unauthenticated explicitly marks this request as unauthenticated by removing all auth headers.
+//
+// Use for:
+//   - Testing authentication failures
+//   - Testing public endpoints
+//   - Making intent explicit in tests
+//
+// Note: This is the default behavior, but using this method makes test intent clearer.
+//
+// Example:
+//
+//	resp := tc.NewRequest("GET", "/api/v1/auth/user").
+//	    Unauthenticated().
+//	    Send().
+//	    AssertStatus(fiber.StatusUnauthorized)
 func (r *APIRequest) Unauthenticated() *APIRequest {
 	// Remove any authentication headers that may have been set
 	delete(r.headers, "Authorization")
@@ -443,7 +620,25 @@ func (b *TestDataBuilder) Insert() {
 	}
 }
 
-// WaitForCondition waits for a condition to be true with timeout
+// WaitForCondition polls a condition function until it returns true or timeout occurs.
+//
+// Parameters:
+//   - timeout: Maximum time to wait
+//   - checkInterval: Time between condition checks
+//   - condition: Function that returns true when condition is met
+//
+// Returns: true if condition met within timeout, false if timeout occurred
+//
+// Use this instead of time.Sleep() to make tests more reliable and faster.
+//
+// Example:
+//
+//	// Wait for webhook to be delivered (max 5 seconds, check every 100ms)
+//	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+//	    results := tc.QuerySQL("SELECT COUNT(*) FROM webhook_events WHERE webhook_id = $1", webhookID)
+//	    return results[0]["count"].(int64) > 0
+//	})
+//	require.True(t, success, "Webhook should be delivered within 5 seconds")
 func (tc *TestContext) WaitForCondition(timeout time.Duration, checkInterval time.Duration, condition func() bool) bool {
 	deadline := time.Now().Add(timeout)
 
@@ -457,15 +652,44 @@ func (tc *TestContext) WaitForCondition(timeout time.Duration, checkInterval tim
 	return false
 }
 
-// ExecuteSQL executes raw SQL for test setup
+// ExecuteSQL executes raw SQL as the fluxbase_app database user.
+//
+// Use for:
+//   - Test data setup
+//   - Table truncation
+//   - Schema modifications
+//
+// RLS: If using NewTestContext, RLS is bypassed (BYPASSRLS privilege).
+// If using NewRLSTestContext, RLS is enforced.
+//
+// Example:
+//
+//	tc.ExecuteSQL("TRUNCATE TABLE products CASCADE")
+//	tc.ExecuteSQL("INSERT INTO products (name, price) VALUES ($1, $2)", "Test Product", 29.99)
 func (tc *TestContext) ExecuteSQL(sql string, args ...interface{}) {
 	ctx := context.Background()
 	_, err := tc.DB.Exec(ctx, sql, args...)
 	require.NoError(tc.T, err)
 }
 
-// ExecuteSQLAsSuperuser executes raw SQL as postgres superuser (bypasses RLS)
-// This is useful for setting up test data that violates RLS policies
+// ExecuteSQLAsSuperuser executes raw SQL as the postgres superuser.
+//
+// Database User: postgres (superuser)
+// Privilege: Full database access, always bypasses RLS
+//
+// Use for:
+//   - Setting up test data that violates RLS policies
+//   - Granting permissions
+//   - Creating schemas
+//   - Administrative operations
+//
+// Example:
+//
+//	// Insert task for user without going through RLS
+//	tc.ExecuteSQLAsSuperuser(`
+//	    INSERT INTO tasks (user_id, title, description)
+//	    VALUES ($1, 'Admin Created Task', 'Created by superuser')
+//	`, userID)
 func (tc *TestContext) ExecuteSQLAsSuperuser(sql string, args ...interface{}) {
 	ctx := context.Background()
 
@@ -481,7 +705,16 @@ func (tc *TestContext) ExecuteSQLAsSuperuser(sql string, args ...interface{}) {
 	require.NoError(tc.T, err, "Failed to execute SQL as superuser")
 }
 
-// QuerySQL executes a SQL query and returns results
+// QuerySQL executes a SQL query and returns results with PostgreSQL types converted to Go types.
+//
+// PostgreSQL types are automatically converted:
+//   - NUMERIC → float64
+//   - TIMESTAMP → time.Time
+//   - UUID → string
+//   - TEXT → string
+//   - BOOLEAN → bool
+//
+// This makes test assertions straightforward without dealing with pgtype.* types.
 func (tc *TestContext) QuerySQL(sql string, args ...interface{}) []map[string]interface{} {
 	ctx := context.Background()
 	rows, err := tc.DB.Query(ctx, sql, args...)
@@ -496,13 +729,65 @@ func (tc *TestContext) QuerySQL(sql string, args ...interface{}) []map[string]in
 
 		row := make(map[string]interface{})
 		for i, col := range rows.FieldDescriptions() {
-			row[string(col.Name)] = values[i]
+			// Convert pgtype values to standard Go types for easier testing
+			row[string(col.Name)] = convertPgTypeToGoType(values[i])
 		}
 
 		results = append(results, row)
 	}
 
 	return results
+}
+
+// convertPgTypeToGoType converts PostgreSQL driver types to standard Go types for testing.
+// This makes test assertions much easier by avoiding pgtype.* types.
+func convertPgTypeToGoType(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	// Handle common pgtype conversions
+	switch val := v.(type) {
+	case pgtype.Numeric:
+		// Convert NUMERIC to float64
+		if !val.Valid {
+			return nil
+		}
+		f, err := val.Float64Value()
+		if err == nil {
+			return f.Float64
+		}
+		// Fallback to string representation if float conversion fails
+		return val.Int.String()
+	case pgtype.Text:
+		if !val.Valid {
+			return nil
+		}
+		return val.String
+	case pgtype.Bool:
+		if !val.Valid {
+			return nil
+		}
+		return val.Bool
+	case pgtype.UUID:
+		if !val.Valid {
+			return nil
+		}
+		return val.Bytes[:]
+	case pgtype.Timestamp:
+		if !val.Valid {
+			return nil
+		}
+		return val.Time
+	case pgtype.Timestamptz:
+		if !val.Valid {
+			return nil
+		}
+		return val.Time
+	default:
+		// Return as-is for types that don't need conversion
+		return v
+	}
 }
 
 // QuerySQLAsSuperuser executes a SQL query as postgres superuser (bypasses RLS)
@@ -530,7 +815,8 @@ func (tc *TestContext) QuerySQLAsSuperuser(sql string, args ...interface{}) []ma
 
 		row := make(map[string]interface{})
 		for i, col := range rows.FieldDescriptions() {
-			row[string(col.Name)] = values[i]
+			// Convert pgtype values to standard Go types for easier testing
+			row[string(col.Name)] = convertPgTypeToGoType(values[i])
 		}
 
 		results = append(results, row)

@@ -79,7 +79,10 @@ func TestRESTWithBearerToken(t *testing.T) {
 
 	tc.EnsureAuthSchema()
 
-	// Create a test user and get JWT token (use unique email to avoid conflicts)
+	// Clean up any existing test user to ensure test isolation
+	tc.ExecuteSQL("DELETE FROM auth.users WHERE email = $1", "bearer-test@example.com")
+
+	// Create a test user and get JWT token
 	_, token := tc.CreateTestUser("bearer-test@example.com", "password123")
 
 	// Use bearer token to access REST API
@@ -150,6 +153,9 @@ func TestRESTAuthenticationPriority(t *testing.T) {
 	if len(tables) == 0 {
 		t.Skip("Service keys table doesn't exist - migrations may not have been run")
 	}
+
+	// Clean up any existing test user to ensure test isolation
+	tc.ExecuteSQL("DELETE FROM auth.users WHERE email = $1", "priority@example.com")
 
 	// Create all three auth types
 	apiKey := tc.CreateAPIKey("Priority Test API Key", nil)
