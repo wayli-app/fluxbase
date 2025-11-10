@@ -4,7 +4,7 @@ Deploy Fluxbase using Docker and Docker Compose for simple production environmen
 
 ## Overview
 
-Fluxbase provides official Docker images with:
+Fluxbase provides official Docker images (~80MB) with:
 - Multi-stage build for minimal image size
 - Non-root user for security
 - Health checks built-in

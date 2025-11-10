@@ -1,31 +1,27 @@
 # File Storage
 
-Fluxbase provides a flexible file storage system that supports both local filesystem and S3-compatible storage (including MinIO, AWS S3, Wasabi, DigitalOcean Spaces, and more).
+Fluxbase provides file storage supporting local filesystem or S3-compatible storage (MinIO, AWS S3, Wasabi, DigitalOcean Spaces, etc.).
 
-## Overview
+## Features
 
-The storage service provides:
-
-- **Multiple Storage Providers**: Local filesystem or S3-compatible storage
-- **Bucket Management**: Create, delete, and list buckets
-- **File Operations**: Upload, download, delete, list files
-- **Metadata Support**: Attach custom metadata to files
-- **Signed URLs**: Generate temporary access URLs (S3 only)
-- **Range Requests**: Support for partial content downloads
-- **Copy and Move**: Efficient file operations
+- Local filesystem or S3-compatible storage
+- Bucket management
+- File upload, download, delete, list operations
+- Custom metadata support
+- Signed URLs for temporary access (S3 only)
+- Range requests for partial downloads
+- Copy and move operations
 
 ## Configuration
-
-Storage is configured via environment variables or the configuration file:
 
 ```yaml
 storage:
   provider: "local" # or "s3"
   local_path: "./storage"
-  max_upload_size: 10485760 # 10MB in bytes
+  max_upload_size: 10485760 # 10MB
 
   # S3 Configuration (when provider: "s3")
-  s3_endpoint: "s3.amazonaws.com" # or MinIO endpoint
+  s3_endpoint: "s3.amazonaws.com"
   s3_access_key: "your-access-key"
   s3_secret_key: "your-secret-key"
   s3_region: "us-east-1"
@@ -35,806 +31,352 @@ storage:
 ### Environment Variables
 
 ```bash
-# Storage Provider
 FLUXBASE_STORAGE_PROVIDER=local  # or s3
-
-# Local Storage
 FLUXBASE_STORAGE_LOCAL_PATH=./storage
 FLUXBASE_STORAGE_MAX_UPLOAD_SIZE=10485760
 
-# S3 Storage
+# S3 Configuration
 FLUXBASE_STORAGE_S3_ENDPOINT=s3.amazonaws.com
 FLUXBASE_STORAGE_S3_ACCESS_KEY=your-access-key
 FLUXBASE_STORAGE_S3_SECRET_KEY=your-secret-key
 FLUXBASE_STORAGE_S3_REGION=us-east-1
-FLUXBASE_STORAGE_S3_BUCKET=default-bucket
 ```
 
-## Local vs S3 Storage
+## Provider Comparison
 
-### Local Filesystem Storage
-
-**Pros:**
-
+**Local Storage:**
 - Simple setup, no external dependencies
-- Fast for development
-- No cloud costs
-- Works offline
-
-**Cons:**
-
+- Best for development and single-server deployments
 - Not scalable across multiple servers
-- No built-in CDN
-- Manual backup required
-- Limited to single server
 
-**Use Cases:**
+**S3-Compatible:**
+- Highly scalable and distributed
+- Best for production with multiple servers
+- Requires external service (AWS S3, MinIO, etc.)
 
-- Development and testing
-- Single-server deployments
-- Small-scale applications
-- Internal tools
-
-### S3-Compatible Storage
-
-**Pros:**
-
-- Highly scalable
-- Distributed/redundant storage
-- CDN integration available
-- Automatic backups
-- Works with multiple servers
-
-**Cons:**
-
-- Requires external service
-- Network latency
-- Cloud costs
-- More complex setup
-
-**Use Cases:**
-
-- Production deployments
-- Multi-server architectures
-- Large file storage
-- Global distribution
-
-## Using the SDK (Recommended)
-
-The easiest way to interact with storage is using the Fluxbase SDK:
-
-### Installation
+## Installation
 
 ```bash
 npm install @fluxbase/sdk
 ```
 
-### Basic Usage
+## Basic Usage
 
 ```typescript
-import { createClient } from "@fluxbase/sdk";
+import { createClient } from '@fluxbase/sdk'
 
-// Create client
-const client = createClient("http://localhost:8080", "your-api-key");
+const client = createClient('http://localhost:8080', 'your-api-key')
 
-// Upload a file
-const file = document.getElementById("fileInput").files[0];
+// Upload file
+const file = document.getElementById('fileInput').files[0]
 const { data, error } = await client.storage
-  .from("avatars")
-  .upload("user1.png", file);
+  .from('avatars')
+  .upload('user1.png', file)
 
-if (error) {
-  console.error("Upload failed:", error);
-} else {
-  console.log("File uploaded:", data);
-}
+// Download file
+const { data: blob } = await client.storage
+  .from('avatars')
+  .download('user1.png')
 
-// Download a file
-const { data: blob, error: downloadError } = await client.storage
-  .from("avatars")
-  .download("user1.png");
+// List files
+const { data: files } = await client.storage
+  .from('avatars')
+  .list()
 
-if (!downloadError && blob) {
-  // Create a download link
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "user1.png";
-  a.click();
-}
-
-// List files in a bucket
-const { data: files, error: listError } = await client.storage
-  .from("avatars")
-  .list();
-
-console.log("Files:", files);
-
-// Delete files
-const { error: removeError } = await client.storage
-  .from("avatars")
-  .remove(["user1.png", "user2.png"]);
-
-// Get public URL
-const { data: publicUrl } = client.storage
-  .from("avatars")
-  .getPublicUrl("user1.png");
-
-console.log("Public URL:", publicUrl.publicUrl);
-
-// Create signed URL (temporary access)
-const { data: signedUrl, error: signError } = await client.storage
-  .from("avatars")
-  .createSignedUrl("user1.png", { expiresIn: 3600 }); // 1 hour
-
-console.log("Signed URL:", signedUrl?.signedUrl);
+// Delete file
+await client.storage
+  .from('avatars')
+  .remove(['user1.png'])
 ```
 
-### Bucket Management
+## Bucket Operations
+
+### Create Bucket
 
 ```typescript
-// List all buckets
-const { data: buckets, error } = await client.storage.listBuckets();
-console.log("Buckets:", buckets);
-
-// Create a new bucket
-await client.storage.createBucket("my-new-bucket");
-
-// Delete a bucket
-await client.storage.deleteBucket("old-bucket");
-
-// Empty a bucket (delete all files)
-await client.storage.emptyBucket("temp-bucket");
+await client.storage.createBucket('avatars', {
+  public: false, // require authentication
+  file_size_limit: 5242880, // 5MB
+  allowed_mime_types: ['image/png', 'image/jpeg']
+})
 ```
 
-### File Operations
+### List Buckets
 
 ```typescript
-// Upload with options
-const { data, error } = await client.storage
-  .from("documents")
-  .upload("report.pdf", file, {
-    contentType: "application/pdf",
-    cacheControl: "3600",
-    upsert: true, // Overwrite if exists
-    metadata: {
-      author: "John Doe",
-      department: "Engineering"
-    }
-  });
-
-// Move a file
-const { data: movedFile, error: moveError } = await client.storage
-  .from("documents")
-  .move("old-path/file.pdf", "new-path/file.pdf");
-
-// Copy a file
-const { data: copiedFile, error: copyError } = await client.storage
-  .from("documents")
-  .copy("source/file.pdf", "backup/file.pdf");
+const { data: buckets } = await client.storage.listBuckets()
 ```
 
-### React Example
+### Get Bucket
 
 ```typescript
-import { useState } from "react";
-import { createClient } from "@fluxbase/sdk";
-
-const client = createClient("http://localhost:8080", "your-api-key");
-
-function FileUploader() {
-  const [uploading, setUploading] = useState(false);
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-
-    try {
-      // Upload file
-      const { data, error } = await client.storage
-        .from("uploads")
-        .upload(`${Date.now()}-${file.name}`, file);
-
-      if (error) throw error;
-
-      // Get public URL
-      const { data: urlData } = client.storage
-        .from("uploads")
-        .getPublicUrl(data.key);
-
-      setFileUrl(urlData.publicUrl);
-      alert("File uploaded successfully!");
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div>
-      <input
-        type="file"
-        onChange={handleUpload}
-        disabled={uploading}
-      />
-      {uploading && <p>Uploading...</p>}
-      {fileUrl && (
-        <div>
-          <p>File uploaded!</p>
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-            View File
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
+const { data: bucket } = await client.storage.getBucket('avatars')
 ```
 
----
+### Delete Bucket
 
-## Advanced: REST API Reference
-
-For advanced use cases or non-JavaScript environments, you can use the REST API directly.
-
-### Bucket Management
-
-#### Create Bucket
-
-```http
-POST /api/v1/storage/buckets/:bucket
+```typescript
+await client.storage.deleteBucket('avatars')
 ```
 
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage/buckets/my-bucket
-```
-
-**Response:**
-
-```json
-{
-  "bucket": "my-bucket",
-  "message": "bucket created successfully"
-}
-```
-
-#### List Buckets
-
-```http
-GET /api/v1/storage/buckets
-```
-
-**Example:**
-
-```bash
-curl http://localhost:8080/api/v1/storage/buckets
-```
-
-**Response:**
-
-```json
-{
-  "buckets": ["bucket1", "bucket2", "bucket3"]
-}
-```
-
-#### Delete Bucket
-
-```http
-DELETE /api/v1/storage/buckets/:bucket
-```
-
-**Example:**
-
-```bash
-curl -X DELETE http://localhost:8080/api/v1/storage/buckets/my-bucket
-```
-
-**Note:** Bucket must be empty before deletion.
-
-### File Operations
-
-#### Upload File
-
-```http
-POST /api/v1/storage/:bucket/:key
-Content-Type: multipart/form-data
-```
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf \
-  -F "file=@/path/to/report.pdf" \
-  -F "x-meta-author=John Doe" \
-  -F "x-meta-department=Engineering"
-```
-
-**Response:**
-
-```json
-{
-  "key": "documents/report.pdf",
-  "bucket": "my-bucket",
-  "size": 1024576,
-  "content_type": "application/pdf",
-  "etag": "abc123...",
-  "last_modified": "2025-10-26T12:00:00Z",
-  "metadata": {
-    "author": "John Doe",
-    "department": "Engineering"
-  }
-}
-```
-
-#### Download File
-
-```http
-GET /api/v1/storage/:bucket/:key
-```
-
-**Example:**
-
-```bash
-# Direct download
-curl http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf \
-  -o report.pdf
-
-# Download with filename
-curl http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf?download=true \
-  -o report.pdf
-
-# Range request (partial download)
-curl http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf \
-  -H "Range: bytes=0-1023"
-```
-
-#### Delete File
-
-```http
-DELETE /api/v1/storage/:bucket/:key
-```
-
-**Example:**
-
-```bash
-curl -X DELETE http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf
-```
-
-#### Get File Metadata
-
-```http
-HEAD /api/v1/storage/:bucket/:key
-```
-
-**Example:**
-
-```bash
-curl -I http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf
-```
-
-**Response:**
-
-```json
-{
-  "key": "documents/report.pdf",
-  "bucket": "my-bucket",
-  "size": 1024576,
-  "content_type": "application/pdf",
-  "etag": "abc123...",
-  "last_modified": "2025-10-26T12:00:00Z",
-  "metadata": {
-    "author": "John Doe"
-  }
-}
-```
-
-#### List Files
-
-```http
-GET /api/v1/storage/:bucket?prefix=&delimiter=&limit=1000
-```
-
-**Query Parameters:**
-
-- `prefix`: Filter files by prefix (e.g., "documents/")
-- `delimiter`: Directory delimiter (e.g., "/")
-- `limit`: Maximum number of files to return (default: 1000)
-
-**Example:**
-
-```bash
-# List all files in bucket
-curl http://localhost:8080/api/v1/storage/my-bucket
-
-# List files with prefix
-curl http://localhost:8080/api/v1/storage/my-bucket?prefix=documents/
-
-# List with limit
-curl http://localhost:8080/api/v1/storage/my-bucket?limit=10
-```
-
-**Response:**
-
-```json
-{
-  "bucket": "my-bucket",
-  "objects": [
-    {
-      "key": "documents/report.pdf",
-      "size": 1024576,
-      "content_type": "application/pdf",
-      "last_modified": "2025-10-26T12:00:00Z",
-      "etag": "abc123..."
-    }
-  ],
-  "prefixes": ["documents/", "images/"],
-  "truncated": false
-}
-```
-
-### Advanced Features
-
-#### Generate Signed URL (S3 Only)
-
-Generate a temporary URL for secure file access without authentication.
-
-```http
-POST /api/v1/storage/:bucket/:key/signed-url
-Content-Type: application/json
-```
-
-**Request Body:**
-
-```json
-{
-  "method": "GET",
-  "expires_in": 3600
-}
-```
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage/my-bucket/documents/report.pdf/signed-url \
-  -H "Content-Type: application/json" \
-  -d '{"method":"GET","expires_in":3600}'
-```
-
-**Response:**
-
-```json
-{
-  "url": "https://s3.amazonaws.com/my-bucket/documents/report.pdf?X-Amz-Algorithm=...",
-  "expires_at": "2025-10-26T13:00:00Z"
-}
-```
-
-**Note:** This feature is only available with S3-compatible storage. Local storage will return `501 Not Implemented`.
-
-## JavaScript/TypeScript Client Examples
+## File Operations
 
 ### Upload File
 
 ```typescript
-async function uploadFile(bucket: string, key: string, file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("x-meta-author", "John Doe");
+const { data, error } = await client.storage
+  .from('avatars')
+  .upload('path/to/file.png', file, {
+    contentType: 'image/png',
+    cacheControl: '3600',
+    upsert: true // overwrite if exists
+  })
+```
 
-  const response = await fetch(`/api/v1/storage/${bucket}/${key}`, {
-    method: "POST",
-    body: formData,
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+### Upload from Buffer
 
-  return await response.json();
-}
+```typescript
+const buffer = await fs.readFile('image.png')
+await client.storage
+  .from('avatars')
+  .upload('image.png', buffer, {
+    contentType: 'image/png'
+  })
 ```
 
 ### Download File
 
 ```typescript
-async function downloadFile(bucket: string, key: string) {
-  const response = await fetch(
-    `/api/v1/storage/${bucket}/${key}?download=true`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
+const { data } = await client.storage
+  .from('avatars')
+  .download('image.png')
 
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = key.split("/").pop() || "download";
-  a.click();
-}
+// data is a Blob
 ```
 
 ### List Files
 
 ```typescript
-async function listFiles(bucket: string, prefix?: string) {
-  const params = new URLSearchParams();
-  if (prefix) params.append("prefix", prefix);
+// List all files
+const { data: files } = await client.storage
+  .from('avatars')
+  .list()
 
-  const response = await fetch(`/api/v1/storage/${bucket}?${params}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+// List with path prefix
+const { data: files } = await client.storage
+  .from('avatars')
+  .list('subfolder/')
 
-  return await response.json();
-}
+// List with options
+const { data: files } = await client.storage
+  .from('avatars')
+  .list('', {
+    limit: 100,
+    offset: 0,
+    sortBy: { column: 'name', order: 'asc' }
+  })
 ```
 
-## React Example Component
+### Delete Files
 
-```tsx
-import { useState } from "react";
+```typescript
+// Delete single file
+await client.storage
+  .from('avatars')
+  .remove(['image.png'])
 
-function FileUploader() {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+// Delete multiple files
+await client.storage
+  .from('avatars')
+  .remove(['image1.png', 'image2.png', 'image3.png'])
+```
 
-  const handleUpload = async () => {
-    if (!file) return;
+### Copy File
 
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+```typescript
+await client.storage
+  .from('avatars')
+  .copy('original.png', 'copy.png')
+```
 
-      const response = await fetch("/api/v1/storage/uploads/" + file.name, {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+### Move File
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("File uploaded:", data);
-        alert("File uploaded successfully!");
-      } else {
-        const error = await response.json();
-        alert(`Upload failed: ${error.error}`);
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Upload failed");
-    } finally {
-      setUploading(false);
+```typescript
+await client.storage
+  .from('avatars')
+  .move('old-path.png', 'new-path.png')
+```
+
+## Public vs Private Files
+
+### Public Buckets
+
+```typescript
+await client.storage.createBucket('public-images', {
+  public: true
+})
+
+// Files accessible without authentication
+const url = client.storage
+  .from('public-images')
+  .getPublicUrl('logo.png')
+
+console.log(url) // http://localhost:8080/storage/v1/object/public/public-images/logo.png
+```
+
+### Private Buckets
+
+```typescript
+await client.storage.createBucket('private-docs', {
+  public: false
+})
+
+// Files require authentication or signed URL
+```
+
+## Signed URLs (S3 Only)
+
+Generate temporary access URLs for private files:
+
+```typescript
+const { data } = await client.storage
+  .from('private-docs')
+  .createSignedUrl('document.pdf', 3600) // expires in 1 hour
+
+console.log(data.signedUrl)
+// Share this URL temporarily
+```
+
+## Metadata
+
+Attach custom metadata to files:
+
+```typescript
+await client.storage
+  .from('avatars')
+  .upload('profile.png', file, {
+    metadata: {
+      user_id: '123',
+      uploaded_by: 'admin',
+      description: 'User profile picture'
     }
-  };
+  })
 
-  return (
-    <div>
-      <input
-        type="file"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-      />
-      <button onClick={handleUpload} disabled={!file || uploading}>
-        {uploading ? "Uploading..." : "Upload"}
-      </button>
-    </div>
-  );
-}
+// Retrieve file info with metadata
+const { data } = await client.storage
+  .from('avatars')
+  .getFileInfo('profile.png')
+
+console.log(data.metadata)
 ```
 
-## MinIO Setup (For Development)
+## S3 Provider Setup
 
-### Using Docker
-
-```bash
-# Start MinIO server
-docker run -p 9000:9000 -p 9001:9001 \
-  -e "MINIO_ROOT_USER=minioadmin" \
-  -e "MINIO_ROOT_PASSWORD=minioadmin" \
-  minio/minio server /data --console-address ":9001"
-
-# Access MinIO Console at http://localhost:9001
-# Use credentials: minioadmin / minioadmin
-```
-
-### Configure Fluxbase to Use MinIO
+### AWS S3
 
 ```yaml
 storage:
   provider: "s3"
-  s3_endpoint: "http://localhost:9000"
+  s3_endpoint: "s3.amazonaws.com"
+  s3_access_key: "AKIAIOSFODNN7EXAMPLE"
+  s3_secret_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  s3_region: "us-east-1"
+  s3_bucket: "my-app-storage"
+```
+
+### MinIO (Self-Hosted)
+
+```yaml
+storage:
+  provider: "s3"
+  s3_endpoint: "localhost:9000"
   s3_access_key: "minioadmin"
   s3_secret_key: "minioadmin"
   s3_region: "us-east-1"
+  s3_bucket: "fluxbase"
+  s3_use_ssl: false # for development
+```
+
+Start MinIO with Docker:
+
+```bash
+docker run -d \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  --name minio \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  -v ./minio-data:/data \
+  minio/minio server /data --console-address ":9001"
+```
+
+### DigitalOcean Spaces
+
+```yaml
+storage:
+  provider: "s3"
+  s3_endpoint: "nyc3.digitaloceanspaces.com"
+  s3_access_key: "your-spaces-key"
+  s3_secret_key: "your-spaces-secret"
+  s3_region: "us-east-1"
+  s3_bucket: "my-space"
 ```
 
 ## Best Practices
 
-### File Organization
+**File Naming:**
+- Use consistent naming conventions
+- Avoid special characters
+- Use lowercase for better compatibility
+- Include file extensions
 
-Organize files using a hierarchical structure:
+**Security:**
+- Keep buckets private by default
+- Use signed URLs for temporary access
+- Validate file types before upload
+- Set file size limits
+- Never expose S3 credentials in client code
 
-```
-user-uploads/
-  ├── avatars/
-  │   ├── user-123.jpg
-  │   └── user-456.jpg
-  ├── documents/
-  │   ├── reports/
-  │   │   ├── 2025/
-  │   │   │   ├── q1-report.pdf
-  │   │   │   └── q2-report.pdf
-  │   └── contracts/
-  └── images/
-      └── products/
-```
+**Performance:**
+- Use appropriate file size limits
+- Implement client-side compression for large files
+- Use CDN for public files
+- Cache control headers for static assets
 
-### Metadata Usage
-
-Use metadata to store additional file information:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage/files/document.pdf \
-  -F "file=@document.pdf" \
-  -F "x-meta-author=John Doe" \
-  -F "x-meta-department=Sales" \
-  -F "x-meta-project=Q4-2025" \
-  -F "x-meta-confidential=true"
-```
-
-### Security
-
-1. **Authentication**: Always require authentication for sensitive files
-2. **Access Control**: Implement per-bucket or per-file permissions
-3. **Signed URLs**: Use signed URLs for temporary access instead of making files public
-4. **File Validation**: Validate file types and sizes on upload
-5. **Virus Scanning**: Consider integrating virus scanning for user uploads
-
-### Performance
-
-1. **CDN Integration**: Use a CDN for frequently accessed files
-2. **Caching**: Implement proper cache headers for static content
-3. **Range Requests**: Support range requests for large files
-4. **Compression**: Compress files before storage when appropriate
-5. **Batch Operations**: Use batch operations for multiple files
+**Organization:**
+- Use path prefixes to organize files (e.g., `users/123/avatar.png`)
+- Separate buckets by access level
+- Use metadata for searchability
 
 ## Error Handling
 
-### Common Error Codes
+```typescript
+try {
+  const { data, error } = await client.storage
+    .from('avatars')
+    .upload('file.png', file)
 
-- `400 Bad Request`: Missing required parameters
-- `401 Unauthorized`: Invalid or missing authentication
-- `404 Not Found`: Bucket or file doesn't exist
-- `409 Conflict`: Bucket already exists or bucket not empty
-- `413 Payload Too Large`: File exceeds max upload size
-- `500 Internal Server Error`: Server-side storage error
-- `501 Not Implemented`: Feature not supported (e.g., signed URLs on local storage)
-
-### Example Error Response
-
-```json
-{
-  "error": "file exceeds maximum upload size of 10MB"
+  if (error) {
+    if (error.message.includes('already exists')) {
+      // File exists, use upsert: true or different name
+    } else if (error.message.includes('too large')) {
+      // File exceeds size limit
+    } else {
+      // Other error
+      console.error('Upload error:', error)
+    }
+  }
+} catch (err) {
+  console.error('Network error:', err)
 }
 ```
 
-## Testing
+## REST API
 
-### Unit Tests
-
-The storage service includes comprehensive unit tests:
-
-```bash
-# Run storage unit tests
-go test ./internal/storage -v
-
-# Run API integration tests
-go test ./internal/api -run TestStorageAPI -v
-```
-
-### Manual Testing
-
-```bash
-# Create bucket
-curl -X POST http://localhost:8080/api/v1/storage/buckets/test
-
-# Upload file
-curl -X POST http://localhost:8080/api/v1/storage/test/sample.txt \
-  -F "file=@sample.txt"
-
-# List files
-curl http://localhost:8080/api/v1/storage/test
-
-# Download file
-curl http://localhost:8080/api/v1/storage/test/sample.txt
-
-# Delete file
-curl -X DELETE http://localhost:8080/api/v1/storage/test/sample.txt
-
-# Delete bucket
-curl -X DELETE http://localhost:8080/api/v1/storage/buckets/test
-```
-
-## Troubleshooting
-
-### Local Storage Issues
-
-**Problem**: Permission denied errors
-
-**Solution**: Ensure the storage directory has correct permissions:
-
-```bash
-chmod 755 ./storage
-```
-
-**Problem**: Disk space errors
-
-**Solution**: Check available disk space:
-
-```bash
-df -h
-```
-
-### S3 Storage Issues
-
-**Problem**: Connection refused to S3 endpoint
-
-**Solution**: Verify endpoint configuration and network connectivity:
-
-```bash
-curl -v http://your-s3-endpoint:9000/
-```
-
-**Problem**: Access denied errors
-
-**Solution**: Verify access key and secret key are correct, and have proper permissions.
-
-**Problem**: Bucket doesn't exist
-
-**Solution**: Create the bucket first using the API or S3 console.
-
-## Migration
-
-### Migrating from Local to S3
-
-1. Update configuration to use S3
-2. Upload existing files to S3 bucket
-3. Update database references if storing file paths
-4. Test thoroughly before removing local files
-
-### Example Migration Script
-
-```bash
-#!/bin/bash
-# Migrate files from local storage to S3
-
-BUCKET="my-bucket"
-LOCAL_PATH="./storage"
-
-# Upload all files
-find "$LOCAL_PATH" -type f | while read file; do
-  # Remove local path prefix
-  key="${file#$LOCAL_PATH/}"
-
-  # Upload to S3
-  aws s3 cp "$file" "s3://$BUCKET/$key"
-done
-```
+For direct HTTP access without the SDK, see the [Storage API Reference](/docs/api/storage).
 
 ## Related Documentation
 
-- [Authentication](./authentication.md) - Securing storage endpoints
-- [Storage API Reference](../api/sdk/classes/FluxbaseStorage.md) - Complete Storage API documentation
+- [Authentication](/docs/guides/authentication) - Secure file access
+- [Row-Level Security](/docs/guides/row-level-security) - File access policies
+- [Configuration](/docs/reference/configuration) - All storage options

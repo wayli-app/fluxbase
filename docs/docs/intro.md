@@ -9,25 +9,25 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ## Why Fluxbase?
 
-### 🚀 Single Binary Deployment
+### Single Binary Deployment
 
-- **Simple**: Deploy one binary file (~80MB)
+- **Simple**: Deploy one ~40MB binary or ~80MB container
 - **Fast**: Starts in seconds, not minutes
 - **Portable**: Runs anywhere Go runs
 
-### 🔧 Minimal Dependencies
+### Minimal Dependencies
 
 - **PostgreSQL Only**: No Redis, no RabbitMQ, no additional services
 - **Self-Contained**: Everything runs in one process
 - **Easy Operations**: Less moving parts = less complexity
 
-### ⚡ High Performance
+### High Performance
 
 - **Efficient**: Written in Go for maximum performance
 - **Scalable**: Handle 1000+ concurrent connections
 - **Fast**: Sub-millisecond response times
 
-### 🛠️ Developer Friendly
+### Developer Friendly
 
 - **PostgREST Compatible**: Use existing Supabase knowledge
 - **Auto-Generated APIs**: Database tables become REST endpoints automatically
@@ -35,7 +35,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ## Core Features
 
-### 📊 REST API
+### REST API
 
 Automatically generate CRUD endpoints from your PostgreSQL schema with PostgREST-compatible query syntax:
 
@@ -50,7 +50,7 @@ GET /api/v1/tables/posts?order=created_at.desc&limit=10&offset=20
 GET /api/v1/tables/posts?or=(status.eq.draft,status.eq.published)&author_id=eq.1
 ```
 
-### 🔐 Authentication
+### Authentication
 
 Built-in authentication with JWT tokens:
 
@@ -59,7 +59,7 @@ Built-in authentication with JWT tokens:
 - Session management
 - Protected endpoints
 
-### 📡 Realtime
+### Realtime
 
 WebSocket-based realtime subscriptions:
 
@@ -68,7 +68,7 @@ WebSocket-based realtime subscriptions:
 - Presence tracking
 - Broadcast capabilities
 
-### 📦 Storage
+### Storage
 
 File storage with access policies:
 
@@ -77,7 +77,7 @@ File storage with access policies:
 - Public/private access control
 - Image transformations
 
-### ⚡ Edge Functions
+### Edge Functions
 
 JavaScript/TypeScript function execution:
 
@@ -90,7 +90,7 @@ JavaScript/TypeScript function execution:
 
 | Feature            | Fluxbase          | Supabase                 | Firebase           |
 | ------------------ | ----------------- | ------------------------ | ------------------ |
-| **Deployment**     | Single binary     | Multiple services        | Cloud only         |
+| **Deployment**     | Single binary (~40MB) | ~10 containers (~2GB) | Cloud only         |
 | **Dependencies**   | PostgreSQL only   | PostgreSQL + 5+ services | Proprietary        |
 | **Self-hosting**   | ✅ Easy           | ⚠️ Complex               | ❌ No              |
 | **REST API**       | ✅ Auto-generated | ✅ PostgREST             | ✅ Auto-generated  |
@@ -185,11 +185,11 @@ graph TB
 
 ## Next Steps
 
-- 📖 [Installation Guide](getting-started/installation) - Set up Fluxbase in your environment
-- 🚀 [Quick Start Tutorial](getting-started/quick-start) - Build your first application
-- 🔧 [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
-- 📚 [API Documentation](api/rest) - Learn about all available endpoints
-- 💻 [SDK Documentation](guides/typescript-sdk) - Use our TypeScript or Go SDKs
+- [Installation Guide](getting-started/installation) - Set up Fluxbase in your environment
+- [Quick Start Tutorial](getting-started/quick-start) - Build your first application
+- [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
+- [API Documentation](api/rest) - Learn about all available endpoints
+- [SDK Documentation](guides/typescript-sdk) - Use our TypeScript or Go SDKs
 
 ## Community & Support
 

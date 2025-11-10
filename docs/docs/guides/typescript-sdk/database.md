@@ -4,6 +4,7 @@ The Fluxbase SDK provides a powerful query builder for interacting with your Pos
 
 ## Table of Contents
 
+- [Query Execution](#query-execution)
 - [Selecting Data](#selecting-data)
 - [Filtering](#filtering)
 - [Inserting Data](#inserting-data)
@@ -14,18 +15,32 @@ The Fluxbase SDK provides a powerful query builder for interacting with your Pos
 - [Sorting and Pagination](#sorting-and-pagination)
 - [RPC (PostgreSQL Functions)](#rpc-postgresql-functions)
 
+## Query Execution
+
+The Fluxbase SDK query builder is **awaitable**, which means `.execute()` is optional. Both syntaxes work identically:
+
+```typescript
+// Supabase-compatible: await the query directly
+const { data } = await client.from('users').select('*')
+
+// Explicit execution: call .execute()
+const { data } = await client.from('users').select('*').execute()
+```
+
+When you `await` a query without calling `.execute()`, the SDK automatically executes it for you. This makes Fluxbase queries compatible with Supabase's syntax.
+
+**Note:** Mutation operations (`.insert()`, `.update()`, `.delete()`) and RPC calls (`.rpc()`) work the same way - `.execute()` is optional for all queries.
+
 ## Selecting Data
 
 ### Basic Select
 
 ```typescript
-// Select all columns
-const { data } = await client.from('users').select('*').execute()
+// Select all columns (both syntaxes work)
+const { data } = await client.from('users').select('*')
 
 // Select specific columns
-const { data } = await client.from('users')
-  .select('id, name, email')
-  .execute()
+const { data } = await client.from('users').select('id, name, email')
 ```
 
 ### Single Row
@@ -35,7 +50,6 @@ const { data } = await client.from('users')
 const { data: user } = await client.from('users')
   .eq('id', 123)
   .single()
-  .execute()
 ```
 
 ### Nested Relations
@@ -44,7 +58,6 @@ const { data: user } = await client.from('users')
 // Select with related data
 const { data } = await client.from('posts')
   .select('id, title, content, author(id, name, email)')
-  .execute()
 ```
 
 ## Filtering
@@ -57,50 +70,36 @@ The SDK supports all PostgREST filter operators:
 // Equal to
 const { data } = await client.from('products')
   .eq('category', 'electronics')
-  .execute()
 
 // Not equal to
 const { data } = await client.from('products')
   .neq('status', 'discontinued')
-  .execute()
 ```
 
 ### Comparisons
 
 ```typescript
 // Greater than
-const { data } = await client.from('products')
-  .gt('price', 100)
-  .execute()
+const { data } = await client.from('products').gt('price', 100)
 
 // Greater than or equal
-const { data } = await client.from('products')
-  .gte('rating', 4)
-  .execute()
+const { data } = await client.from('products').gte('rating', 4)
 
 // Less than
-const { data } = await client.from('products')
-  .lt('stock', 10)
-  .execute()
+const { data } = await client.from('products').lt('stock', 10)
 
 // Less than or equal
-const { data } = await client.from('products')
-  .lte('price', 500)
-  .execute()
+const { data } = await client.from('products').lte('price', 500)
 ```
 
 ### Pattern Matching
 
 ```typescript
 // LIKE (case-sensitive)
-const { data } = await client.from('users')
-  .like('email', '%@gmail.com')
-  .execute()
+const { data } = await client.from('users').like('email', '%@gmail.com')
 
 // ILIKE (case-insensitive)
-const { data } = await client.from('users')
-  .ilike('name', '%john%')
-  .execute()
+const { data } = await client.from('users').ilike('name', '%john%')
 ```
 
 ### Arrays and Sets
@@ -109,26 +108,20 @@ const { data } = await client.from('users')
 // IN (value in array)
 const { data } = await client.from('products')
   .in('category', ['electronics', 'computers', 'phones'])
-  .execute()
 
 // NOT IN
 const { data } = await client.from('products')
   .not('category', 'in', ['discontinued', 'archived'])
-  .execute()
 ```
 
 ### Null Checks
 
 ```typescript
 // IS NULL
-const { data } = await client.from('tasks')
-  .is('completed_at', null)
-  .execute()
+const { data } = await client.from('tasks').is('completed_at', null)
 
 // IS NOT NULL
-const { data } = await client.from('tasks')
-  .not('completed_at', 'is', null)
-  .execute()
+const { data } = await client.from('tasks').not('completed_at', 'is', null)
 ```
 
 ### Range
@@ -138,7 +131,6 @@ const { data } = await client.from('tasks')
 const { data } = await client.from('products')
   .gte('price', 100)
   .lte('price', 500)
-  .execute()
 ```
 
 ### Combining Filters
@@ -152,7 +144,6 @@ const { data } = await client.from('products')
   .lt('price', 200)
   .in('category', ['electronics', 'accessories'])
   .ilike('name', '%phone%')
-  .execute()
 ```
 
 ## Inserting Data
@@ -160,13 +151,11 @@ const { data } = await client.from('products')
 ### Single Insert
 
 ```typescript
-const { data, error } = await client.from('users')
-  .insert({
-    name: 'Alice Smith',
-    email: 'alice@example.com',
-    age: 28
-  })
-  .execute()
+const { data, error } = await client.from('users').insert({
+  name: 'Alice Smith',
+  email: 'alice@example.com',
+  age: 28
+})
 
 if (error) {
   console.error('Insert failed:', error)
@@ -183,7 +172,7 @@ const { data } = await client.from('products').insert([
   { name: 'Product 1', price: 99.99, category: 'electronics' },
   { name: 'Product 2', price: 149.99, category: 'electronics' },
   { name: 'Product 3', price: 79.99, category: 'accessories' }
-]).execute()
+])
 
 // Using insertMany() for clarity
 const { data } = await client.from('products').insertMany([
@@ -197,13 +186,11 @@ const { data } = await client.from('products').insertMany([
 
 ```typescript
 // Insert or update if unique constraint conflict
-const { data } = await client.from('users')
-  .upsert({
-    id: 123, // Will update if ID exists, insert if not
-    name: 'Updated Name',
-    email: 'updated@example.com'
-  })
-  .execute()
+const { data } = await client.from('users').upsert({
+  id: 123, // Will update if ID exists, insert if not
+  name: 'Updated Name',
+  email: 'updated@example.com'
+})
 ```
 
 ## Updating Data
@@ -218,13 +205,11 @@ const { data } = await client.from('users')
     name: 'John Updated',
     updated_at: new Date()
   })
-  .execute()
 
 // Update multiple rows
 const { data } = await client.from('products')
   .eq('category', 'electronics')
   .update({ discount: 10 })
-  .execute()
 ```
 
 ### Batch Update
@@ -242,25 +227,17 @@ const { data } = await client.from('orders')
 
 ```typescript
 // Delete specific row
-await client.from('users')
-  .eq('id', 123)
-  .delete()
-  .execute()
+await client.from('users').eq('id', 123).delete()
 
 // Delete multiple rows
-await client.from('logs')
-  .lt('created_at', '2024-01-01')
-  .delete()
-  .execute()
+await client.from('logs').lt('created_at', '2024-01-01').delete()
 ```
 
 ### Batch Delete
 
 ```typescript
 // Delete all matching rows
-await client.from('temp_data')
-  .eq('processed', true)
-  .deleteMany()
+await client.from('temp_data').eq('processed', true).deleteMany()
 ```
 
 ## Aggregations
@@ -271,17 +248,16 @@ The SDK supports SQL aggregation functions with GROUP BY support.
 
 ```typescript
 // Count all rows
-const { data } = await client.from('users').count().execute()
+const { data } = await client.from('users').count()
 // Returns: { count: 150 }
 
 // Count specific column (non-null values)
-const { data } = await client.from('orders').count('completed_at').execute()
+const { data } = await client.from('orders').count('completed_at')
 
 // Count with grouping
 const { data } = await client.from('products')
   .count('*')
   .groupBy('category')
-  .execute()
 // Returns: [
 //   { category: 'electronics', count: 45 },
 //   { category: 'books', count: 23 },
@@ -293,14 +269,13 @@ const { data } = await client.from('products')
 
 ```typescript
 // Sum a column
-const { data } = await client.from('orders').sum('total').execute()
+const { data } = await client.from('orders').sum('total')
 // Returns: { sum_total: 125430.50 }
 
 // Sum by category
 const { data } = await client.from('sales')
   .sum('amount')
   .groupBy('region')
-  .execute()
 // Returns: [
 //   { region: 'North', sum_amount: 45000 },
 //   { region: 'South', sum_amount: 32000 }
@@ -311,32 +286,30 @@ const { data } = await client.from('sales')
 
 ```typescript
 // Average price
-const { data } = await client.from('products').avg('price').execute()
+const { data } = await client.from('products').avg('price')
 // Returns: { avg_price: 129.99 }
 
 // Average by category
 const { data } = await client.from('products')
   .avg('price')
   .groupBy('category')
-  .execute()
 ```
 
 ### Min/Max
 
 ```typescript
 // Find minimum
-const { data } = await client.from('products').min('price').execute()
+const { data } = await client.from('products').min('price')
 // Returns: { min_price: 9.99 }
 
 // Find maximum
-const { data } = await client.from('products').max('price').execute()
+const { data } = await client.from('products').max('price')
 // Returns: { max_price: 1999.99 }
 
 // Min/Max with grouping
 const { data } = await client.from('sales')
   .max('amount')
   .groupBy(['region', 'product_category'])
-  .execute()
 ```
 
 ### Combining Aggregations with Filters
@@ -347,14 +320,12 @@ const { data } = await client.from('users')
   .count('*')
   .eq('status', 'active')
   .gte('created_at', '2024-01-01')
-  .execute()
 
 // Average order value by customer type
 const { data } = await client.from('orders')
   .avg('total')
   .groupBy('customer_type')
   .gte('created_at', '2024-01-01')
-  .execute()
 ```
 
 ## Batch Operations
@@ -413,26 +384,22 @@ await client.from('logs')
 const { data } = await client.from('users')
   .select('*')
   .order('name')
-  .execute()
 
 // Order descending
 const { data } = await client.from('products')
   .select('*')
   .order('price', { ascending: false })
-  .execute()
 
 // Multiple ordering
 const { data } = await client.from('products')
   .select('*')
   .order('category')
   .order('price', { ascending: false })
-  .execute()
 
 // Null handling
 const { data } = await client.from('tasks')
   .select('*')
   .order('completed_at', { ascending: true, nullsFirst: true })
-  .execute()
 ```
 
 ### Pagination
@@ -443,7 +410,6 @@ const { data } = await client.from('users')
   .select('*')
   .limit(10)
   .offset(20)
-  .execute()
 
 // Using range (page-based)
 const page = 2
@@ -451,7 +417,6 @@ const pageSize = 10
 const { data } = await client.from('users')
   .select('*')
   .range(page * pageSize, (page + 1) * pageSize - 1)
-  .execute()
 ```
 
 ### Complete Pagination Example
@@ -462,7 +427,6 @@ async function getPaginatedUsers(page: number = 0, pageSize: number = 20) {
     .select('id, name, email, created_at')
     .order('created_at', { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1)
-    .execute()
 
   return {
     users: data,
@@ -535,7 +499,6 @@ Always handle errors when performing database operations:
 try {
   const { data, error } = await client.from('users')
     .insert({ name: 'John', email: 'john@example.com' })
-    .execute()
 
   if (error) {
     console.error('Database error:', error)
@@ -564,7 +527,6 @@ interface User {
 // Type-safe query
 const { data } = await client.from<User>('users')
   .select('id, name, email')
-  .execute()
 
 // TypeScript knows data is User[]
 data?.forEach(user => {

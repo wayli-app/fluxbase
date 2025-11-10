@@ -1,552 +1,182 @@
-# Fluxbase vs Supabase Comparison
+# Fluxbase vs Supabase
 
-**Evaluating Fluxbase as a Supabase alternative**
+Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~80MB container (~40MB binary). If you're evaluating Fluxbase as a Supabase alternative, this guide highlights key differences.
 
-If you're familiar with Supabase or considering alternatives, this guide compares Fluxbase and Supabase to help you make an informed decision.
+## Quick Comparison
 
-## 📊 Feature Comparison
+| Feature | Supabase | Fluxbase |
+| --- | --- | --- |
+| **Deployment** | ~10 containers (~2GB) | 1 binary or container (~80MB) |
+| **REST API** | PostgREST | Compatible |
+| **Authentication** | GoTrue (JWT) | Compatible |
+| **Realtime** | WebSocket | Compatible |
+| **Storage** | S3-compatible | Compatible |
+| **Edge Functions** | Deno runtime | Deno runtime |
+| **Database** | PostgreSQL 15+ | PostgreSQL 15+ |
+| **Row-Level Security** | Yes (auth.uid()) | Yes (current_setting()) |
+| **Client SDK** | TypeScript/JS | TypeScript/JS (compatible) |
+| **Horizontal Scaling** | Yes (read replicas) | No |
+| **Hosted Service** | Yes (free tier available) | No |
+| **Pricing** | Free/$25+/month | Open source (MIT) |
 
-| Feature                 | Supabase                 | Fluxbase                         | Notes                                                   |
-| ----------------------- | ------------------------ | -------------------------------- | ------------------------------------------------------- |
-| **Deployment**          | 🐳 ~10 containers (~2GB) | 📦 1 binary or container (~80MB) | Fluxbase is 40x smaller than Supabase                   |
-| **Containers Required** | 10+ services             | 1                                | Supabase uses microservices, Fluxbase is a monolith     |
-| **REST API**            | ✅ PostgREST             | ✅ Compatible                    | Fluxbase is fully compatible with Supabase query API    |
-| **Authentication**      | ✅ GoTrue                | ✅ Compatible                    | Both use JWT-based auth with identical SDK methods      |
-| **Realtime**            | ✅ WebSocket             | ✅ Compatible                    | Both use PostgreSQL LISTEN/NOTIFY, identical SDK API    |
-| **Storage**             | ✅ S3-compatible         | ✅ Compatible                    | Fluxbase has identical file operations API              |
-| **Edge Functions**      | ✅ Deno runtime          | ✅ Deno runtime                  | Both use Deno, but different deployment methods         |
-| **Database**            | ✅ PostgreSQL 15+        | ✅ PostgreSQL 15+                | Both use same PostgreSQL database engine                |
-| **Row-Level Security**  | ✅ Yes                   | ✅ Yes                           | Both support PostgreSQL RLS (different syntax)          |
-| **Client SDK**          | ✅ TypeScript/JS         | ✅ TypeScript/JS                 | Fluxbase SDK is API-compatible with Supabase            |
-| **Horizontal Scaling**  | ✅ Yes                   | ❌ No                            | Supabase supports read replicas, Fluxbase doesn't       |
-| **Self-Hosted**         | ✅ Yes                   | ✅ Yes                           | Both support self-hosting (different complexity)        |
-| **Hosted Service**      | ✅ Yes + Free Tier       | ❌ No                            | Only Supabase offers managed hosting with free tier     |
-| **Pricing**             | 💰 Free/$25+/month       | 🆓 Open Source                   | Supabase has paid tiers, Fluxbase is free (MIT license) |
+## Key Difference: APIs Are Identical
 
-## 🎯 Why Choose Fluxbase?
-
-### Single Binary Simplicity
-
-- Deploy as one ~80MB binary
-- No microservices orchestration
-- Easier to understand and debug
-- Lightweight resource footprint
-
-### Full Control
-
-- Deploy anywhere (AWS, GCP, Azure, on-premise)
-- No vendor dependencies
-- Customize source code as needed
-- Own your infrastructure completely
-
-### Cost Predictability
-
-- No usage-based pricing
-- No egress fees
-- Predictable hosting costs
-- Open source (MIT license)
-
-### API Compatibility
-
-- Same REST API patterns
-- Similar client SDK interface
-- PostgreSQL-native features
-- Familiar authentication flows
-
-## 🎯 Why Choose Supabase?
-
-### Hosted Service
-
-- **Free tier** available (500MB database, 1GB bandwidth)
-- Managed infrastructure
-- Automatic updates and scaling
-- Built-in monitoring and analytics
-
-### Horizontal Scalability
-
-- **Read replicas** for scaling reads
-- Load balancing across instances
-- Better for high-traffic applications
-- Database connection pooling
-
-### Mature Ecosystem
-
-- Larger community
-- More third-party integrations
-- Extensive documentation
-- Professional support available
-
-### Self-Hosted Option
-
-- Supabase also offers self-hosting via Docker
-- More complex setup (multiple services)
-- Community support for self-hosted version
-
-## 💰 Cost Comparison
-
-### Supabase Pricing
-
-- **Free**: 500MB database, 1GB bandwidth, 2GB file storage
-- **Pro**: $25/month + usage fees (additional database size, bandwidth, storage)
-- **Team**: $599/month + usage
-- **Self-hosted**: Free (infrastructure costs only)
-
-### Fluxbase Pricing
-
-- **Open Source**: Free (MIT license)
-- **Infrastructure**: Your hosting costs (typically $5-50/month for VPS)
-- **No usage fees**: No per-request or bandwidth charges
-- **No free hosted tier**: Must self-host
-
-## 🔄 API Compatibility
-
-Fluxbase is designed to be compatible with Supabase's API patterns, making evaluation easier.
-
-### Database Queries
-
-✅ **Identical API** - Only the import statement differs
+The Fluxbase SDK is API-compatible with Supabase. Only the import statement differs:
 
 ```typescript
 // Supabase
-import { createClient } from "@supabase/supabase-js";
-const client = createClient(
-  "https://your-project.supabase.co",
-  "your-anon-key"
-);
+import { createClient } from '@supabase/supabase-js'
+const client = createClient('https://project.supabase.co', 'anon-key')
 
 // Fluxbase
-import { createClient } from "@fluxbase/sdk";
-const client = createClient("http://localhost:8080", "your-api-key");
+import { createClient } from '@fluxbase/sdk'
+const client = createClient('http://localhost:8080', 'api-key')
 
 // Everything else is identical
 const { data, error } = await client
-  .from("users")
-  .select("id, name, email")
-  .eq("status", "active")
-  .order("created_at", { ascending: false });
+  .from('users')
+  .select('id, name')
+  .eq('status', 'active')
 ```
 
-**Query methods**: `.select()`, `.insert()`, `.update()`, `.delete()`, `.eq()`, `.neq()`, `.gt()`, `.gte()`, `.lt()`, `.lte()`, `.like()`, `.ilike()`, `.is()`, `.in()`, `.order()`, `.limit()`, `.range()` - all work identically.
+All query methods (`.select()`, `.insert()`, `.update()`, `.delete()`, `.eq()`, `.order()`, etc.) work identically.
 
-**Recent improvements**: Fluxbase now supports awaiting queries directly without calling `.execute()`:
+## Authentication
 
-```typescript
-// Both of these work identically in Fluxbase (just like Supabase)
-const { data } = await client.from('users').select('*')
-const { data } = await client.from('users').select('*').execute()
-```
-
-### Authentication
-
-✅ **Identical API** - Same method signatures and responses
+Same JWT-based flow with identical method signatures:
 
 ```typescript
-// Sign up - identical in both
+// Sign up
 const { data, error } = await client.auth.signUp({
-  email: "user@example.com",
-  password: "password123",
-});
-
-// Sign in - identical in both
-const { data, error } = await client.auth.signInWithPassword({
-  email: "user@example.com",
-  password: "password123",
-});
-
-// Sign out - identical in both
-await client.auth.signOut();
-
-// Get session - identical in both
-const {
-  data: { session },
-} = await client.auth.getSession();
-```
-
-**Auth methods**: `.signUp()`, `.signInWithPassword()`, `.signInWithOAuth()`, `.signOut()`, `.getSession()`, `.getUser()`, `.resetPasswordForEmail()` - all work identically.
-
-**Recent improvements**: Fluxbase now supports auth state change listeners:
-
-```typescript
-// Listen to auth state changes - identical in both
-const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
-  console.log('Auth event:', event, session)
-  // Events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, etc.
+  email: 'user@example.com',
+  password: 'password123'
 })
 
-// Unsubscribe when done
-subscription.unsubscribe()
+// Sign in
+await client.auth.signInWithPassword({ email, password })
+
+// Get session
+const { data: { session } } = await client.auth.getSession()
 ```
 
-**Admin API improvements**: Fluxbase now includes `admin.getUserById()` for easier user management:
+Both support email/password, magic links, OAuth providers, and session management.
 
-```typescript
-// Fluxbase - new method
-const user = await client.admin.getUserById('user-id-123')
+**RLS syntax difference:**
 
-// Previously required filtering (still works)
-const { users } = await client.admin.listUsers()
-const user = users.find(u => u.id === 'user-id-123')
+```sql
+-- Supabase
+USING (auth.uid() = user_id)
+
+-- Fluxbase
+USING (current_setting('app.user_id', true)::uuid = user_id)
 ```
 
-### Realtime Subscriptions
+## Realtime
 
-✅ **Compatible API** - Similar channel and subscription patterns with minor syntax differences
+Similar patterns with different syntax:
 
 ```typescript
 // Supabase
-import { createClient } from "@supabase/supabase-js";
-const client = createClient(
-  "https://your-project.supabase.co",
-  "your-anon-key"
-);
-
-const subscription = client
-  .channel("table-changes")
-  .on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "posts" },
+client.channel('changes')
+  .on('postgres_changes',
+    { event: '*', schema: 'public', table: 'posts' },
     (payload) => console.log(payload)
   )
-  .subscribe();
+  .subscribe()
 
-// Fluxbase - Similar pattern, different event syntax
-import { createClient } from "@fluxbase/sdk";
-const client = createClient("http://localhost:8080", "your-api-key");
-
-const channel = client.realtime
-  .channel("table:public.posts")
-  .on("INSERT", (payload) => console.log("New:", payload.new_record))
-  .on("UPDATE", (payload) => console.log("Updated:", payload.new_record))
-  .on("DELETE", (payload) => console.log("Deleted:", payload.old_record))
-  .subscribe();
-
-// Or use wildcard for all events
-const channel = client.realtime
-  .channel("table:public.posts")
-  .on("*", (payload) => console.log(payload))
-  .subscribe();
-
-// Unsubscribe - similar in both
-channel.unsubscribe(); // Fluxbase
-await client.removeChannel(subscription); // Supabase
+// Fluxbase
+client.realtime
+  .channel('table:public.posts')
+  .on('*', (payload) => console.log(payload))
+  .subscribe()
 ```
 
-**Key differences:**
+## Storage
 
-- Supabase uses `postgres_changes` event with filter object, Fluxbase uses direct event names (`INSERT`, `UPDATE`, `DELETE`, `*`)
-- Channel naming: Supabase uses custom names, Fluxbase uses `table:schema.table` format
-- Payload structure is similar (both provide `new_record`, `old_record`)
-
-### File Storage
-
-✅ **Identical API** - Same upload/download methods
+Identical API for file operations:
 
 ```typescript
-// Upload - identical in both
-const { data, error } = await client.storage
-  .from("avatars")
-  .upload("user1.png", file);
+// Upload
+await client.storage.from('avatars').upload('user1.png', file)
 
-// Download - identical in both
-const { data, error } = await client.storage
-  .from("avatars")
-  .download("user1.png");
+// Download
+await client.storage.from('avatars').download('user1.png')
 
-// List files - identical in both
-const { data, error } = await client.storage.from("avatars").list();
-
-// Delete - identical in both
-const { data, error } = await client.storage
-  .from("avatars")
-  .remove(["user1.png"]);
+// List
+await client.storage.from('avatars').list()
 ```
 
-**Storage methods**: `.upload()`, `.download()`, `.list()`, `.remove()`, `.createSignedUrl()`, `.getPublicUrl()` - all work identically.
+## Edge Functions
 
-### Edge Functions
+Both use Deno runtime with different deployment approaches:
 
-⚠️ **Same Runtime, Similar Deployment** - Both use Deno and support file-based deployment
+**Supabase:** CLI-based deployment with `serve()` function
 
-**Supabase** - CLI-based file deployment:
+**Fluxbase:** File-based (GitOps), API-based, or dashboard deployment with `handler()` function
 
-```typescript
-// functions/hello/index.ts
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+Function code requires minor adaptation when switching platforms.
 
-serve(async (req) => {
-  const { name } = await req.json();
-  return new Response(JSON.stringify({ message: `Hello ${name}!` }), {
-    headers: { "Content-Type": "application/json" },
-  });
-});
-```
+## When to Choose Fluxbase
 
+- You want simple deployment (single binary)
+- You prefer self-hosting with full control
+- You need predictable costs (no usage fees)
+- You want to customize backend code
+- Your traffic is moderate (vertical scaling sufficient)
+
+## When to Choose Supabase
+
+- You want a hosted service with free tier
+- You need horizontal scalability (read replicas)
+- You prefer managed infrastructure
+- You want professional support
+- You're building high-scale applications
+
+## Deployment
+
+**Fluxbase:**
 ```bash
-# Deploy via CLI
-supabase functions deploy hello
-```
-
-**Fluxbase** - Multiple deployment options:
-
-#### 1. File-Based Deployment (Recommended for Production)
-
-GitOps-friendly, ideal for Docker/Kubernetes:
-
-```bash
-# Create function file
-mkdir -p ./functions
-cat > ./functions/hello.ts << 'EOF'
-async function handler(req) {
-  const { name } = JSON.parse(req.body || '{}');
-  return {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: `Hello ${name}!` })
-  };
-}
-EOF
-```
-
-**Docker deployment:**
-
-```yaml
-# docker-compose.yml
-services:
-  fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest:latest
-    volumes:
-      - ./functions:/app/functions
-    environment:
-      FLUXBASE_FUNCTIONS_ENABLED: "true"
-      FLUXBASE_FUNCTIONS_DIR: /app/functions
-```
-
-**Kubernetes deployment:**
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: fluxbase-functions
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: fluxbase
-spec:
-  template:
-    spec:
-      containers:
-        - name: fluxbase
-          image: ghcr.io/wayli-app/fluxbase:latest:latest
-          env:
-            - name: FLUXBASE_FUNCTIONS_ENABLED
-              value: "true"
-            - name: FLUXBASE_FUNCTIONS_DIR
-              value: /app/functions
-          volumeMounts:
-            - name: functions
-              mountPath: /app/functions
-      volumes:
-        - name: functions
-          persistentVolumeClaim:
-            claimName: fluxbase-functions
-```
-
-**Reload functions (admin-only):**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
-  -H "Authorization: Bearer ADMIN_TOKEN"
-```
-
-#### 2. API-Based Deployment
-
-Dynamic creation via REST API:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/functions \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "name": "hello",
-    "code": "async function handler(req) { ... }",
-    "enabled": true
-  }'
-```
-
-#### 3. Admin Dashboard
-
-Visual editor with Monaco syntax highlighting:
-
-- Navigate to Functions section
-- Click "New Function"
-- Write code in browser editor
-- Save (stores in database and syncs to filesystem)
-
-**Key Similarities & Differences**:
-
-- ✅ **Runtime**: Both use Deno (secure, fast, TypeScript-first)
-- ✅ **File-based deployment**: Both support storing functions as `.ts` files
-- ✅ **Version control**: Both work with Git (functions are files)
-- ✅ **Volume mounting**: Both support Docker/Kubernetes volume mounting
-- ⚠️ **Function signature**: Supabase uses `serve()`, Fluxbase uses `handler(req)`
-- ⚠️ **Deployment tools**: Supabase uses CLI, Fluxbase uses API/Dashboard/volume mount
-- ⚠️ **Hot reload**: Fluxbase requires manual reload API call, Supabase auto-deploys
-- ❌ **Not directly portable**: Function code needs minor adaptation when switching platforms
-
-**Migration tip**: Converting from Supabase to Fluxbase requires changing the function structure:
-
-```typescript
-// Supabase
-serve(async (req) => {
-  const data = await req.json();
-  return new Response(JSON.stringify(result), {
-    headers: { "Content-Type": "application/json" },
-  });
-});
-
-// Fluxbase equivalent
-async function handler(req) {
-  const data = JSON.parse(req.body || "{}");
-  return {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(result),
-  };
-}
-```
-
-## 🔐 Authentication Differences
-
-Both use JWT tokens and support:
-
-- Email/password
-- Magic links
-- OAuth providers (Google, GitHub, etc.)
-- Session management
-- Row-Level Security (RLS)
-
-**Key Difference**: RLS policy syntax
-
-**Supabase** uses `auth.uid()`:
-
-```sql
-CREATE POLICY "Users can view own data"
-ON users
-FOR SELECT
-USING (auth.uid() = id);
-```
-
-**Fluxbase** uses `current_setting()`:
-
-```sql
-CREATE POLICY "Users can view own data"
-ON users
-FOR SELECT
-USING (current_setting('app.user_id', true)::uuid = id);
-```
-
-## ⚖️ Trade-offs
-
-### Choose Fluxbase If:
-
-- ✅ You want the simplest possible deployment (single binary)
-- ✅ You prefer self-hosting with full control
-- ✅ You want predictable, low costs (no usage fees)
-- ✅ You need to customize the backend code
-- ✅ Your traffic is moderate (doesn't require horizontal scaling)
-- ✅ You're comfortable managing your own infrastructure
-
-### Choose Supabase If:
-
-- ✅ You want a **free hosted tier** to start
-- ✅ You need **horizontal scalability** for high traffic
-- ✅ You prefer managed infrastructure
-- ✅ You want professional support options
-- ✅ You need a mature ecosystem with many integrations
-- ✅ You're building a high-scale application
-- ✅ You don't want to manage infrastructure
-
-## 🚀 Deployment
-
-### Fluxbase Deployment
-
-```bash
-# Single binary deployment
+# Single binary
 ./fluxbase --config fluxbase.yaml
 
-# Or with Docker
-docker run -d -p 8080:8080 \
-  -v $(pwd)/fluxbase.yaml:/etc/fluxbase/fluxbase.yaml \
-  fluxbase/fluxbase:latest
+# Or Docker
+docker run -p 8080:8080 -v ./config:/etc/fluxbase fluxbase:latest
 ```
 
-### Supabase Self-Hosted Deployment
-
-Supabase requires multiple services (Kong, PostgREST, GoTrue, Realtime, Storage, etc.):
-
+**Supabase:**
 ```bash
-# Clone Supabase
+# Multiple services via docker-compose
 git clone https://github.com/supabase/supabase
 cd supabase/docker
-
-# Start all services
 docker-compose up -d
 ```
 
-More complex setup but more features and scalability.
+## Migration Considerations
 
-## 📚 Additional Resources
+Switching between platforms requires:
 
-### Fluxbase
+- **Database:** Standard PostgreSQL migration (pg_dump/restore)
+- **RLS policies:** Update syntax (`auth.uid()` ↔ `current_setting()`)
+- **SDK code:** Change import statement only
+- **Edge functions:** Adapt function signature
+- **Testing:** Verify behavior in new environment
 
+Not a one-click migration, but API compatibility minimizes code changes.
+
+## Scaling
+
+**Fluxbase:** Vertical scaling only (more CPU/RAM on single server)
+
+**Supabase:** Horizontal scaling with read replicas for high traffic
+
+## Resources
+
+**Fluxbase:**
 - [Documentation](/)
-- [GitHub Repository](https://github.com/wayli-app/fluxbase)
+- [GitHub](https://github.com/wayli-app/fluxbase)
 - [API Reference](/docs/api/sdk/classes/FluxbaseClient)
 
-### Supabase
-
-- [Supabase Documentation](https://supabase.com/docs)
-- [Supabase GitHub](https://github.com/supabase/supabase)
+**Supabase:**
+- [Documentation](https://supabase.com/docs)
+- [GitHub](https://github.com/supabase/supabase)
 - [Pricing](https://supabase.com/pricing)
-
-## ❓ FAQ
-
-### Can I switch from Supabase to Fluxbase later?
-
-The API compatibility makes code changes minimal, but consider:
-
-- **Database migration**: Standard PostgreSQL tools (pg_dump/restore)
-- **RLS policies**: Need syntax updates (`auth.uid()` → `current_setting()`)
-- **Edge Functions**: Same Deno runtime, minimal changes
-- **Not a one-click migration**: Requires planning and testing
-
-### Does Fluxbase scale like Supabase?
-
-**No.** Fluxbase is a single binary designed for vertical scaling (more CPU/RAM on one server), not horizontal scaling (multiple servers). Supabase supports read replicas and horizontal scaling, making it better for very high-traffic applications.
-
-### Which is faster?
-
-Both use PostgreSQL, so database performance is similar. Fluxbase may have slightly lower latency (fewer network hops), but Supabase can scale to handle more concurrent users.
-
-### Can I use both?
-
-Yes! You could:
-
-- Develop locally with Fluxbase
-- Deploy to Supabase for production (if you need hosted service)
-- Or vice versa (prototype on Supabase free tier, self-host Fluxbase for production)
-
-## 🎯 Conclusion
-
-**Fluxbase** is ideal for developers who want maximum simplicity, full control, and predictable costs for moderate-scale applications.
-
-**Supabase** is ideal for teams who want a managed service with a free tier, horizontal scalability, and don't want to manage infrastructure.
-
-Both are excellent choices depending on your needs, team size, and scale requirements.

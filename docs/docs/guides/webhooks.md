@@ -16,21 +16,11 @@ Fluxbase webhooks trigger HTTP requests to your specified endpoint whenever data
 
 ### Installation
 
-**TypeScript/JavaScript:**
-
 ```bash
 npm install @fluxbase/sdk
 ```
 
-**Python:**
-
-```bash
-pip install fluxbase
-```
-
 ### Quick Start
-
-#### TypeScript/JavaScript
 
 ```typescript
 import { FluxbaseClient } from "@fluxbase/sdk";
@@ -81,65 +71,11 @@ await client.webhooks.update(webhook.id, {
 await client.webhooks.delete(webhook.id);
 ```
 
-#### Python
-
-```python
-from fluxbase import FluxbaseClient
-
-# Initialize client (requires authentication)
-client = FluxbaseClient(
-    url="http://localhost:8080",
-    api_key=os.environ['FLUXBASE_API_KEY']  # Or use service key
-)
-
-# Create a webhook
-webhook = client.webhooks.create(
-    name="User Events",
-    description="Notify external system of user changes",
-    url="https://example.com/webhooks/fluxbase",
-    secret="your-webhook-secret",
-    enabled=True,
-    events=[
-        {
-            "table": "users",
-            "operations": ["INSERT", "UPDATE"]
-        }
-    ],
-    max_retries=3,
-    timeout_seconds=30
-)
-
-print(f"Webhook created: {webhook['id']}")
-
-# List all webhooks
-webhooks = client.webhooks.list()
-
-# Get webhook details
-details = client.webhooks.get(webhook['id'])
-
-# Update webhook
-client.webhooks.update(
-    webhook['id'],
-    enabled=False,
-    events=[
-        {
-            "table": "users",
-            "operations": ["INSERT", "UPDATE", "DELETE"]
-        }
-    ]
-)
-
-# Delete webhook
-client.webhooks.delete(webhook['id'])
-```
-
 ---
 
 ### Managing Webhooks
 
 #### Create a Webhook
-
-**TypeScript:**
 
 ```typescript
 const webhook = await client.webhooks.create({
@@ -167,34 +103,6 @@ console.log("Webhook ID:", webhook.id);
 console.log("Webhook URL:", webhook.url);
 ```
 
-**Python:**
-
-```python
-webhook = client.webhooks.create(
-    name="Order Notifications",
-    description="Send notifications when orders are created or updated",
-    url="https://api.myapp.com/webhooks/orders",
-    secret="secure-random-secret-string",
-    enabled=True,
-    events=[
-        {
-            "table": "orders",
-            "operations": ["INSERT", "UPDATE"]
-        },
-        {
-            "table": "order_items",
-            "operations": ["INSERT"]
-        }
-    ],
-    max_retries=3,
-    timeout_seconds=30,
-    retry_backoff_seconds=5
-)
-
-print(f"Webhook ID: {webhook['id']}")
-print(f"Webhook URL: {webhook['url']}")
-```
-
 **Configuration Options:**
 
 | Field                   | Type     | Description                                       |
@@ -220,8 +128,6 @@ print(f"Webhook URL: {webhook['url']}")
 
 #### List Webhooks
 
-**TypeScript:**
-
 ```typescript
 const webhooks = await client.webhooks.list();
 
@@ -232,21 +138,7 @@ webhooks.forEach((webhook) => {
 });
 ```
 
-**Python:**
-
-```python
-webhooks = client.webhooks.list()
-
-for webhook in webhooks:
-    status = "Enabled" if webhook['enabled'] else "Disabled"
-    print(f"{webhook['name']}: {status}")
-    print(f"  URL: {webhook['url']}")
-    print(f"  Events: {len(webhook['events'])} configured")
-```
-
 #### Get Webhook Details
-
-**TypeScript:**
 
 ```typescript
 const webhook = await client.webhooks.get("webhook-id");
@@ -258,21 +150,7 @@ console.log("Max Retries:", webhook.max_retries);
 console.log("Created:", webhook.created_at);
 ```
 
-**Python:**
-
-```python
-webhook = client.webhooks.get("webhook-id")
-
-print(f"Name: {webhook['name']}")
-print(f"Enabled: {webhook['enabled']}")
-print(f"Events: {webhook['events']}")
-print(f"Max Retries: {webhook['max_retries']}")
-print(f"Created: {webhook['created_at']}")
-```
-
 #### Update Webhook
-
-**TypeScript:**
 
 ```typescript
 // Enable/disable webhook
@@ -297,50 +175,14 @@ await client.webhooks.update(webhookId, {
 });
 ```
 
-**Python:**
-
-```python
-# Enable/disable webhook
-client.webhooks.update(webhook_id, enabled=False)
-
-# Update events
-client.webhooks.update(
-    webhook_id,
-    events=[
-        {
-            "table": "users",
-            "operations": ["INSERT", "UPDATE", "DELETE"]
-        }
-    ]
-)
-
-# Update URL and secret
-client.webhooks.update(
-    webhook_id,
-    url="https://new-endpoint.com/webhooks",
-    secret="new-secret-key"
-)
-```
-
 #### Delete Webhook
-
-**TypeScript:**
 
 ```typescript
 await client.webhooks.delete(webhookId);
 console.log("Webhook deleted");
 ```
 
-**Python:**
-
-```python
-client.webhooks.delete(webhook_id)
-print("Webhook deleted")
-```
-
 #### View Delivery History
-
-**TypeScript:**
 
 ```typescript
 const deliveries = await client.webhooks.getDeliveries(webhookId, {
@@ -358,30 +200,11 @@ deliveries.forEach((delivery) => {
 });
 ```
 
-**Python:**
-
-```python
-deliveries = client.webhooks.get_deliveries(
-    webhook_id,
-    limit=50,
-    offset=0
-)
-
-for delivery in deliveries:
-    print(f"{delivery['created_at']}: {delivery['status']}")
-    print(f"  Response: {delivery['response_status']}")
-    print(f"  Attempts: {delivery['attempts']}")
-    if delivery.get('error'):
-        print(f"  Error: {delivery['error']}")
-```
-
 ---
 
 ### Verifying Webhook Signatures
 
 The SDK provides utilities to verify webhook signatures in your webhook receiver.
-
-#### TypeScript/JavaScript
 
 ```typescript
 import { FluxbaseClient } from "@fluxbase/sdk";
@@ -417,46 +240,6 @@ app.post("/webhooks/fluxbase", (req, res) => {
 });
 
 app.listen(3000);
-```
-
-#### Python
-
-```python
-from fluxbase import FluxbaseClient
-from flask import Flask, request
-
-app = Flask(__name__)
-
-WEBHOOK_SECRET = os.environ['FLUXBASE_WEBHOOK_SECRET']
-
-@app.route('/webhooks/fluxbase', methods=['POST'])
-def handle_webhook():
-    signature = request.headers.get('X-Fluxbase-Signature')
-    payload = request.get_json()
-
-    # Verify signature using SDK utility
-    is_valid = FluxbaseClient.verify_webhook_signature(
-        payload,
-        signature,
-        WEBHOOK_SECRET
-    )
-
-    if not is_valid:
-        return 'Invalid signature', 401
-
-    # Process the webhook event
-    event = payload['event']
-    table = payload['table']
-    record = payload['record']
-
-    print(f"Received {event} event for {table}")
-
-    # Handle event...
-
-    return 'OK', 200
-
-if __name__ == '__main__':
-    app.run(port=3000)
 ```
 
 ---

@@ -2,440 +2,294 @@
 
 Fluxbase provides real-time database change notifications via WebSockets, powered by PostgreSQL's LISTEN/NOTIFY system.
 
-## Using the SDK (Recommended)
-
-The easiest way to use realtime subscriptions is with the Fluxbase SDK:
-
-### Installation
+## Installation
 
 ```bash
 npm install @fluxbase/sdk
 ```
 
-### Basic Usage
+## Basic Usage
 
 ```typescript
-import { createClient } from "@fluxbase/sdk";
+import { createClient } from '@fluxbase/sdk'
 
-// Create client
-const client = createClient("http://localhost:8080", "your-api-key");
+const client = createClient('http://localhost:8080', 'your-api-key')
 
 // Subscribe to table changes
 const channel = client.realtime
-  .channel("table:public.products")
-  .on("INSERT", (payload) => {
-    console.log("New product:", payload.new_record);
+  .channel('table:public.products')
+  .on('INSERT', (payload) => {
+    console.log('New product:', payload.new_record)
   })
-  .on("UPDATE", (payload) => {
-    console.log("Updated product:", payload.new_record);
-    console.log("Previous data:", payload.old_record);
+  .on('UPDATE', (payload) => {
+    console.log('Updated:', payload.new_record)
+    console.log('Previous:', payload.old_record)
   })
-  .on("DELETE", (payload) => {
-    console.log("Deleted product:", payload.old_record);
+  .on('DELETE', (payload) => {
+    console.log('Deleted:', payload.old_record)
   })
-  .subscribe();
+  .subscribe()
 
-// Or use wildcard to listen to all events
+// Or use wildcard for all events
 const channel = client.realtime
-  .channel("table:public.products")
-  .on("*", (payload) => {
-    console.log("Change type:", payload.type); // INSERT, UPDATE, or DELETE
-    console.log("Payload:", payload);
+  .channel('table:public.products')
+  .on('*', (payload) => {
+    console.log('Event:', payload.type) // INSERT, UPDATE, or DELETE
   })
-  .subscribe();
+  .subscribe()
 
-// Later: Unsubscribe
-channel.unsubscribe();
+// Unsubscribe
+channel.unsubscribe()
 ```
 
-### React Example
-
-```typescript
-import { useEffect, useState } from "react";
-import { createClient } from "@fluxbase/sdk";
-
-function ProductList() {
-  const [products, setProducts] = useState([]);
-  const [client] = useState(() =>
-    createClient("http://localhost:8080", "your-api-key")
-  );
-
-  useEffect(() => {
-    // Subscribe to realtime changes
-    const channel = client.realtime
-      .channel("table:public.products")
-      .on("INSERT", (payload) => {
-        setProducts((prev) => [...prev, payload.new_record]);
-      })
-      .on("UPDATE", (payload) => {
-        setProducts((prev) =>
-          prev.map((p) => (p.id === payload.new_record.id ? payload.new_record : p))
-        );
-      })
-      .on("DELETE", (payload) => {
-        setProducts((prev) => prev.filter((p) => p.id !== payload.old_record.id));
-      })
-      .subscribe();
-
-    // Cleanup on unmount
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [client]);
-
-  return (
-    <div>
-      <h2>Products</h2>
-      {products.map((product) => (
-        <div key={product.id}>{product.name}</div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Payload Structure
+## Payload Structure
 
 ```typescript
 interface RealtimeChangePayload {
-  type: "INSERT" | "UPDATE" | "DELETE";
-  schema: string;
-  table: string;
-  new_record?: Record<string, unknown>; // Present for INSERT and UPDATE
-  old_record?: Record<string, unknown>; // Present for UPDATE and DELETE
-  timestamp: string;
+  type: 'INSERT' | 'UPDATE' | 'DELETE'
+  schema: string
+  table: string
+  new_record?: Record<string, unknown> // INSERT and UPDATE
+  old_record?: Record<string, unknown> // UPDATE and DELETE
+  timestamp: string
 }
 ```
 
----
+## React Hook Example
 
-## Advanced: Raw WebSocket Protocol
+```typescript
+import { useEffect, useState } from 'react'
+import { createClient } from '@fluxbase/sdk'
 
-For advanced use cases or non-JavaScript environments, you can use the raw WebSocket protocol directly.
+function useRealtimeTable(tableName) {
+  const [data, setData] = useState([])
+  const client = createClient('http://localhost:8080', 'your-api-key')
 
-### 1. Connect to WebSocket
+  useEffect(() => {
+    const channel = client.realtime
+      .channel(`table:public.${tableName}`)
+      .on('INSERT', (payload) => {
+        setData(prev => [...prev, payload.new_record])
+      })
+      .on('UPDATE', (payload) => {
+        setData(prev =>
+          prev.map(item =>
+            item.id === payload.new_record.id ? payload.new_record : item
+          )
+        )
+      })
+      .on('DELETE', (payload) => {
+        setData(prev => prev.filter(item => item.id !== payload.old_record.id))
+      })
+      .subscribe()
 
-```javascript
-// Connect to the realtime endpoint
-const ws = new WebSocket("ws://localhost:8080/realtime");
+    return () => channel.unsubscribe()
+  }, [tableName])
 
-// Optional: Include JWT token for authenticated subscriptions
-const ws = new WebSocket("ws://localhost:8080/realtime?token=YOUR_JWT_TOKEN");
+  return data
+}
 
-ws.onopen = () => {
-  console.log("Connected to Fluxbase realtime");
-};
+// Usage
+function ProductList() {
+  const products = useRealtimeTable('products')
+
+  return (
+    <div>
+      {products.map(product => (
+        <div key={product.id}>{product.name}</div>
+      ))}
+    </div>
+  )
+}
 ```
 
-### 2. Subscribe to a Table
+## Filtering Updates
 
-```javascript
-// Subscribe to changes on the products table
-ws.send(
-  JSON.stringify({
-    type: "subscribe",
-    channel: "table:public.products",
+Subscribe to specific rows using RLS policies:
+
+```typescript
+// Only receive updates for rows user has access to
+// Access control is enforced via Row-Level Security policies
+const channel = client.realtime
+  .channel('table:public.posts')
+  .on('*', (payload) => {
+    // Only events matching RLS policies are received
+    console.log('Post update:', payload)
   })
-);
+  .subscribe()
 ```
 
-### 3. Receive Changes
+## Multiple Subscriptions
 
-```javascript
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data);
+Subscribe to multiple tables:
 
-  switch (message.type) {
-    case "broadcast":
-      console.log("Database change:", message.payload);
-      // Handle INSERT, UPDATE, or DELETE
-      break;
-    case "ack":
-      console.log("Subscription confirmed");
-      break;
-    case "heartbeat":
-      // Connection is alive
-      break;
-  }
-};
+```typescript
+const productsChannel = client.realtime
+  .channel('table:public.products')
+  .on('*', handleProductChange)
+  .subscribe()
+
+const ordersChannel = client.realtime
+  .channel('table:public.orders')
+  .on('*', handleOrderChange)
+  .subscribe()
+
+// Cleanup
+productsChannel.unsubscribe()
+ordersChannel.unsubscribe()
 ```
 
-### Message Protocol
+## Connection States
 
-#### Client → Server Messages
+Monitor connection status:
 
-##### Subscribe
-
-```json
-{
-  "type": "subscribe",
-  "channel": "table:public.products"
-}
-```
-
-##### Unsubscribe
-
-```json
-{
-  "type": "unsubscribe",
-  "channel": "table:public.products"
-}
-```
-
-#### Server → Client Messages
-
-##### Broadcast (Database Change)
-
-```json
-{
-  "type": "broadcast",
-  "channel": "table:public.products",
-  "payload": {
-    "type": "INSERT",
-    "table": "products",
-    "schema": "public",
-    "record": {
-      "id": 123,
-      "name": "New Product",
-      "price": 99.99
+```typescript
+const channel = client.realtime
+  .channel('table:public.products')
+  .on('*', handleChange)
+  .subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      console.log('Connected and listening')
+    } else if (status === 'CHANNEL_ERROR') {
+      console.error('Subscription error')
+    } else if (status === 'CLOSED') {
+      console.log('Connection closed')
     }
-  }
-}
-```
-
-##### Update Event (includes old record)
-
-```json
-{
-  "type": "broadcast",
-  "channel": "table:public.products",
-  "payload": {
-    "type": "UPDATE",
-    "table": "products",
-    "schema": "public",
-    "record": {
-      "id": 123,
-      "name": "Updated Product",
-      "price": 149.99
-    },
-    "old_record": {
-      "id": 123,
-      "name": "Old Product",
-      "price": 99.99
-    }
-  }
-}
-```
-
-##### Delete Event
-
-```json
-{
-  "type": "broadcast",
-  "channel": "table:public.products",
-  "payload": {
-    "type": "DELETE",
-    "table": "products",
-    "schema": "public",
-    "old_record": {
-      "id": 123,
-      "name": "Deleted Product",
-      "price": 99.99
-    }
-  }
-}
-```
-
-##### Acknowledgment
-
-```json
-{
-  "type": "ack",
-  "channel": "table:public.products"
-}
-```
-
-##### Heartbeat
-
-```json
-{
-  "type": "heartbeat"
-}
-```
-
-Sent every 30 seconds to keep the connection alive.
-
-##### Error
-
-```json
-{
-  "type": "error",
-  "error": "Error message here"
-}
-```
-
-### Channel Naming
-
-Channels follow the format: `table:{schema}.{table_name}`
-
-Examples:
-
-- `table:public.products`
-- `table:public.orders`
-- `table:auth.users`
-- `table:inventory.items`
-
-### Authentication
-
-#### Unauthenticated Connections
-
-```javascript
-const ws = new WebSocket("ws://localhost:8080/realtime");
-// Can subscribe to tables without RLS
-```
-
-#### Authenticated Connections
-
-```javascript
-const token = "your.jwt.token.here";
-const ws = new WebSocket(`ws://localhost:8080/realtime?token=${token}`);
-// User ID is attached to the connection
+  })
 ```
 
 ## Enabling Realtime on Tables
 
-Realtime is automatically enabled on tables with the `notify_table_change()` trigger.
-
-### Enable Realtime on a Table
+By default, realtime is disabled on tables. Enable it with:
 
 ```sql
-SELECT enable_realtime('public', 'your_table_name');
+-- Enable realtime for a table
+ALTER TABLE products REPLICA IDENTITY FULL;
+
+-- Create trigger to publish changes
+CREATE OR REPLACE FUNCTION notify_table_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM pg_notify(
+    'table_changes',
+    json_build_object(
+      'schema', TG_TABLE_SCHEMA,
+      'table', TG_TABLE_NAME,
+      'type', TG_OP,
+      'new_record', CASE WHEN TG_OP != 'DELETE' THEN row_to_json(NEW) END,
+      'old_record', CASE WHEN TG_OP != 'INSERT' THEN row_to_json(OLD) END
+    )::text
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Attach trigger
+CREATE TRIGGER products_notify_change
+AFTER INSERT OR UPDATE OR DELETE ON products
+FOR EACH ROW EXECUTE FUNCTION notify_table_change();
 ```
 
-### Disable Realtime on a Table
+Or use the admin API:
 
-```sql
-SELECT disable_realtime('public', 'your_table_name');
-```
-
-### Check Which Tables Have Realtime
-
-```sql
-SELECT
-  trigger_schema,
-  event_object_table as table_name,
-  trigger_name
-FROM information_schema.triggers
-WHERE trigger_name LIKE '%_notify_change';
+```typescript
+await client.admin.enableRealtime('products')
 ```
 
 ## Architecture
 
-### PostgreSQL LISTEN/NOTIFY
+Fluxbase uses PostgreSQL's LISTEN/NOTIFY system:
 
-Fluxbase uses PostgreSQL's built-in LISTEN/NOTIFY system:
+1. Database triggers detect changes (INSERT, UPDATE, DELETE)
+2. Trigger calls `pg_notify()` to broadcast change
+3. Fluxbase server listens to notifications
+4. Server forwards changes to subscribed WebSocket clients
+5. Clients receive real-time updates
 
-1. Database triggers fire on INSERT/UPDATE/DELETE
-2. Triggers send notifications via `pg_notify('fluxbase_changes', ...)`
-3. Dedicated connection listens on the `fluxbase_changes` channel
-4. Notifications are parsed and routed to WebSocket subscribers
-
-### Benefits
-
-- **Lightweight**: No polling or external message queue needed
-- **Native**: Built into PostgreSQL
-- **Reliable**: Guaranteed delivery within the database
-- **Low Latency**: Notifications arrive in milliseconds
-
-### Limitations
-
-- Notifications are lost if no one is listening
-- No message history/replay (consider adding if needed)
-- No cross-database notifications (single database only)
+This architecture is lightweight and scales well for moderate traffic.
 
 ## Connection Management
 
-- **Heartbeat**: 30-second interval to detect disconnections
-- **Auto-cleanup**: Dead connections are automatically removed
-- **Reconnection**: Clients should implement exponential backoff
-- **Stats Endpoint**: `GET /api/v1/realtime/stats` shows connection count
+**Auto-reconnect:** SDK automatically reconnects on connection loss
+
+**Heartbeat:** Periodic ping/pong to detect stale connections
+
+**Cleanup:** Always unsubscribe when done to prevent memory leaks
+
+```typescript
+// Good: cleanup in effect
+useEffect(() => {
+  const channel = client.realtime
+    .channel('table:public.products')
+    .on('*', handleChange)
+    .subscribe()
+
+  return () => channel.unsubscribe() // Cleanup
+}, [])
+```
 
 ## Security
 
-### Current Implementation
+Realtime subscriptions respect Row-Level Security policies. Users only receive updates for rows they have permission to view.
 
-- JWT authentication supported via query parameter
-- User ID attached to authenticated connections
-- Basic structure for RLS enforcement in place
-
-### Future Enhancement (TODO)
-
-- Full RLS policy enforcement per user
-- Only broadcast changes the user has access to
-- Session-based user context in queries
-
-## Monitoring
-
-### Stats Endpoint
-
-```bash
-curl http://localhost:8080/api/v1/realtime/stats
+```sql
+-- Example: Users only see their own posts
+CREATE POLICY "Users see own posts"
+ON posts
+FOR SELECT
+USING (current_setting('app.user_id', true)::uuid = user_id);
 ```
 
-Response:
-
-```json
-{
-  "connections": 5,
-  "channels": 3
-}
-```
-
-## Troubleshooting
-
-### Connection Refused
-
-- Ensure the server is running
-- Check that WebSocket endpoint is accessible
-- Verify firewall rules allow WebSocket connections
-
-### Not Receiving Updates
-
-1. Check if realtime is enabled on the table:
-
-   ```sql
-   SELECT * FROM information_schema.triggers
-   WHERE event_object_table = 'your_table'
-   AND trigger_name LIKE '%_notify_change';
-   ```
-
-2. Verify subscription is active (check client message logs)
-
-3. Test direct database changes:
-   ```sql
-   INSERT INTO products (name, price) VALUES ('Test', 99.99);
-   ```
-
-### Authentication Issues
-
-- Verify JWT token is valid
-- Check token hasn't expired
-- Ensure token is passed in query parameter: `?token=xxx`
+When authenticated, users receive realtime updates only for their own posts.
 
 ## Best Practices
 
-1. **Reconnect on Disconnect**: Implement exponential backoff
-2. **Subscribe Selectively**: Only subscribe to tables you need
-3. **Handle All Event Types**: INSERT, UPDATE, DELETE
-4. **Validate Messages**: Always parse and validate incoming messages
-5. **Cleanup Subscriptions**: Unsubscribe when component unmounts
-6. **Error Handling**: Handle connection errors gracefully
+**Performance:**
+- Limit number of active subscriptions per client
+- Unsubscribe from unused channels
+- Use wildcard (`*`) when listening to all event types
+
+**Security:**
+- Always use RLS policies to control data access
+- Validate JWT tokens for authenticated subscriptions
+- Never expose sensitive data in realtime payloads
+
+**Reliability:**
+- Handle connection errors gracefully
+- Implement reconnection logic for long-running apps
+- Cache local state to handle brief disconnections
+
+**Debugging:**
+- Monitor connection status
+- Log payload structures during development
+- Use browser DevTools to inspect WebSocket traffic
+
+## Raw WebSocket Protocol
+
+For non-JavaScript environments, see the [Realtime API Reference](/docs/api/realtime) for WebSocket protocol details.
+
+## Troubleshooting
+
+**No updates received:**
+- Verify realtime is enabled on table (triggers exist)
+- Check RLS policies allow access to rows
+- Confirm WebSocket connection is established
+- Verify channel name matches table: `table:schema.table_name`
+
+**Connection drops:**
+- Check network stability
+- Verify Fluxbase server is running
+- Review firewall/proxy WebSocket support
+- Ensure JWT token is valid (not expired)
+
+**Performance issues:**
+- Reduce number of subscriptions
+- Optimize RLS policies (avoid slow queries)
+- Consider aggregating rapid changes client-side
+- Monitor PostgreSQL NOTIFY queue size
 
 ## Next Steps
 
-- [ ] Add presence tracking for online users
-- [ ] Implement message history/replay
-- [ ] Add broadcast-only channels (not tied to tables)
-- [ ] Full RLS policy enforcement
-- [ ] TypeScript SDK with automatic reconnection
-- [ ] React hooks package
+- [Row-Level Security](/docs/guides/row-level-security) - Control data access
+- [Authentication](/docs/guides/authentication) - Secure subscriptions
+- [Monitoring](/docs/guides/monitoring-observability) - Track realtime performance
