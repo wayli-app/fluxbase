@@ -105,6 +105,15 @@ func (c *Connection) Migrate() error {
 
 // runSystemMigrations runs migrations embedded in the binary
 func (c *Connection) runSystemMigrations() error {
+	// Ensure _fluxbase schema exists before migrations run
+	// This is needed because the migration system needs the schema to exist
+	// before it can create the schema_migrations table
+	ctx := context.Background()
+	_, err := c.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS _fluxbase")
+	if err != nil {
+		return fmt.Errorf("failed to create _fluxbase schema: %w", err)
+	}
+
 	// Create migrations source from embedded filesystem
 	sourceDriver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
