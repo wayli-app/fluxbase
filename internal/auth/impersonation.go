@@ -287,14 +287,14 @@ func (s *ImpersonationService) StartImpersonation(
 		return nil, fmt.Errorf("failed to create impersonation session: %w", err)
 	}
 
-	// Generate JWT tokens for the target user
+	// Generate JWT tokens for the target user with their metadata
 	// Note: The JWT contains the target user's info, but we track admin in the session
-	accessToken, _, err := s.jwtManager.GenerateAccessToken(targetUser.ID, targetUser.Email, targetUser.Role)
+	accessToken, _, err := s.jwtManager.GenerateAccessToken(targetUser.ID, targetUser.Email, targetUser.Role, targetUser.UserMetadata, targetUser.AppMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(targetUser.ID, targetUser.Email, "")
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(targetUser.ID, targetUser.Email, "", targetUser.UserMetadata, targetUser.AppMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -355,14 +355,14 @@ func (s *ImpersonationService) StartAnonImpersonation(
 		return nil, fmt.Errorf("failed to create impersonation session: %w", err)
 	}
 
-	// Generate JWT tokens for anonymous user
+	// Generate JWT tokens for anonymous user (no metadata for anonymous users)
 	anonID := "anonymous-" + uuid.New().String()
-	accessToken, _, err := s.jwtManager.GenerateAccessToken(anonID, "anonymous@fluxbase.local", "anon")
+	accessToken, _, err := s.jwtManager.GenerateAccessToken(anonID, "anonymous@fluxbase.local", "anon", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(anonID, "anonymous@fluxbase.local", "")
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(anonID, "anonymous@fluxbase.local", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -430,14 +430,14 @@ func (s *ImpersonationService) StartServiceImpersonation(
 		return nil, fmt.Errorf("failed to create impersonation session: %w", err)
 	}
 
-	// Generate JWT tokens for service role
+	// Generate JWT tokens for service role (no metadata for service role)
 	serviceID := "service-" + uuid.New().String()
-	accessToken, _, err := s.jwtManager.GenerateAccessToken(serviceID, "service@fluxbase.local", "service")
+	accessToken, _, err := s.jwtManager.GenerateAccessToken(serviceID, "service@fluxbase.local", "service", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(serviceID, "service@fluxbase.local", "")
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(serviceID, "service@fluxbase.local", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}

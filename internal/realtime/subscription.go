@@ -13,15 +13,14 @@ import (
 
 // Subscription represents an RLS-aware subscription to table changes
 type Subscription struct {
-	ID         string
-	UserID     string
-	Role       string
-	Table      string
-	Schema     string
-	Event      string                 // INSERT, UPDATE, DELETE, or * for all
-	Filter     *Filter                // Supabase-compatible filter (column=operator.value)
-	OldFilters map[string]interface{} // Legacy simple filters (deprecated)
-	ConnID     string                 // Connection ID this subscription belongs to
+	ID     string
+	UserID string
+	Role   string
+	Table  string
+	Schema string
+	Event  string  // INSERT, UPDATE, DELETE, or * for all
+	Filter *Filter // Supabase-compatible filter (column=operator.value)
+	ConnID string  // Connection ID this subscription belongs to
 }
 
 // SubscriptionFilter represents filters for a subscription
@@ -60,7 +59,6 @@ func (sm *SubscriptionManager) CreateSubscription(
 	table string,
 	event string,
 	filterStr string,
-	legacyFilters map[string]interface{},
 ) (*Subscription, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -82,15 +80,14 @@ func (sm *SubscriptionManager) CreateSubscription(
 	}
 
 	sub := &Subscription{
-		ID:         subID,
-		UserID:     userID,
-		Role:       role,
-		Table:      table,
-		Schema:     schema,
-		Event:      event,
-		Filter:     filter,
-		OldFilters: legacyFilters,
-		ConnID:     connID,
+		ID:     subID,
+		UserID: userID,
+		Role:   role,
+		Table:  table,
+		Schema: schema,
+		Event:  event,
+		Filter: filter,
+		ConnID: connID,
 	}
 
 	// Store subscription
@@ -239,8 +236,8 @@ func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscripti
 		return sub.Filter.Matches(record)
 	}
 
-	// Fall back to legacy filters for backwards compatibility
-	return sm.matchesFilters(event, sub.OldFilters)
+	// No filter specified - match all
+	return true
 }
 
 // checkRLSAccess verifies if a user can access a record based on RLS policies
@@ -306,79 +303,6 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		Msg("RLS access check")
 
 	return visible
-}
-
-// matchesFilters checks if an event matches subscription filters
-func (sm *SubscriptionManager) matchesFilters(event *ChangeEvent, filters map[string]interface{}) bool {
-	if len(filters) == 0 {
-		return true
-	}
-
-	// Check each filter against the record
-	record := event.Record
-	if record == nil {
-		record = event.OldRecord
-	}
-
-	for key, value := range filters {
-		eventValue, exists := record[key]
-		if !exists {
-			return false
-		}
-
-		// Simple equality check for now
-		// Could be extended to support operators
-		if !sm.valuesEqual(eventValue, value) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// valuesEqual compares two values for equality
-func (sm *SubscriptionManager) valuesEqual(a, b interface{}) bool {
-	// Handle JSON number comparisons
-	switch v := a.(type) {
-	case float64:
-		switch bv := b.(type) {
-		case float64:
-			return v == bv
-		case int:
-			return v == float64(bv)
-		case int64:
-			return v == float64(bv)
-		}
-	case int:
-		switch bv := b.(type) {
-		case float64:
-			return float64(v) == bv
-		case int:
-			return v == bv
-		case int64:
-			return int64(v) == bv
-		}
-	case int64:
-		switch bv := b.(type) {
-		case float64:
-			return float64(v) == bv
-		case int:
-			return v == int64(bv)
-		case int64:
-			return v == bv
-		}
-	case string:
-		if bv, ok := b.(string); ok {
-			return v == bv
-		}
-	case bool:
-		if bv, ok := b.(bool); ok {
-			return v == bv
-		}
-	}
-
-	// Default to simple equality
-	return a == b
 }
 
 // isTableAllowedUnsafe checks if a table is allowed for realtime (must be called with lock held)

@@ -20,7 +20,7 @@ func TestFunctionAnonKeyRequired(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create a test function WITHOUT allow_unauthenticated
 	functionName := fmt.Sprintf("test_auth_required_%d", timestamp)
@@ -141,7 +141,7 @@ func TestFunctionAllowUnauthenticated(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create a test function WITH allow_unauthenticated=true
 	functionName := fmt.Sprintf("test_public_%d", timestamp)
@@ -201,7 +201,7 @@ func TestFunctionCodeCommentAllowUnauthenticated(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create a test function with @allow-unauthenticated comment
 	functionName := fmt.Sprintf("test_comment_auth_%d", timestamp)
@@ -251,7 +251,7 @@ func TestFunctionAuthenticationTypes(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create a test function that echoes auth info
 	functionName := fmt.Sprintf("test_auth_echo_%d", timestamp)

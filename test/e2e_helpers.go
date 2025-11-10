@@ -634,12 +634,6 @@ func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID,
 	return userID, token
 }
 
-// CreateAdminUser is deprecated, use CreateDashboardAdminUser instead
-// Kept for backwards compatibility
-func (tc *TestContext) CreateAdminUser(email, password string) (userID, token string) {
-	return tc.CreateDashboardAdminUser(email, password)
-}
-
 // GetDashboardAuthToken signs in with email/password for dashboard users and returns JWT token
 func (tc *TestContext) GetDashboardAuthToken(email, password string) string {
 	resp := tc.NewRequest("POST", "/api/v1/admin/login").

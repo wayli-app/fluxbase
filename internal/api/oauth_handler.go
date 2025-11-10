@@ -168,8 +168,8 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate JWT tokens
-	accessToken, refreshToken, _, err := h.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role)
+	// Generate JWT tokens with metadata
+	accessToken, refreshToken, _, err := h.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, user.UserMetadata, user.AppMetadata)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", user.ID).Msg("Failed to generate JWT tokens")
 		return c.Status(500).JSON(fiber.Map{

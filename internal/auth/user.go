@@ -27,17 +27,19 @@ type User struct {
 	PasswordHash  string    `json:"-" db:"password_hash"` // Never expose in JSON
 	EmailVerified bool      `json:"email_verified" db:"email_verified"`
 	Role          string    `json:"role,omitempty" db:"role"`
-	Metadata      any       `json:"metadata,omitempty" db:"metadata"`
+	UserMetadata  any       `json:"user_metadata,omitempty" db:"user_metadata"` // User-editable metadata
+	AppMetadata   any       `json:"app_metadata,omitempty" db:"app_metadata"`   // Application/admin-only metadata
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // CreateUserRequest represents a request to create a new user
 type CreateUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role,omitempty"`
-	Metadata any    `json:"metadata,omitempty"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	Role         string `json:"role,omitempty"`
+	UserMetadata any    `json:"user_metadata,omitempty"` // User-editable metadata
+	AppMetadata  any    `json:"app_metadata,omitempty"`  // Application/admin-only metadata
 }
 
 // UpdateUserRequest represents a request to update a user
@@ -45,7 +47,8 @@ type UpdateUserRequest struct {
 	Email         *string `json:"email,omitempty"`
 	EmailVerified *bool   `json:"email_verified,omitempty"`
 	Role          *string `json:"role,omitempty"`
-	Metadata      any     `json:"metadata,omitempty"`
+	UserMetadata  any     `json:"user_metadata,omitempty"` // User-editable metadata
+	AppMetadata   any     `json:"app_metadata,omitempty"`  // Application/admin-only metadata (admin only)
 }
 
 // UserRepository handles database operations for users
@@ -66,7 +69,8 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 		PasswordHash:  passwordHash,
 		EmailVerified: false,
 		Role:          req.Role,
-		Metadata:      req.Metadata,
+		UserMetadata:  req.UserMetadata,
+		AppMetadata:   req.AppMetadata,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -77,9 +81,9 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 	}
 
 	query := `
-		INSERT INTO auth.users (id, email, password_hash, email_verified, role, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+		INSERT INTO auth.users (id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`
 
 	row := r.db.QueryRow(ctx, query,
@@ -88,7 +92,8 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 		user.PasswordHash,
 		user.EmailVerified,
 		user.Role,
-		user.Metadata,
+		user.UserMetadata,
+		user.AppMetadata,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -98,7 +103,8 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -117,7 +123,7 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, metadata, created_at, updated_at
+		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 		FROM auth.users
 		WHERE id = $1
 	`
@@ -129,7 +135,8 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 		&user.PasswordHash,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -147,7 +154,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 // GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, metadata, created_at, updated_at
+		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 		FROM auth.users
 		WHERE email = $1
 	`
@@ -159,7 +166,8 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 		&user.PasswordHash,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -199,10 +207,16 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 		argCount++
 	}
 
-	if req.Metadata != nil {
-		updates = append(updates, formatPlaceholder("metadata", argCount))
-		args = append(args, req.Metadata)
-		// argCount++ // Not used after this point
+	if req.UserMetadata != nil {
+		updates = append(updates, formatPlaceholder("user_metadata", argCount))
+		args = append(args, req.UserMetadata)
+		argCount++
+	}
+
+	if req.AppMetadata != nil {
+		updates = append(updates, formatPlaceholder("app_metadata", argCount))
+		args = append(args, req.AppMetadata)
+		argCount++
 	}
 
 	if len(updates) == 0 {
@@ -217,7 +231,7 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 		UPDATE auth.users
 		SET ` + joinStrings(updates, ", ") + `
 		WHERE id = $1
-		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`
 
 	user := &User{}
@@ -226,7 +240,8 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -303,7 +318,7 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 // List retrieves users with pagination
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*User, error) {
 	query := `
-		SELECT id, email, email_verified, role, metadata, created_at, updated_at
+		SELECT id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 		FROM auth.users
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -323,7 +338,8 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*User, 
 			&user.Email,
 			&user.EmailVerified,
 			&user.Role,
-			&user.Metadata,
+			&user.UserMetadata,
+			&user.AppMetadata,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -370,7 +386,8 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 		PasswordHash:  passwordHash,
 		EmailVerified: false,
 		Role:          req.Role,
-		Metadata:      req.Metadata,
+		UserMetadata:  req.UserMetadata,
+		AppMetadata:   req.AppMetadata,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -391,9 +408,9 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 	}
 
 	query := fmt.Sprintf(`
-		INSERT INTO %s (id, email, password_hash, email_verified, role, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+		INSERT INTO %s (id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`, tableName)
 
 	err := r.db.QueryRow(
@@ -404,7 +421,8 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 		user.PasswordHash,
 		user.EmailVerified,
 		user.Role,
-		user.Metadata,
+		user.UserMetadata,
+		user.AppMetadata,
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(
@@ -412,7 +430,8 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -455,9 +474,15 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 		argNum++
 	}
 
-	if req.Metadata != nil {
-		updates = append(updates, formatPlaceholder("metadata", argNum))
-		args = append(args, req.Metadata)
+	if req.UserMetadata != nil {
+		updates = append(updates, formatPlaceholder("user_metadata", argNum))
+		args = append(args, req.UserMetadata)
+		argNum++
+	}
+
+	if req.AppMetadata != nil {
+		updates = append(updates, formatPlaceholder("app_metadata", argNum))
+		args = append(args, req.AppMetadata)
 		argNum++
 	}
 
@@ -473,7 +498,7 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 		UPDATE %s
 		SET %s
 		WHERE id = $1
-		RETURNING id, email, email_verified, role, metadata, created_at, updated_at
+		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`, tableName, joinStrings(updates, ", "))
 
 	user := &User{}
@@ -482,7 +507,8 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -528,7 +554,7 @@ func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userTy
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, email, email_verified, role, metadata, created_at, updated_at
+		SELECT id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 		FROM %s
 		WHERE id = $1
 	`, tableName)
@@ -539,7 +565,8 @@ func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userTy
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

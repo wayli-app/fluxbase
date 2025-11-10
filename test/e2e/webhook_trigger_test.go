@@ -171,11 +171,11 @@ func TestWebhookTriggerOnUserUpdate(t *testing.T) {
 	var webhook map[string]interface{}
 	createWebhookResp.JSON(&webhook)
 
-	// Update the user's metadata
+	// Update the user's user_metadata
 	tc.NewRequest("PATCH", "/api/v1/auth/user").
 		WithAuth(token).
 		WithBody(map[string]interface{}{
-			"metadata": map[string]interface{}{
+			"user_metadata": map[string]interface{}{
 				"name": "Test User",
 			},
 		}).

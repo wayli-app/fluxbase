@@ -20,7 +20,7 @@ func setupAdminTest(t *testing.T) (*test.TestContext, string) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%s-%d@test.com", t.Name(), timestamp)
 	password := "adminpass123456"
-	_, token := tc.CreateAdminUser(email, password)
+	_, token := tc.CreateDashboardAdminUser(email, password)
 
 	return tc, token
 }
@@ -199,7 +199,7 @@ func TestAdminLoginRateLimit(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-ratelimit-%d@example.com", timestamp)
 	password := "testpassword123"
-	tc.CreateAdminUser(email, password)
+	tc.CreateDashboardAdminUser(email, password)
 
 	// Make multiple login attempts with wrong password to trigger rate limit
 	// (max 10 per minute)

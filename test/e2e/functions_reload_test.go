@@ -25,7 +25,7 @@ func setupFunctionsTest(t *testing.T) (*test.TestContext, string, string) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%s-%d@test.com", t.Name(), timestamp)
 	password := "adminpass123456"
-	_, token := tc.CreateAdminUser(email, password)
+	_, token := tc.CreateDashboardAdminUser(email, password)
 
 	return tc, token, tmpDir
 }

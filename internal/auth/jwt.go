@@ -19,12 +19,14 @@ var (
 
 // TokenClaims represents the JWT claims
 type TokenClaims struct {
-	UserID      string `json:"user_id"`
-	Email       string `json:"email,omitempty"` // Empty for anonymous users
-	Role        string `json:"role,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`   // Empty for anonymous users (no session)
-	TokenType   string `json:"token_type"`             // "access" or "refresh"
-	IsAnonymous bool   `json:"is_anonymous,omitempty"` // True for anonymous users
+	UserID       string `json:"user_id"`
+	Email        string `json:"email,omitempty"` // Empty for anonymous users
+	Role         string `json:"role,omitempty"`
+	SessionID    string `json:"session_id,omitempty"`    // Empty for anonymous users (no session)
+	TokenType    string `json:"token_type"`              // "access" or "refresh"
+	IsAnonymous  bool   `json:"is_anonymous,omitempty"`  // True for anonymous users
+	UserMetadata any    `json:"user_metadata,omitempty"` // User-editable metadata
+	AppMetadata  any    `json:"app_metadata,omitempty"`  // Application/admin-only metadata
 	jwt.RegisteredClaims
 }
 
@@ -47,16 +49,18 @@ func NewJWTManager(secretKey string, accessTTL, refreshTTL time.Duration) *JWTMa
 }
 
 // GenerateAccessToken generates a new access token
-func (m *JWTManager) GenerateAccessToken(userID, email, role string) (string, *TokenClaims, error) {
+func (m *JWTManager) GenerateAccessToken(userID, email, role string, userMetadata, appMetadata any) (string, *TokenClaims, error) {
 	now := time.Now()
 	sessionID := uuid.New().String()
 
 	claims := &TokenClaims{
-		UserID:    userID,
-		Email:     email,
-		Role:      role,
-		SessionID: sessionID,
-		TokenType: "access",
+		UserID:       userID,
+		Email:        email,
+		Role:         role,
+		SessionID:    sessionID,
+		TokenType:    "access",
+		UserMetadata: userMetadata,
+		AppMetadata:  appMetadata,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    m.issuer,
 			Subject:   userID,
@@ -77,14 +81,16 @@ func (m *JWTManager) GenerateAccessToken(userID, email, role string) (string, *T
 }
 
 // GenerateRefreshToken generates a new refresh token
-func (m *JWTManager) GenerateRefreshToken(userID, email, sessionID string) (string, *TokenClaims, error) {
+func (m *JWTManager) GenerateRefreshToken(userID, email, sessionID string, userMetadata, appMetadata any) (string, *TokenClaims, error) {
 	now := time.Now()
 
 	claims := &TokenClaims{
-		UserID:    userID,
-		Email:     email,
-		SessionID: sessionID,
-		TokenType: "refresh",
+		UserID:       userID,
+		Email:        email,
+		SessionID:    sessionID,
+		TokenType:    "refresh",
+		UserMetadata: userMetadata,
+		AppMetadata:  appMetadata,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    m.issuer,
 			Subject:   userID,
@@ -105,9 +111,9 @@ func (m *JWTManager) GenerateRefreshToken(userID, email, sessionID string) (stri
 }
 
 // GenerateTokenPair generates both access and refresh tokens
-func (m *JWTManager) GenerateTokenPair(userID, email, role string) (accessToken, refreshToken string, sessionID string, err error) {
+func (m *JWTManager) GenerateTokenPair(userID, email, role string, userMetadata, appMetadata any) (accessToken, refreshToken string, sessionID string, err error) {
 	// Generate access token
-	accessToken, claims, err := m.GenerateAccessToken(userID, email, role)
+	accessToken, claims, err := m.GenerateAccessToken(userID, email, role, userMetadata, appMetadata)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -115,7 +121,7 @@ func (m *JWTManager) GenerateTokenPair(userID, email, role string) (accessToken,
 	sessionID = claims.SessionID
 
 	// Generate refresh token with the same session ID
-	refreshToken, _, err = m.GenerateRefreshToken(userID, email, sessionID)
+	refreshToken, _, err = m.GenerateRefreshToken(userID, email, sessionID, userMetadata, appMetadata)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -184,8 +190,8 @@ func (m *JWTManager) RefreshAccessToken(refreshTokenString string) (string, erro
 		return "", err
 	}
 
-	// Generate new access token with the same session ID
-	accessToken, _, err := m.GenerateAccessToken(claims.UserID, claims.Email, claims.Role)
+	// Generate new access token with the same session ID and metadata
+	accessToken, _, err := m.GenerateAccessToken(claims.UserID, claims.Email, claims.Role, claims.UserMetadata, claims.AppMetadata)
 	if err != nil {
 		return "", err
 	}

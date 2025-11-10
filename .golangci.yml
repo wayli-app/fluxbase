@@ -90,9 +90,3 @@ issues:
     - path: internal/webhook/webhook.go
       linters:
         - unused
-
-    # Allow deprecated Mailgun API (will be updated when upgrading library)
-    - path: internal/email/mailgun.go
-      linters:
-        - staticcheck
-      text: "SA1019:"

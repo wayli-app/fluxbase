@@ -92,9 +92,10 @@ func NewService(
 
 // SignUpRequest represents a user registration request
 type SignUpRequest struct {
-	Email    string                 `json:"email"`
-	Password string                 `json:"password"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Email        string                 `json:"email"`
+	Password     string                 `json:"password"`
+	UserMetadata map[string]interface{} `json:"user_metadata,omitempty"` // User-editable metadata
+	AppMetadata  map[string]interface{} `json:"app_metadata,omitempty"`  // Application/admin-only metadata
 }
 
 // SignUpResponse represents a successful registration response
@@ -122,20 +123,23 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create user
+	// Create user with metadata
 	user, err := s.userRepo.Create(ctx, CreateUserRequest{
-		Email:    req.Email,
-		Metadata: req.Metadata,
+		Email:        req.Email,
+		UserMetadata: req.UserMetadata, // User-editable metadata
+		AppMetadata:  req.AppMetadata,  // Application/admin-only metadata
 	}, hashedPassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Generate tokens
+	// Generate tokens with metadata
 	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
 		user.ID,
 		user.Email,
 		user.Role,
+		user.UserMetadata,
+		user.AppMetadata,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
@@ -186,11 +190,13 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
-	// Generate tokens
+	// Generate tokens with metadata
 	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
 		user.ID,
 		user.Email,
 		user.Role,
+		user.UserMetadata,
+		user.AppMetadata,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
@@ -350,10 +356,9 @@ func (s *Service) VerifyMagicLink(ctx context.Context, token string) (*SignInRes
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			// Create new user for magic link
+			// Create new user for magic link (no metadata by default)
 			user, err = s.userRepo.Create(ctx, CreateUserRequest{
-				Email:    email,
-				Metadata: nil,
+				Email: email,
 			}, "") // No password for magic link users
 			if err != nil {
 				return nil, fmt.Errorf("failed to create user: %w", err)
@@ -363,11 +368,13 @@ func (s *Service) VerifyMagicLink(ctx context.Context, token string) (*SignInRes
 		}
 	}
 
-	// Generate tokens
+	// Generate tokens with metadata
 	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
 		user.ID,
 		user.Email,
 		user.Role,
+		user.UserMetadata,
+		user.AppMetadata,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
@@ -700,8 +707,8 @@ func (s *Service) GenerateTokensForUser(ctx context.Context, userID string) (*Si
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	// Generate JWT token pair
-	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role)
+	// Generate JWT token pair with metadata
+	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(user.ID, user.Email, user.Role, user.UserMetadata, user.AppMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}

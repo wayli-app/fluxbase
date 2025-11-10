@@ -21,7 +21,7 @@ func TestFunctionAuthenticationOnly(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create a test function WITHOUT allow_unauthenticated
 	functionName := fmt.Sprintf("test_auth_%d", timestamp)
@@ -105,7 +105,7 @@ func TestFunctionUnauthenticatedFlag(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-%d@test.com", timestamp)
 	password := "adminpass123456"
-	_, adminToken := tc.CreateAdminUser(email, password)
+	_, adminToken := tc.CreateDashboardAdminUser(email, password)
 
 	// Create function WITH allow_unauthenticated=true
 	functionName := fmt.Sprintf("test_public_%d", timestamp)

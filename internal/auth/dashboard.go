@@ -168,8 +168,8 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		return nil, nil, fmt.Errorf("failed to update login timestamp: %w", err)
 	}
 
-	// Generate JWT token pair (access + refresh)
-	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin")
+	// Generate JWT token pair (access + refresh) - dashboard users don't need metadata for now
+	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", nil, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}

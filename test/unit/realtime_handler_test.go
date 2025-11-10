@@ -26,8 +26,8 @@ func TestWebSocketMessageParsing(t *testing.T) {
 			valid:   true,
 		},
 		{
-			name:    "valid subscribe with filters",
-			message: `{"type":"subscribe","table":"users","filters":{"status":"active"}}`,
+			name:    "valid subscribe with filter",
+			message: `{"type":"subscribe","table":"users","filter":"status=eq.active"}`,
 			valid:   true,
 		},
 		{

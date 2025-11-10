@@ -30,8 +30,7 @@ type ClientMessage struct {
 	Event   string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
 	Schema  string                 `json:"schema,omitempty"`
 	Table   string                 `json:"table,omitempty"`
-	Filter  string                 `json:"filter,omitempty"`  // Supabase-compatible filter: column=operator.value
-	Filters map[string]interface{} `json:"filters,omitempty"` // Legacy simple filters (deprecated)
+	Filter  string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
 	Payload json.RawMessage        `json:"payload,omitempty"`
 	Config  *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
 }
@@ -229,7 +228,6 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			table,
 			event,
 			filter,
-			msg.Filters, // Legacy filters for backwards compatibility
 		)
 
 		if err != nil {
