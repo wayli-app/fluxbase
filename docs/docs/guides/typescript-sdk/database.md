@@ -62,41 +62,26 @@ const { data } = await client.from('posts')
 
 ## Filtering
 
-The SDK supports all PostgREST filter operators:
+| Operator | Purpose | Example |
+|----------|---------|---------|
+| `eq()` | Equal | `.eq('status', 'active')` |
+| `neq()` | Not equal | `.neq('status', 'deleted')` |
+| `gt()` | Greater than | `.gt('price', 100)` |
+| `gte()` | Greater than or equal | `.gte('rating', 4)` |
+| `lt()` | Less than | `.lt('stock', 10)` |
+| `lte()` | Less than or equal | `.lte('price', 500)` |
+| `like()` | Pattern match (case-sensitive) | `.like('email', '%@gmail.com')` |
+| `ilike()` | Pattern match (case-insensitive) | `.ilike('name', '%john%')` |
+| `in()` | Value in list | `.in('status', ['active', 'pending'])` |
+| `is()` | IS (for null checks) | `.is('deleted_at', null)` |
 
-### Equality
+**Example:**
 
 ```typescript
-// Equal to
 const { data } = await client.from('products')
   .eq('category', 'electronics')
-
-// Not equal to
-const { data } = await client.from('products')
-  .neq('status', 'discontinued')
-```
-
-### Comparisons
-
-```typescript
-// Greater than
-const { data } = await client.from('products').gt('price', 100)
-
-// Greater than or equal
-const { data } = await client.from('products').gte('rating', 4)
-
-// Less than
-const { data } = await client.from('products').lt('stock', 10)
-
-// Less than or equal
-const { data } = await client.from('products').lte('price', 500)
-```
-
-### Pattern Matching
-
-```typescript
-// LIKE (case-sensitive)
-const { data } = await client.from('users').like('email', '%@gmail.com')
+  .gt('price', 100)
+  .lte('price', 500)
 
 // ILIKE (case-insensitive)
 const { data } = await client.from('users').ilike('name', '%john%')

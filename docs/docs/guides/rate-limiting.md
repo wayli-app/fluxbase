@@ -325,38 +325,7 @@ Retry-After: 60
 
 ---
 
-## Custom Rate Limiting
-
-### For Custom Endpoints
-
-If you're extending Fluxbase with custom endpoints, you can apply rate limiting:
-
-```go
-import "github.com/wayli-app/fluxbase/internal/middleware"
-
-// Apply global rate limiter
-app.Use(middleware.GlobalAPILimiter())
-
-// Apply custom rate limiter
-app.Post("/api/v1/custom", middleware.NewRateLimiter(middleware.RateLimiterConfig{
-    Max:        50,
-    Expiration: 1 * time.Minute,
-    Message:    "Custom endpoint rate limit exceeded.",
-}), customHandler)
-
-// Apply email-based rate limiter
-app.Post("/api/v1/contact", middleware.AuthEmailBasedLimiter("contact", 5, 1*time.Hour), contactHandler)
-
-// Apply tiered rate limiter
-app.Get("/api/v1/data", middleware.PerUserOrIPLimiter(
-    100,  // Anonymous: 100 req/min
-    500,  // Users: 500 req/min
-    1000, // API keys: 1000 req/min
-    1 * time.Minute,
-), dataHandler)
-```
-
-### API Key Rate Limits
+## API Key Rate Limits
 
 When creating API keys, you can set custom rate limits:
 
@@ -595,26 +564,6 @@ For integrations requiring high throughput:
 # Create API key with appropriate limits
 curl -X POST /api/v1/admin/api-keys \
   -d '{"name": "Partner API", "rate_limit_rpm": 5000}'
-```
-
-### 5. IP Allowlisting (Advanced)
-
-For trusted IPs, bypass rate limiting:
-
-```go
-// Custom middleware (if extending Fluxbase)
-func IPAllowlist(allowedIPs []string) fiber.Handler {
-    return func(c *fiber.Ctx) error {
-        clientIP := c.IP()
-        for _, ip := range allowedIPs {
-            if ip == clientIP {
-                c.Locals("bypass_rate_limit", true)
-                return c.Next()
-            }
-        }
-        return c.Next()
-    }
-}
 ```
 
 ---

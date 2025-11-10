@@ -19,7 +19,7 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 | **Hosted Service** | Yes (free tier available) | No |
 | **Pricing** | Free/$25+/month | Open source (MIT) |
 
-## Key Difference: APIs Are Identical
+## SDK Compatibility
 
 The Fluxbase SDK is API-compatible with Supabase. Only the import statement differs:
 
@@ -134,22 +134,9 @@ Function code requires minor adaptation when switching platforms.
 
 ## Deployment
 
-**Fluxbase:**
-```bash
-# Single binary
-./fluxbase --config fluxbase.yaml
+**Fluxbase:** Single binary or container
 
-# Or Docker
-docker run -p 8080:8080 -v ./config:/etc/fluxbase fluxbase:latest
-```
-
-**Supabase:**
-```bash
-# Multiple services via docker-compose
-git clone https://github.com/supabase/supabase
-cd supabase/docker
-docker-compose up -d
-```
+**Supabase:** Multiple services via docker-compose
 
 ## Migration Considerations
 

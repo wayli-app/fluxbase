@@ -91,183 +91,97 @@ await client.storage
 
 ## Bucket Operations
 
-### Create Bucket
+| Method | Purpose | Parameters |
+|--------|---------|------------|
+| `createBucket()` | Create new bucket | `name`, `options` (public, file_size_limit, allowed_mime_types) |
+| `listBuckets()` | List all buckets | None |
+| `getBucket()` | Get bucket details | `name` |
+| `deleteBucket()` | Delete bucket | `name` |
+
+**Example:**
 
 ```typescript
+// Create bucket
 await client.storage.createBucket('avatars', {
-  public: false, // require authentication
-  file_size_limit: 5242880, // 5MB
+  public: false,
+  file_size_limit: 5242880,
   allowed_mime_types: ['image/png', 'image/jpeg']
 })
-```
 
-### List Buckets
-
-```typescript
+// List/get/delete
 const { data: buckets } = await client.storage.listBuckets()
-```
-
-### Get Bucket
-
-```typescript
 const { data: bucket } = await client.storage.getBucket('avatars')
-```
-
-### Delete Bucket
-
-```typescript
 await client.storage.deleteBucket('avatars')
 ```
 
 ## File Operations
 
-### Upload File
+| Method | Purpose | Parameters |
+|--------|---------|------------|
+| `upload()` | Upload file | `path`, `file`, `options` (contentType, cacheControl, upsert) |
+| `download()` | Download file | `path` |
+| `list()` | List files | `path`, `options` (limit, offset, sortBy) |
+| `remove()` | Delete files | `paths[]` |
+| `copy()` | Copy file | `from`, `to` |
+| `move()` | Move file | `from`, `to` |
+
+**Example:**
 
 ```typescript
-const { data, error } = await client.storage
-  .from('avatars')
-  .upload('path/to/file.png', file, {
-    contentType: 'image/png',
-    cacheControl: '3600',
-    upsert: true // overwrite if exists
-  })
-```
-
-### Upload from Buffer
-
-```typescript
-const buffer = await fs.readFile('image.png')
+// Upload
 await client.storage
   .from('avatars')
-  .upload('image.png', buffer, {
-    contentType: 'image/png'
-  })
-```
+  .upload('user1.png', file, { upsert: true })
 
-### Download File
-
-```typescript
+// Download
 const { data } = await client.storage
   .from('avatars')
-  .download('image.png')
+  .download('user1.png')
 
-// data is a Blob
-```
-
-### List Files
-
-```typescript
-// List all files
+// List
 const { data: files } = await client.storage
   .from('avatars')
-  .list()
+  .list('subfolder/', { limit: 100 })
 
-// List with path prefix
-const { data: files } = await client.storage
-  .from('avatars')
-  .list('subfolder/')
-
-// List with options
-const { data: files } = await client.storage
-  .from('avatars')
-  .list('', {
-    limit: 100,
-    offset: 0,
-    sortBy: { column: 'name', order: 'asc' }
-  })
-```
-
-### Delete Files
-
-```typescript
-// Delete single file
+// Delete
 await client.storage
   .from('avatars')
-  .remove(['image.png'])
+  .remove(['file1.png', 'file2.png'])
 
-// Delete multiple files
-await client.storage
-  .from('avatars')
-  .remove(['image1.png', 'image2.png', 'image3.png'])
-```
-
-### Copy File
-
-```typescript
-await client.storage
-  .from('avatars')
-  .copy('original.png', 'copy.png')
-```
-
-### Move File
-
-```typescript
-await client.storage
-  .from('avatars')
-  .move('old-path.png', 'new-path.png')
+// Copy/Move
+await client.storage.from('avatars').copy('old.png', 'new.png')
+await client.storage.from('avatars').move('old.png', 'new.png')
 ```
 
 ## Public vs Private Files
 
-### Public Buckets
-
 ```typescript
-await client.storage.createBucket('public-images', {
-  public: true
-})
+// Public bucket (no auth required)
+await client.storage.createBucket('public-images', { public: true })
+const url = client.storage.from('public-images').getPublicUrl('logo.png')
 
-// Files accessible without authentication
-const url = client.storage
-  .from('public-images')
-  .getPublicUrl('logo.png')
-
-console.log(url) // http://localhost:8080/storage/v1/object/public/public-images/logo.png
-```
-
-### Private Buckets
-
-```typescript
-await client.storage.createBucket('private-docs', {
-  public: false
-})
-
-// Files require authentication or signed URL
+// Private bucket (requires auth or signed URL)
+await client.storage.createBucket('private-docs', { public: false })
 ```
 
 ## Signed URLs (S3 Only)
 
-Generate temporary access URLs for private files:
-
 ```typescript
 const { data } = await client.storage
   .from('private-docs')
-  .createSignedUrl('document.pdf', 3600) // expires in 1 hour
-
-console.log(data.signedUrl)
-// Share this URL temporarily
+  .createSignedUrl('document.pdf', 3600) // 1 hour expiry
 ```
 
 ## Metadata
 
-Attach custom metadata to files:
-
 ```typescript
-await client.storage
-  .from('avatars')
-  .upload('profile.png', file, {
-    metadata: {
-      user_id: '123',
-      uploaded_by: 'admin',
-      description: 'User profile picture'
-    }
-  })
+// Upload with metadata
+await client.storage.from('avatars').upload('profile.png', file, {
+  metadata: { user_id: '123', description: 'Profile picture' }
+})
 
-// Retrieve file info with metadata
-const { data } = await client.storage
-  .from('avatars')
-  .getFileInfo('profile.png')
-
-console.log(data.metadata)
+// Get file info
+const { data } = await client.storage.from('avatars').getFileInfo('profile.png')
 ```
 
 ## S3 Provider Setup

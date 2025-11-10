@@ -30,10 +30,12 @@ auth:
 ### Password Requirements
 
 Default requirements:
+
 - Minimum 8 characters
 - Maximum 72 characters (bcrypt limit)
 
 Optional requirements (configurable):
+
 - Uppercase letters
 - Lowercase letters
 - Digits
@@ -48,126 +50,90 @@ npm install @fluxbase/sdk
 ## Quick Start
 
 ```typescript
-import { FluxbaseClient } from '@fluxbase/sdk'
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({
-  url: 'http://localhost:8080'
-})
+  url: "http://localhost:8080",
+});
 
 // Sign up
 const { user, session } = await client.auth.signUp({
-  email: 'user@example.com',
-  password: 'SecurePassword123'
-})
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
 
 // Sign in
 const { user, session } = await client.auth.signIn({
-  email: 'user@example.com',
-  password: 'SecurePassword123'
-})
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
 
 // Get current user
-const user = await client.auth.getCurrentUser()
+const user = await client.auth.getCurrentUser();
 
 // Sign out
-await client.auth.signOut()
+await client.auth.signOut();
 ```
 
-## Core Authentication
+## Core Authentication Methods
 
-### Sign Up
+| Method                   | Purpose                  | Parameters                       |
+| ------------------------ | ------------------------ | -------------------------------- |
+| `signUp()`               | Create new account       | `email`, `password`, `metadata?` |
+| `signIn()`               | Sign in with credentials | `email`, `password`              |
+| `signOut()`              | End current session      | None                             |
+| `getCurrentUser()`       | Get authenticated user   | None                             |
+| `getSession()`           | Get session details      | None                             |
+| `resetPassword()`        | Request password reset   | `email`                          |
+| `confirmPasswordReset()` | Confirm password reset   | `token`, `password`              |
+
+**Example:**
 
 ```typescript
+// Sign up
 const { user, session } = await client.auth.signUp({
-  email: 'user@example.com',
-  password: 'SecurePassword123',
-  metadata: { name: 'John Doe' } // optional
-})
-```
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
 
-### Sign In
-
-```typescript
+// Sign in
 const { user, session } = await client.auth.signIn({
-  email: 'user@example.com',
-  password: 'SecurePassword123'
-})
-```
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
 
-### Sign Out
+// Get current user
+const user = await client.auth.getCurrentUser();
 
-```typescript
-await client.auth.signOut()
-```
-
-### Get Current User
-
-```typescript
-const user = await client.auth.getCurrentUser()
-if (user) {
-  console.log('Logged in as:', user.email)
-}
-```
-
-### Get Session
-
-```typescript
-const session = await client.auth.getSession()
-if (session) {
-  console.log('Token expires at:', session.expires_at)
-}
+// Sign out
+await client.auth.signOut();
 ```
 
 ## Password Reset
 
-### Request Reset
-
 ```typescript
-await client.auth.resetPassword({
-  email: 'user@example.com'
-})
-// Reset email sent to user
-```
+// Request reset (sends email with token)
+await client.auth.resetPassword({ email: "user@example.com" });
 
-### Confirm Reset
-
-Users receive a reset token via email:
-
-```typescript
+// Confirm reset (after user receives token)
 await client.auth.confirmPasswordReset({
-  token: 'reset-token-from-email',
-  password: 'NewSecurePassword123'
-})
+  token: "reset-token-from-email",
+  password: "NewSecurePassword123",
+});
 ```
 
 ## Magic Links
 
-Enable magic links in configuration, then:
-
 ```typescript
-// Request magic link
-await client.auth.sendMagicLink({
-  email: 'user@example.com'
-})
-
-// User clicks link, automatically signed in
+await client.auth.sendMagicLink({ email: "user@example.com" });
+// User clicks link in email, automatically signed in
 ```
 
 ## OAuth / Social Login
 
-### Available Providers
+**Supported providers:** Google, GitHub, Microsoft, GitLab, Bitbucket, Facebook, Twitter/X, Discord, Slack
 
-- Google
-- GitHub
-- Microsoft
-- GitLab
-- Bitbucket
-- Facebook
-- Twitter/X
-- Discord
-- Slack
-
-### Configuration
+**Configuration:**
 
 ```yaml
 oauth:
@@ -175,220 +141,139 @@ oauth:
     client_id: "your-client-id"
     client_secret: "your-client-secret"
     redirect_url: "http://localhost:8080/api/v1/auth/callback/google"
-  github:
-    client_id: "your-client-id"
-    client_secret: "your-client-secret"
-    redirect_url: "http://localhost:8080/api/v1/auth/callback/github"
 ```
 
-### Usage
+**Usage:**
 
 ```typescript
-// Get authorization URL
 const { url } = await client.auth.getOAuthUrl({
-  provider: 'google',
-  redirectTo: 'http://localhost:3000/dashboard'
-})
-
-// Redirect user to authorization URL
-window.location.href = url
-
-// Handle callback (automatic)
-// User is redirected back with session tokens
+  provider: "google",
+  redirectTo: "http://localhost:3000/dashboard",
+});
+window.location.href = url;
+// User redirected back with session after authorization
 ```
 
 ## Anonymous Authentication
 
-Allow guest access without account creation:
-
 ```typescript
-const { user, session } = await client.auth.signInAnonymously()
-
-// User has limited permissions (configure via RLS)
-console.log('Anonymous user:', user.id)
+// Sign in without account
+const { user, session } = await client.auth.signInAnonymously();
 
 // Convert to permanent account later
 await client.auth.convertAnonymousUser({
-  email: 'user@example.com',
-  password: 'SecurePassword123'
-})
+  email: "user@example.com",
+  password: "SecurePassword123",
+});
 ```
 
 ## Two-Factor Authentication
 
-### Enable 2FA
-
 ```typescript
-// Generate TOTP secret
-const { secret, qr_code } = await client.auth.enable2FA()
+// Enable 2FA
+const { secret, qr_code } = await client.auth.enable2FA();
+await client.auth.verify2FA({ code: "123456" });
 
-// Display QR code to user for scanning with authenticator app
-console.log('Scan this QR code:', qr_code)
-
-// Verify setup with code from authenticator
-await client.auth.verify2FA({
-  code: '123456' // from authenticator app
-})
-```
-
-### Disable 2FA
-
-```typescript
-await client.auth.disable2FA({
-  code: '123456' // verification code
-})
-```
-
-### Sign In with 2FA
-
-```typescript
-// Initial sign in
-const { requires_2fa } = await client.auth.signIn({
-  email: 'user@example.com',
-  password: 'SecurePassword123'
-})
-
+// Sign in with 2FA
+const { requires_2fa } = await client.auth.signIn({ email, password });
 if (requires_2fa) {
-  // Prompt user for 2FA code
-  const { user, session } = await client.auth.verify2FACode({
-    code: '123456'
-  })
+  await client.auth.verify2FACode({ code: "123456" });
 }
+
+// Disable 2FA
+await client.auth.disable2FA({ code: "123456" });
 ```
 
 ## Session Management
 
-### List Active Sessions
-
 ```typescript
-const sessions = await client.auth.listSessions()
+// List sessions
+const sessions = await client.auth.listSessions();
 
-sessions.forEach(session => {
-  console.log('Session:', session.id)
-  console.log('Created:', session.created_at)
-  console.log('Last active:', session.last_active_at)
-  console.log('IP:', session.ip_address)
-  console.log('User agent:', session.user_agent)
-})
-```
-
-### Revoke Session
-
-```typescript
-// Revoke specific session
-await client.auth.revokeSession(session_id)
+// Revoke session
+await client.auth.revokeSession(session_id);
 
 // Revoke all other sessions (keep current)
-await client.auth.revokeAllSessions({ except_current: true })
+await client.auth.revokeAllSessions({ except_current: true });
 ```
 
 ## Token Refresh
 
-Tokens are automatically refreshed by the SDK. For manual refresh:
+Tokens are automatically refreshed by the SDK. Manual refresh:
 
 ```typescript
-const { session } = await client.auth.refreshSession()
-console.log('New token:', session.access_token)
+const { session } = await client.auth.refreshSession();
 ```
 
 ## Auth State Changes
 
-Listen to authentication state changes:
-
 ```typescript
 const subscription = client.auth.onAuthStateChange((event, session) => {
-  console.log('Auth event:', event)
   // Events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED
-
-  if (event === 'SIGNED_IN') {
-    console.log('User signed in:', session.user)
-  } else if (event === 'SIGNED_OUT') {
-    console.log('User signed out')
+  if (event === "SIGNED_IN") {
+    console.log("User signed in:", session.user);
   }
-})
+});
 
-// Unsubscribe when done
-subscription.unsubscribe()
+subscription.unsubscribe();
 ```
 
 ## User Metadata
 
-### Update User Metadata
-
 ```typescript
+// Update metadata
 await client.auth.updateUser({
-  metadata: {
-    name: 'John Doe',
-    avatar_url: 'https://example.com/avatar.jpg'
-  }
-})
-```
+  metadata: { name: "John Doe", avatar_url: "https://..." },
+});
 
-### Update Email
-
-```typescript
+// Update email
 await client.auth.updateEmail({
-  email: 'newemail@example.com',
-  password: 'CurrentPassword123' // confirmation required
-})
-// Verification email sent
-```
+  email: "newemail@example.com",
+  password: "current",
+});
 
-### Update Password
-
-```typescript
+// Update password
 await client.auth.updatePassword({
-  current_password: 'OldPassword123',
-  new_password: 'NewPassword123'
-})
+  current_password: "OldPassword123",
+  new_password: "NewPassword123",
+});
 ```
 
 ## API Keys
 
-Generate API keys for server-to-server authentication:
-
 ```typescript
-// Create API key
+// Create API key for server-to-server auth
 const { key, id } = await client.auth.createApiKey({
-  name: 'Production API',
-  expires_in: 86400 * 365 // 1 year in seconds
-})
+  name: "Production API",
+  expires_in: 86400 * 365,
+});
 
-// List API keys
-const keys = await client.auth.listApiKeys()
-
-// Revoke API key
-await client.auth.revokeApiKey(key_id)
-```
-
-Use API keys in requests:
-
-```typescript
+// Use API key
 const client = new FluxbaseClient({
-  url: 'http://localhost:8080',
-  apiKey: 'your-api-key'
-})
+  url: "http://localhost:8080",
+  apiKey: "your-api-key",
+});
+
+// Manage keys
+const keys = await client.auth.listApiKeys();
+await client.auth.revokeApiKey(key_id);
 ```
 
 ## Service Keys (Admin)
 
-Service keys bypass Row-Level Security and should only be used in backend services.
+Service keys bypass Row-Level Security. Use only in backend services.
 
 ```typescript
 const adminClient = new FluxbaseClient({
-  url: 'http://localhost:8080',
-  serviceKey: process.env.FLUXBASE_SERVICE_KEY
-})
+  url: "http://localhost:8080",
+  serviceKey: process.env.FLUXBASE_SERVICE_KEY,
+});
 
-// This bypasses RLS
-const allUsers = await adminClient.from('users').select('*')
+// Bypasses RLS
+const allUsers = await adminClient.from("users").select("*");
 ```
 
-**Security best practices:**
-- Store in secure secrets management
-- Use environment variables
-- Never expose in client code
-- Never commit to version control
+**Security:** Store in secrets management, use environment variables, never expose in client code.
 
 ## REST API
 

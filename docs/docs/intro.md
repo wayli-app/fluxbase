@@ -162,14 +162,19 @@ graph TB
 
     subgraph Fluxbase ["Fluxbase (Single Binary)"]
         API[REST API Layer]
-        Auth[Auth Service]
         RT[Realtime Engine]
+
+        Auth[Auth Service]
         Storage[Storage Service]
         Functions[Functions Runtime]
+        DB[Database Layer]
 
-        API --> DB[Database Layer]
-        Auth --> DB
+        API --> Auth
+        API --> Storage
+        API --> Functions
+        API --> DB
         RT --> DB
+        Auth --> DB
         Storage --> DB
         Functions --> DB
     end
