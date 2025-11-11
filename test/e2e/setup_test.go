@@ -214,6 +214,16 @@ func setupTestTables() {
 	// This must be done as postgres superuser since fluxbase_app doesn't own the schemas
 	grantRLSTestPermissions()
 
+	// Enable signup for all tests (settings are checked from database first, then config)
+	_, err = db.Exec(ctx, `
+		INSERT INTO dashboard.system_settings (key, value)
+		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb)
+		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
+	`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to enable signup in database settings")
+	}
+
 	log.Info().Msg("E2E test tables setup complete")
 }
 
