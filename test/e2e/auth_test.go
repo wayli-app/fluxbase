@@ -212,6 +212,13 @@ func TestAuthMagicLink(t *testing.T) {
 	defer tc.Close()
 	_ = tc.ClearMailHogEmails()
 
+	// Enable magic link via database settings
+	tc.ExecuteSQL(`
+		INSERT INTO dashboard.system_settings (key, value)
+		VALUES ('app.auth.enable_magic_link', '{"value": true}'::jsonb)
+		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
+	`)
+
 	email := "magic@example.com"
 
 	// Request magic link
@@ -277,8 +284,12 @@ func TestAuthSignupToggle(t *testing.T) {
 		tc := setupAuthTest(t)
 		defer tc.Close()
 
-		// Override config to disable signup
-		tc.Config.Auth.EnableSignup = false
+		// Disable signup via database settings (this is what the service checks)
+		tc.ExecuteSQL(`
+			INSERT INTO dashboard.system_settings (key, value)
+			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb)
+			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb
+		`)
 
 		// Try to signup
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -301,8 +312,12 @@ func TestAuthSignupToggle(t *testing.T) {
 		tc := setupAuthTest(t)
 		defer tc.Close()
 
-		// Ensure signup is enabled
-		tc.Config.Auth.EnableSignup = true
+		// Ensure signup is enabled via database settings
+		tc.ExecuteSQL(`
+			INSERT INTO dashboard.system_settings (key, value)
+			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb)
+			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
+		`)
 
 		// Try to signup
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").

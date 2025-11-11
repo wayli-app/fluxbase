@@ -254,6 +254,7 @@ func grantRLSTestPermissions() {
 		GRANT USAGE ON SCHEMA functions TO fluxbase_rls_test;
 		GRANT USAGE ON SCHEMA storage TO fluxbase_rls_test;
 		GRANT USAGE ON SCHEMA realtime TO fluxbase_rls_test;
+		GRANT USAGE ON SCHEMA _fluxbase TO fluxbase_rls_test;
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant schema permissions to fluxbase_rls_test user")
@@ -272,6 +273,8 @@ func grantRLSTestPermissions() {
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_rls_test;
 		GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_rls_test;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test;
+		GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_rls_test;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test;
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant table/sequence permissions to fluxbase_rls_test user")

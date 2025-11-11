@@ -150,7 +150,6 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		_, _ = s.db.Exec(ctx, `
 			UPDATE dashboard.users
 			SET failed_login_attempts = failed_login_attempts + 1,
-			    last_failed_login_at = NOW(),
 			    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END
 			WHERE id = $1
 		`, user.ID)
@@ -483,7 +482,7 @@ func (s *DashboardAuthService) GetUserByID(ctx context.Context, userID uuid.UUID
 // logActivity logs a dashboard user activity
 func (s *DashboardAuthService) logActivity(ctx context.Context, userID uuid.UUID, action, resourceType, resourceID string, ipAddress net.IP, userAgent string, metadata map[string]interface{}) {
 	_, _ = s.db.Exec(ctx, `
-		INSERT INTO dashboard.activity_log (user_id, action, resource_type, resource_id, ip_address, user_agent, metadata)
+		INSERT INTO dashboard.activity_log (user_id, action, resource_type, resource_id, ip_address, user_agent, details)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, userID, action, resourceType, resourceID, ipAddress.String(), userAgent, metadata)
 }

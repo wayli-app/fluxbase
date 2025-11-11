@@ -177,15 +177,15 @@ func (s *Storage) DeleteFunction(ctx context.Context, name string) error {
 func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution) error {
 	query := `
 		INSERT INTO functions.edge_function_executions (
-			function_id, trigger_type, trigger_payload, status, status_code,
-			duration_ms, result, logs, error_message, error_stack, completed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, executed_at
+			function_id, trigger_type, status, status_code,
+			duration_ms, result, logs, error_message, completed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, started_at
 	`
 
 	err := s.db.QueryRow(ctx, query,
-		exec.FunctionID, exec.TriggerType, exec.TriggerPayload, exec.Status, exec.StatusCode,
-		exec.DurationMs, exec.Result, exec.Logs, exec.ErrorMessage, exec.ErrorStack, exec.CompletedAt,
+		exec.FunctionID, exec.TriggerType, exec.Status, exec.StatusCode,
+		exec.DurationMs, exec.Result, exec.Logs, exec.ErrorMessage, exec.CompletedAt,
 	).Scan(&exec.ID, &exec.ExecutedAt)
 
 	if err != nil {
@@ -198,13 +198,13 @@ func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution)
 // GetExecutions returns execution history for a function
 func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit int) ([]EdgeFunctionExecution, error) {
 	query := `
-		SELECT e.id, e.function_id, e.trigger_type, e.trigger_payload, e.status, e.status_code,
-		       e.duration_ms, e.result, e.logs, e.error_message, e.error_stack,
-		       e.executed_at, e.completed_at
+		SELECT e.id, e.function_id, e.trigger_type, e.status, e.status_code,
+		       e.duration_ms, e.result, e.logs, e.error_message,
+		       e.started_at, e.completed_at
 		FROM functions.edge_function_executions e
 		JOIN functions.edge_functions f ON e.function_id = f.id
 		WHERE f.name = $1
-		ORDER BY e.executed_at DESC
+		ORDER BY e.started_at DESC
 		LIMIT $2
 	`
 
@@ -218,8 +218,8 @@ func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit 
 	for rows.Next() {
 		exec := EdgeFunctionExecution{}
 		err := rows.Scan(
-			&exec.ID, &exec.FunctionID, &exec.TriggerType, &exec.TriggerPayload, &exec.Status, &exec.StatusCode,
-			&exec.DurationMs, &exec.Result, &exec.Logs, &exec.ErrorMessage, &exec.ErrorStack,
+			&exec.ID, &exec.FunctionID, &exec.TriggerType, &exec.Status, &exec.StatusCode,
+			&exec.DurationMs, &exec.Result, &exec.Logs, &exec.ErrorMessage,
 			&exec.ExecutedAt, &exec.CompletedAt,
 		)
 		if err != nil {

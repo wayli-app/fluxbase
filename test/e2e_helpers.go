@@ -866,7 +866,7 @@ func (tc *TestContext) QuerySQLAsRLSUser(sql string, userID string, args ...inte
 	ctx := context.Background()
 
 	// Create a temporary connection as fluxbase_rls_test user (no BYPASSRLS)
-	connStr := fmt.Sprintf("host=%s port=%d user=fluxbase_rls_test password=fluxbase_rls_test dbname=%s sslmode=disable",
+	connStr := fmt.Sprintf("host=%s port=%d user=fluxbase_rls_test password=fluxbase_rls_test_password dbname=%s sslmode=disable",
 		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
 
 	conn, err := pgx.Connect(ctx, connStr)
