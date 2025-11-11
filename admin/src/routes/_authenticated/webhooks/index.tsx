@@ -45,11 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { Search as SearchComponent } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
-import { ConfigDrawer } from '@/components/config-drawer'
 import { webhooksApi, databaseApi, type WebhookDelivery, type WebhookType, type EventConfig } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/webhooks/')({
@@ -226,23 +221,16 @@ function WebhooksPage() {
   }
 
   return (
-    <>
-      <Header fixed>
-        <SearchComponent />
-        <div className='ms-auto flex items-center space-x-4'>
-          <ThemeSwitch />
-          <ConfigDrawer />
-        </div>
-      </Header>
-
-      <Main>
-        <div className='space-y-4'>
-          <div>
-            <h1 className='text-3xl font-bold tracking-tight'>Webhooks</h1>
-            <p className='text-muted-foreground'>
-              Configure webhooks to receive real-time event notifications
-            </p>
-          </div>
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Webhook className="h-8 w-8" />
+          Webhooks
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Configure webhooks to receive real-time event notifications
+        </p>
+      </div>
 
       {/* Stats Cards */}
       <div className='grid gap-4 md:grid-cols-3'>
@@ -641,8 +629,6 @@ function WebhooksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        </div>
-      </Main>
-    </>
+    </div>
   )
 }

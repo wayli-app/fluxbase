@@ -81,44 +81,28 @@ clean: ## Clean build artifacts
 	@echo "${GREEN}Clean complete!${NC}"
 
 test: ## Run all tests with race detector (short mode - skips slow tests, excludes e2e)
-	@echo "${YELLOW}Running tests with race detector (short mode)...${NC}"
-	@go test -timeout 2m -v -race -short -cover $(shell go list ./... | grep -v '/test/e2e')
-	@echo "${GREEN}Tests complete!${NC}"
+	@./scripts/test-runner.sh go test -timeout 2m -v -race -short -cover $(shell go list ./... | grep -v '/test/e2e')
 
 test-fast: ## Run all tests without race detector (faster, excludes e2e)
-	@echo "${YELLOW}Running tests (fast mode)...${NC}"
-	@go test -timeout 1m -v -short -cover $(shell go list ./... | grep -v '/test/e2e')
-	@echo "${GREEN}Tests complete!${NC}"
+	@./scripts/test-runner.sh go test -timeout 1m -v -short -cover $(shell go list ./... | grep -v '/test/e2e')
 
 test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minutes)
-	@echo "${YELLOW}Running full test suite with race detector...${NC}"
-	@go test -timeout 15m -v -race -cover ./...
-	@echo "${GREEN}Full test suite complete!${NC}"
+	@./scripts/test-runner.sh go test -timeout 15m -v -race -cover ./...
 
 test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
-	@echo "${YELLOW}Running e2e tests...${NC}"
-	@go test -v -race -timeout=5m ./test/e2e/...
-	@echo "${GREEN}E2E tests complete!${NC}"
+	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/...
 
 test-auth: ## Run authentication tests only
-	@echo "${YELLOW}Running authentication tests...${NC}"
-	@go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
-	@echo "${GREEN}Authentication tests complete!${NC}"
+	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
 
 test-rls: ## Run RLS security tests only
-	@echo "${YELLOW}Running RLS security tests...${NC}"
-	@go test -v -race -timeout=5m ./test/e2e/ -run TestRLS
-	@echo "${GREEN}RLS tests complete!${NC}"
+	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestRLS
 
 test-rest: ## Run REST API tests only
-	@echo "${YELLOW}Running REST API tests...${NC}"
-	@go test -v -race -timeout=5m ./test/e2e/ -run TestREST
-	@echo "${GREEN}REST API tests complete!${NC}"
+	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestREST
 
 test-storage: ## Run storage tests only
-	@echo "${YELLOW}Running storage tests...${NC}"
-	@go test -v -race -timeout=5m ./test/e2e/ -run TestStorage
-	@echo "${GREEN}Storage tests complete!${NC}"
+	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestStorage
 
 test-sdk: ## Run SDK tests (TypeScript)
 	@echo "${YELLOW}Running SDK tests...${NC}"

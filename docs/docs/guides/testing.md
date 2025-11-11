@@ -226,14 +226,14 @@ describe("FluxbaseAuth", () => {
 
     it("should handle sign up errors", async () => {
       vi.mocked(mockFetch.post).mockRejectedValue(
-        new Error("Email already exists"),
+        new Error("Email already exists")
       );
 
       await expect(
         auth.signUp({
           email: "test@example.com",
           password: "password123",
-        }),
+        })
       ).rejects.toThrow("Email already exists");
     });
   });
@@ -414,7 +414,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_PASSWORD: postgres
         options: >-

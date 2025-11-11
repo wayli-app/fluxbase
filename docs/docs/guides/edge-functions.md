@@ -222,6 +222,38 @@ async function handler(req) {
 }
 ```
 
+**How it works:**
+1. Fluxbase validates the JWT token in the `Authorization` header
+2. User context (id, email, role) is extracted from the token
+3. User info is injected into request headers (`x-user-id`, `x-user-email`)
+4. Function handler receives the request with user context
+5. Handler can use user info for authorization and data filtering
+
+## Handler Execution Flow
+
+```mermaid
+graph TB
+    A[HTTP Request] --> B[Initialize Deno Runtime]
+    B --> C[Load Function Code]
+    C --> D[Apply Permissions<br/>net, env, read, write]
+    D --> E[Execute handler req]
+    E --> F{Success?}
+    F -->|Yes| G[Return Response Object]
+    F -->|Error| H[Return Error Response]
+    G --> I[HTTP Response to Client]
+    H --> I
+
+    style B fill:#000,color:#fff
+    style D fill:#ff6b6b,color:#fff
+```
+
+**Execution steps:**
+1. Initialize Deno runtime with configured permissions
+2. Load the function code into the sandbox
+3. Apply security permissions (net, env, read, write)
+4. Execute the handler with the request object
+5. Return the response to the client
+
 ## Deployment Methods
 
 ### 1. SDK Deployment

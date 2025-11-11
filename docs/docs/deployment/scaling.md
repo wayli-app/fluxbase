@@ -68,6 +68,297 @@ autoscaling:
   targetMemory: 80
 ```
 
+### Horizontal Scaling Requirements
+
+To scale Fluxbase horizontally across multiple instances, you need to ensure all stateful components are externalized and shared:
+
+#### Prerequisites Checklist
+
+✅ **External PostgreSQL Database**
+- Cannot use embedded/local PostgreSQL
+- Must be accessible by all Fluxbase instances
+- Configure with `DATABASE_URL` environment variable
+- **Note**: PostgreSQL also stores authentication sessions (shared across all instances)
+
+✅ **S3-Compatible Object Storage (MinIO/AWS S3/DigitalOcean Spaces)**
+- Cannot use local filesystem storage (`provider: local`)
+- Must configure S3 provider for shared storage
+- All instances must access the same S3 bucket
+
+✅ **Load Balancer with Session Stickiness**
+- Required for WebSocket connections (realtime subscriptions)
+- Configure sticky sessions based on source IP or cookies
+- Ensures WebSocket connections remain on the same instance
+
+#### Current Limitations
+
+⚠️ **Per-Instance State** (not shared across instances):
+- **Rate limiting**: Request counters are stored in-memory per instance
+- **CSRF tokens**: Anti-CSRF tokens are stored in-memory per instance
+- Session stickiness helps mitigate these limitations for individual users
+
+💡 **Future Enhancement**: Redis support planned to enable:
+- Shared rate limiting across all instances
+- Shared CSRF token validation
+- Faster session lookups (compared to PostgreSQL)
+
+#### Configuration Example
+
+```bash
+# Fluxbase environment variables for horizontal scaling
+DATABASE_URL=postgres://user:pass@postgres.example.com:5432/fluxbase
+
+# S3 Storage (required)
+FLUXBASE_STORAGE_PROVIDER=s3
+FLUXBASE_STORAGE_S3_ENDPOINT=minio.example.com:9000
+FLUXBASE_STORAGE_S3_ACCESS_KEY=minioadmin
+FLUXBASE_STORAGE_S3_SECRET_KEY=minioadmin
+FLUXBASE_STORAGE_S3_REGION=us-east-1
+FLUXBASE_STORAGE_S3_BUCKET=fluxbase
+```
+
+#### Load Balancer Configuration
+
+**Nginx with Session Stickiness for Realtime:**
+
+```nginx
+upstream fluxbase_backend {
+    # Use IP hash for WebSocket sticky sessions
+    ip_hash;
+
+    server fluxbase-1:8080 max_fails=3 fail_timeout=30s;
+    server fluxbase-2:8080 max_fails=3 fail_timeout=30s;
+    server fluxbase-3:8080 max_fails=3 fail_timeout=30s;
+
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.example.com;
+
+    location / {
+        proxy_pass http://fluxbase_backend;
+        proxy_http_version 1.1;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Sticky session headers
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # Health check fallback
+        proxy_next_upstream error timeout http_500 http_502 http_503;
+    }
+}
+```
+
+**HAProxy with Sticky Sessions:**
+
+```haproxy
+frontend fluxbase_front
+    bind *:443 ssl crt /etc/ssl/certs/fluxbase.pem
+    default_backend fluxbase_back
+
+backend fluxbase_back
+    balance leastconn
+    option httpchk GET /health
+    http-check expect status 200
+
+    # Sticky sessions based on source IP
+    stick-table type ip size 100k expire 30m
+    stick on src
+
+    server fluxbase1 10.0.1.10:8080 check inter 5s rise 2 fall 3
+    server fluxbase2 10.0.1.11:8080 check inter 5s rise 2 fall 3
+    server fluxbase3 10.0.1.12:8080 check inter 5s rise 2 fall 3
+```
+
+#### Docker Compose Multi-Instance Example
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: fluxbase
+      POSTGRES_USER: fluxbase
+      POSTGRES_PASSWORD: secure-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+
+  fluxbase-1:
+    image: ghcr.io/wayli-app/fluxbase:latest
+    environment:
+      DATABASE_URL: postgres://fluxbase:secure-password@postgres:5432/fluxbase
+      FLUXBASE_STORAGE_PROVIDER: s3
+      FLUXBASE_STORAGE_S3_ENDPOINT: minio:9000
+      FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_USE_SSL: "false"
+      FLUXBASE_STORAGE_S3_BUCKET: fluxbase
+    depends_on:
+      - postgres
+      - minio
+
+  fluxbase-2:
+    image: ghcr.io/wayli-app/fluxbase:latest
+    environment:
+      DATABASE_URL: postgres://fluxbase:secure-password@postgres:5432/fluxbase
+      FLUXBASE_STORAGE_PROVIDER: s3
+      FLUXBASE_STORAGE_S3_ENDPOINT: minio:9000
+      FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+      FLUXBASE_STORAGE_S3_USE_SSL: "false"
+      FLUXBASE_STORAGE_S3_BUCKET: fluxbase
+    depends_on:
+      - postgres
+      - minio
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - fluxbase-1
+      - fluxbase-2
+
+volumes:
+  postgres_data:
+  minio_data:
+```
+
+#### Kubernetes Multi-Instance Example
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluxbase
+  namespace: fluxbase
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fluxbase
+  template:
+    metadata:
+      labels:
+        app: fluxbase
+    spec:
+      containers:
+        - name: fluxbase
+          image: ghcr.io/wayli-app/fluxbase:latest
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: fluxbase-secrets
+                  key: database-url
+            - name: FLUXBASE_STORAGE_PROVIDER
+              value: "s3"
+            - name: FLUXBASE_STORAGE_S3_ENDPOINT
+              value: "minio.storage.svc.cluster.local:9000"
+            - name: FLUXBASE_STORAGE_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secrets
+                  key: access-key
+            - name: FLUXBASE_STORAGE_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secrets
+                  key: secret-key
+            - name: FLUXBASE_STORAGE_S3_BUCKET
+              value: "fluxbase"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluxbase
+  namespace: fluxbase
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP  # Sticky sessions for WebSocket
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  selector:
+    app: fluxbase
+  ports:
+    - port: 8080
+      targetPort: 8080
+```
+
+#### Architecture Diagram
+
+```mermaid
+graph TB
+    A[Client 1] -->|HTTPS| LB[Load Balancer<br/>Session Stickiness]
+    B[Client 2] -->|HTTPS| LB
+    C[Client 3] -->|HTTPS| LB
+
+    LB -->|Sticky Session| FB1[Fluxbase Instance 1]
+    LB -->|Sticky Session| FB2[Fluxbase Instance 2]
+    LB -->|Sticky Session| FB3[Fluxbase Instance 3]
+
+    FB1 -->|SQL + Sessions| DB[(PostgreSQL<br/>Shared Database)]
+    FB2 -->|SQL + Sessions| DB
+    FB3 -->|SQL + Sessions| DB
+
+    FB1 -->|S3 API| S3[MinIO / S3<br/>Shared Storage]
+    FB2 -->|S3 API| S3
+    FB3 -->|S3 API| S3
+
+    style LB fill:#ff6b6b,color:#fff
+    style FB1 fill:#3178c6,color:#fff
+    style FB2 fill:#3178c6,color:#fff
+    style FB3 fill:#3178c6,color:#fff
+    style DB fill:#336791,color:#fff
+    style S3 fill:#c92a2a,color:#fff
+```
+
+**Key Points:**
+- Each Fluxbase instance shares state via external PostgreSQL and S3/MinIO
+- **PostgreSQL** stores: Database records + authentication sessions + token blacklist
+- **MinIO/S3** stores: User-uploaded files and objects
+- Load balancer uses session stickiness to route WebSocket connections consistently
+- Rate limiting and CSRF tokens are per-instance (not shared)
+
+#### Why Session Stickiness for Realtime?
+
+Fluxbase uses PostgreSQL's `LISTEN/NOTIFY` for realtime subscriptions. Each instance maintains its own PostgreSQL connection and LISTEN channel. When a database change occurs:
+
+1. PostgreSQL broadcasts `pg_notify()` to **all** connected instances
+2. Each instance forwards the notification to its connected WebSocket clients
+3. If a client's WebSocket connection is on Instance 1, only Instance 1 can send the update to that client
+
+Without sticky sessions, a client might establish a WebSocket on Instance 1, but subsequent requests could route to Instance 2, breaking the realtime connection.
+
+**Alternative:** Implement Redis Pub/Sub for realtime (future feature) to eliminate the need for sticky sessions.
+
 ---
 
 ## Application Scaling

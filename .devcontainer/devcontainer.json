@@ -4,6 +4,7 @@
   "service": "app",
   "workspaceFolder": "/workspace",
   "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "moby": true,
       "installDockerBuildx": true,
@@ -108,7 +109,6 @@
   "forwardPorts": [
     8080,
     5173,
-    5432,
     5050,
     3000,
     6379,
@@ -127,10 +127,6 @@
       "label": "Admin UI (Dev)",
       "onAutoForward": "notify",
       "requireLocalPort": false
-    },
-    "5432": {
-      "label": "PostgreSQL",
-      "onAutoForward": "silent"
     },
     "5050": {
       "label": "pgAdmin",

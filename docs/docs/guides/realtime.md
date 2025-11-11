@@ -208,6 +208,62 @@ Fluxbase uses PostgreSQL's LISTEN/NOTIFY system:
 
 This architecture is lightweight and scales well for moderate traffic.
 
+```mermaid
+graph LR
+    A[Client App] -->|WebSocket| B[Fluxbase Server]
+    B -->|LISTEN| C[(PostgreSQL)]
+    C -->|pg_notify| B
+    D[Database Trigger] -->|INSERT/UPDATE/DELETE| C
+    B -->|Broadcast| A
+    B -->|Broadcast| E[Client App 2]
+    B -->|Broadcast| F[Client App 3]
+
+    style C fill:#336791,color:#fff
+    style B fill:#3178c6,color:#fff
+```
+
+### Single-Instance Architecture
+
+In a single-instance deployment, all WebSocket connections are handled by one Fluxbase server. This is the default setup and works well for most use cases.
+
+### Multi-Instance Architecture (Horizontal Scaling)
+
+For horizontal scaling with multiple Fluxbase instances, you need session stickiness at the load balancer level to ensure WebSocket connections remain on the same instance:
+
+```mermaid
+graph TB
+    A[Client 1] -->|WebSocket| LB[Load Balancer<br/>Session Stickiness]
+    B[Client 2] -->|WebSocket| LB
+    C[Client 3] -->|WebSocket| LB
+
+    LB -->|Sticky to Instance 1| FB1[Fluxbase Instance 1]
+    LB -->|Sticky to Instance 2| FB2[Fluxbase Instance 2]
+    LB -->|Sticky to Instance 3| FB3[Fluxbase Instance 3]
+
+    FB1 -->|LISTEN| DB[(PostgreSQL)]
+    FB2 -->|LISTEN| DB
+    FB3 -->|LISTEN| DB
+
+    DB -->|pg_notify broadcasts<br/>to all instances| FB1
+    DB -->|pg_notify broadcasts<br/>to all instances| FB2
+    DB -->|pg_notify broadcasts<br/>to all instances| FB3
+
+    style DB fill:#336791,color:#fff
+    style FB1 fill:#3178c6,color:#fff
+    style FB2 fill:#3178c6,color:#fff
+    style FB3 fill:#3178c6,color:#fff
+    style LB fill:#ff6b6b,color:#fff
+```
+
+**Key points for horizontal scaling:**
+- Each Fluxbase instance maintains its own PostgreSQL LISTEN connection
+- PostgreSQL broadcasts `pg_notify()` to **all** listening instances simultaneously
+- Load balancer uses session stickiness (source IP or cookie-based) to route each client to the same Fluxbase instance
+- Requires external PostgreSQL (which also stores authentication sessions shared across instances)
+- Sessions work across instances; rate limiting and CSRF are per-instance
+
+See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for configuration details.
+
 ## Connection Management
 
 **Auto-reconnect:** SDK automatically reconnects on connection loss

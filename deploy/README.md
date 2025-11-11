@@ -4,10 +4,48 @@ This directory contains everything you need to deploy Fluxbase in various enviro
 
 ## Quick Start
 
-### Local Development (Docker Compose)
+### Option 1: Minimal Setup (Recommended for Getting Started)
+
+The simplest way to get Fluxbase running with just PostgreSQL and local storage:
 
 ```bash
-# Start all services (PostgreSQL + MinIO + Fluxbase)
+# 1. Navigate to deploy directory
+cd deploy
+
+# 2. Copy the environment file
+cp .env.example .env
+
+# 3. Generate a secure JWT secret
+openssl rand -base64 32
+
+# 4. Edit .env and update FLUXBASE_AUTH_JWT_SECRET with the generated value
+nano .env  # or use your preferred editor
+
+# 5. Start with minimal setup (no MinIO, just PostgreSQL + Fluxbase)
+docker-compose -f docker-compose.minimal.yml up -d
+
+# 6. Check status
+docker-compose -f docker-compose.minimal.yml ps
+
+# 7. View logs
+docker-compose -f docker-compose.minimal.yml logs -f fluxbase
+
+# 8. Access Fluxbase
+open http://localhost:8080
+```
+
+**What you get:**
+- PostgreSQL 18 database
+- Fluxbase API server
+- Local file storage
+- Auto-configured with sane defaults
+
+### Option 2: Standard Development Setup
+
+Includes PostgreSQL and local storage (MinIO commented out, enable if needed):
+
+```bash
+# Start with standard setup
 cd deploy
 docker-compose up -d
 
@@ -19,14 +57,14 @@ docker-compose logs -f fluxbase
 
 # Access Fluxbase
 open http://localhost:8080
-open http://localhost:8080/admin  # Admin UI
 ```
 
-**Default Credentials:**
+**Default Configuration:**
 
-- PostgreSQL 18: `fluxbase/fluxbase`
-- MinIO: `minioadmin/minioadmin`
-- JWT Secret: `your-super-secret-jwt-key-change-me-in-production`
+- PostgreSQL: `fluxbase/fluxbase` (customize in .env)
+- Storage: Local filesystem (MinIO available but disabled by default)
+- JWT Secret: Must be changed in .env before production use
+- Base URL: http://localhost:8080
 
 ### Production (Kubernetes with Helm)
 
@@ -69,9 +107,10 @@ docker-compose up -d
 
 **Docker Compose Variants:**
 
-- `docker-compose.yml` - Development setup with PostgreSQL 18, MinIO, MailHog
-- `docker-compose.production.yml` - Full production stack with monitoring
-- `docker-compose.external-db.yml` - For use with external PostgreSQL database
+- `docker-compose.minimal.yml` - **Simplest setup** with just PostgreSQL + Fluxbase (recommended for getting started)
+- `docker-compose.yml` - Standard setup with PostgreSQL + Fluxbase (MinIO optional, commented out)
+- `docker-compose.production.yml` - Full production stack with monitoring, Redis, Prometheus, Grafana
+- `docker-compose.external-db.yml` - For use with external/managed PostgreSQL database
 
 **Using External Database:**
 
@@ -84,19 +123,46 @@ cp .env.example .env
 docker-compose -f docker-compose.external-db.yml up -d
 ```
 
-**Configuration:**
-Edit `docker-compose.yml` to customize:
+**Enabling MinIO (S3-compatible storage):**
 
-- Database credentials
-- Storage provider (local or S3/MinIO)
-- JWT secret
+If you want to use S3-compatible storage instead of local filesystem:
+
+1. Edit `docker-compose.yml` and uncomment the `minio` service (lines 24-45)
+2. Uncomment the MinIO dependency in the `fluxbase` service (lines 108-109)
+3. Uncomment the `minio_data` volume (lines 132-133)
+4. Update Fluxbase environment variables to use S3:
+   ```yaml
+   FLUXBASE_STORAGE_PROVIDER: s3
+   FLUXBASE_STORAGE_S3_BUCKET: fluxbase
+   FLUXBASE_STORAGE_S3_REGION: us-east-1
+   FLUXBASE_STORAGE_S3_ENDPOINT: http://minio:9000
+   FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
+   FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+   FLUXBASE_STORAGE_S3_USE_SSL: false
+   ```
+5. Create the bucket after starting MinIO:
+   ```bash
+   # Access MinIO console at http://localhost:9001
+   # Login: minioadmin/minioadmin
+   # Create bucket named 'fluxbase'
+   ```
+
+**Configuration:**
+
+All configuration can be done via `.env` file or by editing environment variables in the compose files:
+
+- Database credentials (POSTGRES_USER, POSTGRES_PASSWORD)
+- Storage provider (FLUXBASE_STORAGE_PROVIDER: local or s3)
+- JWT secret (FLUXBASE_AUTH_JWT_SECRET - **required**)
+- Base URL (FLUXBASE_BASE_URL)
 - Port mappings
+- Debug mode (FLUXBASE_DEBUG)
 
 **Stopping:**
 
 ```bash
 docker-compose down          # Stop services
-docker-compose down -v       # Stop and remove volumes
+docker-compose down -v       # Stop and remove volumes (deletes data!)
 ```
 
 ### 2. Kubernetes with Helm (Recommended for Production)

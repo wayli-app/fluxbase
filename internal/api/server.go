@@ -45,7 +45,7 @@ type Server struct {
 	oauthProviderHandler  *OAuthProviderHandler
 	oauthHandler          *OAuthHandler
 	systemSettingsHandler *SystemSettingsHandler
-	appSettingsHandler    *AppSettingsHandler
+	emailTemplateHandler  *EmailTemplateHandler
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
@@ -124,7 +124,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
-	appSettingsHandler := NewAppSettingsHandler(systemSettingsService)
+	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
 	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
 	functionsScheduler := functions.NewScheduler(db.Pool())
@@ -160,7 +160,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		oauthProviderHandler:  oauthProviderHandler,
 		oauthHandler:          oauthHandler,
 		systemSettingsHandler: systemSettingsHandler,
-		appSettingsHandler:    appSettingsHandler,
+		emailTemplateHandler:  emailTemplateHandler,
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
@@ -500,10 +500,12 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Put("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
 	router.Delete("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
 
-	// App settings routes (require admin or dashboard_admin role)
-	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)
-	router.Put("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.UpdateAppSettings)
-	router.Post("/app/settings/reset", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.ResetAppSettings)
+	// Email template routes (require admin or dashboard_admin role)
+	router.Get("/email/templates", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ListTemplates)
+	router.Get("/email/templates/:type", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.GetTemplate)
+	router.Put("/email/templates/:type", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.UpdateTemplate)
+	router.Post("/email/templates/:type/reset", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ResetTemplate)
+	router.Post("/email/templates/:type/test", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.TestTemplate)
 
 	// User management routes (require admin or dashboard_admin role)
 	router.Get("/users", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.ListUsers)

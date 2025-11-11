@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { TopNav } from '@/components/layout/top-nav'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { FluxbaseStats } from './components/fluxbase-stats'
@@ -19,7 +18,6 @@ export function Dashboard() {
     <>
       {/* ===== Top Heading ===== */}
       <Header>
-        <TopNav links={topNav} />
         <div className='ms-auto flex items-center space-x-4'>
           <Search />
           <ThemeSwitch />
@@ -106,30 +104,3 @@ export function Dashboard() {
     </>
   )
 }
-
-const topNav = [
-  {
-    title: 'Overview',
-    href: '/',
-    isActive: true,
-    disabled: false,
-  },
-  {
-    title: 'Tables',
-    href: '/tables',
-    isActive: false,
-    disabled: false,
-  },
-  {
-    title: 'Users',
-    href: '/users',
-    isActive: false,
-    disabled: false,
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    isActive: false,
-    disabled: false,
-  },
-]

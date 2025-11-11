@@ -124,7 +124,7 @@ jobs:
     needs: [test-sdk]
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -183,7 +183,7 @@ jobs:
 
           # Restart PostgreSQL to apply settings
           # Find the container ID for postgres service and restart it
-          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:17-alpine" --format "{{.ID}}")
+          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:18-alpine" --format "{{.ID}}")
           docker restart $POSTGRES_CONTAINER
 
           # Wait for postgres to be ready after restart

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Key, Settings, Users, Loader2, X, Check, AlertCircle } from 'lucide-react'
+import { Key, Settings, Users, Loader2, X, Check, AlertCircle, Shield } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -27,11 +27,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns'
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
-import { ConfigDrawer } from '@/components/config-drawer'
 import api, { oauthProviderApi, authSettingsApi, type OAuthProviderConfig, type CreateOAuthProviderRequest, type UpdateOAuthProviderRequest, type AuthSettings } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/authentication/')({
@@ -55,25 +50,16 @@ function AuthenticationPage() {
   const [selectedTab, setSelectedTab] = useState('providers')
 
   return (
-    <>
-      <Header fixed>
-        <Search />
-        <div className='ms-auto flex items-center space-x-4'>
-          <ThemeSwitch />
-          <ConfigDrawer />
-        </div>
-      </Header>
-
-      <Main>
-        <div className='flex flex-1 flex-col gap-4'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <h1 className='text-3xl font-bold'>Authentication</h1>
-              <p className='text-muted-foreground'>
-                Manage OAuth providers, auth settings, and user sessions
-              </p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Shield className="h-8 w-8" />
+          Authentication
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Manage OAuth providers, auth settings, and user sessions
+        </p>
+      </div>
 
           <Tabs value={selectedTab} onValueChange={setSelectedTab} className='w-full'>
             <TabsList className='grid w-full grid-cols-3'>
@@ -103,9 +89,7 @@ function AuthenticationPage() {
               <ActiveSessionsTab />
             </TabsContent>
           </Tabs>
-        </div>
-      </Main>
-    </>
+    </div>
   )
 }
 
@@ -649,6 +633,45 @@ function AuthSettingsTab() {
 
   return (
     <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>Authentication Methods</CardTitle>
+          <CardDescription>Enable or disable authentication methods</CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <div>
+              <Label htmlFor='enableSignup'>Enable User Signup</Label>
+              <p className='text-sm text-muted-foreground'>
+                Allow new users to register accounts
+              </p>
+            </div>
+            <Switch
+              id='enableSignup'
+              checked={settings.enable_signup}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, enable_signup: checked })
+              }
+            />
+          </div>
+          <div className='flex items-center justify-between'>
+            <div>
+              <Label htmlFor='enableMagicLink'>Enable Magic Link</Label>
+              <p className='text-sm text-muted-foreground'>
+                Allow users to sign in via email magic links
+              </p>
+            </div>
+            <Switch
+              id='enableMagicLink'
+              checked={settings.enable_magic_link}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, enable_magic_link: checked })
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Password Requirements</CardTitle>

@@ -32,6 +32,7 @@
 //   - ExecuteSQLAsSuperuser() - Execute as postgres superuser
 //   - QuerySQL() - Query as fluxbase_app
 //   - QuerySQLAsSuperuser() - Query as postgres superuser
+//   - QuerySQLAsRLSUser() - Query as fluxbase_rls_test with RLS enforced
 //
 // Email Testing:
 //   - GetMailHogEmails() - Get all emails
@@ -746,6 +747,17 @@ func convertPgTypeToGoType(v interface{}) interface{} {
 		return nil
 	}
 
+	// Handle UUID byte array (from pgx v5 rows.Values())
+	if bytes, ok := v.([16]uint8); ok {
+		// Convert UUID bytes to standard string format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+		return fmt.Sprintf("%x-%x-%x-%x-%x",
+			bytes[0:4],
+			bytes[4:6],
+			bytes[6:8],
+			bytes[8:10],
+			bytes[10:16])
+	}
+
 	// Handle common pgtype conversions
 	switch val := v.(type) {
 	case pgtype.Numeric:
@@ -773,7 +785,13 @@ func convertPgTypeToGoType(v interface{}) interface{} {
 		if !val.Valid {
 			return nil
 		}
-		return val.Bytes[:]
+		// Convert UUID bytes to standard string format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+		return fmt.Sprintf("%x-%x-%x-%x-%x",
+			val.Bytes[0:4],
+			val.Bytes[4:6],
+			val.Bytes[6:8],
+			val.Bytes[8:10],
+			val.Bytes[10:16])
 	case pgtype.Timestamp:
 		if !val.Valid {
 			return nil
@@ -821,6 +839,77 @@ func (tc *TestContext) QuerySQLAsSuperuser(sql string, args ...interface{}) []ma
 
 		results = append(results, row)
 	}
+
+	return results
+}
+
+// QuerySQLAsRLSUser executes a SQL query as the fluxbase_rls_test user with RLS enforced
+// This simulates a regular authenticated user with a specific user_id and role
+//
+// Parameters:
+//   - sql: The SQL query to execute
+//   - userID: The user ID to set in RLS context (will be set as app.user_id)
+//   - args: Optional query arguments
+//
+// The RLS context is set with:
+//   - app.user_id = userID parameter
+//   - app.role = 'authenticated'
+//
+// Use this to test that RLS policies correctly restrict data access.
+//
+// Example:
+//
+//	// Test that user1 cannot see user2's records
+//	records := tc.QuerySQLAsRLSUser(`SELECT * FROM tasks WHERE user_id = $1`, user1ID, user2ID)
+//	require.Len(t, records, 0, "User1 should not see User2's tasks")
+func (tc *TestContext) QuerySQLAsRLSUser(sql string, userID string, args ...interface{}) []map[string]interface{} {
+	ctx := context.Background()
+
+	// Create a temporary connection as fluxbase_rls_test user (no BYPASSRLS)
+	connStr := fmt.Sprintf("host=%s port=%d user=fluxbase_rls_test password=fluxbase_rls_test dbname=%s sslmode=disable",
+		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	require.NoError(tc.T, err, "Failed to connect as RLS test user")
+	defer conn.Close(ctx)
+
+	// Begin a transaction to set RLS context
+	tx, err := conn.Begin(ctx)
+	require.NoError(tc.T, err, "Failed to begin transaction")
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Set RLS context variables (these affect RLS policy checks)
+	// Set app.user_id for the current user
+	_, err = tx.Exec(ctx, "SELECT set_config('app.user_id', $1, true)", userID)
+	require.NoError(tc.T, err, "Failed to set app.user_id")
+
+	// Set app.role to 'authenticated' (regular authenticated user)
+	_, err = tx.Exec(ctx, "SELECT set_config('app.role', 'authenticated', true)")
+	require.NoError(tc.T, err, "Failed to set app.role")
+
+	// Execute the query with RLS context applied
+	rows, err := tx.Query(ctx, sql, args...)
+	require.NoError(tc.T, err, "Failed to query as RLS user")
+	defer rows.Close()
+
+	results := make([]map[string]interface{}, 0)
+
+	for rows.Next() {
+		values, err := rows.Values()
+		require.NoError(tc.T, err)
+
+		row := make(map[string]interface{})
+		for i, col := range rows.FieldDescriptions() {
+			// Convert pgtype values to standard Go types for easier testing
+			row[string(col.Name)] = convertPgTypeToGoType(values[i])
+		}
+
+		results = append(results, row)
+	}
+
+	// Commit transaction (though we're only reading)
+	err = tx.Commit(ctx)
+	require.NoError(tc.T, err, "Failed to commit transaction")
 
 	return results
 }

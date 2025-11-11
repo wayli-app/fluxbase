@@ -17,11 +17,13 @@ This directory contains the comprehensive test suite for Fluxbase. This guide wi
 ## Test Categories
 
 ### 1. Unit Tests
+
 **Location**: `/test/unit/` and `/internal/*/`
 **Speed**: Very fast (milliseconds)
 **Dependencies**: None (pure functions, mocks)
 
 Tests individual functions in isolation:
+
 - Password hashing and validation
 - JWT token generation/validation
 - API key generation
@@ -31,11 +33,13 @@ Tests individual functions in isolation:
 **Run with**: `make test` (includes `-short` flag)
 
 ### 2. Integration Tests
+
 **Location**: `/internal/*/` (skipped in short mode)
 **Speed**: Moderate (hundreds of milliseconds)
 **Dependencies**: Specific services (MailHog, MinIO, PostgreSQL)
 
 Tests component interactions:
+
 - Email sending via SMTP with MailHog
 - Storage operations with MinIO
 - Database query execution
@@ -44,11 +48,13 @@ Tests component interactions:
 **Run with**: `make test-full`
 
 ### 3. E2E Tests
+
 **Location**: `/test/e2e/`
 **Speed**: Slow (seconds per test)
 **Dependencies**: ALL services (PostgreSQL, MailHog, MinIO, Fiber app)
 
 Tests complete user workflows from HTTP request to database:
+
 - Authentication flows (signup → signin → profile → reset)
 - REST API CRUD operations
 - Row-Level Security policies
@@ -60,6 +66,7 @@ Tests complete user workflows from HTTP request to database:
 **Run with**: `make test-e2e` or `make test-full`
 
 ### 4. Load Tests
+
 **Location**: `/test/load/` (K6 scripts)
 **Purpose**: Performance testing and capacity planning
 
@@ -139,6 +146,7 @@ tc := test.NewTestContext(t)
 **Privilege**: Has **BYPASSRLS** (Row-Level Security is NOT enforced)
 
 **Use for**:
+
 - ✅ General REST API testing
 - ✅ Authentication flows
 - ✅ Storage operations
@@ -156,6 +164,7 @@ tc := test.NewRLSTestContext(t)
 **Privilege**: Does **NOT** have BYPASSRLS (Row-Level Security IS enforced)
 
 **Use for**:
+
 - ✅ Testing RLS policies
 - ✅ Verifying data isolation between users
 - ✅ Testing security boundaries
@@ -185,10 +194,12 @@ func TestRLSUserIsolation(t *testing.T) {
 Three database users exist for different purposes:
 
 1. **`postgres`** (superuser)
+
    - Used ONLY for granting permissions
    - Never used directly in tests
 
 2. **`fluxbase_app`** (default test user)
+
    - Has `BYPASSRLS` privilege
    - Used by `NewTestContext()`
    - Used for migrations and general testing
@@ -205,6 +216,7 @@ Three database users exist for different purposes:
 Two test tables are created by `TestMain` before tests run:
 
 #### 1. `products` Table
+
 **Schema**: `id`, `name`, `price`, `created_at`, `updated_at`
 **RLS**: Disabled
 **Purpose**: General REST API testing
@@ -220,11 +232,13 @@ CREATE TABLE products (
 ```
 
 #### 2. `tasks` Table
+
 **Schema**: `id`, `user_id`, `title`, `description`, `completed`, `is_public`, `created_at`, `updated_at`
 **RLS**: Enabled and enforced
 **Purpose**: RLS policy testing
 
 **RLS Policies**:
+
 - `tasks_select_own`: Users can select their own tasks
 - `tasks_select_public`: Anyone can select public tasks
 - `tasks_insert_own`: Authenticated users can insert their own tasks
@@ -237,6 +251,7 @@ See [e2e/setup_test.go](e2e/setup_test.go) for full schema definitions.
 ### Migrations
 
 Migrations are handled automatically:
+
 - **CI**: Migrations run once by `postgres` user before tests
 - **Local**: Migrations run by `fluxbase_app` user in `NewTestContext()`
 - Tests skip migrations if already applied (via `ErrNoChange`)
@@ -246,6 +261,7 @@ Migrations are handled automatically:
 The fluent API supports multiple authentication methods:
 
 ### WithAuth(token) / WithBearerToken(token)
+
 ```go
 resp := tc.NewRequest("GET", "/api/v1/auth/user").
     WithAuth(userJWT).  // Alias for WithBearerToken
@@ -257,6 +273,7 @@ resp := tc.NewRequest("GET", "/api/v1/auth/user").
 **RLS**: Respects RLS policies for the authenticated user
 
 ### WithAPIKey(apiKey)
+
 ```go
 resp := tc.NewRequest("GET", "/api/v1/tables/products").
     WithAPIKey(tc.APIKey).
@@ -268,6 +285,7 @@ resp := tc.NewRequest("GET", "/api/v1/tables/products").
 **RLS**: Respects RLS policies
 
 ### WithServiceKey(serviceKey)
+
 ```go
 resp := tc.NewRequest("POST", "/api/v1/admin/users").
     WithServiceKey(tc.ServiceKey).
@@ -279,6 +297,7 @@ resp := tc.NewRequest("POST", "/api/v1/admin/users").
 **⚠️ WARNING**: Service keys **BYPASS RLS POLICIES**. Use only for admin operations.
 
 ### Unauthenticated()
+
 ```go
 resp := tc.NewRequest("GET", "/api/v1/public/data").
     Unauthenticated().
@@ -494,12 +513,14 @@ func TestInvalidDataType(t *testing.T) {
 ```
 
 **❌ BAD: Permissive error checks**
+
 ```go
 // Too permissive - accepts any error status
 require.True(t, resp.Status() >= 400, "Should return error")
 ```
 
 **✅ GOOD: Specific error status**
+
 ```go
 // Specific - tests exact error behavior
 resp.AssertStatus(fiber.StatusConflict)
@@ -586,6 +607,7 @@ go test -short ./...
 ### In CI/CD
 
 Tests run automatically in GitHub Actions:
+
 1. **Lint**: Go + TypeScript linting
 2. **SDK Tests**: TypeScript SDK + React SDK
 3. **Go Tests**: Unit tests (`-short -race`)
@@ -599,19 +621,22 @@ Tests run automatically in GitHub Actions:
 All e2e tests require these services to be running:
 
 #### 1. PostgreSQL 17
+
 ```bash
 docker run -d --name postgres \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=fluxbase \
   -p 5432:5432 \
-  postgres:17
+  postgres:18
 ```
 
 **Required users**:
+
 - `fluxbase_app` (with BYPASSRLS)
 - `fluxbase_rls_test` (without BYPASSRLS)
 
 #### 2. MailHog (Email Testing)
+
 ```bash
 docker run -d --name mailhog \
   -p 1025:1025 \
@@ -622,6 +647,7 @@ docker run -d --name mailhog \
 **Access**: Web UI at http://localhost:8025
 
 #### 3. MinIO (S3-Compatible Storage)
+
 ```bash
 docker run -d --name minio \
   -e MINIO_ROOT_USER=minioadmin \
@@ -673,6 +699,7 @@ docker-compose up -d postgres mailhog minio
 **Cause**: Different database user configuration or missing services
 
 **Solution**:
+
 - Verify database users exist with correct privileges
 - Check environment variables match CI configuration
 - Ensure services are healthy before running tests
@@ -688,6 +715,7 @@ docker-compose up -d postgres mailhog minio
 **Cause**: MailHog not running or not accessible
 
 **Solution**:
+
 - Verify MailHog is running: `curl http://localhost:8025/api/v2/messages`
 - Check MailHog logs: `docker logs mailhog`
 - Use `WaitForEmail()` with adequate timeout (5 seconds)
@@ -697,6 +725,7 @@ docker-compose up -d postgres mailhog minio
 **Cause**: Too many parallel tests opening database connections
 
 **Solution**:
+
 - Run e2e tests with `-parallel=1`
 - Increase PostgreSQL `max_connections`
 - Ensure `tc.Close()` is called with `defer`
@@ -704,6 +733,7 @@ docker-compose up -d postgres mailhog minio
 ### Flaky Tests
 
 **Common causes**:
+
 - Hard-coded `time.Sleep()` - replace with `WaitForCondition()`
 - Race conditions - run with `-race` flag to detect
 - Shared state - ensure tables are truncated in setup
@@ -714,6 +744,7 @@ docker-compose up -d postgres mailhog minio
 **Cause**: Migrations already applied or permission issues
 
 **Solution**:
+
 - Tests automatically skip already-applied migrations
 - Reset database: `make db-reset`
 - Verify user has correct permissions
@@ -725,27 +756,32 @@ See [e2e_helpers.go](e2e_helpers.go) for complete documentation of all helper me
 ### Common Helpers
 
 **Context Creation**:
+
 - `NewTestContext(t)` - Standard context (with BYPASSRLS)
 - `NewRLSTestContext(t)` - RLS testing context (no BYPASSRLS)
 
 **User Management**:
+
 - `CreateTestUser(email, password)` - Create user, returns (userID, JWT)
 - `CreateDashboardAdminUser(email, password)` - Create admin user
 - `CreateAPIKey(name, scopes)` - Create API key
 - `CreateServiceKey(name)` - Create service key (bypasses RLS!)
 
 **Database Operations**:
+
 - `ExecuteSQL(sql, args...)` - Execute as fluxbase_app
 - `ExecuteSQLAsSuperuser(sql, args...)` - Execute as postgres
 - `QuerySQL(sql, args...)` - Query as fluxbase_app
 - `QuerySQLAsSuperuser(sql, args...)` - Query as postgres
 
 **Email Testing**:
+
 - `GetMailHogEmails()` - Get all emails
 - `ClearMailHogEmails()` - Clear all emails
 - `WaitForEmail(timeout, condition)` - Wait for specific email
 
 **Utilities**:
+
 - `WaitForCondition(timeout, interval, condition)` - Poll until condition met
 - `CleanupStorageFiles()` - Clean storage bucket
 - `EnsureAuthSchema()` - Ensure auth tables exist

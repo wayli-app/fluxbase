@@ -21,26 +21,28 @@ services:
     networks:
       - fluxbase
 
-  # MinIO (S3-compatible storage)
-  minio:
-    image: minio/minio:latest
-    container_name: fluxbase-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - fluxbase
+  # MinIO (S3-compatible storage) - OPTIONAL
+  # Uncomment this service if you want to use S3-compatible storage instead of local storage
+  # Also update FLUXBASE_STORAGE_PROVIDER to 's3' in the fluxbase service below
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: fluxbase-minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin
+  #   ports:
+  #     - "9000:9000"   # S3 API
+  #     - "9001:9001"   # Web Console
+  #   volumes:
+  #     - minio_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #     interval: 30s
+  #     timeout: 20s
+  #     retries: 3
+  #   networks:
+  #     - fluxbase
 
   # Fluxbase API
   fluxbase:
@@ -72,6 +74,18 @@ services:
       FLUXBASE_AUTH_JWT_SECRET: haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=
       FLUXBASE_AUTH_JWT_EXPIRY: 15m
 
+      # API Keys (Optional - for client applications)
+      #
+      # Anon Key: JWT token with 'anon' role for client-side applications
+      # Generate using: bash scripts/generate-keys.sh (select option 3)
+      # Or use the pre-generated development key below (⚠️ DEVELOPMENT ONLY):
+      # FLUXBASE_AUTH_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYW5vbiIsImVtYWlsIjoiIiwicm9sZSI6ImFub24iLCJzZXNzaW9uX2lkIjoiIiwidG9rZW5fdHlwZSI6ImFjY2VzcyIsImlzX2Fub255bW91cyI6dHJ1ZSwiaXNzIjoiZmx1eGJhc2UiLCJzdWIiOiJhbm9uIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjE3MzE1MzYwMDAsIm5iZiI6MTcwMDAwMDAwMCwianRpIjoiYW5vbiJ9.example
+      #
+      # Service Key: For backend services with elevated privileges (bypasses RLS)
+      # Generate using: bash scripts/generate-keys.sh (select option 2)
+      # Then store the key hash in the database (auth.service_keys table)
+      # FLUXBASE_AUTH_SERVICE_KEY: sk_test_your-generated-service-key-here
+
       # Storage Configuration (using local storage for development)
       FLUXBASE_STORAGE_PROVIDER: local
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
@@ -102,8 +116,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      # Uncomment if using MinIO:
+      # minio:
+      #   condition: service_healthy
     healthcheck:
       test:
         [
@@ -125,8 +140,9 @@ services:
 volumes:
   postgres_data:
     driver: local
-  minio_data:
-    driver: local
+  # Uncomment if using MinIO:
+  # minio_data:
+  #   driver: local
   storage_data:
     driver: local
   functions_data:

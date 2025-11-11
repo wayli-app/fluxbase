@@ -23,6 +23,8 @@ type Service struct {
 	passwordResetService  *PasswordResetService
 	tokenBlacklistService *TokenBlacklistService
 	impersonationService  *ImpersonationService
+	systemSettings        *SystemSettingsService
+	settingsCache         *SettingsCache
 	config                *config.AuthConfig
 }
 
@@ -75,6 +77,9 @@ func NewService(
 	impersonationRepo := NewImpersonationRepository(db)
 	impersonationService := NewImpersonationService(impersonationRepo, userRepo, jwtManager)
 
+	systemSettingsService := NewSystemSettingsService(db)
+	settingsCache := NewSettingsCache(systemSettingsService, 30*time.Second)
+
 	return &Service{
 		userRepo:              userRepo,
 		sessionRepo:           sessionRepo,
@@ -86,6 +91,8 @@ func NewService(
 		passwordResetService:  passwordResetService,
 		tokenBlacklistService: tokenBlacklistService,
 		impersonationService:  impersonationService,
+		systemSettings:        systemSettingsService,
+		settingsCache:         settingsCache,
 		config:                cfg,
 	}
 }
@@ -108,7 +115,9 @@ type SignUpResponse struct {
 
 // SignUp registers a new user with email and password
 func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpResponse, error) {
-	if !s.config.EnableSignup {
+	// Check if signup is enabled from database settings (with fallback to config)
+	enableSignup := s.settingsCache.GetBool(ctx, "app.auth.enable_signup", s.config.EnableSignup)
+	if !enableSignup {
 		return nil, fmt.Errorf("signup is disabled")
 	}
 
@@ -333,7 +342,9 @@ func (s *Service) UpdateUser(ctx context.Context, userID string, req UpdateUserR
 
 // SendMagicLink sends a magic link to the specified email
 func (s *Service) SendMagicLink(ctx context.Context, email string) error {
-	if !s.config.EnableMagicLink {
+	// Check if magic link is enabled from database settings (with fallback to config)
+	enableMagicLink := s.settingsCache.GetBool(ctx, "app.auth.enable_magic_link", s.config.EnableMagicLink)
+	if !enableMagicLink {
 		return fmt.Errorf("magic link authentication is disabled")
 	}
 
@@ -342,7 +353,9 @@ func (s *Service) SendMagicLink(ctx context.Context, email string) error {
 
 // VerifyMagicLink verifies a magic link and returns tokens
 func (s *Service) VerifyMagicLink(ctx context.Context, token string) (*SignInResponse, error) {
-	if !s.config.EnableMagicLink {
+	// Check if magic link is enabled from database settings (with fallback to config)
+	enableMagicLink := s.settingsCache.GetBool(ctx, "app.auth.enable_magic_link", s.config.EnableMagicLink)
+	if !enableMagicLink {
 		return nil, fmt.Errorf("magic link authentication is disabled")
 	}
 
@@ -504,7 +517,9 @@ func (s *Service) StartServiceImpersonation(ctx context.Context, adminUserID str
 
 // IsSignupEnabled returns whether user signup is enabled
 func (s *Service) IsSignupEnabled() bool {
-	return s.config.EnableSignup
+	// Use background context for health check endpoint
+	ctx := context.Background()
+	return s.settingsCache.GetBool(ctx, "app.auth.enable_signup", s.config.EnableSignup)
 }
 
 // SetupTOTP generates a new TOTP secret for 2FA setup

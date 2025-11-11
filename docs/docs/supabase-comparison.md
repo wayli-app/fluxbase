@@ -15,7 +15,7 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 | **Database** | PostgreSQL 15+ | PostgreSQL 15+ |
 | **Row-Level Security** | Yes (auth.uid()) | Yes (current_setting()) |
 | **Client SDK** | TypeScript/JS | TypeScript/JS (compatible) |
-| **Horizontal Scaling** | Yes (read replicas) | No |
+| **Horizontal Scaling** | Yes (read replicas) | Yes (with configuration)* |
 | **Hosted Service** | Yes (free tier available) | No |
 | **Pricing** | Free/$25+/month | Open source (MIT) |
 
@@ -118,19 +118,19 @@ Function code requires minor adaptation when switching platforms.
 
 ## When to Choose Fluxbase
 
-- You want simple deployment (single binary)
+- You want simple deployment (single binary or container)
 - You prefer self-hosting with full control
 - You need predictable costs (no usage fees)
 - You want to customize backend code
-- Your traffic is moderate (vertical scaling sufficient)
+- You can configure horizontal scaling infrastructure (load balancer, external DB, S3/MinIO)
 
 ## When to Choose Supabase
 
 - You want a hosted service with free tier
-- You need horizontal scalability (read replicas)
-- You prefer managed infrastructure
+- You prefer managed infrastructure with automatic scaling
 - You want professional support
-- You're building high-scale applications
+- You don't want to manage load balancers, databases, or object storage
+- You need built-in read replicas without configuration
 
 ## Deployment
 
@@ -152,9 +152,18 @@ Not a one-click migration, but API compatibility minimizes code changes.
 
 ## Scaling
 
-**Fluxbase:** Vertical scaling only (more CPU/RAM on single server)
+**Fluxbase:** Supports both vertical and horizontal scaling*
 
 **Supabase:** Horizontal scaling with read replicas for high traffic
+
+***Fluxbase horizontal scaling requirements:**
+- External PostgreSQL database (not embedded) - stores data + sessions
+- S3-compatible storage (MinIO, AWS S3, etc.) instead of local filesystem
+- Load balancer with session stickiness for realtime WebSocket connections
+
+**Note**: Sessions are stored in PostgreSQL (shared across instances). Rate limiting and CSRF are per-instance.
+
+See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for configuration details.
 
 ## Resources
 

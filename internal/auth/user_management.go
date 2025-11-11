@@ -17,7 +17,8 @@ type EnrichedUser struct {
 	Provider       string                 `json:"provider"` // "email", "invite_pending", "magic_link"
 	ActiveSessions int                    `json:"active_sessions"`
 	LastSignIn     *time.Time             `json:"last_sign_in"`
-	Metadata       map[string]interface{} `json:"metadata"`
+	UserMetadata   map[string]interface{} `json:"user_metadata"`
+	AppMetadata    map[string]interface{} `json:"app_metadata"`
 	CreatedAt      time.Time              `json:"created_at"`
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
@@ -70,7 +71,8 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 			u.email,
 			u.email_verified,
 			u.role,
-			u.metadata,
+			u.user_metadata,
+			u.app_metadata,
 			u.created_at,
 			u.updated_at,
 			COALESCE(COUNT(DISTINCT CASE WHEN s.expires_at > NOW() THEN s.id END), 0) as active_sessions,
@@ -82,7 +84,7 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 			END as provider
 		FROM %s u
 		LEFT JOIN %s s ON u.id = s.user_id
-		GROUP BY u.id, u.email, u.email_verified, u.role, u.metadata, u.created_at, u.updated_at, u.password_hash
+		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash
 		ORDER BY u.created_at DESC
 	`, usersTable, sessionsTable)
 
@@ -100,7 +102,8 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 			&user.Email,
 			&user.EmailVerified,
 			&user.Role,
-			&user.Metadata,
+			&user.UserMetadata,
+			&user.AppMetadata,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.ActiveSessions,
@@ -138,7 +141,8 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 			u.email,
 			u.email_verified,
 			u.role,
-			u.metadata,
+			u.user_metadata,
+			u.app_metadata,
 			u.created_at,
 			u.updated_at,
 			COALESCE(COUNT(DISTINCT CASE WHEN s.expires_at > NOW() THEN s.id END), 0) as active_sessions,
@@ -151,7 +155,7 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 		FROM %s u
 		LEFT JOIN %s s ON u.id = s.user_id
 		WHERE u.id = $1
-		GROUP BY u.id, u.email, u.email_verified, u.role, u.metadata, u.created_at, u.updated_at, u.password_hash
+		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash
 	`, usersTable, sessionsTable)
 
 	user := &EnrichedUser{}
@@ -160,7 +164,8 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 		&user.Email,
 		&user.EmailVerified,
 		&user.Role,
-		&user.Metadata,
+		&user.UserMetadata,
+		&user.AppMetadata,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.ActiveSessions,

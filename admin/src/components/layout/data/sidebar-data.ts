@@ -4,7 +4,6 @@ import {
   Users,
   Settings,
   Palette,
-  Wrench,
   Command,
   Zap,
   FileCode,
@@ -14,9 +13,10 @@ import {
   Shield,
   Webhook,
   Activity,
-  Sliders,
   Server,
   Code,
+  Mail,
+  ShieldCheck,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -98,6 +98,11 @@ export const sidebarData: SidebarData = {
           icon: Shield,
         },
         {
+          title: 'Security Settings',
+          url: '/security-settings',
+          icon: ShieldCheck,
+        },
+        {
           title: 'API Keys',
           url: '/api-keys',
           icon: Key,
@@ -113,14 +118,14 @@ export const sidebarData: SidebarData = {
       title: 'Configuration',
       items: [
         {
-          title: 'App Settings',
-          url: '/app-settings',
-          icon: Sliders,
-        },
-        {
           title: 'System Settings',
           url: '/system-settings',
           icon: Server,
+        },
+        {
+          title: 'Email Settings',
+          url: '/email-settings',
+          icon: Mail,
         },
       ],
     },
@@ -128,14 +133,9 @@ export const sidebarData: SidebarData = {
       title: 'Settings',
       items: [
         {
-          title: 'Profile',
+          title: 'Account',
           url: '/settings',
           icon: Settings,
-        },
-        {
-          title: 'Account',
-          url: '/settings/account',
-          icon: Wrench,
         },
         {
           title: 'Appearance',

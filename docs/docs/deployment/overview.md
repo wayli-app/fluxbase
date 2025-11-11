@@ -33,47 +33,115 @@ Fluxbase offers multiple deployment options to suit different production scenari
 
 ## Architecture Overview
 
-### Minimum Production Setup
+### Single-Instance Setup (Development/Small Projects)
 
-```
-┌─────────────────────────────────────┐
-│         Load Balancer/Proxy         │
-│          (nginx/Caddy)              │
-└─────────────────┬───────────────────┘
-                  │
-        ┌─────────┴─────────┐
-        │                   │
-┌───────▼─────┐    ┌────────▼────────┐
-│  Fluxbase   │    │   PostgreSQL    │
-│  (3 pods)   │───▶│   (Primary +    │
-│             │    │   Replicas)     │
-└─────────────┘    └─────────────────┘
+For simple deployments with a single Fluxbase instance:
+
+```mermaid
+graph TB
+    A[Clients] -->|HTTPS| LB[Reverse Proxy<br/>nginx/Caddy]
+    LB --> FB[Fluxbase]
+    FB -->|SQL| DB[(PostgreSQL)]
+    FB -->|Files| FS[Local Storage]
+
+    style FB fill:#3178c6,color:#fff
+    style DB fill:#336791,color:#fff
+    style LB fill:#ff6b6b,color:#fff
+    style FS fill:#f39c12,color:#fff
 ```
 
-### High-Availability Production Setup
+**Characteristics:**
+- Simple setup, minimal configuration
+- Local file storage (single server)
+- Suitable for < 10,000 users
+- Not horizontally scalable
 
+### Multi-Instance Setup (Production/High-Traffic)
+
+For horizontally scalable deployments with multiple Fluxbase instances:
+
+```mermaid
+graph TB
+    A[Clients] -->|HTTPS| LB[Load Balancer<br/>Session Stickiness<br/>nginx/HAProxy/ALB]
+
+    LB -->|Sticky Session| FB1[Fluxbase 1]
+    LB -->|Sticky Session| FB2[Fluxbase 2]
+    LB -->|Sticky Session| FB3[Fluxbase 3]
+
+    FB1 -->|SQL + Sessions| DB[(PostgreSQL<br/>Shared Database)]
+    FB2 -->|SQL + Sessions| DB
+    FB3 -->|SQL + Sessions| DB
+
+    FB1 -->|S3 API| S3[MinIO / S3<br/>Shared Storage]
+    FB2 -->|S3 API| S3
+    FB3 -->|S3 API| S3
+
+    style LB fill:#ff6b6b,color:#fff
+    style FB1 fill:#3178c6,color:#fff
+    style FB2 fill:#3178c6,color:#fff
+    style FB3 fill:#3178c6,color:#fff
+    style DB fill:#336791,color:#fff
+    style S3 fill:#c92a2a,color:#fff
 ```
-┌──────────────────────────────────────────┐
-│              Cloud Load Balancer          │
-│           (AWS ALB / GCP LB)             │
-└─────────────────┬────────────────────────┘
-                  │
-     ┌────────────┴────────────┐
-     │                         │
-┌────▼──────┐          ┌───────▼───────┐
-│  Region A │          │   Region B    │
-│           │          │   (DR/HA)     │
-│  ┌─────┐  │          │   ┌─────┐     │
-│  │ FB  │  │          │   │ FB  │     │
-│  │ Pod │  │          │   │ Pod │     │
-│  └──┬──┘  │          │   └──┬──┘     │
-│     │     │          │      │        │
-│  ┌──▼──┐  │          │   ┌──▼──┐     │
-│  │ PG  │◀─┼──────────┼──▶│ PG  │     │
-│  │Primary│ │          │   │Replica│   │
-│  └─────┘  │          │   └─────┘     │
-└───────────┘          └───────────────┘
+
+**Requirements for Horizontal Scaling:**
+- External PostgreSQL (not embedded) - stores data + sessions
+- S3-compatible storage (MinIO/AWS S3) - stores files
+- Load balancer with session stickiness (for WebSocket/realtime)
+- See [Scaling Guide](scaling#horizontal-scaling-requirements) for detailed configuration
+
+**Note**: Sessions are stored in PostgreSQL (shared across all instances). Rate limiting and CSRF are per-instance.
+
+### High-Availability Multi-Region Setup
+
+For enterprise deployments requiring disaster recovery and multi-region availability:
+
+```mermaid
+graph TB
+    subgraph "Region A - Primary"
+        LB1[Load Balancer] --> FB1A[Fluxbase 1]
+        LB1 --> FB1B[Fluxbase 2]
+        LB1 --> FB1C[Fluxbase 3]
+
+        FB1A --> DB1[(PostgreSQL<br/>Primary)]
+        FB1B --> DB1
+        FB1C --> DB1
+
+        FB1A --> S3A[MinIO Cluster<br/>Region A]
+        FB1B --> S3A
+        FB1C --> S3A
+    end
+
+    subgraph "Region B - DR/HA"
+        LB2[Load Balancer] --> FB2A[Fluxbase 1]
+        LB2 --> FB2B[Fluxbase 2]
+
+        FB2A --> DB2[(PostgreSQL<br/>Replica)]
+        FB2B --> DB2
+
+        FB2A --> S3B[MinIO Cluster<br/>Region B]
+        FB2B --> S3B
+    end
+
+    GLB[Global Load Balancer<br/>Route 53 / Cloudflare] -->|Primary| LB1
+    GLB -->|Failover| LB2
+
+    DB1 -.->|Async Replication| DB2
+    S3A -.->|Cross-Region Replication| S3B
+
+    style GLB fill:#ff6b6b,color:#fff
+    style LB1 fill:#ff6b6b,color:#fff
+    style LB2 fill:#ff6b6b,color:#fff
+    style DB1 fill:#336791,color:#fff
+    style DB2 fill:#336791,color:#fff
 ```
+
+**Features:**
+- Active-passive or active-active configuration
+- Automatic failover on region failure
+- Cross-region data replication
+- < 1 hour RTO, < 5 minutes RPO
+- Suitable for 100K+ users or mission-critical applications
 
 ## System Requirements
 
@@ -112,7 +180,7 @@ Fluxbase offers multiple deployment options to suit different production scenari
 1. **Fluxbase Application**
    - Single Go binary
    - Embedded Admin UI
-   - Stateless (can scale horizontally)
+   - Stateless (can scale horizontally with external PostgreSQL and S3/MinIO)
    - Port: 8080 (HTTP)
 
 2. **PostgreSQL Database**

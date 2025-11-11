@@ -400,7 +400,7 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 			// Create new user
 			userID = uuid.New()
 			query = `
-				INSERT INTO auth.users (id, email, email_verified, role, metadata)
+				INSERT INTO auth.users (id, email, email_verified, role, user_metadata)
 				VALUES ($1, $2, TRUE, 'authenticated', $3)
 			`
 			_, err = tx.Exec(ctx, query, userID, email, userInfo)

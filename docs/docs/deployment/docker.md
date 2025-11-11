@@ -5,6 +5,7 @@ Deploy Fluxbase using Docker and Docker Compose for simple production environmen
 ## Overview
 
 Fluxbase provides official Docker images (~80MB) with:
+
 - Multi-stage build for minimal image size
 - Non-root user for security
 - Health checks built-in
@@ -30,7 +31,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres
@@ -101,6 +102,7 @@ curl http://localhost:8080/health
 ```
 
 You should see:
+
 ```json
 {
   "status": "healthy",
@@ -120,7 +122,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres
@@ -128,7 +130,7 @@ services:
       POSTGRES_DB: fluxbase
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
     ports:
-      - "127.0.0.1:5432:5432"  # Only bind to localhost
+      - "127.0.0.1:5432:5432" # Only bind to localhost
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
@@ -144,10 +146,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 4G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 2G
 
   redis:
@@ -225,7 +227,7 @@ services:
       FLUXBASE_METRICS_PORT: 9090
     ports:
       - "8080:8080"
-      - "127.0.0.1:9090:9090"  # Metrics (internal only)
+      - "127.0.0.1:9090:9090" # Metrics (internal only)
     volumes:
       - ./storage:/app/storage
       - ./config:/app/config
@@ -242,10 +244,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: "4"
           memory: 8G
         reservations:
-          cpus: '2'
+          cpus: "2"
           memory: 4G
 
   # Nginx reverse proxy with SSL
@@ -487,33 +489,33 @@ docker-compose start fluxbase
 Add Prometheus to `docker-compose.yml`:
 
 ```yaml
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: fluxbase-prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "127.0.0.1:9091:9090"
-    networks:
-      - fluxbase-network
-    restart: unless-stopped
+prometheus:
+  image: prom/prometheus:latest
+  container_name: fluxbase-prometheus
+  command:
+    - "--config.file=/etc/prometheus/prometheus.yml"
+    - "--storage.tsdb.path=/prometheus"
+  volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    - prometheus_data:/prometheus
+  ports:
+    - "127.0.0.1:9091:9090"
+  networks:
+    - fluxbase-network
+  restart: unless-stopped
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: fluxbase-grafana
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-    volumes:
-      - grafana_data:/var/lib/grafana
-    ports:
-      - "3000:3000"
-    networks:
-      - fluxbase-network
-    restart: unless-stopped
+grafana:
+  image: grafana/grafana:latest
+  container_name: fluxbase-grafana
+  environment:
+    GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+  volumes:
+    - grafana_data:/var/lib/grafana
+  ports:
+    - "3000:3000"
+  networks:
+    - fluxbase-network
+  restart: unless-stopped
 ```
 
 Create `prometheus.yml`:
@@ -524,13 +526,13 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'fluxbase'
+  - job_name: "fluxbase"
     static_configs:
-      - targets: ['fluxbase:9090']
+      - targets: ["fluxbase:9090"]
 
-  - job_name: 'postgres'
+  - job_name: "postgres"
     static_configs:
-      - targets: ['postgres-exporter:9187']
+      - targets: ["postgres-exporter:9187"]
 ```
 
 ---
@@ -540,28 +542,28 @@ scrape_configs:
 ### Centralized Logging with Loki
 
 ```yaml
-  loki:
-    image: grafana/loki:latest
-    container_name: fluxbase-loki
-    ports:
-      - "127.0.0.1:3100:3100"
-    volumes:
-      - ./loki-config.yml:/etc/loki/local-config.yaml
-      - loki_data:/loki
-    networks:
-      - fluxbase-network
-    restart: unless-stopped
+loki:
+  image: grafana/loki:latest
+  container_name: fluxbase-loki
+  ports:
+    - "127.0.0.1:3100:3100"
+  volumes:
+    - ./loki-config.yml:/etc/loki/local-config.yaml
+    - loki_data:/loki
+  networks:
+    - fluxbase-network
+  restart: unless-stopped
 
-  promtail:
-    image: grafana/promtail:latest
-    container_name: fluxbase-promtail
-    volumes:
-      - /var/log:/var/log
-      - ./promtail-config.yml:/etc/promtail/config.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    networks:
-      - fluxbase-network
-    restart: unless-stopped
+promtail:
+  image: grafana/promtail:latest
+  container_name: fluxbase-promtail
+  volumes:
+    - /var/log:/var/log
+    - ./promtail-config.yml:/etc/promtail/config.yml
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  networks:
+    - fluxbase-network
+  restart: unless-stopped
 ```
 
 ---
@@ -615,6 +617,7 @@ deploy:
 ### Slow Performance
 
 1. **Check database indexes**:
+
    ```sql
    SELECT schemaname, tablename, indexname
    FROM pg_indexes
@@ -622,6 +625,7 @@ deploy:
    ```
 
 2. **Monitor connection pool**:
+
    ```sql
    SELECT count(*) FROM pg_stat_activity;
    ```
@@ -677,17 +681,20 @@ docker run -d --name fluxbase ghcr.io/wayli-app/fluxbase:0.9.0
 ## Security Best Practices
 
 1. **Use secrets management**:
+
    ```bash
    # Docker secrets (Swarm mode)
    echo "my-secret" | docker secret create jwt_secret -
    ```
 
 2. **Run as non-root**:
+
    ```dockerfile
    USER fluxbase  # Already configured in official image
    ```
 
 3. **Limit container capabilities**:
+
    ```yaml
    cap_drop:
      - ALL
@@ -696,6 +703,7 @@ docker run -d --name fluxbase ghcr.io/wayli-app/fluxbase:0.9.0
    ```
 
 4. **Use read-only filesystem**:
+
    ```yaml
    read_only: true
    tmpfs:

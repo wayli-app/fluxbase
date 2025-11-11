@@ -41,7 +41,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=fluxbase \
   -p 5432:5432 \
-  postgres:16-alpine
+  postgres:18-alpine
 ```
 
 ### Create Database
@@ -101,7 +101,7 @@ docker run -d \
 ```yaml
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: fluxbase
       POSTGRES_USER: fluxbase

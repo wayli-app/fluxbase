@@ -5,6 +5,7 @@ Deploy Fluxbase on Kubernetes using Helm for production-grade, highly available 
 ## Overview
 
 Fluxbase provides an official Helm chart that includes:
+
 - High availability with multiple replicas
 - Horizontal Pod Autoscaling (HPA)
 - PostgreSQL database (or external database support)
@@ -118,7 +119,7 @@ config:
     s3:
       bucket: fluxbase-production
       region: us-east-1
-      endpoint: ""  # Leave empty for AWS S3
+      endpoint: "" # Leave empty for AWS S3
 
 # Use external database (disable embedded PostgreSQL)
 postgresql:
@@ -128,7 +129,7 @@ externalDatabase:
   host: my-postgres.example.com
   port: 5432
   user: fluxbase
-  password: ""  # Use existingSecret
+  password: "" # Use existingSecret
   database: fluxbase
   existingSecret: fluxbase-db-secret
   existingSecretPasswordKey: password
@@ -208,7 +209,7 @@ metrics:
 
 # Persistence (for local storage)
 persistence:
-  enabled: false  # Using S3, so disabled
+  enabled: false # Using S3, so disabled
 
 # Probes
 livenessProbe:
@@ -269,20 +270,20 @@ See [values.yaml](https://github.com/your-org/fluxbase/blob/main/deploy/helm/flu
 
 **Key sections**:
 
-| Section | Description | Default |
-|---------|-------------|---------|
-| `replicaCount` | Number of Fluxbase pods | 3 |
-| `image` | Container image configuration | ghcr.io/wayli-app/fluxbase:latest |
-| `config.database` | Database connection settings | PostgreSQL defaults |
-| `config.server` | HTTP server settings | Port 8080 |
-| `config.jwt` | JWT authentication settings | 60 min expiry |
-| `config.storage` | Storage backend (local/s3) | local |
-| `postgresql.enabled` | Deploy PostgreSQL in cluster | true |
-| `externalDatabase` | External database settings | - |
-| `ingress.enabled` | Enable Ingress | false |
-| `autoscaling.enabled` | Enable HPA | false |
-| `metrics.enabled` | Expose Prometheus metrics | true |
-| `persistence.enabled` | Enable persistent storage | true |
+| Section               | Description                   | Default                           |
+| --------------------- | ----------------------------- | --------------------------------- |
+| `replicaCount`        | Number of Fluxbase pods       | 3                                 |
+| `image`               | Container image configuration | ghcr.io/wayli-app/fluxbase:latest |
+| `config.database`     | Database connection settings  | PostgreSQL defaults               |
+| `config.server`       | HTTP server settings          | Port 8080                         |
+| `config.jwt`          | JWT authentication settings   | 60 min expiry                     |
+| `config.storage`      | Storage backend (local/s3)    | local                             |
+| `postgresql.enabled`  | Deploy PostgreSQL in cluster  | true                              |
+| `externalDatabase`    | External database settings    | -                                 |
+| `ingress.enabled`     | Enable Ingress                | false                             |
+| `autoscaling.enabled` | Enable HPA                    | false                             |
+| `metrics.enabled`     | Expose Prometheus metrics     | true                              |
+| `persistence.enabled` | Enable persistent storage     | true                              |
 
 ---
 
@@ -606,7 +607,7 @@ config:
     s3:
       bucket: fluxbase-production
       region: us-east-1
-      endpoint: ""  # Empty for AWS S3
+      endpoint: "" # Empty for AWS S3
 
 # Add S3 credentials to existingSecret
 existingSecret: fluxbase-secrets
@@ -685,6 +686,7 @@ spec:
 ### Database High Availability
 
 Use managed database with multi-AZ:
+
 - AWS RDS Multi-AZ
 - Google Cloud SQL HA
 - Azure Database for PostgreSQL HA
@@ -851,7 +853,7 @@ spec:
         spec:
           containers:
             - name: backup
-              image: postgres:16
+              image: postgres:18
               env:
                 - name: PGHOST
                   value: postgresql
@@ -937,7 +939,7 @@ kubectl get events -n fluxbase --sort-by='.lastTimestamp'
 
 ```bash
 # Test database connectivity
-kubectl run -it --rm debug --image=postgres:16 --restart=Never -n fluxbase -- \
+kubectl run -it --rm debug --image=postgres:18 --restart=Never -n fluxbase -- \
   psql -h postgresql -U fluxbase -d fluxbase
 
 # Check database service

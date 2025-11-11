@@ -1,3 +1,6 @@
+-- Rollback Fluxbase Initial Schema
+-- This migration removes all Fluxbase database objects
+
 -- Drop all Fluxbase schemas and their contents
 -- This will cascade and remove all tables, functions, and other objects
 
@@ -14,3 +17,4 @@ DROP FUNCTION IF EXISTS public.update_updated_at() CASCADE;
 -- Drop extensions (optional - comment out if other databases use these)
 -- DROP EXTENSION IF EXISTS "pg_trgm";
 -- DROP EXTENSION IF EXISTS "uuid-ossp";
+-- DROP EXTENSION IF EXISTS "pgcrypto";

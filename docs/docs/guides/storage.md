@@ -54,6 +54,71 @@ FLUXBASE_STORAGE_S3_REGION=us-east-1
 - Best for production with multiple servers
 - Requires external service (AWS S3, MinIO, etc.)
 
+### Architecture Comparison
+
+#### Local Storage Architecture
+
+```mermaid
+graph TB
+    A[Client App 1] -->|Upload/Download| B[Fluxbase Server]
+    C[Client App 2] -->|Upload/Download| B
+    B -->|Read/Write| D[Local Filesystem<br/>/storage]
+
+    E[Load Balancer] -.->|Cannot scale| F[Multiple Instances]
+    F -.->|No shared filesystem| D
+
+    style B fill:#3178c6,color:#fff
+    style D fill:#f39c12,color:#fff
+    style E fill:#e74c3c,color:#fff,stroke-dasharray: 5 5
+    style F fill:#e74c3c,color:#fff,stroke-dasharray: 5 5
+```
+
+**Limitations:**
+- Single server only - files stored locally cannot be accessed by multiple Fluxbase instances
+- No horizontal scaling possible
+- Server failure means data loss (unless backups exist)
+
+#### S3-Compatible Storage Architecture (MinIO/S3)
+
+```mermaid
+graph TB
+    A[Client 1] -->|API Request| LB[Load Balancer]
+    B[Client 2] -->|API Request| LB
+    C[Client 3] -->|API Request| LB
+
+    LB --> FB1[Fluxbase Instance 1]
+    LB --> FB2[Fluxbase Instance 2]
+    LB --> FB3[Fluxbase Instance 3]
+
+    FB1 -->|S3 API| S3[MinIO / S3 Cluster]
+    FB2 -->|S3 API| S3
+    FB3 -->|S3 API| S3
+
+    S3 -->|Distributed| S3A[Storage Node 1]
+    S3 -->|Distributed| S3B[Storage Node 2]
+    S3 -->|Distributed| S3C[Storage Node 3]
+
+    style LB fill:#ff6b6b,color:#fff
+    style FB1 fill:#3178c6,color:#fff
+    style FB2 fill:#3178c6,color:#fff
+    style FB3 fill:#3178c6,color:#fff
+    style S3 fill:#c92a2a,color:#fff
+    style S3A fill:#5c940d,color:#fff
+    style S3B fill:#5c940d,color:#fff
+    style S3C fill:#5c940d,color:#fff
+```
+
+**Benefits:**
+- Multiple Fluxbase instances can access the same storage
+- Horizontally scalable - add more instances as needed
+- High availability - storage cluster handles redundancy
+- No single point of failure
+
+**Use Cases:**
+- **Local Storage**: Development, testing, single-server deployments
+- **MinIO**: Self-hosted production with horizontal scaling needs
+- **AWS S3/DigitalOcean Spaces**: Cloud production with managed infrastructure
+
 ## Installation
 
 ```bash

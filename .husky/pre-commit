@@ -1,1 +1,7 @@
-npx lint-staged
+#!/usr/bin/env sh
+
+npx lint-staged || {
+  echo "Pre-commit hook failed. Restoring staged changes from stash..."
+  git stash pop
+  exit 1
+}

@@ -14,12 +14,21 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	tc := test.NewRLSTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean auth tables and tasks table before each test to ensure isolation
+	// Clean all tables before each test to ensure isolation
+	// Using CASCADE will clean related tables automatically
 	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.api_keys CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.api_key_usage CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.impersonation_sessions CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.magic_links CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.password_reset_tokens CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE dashboard.oauth_providers CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE dashboard.auth_settings CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE dashboard.activity_log CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE tasks CASCADE")
 
-	// Note: tasks table already exists with RLS enabled from migration 010_rls_example_tasks.up.sql
+	// Note: tasks table exists with RLS enabled from the initial schema
 	// The table has the following RLS policies:
 	// - tasks_select_own: Users can select their own tasks
 	// - tasks_select_public: Anyone can select public tasks
@@ -483,4 +492,440 @@ func TestRLSRoleValidation(t *testing.T) {
 		"Anonymous user should have limited access via RLS")
 
 	t.Log("RLS role validation test passed - properly validates roles")
+}
+
+// ============================================================================
+// ENHANCED RLS POLICY TESTS
+// ============================================================================
+
+// TestRLSAuthUsersSelectRestriction tests that users can only see their own user record
+// This verifies that auth.users SELECT policy is properly tightened
+func TestRLSAuthUsersSelectRestriction(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create two users directly in database as superuser (bypassing RLS for setup)
+	user1ID := "11111111-1111-1111-1111-111111111111"
+	user2ID := "22222222-2222-2222-2222-222222222222"
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user1@example.com', 'hash1', true, NOW())
+	`, user1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user2@example.com', 'hash2', true, NOW())
+	`, user2ID)
+
+	// Test: User 1 queries auth.users with RLS context set to user1ID
+	// Expected: Should only see their own record
+	users := tc.QuerySQLAsRLSUser(`
+		SELECT id, email FROM auth.users WHERE id = $1
+	`, user1ID, user1ID)
+
+	require.Len(t, users, 1, "User should see their own record")
+	require.Equal(t, user1ID, users[0]["id"])
+
+	// Test: Verify user1 cannot see user2's record by querying all users
+	// This should only return user1's record due to RLS policy
+	allUsers := tc.QuerySQLAsRLSUser(`
+		SELECT id, email FROM auth.users ORDER BY created_at
+	`, user1ID)
+
+	// With RLS enforced, should only see own record (not user2's)
+	require.Len(t, allUsers, 1, "User should only see their own record in SELECT query")
+	require.Equal(t, user1ID, allUsers[0]["id"])
+
+	// Verify user2 is NOT in the results
+	for _, user := range allUsers {
+		require.NotEqual(t, user2ID, user["id"], "User1 should not see User2's record")
+	}
+
+	t.Log("auth.users SELECT policy correctly restricts access to own record only")
+}
+
+// TestRLSAuthSessionsGranularPolicies tests the granular session policies
+func TestRLSAuthSessionsGranularPolicies(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create two users and sessions directly in database as superuser (bypassing RLS for setup)
+	user1ID := "33333333-3333-3333-3333-333333333333"
+	user2ID := "44444444-4444-4444-4444-444444444444"
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user1@example.com', 'hash1', true, NOW())
+	`, user1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user2@example.com', 'hash2', true, NOW())
+	`, user2ID)
+
+	// Create sessions for both users
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.sessions (id, user_id, access_token, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, 'token1', NOW() + interval '1 hour', NOW())
+	`, user1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.sessions (id, user_id, access_token, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, 'token2', NOW() + interval '1 hour', NOW())
+	`, user2ID)
+
+	// Verify user1 can only see their own sessions
+	user1Sessions := tc.QuerySQLAsRLSUser(`
+		SELECT id, user_id FROM auth.sessions WHERE user_id = $1
+	`, user1ID, user1ID)
+
+	require.GreaterOrEqual(t, len(user1Sessions), 1, "User1 should see their own sessions")
+	for _, session := range user1Sessions {
+		require.Equal(t, user1ID, session["user_id"], "User1 should only see their own sessions")
+	}
+
+	// Verify user1 cannot see user2's sessions
+	allSessionsForUser1 := tc.QuerySQLAsRLSUser(`
+		SELECT id, user_id FROM auth.sessions ORDER BY created_at
+	`, user1ID)
+
+	// Should only see user1's sessions, not user2's
+	for _, session := range allSessionsForUser1 {
+		require.NotEqual(t, user2ID, session["user_id"], "User1 should not see User2's sessions")
+	}
+
+	t.Log("auth.sessions policies correctly restrict access to own sessions only")
+}
+
+// TestRLSTokenTablesServiceRoleOnly tests that token tables are only accessible by service role
+// This verifies RLS on: magic_links, password_reset_tokens, token_blacklist
+func TestRLSTokenTablesServiceRoleOnly(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create a user directly in database as superuser
+	userID := "55555555-5555-5555-5555-555555555555"
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user@example.com', 'hash1', true, NOW())
+	`, userID)
+
+	// Test 1: Regular user cannot access magic_links
+	// Insert a magic link as superuser (for test setup)
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.magic_links (id, email, token, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, 'test_token_123', NOW() + interval '1 hour', NOW())
+	`, "user@example.com")
+
+	// Try to query as regular user with RLS enforced
+	magicLinks := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM auth.magic_links WHERE email = $1
+	`, userID, "user@example.com")
+
+	require.Len(t, magicLinks, 0, "Regular user should NOT see magic_links (service_role only)")
+
+	// Test 2: Regular user cannot access password_reset_tokens
+	// Insert a password reset token as superuser
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.password_reset_tokens (id, user_id, token, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, 'reset_token_456', NOW() + interval '1 hour', NOW())
+	`, userID)
+
+	// Try to query as regular user with RLS enforced
+	resetTokens := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM auth.password_reset_tokens WHERE user_id = $1
+	`, userID, userID)
+
+	require.Len(t, resetTokens, 0, "Regular user should NOT see password_reset_tokens (service_role only)")
+
+	// Test 3: Verify service role CAN access these tables (tested via superuser query)
+	magicLinksSuper := tc.QuerySQLAsSuperuser(`
+		SELECT * FROM auth.magic_links WHERE email = $1
+	`, "user@example.com")
+	require.Len(t, magicLinksSuper, 1, "Superuser/service role should see magic_links")
+
+	resetTokensSuper := tc.QuerySQLAsSuperuser(`
+		SELECT * FROM auth.password_reset_tokens WHERE user_id = $1
+	`, userID)
+	require.Len(t, resetTokensSuper, 1, "Superuser/service role should see password_reset_tokens")
+
+	t.Log("Token tables (magic_links, password_reset_tokens) correctly restricted to service_role only")
+}
+
+// TestRLSWebhookTablesAdminOnly tests that webhook tables require admin privileges
+func TestRLSWebhookTablesAdminOnly(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create a regular user directly in database as superuser
+	userID := "66666666-6666-6666-6666-666666666666"
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user@example.com', 'hash1', true, NOW())
+	`, userID)
+
+	// Insert a webhook as superuser (for test setup)
+	webhookID := "33333333-3333-3333-3333-333333333333"
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.webhooks (id, name, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, created_at, updated_at)
+		VALUES ($1, 'Test Webhook', 'https://example.com/webhook', 'secret123', true, '[]'::jsonb, 3, 60, 30, '{}'::jsonb, NOW(), NOW())
+	`, webhookID)
+
+	// Test: Regular user cannot see webhooks
+	webhooks := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM auth.webhooks WHERE id = $1
+	`, userID, webhookID)
+
+	require.Len(t, webhooks, 0, "Regular user should NOT see webhooks (admin only)")
+
+	// Test: Webhook deliveries should also be protected
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.webhook_deliveries (id, webhook_id, event, payload, attempt, status, created_at)
+		VALUES (gen_random_uuid(), $1, 'user.created', '{}'::jsonb, 1, 'pending', NOW())
+	`, webhookID)
+
+	deliveries := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM auth.webhook_deliveries WHERE webhook_id = $1
+	`, userID, webhookID)
+
+	require.Len(t, deliveries, 0, "Regular user should NOT see webhook_deliveries (admin only)")
+
+	// Verify superuser/admin CAN access
+	webhooksSuper := tc.QuerySQLAsSuperuser(`
+		SELECT * FROM auth.webhooks WHERE id = $1
+	`, webhookID)
+	require.Len(t, webhooksSuper, 1, "Admin/service role should see webhooks")
+
+	t.Log("Webhook tables correctly restricted to admin/service_role only")
+}
+
+// TestRLSDashboardAdminTablesProtected tests that dashboard admin tables are properly protected
+func TestRLSDashboardAdminTablesProtected(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create a regular app user (not dashboard admin) directly in database as superuser
+	userID := "77777777-7777-7777-7777-777777777777"
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user@example.com', 'hash1', true, NOW())
+	`, userID)
+
+	// Test 1: OAuth providers should be admin-only
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO dashboard.oauth_providers (id, provider_name, display_name, client_id, client_secret, redirect_url, enabled, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'google', 'Google', 'client123', 'secret456', 'http://localhost/callback', true, NOW(), NOW())
+	`)
+
+	providers := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM dashboard.oauth_providers
+	`, userID)
+
+	require.Len(t, providers, 0, "Regular user should NOT see oauth_providers (dashboard admin only)")
+
+	// Test 2: Auth settings should be admin-only
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO dashboard.auth_settings (id, key, value, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'max_login_attempts', '5'::jsonb, NOW(), NOW())
+	`)
+
+	authSettings := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM dashboard.auth_settings
+	`, userID)
+
+	require.Len(t, authSettings, 0, "Regular user should NOT see auth_settings (dashboard admin only)")
+
+	// Test 3: Activity log should be admin-read only
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO dashboard.activity_log (id, user_id, action, details, created_at)
+		VALUES (gen_random_uuid(), NULL, 'test.action', '{"message": "Test log entry"}'::jsonb, NOW())
+	`)
+
+	activityLog := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM dashboard.activity_log
+	`, userID)
+
+	require.Len(t, activityLog, 0, "Regular user should NOT see activity_log (dashboard admin only)")
+
+	t.Log("Dashboard admin tables correctly restricted to dashboard_admin role")
+}
+
+// TestRLSImpersonationSessionsAdminOnly tests that impersonation sessions are admin-only
+func TestRLSImpersonationSessionsAdminOnly(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create a regular user and admin user directly in database as superuser
+	userID := "88888888-8888-8888-8888-888888888888"
+	adminUserID := "99999999-9999-9999-9999-999999999999"
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user@example.com', 'hash1', true, NOW())
+	`, userID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'admin@example.com', 'hashadmin', true, NOW())
+	`, adminUserID)
+
+	// Insert an impersonation session as superuser
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.impersonation_sessions (id, admin_user_id, impersonated_user_id, reason, started_at)
+		VALUES (gen_random_uuid(), $1, $2, 'Testing impersonation', NOW())
+	`, adminUserID, userID)
+
+	// Test: Regular user cannot see impersonation sessions
+	sessions := tc.QuerySQLAsRLSUser(`
+		SELECT * FROM auth.impersonation_sessions WHERE impersonated_user_id = $1
+	`, userID, userID)
+
+	require.Len(t, sessions, 0, "Regular user should NOT see impersonation_sessions (dashboard admin only)")
+
+	// Verify superuser/admin CAN access
+	sessionsSuper := tc.QuerySQLAsSuperuser(`
+		SELECT * FROM auth.impersonation_sessions WHERE impersonated_user_id = $1
+	`, userID)
+	require.Len(t, sessionsSuper, 1, "Dashboard admin/service role should see impersonation_sessions")
+
+	t.Log("Impersonation sessions correctly restricted to dashboard_admin only")
+}
+
+// TestRLSAPIKeyUsageRestriction tests that users can only see usage for their own API keys
+func TestRLSAPIKeyUsageRestriction(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Create two users directly in database as superuser
+	user1ID := "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+	user2ID := "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user1@example.com', 'hash1', true, NOW())
+	`, user1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, created_at)
+		VALUES ($1, 'user2@example.com', 'hash2', true, NOW())
+	`, user2ID)
+
+	// Create API keys for both users as superuser
+	apiKey1ID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	apiKey2ID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.api_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
+		VALUES ($1, $2, 'hash1', 'fb_test_', 'User 1 Key', NOW(), NOW())
+	`, apiKey1ID, user1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.api_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
+		VALUES ($1, $2, 'hash2', 'fb_test_', 'User 2 Key', NOW(), NOW())
+	`, apiKey2ID, user2ID)
+
+	// Add usage records for both keys
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.api_key_usage (id, api_key_id, endpoint, method, status_code, created_at)
+		VALUES (gen_random_uuid(), $1, '/api/test', 'GET', 200, NOW())
+	`, apiKey1ID)
+
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.api_key_usage (id, api_key_id, endpoint, method, status_code, created_at)
+		VALUES (gen_random_uuid(), $1, '/api/test', 'GET', 200, NOW())
+	`, apiKey2ID)
+
+	// Test: User1 should only see usage for their own API key
+	user1Usage := tc.QuerySQLAsRLSUser(`
+		SELECT api_key_id FROM auth.api_key_usage WHERE api_key_id IN ($1, $2)
+	`, user1ID, apiKey1ID, apiKey2ID)
+
+	require.Len(t, user1Usage, 1, "User1 should only see usage for their own API key")
+	require.Equal(t, apiKey1ID, user1Usage[0]["api_key_id"], "User1 should see their own key usage")
+
+	// Test: User2 should only see usage for their own API key
+	user2Usage := tc.QuerySQLAsRLSUser(`
+		SELECT api_key_id FROM auth.api_key_usage WHERE api_key_id IN ($1, $2)
+	`, user2ID, apiKey1ID, apiKey2ID)
+
+	require.Len(t, user2Usage, 1, "User2 should only see usage for their own API key")
+	require.Equal(t, apiKey2ID, user2Usage[0]["api_key_id"], "User2 should see their own key usage")
+
+	t.Log("API key usage correctly restricted to own keys only")
+}
+
+// TestRLSForceRowLevelSecurity tests that FORCE RLS prevents table owner bypass
+func TestRLSForceRowLevelSecurity(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// This test verifies that FORCE ROW LEVEL SECURITY is enabled
+	// We check a few critical tables to ensure they have FORCE RLS
+
+	// Query pg_class to check if FORCE RLS is enabled
+	result := tc.QuerySQLAsSuperuser(`
+		SELECT
+			c.relname as table_name,
+			c.relrowsecurity as rls_enabled,
+			c.relforcerowsecurity as force_rls_enabled
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'auth'
+		AND c.relname IN ('users', 'sessions', 'magic_links', 'password_reset_tokens', 'webhooks')
+		ORDER BY c.relname
+	`)
+
+	require.GreaterOrEqual(t, len(result), 5, "Should find at least 5 auth tables")
+
+	// Verify each table has both RLS and FORCE RLS enabled
+	for _, row := range result {
+		tableName := row["table_name"]
+		rlsEnabled := row["rls_enabled"]
+		forceRLSEnabled := row["force_rls_enabled"]
+
+		require.Equal(t, true, rlsEnabled, "Table %s should have RLS enabled", tableName)
+		require.Equal(t, true, forceRLSEnabled, "Table %s should have FORCE RLS enabled", tableName)
+
+		t.Logf("✓ Table auth.%s has FORCE ROW LEVEL SECURITY enabled", tableName)
+	}
+
+	t.Log("FORCE ROW LEVEL SECURITY correctly enabled on critical tables")
+}
+
+// TestRLSPerformanceIndexes tests that performance indexes for RLS policies exist
+func TestRLSPerformanceIndexes(t *testing.T) {
+	tc := setupRLSTest(t)
+	defer tc.Close()
+
+	// Check that key indexes exist for RLS policy performance
+	expectedIndexes := []struct {
+		schema string
+		table  string
+		index  string
+	}{
+		{"auth", "api_keys", "idx_api_keys_user_id"},
+		{"auth", "api_key_usage", "idx_api_key_usage_api_key_id"},
+		{"auth", "sessions", "idx_auth_sessions_user_id"},
+		{"auth", "webhook_deliveries", "idx_webhook_deliveries_webhook_id"},
+		{"auth", "impersonation_sessions", "idx_impersonation_sessions_admin_user_id"},
+		{"auth", "impersonation_sessions", "idx_impersonation_sessions_impersonated_user_id"},
+	}
+
+	for _, expected := range expectedIndexes {
+		result := tc.QuerySQLAsSuperuser(`
+			SELECT indexname
+			FROM pg_indexes
+			WHERE schemaname = $1 AND tablename = $2 AND indexname = $3
+		`, expected.schema, expected.table, expected.index)
+
+		require.Len(t, result, 1,
+			"Index %s.%s.%s should exist for RLS performance",
+			expected.schema, expected.table, expected.index)
+
+		t.Logf("✓ Performance index %s exists on %s.%s",
+			expected.index, expected.schema, expected.table)
+	}
+
+	t.Log("All RLS performance indexes are in place")
 }

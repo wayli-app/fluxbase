@@ -1,14 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Database, Mail, HardDrive, Download, Settings2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Database, Mail, HardDrive, Download, Settings2, CheckCircle2, AlertCircle, Zap, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { monitoringApi } from '@/lib/api'
+import { monitoringApi, apiClient } from '@/lib/api'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_authenticated/system-settings/')({
   component: SystemSettingsPage,
@@ -47,7 +49,48 @@ interface StorageConfig {
   max_upload_size_mb: number
 }
 
+interface FeatureSettings {
+  enable_realtime: boolean
+  enable_storage: boolean
+  enable_functions: boolean
+}
+
 function SystemSettingsPage() {
+  const queryClient = useQueryClient()
+
+  // Fetch feature settings
+  const { data: features, isLoading: featuresLoading } = useQuery<FeatureSettings>({
+    queryKey: ['feature-settings'],
+    queryFn: async () => {
+      const [realtime, storage, functions] = await Promise.all([
+        apiClient.get('/api/v1/admin/system/settings/app.features.enable_realtime'),
+        apiClient.get('/api/v1/admin/system/settings/app.features.enable_storage'),
+        apiClient.get('/api/v1/admin/system/settings/app.features.enable_functions'),
+      ])
+      return {
+        enable_realtime: realtime.data.value.value,
+        enable_storage: storage.data.value.value,
+        enable_functions: functions.data.value.value,
+      }
+    },
+  })
+
+  // Update feature settings mutation
+  const updateFeatureMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: boolean }) => {
+      await apiClient.put(`/api/v1/admin/system/settings/${key}`, {
+        value: { value },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feature-settings'] })
+      toast.success('Feature settings updated')
+    },
+    onError: () => {
+      toast.error('Failed to update feature settings')
+    },
+  })
+
   // Mock data - In production, these would come from API endpoints
   const [dbConfig] = useState<DatabaseConfig>({
     host: 'postgres',
@@ -101,8 +144,11 @@ function SystemSettingsPage() {
     <div className='flex flex-col gap-6 p-6'>
       <div className='flex items-center justify-between'>
         <div>
-          <h1 className='text-3xl font-bold'>System Settings</h1>
-          <p className='text-sm text-muted-foreground mt-1'>Configure database, email, storage, and backup settings</p>
+          <h1 className='text-3xl font-bold tracking-tight flex items-center gap-2'>
+            <Settings2 className='h-8 w-8' />
+            System Settings
+          </h1>
+          <p className='text-sm text-muted-foreground mt-2'>Configure database, email, storage, and backup settings</p>
         </div>
         <Badge variant='outline' className='border-blue-500 text-blue-500'>
           <Settings2 className='mr-1 h-3 w-3' />
@@ -110,13 +156,109 @@ function SystemSettingsPage() {
         </Badge>
       </div>
 
-      <Tabs defaultValue='database' className='w-full'>
-        <TabsList className='grid w-full grid-cols-4'>
+      <Tabs defaultValue='features' className='w-full'>
+        <TabsList className='grid w-full grid-cols-5'>
+          <TabsTrigger value='features'>Features</TabsTrigger>
           <TabsTrigger value='database'>Database</TabsTrigger>
           <TabsTrigger value='email'>Email</TabsTrigger>
           <TabsTrigger value='storage'>Storage</TabsTrigger>
           <TabsTrigger value='backup'>Backup</TabsTrigger>
         </TabsList>
+
+        {/* Features Tab */}
+        <TabsContent value='features' className='space-y-4'>
+          <Card>
+            <CardHeader>
+              <div className='flex items-center gap-2'>
+                <Zap className='h-5 w-5' />
+                <CardTitle>Feature Flags</CardTitle>
+              </div>
+              <CardDescription>Enable or disable platform features</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-6'>
+              {featuresLoading ? (
+                <div className='flex justify-center py-8'>
+                  <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+                </div>
+              ) : (
+                <>
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-0.5'>
+                      <Label htmlFor='enable-realtime'>Enable Realtime</Label>
+                      <p className='text-sm text-muted-foreground'>
+                        Real-time subscriptions and WebSocket connections
+                      </p>
+                    </div>
+                    <Switch
+                      id='enable-realtime'
+                      checked={features?.enable_realtime || false}
+                      onCheckedChange={(checked) => {
+                        updateFeatureMutation.mutate({
+                          key: 'app.features.enable_realtime',
+                          value: checked,
+                        })
+                      }}
+                      disabled={updateFeatureMutation.isPending}
+                    />
+                  </div>
+
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-0.5'>
+                      <Label htmlFor='enable-storage'>Enable Storage</Label>
+                      <p className='text-sm text-muted-foreground'>
+                        File storage and media management
+                      </p>
+                    </div>
+                    <Switch
+                      id='enable-storage'
+                      checked={features?.enable_storage || false}
+                      onCheckedChange={(checked) => {
+                        updateFeatureMutation.mutate({
+                          key: 'app.features.enable_storage',
+                          value: checked,
+                        })
+                      }}
+                      disabled={updateFeatureMutation.isPending}
+                    />
+                  </div>
+
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-0.5'>
+                      <Label htmlFor='enable-functions'>Enable Edge Functions</Label>
+                      <p className='text-sm text-muted-foreground'>
+                        Serverless functions and custom business logic
+                      </p>
+                    </div>
+                    <Switch
+                      id='enable-functions'
+                      checked={features?.enable_functions || false}
+                      onCheckedChange={(checked) => {
+                        updateFeatureMutation.mutate({
+                          key: 'app.features.enable_functions',
+                          value: checked,
+                        })
+                      }}
+                      disabled={updateFeatureMutation.isPending}
+                    />
+                  </div>
+
+                  <div className='rounded-lg bg-muted p-4'>
+                    <div className='flex gap-2'>
+                      <AlertCircle className='h-5 w-5 text-muted-foreground shrink-0 mt-0.5' />
+                      <div className='text-sm space-y-1'>
+                        <p className='font-medium'>Feature Availability</p>
+                        <p className='text-muted-foreground'>
+                          Disabling features will prevent users from accessing related functionality.
+                          Existing data will be preserved but inaccessible until re-enabled.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Database Settings Tab */}
         <TabsContent value='database' className='space-y-4'>

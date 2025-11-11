@@ -307,6 +307,47 @@ Access tokens contain:
 
 Configure role-based access with Row-Level Security policies.
 
+### Authentication Flow
+
+When a request includes a JWT token, Fluxbase validates it and injects user context for use by edge functions, RLS policies, and other services:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Fluxbase
+    participant JWT
+    participant Handler
+    participant Database
+
+    Client->>Fluxbase: HTTP Request + JWT Token
+    Fluxbase->>JWT: Validate JWT
+    JWT-->>Fluxbase: User Context (id, email, role)
+
+    alt JWT Valid
+        Fluxbase->>Handler: Inject User Context<br/>(x-user-id, x-user-email headers)
+        Handler->>Database: Query with RLS<br/>(current_setting('app.user_id'))
+        Database-->>Handler: Filtered Results
+        Handler-->>Fluxbase: Response
+        Fluxbase-->>Client: HTTP Response
+    else JWT Invalid
+        Fluxbase-->>Client: 401 Unauthorized
+    end
+```
+
+**Flow explanation:**
+
+1. **Client sends request** with JWT token in `Authorization: Bearer <token>` header
+2. **Fluxbase validates JWT** using the configured secret key
+3. **User context extracted** from token payload (user_id, email, role)
+4. **Context injected** into request:
+   - Headers: `x-user-id`, `x-user-email` (available to edge functions)
+   - PostgreSQL settings: `app.user_id`, `app.user_email` (available to RLS policies)
+5. **Handler processes request** with user context available
+6. **Database queries respect RLS** policies using `current_setting('app.user_id')`
+7. **Response returned** to client
+
+This flow ensures that user identity is consistently available throughout the request lifecycle, enabling secure data access control via Row-Level Security policies.
+
 ## Next Steps
 
 - [Row-Level Security](/docs/guides/row-level-security) - Secure data with RLS policies

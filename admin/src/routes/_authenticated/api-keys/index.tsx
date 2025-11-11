@@ -36,11 +36,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { Search as SearchComponent } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
-import { ConfigDrawer } from '@/components/config-drawer'
 import { apiKeysApi, type APIKey, type CreateAPIKeyRequest } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/api-keys/')({
@@ -183,23 +178,16 @@ function APIKeysPage() {
   )
 
   return (
-    <>
-      <Header fixed>
-        <SearchComponent />
-        <div className='ms-auto flex items-center space-x-4'>
-          <ThemeSwitch />
-          <ConfigDrawer />
-        </div>
-      </Header>
-
-      <Main>
-        <div className='space-y-4'>
-          <div>
-            <h1 className='text-3xl font-bold tracking-tight'>API Keys</h1>
-            <p className='text-muted-foreground'>
-              Generate and manage API keys for programmatic access
-            </p>
-          </div>
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Key className="h-8 w-8" />
+          API Keys
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Generate and manage API keys for programmatic access
+        </p>
+      </div>
 
       {/* Stats Cards */}
       <div className='grid gap-4 md:grid-cols-3'>
@@ -524,8 +512,6 @@ function APIKeysPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        </div>
-      </Main>
-    </>
+    </div>
   )
 }

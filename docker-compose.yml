@@ -1,25 +1,43 @@
 version: "3.8"
 
+# ==============================================================================
+# Fluxbase Development Setup
+# ==============================================================================
+# This setup is optimized for local development with live code reload.
+# It builds Fluxbase from source and includes useful development tools:
+# - pgAdmin: Database management UI (http://localhost:5050)
+# - MailHog: Email testing UI (http://localhost:8025)
+#
+# Quick Start:
+# 1. Generate a JWT secret: openssl rand -base64 32
+# 2. Update FLUXBASE_AUTH_JWT_SECRET below
+# 3. Run: docker-compose up -d
+# 4. Access at: http://localhost:8080
+# ==============================================================================
+
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:18-alpine
     container_name: fluxbase-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: fluxbase
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-fluxbase}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - fluxbase-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
+  # Fluxbase API (built from source)
   fluxbase:
     build: .
     container_name: fluxbase
@@ -27,15 +45,43 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # Database Configuration
       FLUXBASE_DATABASE_HOST: postgres
       FLUXBASE_DATABASE_PORT: 5432
-      FLUXBASE_DATABASE_USER: postgres
-      FLUXBASE_DATABASE_PASSWORD: postgres
-      FLUXBASE_DATABASE_DATABASE: fluxbase
-      FLUXBASE_AUTH_JWT_SECRET: your-secret-key-change-in-production
+      FLUXBASE_DATABASE_USER: ${POSTGRES_USER:-postgres}
+      FLUXBASE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      FLUXBASE_DATABASE_DATABASE: ${POSTGRES_DB:-fluxbase}
+      FLUXBASE_DATABASE_SSL_MODE: disable
+
+      # Authentication (CHANGE THIS!)
+      # Generate with: openssl rand -base64 32
+      FLUXBASE_AUTH_JWT_SECRET: ${FLUXBASE_AUTH_JWT_SECRET:-your-secret-key-change-in-production}
+      FLUXBASE_AUTH_JWT_EXPIRY: 15m
+      FLUXBASE_AUTH_REFRESH_EXPIRY: 168h
+      FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
+
+      # Storage (local for development)
+      FLUXBASE_STORAGE_PROVIDER: local
+      FLUXBASE_STORAGE_LOCAL_PATH: /home/fluxbase/storage
+
+      # Server Configuration
+      FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
+      FLUXBASE_BASE_URL: ${FLUXBASE_BASE_URL:-http://localhost:8080}
       FLUXBASE_DEBUG: "true"
+
+      # Realtime & Functions
+      FLUXBASE_REALTIME_ENABLED: "true"
+      FLUXBASE_FUNCTIONS_ENABLED: "true"
+
+      # Email (using MailHog for development)
+      FLUXBASE_EMAIL_ENABLED: "false"
+      FLUXBASE_EMAIL_PROVIDER: smtp
+      FLUXBASE_EMAIL_SMTP_HOST: mailhog
+      FLUXBASE_EMAIL_SMTP_PORT: 1025
+      FLUXBASE_EMAIL_SMTP_TLS: "false"
+      FLUXBASE_EMAIL_FROM_ADDRESS: noreply@localhost
     ports:
-      - "8080:8080"
+      - "${FLUXBASE_PORT:-8080}:8080"
     volumes:
       - ./config:/home/fluxbase/config
       - ./storage:/home/fluxbase/storage
