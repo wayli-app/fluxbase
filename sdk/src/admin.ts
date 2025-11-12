@@ -15,7 +15,7 @@ import type {
   ListUsersResponse,
   ResetUserPasswordResponse,
 } from "./types";
-import { FluxbaseSettings } from "./settings";
+import { FluxbaseSettings, EmailTemplateManager } from "./settings";
 import { DDLManager } from "./ddl";
 import { FluxbaseOAuth } from "./oauth";
 import { ImpersonationManager } from "./impersonation";
@@ -53,6 +53,11 @@ export class FluxbaseAdmin {
    */
   public management: FluxbaseManagement;
 
+  /**
+   * Email template manager for customizing authentication and notification emails
+   */
+  public emailTemplates: EmailTemplateManager;
+
   constructor(fetch: FluxbaseFetch) {
     this.fetch = fetch;
     this.settings = new FluxbaseSettings(fetch);
@@ -60,6 +65,7 @@ export class FluxbaseAdmin {
     this.oauth = new FluxbaseOAuth(fetch);
     this.impersonation = new ImpersonationManager(fetch);
     this.management = new FluxbaseManagement(fetch);
+    this.emailTemplates = new EmailTemplateManager(fetch);
   }
 
   /**

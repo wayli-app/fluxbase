@@ -618,6 +618,56 @@ export interface ListSystemSettingsResponse {
 }
 
 // ============================================================================
+// Custom Settings Types
+// ============================================================================
+
+/**
+ * Custom setting with flexible key-value storage and role-based editing permissions
+ */
+export interface CustomSetting {
+  id: string
+  key: string
+  value: Record<string, unknown>
+  value_type: 'string' | 'number' | 'boolean' | 'json'
+  description?: string
+  editable_by: string[]
+  metadata?: Record<string, unknown>
+  created_by?: string
+  updated_by?: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to create a custom setting
+ */
+export interface CreateCustomSettingRequest {
+  key: string
+  value: Record<string, unknown>
+  value_type?: 'string' | 'number' | 'boolean' | 'json'
+  description?: string
+  editable_by?: string[]
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Request to update a custom setting
+ */
+export interface UpdateCustomSettingRequest {
+  value: Record<string, unknown>
+  description?: string
+  editable_by?: string[]
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Response containing all custom settings
+ */
+export interface ListCustomSettingsResponse {
+  settings: CustomSetting[]
+}
+
+// ============================================================================
 // Application Settings Types
 // ============================================================================
 
@@ -629,6 +679,12 @@ export interface AuthenticationSettings {
   enable_magic_link: boolean
   password_min_length: number
   require_email_verification: boolean
+  password_require_uppercase: boolean
+  password_require_lowercase: boolean
+  password_require_number: boolean
+  password_require_special: boolean
+  session_timeout_minutes: number
+  max_sessions_per_user: number
 }
 
 /**
@@ -641,11 +697,54 @@ export interface FeatureSettings {
 }
 
 /**
+ * SMTP email provider configuration
+ */
+export interface SMTPSettings {
+  host: string
+  port: number
+  username: string
+  password: string
+  use_tls: boolean
+}
+
+/**
+ * SendGrid email provider configuration
+ */
+export interface SendGridSettings {
+  api_key: string
+}
+
+/**
+ * Mailgun email provider configuration
+ */
+export interface MailgunSettings {
+  api_key: string
+  domain: string
+  eu_region: boolean
+}
+
+/**
+ * AWS SES email provider configuration
+ */
+export interface SESSettings {
+  access_key_id: string
+  secret_access_key: string
+  region: string
+}
+
+/**
  * Email configuration settings
  */
 export interface EmailSettings {
   enabled: boolean
-  provider: string
+  provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses'
+  from_address?: string
+  from_name?: string
+  reply_to_address?: string
+  smtp?: SMTPSettings
+  sendgrid?: SendGridSettings
+  mailgun?: MailgunSettings
+  ses?: SESSettings
 }
 
 /**
@@ -674,6 +773,52 @@ export interface UpdateAppSettingsRequest {
   features?: Partial<FeatureSettings>
   email?: Partial<EmailSettings>
   security?: Partial<SecuritySettings>
+}
+
+// ============================================================================
+// Email Template Types
+// ============================================================================
+
+/**
+ * Email template type
+ */
+export type EmailTemplateType = 'magic_link' | 'verify_email' | 'reset_password' | 'invite_user'
+
+/**
+ * Email template structure
+ */
+export interface EmailTemplate {
+  id: string
+  template_type: EmailTemplateType
+  subject: string
+  html_body: string
+  text_body?: string
+  is_custom: boolean
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to update an email template
+ */
+export interface UpdateEmailTemplateRequest {
+  subject: string
+  html_body: string
+  text_body?: string
+}
+
+/**
+ * Request to test an email template
+ */
+export interface TestEmailTemplateRequest {
+  recipient_email: string
+}
+
+/**
+ * Response when listing email templates
+ */
+export interface ListEmailTemplatesResponse {
+  templates: EmailTemplate[]
 }
 
 // ============================================================================

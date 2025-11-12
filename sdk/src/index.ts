@@ -61,7 +61,7 @@ export { FluxbaseAdmin } from './admin'
 export { FluxbaseManagement, APIKeysManager, WebhooksManager, InvitationsManager } from './management'
 
 // Settings module
-export { FluxbaseSettings, SystemSettingsManager, AppSettingsManager } from './settings'
+export { FluxbaseSettings, SystemSettingsManager, AppSettingsManager, EmailTemplateManager } from './settings'
 
 // DDL module
 export { DDLManager } from './ddl'
@@ -168,9 +168,20 @@ export type {
   AuthenticationSettings,
   FeatureSettings,
   EmailSettings,
+  SMTPSettings,
+  SendGridSettings,
+  MailgunSettings,
+  SESSettings,
   SecuritySettings,
   AppSettings,
   UpdateAppSettingsRequest,
+
+  // Email Template types
+  EmailTemplateType,
+  EmailTemplate,
+  UpdateEmailTemplateRequest,
+  TestEmailTemplateRequest,
+  ListEmailTemplatesResponse,
 
   // DDL types
   CreateColumnRequest,

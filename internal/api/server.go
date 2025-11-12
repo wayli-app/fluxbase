@@ -47,6 +47,7 @@ type Server struct {
 	oauthHandler          *OAuthHandler
 	systemSettingsHandler *SystemSettingsHandler
 	customSettingsHandler *CustomSettingsHandler
+	appSettingsHandler    *AppSettingsHandler
 	emailTemplateHandler  *EmailTemplateHandler
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
@@ -128,6 +129,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
 	customSettingsService := settings.NewCustomSettingsService(db)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
+	appSettingsHandler := NewAppSettingsHandler(systemSettingsService)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
 	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
@@ -165,6 +167,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		oauthHandler:          oauthHandler,
 		systemSettingsHandler: systemSettingsHandler,
 		customSettingsHandler: customSettingsHandler,
+		appSettingsHandler:    appSettingsHandler,
 		emailTemplateHandler:  emailTemplateHandler,
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
@@ -511,6 +514,10 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Get("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.GetSetting)
 	router.Put("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.UpdateSetting)
 	router.Delete("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.DeleteSetting)
+
+	// App settings routes (require admin or dashboard_admin role)
+	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)
+	router.Put("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.UpdateAppSettings)
 
 	// Email template routes (require admin or dashboard_admin role)
 	router.Get("/email/templates", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ListTemplates)
