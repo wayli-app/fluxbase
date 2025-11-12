@@ -538,6 +538,10 @@ jobs:
             artifacthub.io/prerelease: "true"
           EOF
 
+      - name: Update Helm dependencies
+        run: |
+          helm dependency update deploy/helm/fluxbase
+
       - name: Package Helm chart
         run: |
           helm package deploy/helm/fluxbase
