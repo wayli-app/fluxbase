@@ -544,6 +544,27 @@ CREATE TABLE IF NOT EXISTS dashboard.system_settings (
 
 CREATE INDEX IF NOT EXISTS idx_dashboard_system_settings_key ON dashboard.system_settings(key);
 
+-- Custom settings table (flexible admin-managed key-value configuration)
+CREATE TABLE IF NOT EXISTS dashboard.custom_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key TEXT UNIQUE NOT NULL,
+    value JSONB NOT NULL,
+    value_type TEXT NOT NULL DEFAULT 'string' CHECK (value_type IN ('string', 'number', 'boolean', 'json')),
+    description TEXT,
+    editable_by TEXT[] NOT NULL DEFAULT ARRAY['dashboard_admin']::TEXT[],
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_key ON dashboard.custom_settings(key);
+CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_editable_by ON dashboard.custom_settings USING GIN(editable_by);
+CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_created_at ON dashboard.custom_settings(created_at);
+
+COMMENT ON TABLE dashboard.custom_settings IS 'Flexible key-value settings that can be created and managed by admins and dashboard_admins';
+
 -- Invitation tokens table
 CREATE TABLE IF NOT EXISTS dashboard.invitation_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -955,6 +976,9 @@ CREATE TRIGGER update_dashboard_auth_settings_updated_at BEFORE UPDATE ON dashbo
 CREATE TRIGGER update_dashboard_system_settings_updated_at BEFORE UPDATE ON dashboard.system_settings
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+CREATE TRIGGER update_dashboard_custom_settings_updated_at BEFORE UPDATE ON dashboard.custom_settings
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
 CREATE TRIGGER update_dashboard_email_templates_updated_at BEFORE UPDATE ON dashboard.email_templates
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
@@ -1046,6 +1070,43 @@ CREATE POLICY dashboard_system_settings_select_policy ON dashboard.system_settin
 CREATE POLICY dashboard_system_settings_modify_policy ON dashboard.system_settings
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');
+
+-- Dashboard custom settings table
+ALTER TABLE dashboard.custom_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dashboard.custom_settings FORCE ROW LEVEL SECURITY;
+
+-- dashboard_admin can do everything with custom settings
+CREATE POLICY dashboard_custom_settings_dashboard_admin_all ON dashboard.custom_settings
+    FOR ALL
+    USING (auth.current_user_role() = 'dashboard_admin')
+    WITH CHECK (auth.current_user_role() = 'dashboard_admin');
+
+-- admin can read all custom settings
+CREATE POLICY dashboard_custom_settings_admin_select ON dashboard.custom_settings
+    FOR SELECT
+    USING (auth.current_user_role() = 'admin');
+
+-- admin can update/delete only if 'admin' is in editable_by array
+CREATE POLICY dashboard_custom_settings_admin_update ON dashboard.custom_settings
+    FOR UPDATE
+    USING (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by))
+    WITH CHECK (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by));
+
+CREATE POLICY dashboard_custom_settings_admin_delete ON dashboard.custom_settings
+    FOR DELETE
+    USING (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by));
+
+-- service_role can do everything (for internal operations)
+CREATE POLICY dashboard_custom_settings_service_role_all ON dashboard.custom_settings
+    FOR ALL
+    USING (auth.current_user_role() = 'service_role')
+    WITH CHECK (auth.current_user_role() = 'service_role');
+
+COMMENT ON POLICY dashboard_custom_settings_dashboard_admin_all ON dashboard.custom_settings IS 'Dashboard admins have full access to all custom settings';
+COMMENT ON POLICY dashboard_custom_settings_admin_select ON dashboard.custom_settings IS 'Admins can read all custom settings';
+COMMENT ON POLICY dashboard_custom_settings_admin_update ON dashboard.custom_settings IS 'Admins can update custom settings only if admin is in editable_by array';
+COMMENT ON POLICY dashboard_custom_settings_admin_delete ON dashboard.custom_settings IS 'Admins can delete custom settings only if admin is in editable_by array';
+COMMENT ON POLICY dashboard_custom_settings_service_role_all ON dashboard.custom_settings IS 'Service role has full access for internal operations';
 
 -- Dashboard invitation tokens table
 ALTER TABLE dashboard.invitation_tokens ENABLE ROW LEVEL SECURITY;

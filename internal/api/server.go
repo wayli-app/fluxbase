@@ -21,6 +21,7 @@ import (
 	"github.com/wayli-app/fluxbase/internal/functions"
 	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/realtime"
+	"github.com/wayli-app/fluxbase/internal/settings"
 	"github.com/wayli-app/fluxbase/internal/storage"
 	"github.com/wayli-app/fluxbase/internal/webhook"
 )
@@ -45,6 +46,7 @@ type Server struct {
 	oauthProviderHandler  *OAuthProviderHandler
 	oauthHandler          *OAuthHandler
 	systemSettingsHandler *SystemSettingsHandler
+	customSettingsHandler *CustomSettingsHandler
 	emailTemplateHandler  *EmailTemplateHandler
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
@@ -124,6 +126,8 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService)
+	customSettingsService := settings.NewCustomSettingsService(db)
+	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
 	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
@@ -160,6 +164,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		oauthProviderHandler:  oauthProviderHandler,
 		oauthHandler:          oauthHandler,
 		systemSettingsHandler: systemSettingsHandler,
+		customSettingsHandler: customSettingsHandler,
 		emailTemplateHandler:  emailTemplateHandler,
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
@@ -499,6 +504,13 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Get("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.GetSetting)
 	router.Put("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
 	router.Delete("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
+
+	// Custom settings routes (require admin or dashboard_admin role)
+	router.Post("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.CreateSetting)
+	router.Get("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.ListSettings)
+	router.Get("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.GetSetting)
+	router.Put("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.UpdateSetting)
+	router.Delete("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.DeleteSetting)
 
 	// Email template routes (require admin or dashboard_admin role)
 	router.Get("/email/templates", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ListTemplates)
