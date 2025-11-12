@@ -20,7 +20,7 @@ name: Release
 #   - Publish docs Docker image: Build and push the documentation site image
 #   - Publish NPM SDK packages: Publish TypeScript and React SDK packages to NPM
 #   - Publish Go module: Notify pkg.go.dev to index the new Go module version
-#   - Publish Helm chart: Package and publish Helm chart (automatically disabled for RC)
+#   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
 #   Note: For release/tag push triggers, all components are published
 #
 # RC Release behavior:
@@ -28,7 +28,7 @@ name: Release
 #   - Marked as GitHub pre-release
 #   - Docker images tagged with version and 'rc' (NOT 'latest')
 #   - NPM packages published with 'rc' dist-tag (NOT 'latest')
-#   - Helm charts are NOT published to production repository
+#   - Helm charts published with prerelease annotation (filtered by default, opt-in with --devel)
 #   - Binaries and Go module are published normally
 #
 # Stable Release behavior (patch/minor/major):
@@ -510,8 +510,8 @@ jobs:
     name: Publish Helm Chart to GHCR
     needs: get-version
     runs-on: ubuntu-latest
-    # Skip Helm chart publishing for RC releases or if disabled in workflow_dispatch
-    if: needs.get-version.outputs.is_prerelease == 'false' && (github.event_name != 'workflow_dispatch' || inputs.publish_helm)
+    # Publish Helm chart for all releases (stable and RC) unless disabled in workflow_dispatch
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_helm
     steps:
       - uses: actions/checkout@v5
 
@@ -529,6 +529,14 @@ jobs:
           VERSION=${{ needs.get-version.outputs.version }}
           sed -i "s/^version:.*/version: ${VERSION}/" deploy/helm/fluxbase/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/fluxbase/Chart.yaml
+
+      - name: Add prerelease annotation for RC versions
+        if: needs.get-version.outputs.is_prerelease == 'true'
+        run: |
+          cat >> deploy/helm/fluxbase/Chart.yaml << EOF
+          annotations:
+            artifacthub.io/prerelease: "true"
+          EOF
 
       - name: Package Helm chart
         run: |
