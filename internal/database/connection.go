@@ -114,6 +114,16 @@ func (c *Connection) runSystemMigrations() error {
 		return fmt.Errorf("failed to create _fluxbase schema: %w", err)
 	}
 
+	// Ensure the schema_migrations table exists
+	// The migrate library expects this table to exist in the specified schema
+	_, err = c.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."schema_migrations" (
+		version bigint NOT NULL PRIMARY KEY,
+		dirty boolean NOT NULL
+	)`)
+	if err != nil {
+		return fmt.Errorf("failed to create schema_migrations table: %w", err)
+	}
+
 	// Create migrations source from embedded filesystem
 	sourceDriver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
@@ -151,6 +161,17 @@ func (c *Connection) runUserMigrations() error {
 	if _, err := os.Stat(c.config.UserMigrationsPath); os.IsNotExist(err) {
 		log.Warn().Str("path", c.config.UserMigrationsPath).Msg("User migrations directory does not exist, skipping")
 		return nil
+	}
+
+	// Ensure the user_migrations table exists
+	// This table should have been created by system migrations, but we ensure it exists
+	ctx := context.Background()
+	_, err := c.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."user_migrations" (
+		version bigint NOT NULL PRIMARY KEY,
+		dirty boolean NOT NULL
+	)`)
+	if err != nil {
+		return fmt.Errorf("failed to create user_migrations table: %w", err)
 	}
 
 	// Use connection string with user migrations table
