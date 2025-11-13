@@ -218,6 +218,48 @@ jobs:
             --notes "Automated release created by workflow dispatch" \
             $PRERELEASE_FLAG
 
+  update-version-files:
+    name: Update version in config files
+    needs: get-version
+    runs-on: ubuntu-latest
+    # Run on workflow dispatch OR when a tag is pushed (but not on release publish to avoid double-run)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Update version in files
+        run: |
+          VERSION=${{ needs.get-version.outputs.version }}
+
+          # Update Helm Chart
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/fluxbase/Chart.yaml
+
+          # Update Docker Compose files
+          # Update the main example docker-compose.yml
+          sed -i "s|image: ghcr.io/wayli-app/fluxbase:.*|image: ghcr.io/wayli-app/fluxbase:${VERSION}|g" deploy/docker-compose.yml
+          sed -i "s|image: ghcr.io/wayli-app/fluxbase:.*|image: ghcr.io/wayli-app/fluxbase:${VERSION}|g" deploy/docker-compose.minimal.yml
+
+          # For production and external-db, update the default in the variable
+          sed -i "s|FLUXBASE_VERSION:-.*}|FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.production.yml
+          sed -i "s|FLUXBASE_VERSION:-.*}|FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.external-db.yml
+
+      - name: Commit version updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add deploy/helm/fluxbase/Chart.yaml
+          git add deploy/docker-compose*.yml
+
+          if git diff --staged --quiet; then
+            echo "No version changes to commit"
+          else
+            git commit -m "chore: Update version to ${{ needs.get-version.outputs.version }} in deployment files"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
   publish-binaries:
     name: Publish Binaries
     needs: get-version
