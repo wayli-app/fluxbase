@@ -1,4 +1,4 @@
-import type { FluxbaseFetch } from './fetch'
+import type { FluxbaseFetch } from "./fetch";
 import type {
   SystemSetting,
   UpdateSystemSettingRequest,
@@ -13,7 +13,7 @@ import type {
   EmailTemplateType,
   UpdateEmailTemplateRequest,
   ListEmailTemplatesResponse,
-} from './types'
+} from "./types";
 
 /**
  * System Settings Manager
@@ -56,8 +56,10 @@ export class SystemSettingsManager {
    * ```
    */
   async list(): Promise<ListSystemSettingsResponse> {
-    const settings = await this.fetch.get<SystemSetting[]>('/api/v1/admin/system/settings')
-    return { settings: Array.isArray(settings) ? settings : [] }
+    const settings = await this.fetch.get<SystemSetting[]>(
+      "/api/v1/admin/system/settings",
+    );
+    return { settings: Array.isArray(settings) ? settings : [] };
   }
 
   /**
@@ -73,7 +75,9 @@ export class SystemSettingsManager {
    * ```
    */
   async get(key: string): Promise<SystemSetting> {
-    return await this.fetch.get<SystemSetting>(`/api/v1/admin/system/settings/${key}`)
+    return await this.fetch.get<SystemSetting>(
+      `/api/v1/admin/system/settings/${key}`,
+    );
   }
 
   /**
@@ -91,8 +95,14 @@ export class SystemSettingsManager {
    * })
    * ```
    */
-  async update(key: string, request: UpdateSystemSettingRequest): Promise<SystemSetting> {
-    return await this.fetch.put<SystemSetting>(`/api/v1/admin/system/settings/${key}`, request)
+  async update(
+    key: string,
+    request: UpdateSystemSettingRequest,
+  ): Promise<SystemSetting> {
+    return await this.fetch.put<SystemSetting>(
+      `/api/v1/admin/system/settings/${key}`,
+      request,
+    );
   }
 
   /**
@@ -107,7 +117,7 @@ export class SystemSettingsManager {
    * ```
    */
   async delete(key: string): Promise<void> {
-    await this.fetch.delete(`/api/v1/admin/system/settings/${key}`)
+    await this.fetch.delete(`/api/v1/admin/system/settings/${key}`);
   }
 }
 
@@ -157,7 +167,7 @@ export class AppSettingsManager {
    * ```
    */
   async get(): Promise<AppSettings> {
-    return await this.fetch.get<AppSettings>('/api/v1/admin/app/settings')
+    return await this.fetch.get<AppSettings>("/api/v1/admin/app/settings");
   }
 
   /**
@@ -187,7 +197,10 @@ export class AppSettingsManager {
    * ```
    */
   async update(request: UpdateAppSettingsRequest): Promise<AppSettings> {
-    return await this.fetch.put<AppSettings>('/api/v1/admin/app/settings', request)
+    return await this.fetch.put<AppSettings>(
+      "/api/v1/admin/app/settings",
+      request,
+    );
   }
 
   /**
@@ -204,7 +217,10 @@ export class AppSettingsManager {
    * ```
    */
   async reset(): Promise<AppSettings> {
-    return await this.fetch.post<AppSettings>('/api/v1/admin/app/settings/reset', {})
+    return await this.fetch.post<AppSettings>(
+      "/api/v1/admin/app/settings/reset",
+      {},
+    );
   }
 
   /**
@@ -222,7 +238,7 @@ export class AppSettingsManager {
   async enableSignup(): Promise<AppSettings> {
     return await this.update({
       authentication: { enable_signup: true },
-    })
+    });
   }
 
   /**
@@ -240,7 +256,7 @@ export class AppSettingsManager {
   async disableSignup(): Promise<AppSettings> {
     return await this.update({
       authentication: { enable_signup: false },
-    })
+    });
   }
 
   /**
@@ -258,12 +274,14 @@ export class AppSettingsManager {
    */
   async setPasswordMinLength(length: number): Promise<AppSettings> {
     if (length < 8 || length > 128) {
-      throw new Error('Password minimum length must be between 8 and 128 characters')
+      throw new Error(
+        "Password minimum length must be between 8 and 128 characters",
+      );
     }
 
     return await this.update({
       authentication: { password_min_length: length },
-    })
+    });
   }
 
   /**
@@ -284,17 +302,20 @@ export class AppSettingsManager {
    * await client.admin.settings.app.setFeature('storage', false)
    * ```
    */
-  async setFeature(feature: 'realtime' | 'storage' | 'functions', enabled: boolean): Promise<AppSettings> {
+  async setFeature(
+    feature: "realtime" | "storage" | "functions",
+    enabled: boolean,
+  ): Promise<AppSettings> {
     const featureKey =
-      feature === 'realtime'
-        ? 'enable_realtime'
-        : feature === 'storage'
-          ? 'enable_storage'
-          : 'enable_functions'
+      feature === "realtime"
+        ? "enable_realtime"
+        : feature === "storage"
+          ? "enable_storage"
+          : "enable_functions";
 
     return await this.update({
       features: { [featureKey]: enabled },
-    })
+    });
   }
 
   /**
@@ -313,7 +334,7 @@ export class AppSettingsManager {
   async setRateLimiting(enabled: boolean): Promise<AppSettings> {
     return await this.update({
       security: { enable_global_rate_limit: enabled },
-    })
+    });
   }
 
   /**
@@ -338,19 +359,19 @@ export class AppSettingsManager {
    * ```
    */
   async configureSMTP(config: {
-    host: string
-    port: number
-    username: string
-    password: string
-    use_tls: boolean
-    from_address?: string
-    from_name?: string
-    reply_to_address?: string
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    use_tls: boolean;
+    from_address?: string;
+    from_name?: string;
+    reply_to_address?: string;
   }): Promise<AppSettings> {
     return await this.update({
       email: {
         enabled: true,
-        provider: 'smtp',
+        provider: "smtp",
         from_address: config.from_address,
         from_name: config.from_name,
         reply_to_address: config.reply_to_address,
@@ -362,7 +383,7 @@ export class AppSettingsManager {
           use_tls: config.use_tls,
         },
       },
-    })
+    });
   }
 
   /**
@@ -385,15 +406,15 @@ export class AppSettingsManager {
   async configureSendGrid(
     apiKey: string,
     options?: {
-      from_address?: string
-      from_name?: string
-      reply_to_address?: string
-    }
+      from_address?: string;
+      from_name?: string;
+      reply_to_address?: string;
+    },
   ): Promise<AppSettings> {
     return await this.update({
       email: {
         enabled: true,
-        provider: 'sendgrid',
+        provider: "sendgrid",
         from_address: options?.from_address,
         from_name: options?.from_name,
         reply_to_address: options?.reply_to_address,
@@ -401,7 +422,7 @@ export class AppSettingsManager {
           api_key: apiKey,
         },
       },
-    })
+    });
   }
 
   /**
@@ -427,16 +448,16 @@ export class AppSettingsManager {
     apiKey: string,
     domain: string,
     options?: {
-      eu_region?: boolean
-      from_address?: string
-      from_name?: string
-      reply_to_address?: string
-    }
+      eu_region?: boolean;
+      from_address?: string;
+      from_name?: string;
+      reply_to_address?: string;
+    },
   ): Promise<AppSettings> {
     return await this.update({
       email: {
         enabled: true,
-        provider: 'mailgun',
+        provider: "mailgun",
         from_address: options?.from_address,
         from_name: options?.from_name,
         reply_to_address: options?.reply_to_address,
@@ -446,7 +467,7 @@ export class AppSettingsManager {
           eu_region: options?.eu_region ?? false,
         },
       },
-    })
+    });
   }
 
   /**
@@ -478,15 +499,15 @@ export class AppSettingsManager {
     secretAccessKey: string,
     region: string,
     options?: {
-      from_address?: string
-      from_name?: string
-      reply_to_address?: string
-    }
+      from_address?: string;
+      from_name?: string;
+      reply_to_address?: string;
+    },
   ): Promise<AppSettings> {
     return await this.update({
       email: {
         enabled: true,
-        provider: 'ses',
+        provider: "ses",
         from_address: options?.from_address,
         from_name: options?.from_name,
         reply_to_address: options?.reply_to_address,
@@ -496,7 +517,7 @@ export class AppSettingsManager {
           region: region,
         },
       },
-    })
+    });
   }
 
   /**
@@ -515,7 +536,7 @@ export class AppSettingsManager {
   async setEmailEnabled(enabled: boolean): Promise<AppSettings> {
     return await this.update({
       email: { enabled },
-    })
+    });
   }
 
   /**
@@ -538,11 +559,11 @@ export class AppSettingsManager {
    * ```
    */
   async setPasswordComplexity(requirements: {
-    min_length?: number
-    require_uppercase?: boolean
-    require_lowercase?: boolean
-    require_number?: boolean
-    require_special?: boolean
+    min_length?: number;
+    require_uppercase?: boolean;
+    require_lowercase?: boolean;
+    require_number?: boolean;
+    require_special?: boolean;
   }): Promise<AppSettings> {
     return await this.update({
       authentication: {
@@ -552,7 +573,7 @@ export class AppSettingsManager {
         password_require_number: requirements.require_number,
         password_require_special: requirements.require_special,
       },
-    })
+    });
   }
 
   /**
@@ -570,13 +591,16 @@ export class AppSettingsManager {
    * await client.admin.settings.app.setSessionSettings(30, 3)
    * ```
    */
-  async setSessionSettings(timeoutMinutes: number, maxSessionsPerUser: number): Promise<AppSettings> {
+  async setSessionSettings(
+    timeoutMinutes: number,
+    maxSessionsPerUser: number,
+  ): Promise<AppSettings> {
     return await this.update({
       authentication: {
         session_timeout_minutes: timeoutMinutes,
         max_sessions_per_user: maxSessionsPerUser,
       },
-    })
+    });
   }
 
   /**
@@ -595,7 +619,7 @@ export class AppSettingsManager {
   async setEmailVerificationRequired(required: boolean): Promise<AppSettings> {
     return await this.update({
       authentication: { require_email_verification: required },
-    })
+    });
   }
 }
 
@@ -655,7 +679,10 @@ export class CustomSettingsManager {
    * ```
    */
   async create(request: CreateCustomSettingRequest): Promise<CustomSetting> {
-    return await this.fetch.post<CustomSetting>('/api/v1/admin/settings/custom', request)
+    return await this.fetch.post<CustomSetting>(
+      "/api/v1/admin/settings/custom",
+      request,
+    );
   }
 
   /**
@@ -670,8 +697,10 @@ export class CustomSettingsManager {
    * ```
    */
   async list(): Promise<ListCustomSettingsResponse> {
-    const settings = await this.fetch.get<CustomSetting[]>('/api/v1/admin/settings/custom')
-    return { settings: Array.isArray(settings) ? settings : [] }
+    const settings = await this.fetch.get<CustomSetting[]>(
+      "/api/v1/admin/settings/custom",
+    );
+    return { settings: Array.isArray(settings) ? settings : [] };
   }
 
   /**
@@ -687,7 +716,9 @@ export class CustomSettingsManager {
    * ```
    */
   async get(key: string): Promise<CustomSetting> {
-    return await this.fetch.get<CustomSetting>(`/api/v1/admin/settings/custom/${key}`)
+    return await this.fetch.get<CustomSetting>(
+      `/api/v1/admin/settings/custom/${key}`,
+    );
   }
 
   /**
@@ -705,8 +736,14 @@ export class CustomSettingsManager {
    * })
    * ```
    */
-  async update(key: string, request: UpdateCustomSettingRequest): Promise<CustomSetting> {
-    return await this.fetch.put<CustomSetting>(`/api/v1/admin/settings/custom/${key}`, request)
+  async update(
+    key: string,
+    request: UpdateCustomSettingRequest,
+  ): Promise<CustomSetting> {
+    return await this.fetch.put<CustomSetting>(
+      `/api/v1/admin/settings/custom/${key}`,
+      request,
+    );
   }
 
   /**
@@ -721,7 +758,7 @@ export class CustomSettingsManager {
    * ```
    */
   async delete(key: string): Promise<void> {
-    await this.fetch.delete(`/api/v1/admin/settings/custom/${key}`)
+    await this.fetch.delete(`/api/v1/admin/settings/custom/${key}`);
   }
 }
 
@@ -743,9 +780,9 @@ export class CustomSettingsManager {
  *
  * // Update template
  * await templates.update('magic_link', {
- *   subject: 'Sign in to {{.AppName}}',
- *   html_body: '<html>Custom template with {{.MagicLink}}</html>',
- *   text_body: 'Click here: {{.MagicLink}}'
+ *   subject: 'Sign in to ' + '{{.AppName}}',
+ *   html_body: '<html>Custom template with ' + '{{.MagicLink}}' + '</html>',
+ *   text_body: 'Click here: ' + '{{.MagicLink}}'
  * })
  *
  * // Test template (sends to specified email)
@@ -770,8 +807,10 @@ export class EmailTemplateManager {
    * ```
    */
   async list(): Promise<ListEmailTemplatesResponse> {
-    const templates = await this.fetch.get<EmailTemplate[]>('/api/v1/admin/email/templates')
-    return { templates: Array.isArray(templates) ? templates : [] }
+    const templates = await this.fetch.get<EmailTemplate[]>(
+      "/api/v1/admin/email/templates",
+    );
+    return { templates: Array.isArray(templates) ? templates : [] };
   }
 
   /**
@@ -788,17 +827,19 @@ export class EmailTemplateManager {
    * ```
    */
   async get(type: EmailTemplateType): Promise<EmailTemplate> {
-    return await this.fetch.get<EmailTemplate>(`/api/v1/admin/email/templates/${type}`)
+    return await this.fetch.get<EmailTemplate>(
+      `/api/v1/admin/email/templates/${type}`,
+    );
   }
 
   /**
    * Update an email template
    *
    * Available template variables:
-   * - magic_link: {{.MagicLink}}, {{.AppName}}, {{.ExpiryMinutes}}
-   * - verify_email: {{.VerificationLink}}, {{.AppName}}
-   * - reset_password: {{.ResetLink}}, {{.AppName}}, {{.ExpiryMinutes}}
-   * - invite_user: {{.InviteLink}}, {{.AppName}}, {{.InviterName}}
+   * - magic_link: `{{.MagicLink}}`, `{{.AppName}}`, `{{.ExpiryMinutes}}`
+   * - verify_email: `{{.VerificationLink}}`, `{{.AppName}}`
+   * - reset_password: `{{.ResetLink}}`, `{{.AppName}}`, `{{.ExpiryMinutes}}`
+   * - invite_user: `{{.InviteLink}}`, `{{.AppName}}`, `{{.InviterName}}`
    *
    * @param type - Template type to update
    * @param request - Update request with subject, html_body, and optional text_body
@@ -807,14 +848,20 @@ export class EmailTemplateManager {
    * @example
    * ```typescript
    * const updated = await client.admin.emailTemplates.update('magic_link', {
-   *   subject: 'Your Magic Link - Sign in to {{.AppName}}',
-   *   html_body: '<html><body><h1>Welcome!</h1><a href="{{.MagicLink}}">Sign In</a></body></html>',
-   *   text_body: 'Click here to sign in: {{.MagicLink}}'
+   *   subject: 'Your Magic Link - Sign in to ' + '{{.AppName}}',
+   *   html_body: '<html><body><h1>Welcome!</h1><a href="' + '{{.MagicLink}}' + '">Sign In</a></body></html>',
+   *   text_body: 'Click here to sign in: ' + '{{.MagicLink}}'
    * })
    * ```
    */
-  async update(type: EmailTemplateType, request: UpdateEmailTemplateRequest): Promise<EmailTemplate> {
-    return await this.fetch.put<EmailTemplate>(`/api/v1/admin/email/templates/${type}`, request)
+  async update(
+    type: EmailTemplateType,
+    request: UpdateEmailTemplateRequest,
+  ): Promise<EmailTemplate> {
+    return await this.fetch.put<EmailTemplate>(
+      `/api/v1/admin/email/templates/${type}`,
+      request,
+    );
   }
 
   /**
@@ -831,7 +878,10 @@ export class EmailTemplateManager {
    * ```
    */
   async reset(type: EmailTemplateType): Promise<EmailTemplate> {
-    return await this.fetch.post<EmailTemplate>(`/api/v1/admin/email/templates/${type}/reset`, {})
+    return await this.fetch.post<EmailTemplate>(
+      `/api/v1/admin/email/templates/${type}/reset`,
+      {},
+    );
   }
 
   /**
@@ -851,7 +901,7 @@ export class EmailTemplateManager {
   async test(type: EmailTemplateType, recipientEmail: string): Promise<void> {
     await this.fetch.post(`/api/v1/admin/email/templates/${type}/test`, {
       recipient_email: recipientEmail,
-    })
+    });
   }
 }
 
@@ -875,13 +925,13 @@ export class EmailTemplateManager {
  * ```
  */
 export class FluxbaseSettings {
-  public system: SystemSettingsManager
-  public app: AppSettingsManager
-  public custom: CustomSettingsManager
+  public system: SystemSettingsManager;
+  public app: AppSettingsManager;
+  public custom: CustomSettingsManager;
 
   constructor(fetch: FluxbaseFetch) {
-    this.system = new SystemSettingsManager(fetch)
-    this.app = new AppSettingsManager(fetch)
-    this.custom = new CustomSettingsManager(fetch)
+    this.system = new SystemSettingsManager(fetch);
+    this.app = new AppSettingsManager(fetch);
+    this.custom = new CustomSettingsManager(fetch);
   }
 }
