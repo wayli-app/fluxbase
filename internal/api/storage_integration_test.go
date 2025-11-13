@@ -24,6 +24,11 @@ import (
 func setupStorageTestServer(t *testing.T) (*fiber.App, string, *database.Connection) {
 	t.Helper()
 
+	// Skip integration tests when running with -short flag
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
 	// Create temporary directory for storage
 	tempDir := t.TempDir()
 
@@ -38,19 +43,38 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string, *database.Connect
 	storageService, err := storage.NewService(cfg)
 	require.NoError(t, err)
 
-	// Get database host from environment (defaults to postgres for Docker)
-	dbHost := os.Getenv("DB_HOST")
+	// Get database configuration from environment variables
+	// Supports both FLUXBASE_DATABASE_* (used in CI) and DB_* (used locally)
+	dbHost := os.Getenv("FLUXBASE_DATABASE_HOST")
 	if dbHost == "" {
-		dbHost = "postgres"
+		dbHost = os.Getenv("DB_HOST")
+	}
+	if dbHost == "" {
+		dbHost = "localhost" // Default for local development
+	}
+
+	dbUser := os.Getenv("FLUXBASE_DATABASE_USER")
+	if dbUser == "" {
+		dbUser = "fluxbase_app"
+	}
+
+	dbPassword := os.Getenv("FLUXBASE_DATABASE_PASSWORD")
+	if dbPassword == "" {
+		dbPassword = "fluxbase_app_password"
+	}
+
+	dbDatabase := os.Getenv("FLUXBASE_DATABASE_DATABASE")
+	if dbDatabase == "" {
+		dbDatabase = "fluxbase_test"
 	}
 
 	// Create minimal database configuration for testing
 	dbConfig := config.DatabaseConfig{
 		Host:            dbHost,
 		Port:            5432,
-		User:            "fluxbase_app",
-		Password:        "fluxbase_app_password",
-		Database:        "fluxbase_dev",
+		User:            dbUser,
+		Password:        dbPassword,
+		Database:        dbDatabase,
 		SSLMode:         "disable",
 		MaxConnections:  5,
 		MinConnections:  1,

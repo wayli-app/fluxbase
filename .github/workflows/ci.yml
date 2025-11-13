@@ -248,7 +248,7 @@ jobs:
 
           # Grant permissions on existing objects
           for schema in $SCHEMAS; do
-            $PSQL_CMD -c "GRANT USAGE ON SCHEMA $schema TO fluxbase_rls_test;"
+            $PSQL_CMD -c "GRANT USAGE, CREATE ON SCHEMA $schema TO fluxbase_rls_test;"
             $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA $schema TO fluxbase_rls_test;"
             $PSQL_CMD -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA $schema TO fluxbase_rls_test;"
             $PSQL_CMD -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA $schema TO fluxbase_rls_test;"
