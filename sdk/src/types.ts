@@ -236,6 +236,35 @@ export interface SignedUrlOptions {
   expiresIn?: number // seconds
 }
 
+// File Sharing Types (RLS)
+export interface ShareFileOptions {
+  userId: string
+  permission: 'read' | 'write'
+}
+
+export interface FileShare {
+  user_id: string
+  permission: 'read' | 'write'
+  created_at: string
+}
+
+// Bucket Settings Types (RLS)
+export interface BucketSettings {
+  public?: boolean
+  allowed_mime_types?: string[]
+  max_file_size?: number
+}
+
+export interface Bucket {
+  id: string
+  name: string
+  public: boolean
+  allowed_mime_types: string[]
+  max_file_size?: number
+  created_at: string
+  updated_at: string
+}
+
 // Password Reset Types
 export interface PasswordResetRequest {
   email: string

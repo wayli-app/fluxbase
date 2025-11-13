@@ -113,15 +113,39 @@ func (c *Connection) runSystemMigrations() error {
 	// Ensure _fluxbase schema exists before migrations run
 	// This is needed because the migration system needs the schema to exist
 	// before it can create the schema_migrations table
+	// We must connect as admin user to create the schema and table
 	ctx := context.Background()
-	_, err := c.pool.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS _fluxbase")
+
+	// Create a temporary admin connection for schema setup
+	// Use AdminPassword if set, otherwise fall back to Password
+	adminPassword := c.config.AdminPassword
+	if adminPassword == "" {
+		adminPassword = c.config.Password
+	}
+	adminConnStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.config.AdminUser,
+		adminPassword,
+		c.config.Host,
+		c.config.Port,
+		c.config.Database,
+		c.config.SSLMode,
+	)
+
+	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect as admin user: %w", err)
+	}
+	defer adminConn.Close(ctx)
+
+	// Create _fluxbase schema as admin
+	_, err = adminConn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS _fluxbase")
 	if err != nil {
 		return fmt.Errorf("failed to create _fluxbase schema: %w", err)
 	}
 
-	// Ensure the schema_migrations table exists
+	// Ensure the schema_migrations table exists as admin
 	// The migrate library expects this table to exist in the specified schema
-	_, err = c.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."schema_migrations" (
+	_, err = adminConn.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."schema_migrations" (
 		version bigint NOT NULL PRIMARY KEY,
 		dirty boolean NOT NULL
 	)`)
@@ -138,7 +162,7 @@ func (c *Connection) runSystemMigrations() error {
 	// Use connection string with system migrations table (admin user for migrations)
 	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"schema_migrations\"&x-migrations-table-quoted=1",
 		c.config.AdminUser,
-		c.config.Password,
+		adminPassword,
 		c.config.Host,
 		c.config.Port,
 		c.config.Database,
@@ -170,8 +194,33 @@ func (c *Connection) runUserMigrations() error {
 
 	// Ensure the user_migrations table exists
 	// This table should have been created by system migrations, but we ensure it exists
+	// We must connect as admin user to create the table
 	ctx := context.Background()
-	_, err := c.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."user_migrations" (
+
+	// Use AdminPassword if set, otherwise fall back to Password
+	adminPassword := c.config.AdminPassword
+	if adminPassword == "" {
+		adminPassword = c.config.Password
+	}
+
+	// Create a temporary admin connection for table setup
+	adminConnStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.config.AdminUser,
+		adminPassword,
+		c.config.Host,
+		c.config.Port,
+		c.config.Database,
+		c.config.SSLMode,
+	)
+
+	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect as admin user: %w", err)
+	}
+	defer adminConn.Close(ctx)
+
+	// Create user_migrations table as admin
+	_, err = adminConn.Exec(ctx, `CREATE TABLE IF NOT EXISTS "_fluxbase"."user_migrations" (
 		version bigint NOT NULL PRIMARY KEY,
 		dirty boolean NOT NULL
 	)`)
@@ -182,7 +231,7 @@ func (c *Connection) runUserMigrations() error {
 	// Use connection string with user migrations table (admin user for migrations)
 	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"user_migrations\"&x-migrations-table-quoted=1",
 		c.config.AdminUser,
-		c.config.Password,
+		adminPassword,
 		c.config.Host,
 		c.config.Port,
 		c.config.Database,

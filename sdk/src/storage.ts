@@ -2,16 +2,25 @@
  * Storage client for file operations
  */
 
-import type { FluxbaseFetch } from './fetch'
-import type { StorageObject, UploadOptions, ListOptions, SignedUrlOptions } from './types'
+import type { FluxbaseFetch } from "./fetch";
+import type {
+  StorageObject,
+  UploadOptions,
+  ListOptions,
+  SignedUrlOptions,
+  ShareFileOptions,
+  FileShare,
+  BucketSettings,
+  Bucket,
+} from "./types";
 
 export class StorageBucket {
-  private fetch: FluxbaseFetch
-  private bucketName: string
+  private fetch: FluxbaseFetch;
+  private bucketName: string;
 
   constructor(fetch: FluxbaseFetch, bucketName: string) {
-    this.fetch = fetch
-    this.bucketName = bucketName
+    this.fetch = fetch;
+    this.bucketName = bucketName;
   }
 
   /**
@@ -23,44 +32,44 @@ export class StorageBucket {
   async upload(
     path: string,
     file: File | Blob | ArrayBuffer,
-    options?: UploadOptions
+    options?: UploadOptions,
   ): Promise<{ data: StorageObject | null; error: Error | null }> {
     try {
-      const formData = new FormData()
+      const formData = new FormData();
 
       // Convert to Blob if ArrayBuffer
-      const blob = file instanceof ArrayBuffer ? new Blob([file]) : file
+      const blob = file instanceof ArrayBuffer ? new Blob([file]) : file;
 
-      formData.append('file', blob)
+      formData.append("file", blob);
 
       if (options?.contentType) {
-        formData.append('content_type', options.contentType)
+        formData.append("content_type", options.contentType);
       }
 
       if (options?.metadata) {
-        formData.append('metadata', JSON.stringify(options.metadata))
+        formData.append("metadata", JSON.stringify(options.metadata));
       }
 
       if (options?.cacheControl) {
-        formData.append('cache_control', options.cacheControl)
+        formData.append("cache_control", options.cacheControl);
       }
 
       if (options?.upsert !== undefined) {
-        formData.append('upsert', String(options.upsert))
+        formData.append("upsert", String(options.upsert));
       }
 
       const data = await this.fetch.request<StorageObject>(
         `/api/v1/storage/${this.bucketName}/${path}`,
         {
-          method: 'POST',
+          method: "POST",
           body: formData,
           headers: {}, // Let browser set Content-Type for FormData
-        }
-      )
+        },
+      );
 
-      return { data, error: null }
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -68,23 +77,25 @@ export class StorageBucket {
    * Download a file from the bucket
    * @param path - The path/key of the file
    */
-  async download(path: string): Promise<{ data: Blob | null; error: Error | null }> {
+  async download(
+    path: string,
+  ): Promise<{ data: Blob | null; error: Error | null }> {
     try {
       const response = await fetch(
-        `${this.fetch['baseUrl']}/api/v1/storage/${this.bucketName}/${path}`,
+        `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`,
         {
-          headers: this.fetch['defaultHeaders'],
-        }
-      )
+          headers: this.fetch["defaultHeaders"],
+        },
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`)
+        throw new Error(`Failed to download file: ${response.statusText}`);
       }
 
-      const blob = await response.blob()
-      return { data: blob, error: null }
+      const blob = await response.blob();
+      return { data: blob, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -93,31 +104,31 @@ export class StorageBucket {
    * @param options - List options (prefix, limit, offset)
    */
   async list(
-    options?: ListOptions
+    options?: ListOptions,
   ): Promise<{ data: StorageObject[] | null; error: Error | null }> {
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams();
 
       if (options?.prefix) {
-        params.set('prefix', options.prefix)
+        params.set("prefix", options.prefix);
       }
 
       if (options?.limit) {
-        params.set('limit', String(options.limit))
+        params.set("limit", String(options.limit));
       }
 
       if (options?.offset) {
-        params.set('offset', String(options.offset))
+        params.set("offset", String(options.offset));
       }
 
-      const queryString = params.toString()
-      const path = `/api/v1/storage/${this.bucketName}${queryString ? `?${queryString}` : ''}`
+      const queryString = params.toString();
+      const path = `/api/v1/storage/${this.bucketName}${queryString ? `?${queryString}` : ""}`;
 
-      const data = await this.fetch.get<{ objects: StorageObject[] }>(path)
+      const data = await this.fetch.get<{ files: StorageObject[] }>(path);
 
-      return { data: data.objects || [], error: null }
+      return { data: data.files || [], error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -129,12 +140,12 @@ export class StorageBucket {
     try {
       // Delete files one by one (could be optimized with batch endpoint)
       for (const path of paths) {
-        await this.fetch.delete(`/api/v1/storage/${this.bucketName}/${path}`)
+        await this.fetch.delete(`/api/v1/storage/${this.bucketName}/${path}`);
       }
 
-      return { data: null, error: null }
+      return { data: null, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -143,8 +154,8 @@ export class StorageBucket {
    * @param path - The file path
    */
   getPublicUrl(path: string): { data: { publicUrl: string } } {
-    const publicUrl = `${this.fetch['baseUrl']}/api/v1/storage/${this.bucketName}/${path}`
-    return { data: { publicUrl } }
+    const publicUrl = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+    return { data: { publicUrl } };
   }
 
   /**
@@ -154,19 +165,19 @@ export class StorageBucket {
    */
   async createSignedUrl(
     path: string,
-    options?: SignedUrlOptions
+    options?: SignedUrlOptions,
   ): Promise<{ data: { signedUrl: string } | null; error: Error | null }> {
     try {
-      const expiresIn = options?.expiresIn || 3600 // Default 1 hour
+      const expiresIn = options?.expiresIn || 3600; // Default 1 hour
 
       const data = await this.fetch.post<{ signed_url: string }>(
         `/api/v1/storage/${this.bucketName}/sign/${path}`,
-        { expires_in: expiresIn }
-      )
+        { expires_in: expiresIn },
+      );
 
-      return { data: { signedUrl: data.signed_url }, error: null }
+      return { data: { signedUrl: data.signed_url }, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -177,7 +188,7 @@ export class StorageBucket {
    */
   async move(
     fromPath: string,
-    toPath: string
+    toPath: string,
   ): Promise<{ data: StorageObject | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<StorageObject>(
@@ -185,12 +196,12 @@ export class StorageBucket {
         {
           from_path: fromPath,
           to_path: toPath,
-        }
-      )
+        },
+      );
 
-      return { data, error: null }
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -201,7 +212,7 @@ export class StorageBucket {
    */
   async copy(
     fromPath: string,
-    toPath: string
+    toPath: string,
   ): Promise<{ data: StorageObject | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<StorageObject>(
@@ -209,21 +220,83 @@ export class StorageBucket {
         {
           from_path: fromPath,
           to_path: toPath,
-        }
-      )
+        },
+      );
 
-      return { data, error: null }
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Share a file with another user (RLS)
+   * @param path - The file path
+   * @param options - Share options (userId and permission)
+   */
+  async share(
+    path: string,
+    options: ShareFileOptions,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.post(
+        `/api/v1/storage/${this.bucketName}/${path}/share`,
+        {
+          user_id: options.userId,
+          permission: options.permission,
+        },
+      );
+
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Revoke file access from a user (RLS)
+   * @param path - The file path
+   * @param userId - The user ID to revoke access from
+   */
+  async revokeShare(
+    path: string,
+    userId: string,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.delete(
+        `/api/v1/storage/${this.bucketName}/${path}/share/${userId}`,
+      );
+
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * List users a file is shared with (RLS)
+   * @param path - The file path
+   */
+  async listShares(
+    path: string,
+  ): Promise<{ data: FileShare[] | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<{ shares: FileShare[] }>(
+        `/api/v1/storage/${this.bucketName}/${path}/shares`,
+      );
+
+      return { data: data.shares || [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
     }
   }
 }
 
 export class FluxbaseStorage {
-  private fetch: FluxbaseFetch
+  private fetch: FluxbaseFetch;
 
   constructor(fetch: FluxbaseFetch) {
-    this.fetch = fetch
+    this.fetch = fetch;
   }
 
   /**
@@ -231,24 +304,24 @@ export class FluxbaseStorage {
    * @param bucketName - The name of the bucket
    */
   from(bucketName: string): StorageBucket {
-    return new StorageBucket(this.fetch, bucketName)
+    return new StorageBucket(this.fetch, bucketName);
   }
 
   /**
    * List all buckets
    */
   async listBuckets(): Promise<{
-    data: Array<{ name: string; created_at: string }> | null
-    error: Error | null
+    data: Array<{ name: string; created_at: string }> | null;
+    error: Error | null;
   }> {
     try {
-      const data = await this.fetch.get<{ buckets: Array<{ name: string; created_at: string }> }>(
-        '/api/v1/storage/buckets'
-      )
+      const data = await this.fetch.get<{
+        buckets: Array<{ name: string; created_at: string }>;
+      }>("/api/v1/storage/buckets");
 
-      return { data: data.buckets || [], error: null }
+      return { data: data.buckets || [], error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -256,12 +329,14 @@ export class FluxbaseStorage {
    * Create a new bucket
    * @param bucketName - The name of the bucket to create
    */
-  async createBucket(bucketName: string): Promise<{ data: null; error: Error | null }> {
+  async createBucket(
+    bucketName: string,
+  ): Promise<{ data: null; error: Error | null }> {
     try {
-      await this.fetch.post(`/api/v1/storage/buckets/${bucketName}`)
-      return { data: null, error: null }
+      await this.fetch.post(`/api/v1/storage/buckets/${bucketName}`);
+      return { data: null, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -269,12 +344,14 @@ export class FluxbaseStorage {
    * Delete a bucket
    * @param bucketName - The name of the bucket to delete
    */
-  async deleteBucket(bucketName: string): Promise<{ data: null; error: Error | null }> {
+  async deleteBucket(
+    bucketName: string,
+  ): Promise<{ data: null; error: Error | null }> {
     try {
-      await this.fetch.delete(`/api/v1/storage/buckets/${bucketName}`)
-      return { data: null, error: null }
+      await this.fetch.delete(`/api/v1/storage/buckets/${bucketName}`);
+      return { data: null, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -282,28 +359,64 @@ export class FluxbaseStorage {
    * Empty a bucket (delete all files)
    * @param bucketName - The name of the bucket to empty
    */
-  async emptyBucket(bucketName: string): Promise<{ data: null; error: Error | null }> {
+  async emptyBucket(
+    bucketName: string,
+  ): Promise<{ data: null; error: Error | null }> {
     try {
       // List all files and delete them
-      const bucket = this.from(bucketName)
-      const { data: objects, error: listError } = await bucket.list()
+      const bucket = this.from(bucketName);
+      const { data: objects, error: listError } = await bucket.list();
 
       if (listError) {
-        return { data: null, error: listError }
+        return { data: null, error: listError };
       }
 
       if (objects && objects.length > 0) {
-        const paths = objects.map((obj) => obj.key)
-        const { error: removeError } = await bucket.remove(paths)
+        const paths = objects.map((obj) => obj.key);
+        const { error: removeError } = await bucket.remove(paths);
 
         if (removeError) {
-          return { data: null, error: removeError }
+          return { data: null, error: removeError };
         }
       }
 
-      return { data: null, error: null }
+      return { data: null, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Update bucket settings (RLS - requires admin or service key)
+   * @param bucketName - The name of the bucket
+   * @param settings - Bucket settings to update
+   */
+  async updateBucketSettings(
+    bucketName: string,
+    settings: BucketSettings,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.put(`/api/v1/storage/buckets/${bucketName}`, settings);
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get bucket details
+   * @param bucketName - The name of the bucket
+   */
+  async getBucket(
+    bucketName: string,
+  ): Promise<{ data: Bucket | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<Bucket>(
+        `/api/v1/storage/buckets/${bucketName}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
     }
   }
 }

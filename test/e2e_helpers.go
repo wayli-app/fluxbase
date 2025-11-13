@@ -304,7 +304,9 @@ func GetTestConfig() *config.Config {
 	// Allow environment variables to override defaults for CI
 	dbHost := getEnvOrDefault("FLUXBASE_DATABASE_HOST", "postgres")
 	dbUser := getEnvOrDefault("FLUXBASE_DATABASE_USER", "fluxbase_app")
+	dbAdminUser := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_USER", "postgres") // Default to postgres for migrations
 	dbPassword := getEnvOrDefault("FLUXBASE_DATABASE_PASSWORD", "fluxbase_app_password")
+	dbAdminPassword := getEnvOrDefault("FLUXBASE_DATABASE_ADMIN_PASSWORD", "postgres") // Default to postgres password
 	dbDatabase := getEnvOrDefault("FLUXBASE_DATABASE_DATABASE", "fluxbase_test")
 	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
 	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
@@ -320,9 +322,10 @@ func GetTestConfig() *config.Config {
 		Database: config.DatabaseConfig{
 			Host:            dbHost,
 			Port:            5432,
-			User:            dbUser, // Use non-superuser for RLS to work correctly (configurable via env)
-			AdminUser:       dbUser, // Use same user for both in tests
-			Password:        dbPassword,
+			User:            dbUser,          // Runtime user (configurable via env)
+			AdminUser:       dbAdminUser,     // Admin user for migrations (configurable via env)
+			Password:        dbPassword,      // Runtime password (configurable via env)
+			AdminPassword:   dbAdminPassword, // Admin password (configurable via env)
 			Database:        dbDatabase,
 			SSLMode:         "disable",
 			MaxConnections:  5,                // Balanced for CI: enough for queries but not too many with -parallel=1
@@ -993,10 +996,17 @@ func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID,
 		require.NoError(tc.T, err, "Failed to hash password")
 	}
 
-	// Insert dashboard user with bcrypt hash using INSERT ... ON CONFLICT for safety
-	// Tests should use UUID-based emails to ensure uniqueness across parallel executions
-	// ON CONFLICT DO NOTHING handles rare edge cases where stale data exists in CI
-	err = tc.DB.QueryRow(ctx,
+	// Insert dashboard user with bcrypt hash using superuser connection
+	// This is necessary for RLS test contexts where the test user doesn't have BYPASSRLS
+	// Create a temporary connection as postgres superuser
+	connStr := fmt.Sprintf("host=%s port=%d user=postgres password=postgres dbname=%s sslmode=disable",
+		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	require.NoError(tc.T, err, "Failed to connect as superuser for dashboard admin creation")
+	defer conn.Close(ctx)
+
+	err = conn.QueryRow(ctx,
 		`INSERT INTO dashboard.users (email, password_hash, full_name, role, email_verified)
 		 VALUES ($1, $2, $3, 'dashboard_admin', true)
 		 ON CONFLICT (email) DO UPDATE
@@ -1366,4 +1376,9 @@ func (tc *TestContext) CreateUser(email, password string) (userID, token string)
 // WithJSON is a convenience method to set the request body as JSON
 func (r *APIRequest) WithJSON(data interface{}) *APIRequest {
 	return r.WithBody(data)
+}
+
+// RandomEmail generates a random email address for testing to avoid conflicts
+func RandomEmail() string {
+	return fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
 }

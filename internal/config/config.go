@@ -39,9 +39,10 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	Host               string        `mapstructure:"host"`
 	Port               int           `mapstructure:"port"`
-	User               string        `mapstructure:"user"`       // Database user for normal operations
-	AdminUser          string        `mapstructure:"admin_user"` // Optional admin user for migrations (defaults to User)
-	Password           string        `mapstructure:"password"`
+	User               string        `mapstructure:"user"`           // Database user for normal operations
+	AdminUser          string        `mapstructure:"admin_user"`     // Optional admin user for migrations (defaults to User)
+	Password           string        `mapstructure:"password"`       // Password for runtime user
+	AdminPassword      string        `mapstructure:"admin_password"` // Optional password for admin user (defaults to Password)
 	Database           string        `mapstructure:"database"`
 	SSLMode            string        `mapstructure:"ssl_mode"`
 	MaxConnections     int32         `mapstructure:"max_connections"`

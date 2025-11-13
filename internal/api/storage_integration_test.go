@@ -2,22 +2,26 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/internal/config"
+	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/storage"
 )
 
 // setupStorageTestServer creates a test server with storage routes
-func setupStorageTestServer(t *testing.T) (*fiber.App, string) {
+func setupStorageTestServer(t *testing.T) (*fiber.App, string, *database.Connection) {
 	t.Helper()
 
 	// Create temporary directory for storage
@@ -34,6 +38,37 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string) {
 	storageService, err := storage.NewService(cfg)
 	require.NoError(t, err)
 
+	// Get database host from environment (defaults to postgres for Docker)
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "postgres"
+	}
+
+	// Create minimal database configuration for testing
+	dbConfig := config.DatabaseConfig{
+		Host:            dbHost,
+		Port:            5432,
+		User:            "fluxbase_app",
+		Password:        "fluxbase_app_password",
+		Database:        "fluxbase_dev",
+		SSLMode:         "disable",
+		MaxConnections:  5,
+		MinConnections:  1,
+		MaxConnLifetime: 5 * time.Minute,
+		MaxConnIdleTime: 5 * time.Minute,
+		HealthCheck:     30 * time.Second,
+	}
+
+	// Connect to database
+	db, err := database.NewConnection(dbConfig)
+	require.NoError(t, err)
+
+	// Verify connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = db.Health(ctx)
+	require.NoError(t, err)
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -48,7 +83,7 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string) {
 	})
 
 	// Setup storage routes
-	storageHandler := NewStorageHandler(storageService)
+	storageHandler := NewStorageHandler(storageService, db)
 	api := app.Group("/api/v1")
 	storageRoutes := api.Group("/storage")
 
@@ -68,11 +103,12 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string) {
 	storageRoutes.Post("/:bucket/multipart", storageHandler.MultipartUpload)
 	storageRoutes.Post("/:bucket/*/signed-url", storageHandler.GenerateSignedURL)
 
-	return app, tempDir
+	return app, tempDir, db
 }
 
 func TestStorageAPI_CreateBucket(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/test-bucket", nil)
 	resp, err := app.Test(req)
@@ -88,7 +124,8 @@ func TestStorageAPI_CreateBucket(t *testing.T) {
 }
 
 func TestStorageAPI_CreateBucketAlreadyExists(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket first time
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/existing-bucket", nil)
@@ -108,7 +145,8 @@ func TestStorageAPI_CreateBucketAlreadyExists(t *testing.T) {
 }
 
 func TestStorageAPI_ListBuckets(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create some buckets
 	buckets := []string{"bucket1", "bucket2", "bucket3"}
@@ -136,7 +174,8 @@ func TestStorageAPI_ListBuckets(t *testing.T) {
 }
 
 func TestStorageAPI_DeleteBucket(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/to-delete", nil)
@@ -154,7 +193,8 @@ func TestStorageAPI_DeleteBucket(t *testing.T) {
 }
 
 func TestStorageAPI_UploadFile(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/upload-bucket", nil)
@@ -193,7 +233,8 @@ func TestStorageAPI_UploadFile(t *testing.T) {
 }
 
 func TestStorageAPI_UploadFileWithPath(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/path-bucket", nil)
@@ -243,7 +284,8 @@ func TestStorageAPI_DownloadFile(t *testing.T) {
 }
 
 func TestStorageAPI_DownloadNonExistentFile(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/notfound-bucket", nil)
@@ -261,7 +303,8 @@ func TestStorageAPI_DownloadNonExistentFile(t *testing.T) {
 }
 
 func TestStorageAPI_DeleteFile(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket and upload file
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/delete-bucket", nil)
@@ -306,7 +349,8 @@ func TestStorageAPI_GetFileInfo(t *testing.T) {
 }
 
 func TestStorageAPI_ListFiles(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/list-bucket", nil)
@@ -360,7 +404,8 @@ func TestStorageAPI_ListFiles(t *testing.T) {
 }
 
 func TestStorageAPI_ListFilesWithPrefix(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/prefix-bucket", nil)
@@ -410,7 +455,8 @@ func TestStorageAPI_MultipartUpload(t *testing.T) {
 }
 
 func TestStorageAPI_UploadWithMetadata(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/meta-bucket", nil)
@@ -459,7 +505,8 @@ func TestStorageAPI_UploadWithMetadata(t *testing.T) {
 }
 
 func TestStorageAPI_GenerateSignedURL_NotSupported(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket and upload file
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/signed-bucket", nil)
@@ -494,7 +541,8 @@ func TestStorageAPI_GenerateSignedURL_NotSupported(t *testing.T) {
 }
 
 func TestStorageAPI_DeleteBucketNotEmpty(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/nonempty-bucket", nil)
@@ -533,7 +581,8 @@ func TestStorageAPI_DeleteBucketNotEmpty(t *testing.T) {
 }
 
 func TestStorageAPI_InvalidBucketName(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Try to create bucket with invalid name
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/Invalid_Bucket!", nil)
@@ -547,7 +596,8 @@ func TestStorageAPI_InvalidBucketName(t *testing.T) {
 }
 
 func TestStorageAPI_MissingFile(t *testing.T) {
-	app, _ := setupStorageTestServer(t)
+	app, _, db := setupStorageTestServer(t)
+	defer db.Close()
 
 	// Create bucket
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/storage/buckets/upload-bucket", nil)

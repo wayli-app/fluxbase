@@ -227,13 +227,13 @@ func setupTestTables() {
 	log.Info().Msg("E2E test tables setup complete")
 }
 
-// grantRLSTestPermissions grants necessary permissions to the fluxbase_rls_test database user.
+// grantRLSTestPermissions grants necessary permissions to the fluxbase_rls_test and fluxbase_app database users.
 //
 // This function connects as the postgres superuser to grant permissions because
 // fluxbase_app does not own the schemas and cannot grant permissions on them.
 //
 // Permissions Granted:
-//   - Schema USAGE and CREATE on: auth, dashboard, functions, storage, realtime
+//   - Schema USAGE and CREATE on: auth, dashboard, functions, storage, realtime, _fluxbase
 //   - ALL privileges on tables and sequences in those schemas
 //   - EXECUTE on all functions in functions schema
 //
@@ -241,6 +241,10 @@ func setupTestTables() {
 //   - Create test users in auth.users
 //   - Query and insert test data
 //   - Test RLS policies without BYPASSRLS privilege
+//
+// The fluxbase_app user needs these permissions to:
+//   - Run tests with BYPASSRLS
+//   - Access all schemas including _fluxbase for migration tracking
 func grantRLSTestPermissions() {
 	ctx := context.Background()
 
@@ -258,58 +262,61 @@ func grantRLSTestPermissions() {
 	}
 	defer db.Close()
 
-	// Grant schema permissions
+	// Grant database and schema permissions to both test users
 	_, err = db.Exec(ctx, `
-		GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_rls_test;
-		GRANT USAGE ON SCHEMA dashboard TO fluxbase_rls_test;
-		GRANT USAGE ON SCHEMA functions TO fluxbase_rls_test;
-		GRANT USAGE ON SCHEMA storage TO fluxbase_rls_test;
-		GRANT USAGE ON SCHEMA realtime TO fluxbase_rls_test;
-		GRANT USAGE ON SCHEMA _fluxbase TO fluxbase_rls_test;
+		GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
 	`)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to grant schema permissions to fluxbase_rls_test user")
+		log.Error().Err(err).Msg("Failed to grant schema permissions to test users")
 		return
 	}
 
-	// Grant table and sequence permissions (including future tables)
+	// Grant table and sequence permissions to both test users
 	_, err = db.Exec(ctx, `
-		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test;
-		GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA dashboard TO fluxbase_rls_test;
-		GRANT ALL ON ALL TABLES IN SCHEMA functions TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA functions TO fluxbase_rls_test;
-		GRANT ALL ON ALL TABLES IN SCHEMA storage TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_rls_test;
-		GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test;
-		GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_rls_test;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test;
+		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
 
 		-- Grant permissions on future tables/sequences (in case migrations add new ones)
-		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO fluxbase_rls_test;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
 	`)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to grant table/sequence permissions to fluxbase_rls_test user")
+		log.Error().Err(err).Msg("Failed to grant table/sequence permissions to test users")
 		return
 	}
 
-	// Grant function execution permissions
+	// Grant function execution permissions to both test users
 	_, err = db.Exec(ctx, `
-		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA functions TO fluxbase_rls_test;
+		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
+		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
+		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
 	`)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to grant function execution permissions to fluxbase_rls_test user")
+		log.Error().Err(err).Msg("Failed to grant function execution permissions to test users")
 	}
 }
 

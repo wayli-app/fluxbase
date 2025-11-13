@@ -116,7 +116,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
-	storageHandler := NewStorageHandler(storageService)
+	storageHandler := NewStorageHandler(storageService, db)
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	invitationService := auth.NewInvitationService(db)
@@ -313,9 +313,9 @@ func (s *Server) setupRoutes() {
 	// Edge functions routes - require authentication by default, but per-function config can override
 	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
-	// Storage routes - require authentication
+	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
 	storage := v1.Group("/storage",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
 	)
 	s.setupStorageRoutes(storage)
 
@@ -448,22 +448,28 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	// Bucket management
 	router.Get("/buckets", s.storageHandler.ListBuckets)
 	router.Post("/buckets/:bucket", s.storageHandler.CreateBucket)
+	router.Put("/buckets/:bucket", s.storageHandler.UpdateBucketSettings)
 	router.Delete("/buckets/:bucket", s.storageHandler.DeleteBucket)
 
-	// File operations
+	// List files in bucket (must come before /:bucket/*)
+	router.Get("/:bucket", s.storageHandler.ListFiles)
+
+	// Multipart upload (must come before /:bucket/*)
+	router.Post("/:bucket/multipart", s.storageHandler.MultipartUpload)
+
+	// File sharing (must come before /:bucket/* to avoid matching generic routes)
+	router.Post("/:bucket/*/share", s.storageHandler.ShareObject)            // Share file with user
+	router.Delete("/:bucket/*/share/:user_id", s.storageHandler.RevokeShare) // Revoke share
+	router.Get("/:bucket/*/shares", s.storageHandler.ListShares)             // List shares
+
+	// Signed URLs (for S3-compatible storage, must come before /:bucket/*)
+	router.Post("/:bucket/*/signed-url", s.storageHandler.GenerateSignedURL)
+
+	// File operations (generic wildcard routes - must come LAST)
 	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file
 	router.Get("/:bucket/*", s.storageHandler.DownloadFile)  // Download file
 	router.Delete("/:bucket/*", s.storageHandler.DeleteFile) // Delete file
 	router.Head("/:bucket/*", s.storageHandler.GetFileInfo)  // Get file metadata
-
-	// List files in bucket
-	router.Get("/:bucket", s.storageHandler.ListFiles)
-
-	// Multipart upload
-	router.Post("/:bucket/multipart", s.storageHandler.MultipartUpload)
-
-	// Signed URLs (for S3-compatible storage)
-	router.Post("/:bucket/*/signed-url", s.storageHandler.GenerateSignedURL)
 }
 
 // setupAdminRoutes sets up admin routes
