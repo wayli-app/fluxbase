@@ -561,6 +561,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Move Helm artifacts outside git working directory
+          mv .helm-repo /tmp/helm-repo
+
+          # Reset any changes to Chart.yaml before checkout
+          git checkout -- deploy/helm/fluxbase/Chart.yaml
+
           # Try to fetch gh-pages branch, create orphan if it doesn't exist
           if git fetch origin gh-pages:gh-pages 2>/dev/null; then
             git checkout gh-pages
@@ -570,7 +576,7 @@ jobs:
 
           # Keep only Helm artifacts
           git rm -rf . || true
-          cp -r .helm-repo/* .
+          cp -r /tmp/helm-repo/* .
 
           # Commit and push
           git add index.yaml *.tgz

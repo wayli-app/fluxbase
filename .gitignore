@@ -108,3 +108,5 @@ config/fluxbase.yml
 UI_PROPOSAL.md
 *.bak
 *.orig
+
+deploy/helm/fluxbase/charts/
