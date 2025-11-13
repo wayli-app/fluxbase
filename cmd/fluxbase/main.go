@@ -208,6 +208,7 @@ func printConfigSummary(cfg *config.Config) {
 		Int("port", cfg.Database.Port).
 		Str("database", cfg.Database.Database).
 		Str("user", cfg.Database.User).
+		Str("admin_user", cfg.Database.AdminUser).
 		Str("ssl_mode", cfg.Database.SSLMode).
 		Msg("  Database")
 	log.Info().

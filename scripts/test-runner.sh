@@ -45,15 +45,71 @@ echo ""
 
 # Run tests and capture output
 START_TIME=$(date +%s)
-eval "$TEST_CMD" 2>&1 | tee "$TEST_OUTPUT"
+
+# Add -json flag to the test command for structured output
+TEST_CMD_JSON="${TEST_CMD/go test/go test -json}"
+
+# Parse JSON output to show real-time progress
+eval "$TEST_CMD_JSON" 2>&1 | tee "$TEST_OUTPUT" | awk '
+BEGIN {
+    running = 0
+    passed = 0
+    failed = 0
+}
+/^{/ {
+    # Parse JSON line - extract test name if present
+    if (match($0, /"Test":"([^"]+)"/)) {
+        test = substr($0, RSTART+8, RLENGTH-9)
+    } else {
+        test = ""
+    }
+
+    # Check action type
+    if (match($0, /"Action":"run"/)) {
+        if (test != "") {
+            printf "\r\033[K\033[0;36m▶\033[0m Running: \033[1m%s\033[0m", test
+            fflush()
+            running++
+        }
+    }
+    else if (match($0, /"Action":"pass"/)) {
+        if (test != "" && index(test, "/") == 0) {
+            passed++
+            printf "\r\033[K\033[0;32m✓\033[0m \033[2m%s\033[0m\n", test
+            fflush()
+        }
+    }
+    else if (match($0, /"Action":"fail"/)) {
+        if (test != "" && index(test, "/") == 0) {
+            failed++
+            printf "\r\033[K\033[0;31m✗\033[0m \033[1m%s\033[0m\n", test
+            fflush()
+        }
+    }
+}
+!/^{/ {
+    # Non-JSON lines - only show non-verbose logs
+    if ($0 !~ /^\{"level":/ && $0 !~ /^\[/) {
+        print $0
+    }
+}
+END {
+    printf "\r\033[K"
+}
+'
+
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
-# Extract test results
+# Extract test results from JSON output
 # Use grep -c with proper error handling and ensure we get a valid number
-PASSED=$(grep "^--- PASS:" "$TEST_OUTPUT" 2>/dev/null | wc -l | tr -d ' ')
-FAILED=$(grep "^--- FAIL:" "$TEST_OUTPUT" 2>/dev/null | wc -l | tr -d ' ')
+PASSED=$(grep -o '"Action":"pass"' "$TEST_OUTPUT" 2>/dev/null | grep -c . || echo 0)
+FAILED=$(grep -o '"Action":"fail"' "$TEST_OUTPUT" 2>/dev/null | grep -c . || echo 0)
+
+# Count only top-level tests (exclude subtests)
+PASSED=$(awk '/"Action":"pass"/ && /"Test":"[^"]*"/ && !/"Test":"[^"]*\//' "$TEST_OUTPUT" 2>/dev/null | wc -l | tr -d ' ')
+FAILED=$(awk '/"Action":"fail"/ && /"Test":"[^"]*"/ && !/"Test":"[^"]*\//' "$TEST_OUTPUT" 2>/dev/null | wc -l | tr -d ' ')
 
 # Ensure PASSED and FAILED are valid integers
 if [ -z "$PASSED" ] || ! [[ "$PASSED" =~ ^[0-9]+$ ]]; then
@@ -65,16 +121,21 @@ fi
 
 TOTAL=$((PASSED + FAILED))
 
-# Extract failed test names
-grep "^--- FAIL:" "$TEST_OUTPUT" | awk '{print $3}' | sed 's/(.*//' > "$FAILED_TESTS"
+# Extract failed test names from JSON output
+grep '"Action":"fail"' "$TEST_OUTPUT" | \
+  grep '"Test":"' | \
+  grep -v '"Test":"[^"]*/' | \
+  sed 's/.*"Test":"\([^"]*\)".*/\1/' > "$FAILED_TESTS"
 
-# Extract failure details for each failed test
+# Extract failure details for each failed test from JSON output
 while IFS= read -r test_name; do
     if [ -n "$test_name" ]; then
-        # Find the failure message for this test
-        awk "/^--- FAIL: $test_name/,/^(---|\t)/" "$TEST_OUTPUT" |
-            grep -A 3 "Error:" |
-            head -4 >> "$FAILURE_DETAILS"
+        # Find the output messages for this test using grep/sed instead of AWK capture groups
+        grep "\"Test\":\"$test_name\"" "$TEST_OUTPUT" | \
+          grep '"Action":"output"' | \
+          sed 's/.*"Output":"\([^"]*\)".*/\1/' | \
+          grep -E "(Error:|FAIL:)" | \
+          sed 's/\\n/\n/g; s/\\t/    /g' >> "$FAILURE_DETAILS"
         echo "---" >> "$FAILURE_DETAILS"
     fi
 done < "$FAILED_TESTS"
@@ -109,38 +170,15 @@ fi
 
 echo ""
 
-# Show enhanced RLS test status if this is an E2E test run
-if [ "$TEST_TYPE" = "E2E" ]; then
-    RLS_PASSED=$(grep "^--- PASS:" "$TEST_OUTPUT" | grep -E "RLSAuth|RLSDashboard|RLSImpersonation|RLSAPI|RLSForce|RLSPerformance|RLSToken|RLSWebhook" | wc -l | tr -d ' ')
-    RLS_FAILED=$(grep "^--- FAIL:" "$TEST_OUTPUT" | grep -E "RLSAuth|RLSDashboard|RLSImpersonation|RLSAPI|RLSForce|RLSPerformance|RLSToken|RLSWebhook" | wc -l | tr -d ' ')
-
-    # Ensure RLS counts are valid integers
-    if [ -z "$RLS_PASSED" ] || ! [[ "$RLS_PASSED" =~ ^[0-9]+$ ]]; then
-        RLS_PASSED=0
-    fi
-    if [ -z "$RLS_FAILED" ] || ! [[ "$RLS_FAILED" =~ ^[0-9]+$ ]]; then
-        RLS_FAILED=0
-    fi
-
-    RLS_TOTAL=$((RLS_PASSED + RLS_FAILED))
-
-    if [ "$RLS_TOTAL" -gt 0 ]; then
-        echo -e "${BOLD}${CYAN}Enhanced RLS Policy Tests:${NC}"
-        echo -e "  ${GREEN}✅${NC} $RLS_PASSED / $RLS_TOTAL enhanced RLS tests passing"
-        echo ""
-    fi
-fi
-
-# Show failed tests if any
+# Show failed tests overview if any
 if [ "$FAILED" -gt 0 ]; then
-    echo -e "${BOLD}${RED}Failed Tests ($FAILED):${NC}"
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${CYAN}              FAILED TESTS OVERVIEW${NC}"
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo ""
 
-    cat "$FAILED_TESTS" | head -20 | while IFS= read -r test_name; do
-        if [ -n "$test_name" ]; then
-            echo -e "  ${RED}❌${NC} $test_name"
-        fi
-    done
+    # Show all failed test names with numbers
+    awk 'NF {printf "  \033[0;31m%d.\033[0m \033[1m%s\033[0m\n", NR, $0}' "$FAILED_TESTS" | head -20
 
     if [ "$FAILED" -gt 20 ]; then
         echo -e "  ${YELLOW}... and $((FAILED - 20)) more${NC}"
@@ -154,27 +192,47 @@ if [ "$FAILED" -gt 0 ]; then
 
     # Show detailed failure information for first few tests
     SHOWN=0
+    TEST_NUM=1
     while IFS= read -r test_name; do
-        if [ -n "$test_name" ] && [ "$SHOWN" -lt 5 ]; then
-            echo -e "${BOLD}${YELLOW}Test:${NC} $test_name"
+        if [ -n "$test_name" ] && [ "$SHOWN" -lt 3 ]; then
+            echo -e "${BOLD}${RED}$TEST_NUM.${NC} ${BOLD}${YELLOW}$test_name${NC}"
+            echo ""
 
-            # Extract and show the error for this specific test
-            awk "/^--- FAIL: $test_name/,/^---/" "$TEST_OUTPUT" | \
-                grep -A 5 "Error:" | \
-                head -6 | \
-                sed 's/^/  /' | \
-                sed "s/Error:/${RED}Error:${NC}/" | \
-                sed "s/expected:/${CYAN}expected:${NC}/" | \
-                sed "s/actual:/${CYAN}actual:${NC}/"
+            # Extract and show the error for this specific test from JSON
+            # Get all output lines for this test, decode JSON escapes, and show relevant error context
+            ALL_TEST_OUTPUT=$(grep "\"Test\":\"$test_name\"" "$TEST_OUTPUT" | \
+                grep '"Action":"output"' | \
+                sed 's/.*"Output":"//; s/"[,}].*//; s/\\n/\n/g; s/\\t/    /g; s/\\"/"/g')
+
+            # Try to find error-related output
+            ERROR_OUTPUT=$(echo "$ALL_TEST_OUTPUT" | awk '
+                /Error:|FAIL:|Test:|Error Trace:|Messages:|panic/ { printing=1 }
+                printing { print; lines++ }
+                lines >= 30 { exit }
+            ')
+
+            if [ -n "$ERROR_OUTPUT" ]; then
+                echo "$ERROR_OUTPUT" | sed 's/^/  /'
+            else
+                # If no error patterns found, show last 20 lines of test output
+                LAST_OUTPUT=$(echo "$ALL_TEST_OUTPUT" | grep -v '^{"level"' | tail -20)
+                if [ -n "$LAST_OUTPUT" ]; then
+                    echo -e "  ${YELLOW}Last output from test:${NC}"
+                    echo "$LAST_OUTPUT" | sed 's/^/  /'
+                else
+                    echo -e "  ${YELLOW}No error details available - test may have timed out or panicked${NC}"
+                fi
+            fi
 
             echo ""
             SHOWN=$((SHOWN + 1))
         fi
+        TEST_NUM=$((TEST_NUM + 1))
     done < "$FAILED_TESTS"
 
-    if [ "$FAILED" -gt 5 ]; then
-        echo -e "${YELLOW}... and details for $((FAILED - 5)) more failed tests${NC}"
-        echo -e "${YELLOW}Run with -v flag for full output${NC}"
+    if [ "$FAILED" -gt 3 ]; then
+        echo -e "${YELLOW}... and details for $((FAILED - 3)) more failed tests${NC}"
+        echo -e "${YELLOW}Run tests individually with: go test -v -run <TestName>${NC}"
         echo ""
     fi
 fi

@@ -154,8 +154,11 @@ func TestRESTAuthenticationPriority(t *testing.T) {
 		t.Skip("Service keys table doesn't exist - migrations may not have been run")
 	}
 
-	// Clean up any existing test user to ensure test isolation
-	tc.ExecuteSQL("DELETE FROM auth.users WHERE email = $1", "priority@example.com")
+	// Clean up all auth tables to ensure test isolation (TRUNCATE is more reliable than DELETE)
+	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.api_keys CASCADE")
+	tc.ExecuteSQL("TRUNCATE TABLE auth.service_keys CASCADE")
 
 	// Create all three auth types
 	apiKey := tc.CreateAPIKey("Priority Test API Key", nil)

@@ -1,6 +1,12 @@
 -- Setup script for fluxbase_app user in local development
 -- This script grants all necessary permissions to the fluxbase_app user
 -- for local development and testing with RLS enabled.
+--
+-- NOTE: This script is for backward compatibility only.
+-- Fluxbase now uses configurable database users:
+-- - FLUXBASE_DATABASE_ADMIN_USER: Runs migrations (default: postgres)
+-- - FLUXBASE_DATABASE_RUNTIME_USER: Runtime operations (default: same as admin)
+-- Migrations automatically grant permissions to CURRENT_USER (whoever runs them).
 
 -- Grant CREATE privilege on the database
 GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_app;

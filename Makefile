@@ -90,7 +90,7 @@ test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minu
 	@./scripts/test-runner.sh go test -timeout 15m -v -race -cover ./...
 
 test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
-	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/...
+	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=5m ./test/e2e/...
 
 test-auth: ## Run authentication tests only
 	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
@@ -197,12 +197,12 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;" || true
 	@echo "${YELLOW}Running migrations...${NC}"
 	@migrate -path internal/database/migrations -database 'postgresql://postgres:postgres@postgres:5432/fluxbase_dev?sslmode=disable&x-migrations-table="_fluxbase"."schema_migrations"&x-migrations-table-quoted=1' up
-	@echo "${YELLOW}Granting permissions to fluxbase_app user...${NC}"
-	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER fluxbase_app WITH BYPASSRLS;" || true
-	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER fluxbase_app SET search_path TO public;" || true
-	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA public TO fluxbase_app;" || true
-	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app;" || true
+	@echo "${YELLOW}Granting BYPASSRLS permission to postgres user (admin)...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER postgres WITH BYPASSRLS;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER postgres SET search_path TO public;" || true
 	@echo "${GREEN}Database reset complete!${NC}"
+	@echo "${BLUE}Note: Migrations granted all permissions to the user running them (postgres).${NC}"
+	@echo "${BLUE}To use a different runtime user, set FLUXBASE_DATABASE_RUNTIME_USER.${NC}"
 
 docs: ## Serve Docusaurus documentation at http://localhost:3000
 	@echo "${YELLOW}Starting Docusaurus documentation server...${NC}"

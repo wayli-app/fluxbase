@@ -56,6 +56,8 @@ services:
       FLUXBASE_DATABASE_PORT: 5432
       FLUXBASE_DATABASE_DATABASE: fluxbase
       FLUXBASE_DATABASE_USER: fluxbase
+      # Optional: Separate admin user for migrations (defaults to user if not set)
+      # FLUXBASE_DATABASE_ADMIN_USER: fluxbase_admin
       FLUXBASE_DATABASE_PASSWORD: fluxbase
       FLUXBASE_DATABASE_SSL_MODE: disable
 

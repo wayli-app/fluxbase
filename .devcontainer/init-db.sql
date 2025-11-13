@@ -3,7 +3,10 @@
 -- Create test database
 CREATE DATABASE fluxbase_test;
 
--- Create fluxbase_app user for non-superuser operations (required for RLS)
+-- Create fluxbase_app user for backward compatibility and testing
+-- Note: Fluxbase now uses configurable user/admin user via environment variables:
+-- - FLUXBASE_DATABASE_USER (runtime operations, defaults to 'postgres')
+-- - FLUXBASE_DATABASE_ADMIN_USER (runs migrations, optional, defaults to user)
 CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN;
 
 -- Create fluxbase_rls_test user for testing RLS (without BYPASSRLS, but with CREATEDB for schema creation)

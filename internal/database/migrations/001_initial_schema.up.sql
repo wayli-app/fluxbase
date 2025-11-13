@@ -13,7 +13,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 --
 
 CREATE SCHEMA IF NOT EXISTS _fluxbase;
-GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA _fluxbase TO CURRENT_USER;
 
 -- User migrations tracking table (for user-provided migrations)
 CREATE TABLE IF NOT EXISTS _fluxbase.user_migrations (
@@ -29,7 +29,7 @@ COMMENT ON TABLE _fluxbase.user_migrations IS 'Tracks user-provided database mig
 --
 
 CREATE SCHEMA IF NOT EXISTS auth;
-GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA auth TO CURRENT_USER;
 
 -- Auth helper functions
 CREATE OR REPLACE FUNCTION auth.current_user_id()
@@ -402,7 +402,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_impersonation_is_active ON auth.impersonatio
 --
 
 CREATE SCHEMA IF NOT EXISTS dashboard;
-GRANT USAGE, CREATE ON SCHEMA dashboard TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA dashboard TO CURRENT_USER;
 
 COMMENT ON SCHEMA dashboard IS 'Schema for dashboard/platform administrator authentication and management';
 
@@ -623,7 +623,7 @@ COMMENT ON COLUMN dashboard.email_templates.is_custom IS 'Whether this template 
 --
 
 CREATE SCHEMA IF NOT EXISTS functions;
-GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA functions TO CURRENT_USER;
 
 -- Edge functions table (with allow_unauthenticated support)
 CREATE TABLE IF NOT EXISTS functions.edge_functions (
@@ -694,7 +694,7 @@ CREATE INDEX IF NOT EXISTS idx_functions_edge_function_executions_status ON func
 --
 
 CREATE SCHEMA IF NOT EXISTS storage;
-GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA storage TO CURRENT_USER;
 
 -- Storage buckets table
 CREATE TABLE IF NOT EXISTS storage.buckets (
@@ -730,7 +730,7 @@ CREATE INDEX IF NOT EXISTS idx_storage_objects_owner_id ON storage.objects(owner
 --
 
 CREATE SCHEMA IF NOT EXISTS realtime;
-GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app;
+GRANT USAGE, CREATE ON SCHEMA realtime TO CURRENT_USER;
 
 -- Realtime schema registry table
 CREATE TABLE IF NOT EXISTS realtime.schema_registry (
@@ -1556,32 +1556,32 @@ CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_admin_user_id ON auth.impe
 CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_impersonated_user_id ON auth.impersonation_sessions(impersonated_user_id);
 
 --
--- GRANT PERMISSIONS TO FLUXBASE_APP USER
+-- GRANT PERMISSIONS TO FLUXBASE USER
 --
 
-GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_app;
-GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_app;
-GRANT ALL ON ALL TABLES IN SCHEMA functions TO fluxbase_app;
-GRANT ALL ON ALL TABLES IN SCHEMA storage TO fluxbase_app;
-GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_app;
-GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_app;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO CURRENT_USER;
+GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO CURRENT_USER;
+GRANT ALL ON ALL TABLES IN SCHEMA functions TO CURRENT_USER;
+GRANT ALL ON ALL TABLES IN SCHEMA storage TO CURRENT_USER;
+GRANT ALL ON ALL TABLES IN SCHEMA realtime TO CURRENT_USER;
+GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO CURRENT_USER;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO CURRENT_USER;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO CURRENT_USER;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO CURRENT_USER;
 
 -- Grant default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase GRANT ALL ON TABLES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT EXECUTE ON FUNCTIONS TO fluxbase_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO fluxbase_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase GRANT ALL ON TABLES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT EXECUTE ON FUNCTIONS TO CURRENT_USER;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO CURRENT_USER;
 
--- NOTE: BYPASSRLS privilege is granted to fluxbase_app in Makefile db-reset:
--- ALTER USER fluxbase_app WITH BYPASSRLS;
+-- NOTE: BYPASSRLS privilege is granted to CURRENT_USER in Makefile db-reset:
+-- ALTER USER CURRENT_USER WITH BYPASSRLS;
 -- This allows the application to manage all data and handle authorization at the application level.
 -- RLS policies are still enforced for direct database connections and test users.
 

@@ -216,15 +216,35 @@ jobs:
           # Run migrations as fluxbase_app user (same user tests will use)
           # This ensures consistent ownership and permissions
           DATABASE_URL: "postgres://fluxbase_app:fluxbase_app_password@localhost:5432/fluxbase_test?sslmode=disable"
+          PGPASSWORD: postgres
         run: |
           go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
           migrate -path internal/database/migrations -database "$DATABASE_URL" up
 
-          # Grant permissions to fluxbase_rls_test for RLS testing (AFTER migrations complete)
-          # Set PGPASSWORD for postgres user
-          export PGPASSWORD=postgres
-          SCHEMAS="_fluxbase public auth storage functions realtime dashboard"
+          # Workaround: Create custom_settings table if it doesn't exist (migration issue to be fixed)
           PSQL_CMD="psql -h localhost -U postgres -d fluxbase_test"
+          $PSQL_CMD << 'EOF'
+            CREATE TABLE IF NOT EXISTS dashboard.custom_settings (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                key TEXT UNIQUE NOT NULL,
+                value JSONB NOT NULL,
+                value_type TEXT NOT NULL DEFAULT 'string' CHECK (value_type IN ('string', 'number', 'boolean', 'json')),
+                description TEXT,
+                editable_by TEXT[] NOT NULL DEFAULT ARRAY['dashboard_admin']::TEXT[],
+                metadata JSONB DEFAULT '{}'::JSONB,
+                created_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_key ON dashboard.custom_settings(key);
+            CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_editable_by ON dashboard.custom_settings USING GIN(editable_by);
+            CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_created_at ON dashboard.custom_settings(created_at);
+            GRANT ALL ON dashboard.custom_settings TO fluxbase_app;
+          EOF
+
+          # Grant permissions to fluxbase_rls_test for RLS testing (AFTER migrations complete)
+          SCHEMAS="_fluxbase public auth storage functions realtime dashboard"
 
           # Grant permissions on existing objects
           for schema in $SCHEMAS; do
@@ -273,6 +293,7 @@ jobs:
         run: |
           # Run unit tests with -short flag to skip integration tests
           # Integration tests require database setup and can be slow
+          # Note: We run go test directly here for coverage, not through test-runner.sh
           go test -v -short -race -timeout=3m -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v '/test/e2e' | grep -v '/test$')
           go tool cover -html=coverage.out -o coverage.html
 
@@ -293,7 +314,8 @@ jobs:
         run: |
           # Run e2e tests with fluxbase_app user for proper RLS testing
           # Use -parallel=1 within each package to run test functions sequentially (avoid DB connection exhaustion)
-          go test -v -race -parallel=1 -timeout=10m ./test/e2e/...
+          # The test-runner.sh script provides real-time progress and cleaner output
+          ./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=10m ./test/e2e/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

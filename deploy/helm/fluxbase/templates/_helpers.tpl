@@ -156,10 +156,12 @@ Return the proper PostgreSQL database name
 {{- end }}
 
 {{/*
-Return the proper PostgreSQL username
+Return the proper PostgreSQL runtime username
 */}}
 {{- define "fluxbase.databaseUser" -}}
-{{- if ne .Values.postgresql.mode "none" }}
+{{- if .Values.config.database.user }}
+    {{- .Values.config.database.user -}}
+{{- else if ne .Values.postgresql.mode "none" }}
     {{- .Values.postgresql.auth.username -}}
 {{- else }}
     {{- .Values.externalDatabase.user -}}

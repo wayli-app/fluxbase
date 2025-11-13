@@ -248,6 +248,7 @@ func grantRLSTestPermissions() {
 	// fluxbase_app cannot grant permissions on schemas it doesn't own
 	cfg := test.GetTestConfig()
 	cfg.Database.User = "postgres"
+	cfg.Database.AdminUser = "postgres"
 	cfg.Database.Password = "postgres"
 
 	db, err := getDatabase(cfg)
@@ -271,7 +272,7 @@ func grantRLSTestPermissions() {
 		return
 	}
 
-	// Grant table and sequence permissions
+	// Grant table and sequence permissions (including future tables)
 	_, err = db.Exec(ctx, `
 		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test;
@@ -285,6 +286,18 @@ func grantRLSTestPermissions() {
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test;
 		GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_rls_test;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test;
+
+		-- Grant permissions on future tables/sequences (in case migrations add new ones)
+		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON TABLES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA functions GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON TABLES TO fluxbase_rls_test;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA realtime GRANT ALL ON SEQUENCES TO fluxbase_rls_test;
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant table/sequence permissions to fluxbase_rls_test user")

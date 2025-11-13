@@ -104,23 +104,27 @@ spec:
           {{- end }}
           env:
             # Database Configuration
-            - name: DB_HOST
+            - name: FLUXBASE_DATABASE_HOST
               value: {{ include "fluxbase.databaseHost" . | quote }}
-            - name: DB_PORT
+            - name: FLUXBASE_DATABASE_PORT
               value: {{ include "fluxbase.databasePort" . | quote }}
-            - name: DB_NAME
+            - name: FLUXBASE_DATABASE_DATABASE
               value: {{ include "fluxbase.databaseName" . | quote }}
-            - name: DB_USER
+            - name: FLUXBASE_DATABASE_USER
               value: {{ include "fluxbase.databaseUser" . | quote }}
-            - name: DB_PASSWORD
+            {{- if .Values.config.database.adminUser }}
+            - name: FLUXBASE_DATABASE_ADMIN_USER
+              value: {{ .Values.config.database.adminUser | quote }}
+            {{- end }}
+            - name: FLUXBASE_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.databaseSecretName" . }}
                   key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
-            - name: DB_SSL_MODE
+            - name: FLUXBASE_DATABASE_SSL_MODE
               value: {{ .Values.config.database.sslMode | quote }}
             {{- if and .Values.migrationsPersistence.enabled .Values.config.database.userMigrationsPath }}
-            - name: DB_USER_MIGRATIONS_PATH
+            - name: FLUXBASE_DATABASE_USER_MIGRATIONS_PATH
               value: {{ .Values.config.database.userMigrationsPath | quote }}
             {{- end }}
             # Server Configuration

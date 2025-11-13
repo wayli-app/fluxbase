@@ -81,7 +81,8 @@ image:
 ## @param config.database.host PostgreSQL database host
 ## @param config.database.port PostgreSQL database port
 ## @param config.database.name PostgreSQL database name
-## @param config.database.user PostgreSQL database user
+## @param config.database.user PostgreSQL user for normal operations
+## @param config.database.adminUser PostgreSQL admin user for migrations (optional, defaults to user if not set)
 ## @param config.database.password PostgreSQL database password (use existingSecret instead)
 ## @param config.database.sslMode PostgreSQL SSL mode (disable, require, verify-ca, verify-full)
 ## @param config.database.userMigrationsPath Path to user-provided migration files (optional)
@@ -103,6 +104,7 @@ config:
     port: 5432
     name: fluxbase
     user: fluxbase
+    adminUser: "" # Optional: If not set, defaults to user
     password: "" # Use existingSecret instead
     sslMode: disable
     userMigrationsPath: "" # Optional: Path to user-provided migration files (e.g., /migrations/user)

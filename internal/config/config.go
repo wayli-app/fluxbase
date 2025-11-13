@@ -39,7 +39,8 @@ type ServerConfig struct {
 type DatabaseConfig struct {
 	Host               string        `mapstructure:"host"`
 	Port               int           `mapstructure:"port"`
-	User               string        `mapstructure:"user"`
+	User               string        `mapstructure:"user"`       // Database user for normal operations
+	AdminUser          string        `mapstructure:"admin_user"` // Optional admin user for migrations (defaults to User)
 	Password           string        `mapstructure:"password"`
 	Database           string        `mapstructure:"database"`
 	SSLMode            string        `mapstructure:"ssl_mode"`
@@ -236,7 +237,8 @@ func setDefaults() {
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 5432)
-	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.user", "postgres") // Default runtime user
+	viper.SetDefault("database.admin_user", "")   // Empty means use user
 	viper.SetDefault("database.password", "postgres")
 	viper.SetDefault("database.database", "fluxbase")
 	viper.SetDefault("database.ssl_mode", "disable")
@@ -398,6 +400,11 @@ func (dc *DatabaseConfig) Validate() error {
 		return fmt.Errorf("database user is required")
 	}
 
+	// If AdminUser is not set, default it to User
+	if dc.AdminUser == "" {
+		dc.AdminUser = dc.User
+	}
+
 	if dc.Database == "" {
 		return fmt.Errorf("database name is required")
 	}
@@ -524,10 +531,26 @@ func (sc *StorageConfig) Validate() error {
 	return nil
 }
 
-// ConnectionString returns the PostgreSQL connection string
+// ConnectionString returns the PostgreSQL connection string using the runtime user
+// Deprecated: Use RuntimeConnectionString() or AdminConnectionString() instead
 func (dc *DatabaseConfig) ConnectionString() string {
+	return dc.RuntimeConnectionString()
+}
+
+// RuntimeConnectionString returns the PostgreSQL connection string for the runtime user
+func (dc *DatabaseConfig) RuntimeConnectionString() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		dc.User, dc.Password, dc.Host, dc.Port, dc.Database, dc.SSLMode)
+}
+
+// AdminConnectionString returns the PostgreSQL connection string for the admin user
+func (dc *DatabaseConfig) AdminConnectionString() string {
+	user := dc.AdminUser
+	if user == "" {
+		user = dc.User
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		user, dc.Password, dc.Host, dc.Port, dc.Database, dc.SSLMode)
 }
 
 // Validate validates email configuration

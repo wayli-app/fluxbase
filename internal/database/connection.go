@@ -30,8 +30,10 @@ type Connection struct {
 }
 
 // NewConnection creates a new database connection pool
+// The connection pool uses the runtime user, while migrations use the admin user
 func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
-	poolConfig, err := pgxpool.ParseConfig(cfg.ConnectionString())
+	// Use runtime connection string for the connection pool
+	poolConfig, err := pgxpool.ParseConfig(cfg.RuntimeConnectionString())
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse connection string: %w", err)
 	}
@@ -66,7 +68,10 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 	// Initialize schema inspector
 	conn.inspector = NewSchemaInspector(conn)
 
-	log.Info().Str("database", cfg.Database).Msg("Database connection established")
+	log.Info().
+		Str("database", cfg.Database).
+		Str("user", cfg.User).
+		Msg("Database connection established")
 
 	return conn, nil
 }
@@ -130,9 +135,9 @@ func (c *Connection) runSystemMigrations() error {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
 
-	// Use connection string with system migrations table
+	// Use connection string with system migrations table (admin user for migrations)
 	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"schema_migrations\"&x-migrations-table-quoted=1",
-		c.config.User,
+		c.config.AdminUser,
 		c.config.Password,
 		c.config.Host,
 		c.config.Port,
@@ -174,9 +179,9 @@ func (c *Connection) runUserMigrations() error {
 		return fmt.Errorf("failed to create user_migrations table: %w", err)
 	}
 
-	// Use connection string with user migrations table
+	// Use connection string with user migrations table (admin user for migrations)
 	connStr := fmt.Sprintf("pgx5://%s:%s@%s:%d/%s?sslmode=%s&x-migrations-table=\"_fluxbase\".\"user_migrations\"&x-migrations-table-quoted=1",
-		c.config.User,
+		c.config.AdminUser,
 		c.config.Password,
 		c.config.Host,
 		c.config.Port,

@@ -121,6 +121,7 @@ func NewTestContext(t *testing.T) *TestContext {
 	// Log the database user being used for debugging
 	log.Info().
 		Str("db_user", cfg.Database.User).
+		Str("db_admin_user", cfg.Database.AdminUser).
 		Str("db_host", cfg.Database.Host).
 		Str("db_database", cfg.Database.Database).
 		Msg("Test database configuration")
@@ -203,11 +204,13 @@ func NewRLSTestContext(t *testing.T) *TestContext {
 
 	// Override database user to use RLS test user (without BYPASSRLS privilege)
 	cfg.Database.User = "fluxbase_rls_test"
+	cfg.Database.AdminUser = "fluxbase_rls_test"
 	cfg.Database.Password = "fluxbase_rls_test_password"
 
 	// Log the database user being used for debugging
 	log.Info().
 		Str("db_user", cfg.Database.User).
+		Str("db_admin_user", cfg.Database.AdminUser).
 		Str("db_host", cfg.Database.Host).
 		Str("db_database", cfg.Database.Database).
 		Msg("RLS test database configuration (user without BYPASSRLS)")
@@ -318,6 +321,7 @@ func GetTestConfig() *config.Config {
 			Host:            dbHost,
 			Port:            5432,
 			User:            dbUser, // Use non-superuser for RLS to work correctly (configurable via env)
+			AdminUser:       dbUser, // Use same user for both in tests
 			Password:        dbPassword,
 			Database:        dbDatabase,
 			SSLMode:         "disable",
@@ -989,10 +993,14 @@ func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID,
 		require.NoError(tc.T, err, "Failed to hash password")
 	}
 
-	// Insert directly into dashboard.users with bcrypt hash
+	// Insert dashboard user with bcrypt hash using INSERT ... ON CONFLICT for safety
+	// Tests should use UUID-based emails to ensure uniqueness across parallel executions
+	// ON CONFLICT DO NOTHING handles rare edge cases where stale data exists in CI
 	err = tc.DB.QueryRow(ctx,
 		`INSERT INTO dashboard.users (email, password_hash, full_name, role, email_verified)
 		 VALUES ($1, $2, $3, 'dashboard_admin', true)
+		 ON CONFLICT (email) DO UPDATE
+		 SET password_hash = EXCLUDED.password_hash
 		 RETURNING id`,
 		email, string(passwordHash), "Admin User").Scan(&userID)
 

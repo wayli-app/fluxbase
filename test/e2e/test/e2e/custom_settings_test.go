@@ -3,9 +3,9 @@ package e2e
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/test"
 )
@@ -15,14 +15,12 @@ func setupCustomSettingsTest(t *testing.T) (*test.TestContext, string) {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean custom settings and auth tables before each test
+	// Clean custom settings table to avoid key conflicts
+	// This is safe because these tests own the custom_settings data
 	tc.ExecuteSQL("TRUNCATE TABLE dashboard.custom_settings CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE dashboard.users CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
 
-	// Create dashboard admin user
-	timestamp := time.Now().UnixNano()
-	email := fmt.Sprintf("admin-%d@test.com", timestamp)
+	// Use UUID-based unique email to avoid conflicts across parallel test packages
+	email := fmt.Sprintf("admin-%s@test.com", uuid.New().String())
 	password := "adminpass123456"
 	_, token := tc.CreateDashboardAdminUser(email, password)
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/wayli-app/fluxbase/test"
 )
@@ -15,11 +16,12 @@ func setupAdminTest(t *testing.T) (*test.TestContext, string) {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Use timestamp-based unique email to avoid conflicts without truncating all data
-	// This allows tests to run in parallel and avoids affecting other data
-	timestamp := time.Now().UnixNano()
-	email := fmt.Sprintf("admin-%s-%d@test.com", t.Name(), timestamp)
+	// Use UUID-based unique email to ensure no conflicts across parallel test packages
+	// UUID guarantees uniqueness better than timestamps which can collide in CI
+	uniqueID := uuid.New().String()
+	email := fmt.Sprintf("admin-%s@test.com", uniqueID)
 	password := "adminpass123456"
+	t.Logf("Creating dashboard admin with email: %s", email)
 	_, token := tc.CreateDashboardAdminUser(email, password)
 
 	return tc, token
