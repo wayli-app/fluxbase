@@ -272,7 +272,7 @@ jobs:
             runner: ubuntu-latest
           - goos: linux
             goarch: arm64
-            runner: ubuntu-24.04-arm64
+            runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -374,7 +374,7 @@ jobs:
   publish-docker-arm64:
     name: Build Docker Image (ARM64)
     needs: get-version
-    runs-on: ubuntu-24.04-arm64
+    runs-on: ubuntu-24.04-arm
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
     steps:
       - uses: actions/checkout@v5
