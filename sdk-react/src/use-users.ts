@@ -109,9 +109,12 @@ export function useUsers(options: UseUsersOptions = {}): UseUsersReturn {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await client.admin.listUsers(listOptions)
-      setUsers(response.users)
-      setTotal(response.total)
+      const { data, error: apiError } = await client.admin.listUsers(listOptions)
+      if (apiError) {
+        throw apiError
+      }
+      setUsers(data!.users)
+      setTotal(data!.total)
     } catch (err) {
       setError(err as Error)
     } finally {
@@ -157,7 +160,11 @@ export function useUsers(options: UseUsersOptions = {}): UseUsersReturn {
    */
   const resetPassword = useCallback(
     async (userId: string): Promise<{ message: string }> => {
-      return await client.admin.resetUserPassword(userId)
+      const { data, error } = await client.admin.resetUserPassword(userId)
+      if (error) {
+        throw error
+      }
+      return data!
     },
     [client]
   )

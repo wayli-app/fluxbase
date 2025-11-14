@@ -24,9 +24,10 @@ npm install @fluxbase/sdk
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-const client = createClient({
-  url: "http://localhost:8080",
-});
+const client = createClient(
+  "http://localhost:8080",
+  "your-api-key"
+);
 
 // Authenticate first
 await client.auth.login({
@@ -549,7 +550,10 @@ console.log("Invitation revoked");
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-const client = createClient({ url: "http://localhost:8080" });
+const client = createClient(
+  "http://localhost:8080",
+  "your-api-key"
+);
 
 async function setupAPIKeyDashboard() {
   // Authenticate
@@ -607,7 +611,10 @@ import crypto from "crypto";
 import { createClient } from "@fluxbase/sdk";
 
 const app = express();
-const client = createClient({ url: "http://localhost:8080" });
+const client = createClient(
+  "http://localhost:8080",
+  "your-api-key"
+);
 const WEBHOOK_SECRET = "your-webhook-secret";
 
 // Verify webhook signature
@@ -697,7 +704,10 @@ app.listen(3000, () => {
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-const client = createClient({ url: "http://localhost:8080" });
+const client = createClient(
+  "http://localhost:8080",
+  "your-api-key"
+);
 
 async function manageInvitations() {
   // Admin login

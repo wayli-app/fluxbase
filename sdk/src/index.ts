@@ -40,43 +40,57 @@
  */
 
 // Main client
-export { FluxbaseClient, createClient } from './client'
+export { FluxbaseClient, createClient } from "./client";
 
 // Auth module
-export { FluxbaseAuth } from './auth'
+export { FluxbaseAuth } from "./auth";
 
 // Database query builder
-export { QueryBuilder } from './query-builder'
+export { QueryBuilder } from "./query-builder";
 
 // Realtime module
-export { FluxbaseRealtime, RealtimeChannel } from './realtime'
+export { FluxbaseRealtime, RealtimeChannel } from "./realtime";
 
 // Storage module
-export { FluxbaseStorage, StorageBucket } from './storage'
+export { FluxbaseStorage, StorageBucket } from "./storage";
 
 // Functions module
-export { FluxbaseFunctions } from './functions'
+export { FluxbaseFunctions } from "./functions";
 
 // Admin module
-export { FluxbaseAdmin } from './admin'
+export { FluxbaseAdmin } from "./admin";
 
 // Management module
-export { FluxbaseManagement, APIKeysManager, WebhooksManager, InvitationsManager } from './management'
+export {
+  FluxbaseManagement,
+  APIKeysManager,
+  WebhooksManager,
+  InvitationsManager,
+} from "./management";
 
 // Settings module
-export { FluxbaseSettings, SystemSettingsManager, AppSettingsManager, EmailTemplateManager } from './settings'
+export {
+  FluxbaseSettings,
+  SystemSettingsManager,
+  AppSettingsManager,
+  EmailTemplateManager,
+} from "./settings";
 
 // DDL module
-export { DDLManager } from './ddl'
+export { DDLManager } from "./ddl";
 
 // OAuth configuration module
-export { FluxbaseOAuth, OAuthProviderManager, AuthSettingsManager } from './oauth'
+export {
+  FluxbaseOAuth,
+  OAuthProviderManager,
+  AuthSettingsManager,
+} from "./oauth";
 
 // Impersonation module
-export { ImpersonationManager } from './impersonation'
+export { ImpersonationManager } from "./impersonation";
 
 // HTTP client (advanced users)
-export { FluxbaseFetch } from './fetch'
+export { FluxbaseFetch } from "./fetch";
 
 // Types
 export type {
@@ -238,4 +252,12 @@ export type {
   FluxbaseError,
   HttpMethod,
   RequestOptions,
-} from './types'
+
+  // Supabase-compatible response wrapper types
+  DataResponse,
+  VoidResponse,
+  SupabaseAuthResponse,
+  UserResponse,
+  SessionResponse,
+  SupabaseResponse,
+} from "./types";

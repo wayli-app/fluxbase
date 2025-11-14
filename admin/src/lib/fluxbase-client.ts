@@ -7,6 +7,7 @@ import { getAccessToken } from './auth'
 
 // Base URL for the API - can be overridden with environment variable
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+const API_KEY = import.meta.env.VITE_API_KEY || 'anonymous'
 
 // Helper to get impersonation token if active
 const getImpersonationToken = (): string | null => {
@@ -19,8 +20,7 @@ const getActiveToken = (): string | null => {
 }
 
 // Create the Fluxbase client
-export const fluxbaseClient = createClient({
-  url: API_BASE_URL,
+export const fluxbaseClient = createClient(API_BASE_URL, API_KEY, {
   auth: {
     autoRefresh: true,
     persist: false, // We manage persistence ourselves via localStorage

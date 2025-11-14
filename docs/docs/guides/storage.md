@@ -130,7 +130,7 @@ npm install @fluxbase/sdk
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient('http://localhost:8080', 'your-api-key')
+const client = createClient('http://localhost:8080', 'your-anon-key')
 
 // Upload file
 const file = document.getElementById('fileInput').files[0]

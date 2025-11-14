@@ -26,7 +26,14 @@ import type {
   AuthChangeEvent,
   AuthStateChangeCallback,
   AuthSubscription,
+  SupabaseAuthResponse,
+  UserResponse,
+  SessionResponse,
+  DataResponse,
+  VoidResponse,
+  SupabaseResponse,
 } from "./types";
+import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
 const AUTH_STORAGE_KEY = "fluxbase.auth.session";
 
@@ -113,25 +120,27 @@ export class FluxbaseAuth {
    */
   async signIn(
     credentials: SignInCredentials,
-  ): Promise<AuthSession | SignInWith2FAResponse> {
-    const response = await this.fetch.post<
-      AuthResponse | SignInWith2FAResponse
-    >("/api/v1/auth/signin", credentials);
+  ): Promise<SupabaseResponse<AuthSession | SignInWith2FAResponse>> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<
+        AuthResponse | SignInWith2FAResponse
+      >("/api/v1/auth/signin", credentials);
 
-    // Check if 2FA is required
-    if ("requires_2fa" in response && response.requires_2fa) {
-      return response as SignInWith2FAResponse;
-    }
+      // Check if 2FA is required
+      if ("requires_2fa" in response && response.requires_2fa) {
+        return response as SignInWith2FAResponse;
+      }
 
-    // Normal sign in without 2FA
-    const authResponse = response as AuthResponse;
-    const session: AuthSession = {
-      ...authResponse,
-      expires_at: Date.now() + authResponse.expires_in * 1000,
-    };
+      // Normal sign in without 2FA
+      const authResponse = response as AuthResponse;
+      const session: AuthSession = {
+        ...authResponse,
+        expires_at: Date.now() + authResponse.expires_in * 1000,
+      };
 
-    this.setSession(session);
-    return session;
+      this.setSession(session);
+      return session;
+    });
   }
 
   /**
@@ -141,72 +150,81 @@ export class FluxbaseAuth {
    */
   async signInWithPassword(
     credentials: SignInCredentials,
-  ): Promise<AuthSession | SignInWith2FAResponse> {
+  ): Promise<SupabaseResponse<AuthSession | SignInWith2FAResponse>> {
     return this.signIn(credentials);
   }
 
   /**
    * Sign up with email and password
    */
-  async signUp(credentials: SignUpCredentials): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>(
-      "/api/v1/auth/signup",
-      credentials,
-    );
+  async signUp(credentials: SignUpCredentials): Promise<SupabaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/signup",
+        credentials,
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session);
-    return session;
+      this.setSession(session);
+      return { user: session.user, session };
+    });
   }
 
   /**
    * Sign out the current user
    */
-  async signOut(): Promise<void> {
-    try {
-      await this.fetch.post("/api/v1/auth/signout");
-    } finally {
-      this.clearSession();
-    }
+  async signOut(): Promise<VoidResponse> {
+    return wrapAsyncVoid(async () => {
+      try {
+        await this.fetch.post("/api/v1/auth/signout");
+      } finally {
+        this.clearSession();
+      }
+    });
   }
 
   /**
    * Refresh the access token
    */
-  async refreshToken(): Promise<AuthSession> {
-    if (!this.session?.refresh_token) {
-      throw new Error("No refresh token available");
-    }
+  async refreshToken(): Promise<SessionResponse> {
+    return wrapAsync(async () => {
+      if (!this.session?.refresh_token) {
+        throw new Error("No refresh token available");
+      }
 
-    const response = await this.fetch.post<AuthResponse>(
-      "/api/v1/auth/refresh",
-      {
-        refresh_token: this.session.refresh_token,
-      },
-    );
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/refresh",
+        {
+          refresh_token: this.session.refresh_token,
+        },
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session, "TOKEN_REFRESHED");
-    return session;
+      this.setSession(session, "TOKEN_REFRESHED");
+      return { session };
+    });
   }
 
   /**
    * Get the current user from the server
    */
-  async getCurrentUser(): Promise<User> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  async getCurrentUser(): Promise<UserResponse> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    return await this.fetch.get<User>("/api/v1/auth/user");
+      const user = await this.fetch.get<User>("/api/v1/auth/user");
+      return { user };
+    });
   }
 
   /**
@@ -214,21 +232,23 @@ export class FluxbaseAuth {
    */
   async updateUser(
     data: Partial<Pick<User, "email" | "metadata">>,
-  ): Promise<User> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  ): Promise<UserResponse> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    const user = await this.fetch.patch<User>("/api/v1/auth/user", data);
+      const user = await this.fetch.patch<User>("/api/v1/auth/user", data);
 
-    // Update session with new user data
-    if (this.session) {
-      this.session.user = user;
-      this.saveSession();
-      this.emitAuthChange("USER_UPDATED", this.session);
-    }
+      // Update session with new user data
+      if (this.session) {
+        this.session.user = user;
+        this.saveSession();
+        this.emitAuthChange("USER_UPDATED", this.session);
+      }
 
-    return user;
+      return { user };
+    });
   }
 
   /**
@@ -242,29 +262,33 @@ export class FluxbaseAuth {
    * Setup 2FA for the current user
    * Returns TOTP secret and QR code URL
    */
-  async setup2FA(): Promise<TwoFactorSetupResponse> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  async setup2FA(): Promise<DataResponse<TwoFactorSetupResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    return await this.fetch.post<TwoFactorSetupResponse>(
-      "/api/v1/auth/2fa/setup",
-    );
+      return await this.fetch.post<TwoFactorSetupResponse>(
+        "/api/v1/auth/2fa/setup",
+      );
+    });
   }
 
   /**
    * Enable 2FA after verifying the TOTP code
    * Returns backup codes that should be saved by the user
    */
-  async enable2FA(code: string): Promise<TwoFactorEnableResponse> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  async enable2FA(code: string): Promise<DataResponse<TwoFactorEnableResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    return await this.fetch.post<TwoFactorEnableResponse>(
-      "/api/v1/auth/2fa/enable",
-      { code },
-    );
+      return await this.fetch.post<TwoFactorEnableResponse>(
+        "/api/v1/auth/2fa/enable",
+        { code },
+      );
+    });
   }
 
   /**
@@ -273,47 +297,53 @@ export class FluxbaseAuth {
    */
   async disable2FA(
     password: string,
-  ): Promise<{ success: boolean; message: string }> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  ): Promise<DataResponse<{ success: boolean; message: string }>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    return await this.fetch.post<{ success: boolean; message: string }>(
-      "/api/v1/auth/2fa/disable",
-      { password },
-    );
+      return await this.fetch.post<{ success: boolean; message: string }>(
+        "/api/v1/auth/2fa/disable",
+        { password },
+      );
+    });
   }
 
   /**
    * Check 2FA status for the current user
    */
-  async get2FAStatus(): Promise<TwoFactorStatusResponse> {
-    if (!this.session) {
-      throw new Error("Not authenticated");
-    }
+  async get2FAStatus(): Promise<DataResponse<TwoFactorStatusResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
 
-    return await this.fetch.get<TwoFactorStatusResponse>(
-      "/api/v1/auth/2fa/status",
-    );
+      return await this.fetch.get<TwoFactorStatusResponse>(
+        "/api/v1/auth/2fa/status",
+      );
+    });
   }
 
   /**
    * Verify 2FA code during login
    * Call this after signIn returns requires_2fa: true
    */
-  async verify2FA(request: TwoFactorVerifyRequest): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>(
-      "/api/v1/auth/2fa/verify",
-      request,
-    );
+  async verify2FA(request: TwoFactorVerifyRequest): Promise<SupabaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/2fa/verify",
+        request,
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session, "MFA_CHALLENGE_VERIFIED");
-    return session;
+      this.setSession(session, "MFA_CHALLENGE_VERIFIED");
+      return { user: session.user, session };
+    });
   }
 
   /**
@@ -321,11 +351,25 @@ export class FluxbaseAuth {
    * Sends a password reset link to the provided email address
    * @param email - Email address to send reset link to
    */
-  async sendPasswordReset(email: string): Promise<PasswordResetResponse> {
-    return await this.fetch.post<PasswordResetResponse>(
-      "/api/v1/auth/password/reset",
-      { email },
-    );
+  async sendPasswordReset(email: string): Promise<DataResponse<PasswordResetResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.post<PasswordResetResponse>(
+        "/api/v1/auth/password/reset",
+        { email },
+      );
+    });
+  }
+
+  /**
+   * Supabase-compatible alias for sendPasswordReset()
+   * @param email - Email address to send reset link to
+   * @param _options - Optional redirect configuration (currently not used)
+   */
+  async resetPasswordForEmail(
+    email: string,
+    _options?: { redirectTo?: string },
+  ): Promise<DataResponse<PasswordResetResponse>> {
+    return this.sendPasswordReset(email);
   }
 
   /**
@@ -333,13 +377,15 @@ export class FluxbaseAuth {
    * Check if a password reset token is valid before allowing password reset
    * @param token - Password reset token to verify
    */
-  async verifyResetToken(token: string): Promise<VerifyResetTokenResponse> {
-    return await this.fetch.post<VerifyResetTokenResponse>(
-      "/api/v1/auth/password/reset/verify",
-      {
-        token,
-      },
-    );
+  async verifyResetToken(token: string): Promise<DataResponse<VerifyResetTokenResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.post<VerifyResetTokenResponse>(
+        "/api/v1/auth/password/reset/verify",
+        {
+          token,
+        },
+      );
+    });
   }
 
   /**
@@ -351,14 +397,16 @@ export class FluxbaseAuth {
   async resetPassword(
     token: string,
     newPassword: string,
-  ): Promise<ResetPasswordResponse> {
-    return await this.fetch.post<ResetPasswordResponse>(
-      "/api/v1/auth/password/reset/confirm",
-      {
-        token,
-        new_password: newPassword,
-      },
-    );
+  ): Promise<DataResponse<ResetPasswordResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.post<ResetPasswordResponse>(
+        "/api/v1/auth/password/reset/confirm",
+        {
+          token,
+          new_password: newPassword,
+        },
+      );
+    });
   }
 
   /**
@@ -369,10 +417,12 @@ export class FluxbaseAuth {
   async sendMagicLink(
     email: string,
     options?: MagicLinkOptions,
-  ): Promise<MagicLinkResponse> {
-    return await this.fetch.post<MagicLinkResponse>("/api/v1/auth/magiclink", {
-      email,
-      redirect_to: options?.redirect_to,
+  ): Promise<DataResponse<MagicLinkResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.post<MagicLinkResponse>("/api/v1/auth/magiclink", {
+        email,
+        redirect_to: options?.redirect_to,
+      });
     });
   }
 
@@ -380,48 +430,54 @@ export class FluxbaseAuth {
    * Verify magic link token and sign in
    * @param token - Magic link token from email
    */
-  async verifyMagicLink(token: string): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>(
-      "/api/v1/auth/magiclink/verify",
-      {
-        token,
-      },
-    );
+  async verifyMagicLink(token: string): Promise<SupabaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/magiclink/verify",
+        {
+          token,
+        },
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session);
-    return session;
+      this.setSession(session);
+      return { user: session.user, session };
+    });
   }
 
   /**
    * Sign in anonymously
    * Creates a temporary anonymous user session
    */
-  async signInAnonymously(): Promise<AuthSession> {
-    const response = await this.fetch.post<AnonymousSignInResponse>(
-      "/api/v1/auth/signin/anonymous",
-    );
+  async signInAnonymously(): Promise<SupabaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AnonymousSignInResponse>(
+        "/api/v1/auth/signin/anonymous",
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session);
-    return session;
+      this.setSession(session);
+      return { user: session.user, session };
+    });
   }
 
   /**
    * Get list of enabled OAuth providers
    */
-  async getOAuthProviders(): Promise<OAuthProvidersResponse> {
-    return await this.fetch.get<OAuthProvidersResponse>(
-      "/api/v1/auth/oauth/providers",
-    );
+  async getOAuthProviders(): Promise<DataResponse<OAuthProvidersResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<OAuthProvidersResponse>(
+        "/api/v1/auth/oauth/providers",
+      );
+    });
   }
 
   /**
@@ -432,22 +488,24 @@ export class FluxbaseAuth {
   async getOAuthUrl(
     provider: string,
     options?: OAuthOptions,
-  ): Promise<OAuthUrlResponse> {
-    const params = new URLSearchParams();
-    if (options?.redirect_to) {
-      params.append("redirect_to", options.redirect_to);
-    }
-    if (options?.scopes && options.scopes.length > 0) {
-      params.append("scopes", options.scopes.join(","));
-    }
+  ): Promise<DataResponse<OAuthUrlResponse>> {
+    return wrapAsync(async () => {
+      const params = new URLSearchParams();
+      if (options?.redirect_to) {
+        params.append("redirect_to", options.redirect_to);
+      }
+      if (options?.scopes && options.scopes.length > 0) {
+        params.append("scopes", options.scopes.join(","));
+      }
 
-    const queryString = params.toString();
-    const url = queryString
-      ? `/api/v1/auth/oauth/${provider}/authorize?${queryString}`
-      : `/api/v1/auth/oauth/${provider}/authorize`;
+      const queryString = params.toString();
+      const url = queryString
+        ? `/api/v1/auth/oauth/${provider}/authorize?${queryString}`
+        : `/api/v1/auth/oauth/${provider}/authorize`;
 
-    const response = await this.fetch.get<OAuthUrlResponse>(url);
-    return response;
+      const response = await this.fetch.get<OAuthUrlResponse>(url);
+      return response;
+    });
   }
 
   /**
@@ -455,19 +513,21 @@ export class FluxbaseAuth {
    * This is typically called in your OAuth callback handler
    * @param code - Authorization code from OAuth callback
    */
-  async exchangeCodeForSession(code: string): Promise<AuthSession> {
-    const response = await this.fetch.post<AuthResponse>(
-      "/api/v1/auth/oauth/callback",
-      { code },
-    );
+  async exchangeCodeForSession(code: string): Promise<SupabaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/oauth/callback",
+        { code },
+      );
 
-    const session: AuthSession = {
-      ...response,
-      expires_at: Date.now() + response.expires_in * 1000,
-    };
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
 
-    this.setSession(session);
-    return session;
+      this.setSession(session);
+      return { user: session.user, session };
+    });
   }
 
   /**
@@ -479,16 +539,26 @@ export class FluxbaseAuth {
   async signInWithOAuth(
     provider: string,
     options?: OAuthOptions,
-  ): Promise<void> {
-    const { url } = await this.getOAuthUrl(provider, options);
+  ): Promise<DataResponse<{ provider: string; url: string }>> {
+    return wrapAsync(async () => {
+      const result = await this.getOAuthUrl(provider, options);
 
-    if (typeof window !== "undefined") {
-      window.location.href = url;
-    } else {
-      throw new Error(
-        "signInWithOAuth can only be called in a browser environment",
-      );
-    }
+      if (result.error) {
+        throw result.error;
+      }
+
+      const url = result.data.url;
+
+      if (typeof window !== "undefined") {
+        window.location.href = url;
+      } else {
+        throw new Error(
+          "signInWithOAuth can only be called in a browser environment",
+        );
+      }
+
+      return { provider, url };
+    });
   }
 
   /**
@@ -551,11 +621,12 @@ export class FluxbaseAuth {
     const delay = refreshAt - Date.now();
 
     if (delay > 0) {
-      this.refreshTimer = setTimeout(() => {
-        this.refreshToken().catch((err) => {
-          console.error("Failed to refresh token:", err);
+      this.refreshTimer = setTimeout(async () => {
+        const result = await this.refreshToken();
+        if (result.error) {
+          console.error("Failed to refresh token:", result.error);
           this.clearSession();
-        });
+        }
       }, delay);
     }
   }

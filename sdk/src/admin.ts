@@ -14,7 +14,10 @@ import type {
   ListUsersOptions,
   ListUsersResponse,
   ResetUserPasswordResponse,
+  DataResponse,
+  VoidResponse,
 } from "./types";
+import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 import { FluxbaseSettings, EmailTemplateManager } from "./settings";
 import { DDLManager } from "./ddl";
 import { FluxbaseOAuth } from "./oauth";
@@ -108,10 +111,12 @@ export class FluxbaseAdmin {
    * }
    * ```
    */
-  async getSetupStatus(): Promise<AdminSetupStatusResponse> {
-    return await this.fetch.get<AdminSetupStatusResponse>(
-      "/api/v1/admin/setup/status",
-    );
+  async getSetupStatus(): Promise<DataResponse<AdminSetupStatusResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<AdminSetupStatusResponse>(
+        "/api/v1/admin/setup/status",
+      );
+    });
   }
 
   /**
@@ -137,13 +142,15 @@ export class FluxbaseAdmin {
    * localStorage.setItem('admin_token', response.access_token);
    * ```
    */
-  async setup(request: AdminSetupRequest): Promise<AdminAuthResponse> {
-    const response = await this.fetch.post<AdminAuthResponse>(
-      "/api/v1/admin/setup",
-      request,
-    );
-    this.setToken(response.access_token);
-    return response;
+  async setup(request: AdminSetupRequest): Promise<DataResponse<AdminAuthResponse>> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AdminAuthResponse>(
+        "/api/v1/admin/setup",
+        request,
+      );
+      this.setToken(response.access_token);
+      return response;
+    });
   }
 
   /**
@@ -166,13 +173,15 @@ export class FluxbaseAdmin {
    * console.log('Logged in as:', response.user.email);
    * ```
    */
-  async login(request: AdminLoginRequest): Promise<AdminAuthResponse> {
-    const response = await this.fetch.post<AdminAuthResponse>(
-      "/api/v1/admin/login",
-      request,
-    );
-    this.setToken(response.access_token);
-    return response;
+  async login(request: AdminLoginRequest): Promise<DataResponse<AdminAuthResponse>> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AdminAuthResponse>(
+        "/api/v1/admin/login",
+        request,
+      );
+      this.setToken(response.access_token);
+      return response;
+    });
   }
 
   /**
@@ -193,13 +202,15 @@ export class FluxbaseAdmin {
    */
   async refreshToken(
     request: AdminRefreshRequest,
-  ): Promise<AdminRefreshResponse> {
-    const response = await this.fetch.post<AdminRefreshResponse>(
-      "/api/v1/admin/refresh",
-      request,
-    );
-    this.setToken(response.access_token);
-    return response;
+  ): Promise<DataResponse<AdminRefreshResponse>> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AdminRefreshResponse>(
+        "/api/v1/admin/refresh",
+        request,
+      );
+      this.setToken(response.access_token);
+      return response;
+    });
   }
 
   /**
@@ -213,9 +224,11 @@ export class FluxbaseAdmin {
    * localStorage.removeItem('admin_token');
    * ```
    */
-  async logout(): Promise<void> {
-    await this.fetch.post<{ message: string }>("/api/v1/admin/logout", {});
-    this.clearToken();
+  async logout(): Promise<VoidResponse> {
+    return wrapAsyncVoid(async () => {
+      await this.fetch.post<{ message: string }>("/api/v1/admin/logout", {});
+      this.clearToken();
+    });
   }
 
   /**
@@ -230,8 +243,10 @@ export class FluxbaseAdmin {
    * console.log('Role:', user.role);
    * ```
    */
-  async me(): Promise<AdminMeResponse> {
-    return await this.fetch.get<AdminMeResponse>("/api/v1/admin/me");
+  async me(): Promise<DataResponse<AdminMeResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<AdminMeResponse>("/api/v1/admin/me");
+    });
   }
 
   // ============================================================================
@@ -258,28 +273,30 @@ export class FluxbaseAdmin {
    * });
    * ```
    */
-  async listUsers(options: ListUsersOptions = {}): Promise<ListUsersResponse> {
-    const params = new URLSearchParams();
+  async listUsers(options: ListUsersOptions = {}): Promise<DataResponse<ListUsersResponse>> {
+    return wrapAsync(async () => {
+      const params = new URLSearchParams();
 
-    if (options.exclude_admins !== undefined) {
-      params.append("exclude_admins", String(options.exclude_admins));
-    }
-    if (options.search) {
-      params.append("search", options.search);
-    }
-    if (options.limit !== undefined) {
-      params.append("limit", String(options.limit));
-    }
-    if (options.type) {
-      params.append("type", options.type);
-    }
+      if (options.exclude_admins !== undefined) {
+        params.append("exclude_admins", String(options.exclude_admins));
+      }
+      if (options.search) {
+        params.append("search", options.search);
+      }
+      if (options.limit !== undefined) {
+        params.append("limit", String(options.limit));
+      }
+      if (options.type) {
+        params.append("type", options.type);
+      }
 
-    const queryString = params.toString();
-    const url = queryString
-      ? `/api/v1/admin/users?${queryString}`
-      : "/api/v1/admin/users";
+      const queryString = params.toString();
+      const url = queryString
+        ? `/api/v1/admin/users?${queryString}`
+        : "/api/v1/admin/users";
 
-    return await this.fetch.get<ListUsersResponse>(url);
+      return await this.fetch.get<ListUsersResponse>(url);
+    });
   }
 
   /**
@@ -305,9 +322,11 @@ export class FluxbaseAdmin {
   async getUserById(
     userId: string,
     type: "app" | "dashboard" = "app",
-  ): Promise<EnrichedUser> {
-    const url = `/api/v1/admin/users/${userId}?type=${type}`;
-    return await this.fetch.get<EnrichedUser>(url);
+  ): Promise<DataResponse<EnrichedUser>> {
+    return wrapAsync(async () => {
+      const url = `/api/v1/admin/users/${userId}?type=${type}`;
+      return await this.fetch.get<EnrichedUser>(url);
+    });
   }
 
   /**
@@ -334,9 +353,11 @@ export class FluxbaseAdmin {
   async inviteUser(
     request: InviteUserRequest,
     type: "app" | "dashboard" = "app",
-  ): Promise<InviteUserResponse> {
-    const url = `/api/v1/admin/users/invite?type=${type}`;
-    return await this.fetch.post<InviteUserResponse>(url, request);
+  ): Promise<DataResponse<InviteUserResponse>> {
+    return wrapAsync(async () => {
+      const url = `/api/v1/admin/users/invite?type=${type}`;
+      return await this.fetch.post<InviteUserResponse>(url, request);
+    });
   }
 
   /**
@@ -357,9 +378,11 @@ export class FluxbaseAdmin {
   async deleteUser(
     userId: string,
     type: "app" | "dashboard" = "app",
-  ): Promise<DeleteUserResponse> {
-    const url = `/api/v1/admin/users/${userId}?type=${type}`;
-    return await this.fetch.delete<DeleteUserResponse>(url);
+  ): Promise<DataResponse<DeleteUserResponse>> {
+    return wrapAsync(async () => {
+      const url = `/api/v1/admin/users/${userId}?type=${type}`;
+      return await this.fetch.delete<DeleteUserResponse>(url);
+    });
   }
 
   /**
@@ -382,9 +405,11 @@ export class FluxbaseAdmin {
     userId: string,
     role: string,
     type: "app" | "dashboard" = "app",
-  ): Promise<EnrichedUser> {
-    const url = `/api/v1/admin/users/${userId}/role?type=${type}`;
-    return await this.fetch.patch<EnrichedUser>(url, { role });
+  ): Promise<DataResponse<EnrichedUser>> {
+    return wrapAsync(async () => {
+      const url = `/api/v1/admin/users/${userId}/role?type=${type}`;
+      return await this.fetch.patch<EnrichedUser>(url, { role });
+    });
   }
 
   /**
@@ -405,8 +430,10 @@ export class FluxbaseAdmin {
   async resetUserPassword(
     userId: string,
     type: "app" | "dashboard" = "app",
-  ): Promise<ResetUserPasswordResponse> {
-    const url = `/api/v1/admin/users/${userId}/reset-password?type=${type}`;
-    return await this.fetch.post<ResetUserPasswordResponse>(url, {});
+  ): Promise<DataResponse<ResetUserPasswordResponse>> {
+    return wrapAsync(async () => {
+      const url = `/api/v1/admin/users/${userId}/reset-password?type=${type}`;
+      return await this.fetch.post<ResetUserPasswordResponse>(url, {});
+    });
   }
 }

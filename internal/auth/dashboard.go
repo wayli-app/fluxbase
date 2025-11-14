@@ -481,10 +481,34 @@ func (s *DashboardAuthService) GetUserByID(ctx context.Context, userID uuid.UUID
 
 // logActivity logs a dashboard user activity
 func (s *DashboardAuthService) logActivity(ctx context.Context, userID uuid.UUID, action, resourceType, resourceID string, ipAddress net.IP, userAgent string, metadata map[string]interface{}) {
+	// Convert empty strings to nil for nullable fields
+	var resourceTypePtr *string
+	if resourceType != "" {
+		resourceTypePtr = &resourceType
+	}
+
+	var resourceIDPtr *string
+	if resourceID != "" {
+		resourceIDPtr = &resourceID
+	}
+
+	// Handle nil IP address
+	var ipAddressStr *string
+	if ipAddress != nil {
+		str := ipAddress.String()
+		ipAddressStr = &str
+	}
+
+	// Handle empty user agent
+	var userAgentPtr *string
+	if userAgent != "" {
+		userAgentPtr = &userAgent
+	}
+
 	_, _ = s.db.Exec(ctx, `
 		INSERT INTO dashboard.activity_log (user_id, action, resource_type, resource_id, ip_address, user_agent, details)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, userID, action, resourceType, resourceID, ipAddress.String(), userAgent, metadata)
+	`, userID, action, resourceTypePtr, resourceIDPtr, ipAddressStr, userAgentPtr, metadata)
 }
 
 // generateBackupCode generates a random 8-character backup code

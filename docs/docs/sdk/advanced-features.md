@@ -123,9 +123,10 @@ Here's a complete example showing how to use multiple advanced features together
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({
-  url: 'http://localhost:8080'
-})
+const client = createClient(
+  'http://localhost:8080',
+  'your-anon-key'
+)
 
 async function setupAdminDashboard() {
   // 1. Admin Authentication
@@ -451,17 +452,26 @@ The SDK automatically manages connections, but for high-traffic scenarios:
 
 ```typescript
 // Reuse client instances
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient(
+  'http://localhost:8080',
+  'your-anon-key'
+)
 
 // Don't create new clients for each request
 // ❌ Bad
 function handleRequest() {
-  const client = createClient({ url: 'http://localhost:8080' })
+  const client = createClient(
+    'http://localhost:8080',
+    'your-anon-key'
+  )
   // ...
 }
 
 // ✅ Good
-const globalClient = createClient({ url: 'http://localhost:8080' })
+const globalClient = createClient(
+  'http://localhost:8080',
+  'your-anon-key'
+)
 function handleRequest() {
   // Use globalClient
 }
@@ -557,7 +567,10 @@ import { createClient } from '@fluxbase/sdk'
 
 describe('Admin Operations', () => {
   it('should set up OAuth provider', async () => {
-    const client = createClient({ url: 'http://localhost:8080' })
+    const client = createClient(
+      'http://localhost:8080',
+      'your-anon-key'
+    )
 
     // Mock the API call
     vi.spyOn(client.admin.oauth.providers, 'createProvider')
@@ -601,7 +614,10 @@ const response = await fetch('http://localhost:8080/api/v1/admin/settings/app', 
 const data = await response.json()
 
 // After: Using SDK
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient(
+  'http://localhost:8080',
+  'your-anon-key'
+)
 await client.admin.setToken(token)
 await client.admin.settings.app.update({
   features: { enable_realtime: true }

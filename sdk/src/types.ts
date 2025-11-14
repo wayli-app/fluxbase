@@ -2,14 +2,11 @@
  * Core types for the Fluxbase SDK
  */
 
+/**
+ * Client configuration options (Supabase-compatible)
+ * These options are passed as the third parameter to createClient()
+ */
 export interface FluxbaseClientOptions {
-  /**
-   * Base URL of your Fluxbase instance
-   * @example 'https://api.myapp.com'
-   * @example 'http://localhost:8080'
-   */
-  url: string
-
   /**
    * Authentication options
    */
@@ -1346,3 +1343,49 @@ export interface EdgeFunctionExecution {
   executed_at: string
   completed_at?: string
 }
+
+// ============================================================================
+// Supabase-Compatible Response Types
+// ============================================================================
+
+/**
+ * Base Supabase-compatible response type
+ * Returns either { data, error: null } on success or { data: null, error } on failure
+ */
+export type SupabaseResponse<T> =
+  | { data: T; error: null }
+  | { data: null; error: Error }
+
+/**
+ * Response type for operations that don't return data (void operations)
+ */
+export type VoidResponse = { error: Error | null }
+
+/**
+ * Auth response with user and session (Supabase-compatible)
+ * Note: This replaces the old AuthResponse interface for compatibility
+ */
+export type AuthResponseData = {
+  user: User
+  session: AuthSession
+}
+
+/**
+ * Supabase-compatible auth response
+ */
+export type SupabaseAuthResponse = SupabaseResponse<AuthResponseData>
+
+/**
+ * User response (Supabase-compatible)
+ */
+export type UserResponse = SupabaseResponse<{ user: User }>
+
+/**
+ * Session response (Supabase-compatible)
+ */
+export type SessionResponse = SupabaseResponse<{ session: AuthSession }>
+
+/**
+ * Generic data response (Supabase-compatible)
+ */
+export type DataResponse<T> = SupabaseResponse<T>

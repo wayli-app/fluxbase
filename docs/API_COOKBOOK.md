@@ -34,19 +34,24 @@ curl https://your-project.fluxbase.io/api/v1/rest/users
 ### Initialize Client
 
 ```typescript
-import { createClient } from '@fluxbase/client'
+import { createClient } from "@fluxbase/client";
 
-const fluxbase = createClient({
-  url: 'https://your-project.fluxbase.io',
-  anonKey: 'your-anon-key',  // For anonymous access
-  // apiKey: 'your-api-key',  // For service role access
-})
+const fluxbase = createClient(
+  "https://your-project.fluxbase.io",
+  "your-anon-key", // For anonymous access
+);
+
+// For service role access, use the service role key instead
+// const fluxbase = createClient(
+//   'https://your-project.fluxbase.io',
+//   'your-service-role-key'
+// )
 
 // With authentication
 const { data, error } = await fluxbase.auth.signIn({
-  email: 'user@example.com',
-  password: 'password123'
-})
+  email: "user@example.com",
+  password: "password123",
+});
 
 // Client now has authenticated session
 ```
@@ -59,19 +64,19 @@ const { data, error } = await fluxbase.auth.signIn({
 
 ```typescript
 const { data, error } = await fluxbase.auth.signUp({
-  email: 'newuser@example.com',
-  password: 'SecurePass123!',
+  email: "newuser@example.com",
+  password: "SecurePass123!",
   metadata: {
-    firstName: 'John',
-    lastName: 'Doe'
-  }
-})
+    firstName: "John",
+    lastName: "Doe",
+  },
+});
 
 if (error) {
-  console.error('Sign up failed:', error.message)
+  console.error("Sign up failed:", error.message);
 } else {
-  console.log('User created:', data.user.id)
-  console.log('Access token:', data.session.access_token)
+  console.log("User created:", data.user.id);
+  console.log("Access token:", data.session.access_token);
   // Email verification sent automatically
 }
 ```
@@ -80,39 +85,39 @@ if (error) {
 
 ```typescript
 const { data, error } = await fluxbase.auth.signIn({
-  email: 'user@example.com',
-  password: 'SecurePass123!'
-})
+  email: "user@example.com",
+  password: "SecurePass123!",
+});
 
 if (error) {
-  console.error('Sign in failed:', error.message)
+  console.error("Sign in failed:", error.message);
 } else {
   // Session automatically stored in client
-  console.log('Signed in:', data.user.email)
+  console.log("Signed in:", data.user.email);
 }
 ```
 
 ### 3. Sign Out
 
 ```typescript
-const { error } = await fluxbase.auth.signOut()
+const { error } = await fluxbase.auth.signOut();
 
 if (!error) {
-  console.log('Signed out successfully')
+  console.log("Signed out successfully");
 }
 ```
 
 ### 4. Get Current User
 
 ```typescript
-const { data, error } = await fluxbase.auth.getUser()
+const { data, error } = await fluxbase.auth.getUser();
 
 if (data) {
-  console.log('Current user:', data.email)
-  console.log('User ID:', data.id)
-  console.log('Metadata:', data.user_metadata)
+  console.log("Current user:", data.email);
+  console.log("User ID:", data.id);
+  console.log("Metadata:", data.user_metadata);
 } else {
-  console.log('No user signed in')
+  console.log("No user signed in");
 }
 ```
 
@@ -121,23 +126,23 @@ if (data) {
 ```typescript
 const { data, error } = await fluxbase.auth.updateUser({
   metadata: {
-    displayName: 'John D.',
-    avatar: 'https://example.com/avatar.jpg',
+    displayName: "John D.",
+    avatar: "https://example.com/avatar.jpg",
     preferences: {
-      theme: 'dark',
-      language: 'en'
-    }
-  }
-})
+      theme: "dark",
+      language: "en",
+    },
+  },
+});
 ```
 
 ### 6. Refresh Session
 
 ```typescript
-const { data, error } = await fluxbase.auth.refreshSession()
+const { data, error } = await fluxbase.auth.refreshSession();
 
 if (data) {
-  console.log('New access token:', data.access_token)
+  console.log("New access token:", data.access_token);
 }
 ```
 
@@ -145,22 +150,20 @@ if (data) {
 
 ```typescript
 // Request reset email
-const { error } = await fluxbase.auth.resetPasswordForEmail(
-  'user@example.com'
-)
+const { error } = await fluxbase.auth.resetPasswordForEmail("user@example.com");
 
 // In password reset form (after clicking email link)
 const { error } = await fluxbase.auth.updatePassword({
-  newPassword: 'NewSecurePass123!'
-})
+  newPassword: "NewSecurePass123!",
+});
 ```
 
 ### 8. Magic Link Authentication
 
 ```typescript
 const { error } = await fluxbase.auth.signInWithOtp({
-  email: 'user@example.com'
-})
+  email: "user@example.com",
+});
 
 // User clicks link in email, automatically signed in
 ```
@@ -173,48 +176,46 @@ const { error } = await fluxbase.auth.signInWithOtp({
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
+  .from("posts")
   .insert({
-    title: 'My First Post',
-    content: 'Hello, World!',
-    published: false
+    title: "My First Post",
+    content: "Hello, World!",
+    published: false,
   })
-  .select()  // Return inserted data
+  .select(); // Return inserted data
 
-console.log('Created post:', data[0])
+console.log("Created post:", data[0]);
 ```
 
 ### 2. Insert Multiple Rows
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
+  .from("posts")
   .insert([
-    { title: 'Post 1', content: 'Content 1' },
-    { title: 'Post 2', content: 'Content 2' },
-    { title: 'Post 3', content: 'Content 3' }
+    { title: "Post 1", content: "Content 1" },
+    { title: "Post 2", content: "Content 2" },
+    { title: "Post 3", content: "Content 3" },
   ])
-  .select()
+  .select();
 
-console.log(`Created ${data.length} posts`)
+console.log(`Created ${data.length} posts`);
 ```
 
 ### 3. Select All
 
 ```typescript
-const { data, error } = await fluxbase
-  .from('posts')
-  .select('*')
+const { data, error } = await fluxbase.from("posts").select("*");
 
-console.log('All posts:', data)
+console.log("All posts:", data);
 ```
 
 ### 4. Select Specific Columns
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
-  .select('id, title, created_at')
+  .from("posts")
+  .select("id, title, created_at");
 
 // Returns only specified columns
 ```
@@ -222,9 +223,7 @@ const { data, error } = await fluxbase
 ### 5. Select with Related Data (Joins)
 
 ```typescript
-const { data, error } = await fluxbase
-  .from('posts')
-  .select(`
+const { data, error } = await fluxbase.from("posts").select(`
     id,
     title,
     author:users!user_id (
@@ -237,70 +236,70 @@ const { data, error } = await fluxbase
       content,
       created_at
     )
-  `)
+  `);
 
-console.log('Post with author and comments:', data[0])
+console.log("Post with author and comments:", data[0]);
 ```
 
 ### 6. Update Row
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
+  .from("posts")
   .update({ published: true })
-  .eq('id', 'post-uuid')
-  .select()
+  .eq("id", "post-uuid")
+  .select();
 
-console.log('Updated post:', data[0])
+console.log("Updated post:", data[0]);
 ```
 
 ### 7. Update Multiple Rows
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
-  .update({ category: 'archived' })
-  .lt('created_at', '2024-01-01')
-  .select()
+  .from("posts")
+  .update({ category: "archived" })
+  .lt("created_at", "2024-01-01")
+  .select();
 
-console.log(`Archived ${data.length} posts`)
+console.log(`Archived ${data.length} posts`);
 ```
 
 ### 8. Upsert (Insert or Update)
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('user_settings')
-  .upsert({
-    user_id: 'user-uuid',
-    theme: 'dark',
-    language: 'en'
-  }, {
-    onConflict: 'user_id'  // Unique constraint column
-  })
-  .select()
+  .from("user_settings")
+  .upsert(
+    {
+      user_id: "user-uuid",
+      theme: "dark",
+      language: "en",
+    },
+    {
+      onConflict: "user_id", // Unique constraint column
+    },
+  )
+  .select();
 ```
 
 ### 9. Delete Row
 
 ```typescript
-const { error } = await fluxbase
-  .from('posts')
-  .delete()
-  .eq('id', 'post-uuid')
+const { error } = await fluxbase.from("posts").delete().eq("id", "post-uuid");
 ```
 
 ### 10. Delete Multiple Rows
 
 ```typescript
 const { data, error } = await fluxbase
-  .from('posts')
+  .from("posts")
   .delete()
-  .eq('published', false)
-  .lt('created_at', '2023-01-01')
-  .select()
+  .eq("published", false)
+  .lt("created_at", "2023-01-01")
+  .select();
 
-console.log(`Deleted ${data.length} unpublished posts`)
+console.log(`Deleted ${data.length} unpublished posts`);
 ```
 
 ---
@@ -311,36 +310,36 @@ console.log(`Deleted ${data.length} unpublished posts`)
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .eq('author_id', 'user-uuid')
+  .from("posts")
+  .select("*")
+  .eq("author_id", "user-uuid");
 ```
 
 ### 2. Not Equal (neq)
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .neq('status', 'draft')
+  .from("posts")
+  .select("*")
+  .neq("status", "draft");
 ```
 
 ### 3. Greater Than (gt, gte)
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .gte('view_count', 1000)  // >= 1000 views
+  .from("posts")
+  .select("*")
+  .gte("view_count", 1000); // >= 1000 views
 ```
 
 ### 4. Less Than (lt, lte)
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .lt('created_at', '2024-01-01')  // Before 2024
+  .from("posts")
+  .select("*")
+  .lt("created_at", "2024-01-01"); // Before 2024
 ```
 
 ### 5. Pattern Matching (like, ilike)
@@ -348,59 +347,56 @@ const { data } = await fluxbase
 ```typescript
 // Case-sensitive
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .like('title', '%Tutorial%')
+  .from("posts")
+  .select("*")
+  .like("title", "%Tutorial%");
 
 // Case-insensitive
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .ilike('title', '%tutorial%')
+  .from("posts")
+  .select("*")
+  .ilike("title", "%tutorial%");
 ```
 
 ### 6. In List (in)
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .in('category', ['tech', 'science', 'programming'])
+  .from("posts")
+  .select("*")
+  .in("category", ["tech", "science", "programming"]);
 ```
 
 ### 7. IS NULL / IS NOT NULL
 
 ```typescript
 // Find posts without tags
-const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .is('tags', null)
+const { data } = await fluxbase.from("posts").select("*").is("tags", null);
 
 // Find posts with tags
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .not('tags', 'is', null)
+  .from("posts")
+  .select("*")
+  .not("tags", "is", null);
 ```
 
 ### 8. Full-Text Search
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .textSearch('title,content', 'javascript tutorial')
+  .from("posts")
+  .select("*")
+  .textSearch("title,content", "javascript tutorial");
 ```
 
 ### 9. Range Queries
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .gte('created_at', '2024-01-01')
-  .lte('created_at', '2024-12-31')
+  .from("posts")
+  .select("*")
+  .gte("created_at", "2024-01-01")
+  .lte("created_at", "2024-12-31");
 ```
 
 ### 10. Complex Filters (AND/OR)
@@ -408,16 +404,16 @@ const { data } = await fluxbase
 ```typescript
 // AND (multiple filters are AND by default)
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .eq('published', true)
-  .gte('view_count', 100)
+  .from("posts")
+  .select("*")
+  .eq("published", true)
+  .gte("view_count", 100);
 
 // OR (using .or())
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .or('published.eq.true,featured.eq.true')
+  .from("posts")
+  .select("*")
+  .or("published.eq.true,featured.eq.true");
 ```
 
 ---
@@ -428,54 +424,48 @@ const { data } = await fluxbase
 
 ```typescript
 const { data, count } = await fluxbase
-  .from('posts')
-  .select('*', { count: 'exact' })
-  .eq('published', true)
+  .from("posts")
+  .select("*", { count: "exact" })
+  .eq("published", true);
 
-console.log(`Total published posts: ${count}`)
+console.log(`Total published posts: ${count}`);
 ```
 
 ### 2. Sum
 
 ```typescript
-const { data } = await fluxbase
-  .from('orders')
-  .select('total')
-  .sum('total')
+const { data } = await fluxbase.from("orders").select("total").sum("total");
 
-console.log('Total revenue:', data[0].sum)
+console.log("Total revenue:", data[0].sum);
 ```
 
 ### 3. Average
 
 ```typescript
-const { data } = await fluxbase
-  .from('products')
-  .select('price')
-  .avg('price')
+const { data } = await fluxbase.from("products").select("price").avg("price");
 
-console.log('Average price:', data[0].avg)
+console.log("Average price:", data[0].avg);
 ```
 
 ### 4. Min / Max
 
 ```typescript
 const { data } = await fluxbase
-  .from('products')
-  .select('price')
-  .min('price')
-  .max('price')
+  .from("products")
+  .select("price")
+  .min("price")
+  .max("price");
 
-console.log('Price range:', data[0].min, '-', data[0].max)
+console.log("Price range:", data[0].min, "-", data[0].max);
 ```
 
 ### 5. Group By
 
 ```typescript
 const { data } = await fluxbase
-  .from('posts')
-  .select('category, count:id')
-  .groupBy('category')
+  .from("posts")
+  .select("category, count:id")
+  .groupBy("category");
 
 // Returns: [{ category: 'tech', count: 45 }, ...]
 ```
@@ -484,10 +474,10 @@ const { data } = await fluxbase
 
 ```typescript
 const { data } = await fluxbase
-  .from('orders')
-  .select('user_id, total:amount.sum(), count:id')
-  .groupBy('user_id')
-  .order('total', { ascending: false })
+  .from("orders")
+  .select("user_id, total:amount.sum(), count:id")
+  .groupBy("user_id")
+  .order("total", { ascending: false });
 
 // Top customers by revenue
 ```
@@ -515,9 +505,7 @@ CREATE POLICY "Users can view own posts"
 
 ```typescript
 // Client code (automatically filtered by RLS)
-const { data } = await fluxbase
-  .from('posts')
-  .select('*')
+const { data } = await fluxbase.from("posts").select("*");
 
 // Only returns posts where user_id matches authenticated user
 ```
@@ -532,13 +520,11 @@ CREATE POLICY "Users can insert own posts"
 ```
 
 ```typescript
-const { data, error } = await fluxbase
-  .from('posts')
-  .insert({
-    title: 'My Post',
-    content: 'Content',
-    user_id: fluxbase.auth.user().id  // Must match authenticated user
-  })
+const { data, error } = await fluxbase.from("posts").insert({
+  title: "My Post",
+  content: "Content",
+  user_id: fluxbase.auth.user().id, // Must match authenticated user
+});
 ```
 
 ### 4. User Can Only Update Own Data
@@ -587,7 +573,7 @@ CREATE POLICY "Authenticated users can insert"
 
 ```typescript
 const { data, error } = await fluxbase.functions.create({
-  name: 'hello-world',
+  name: "hello-world",
   code: `
     function handler(request) {
       return {
@@ -596,18 +582,18 @@ const { data, error } = await fluxbase.functions.create({
       }
     }
   `,
-  permissions: ['--allow-net']
-})
+  permissions: ["--allow-net"],
+});
 ```
 
 ### 2. Invoke Function (HTTP)
 
 ```typescript
-const { data, error } = await fluxbase.functions.invoke('hello-world', {
-  body: { name: 'John' }
-})
+const { data, error } = await fluxbase.functions.invoke("hello-world", {
+  body: { name: "John" },
+});
 
-console.log(data)  // { message: 'Hello, World!' }
+console.log(data); // { message: 'Hello, World!' }
 ```
 
 ### 3. Function with Database Access
@@ -642,13 +628,13 @@ async function handler(request) {
     })
   }
 }
-`
+`;
 
 await fluxbase.functions.create({
-  name: 'user-stats',
+  name: "user-stats",
   code: functionCode,
-  permissions: ['--allow-net']
-})
+  permissions: ["--allow-net"],
+});
 ```
 
 ### 4. Function with External API
@@ -667,20 +653,20 @@ async function handler(request) {
     body: JSON.stringify(weather)
   }
 }
-`
+`;
 
 await fluxbase.functions.create({
-  name: 'get-weather',
+  name: "get-weather",
   code: functionCode,
-  permissions: ['--allow-net=api.weather.com']
-})
+  permissions: ["--allow-net=api.weather.com"],
+});
 ```
 
 ### 5. Scheduled Function (Cron)
 
 ```typescript
 await fluxbase.functions.create({
-  name: 'daily-cleanup',
+  name: "daily-cleanup",
   code: `
     async function handler(request) {
       // Delete old records
@@ -701,9 +687,9 @@ await fluxbase.functions.create({
       }
     }
   `,
-  schedule: '0 2 * * *',  // Daily at 2 AM
-  permissions: ['--allow-net']
-})
+  schedule: "0 2 * * *", // Daily at 2 AM
+  permissions: ["--allow-net"],
+});
 ```
 
 ---
@@ -714,11 +700,11 @@ await fluxbase.functions.create({
 
 ```typescript
 const subscription = fluxbase
-  .from('posts')
-  .on('*', (payload) => {
-    console.log('Change detected:', payload)
+  .from("posts")
+  .on("*", (payload) => {
+    console.log("Change detected:", payload);
   })
-  .subscribe()
+  .subscribe();
 
 // payload = {
 //   type: 'INSERT' | 'UPDATE' | 'DELETE',
@@ -732,115 +718,115 @@ const subscription = fluxbase
 
 ```typescript
 const subscription = fluxbase
-  .from('posts')
-  .on('INSERT', (payload) => {
-    console.log('New post:', payload.record)
+  .from("posts")
+  .on("INSERT", (payload) => {
+    console.log("New post:", payload.record);
   })
-  .subscribe()
+  .subscribe();
 ```
 
 ### 3. Subscribe to UPDATE Only
 
 ```typescript
 const subscription = fluxbase
-  .from('posts')
-  .on('UPDATE', (payload) => {
-    console.log('Post updated:', payload.record)
-    console.log('Old values:', payload.old_record)
+  .from("posts")
+  .on("UPDATE", (payload) => {
+    console.log("Post updated:", payload.record);
+    console.log("Old values:", payload.old_record);
   })
-  .subscribe()
+  .subscribe();
 ```
 
 ### 4. Subscribe to DELETE Only
 
 ```typescript
 const subscription = fluxbase
-  .from('posts')
-  .on('DELETE', (payload) => {
-    console.log('Post deleted:', payload.old_record.id)
+  .from("posts")
+  .on("DELETE", (payload) => {
+    console.log("Post deleted:", payload.old_record.id);
   })
-  .subscribe()
+  .subscribe();
 ```
 
 ### 5. Subscribe with Filters
 
 ```typescript
 const subscription = fluxbase
-  .from('posts')
-  .on('INSERT', (payload) => {
-    console.log('New published post:', payload.record)
+  .from("posts")
+  .on("INSERT", (payload) => {
+    console.log("New published post:", payload.record);
   })
-  .filter('published', 'eq', true)
-  .subscribe()
+  .filter("published", "eq", true)
+  .subscribe();
 ```
 
 ### 6. Multiple Subscriptions
 
 ```typescript
-const channel = fluxbase.channel('my-channel')
+const channel = fluxbase.channel("my-channel");
 
 channel
-  .on('posts', 'INSERT', (payload) => {
-    console.log('New post:', payload)
+  .on("posts", "INSERT", (payload) => {
+    console.log("New post:", payload);
   })
-  .on('comments', 'INSERT', (payload) => {
-    console.log('New comment:', payload)
+  .on("comments", "INSERT", (payload) => {
+    console.log("New comment:", payload);
   })
-  .subscribe()
+  .subscribe();
 ```
 
 ### 7. Broadcast Messages
 
 ```typescript
-const channel = fluxbase.channel('room-1')
+const channel = fluxbase.channel("room-1");
 
 // Send message
 channel.send({
-  type: 'broadcast',
-  event: 'message',
-  payload: { text: 'Hello!', user: 'John' }
-})
+  type: "broadcast",
+  event: "message",
+  payload: { text: "Hello!", user: "John" },
+});
 
 // Receive messages
-channel.on('broadcast', { event: 'message' }, (payload) => {
-  console.log('New message:', payload.text)
-})
+channel.on("broadcast", { event: "message" }, (payload) => {
+  console.log("New message:", payload.text);
+});
 
-channel.subscribe()
+channel.subscribe();
 ```
 
 ### 8. Presence Tracking
 
 ```typescript
-const channel = fluxbase.channel('room-1')
+const channel = fluxbase.channel("room-1");
 
 // Track user presence
 channel.track({
-  user_id: 'user-123',
-  username: 'John Doe',
-  status: 'online'
-})
+  user_id: "user-123",
+  username: "John Doe",
+  status: "online",
+});
 
 // Listen to presence changes
-channel.on('presence', { event: 'join' }, (user) => {
-  console.log('User joined:', user)
-})
+channel.on("presence", { event: "join" }, (user) => {
+  console.log("User joined:", user);
+});
 
-channel.on('presence', { event: 'leave' }, (user) => {
-  console.log('User left:', user)
-})
+channel.on("presence", { event: "leave" }, (user) => {
+  console.log("User left:", user);
+});
 
-channel.subscribe()
+channel.subscribe();
 ```
 
 ### 9. Unsubscribe
 
 ```typescript
 // Unsubscribe specific subscription
-subscription.unsubscribe()
+subscription.unsubscribe();
 
 // Remove all subscriptions
-fluxbase.removeAllChannels()
+fluxbase.removeAllChannels();
 ```
 
 ---
@@ -851,62 +837,62 @@ fluxbase.removeAllChannels()
 
 ```typescript
 const { data, error } = await fluxbase.storage.createBucket({
-  name: 'avatars',
-  public: true  // Public read access
-})
+  name: "avatars",
+  public: true, // Public read access
+});
 ```
 
 ### 2. Upload File
 
 ```typescript
-const file = document.querySelector('input[type="file"]').files[0]
+const file = document.querySelector('input[type="file"]').files[0];
 
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .upload('user-123/avatar.jpg', file)
+  .from("avatars")
+  .upload("user-123/avatar.jpg", file);
 
-console.log('File uploaded:', data.path)
+console.log("File uploaded:", data.path);
 ```
 
 ### 3. Upload with Custom Path
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('documents')
-  .upload(`${userId}/reports/2024-Q1.pdf`, file)
+  .from("documents")
+  .upload(`${userId}/reports/2024-Q1.pdf`, file);
 ```
 
 ### 4. Upload with Metadata
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .upload('avatar.jpg', file, {
+  .from("avatars")
+  .upload("avatar.jpg", file, {
     metadata: {
       uploadedBy: userId,
-      description: 'User profile picture'
+      description: "User profile picture",
     },
-    contentType: 'image/jpeg'
-  })
+    contentType: "image/jpeg",
+  });
 ```
 
 ### 5. Download File
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .download('user-123/avatar.jpg')
+  .from("avatars")
+  .download("user-123/avatar.jpg");
 
 // data is a Blob
-const url = URL.createObjectURL(data)
+const url = URL.createObjectURL(data);
 ```
 
 ### 6. Get Public URL
 
 ```typescript
 const { publicURL } = fluxbase.storage
-  .from('avatars')
-  .getPublicUrl('user-123/avatar.jpg')
+  .from("avatars")
+  .getPublicUrl("user-123/avatar.jpg");
 
 // Use in <img src={publicURL} />
 ```
@@ -915,48 +901,48 @@ const { publicURL } = fluxbase.storage
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('documents')
-  .createSignedUrl('private/contract.pdf', 3600)  // Expires in 1 hour
+  .from("documents")
+  .createSignedUrl("private/contract.pdf", 3600); // Expires in 1 hour
 
-console.log('Temporary URL:', data.signedURL)
+console.log("Temporary URL:", data.signedURL);
 ```
 
 ### 8. List Files
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .list('user-123/', {
+  .from("avatars")
+  .list("user-123/", {
     limit: 100,
     offset: 0,
-    sortBy: { column: 'created_at', order: 'desc' }
-  })
+    sortBy: { column: "created_at", order: "desc" },
+  });
 
-console.log('Files:', data)
+console.log("Files:", data);
 ```
 
 ### 9. Delete File
 
 ```typescript
 const { error } = await fluxbase.storage
-  .from('avatars')
-  .remove(['user-123/avatar.jpg'])
+  .from("avatars")
+  .remove(["user-123/avatar.jpg"]);
 ```
 
 ### 10. Move File
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .move('old-path/avatar.jpg', 'new-path/avatar.jpg')
+  .from("avatars")
+  .move("old-path/avatar.jpg", "new-path/avatar.jpg");
 ```
 
 ### 11. Copy File
 
 ```typescript
 const { data, error } = await fluxbase.storage
-  .from('avatars')
-  .copy('original/avatar.jpg', 'thumbnails/avatar-small.jpg')
+  .from("avatars")
+  .copy("original/avatar.jpg", "thumbnails/avatar-small.jpg");
 ```
 
 ---
@@ -966,25 +952,25 @@ const { data, error } = await fluxbase.storage
 ### 1. Pagination
 
 ```typescript
-const PAGE_SIZE = 20
+const PAGE_SIZE = 20;
 
 async function getPosts(page: number) {
   const { data, error, count } = await fluxbase
-    .from('posts')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    .from("posts")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
   return {
     posts: data,
     totalPages: Math.ceil(count / PAGE_SIZE),
-    currentPage: page
-  }
+    currentPage: page,
+  };
 }
 
 // Usage
-const page1 = await getPosts(0)
-const page2 = await getPosts(1)
+const page1 = await getPosts(0);
+const page2 = await getPosts(1);
 ```
 
 ### 2. Cursor-Based Pagination
@@ -992,26 +978,26 @@ const page2 = await getPosts(1)
 ```typescript
 async function getPostsAfter(cursor?: string) {
   let query = fluxbase
-    .from('posts')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(20)
+    .from("posts")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   if (cursor) {
-    query = query.gt('created_at', cursor)
+    query = query.gt("created_at", cursor);
   }
 
-  const { data } = await query
+  const { data } = await query;
 
   return {
     posts: data,
-    nextCursor: data.length > 0 ? data[data.length - 1].created_at : null
-  }
+    nextCursor: data.length > 0 ? data[data.length - 1].created_at : null,
+  };
 }
 
 // Usage
-const page1 = await getPostsAfter()
-const page2 = await getPostsAfter(page1.nextCursor)
+const page1 = await getPostsAfter();
+const page2 = await getPostsAfter(page1.nextCursor);
 ```
 
 ### 3. Optimistic Updates
@@ -1019,25 +1005,25 @@ const page2 = await getPostsAfter(page1.nextCursor)
 ```typescript
 async function likePost(postId: string) {
   // Optimistically update UI
-  const optimisticPost = { ...currentPost, likes: currentPost.likes + 1 }
-  setPost(optimisticPost)
+  const optimisticPost = { ...currentPost, likes: currentPost.likes + 1 };
+  setPost(optimisticPost);
 
   try {
     // Actual update
     const { data, error } = await fluxbase
-      .from('posts')
+      .from("posts")
       .update({ likes: optimisticPost.likes })
-      .eq('id', postId)
-      .select()
+      .eq("id", postId)
+      .select();
 
-    if (error) throw error
+    if (error) throw error;
 
     // Update with server data
-    setPost(data[0])
+    setPost(data[0]);
   } catch (error) {
     // Rollback on error
-    setPost(currentPost)
-    console.error('Failed to like post:', error)
+    setPost(currentPost);
+    console.error("Failed to like post:", error);
   }
 }
 ```
@@ -1046,41 +1032,42 @@ async function likePost(postId: string) {
 
 ```typescript
 async function batchInsert(records: any[]) {
-  const BATCH_SIZE = 100
-  const results = []
+  const BATCH_SIZE = 100;
+  const results = [];
 
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
-    const batch = records.slice(i, i + BATCH_SIZE)
+    const batch = records.slice(i, i + BATCH_SIZE);
 
-    const { data, error } = await fluxbase
-      .from('posts')
-      .insert(batch)
-      .select()
+    const { data, error } = await fluxbase.from("posts").insert(batch).select();
 
     if (error) {
-      console.error(`Batch ${i / BATCH_SIZE} failed:`, error)
-      continue
+      console.error(`Batch ${i / BATCH_SIZE} failed:`, error);
+      continue;
     }
 
-    results.push(...data)
+    results.push(...data);
   }
 
-  return results
+  return results;
 }
 ```
 
 ### 5. Transactions (Multiple Operations)
 
 ```typescript
-async function transferCredits(fromUserId: string, toUserId: string, amount: number) {
+async function transferCredits(
+  fromUserId: string,
+  toUserId: string,
+  amount: number,
+) {
   // Start transaction using RPC function
-  const { data, error } = await fluxbase.rpc('transfer_credits', {
+  const { data, error } = await fluxbase.rpc("transfer_credits", {
     from_user: fromUserId,
     to_user: toUserId,
-    amount: amount
-  })
+    amount: amount,
+  });
 
-  return { success: !error, error }
+  return { success: !error, error };
 }
 
 // PostgreSQL function
@@ -1104,42 +1091,42 @@ $$ LANGUAGE plpgsql;
 ### 6. Caching with React Query
 
 ```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 function usePosts() {
   return useQuery({
-    queryKey: ['posts'],
+    queryKey: ["posts"],
     queryFn: async () => {
       const { data, error } = await fluxbase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
-    staleTime: 60000,  // Cache for 1 minute
-  })
+    staleTime: 60000, // Cache for 1 minute
+  });
 }
 
 function useCreatePost() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (newPost) => {
       const { data, error } = await fluxbase
-        .from('posts')
+        .from("posts")
         .insert(newPost)
-        .select()
+        .select();
 
-      if (error) throw error
-      return data[0]
+      if (error) throw error;
+      return data[0];
     },
     onSuccess: () => {
       // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ['posts'] })
-    }
-  })
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+  });
 }
 ```
 
@@ -1147,30 +1134,28 @@ function useCreatePost() {
 
 ```typescript
 async function safeQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>
+  queryFn: () => Promise<{ data: T | null; error: any }>,
 ): Promise<T> {
-  const { data, error } = await queryFn()
+  const { data, error } = await queryFn();
 
   if (error) {
     // Log error to monitoring service
-    console.error('Query failed:', error)
+    console.error("Query failed:", error);
 
     // Throw custom error
-    throw new DatabaseError(error.message, error.code)
+    throw new DatabaseError(error.message, error.code);
   }
 
   if (!data) {
-    throw new NotFoundError('No data returned')
+    throw new NotFoundError("No data returned");
   }
 
-  return data
+  return data;
 }
 
 // Usage
 try {
-  const posts = await safeQuery(() =>
-    fluxbase.from('posts').select('*')
-  )
+  const posts = await safeQuery(() => fluxbase.from("posts").select("*"));
 } catch (error) {
   if (error instanceof NotFoundError) {
     // Handle not found
@@ -1183,54 +1168,58 @@ try {
 ### 8. Infinite Scroll
 
 ```typescript
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 function useInfinitePosts() {
   return useInfiniteQuery({
-    queryKey: ['posts', 'infinite'],
+    queryKey: ["posts", "infinite"],
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await fluxbase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(pageParam * 20, (pageParam + 1) * 20 - 1)
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(pageParam * 20, (pageParam + 1) * 20 - 1);
 
-      if (error) throw error
-      return { posts: data, nextPage: data.length === 20 ? pageParam + 1 : undefined }
+      if (error) throw error;
+      return {
+        posts: data,
+        nextPage: data.length === 20 ? pageParam + 1 : undefined,
+      };
     },
-    getNextPageParam: (lastPage) => lastPage.nextPage
-  })
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+  });
 }
 
 // Usage in component
-const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfinitePosts()
+const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  useInfinitePosts();
 ```
 
 ### 9. Debounced Search
 
 ```typescript
-import { useState, useEffect } from 'react'
-import { useDebounce } from 'use-debounce'
+import { useState, useEffect } from "react";
+import { useDebounce } from "use-debounce";
 
 function useSearch(searchTerm: string) {
-  const [debouncedTerm] = useDebounce(searchTerm, 500)
+  const [debouncedTerm] = useDebounce(searchTerm, 500);
 
   return useQuery({
-    queryKey: ['search', debouncedTerm],
+    queryKey: ["search", debouncedTerm],
     queryFn: async () => {
-      if (!debouncedTerm) return []
+      if (!debouncedTerm) return [];
 
       const { data, error } = await fluxbase
-        .from('posts')
-        .select('*')
-        .ilike('title', `%${debouncedTerm}%`)
-        .limit(10)
+        .from("posts")
+        .select("*")
+        .ilike("title", `%${debouncedTerm}%`)
+        .limit(10);
 
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
-    enabled: debouncedTerm.length > 0
-  })
+    enabled: debouncedTerm.length > 0,
+  });
 }
 ```
 
@@ -1238,52 +1227,52 @@ function useSearch(searchTerm: string) {
 
 ```typescript
 function useCollaborativeDocument(docId: string) {
-  const [doc, setDoc] = useState(null)
-  const [users, setUsers] = useState([])
+  const [doc, setDoc] = useState(null);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
     // Load document
     fluxbase
-      .from('documents')
-      .select('*')
-      .eq('id', docId)
+      .from("documents")
+      .select("*")
+      .eq("id", docId)
       .single()
-      .then(({ data }) => setDoc(data))
+      .then(({ data }) => setDoc(data));
 
     // Subscribe to changes
     const docSubscription = fluxbase
-      .from('documents')
-      .on('UPDATE', (payload) => {
+      .from("documents")
+      .on("UPDATE", (payload) => {
         if (payload.record.id === docId) {
-          setDoc(payload.record)
+          setDoc(payload.record);
         }
       })
-      .eq('id', docId)
-      .subscribe()
+      .eq("id", docId)
+      .subscribe();
 
     // Track presence
-    const channel = fluxbase.channel(`doc:${docId}`)
+    const channel = fluxbase.channel(`doc:${docId}`);
 
     channel.track({
       user_id: fluxbase.auth.user().id,
       username: fluxbase.auth.user().email,
-      cursor: null
-    })
+      cursor: null,
+    });
 
-    channel.on('presence', { event: 'sync' }, () => {
-      const presenceState = channel.presenceState()
-      setUsers(Object.values(presenceState))
-    })
+    channel.on("presence", { event: "sync" }, () => {
+      const presenceState = channel.presenceState();
+      setUsers(Object.values(presenceState));
+    });
 
-    channel.subscribe()
+    channel.subscribe();
 
     return () => {
-      docSubscription.unsubscribe()
-      channel.unsubscribe()
-    }
-  }, [docId])
+      docSubscription.unsubscribe();
+      channel.unsubscribe();
+    };
+  }, [docId]);
 
-  return { doc, users }
+  return { doc, users };
 }
 ```
 
@@ -1294,12 +1283,12 @@ function useCollaborativeDocument(docId: string) {
 ### 1. Always Handle Errors
 
 ```typescript
-const { data, error } = await fluxbase.from('posts').select('*')
+const { data, error } = await fluxbase.from("posts").select("*");
 
 if (error) {
-  console.error('Error:', error.message)
+  console.error("Error:", error.message);
   // Show user-friendly message
-  return
+  return;
 }
 
 // Use data safely
@@ -1309,15 +1298,13 @@ if (error) {
 
 ```typescript
 interface Post {
-  id: string
-  title: string
-  content: string
-  created_at: string
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
 }
 
-const { data, error } = await fluxbase
-  .from<Post>('posts')
-  .select('*')
+const { data, error } = await fluxbase.from<Post>("posts").select("*");
 
 // data is typed as Post[]
 ```
@@ -1327,14 +1314,12 @@ const { data, error } = await fluxbase
 ```typescript
 // Don't do this (client-side filtering)
 const { data } = await fluxbase
-  .from('posts')
-  .select('*')
-  .eq('user_id', currentUser.id)
+  .from("posts")
+  .select("*")
+  .eq("user_id", currentUser.id);
 
 // Do this (RLS automatically filters)
-const { data } = await fluxbase
-  .from('posts')
-  .select('*')
+const { data } = await fluxbase.from("posts").select("*");
 // RLS policy ensures user only sees their own posts
 ```
 
@@ -1352,11 +1337,11 @@ CREATE INDEX idx_posts_published ON posts(published) WHERE published = true;
 ```typescript
 // Inefficient (N queries)
 for (const post of posts) {
-  await fluxbase.from('posts').insert(post)
+  await fluxbase.from("posts").insert(post);
 }
 
 // Efficient (1 query)
-await fluxbase.from('posts').insert(posts)
+await fluxbase.from("posts").insert(posts);
 ```
 
 ---

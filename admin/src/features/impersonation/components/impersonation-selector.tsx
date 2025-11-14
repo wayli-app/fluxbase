@@ -1,5 +1,14 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { UserCog, User, UserX, Shield } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  useImpersonationStore,
+  type ImpersonationType,
+} from '@/stores/impersonation-store'
+import { setAuthToken as setSDKAuthToken } from '@/lib/fluxbase-client'
+import { impersonationApi } from '@/lib/impersonation-api'
+import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +20,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -19,13 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { toast } from 'sonner'
+import { Textarea } from '@/components/ui/textarea'
 import { UserSearch } from './user-search'
-import { useImpersonationStore, type ImpersonationType } from '@/stores/impersonation-store'
-import { impersonationApi } from '@/lib/impersonation-api'
-import { setAuthToken as setSDKAuthToken } from '@/lib/fluxbase-client'
-import { useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/hooks/use-auth'
 
 export function ImpersonationSelector() {
   const { user } = useAuth()
@@ -84,8 +87,8 @@ export function ImpersonationSelector() {
           impersonationType === 'user'
             ? response.target_user.email
             : impersonationType === 'anon'
-            ? 'anonymous user'
-            : 'service role'
+              ? 'anonymous user'
+              : 'service role'
         }`
       )
 
@@ -97,9 +100,11 @@ export function ImpersonationSelector() {
       // Invalidate all queries to refetch data with new impersonation context
       queryClient.invalidateQueries()
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error
-        : undefined
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
       toast.error(errorMessage || 'Failed to start impersonation')
     } finally {
       setLoading(false)
@@ -113,16 +118,19 @@ export function ImpersonationSelector() {
   const getIcon = () => {
     switch (impersonationType) {
       case 'user':
-        return <User className="h-4 w-4" />
+        return <User className='h-4 w-4' />
       case 'anon':
-        return <UserX className="h-4 w-4" />
+        return <UserX className='h-4 w-4' />
       case 'service':
-        return <Shield className="h-4 w-4" />
+        return <Shield className='h-4 w-4' />
     }
   }
 
   // Only show impersonation button to dashboard_admin users
-  const isDashboardAdmin = user?.role === 'dashboard_admin'
+  const isDashboardAdmin =
+    user && 'role' in user && Array.isArray(user.role)
+      ? user.role.includes('dashboard_admin')
+      : false
   if (!isDashboardAdmin) {
     return null
   }
@@ -131,53 +139,53 @@ export function ImpersonationSelector() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
+          variant='outline'
+          size='sm'
           disabled={isImpersonating}
-          className="gap-2"
+          className='gap-2'
         >
-          <UserCog className="h-4 w-4" />
+          <UserCog className='h-4 w-4' />
           Impersonate User
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>Start User Impersonation</DialogTitle>
           <DialogDescription>
             View data as it appears to a specific user, anonymous visitor, or
-            with service-level permissions. All actions will be logged for
-            audit purposes.
+            with service-level permissions. All actions will be logged for audit
+            purposes.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="impersonation-type">Impersonation Type</Label>
+        <div className='grid gap-4 py-4'>
+          <div className='grid gap-2'>
+            <Label htmlFor='impersonation-type'>Impersonation Type</Label>
             <Select
               value={impersonationType}
               onValueChange={(value) =>
                 setImpersonationType(value as ImpersonationType)
               }
             >
-              <SelectTrigger id="impersonation-type">
+              <SelectTrigger id='impersonation-type'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
+                <SelectItem value='user'>
+                  <div className='flex items-center gap-2'>
+                    <User className='h-4 w-4' />
                     Specific User
                   </div>
                 </SelectItem>
-                <SelectItem value="anon">
-                  <div className="flex items-center gap-2">
-                    <UserX className="h-4 w-4" />
+                <SelectItem value='anon'>
+                  <div className='flex items-center gap-2'>
+                    <UserX className='h-4 w-4' />
                     Anonymous (anon key)
                   </div>
                 </SelectItem>
-                <SelectItem value="service">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4" />
+                <SelectItem value='service'>
+                  <div className='flex items-center gap-2'>
+                    <Shield className='h-4 w-4' />
                     Service Role
                   </div>
                 </SelectItem>
@@ -186,8 +194,8 @@ export function ImpersonationSelector() {
           </div>
 
           {impersonationType === 'user' && (
-            <div className="grid gap-2">
-              <Label htmlFor="user-select">User</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='user-select'>User</Label>
               <UserSearch
                 value={selectedUserId}
                 onSelect={handleUserSelect}
@@ -196,17 +204,17 @@ export function ImpersonationSelector() {
             </div>
           )}
 
-          <div className="grid gap-2">
-            <Label htmlFor="reason">Reason</Label>
+          <div className='grid gap-2'>
+            <Label htmlFor='reason'>Reason</Label>
             <Textarea
-              id="reason"
-              placeholder="e.g., Customer support ticket #1234, debugging user-reported issue"
+              id='reason'
+              placeholder='e.g., Customer support ticket #1234, debugging user-reported issue'
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={loading}
               rows={3}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className='text-muted-foreground text-xs'>
               This reason will be logged in the audit trail
             </p>
           </div>
@@ -214,7 +222,7 @@ export function ImpersonationSelector() {
 
         <DialogFooter>
           <Button
-            variant="outline"
+            variant='outline'
             onClick={() => setOpen(false)}
             disabled={loading}
           >
@@ -226,7 +234,7 @@ export function ImpersonationSelector() {
             ) : (
               <>
                 {getIcon()}
-                <span className="ml-2">Start Impersonation</span>
+                <span className='ml-2'>Start Impersonation</span>
               </>
             )}
           </Button>

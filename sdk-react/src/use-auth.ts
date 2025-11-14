@@ -75,9 +75,11 @@ export function useSignUp() {
     mutationFn: async (credentials: SignUpCredentials) => {
       return await client.auth.signUp(credentials)
     },
-    onSuccess: (session) => {
-      queryClient.setQueryData(['fluxbase', 'auth', 'session'], session)
-      queryClient.setQueryData(['fluxbase', 'auth', 'user'], session.user)
+    onSuccess: (response) => {
+      if (response.data) {
+        queryClient.setQueryData(['fluxbase', 'auth', 'session'], response.data.session)
+        queryClient.setQueryData(['fluxbase', 'auth', 'user'], response.data.user)
+      }
     },
   })
 }

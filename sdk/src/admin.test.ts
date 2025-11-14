@@ -72,13 +72,15 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await admin.getSetupStatus();
+        const { data: result, error } = await admin.getSetupStatus();
 
         expect(mockFetch.get).toHaveBeenCalledWith(
           "/api/v1/admin/setup/status",
         );
-        expect(result.needs_setup).toBe(true);
-        expect(result.has_admin).toBe(false);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.needs_setup).toBe(true);
+        expect(result!.has_admin).toBe(false);
       });
     });
 
@@ -101,7 +103,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await admin.setup({
+        const { data: result, error } = await admin.setup({
           email: "admin@example.com",
           password: "SecurePassword123!",
           name: "Admin User",
@@ -115,8 +117,10 @@ describe("FluxbaseAdmin", () => {
           setup_token: "test-setup-token",
         });
 
-        expect(result.user.email).toBe("admin@example.com");
-        expect(result.access_token).toBe("access-token");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.user.email).toBe("admin@example.com");
+        expect(result!.access_token).toBe("access-token");
         expect(admin.getToken()).toBe("access-token");
       });
     });
@@ -140,7 +144,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await admin.login({
+        const { data: result, error } = await admin.login({
           email: "admin@example.com",
           password: "password123",
         });
@@ -150,7 +154,9 @@ describe("FluxbaseAdmin", () => {
           password: "password123",
         });
 
-        expect(result.user.email).toBe("admin@example.com");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.user.email).toBe("admin@example.com");
         expect(admin.getToken()).toBe("access-token");
       });
     });
@@ -174,7 +180,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await admin.refreshToken({
+        const { data: result, error } = await admin.refreshToken({
           refresh_token: "old-refresh-token",
         });
 
@@ -194,9 +200,10 @@ describe("FluxbaseAdmin", () => {
           message: "Logged out successfully",
         });
 
-        await admin.logout();
+        const { error } = await admin.logout();
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/admin/logout", {});
+        expect(error).toBeNull();
         expect(admin.getToken()).toBeNull();
       });
     });
@@ -213,11 +220,13 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await admin.me();
+        const { data: result, error } = await admin.me();
 
         expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/admin/me");
-        expect(result.user.email).toBe("admin@example.com");
-        expect(result.user.role).toBe("admin");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.user.email).toBe("admin@example.com");
+        expect(result!.user.role).toBe("admin");
       });
     });
   });
@@ -247,11 +256,13 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await admin.listUsers();
+        const { data: result, error } = await admin.listUsers();
 
         expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/admin/users");
-        expect(result.users).toHaveLength(2);
-        expect(result.total).toBe(2);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.users).toHaveLength(2);
+        expect(result!.total).toBe(2);
       });
 
       it("should list users with filters", async () => {
@@ -269,7 +280,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await admin.listUsers({
+        const { data: result, error } = await admin.listUsers({
           exclude_admins: true,
           search: "john",
           limit: 10,
@@ -279,16 +290,19 @@ describe("FluxbaseAdmin", () => {
         expect(mockFetch.get).toHaveBeenCalledWith(
           "/api/v1/admin/users?exclude_admins=true&search=john&limit=10&type=app",
         );
-        expect(result.users).toHaveLength(1);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.users).toHaveLength(1);
       });
 
       it("should handle empty filters", async () => {
         const response: ListUsersResponse = { users: [], total: 0 };
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        await admin.listUsers({});
+        const { data: result, error } = await admin.listUsers({});
 
         expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/admin/users");
+        expect(error).toBeNull();
       });
     });
 
@@ -308,7 +322,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await admin.inviteUser({
+        const { data: result, error } = await admin.inviteUser({
           email: "newuser@example.com",
           role: "user",
           send_email: true,
@@ -323,8 +337,10 @@ describe("FluxbaseAdmin", () => {
           },
         );
 
-        expect(result.user.email).toBe("newuser@example.com");
-        expect(result.invitation_link).toBeDefined();
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.user.email).toBe("newuser@example.com");
+        expect(result!.invitation_link).toBeDefined();
       });
 
       it("should invite dashboard user", async () => {
@@ -340,7 +356,7 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        await admin.inviteUser(
+        const { data: result, error } = await admin.inviteUser(
           {
             email: "dashboarduser@example.com",
             role: "dashboard_user",
@@ -355,6 +371,7 @@ describe("FluxbaseAdmin", () => {
             role: "dashboard_user",
           },
         );
+        expect(error).toBeNull();
       });
     });
 
@@ -366,12 +383,14 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.delete).mockResolvedValue(response);
 
-        const result = await admin.deleteUser("user-123");
+        const { data: result, error } = await admin.deleteUser("user-123");
 
         expect(mockFetch.delete).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123?type=app",
         );
-        expect(result.message).toBe("User deleted successfully");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe("User deleted successfully");
       });
 
       it("should delete dashboard user", async () => {
@@ -381,11 +400,15 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.delete).mockResolvedValue(response);
 
-        await admin.deleteUser("user-123", "dashboard");
+        const { data: result, error } = await admin.deleteUser(
+          "user-123",
+          "dashboard",
+        );
 
         expect(mockFetch.delete).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123?type=dashboard",
         );
+        expect(error).toBeNull();
       });
     });
 
@@ -401,7 +424,10 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.patch).mockResolvedValue(user);
 
-        const result = await admin.updateUserRole("user-123", "admin");
+        const { data: result, error } = await admin.updateUserRole(
+          "user-123",
+          "admin",
+        );
 
         expect(mockFetch.patch).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123/role?type=app",
@@ -409,7 +435,9 @@ describe("FluxbaseAdmin", () => {
             role: "admin",
           },
         );
-        expect(result.role).toBe("admin");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.role).toBe("admin");
       });
 
       it("should update dashboard user role", async () => {
@@ -422,7 +450,11 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.patch).mockResolvedValue(user);
 
-        await admin.updateUserRole("user-123", "dashboard_admin", "dashboard");
+        const { data: result, error } = await admin.updateUserRole(
+          "user-123",
+          "dashboard_admin",
+          "dashboard",
+        );
 
         expect(mockFetch.patch).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123/role?type=dashboard",
@@ -430,6 +462,7 @@ describe("FluxbaseAdmin", () => {
             role: "dashboard_admin",
           },
         );
+        expect(error).toBeNull();
       });
     });
 
@@ -441,13 +474,16 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await admin.resetUserPassword("user-123");
+        const { data: result, error } =
+          await admin.resetUserPassword("user-123");
 
         expect(mockFetch.post).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123/reset-password?type=app",
           {},
         );
-        expect(result.message).toBe("Password reset email sent");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe("Password reset email sent");
       });
 
       it("should reset dashboard user password", async () => {
@@ -457,12 +493,16 @@ describe("FluxbaseAdmin", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        await admin.resetUserPassword("user-123", "dashboard");
+        const { data: result, error } = await admin.resetUserPassword(
+          "user-123",
+          "dashboard",
+        );
 
         expect(mockFetch.post).toHaveBeenCalledWith(
           "/api/v1/admin/users/user-123/reset-password?type=dashboard",
           {},
         );
+        expect(error).toBeNull();
       });
     });
   });
@@ -475,8 +515,9 @@ describe("FluxbaseAdmin", () => {
         has_admin: false,
       });
 
-      const status = await admin.getSetupStatus();
-      expect(status.needs_setup).toBe(true);
+      const { data: status, error: statusError } = await admin.getSetupStatus();
+      expect(statusError).toBeNull();
+      expect(status!.needs_setup).toBe(true);
 
       // 2. Perform setup
       vi.mocked(mockFetch.post).mockResolvedValueOnce({
@@ -511,8 +552,9 @@ describe("FluxbaseAdmin", () => {
         },
       });
 
-      const me = await admin.me();
-      expect(me.user.email).toBe("admin@example.com");
+      const { data: me, error: meError } = await admin.me();
+      expect(meError).toBeNull();
+      expect(me!.user.email).toBe("admin@example.com");
 
       // 4. List users
       vi.mocked(mockFetch.get).mockResolvedValueOnce({
@@ -527,15 +569,17 @@ describe("FluxbaseAdmin", () => {
         total: 1,
       });
 
-      const users = await admin.listUsers();
-      expect(users.total).toBe(1);
+      const { data: users, error: usersError } = await admin.listUsers();
+      expect(usersError).toBeNull();
+      expect(users!.total).toBe(1);
 
       // 5. Logout
       vi.mocked(mockFetch.post).mockResolvedValueOnce({
         message: "Logged out successfully",
       });
 
-      await admin.logout();
+      const { error: logoutError } = await admin.logout();
+      expect(logoutError).toBeNull();
       expect(admin.getToken()).toBeNull();
     });
   });

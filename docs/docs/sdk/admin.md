@@ -32,9 +32,10 @@ npm install @fluxbase/sdk
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({
-  url: 'http://localhost:8080'
-})
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key' // Use service role key for admin operations
+)
 
 // Access admin module
 const admin = client.admin
@@ -348,9 +349,10 @@ This sends a password reset email to the user or returns the new password.
 import { createClient } from '@fluxbase/sdk'
 
 // Initialize client
-const client = createClient({
-  url: 'http://localhost:8080'
-})
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 // Admin login
 async function adminLogin(email: string, password: string) {
@@ -457,7 +459,10 @@ main().catch(console.error)
 import { useState, useEffect } from 'react'
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 export function useAdmin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -546,7 +551,10 @@ function AdminDashboard() {
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 // Bulk invite users
 async function bulkInviteUsers(emails: string[], role: string = 'user') {
@@ -630,7 +638,10 @@ if (confirm('Delete all users inactive for 90+ days?')) {
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({ url: 'http://localhost:8080' })
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 try {
   await client.admin.login({

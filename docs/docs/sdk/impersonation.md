@@ -23,9 +23,10 @@ All impersonation sessions are logged for security and compliance.
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({
-  url: 'http://localhost:8080'
-})
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 // Login as admin first
 await client.admin.login({

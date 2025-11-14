@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useFluxbaseClient } from './context'
-import type { AdminAuthResponse } from '@fluxbase/sdk'
+import { useState, useEffect, useCallback } from "react";
+import { useFluxbaseClient } from "./context";
+import type { AdminAuthResponse, DataResponse } from "@fluxbase/sdk";
 
 /**
  * Simplified admin user type returned by authentication
  */
 export interface AdminUser {
-  id: string
-  email: string
-  role: string
+  id: string;
+  email: string;
+  role: string;
 }
 
 export interface UseAdminAuthOptions {
@@ -16,44 +16,44 @@ export interface UseAdminAuthOptions {
    * Automatically check authentication status on mount
    * @default true
    */
-  autoCheck?: boolean
+  autoCheck?: boolean;
 }
 
 export interface UseAdminAuthReturn {
   /**
    * Current admin user if authenticated
    */
-  user: AdminUser | null
+  user: AdminUser | null;
 
   /**
    * Whether the admin is authenticated
    */
-  isAuthenticated: boolean
+  isAuthenticated: boolean;
 
   /**
    * Whether the authentication check is in progress
    */
-  isLoading: boolean
+  isLoading: boolean;
 
   /**
    * Any error that occurred during authentication
    */
-  error: Error | null
+  error: Error | null;
 
   /**
    * Login as admin
    */
-  login: (email: string, password: string) => Promise<AdminAuthResponse>
+  login: (email: string, password: string) => Promise<AdminAuthResponse>;
 
   /**
    * Logout admin
    */
-  logout: () => Promise<void>
+  logout: () => Promise<void>;
 
   /**
    * Refresh admin user info
    */
-  refresh: () => Promise<void>
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -78,30 +78,35 @@ export interface UseAdminAuthReturn {
  * }
  * ```
  */
-export function useAdminAuth(options: UseAdminAuthOptions = {}): UseAdminAuthReturn {
-  const { autoCheck = true } = options
-  const client = useFluxbaseClient()
+export function useAdminAuth(
+  options: UseAdminAuthOptions = {},
+): UseAdminAuthReturn {
+  const { autoCheck = true } = options;
+  const client = useFluxbaseClient();
 
-  const [user, setUser] = useState<AdminUser | null>(null)
-  const [isLoading, setIsLoading] = useState(autoCheck)
-  const [error, setError] = useState<Error | null>(null)
+  const [user, setUser] = useState<AdminUser | null>(null);
+  const [isLoading, setIsLoading] = useState(autoCheck);
+  const [error, setError] = useState<Error | null>(null);
 
   /**
    * Check current authentication status
    */
   const checkAuth = useCallback(async () => {
     try {
-      setIsLoading(true)
-      setError(null)
-      const { user } = await client.admin.me()
-      setUser(user)
+      setIsLoading(true);
+      setError(null);
+      const { data, error: apiError } = await client.admin.me();
+      if (apiError) {
+        throw apiError;
+      }
+      setUser(data!.user);
     } catch (err) {
-      setUser(null)
-      setError(err as Error)
+      setUser(null);
+      setError(err as Error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [client])
+  }, [client]);
 
   /**
    * Login as admin
@@ -109,52 +114,58 @@ export function useAdminAuth(options: UseAdminAuthOptions = {}): UseAdminAuthRet
   const login = useCallback(
     async (email: string, password: string): Promise<AdminAuthResponse> => {
       try {
-        setIsLoading(true)
-        setError(null)
-        const response = await client.admin.login({ email, password })
-        setUser(response.user)
-        return response
+        setIsLoading(true);
+        setError(null);
+        const { data, error: apiError } = await client.admin.login({
+          email,
+          password,
+        });
+        if (apiError) {
+          throw apiError;
+        }
+        setUser(data!.user);
+        return data!;
       } catch (err) {
-        setError(err as Error)
-        throw err
+        setError(err as Error);
+        throw err;
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     },
-    [client]
-  )
+    [client],
+  );
 
   /**
    * Logout admin
    */
   const logout = useCallback(async (): Promise<void> => {
     try {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
       // Clear user state
-      setUser(null)
+      setUser(null);
       // Note: Add logout endpoint call here when available
     } catch (err) {
-      setError(err as Error)
-      throw err
+      setError(err as Error);
+      throw err;
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   /**
    * Refresh admin user info
    */
   const refresh = useCallback(async (): Promise<void> => {
-    await checkAuth()
-  }, [checkAuth])
+    await checkAuth();
+  }, [checkAuth]);
 
   // Auto-check authentication on mount
   useEffect(() => {
     if (autoCheck) {
-      checkAuth()
+      checkAuth();
     }
-  }, [autoCheck, checkAuth])
+  }, [autoCheck, checkAuth]);
 
   return {
     user,
@@ -163,6 +174,6 @@ export function useAdminAuth(options: UseAdminAuthOptions = {}): UseAdminAuthRet
     error,
     login,
     logout,
-    refresh
-  }
+    refresh,
+  };
 }

@@ -52,7 +52,10 @@ import type { FluxbaseClientOptions } from "./types";
  * Main Fluxbase client class
  * @category Client
  */
-export class FluxbaseClient {
+export class FluxbaseClient<
+  Database = any,
+  _SchemaName extends string & keyof Database = any
+> {
   /** Internal HTTP client for making requests */
   private fetch: FluxbaseFetch;
 
@@ -76,32 +79,55 @@ export class FluxbaseClient {
 
   /**
    * Create a new Fluxbase client instance
-   * @param options - Client configuration options
+   *
+   * @param fluxbaseUrl - The URL of your Fluxbase instance
+   * @param fluxbaseKey - The anon key (JWT token with "anon" role). Generate using scripts/generate-keys.sh
+   * @param options - Additional client configuration options
+   *
+   * @example
+   * ```typescript
+   * const client = new FluxbaseClient(
+   *   'http://localhost:8080',
+   *   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',  // Anon JWT token
+   *   { timeout: 30000 }
+   * )
+   * ```
    */
-  constructor(options: FluxbaseClientOptions) {
+  constructor(
+    protected fluxbaseUrl: string,
+    protected fluxbaseKey: string,
+    options?: FluxbaseClientOptions
+  ) {
+    // Prepare headers with anon key
+    const headers = {
+      'apikey': fluxbaseKey,
+      'Authorization': `Bearer ${fluxbaseKey}`,
+      ...options?.headers,
+    };
+
     // Initialize HTTP client
-    this.fetch = new FluxbaseFetch(options.url, {
-      headers: options.headers,
-      timeout: options.timeout,
-      debug: options.debug,
+    this.fetch = new FluxbaseFetch(fluxbaseUrl, {
+      headers,
+      timeout: options?.timeout,
+      debug: options?.debug,
     });
 
     // Initialize auth module
     this.auth = new FluxbaseAuth(
       this.fetch,
-      options.auth?.autoRefresh ?? true,
-      options.auth?.persist ?? true,
+      options?.auth?.autoRefresh ?? true,
+      options?.auth?.persist ?? true,
     );
 
     // Set auth token if provided
-    if (options.auth?.token) {
+    if (options?.auth?.token) {
       this.fetch.setAuthToken(options.auth.token);
     }
 
     // Initialize realtime module
     this.realtime = new FluxbaseRealtime(
-      options.url,
-      options.auth?.token || null,
+      fluxbaseUrl,
+      options?.auth?.token || null,
     );
 
     // Initialize storage module
@@ -274,31 +300,52 @@ export class FluxbaseClient {
 }
 
 /**
- * Create a new Fluxbase client instance
+ * Create a new Fluxbase client instance (Supabase-compatible)
  *
- * This is the recommended way to initialize the Fluxbase SDK.
+ * This function signature is identical to Supabase's createClient, making migration seamless.
  *
- * @param options - Client configuration options
- * @returns A configured Fluxbase client instance
+ * @param fluxbaseUrl - The URL of your Fluxbase instance
+ * @param fluxbaseKey - The anon key (JWT token with "anon" role). Generate using: `./scripts/generate-keys.sh` (option 3)
+ * @param options - Optional client configuration
+ * @returns A configured Fluxbase client instance with full TypeScript support
  *
  * @example
  * ```typescript
  * import { createClient } from '@fluxbase/sdk'
  *
- * const client = createClient({
- *   url: 'http://localhost:8080',
- *   auth: {
- *     token: 'your-jwt-token',
- *     autoRefresh: true,
- *     persist: true
- *   },
- *   timeout: 30000,
- *   debug: false
- * })
+ * // Initialize with anon key (identical to Supabase)
+ * const client = createClient(
+ *   'http://localhost:8080',
+ *   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'  // Anon JWT token
+ * )
+ *
+ * // With additional options
+ * const client = createClient(
+ *   'http://localhost:8080',
+ *   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+ *   { timeout: 30000, debug: true }
+ * )
+ *
+ * // With TypeScript database types
+ * const client = createClient<Database>(
+ *   'http://localhost:8080',
+ *   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+ * )
  * ```
  *
  * @category Client
  */
-export function createClient(options: FluxbaseClientOptions): FluxbaseClient {
-  return new FluxbaseClient(options);
+export function createClient<
+  Database = any,
+  SchemaName extends string & keyof Database = any
+>(
+  fluxbaseUrl: string,
+  fluxbaseKey: string,
+  options?: FluxbaseClientOptions
+): FluxbaseClient<Database, SchemaName> {
+  return new FluxbaseClient<Database, SchemaName>(
+    fluxbaseUrl,
+    fluxbaseKey,
+    options
+  );
 }

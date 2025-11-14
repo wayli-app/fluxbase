@@ -31,16 +31,10 @@ Create a Fluxbase client instance by providing your backend URL:
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-const client = createClient({
-  url: "http://localhost:8080", // Your Fluxbase backend URL
-  auth: {
-    token: null, // Optional: JWT token if you have one
-    autoRefresh: true, // Automatically refresh tokens
-    persist: true, // Persist auth state to localStorage
-  },
-  timeout: 30000, // Optional: Request timeout in ms
-  debug: false, // Optional: Enable debug logging
-});
+const client = createClient(
+  "http://localhost:8080", // Your Fluxbase backend URL
+  "your-anon-key" // Your anon key (generate with ./scripts/generate-keys.sh)
+);
 ```
 
 ### 2. Query Your Database
@@ -117,9 +111,10 @@ import { FluxbaseProvider, useFluxbaseQuery } from "@fluxbase/sdk-react";
 import { createClient } from "@fluxbase/sdk";
 
 // Create client
-const client = createClient({
-  url: "http://localhost:8080",
-});
+const client = createClient(
+  "http://localhost:8080",
+  "your-anon-key"
+);
 
 // Wrap your app
 function App() {
@@ -159,33 +154,30 @@ function UsersList() {
 
 ## Configuration Options
 
-### Client Options
+### Client Parameters
+
+The `createClient` function accepts two parameters:
 
 ```typescript
-interface FluxbaseClientOptions {
-  url: string; // Backend URL (required)
-  auth?: {
-    token?: string | null; // Initial JWT token
-    autoRefresh?: boolean; // Auto-refresh tokens (default: true)
-    persist?: boolean; // Persist auth to localStorage (default: true)
-  };
-  headers?: Record<string, string>; // Custom headers
-  timeout?: number; // Request timeout in ms (default: 30000)
-  debug?: boolean; // Enable debug logging (default: false)
-}
+createClient(
+  url: string,      // Backend URL (required)
+  apiKey: string    // API key or anon key (required)
+)
 ```
+
+**Parameters:**
+- `url`: Your Fluxbase backend URL
+- `apiKey`: Your API key (anon key for client-side, service role key for server-side)
 
 ### Environment Variables
 
 For production applications, use environment variables:
 
 ```typescript
-const client = createClient({
-  url: process.env.NEXT_PUBLIC_FLUXBASE_URL || "http://localhost:8080",
-  auth: {
-    token: process.env.FLUXBASE_TOKEN,
-  },
-});
+const client = createClient(
+  process.env.NEXT_PUBLIC_FLUXBASE_URL || "http://localhost:8080",
+  process.env.NEXT_PUBLIC_FLUXBASE_ANON_KEY || "your-anon-key"
+);
 ```
 
 ## Next Steps

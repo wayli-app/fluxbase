@@ -28,9 +28,10 @@ npm install @fluxbase/sdk
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient({
-  url: 'http://localhost:8080'
-})
+const client = createClient(
+  'http://localhost:8080',
+  'your-service-role-key'
+)
 
 // Authenticate as admin
 await client.admin.login({

@@ -71,24 +71,33 @@ yarn add @fluxbase/sdk
 
 Create a new file `app.ts` to get started.
 
-## Step 3: Initialize Client and Sign Up
+## Step 3: Generate Anon Key
+
+Fluxbase uses anon keys (JWT tokens) for client initialization, just like Supabase. Generate one first:
+
+```bash
+./scripts/generate-keys.sh
+# Select option 3: "Generate Anon Key"
+# Copy the generated JWT token
+```
+
+This creates a JWT token with the "anon" role that respects Row-Level Security policies.
+
+## Step 4: Initialize Client and Sign Up
 
 Set up the Fluxbase client and create a user account:
 
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-// Initialize client
-const client = createClient({
-  url: "http://localhost:8080",
-  auth: {
-    autoRefresh: true,
-    persist: true,
-  },
-});
+// Initialize client (identical to Supabase)
+const client = createClient(
+  "http://localhost:8080",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // Your anon key from step 3
+);
 
 // Sign up a new user
-const { user, error: signUpError } = await client.auth.signUp({
+const { data, error: signUpError } = await client.auth.signUp({
   email: "user@example.com",
   password: "SecurePassword123",
 });
@@ -96,13 +105,13 @@ const { user, error: signUpError } = await client.auth.signUp({
 if (signUpError) {
   console.error("Sign up failed:", signUpError);
 } else {
-  console.log("Signed up as:", user?.email);
+  console.log("Signed up as:", data.user.email);
 }
 ```
 
-The SDK automatically manages authentication tokens for you.
+The SDK automatically manages authentication tokens for you. After sign-up or sign-in, the user's JWT token replaces the anon key for authenticated requests.
 
-## Step 4: CRUD Operations
+## Step 5: CRUD Operations
 
 ```typescript
 interface Todo {
@@ -133,14 +142,10 @@ await client
   .execute();
 
 // Delete
-await client
-  .from<Todo>("todos")
-  .delete()
-  .eq("id", newTodo?.id)
-  .execute();
+await client.from<Todo>("todos").delete().eq("id", newTodo?.id).execute();
 ```
 
-## Step 5: Real-time Subscriptions
+## Step 6: Real-time Subscriptions
 
 ```typescript
 const channel = client.realtime.channel("table:public.todos");
@@ -152,16 +157,17 @@ channel
   .subscribe();
 ```
 
-## Step 6: Run Your Application
+## Step 7: Run Your Application
 
 ```bash
 npm install -D typescript tsx
 npx tsx app.ts
 ```
 
-## Step 7: Explore Admin UI
+## Step 8: Explore Admin UI
 
 Open http://localhost:8080/admin for:
+
 - Tables Browser - View/edit data
 - API Explorer - Test endpoints
 - Realtime Dashboard - Monitor WebSockets

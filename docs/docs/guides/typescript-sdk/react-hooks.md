@@ -16,13 +16,10 @@ npm install @fluxbase/sdk @fluxbase/sdk-react @tanstack/react-query
 // lib/fluxbase.ts
 import { createClient } from '@fluxbase/sdk'
 
-export const fluxbase = createClient({
-  url: process.env.NEXT_PUBLIC_FLUXBASE_URL || 'http://localhost:8080',
-  auth: {
-    autoRefresh: true,
-    persist: true
-  }
-})
+export const fluxbase = createClient(
+  process.env.NEXT_PUBLIC_FLUXBASE_URL || 'http://localhost:8080',
+  process.env.NEXT_PUBLIC_FLUXBASE_ANON_KEY || 'your-anon-key'
+)
 ```
 
 ### 2. Wrap Your App with FluxbaseProvider

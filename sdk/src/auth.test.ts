@@ -99,7 +99,7 @@ describe("FluxbaseAuth", () => {
 
       vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-      const session = await auth.signIn({
+      const { data: session, error } = await auth.signIn({
         email: "user@example.com",
         password: "password123",
       });
@@ -108,8 +108,10 @@ describe("FluxbaseAuth", () => {
         email: "user@example.com",
         password: "password123",
       });
-      expect(session.access_token).toBe("new-access-token");
-      expect(session.user.email).toBe("user@example.com");
+      expect(error).toBeNull();
+      expect(session).toBeDefined();
+      expect(session!.access_token).toBe("new-access-token");
+      expect(session!.user.email).toBe("user@example.com");
       expect(mockFetch.setAuthToken).toHaveBeenCalledWith("new-access-token");
     });
 
@@ -144,7 +146,7 @@ describe("FluxbaseAuth", () => {
 
       vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-      const session = await auth.signUp({
+      const { data, error } = await auth.signUp({
         email: "newuser@example.com",
         password: "password123",
       });
@@ -153,7 +155,10 @@ describe("FluxbaseAuth", () => {
         email: "newuser@example.com",
         password: "password123",
       });
-      expect(session.user.email).toBe("newuser@example.com");
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+      expect(data!.user.email).toBe("newuser@example.com");
+      expect(data!.session).toBeDefined();
     });
   });
 
@@ -173,8 +178,9 @@ describe("FluxbaseAuth", () => {
 
       // Now sign out
       vi.mocked(mockFetch.post).mockResolvedValue(undefined);
-      await auth.signOut();
+      const { error } = await auth.signOut();
 
+      expect(error).toBeNull();
       expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signout");
       expect(auth.getSession()).toBeNull();
       expect(mockFetch.setAuthToken).toHaveBeenCalledWith(null);
@@ -196,13 +202,10 @@ describe("FluxbaseAuth", () => {
       // Make signOut API call fail
       vi.mocked(mockFetch.post).mockRejectedValueOnce(new Error("Network error"));
 
-      // Should still resolve but session is cleared due to finally block
-      try {
-        await auth.signOut();
-      } catch (error) {
-        // Expected to throw, but session should still be cleared
-      }
+      // Should still resolve with error but session is cleared due to finally block
+      const { error } = await auth.signOut();
 
+      expect(error).toBeDefined();
       expect(auth.getSession()).toBeNull();
     });
   });
@@ -232,18 +235,23 @@ describe("FluxbaseAuth", () => {
 
       vi.mocked(mockFetch.post).mockResolvedValue(refreshResponse);
 
-      const session = await auth.refreshToken();
+      const { data, error } = await auth.refreshToken();
 
       expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/refresh", {
         refresh_token: "refresh-token",
       });
-      expect(session.access_token).toBe("new-token");
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+      expect(data!.session.access_token).toBe("new-token");
       expect(mockFetch.setAuthToken).toHaveBeenCalledWith("new-token");
     });
 
-    it("should throw error when no refresh token available", async () => {
-      await expect(auth.refreshToken()).rejects.toThrow(
-        "No refresh token available"
+    it("should return error when no refresh token available", async () => {
+      const { data, error } = await auth.refreshToken();
+
+      expect(data).toBeNull();
+      expect(error).toBeDefined();
+      expect(error?.message).toBe("No refresh token available"
       );
     });
   });
@@ -265,14 +273,20 @@ describe("FluxbaseAuth", () => {
       const user = { id: "1", email: "user@example.com", created_at: "" };
       vi.mocked(mockFetch.get).mockResolvedValue(user);
 
-      const result = await auth.getCurrentUser();
+      const { data: result, error } = await auth.getCurrentUser();
 
       expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/auth/user");
-      expect(result).toEqual(user);
+      expect(error).toBeNull();
+      expect(result).toBeDefined();
+      expect(result!.user).toEqual(user);
     });
 
-    it("should throw error when not authenticated", async () => {
-      await expect(auth.getCurrentUser()).rejects.toThrow("Not authenticated");
+    it("should return error when not authenticated", async () => {
+      const { data, error } = await auth.getCurrentUser();
+
+      expect(data).toBeNull();
+      expect(error).toBeDefined();
+      expect(error?.message).toBe("Not authenticated");
     });
   });
 
@@ -293,19 +307,23 @@ describe("FluxbaseAuth", () => {
       const updatedUser = { id: "1", email: "new@example.com", created_at: "" };
       vi.mocked(mockFetch.patch).mockResolvedValue(updatedUser);
 
-      const result = await auth.updateUser({ email: "new@example.com" });
+      const { data: result, error } = await auth.updateUser({ email: "new@example.com" });
 
       expect(mockFetch.patch).toHaveBeenCalledWith("/api/v1/auth/user", {
         email: "new@example.com",
       });
-      expect(result.email).toBe("new@example.com");
+      expect(error).toBeNull();
+      expect(result).toBeDefined();
+      expect(result!.user.email).toBe("new@example.com");
       expect(auth.getUser()?.email).toBe("new@example.com");
     });
 
-    it("should throw error when not authenticated", async () => {
-      await expect(
-        auth.updateUser({ email: "new@example.com" })
-      ).rejects.toThrow("Not authenticated");
+    it("should return error when not authenticated", async () => {
+      const { data, error } = await auth.updateUser({ email: "new@example.com" });
+
+      expect(data).toBeNull();
+      expect(error).toBeDefined();
+      expect(error?.message).toBe("Not authenticated");
     });
   });
 
@@ -340,12 +358,14 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.sendPasswordReset("user@example.com");
+        const { data: result, error } = await auth.sendPasswordReset("user@example.com");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset", {
           email: "user@example.com",
         });
-        expect(result.message).toBe(response.message);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe(response.message);
       });
     });
 
@@ -358,12 +378,14 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.verifyResetToken("valid-token");
+        const { data: result, error } = await auth.verifyResetToken("valid-token");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset/verify", {
           token: "valid-token",
         });
-        expect(result.valid).toBe(true);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.valid).toBe(true);
       });
 
       it("should return invalid for expired token", async () => {
@@ -374,9 +396,11 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.verifyResetToken("expired-token");
+        const { data: result, error } = await auth.verifyResetToken("expired-token");
 
-        expect(result.valid).toBe(false);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.valid).toBe(false);
       });
     });
 
@@ -388,13 +412,15 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.resetPassword("valid-token", "newPassword123");
+        const { data: result, error } = await auth.resetPassword("valid-token", "newPassword123");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/password/reset/confirm", {
           token: "valid-token",
           new_password: "newPassword123",
         });
-        expect(result.message).toBe(response.message);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe(response.message);
       });
     });
   });
@@ -408,13 +434,15 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.sendMagicLink("user@example.com");
+        const { data: result, error } = await auth.sendMagicLink("user@example.com");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/magiclink", {
           email: "user@example.com",
           redirect_to: undefined,
         });
-        expect(result.message).toBe(response.message);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe(response.message);
       });
 
       it("should send magic link with redirect URL", async () => {
@@ -424,7 +452,7 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
 
-        const result = await auth.sendMagicLink("user@example.com", {
+        const { data: result, error } = await auth.sendMagicLink("user@example.com", {
           redirect_to: "https://app.example.com/dashboard",
         });
 
@@ -432,7 +460,9 @@ describe("FluxbaseAuth", () => {
           email: "user@example.com",
           redirect_to: "https://app.example.com/dashboard",
         });
-        expect(result.message).toBe(response.message);
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.message).toBe(response.message);
       });
     });
 
@@ -448,13 +478,16 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-        const session = await auth.verifyMagicLink("magic-link-token");
+        const { data: session, error } = await auth.verifyMagicLink("magic-link-token");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/magiclink/verify", {
           token: "magic-link-token",
         });
-        expect(session.access_token).toBe("magic-token");
-        expect(auth.getSession()).toEqual(session);
+        expect(error).toBeNull();
+        expect(session).toBeDefined();
+        expect(session!.user.email).toBe("user@example.com");
+        expect(session!.session.access_token).toBe("magic-token");
+        expect(auth.getSession()?.access_token).toBe("magic-token");
         expect(mockFetch.setAuthToken).toHaveBeenCalledWith("magic-token");
       });
     });
@@ -477,11 +510,14 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-        const session = await auth.signInAnonymously();
+        const { data: session, error } = await auth.signInAnonymously();
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signin/anonymous");
-        expect(session.access_token).toBe("anon-token");
-        expect(auth.getSession()).toEqual(session);
+        expect(error).toBeNull();
+        expect(session).toBeDefined();
+        expect(session!.user.email).toBe("anonymous@fluxbase.local");
+        expect(session!.session.access_token).toBe("anon-token");
+        expect(auth.getSession()?.access_token).toBe("anon-token");
       });
     });
   });
@@ -498,11 +534,13 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await auth.getOAuthProviders();
+        const { data: result, error } = await auth.getOAuthProviders();
 
         expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/auth/oauth/providers");
-        expect(result.providers).toHaveLength(2);
-        expect(result.providers[0].id).toBe("google");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.providers).toHaveLength(2);
+        expect(result!.providers[0].id).toBe("google");
       });
     });
 
@@ -515,10 +553,12 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await auth.getOAuthUrl("google");
+        const { data: result, error } = await auth.getOAuthUrl("google");
 
         expect(mockFetch.get).toHaveBeenCalledWith("/api/v1/auth/oauth/google/authorize");
-        expect(result.url).toContain("google.com");
+        expect(error).toBeNull();
+        expect(result).toBeDefined();
+        expect(result!.url).toContain("google.com");
       });
 
       it("should get OAuth URL with redirect_to", async () => {
@@ -529,13 +569,14 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await auth.getOAuthUrl("google", {
+        const { data: result, error } = await auth.getOAuthUrl("google", {
           redirect_to: "https://app.example.com/auth/callback",
         });
 
         expect(mockFetch.get).toHaveBeenCalledWith(
           "/api/v1/auth/oauth/google/authorize?redirect_to=https%3A%2F%2Fapp.example.com%2Fauth%2Fcallback"
         );
+        expect(error).toBeNull();
       });
 
       it("should get OAuth URL with scopes", async () => {
@@ -546,13 +587,14 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await auth.getOAuthUrl("google", {
+        const { data: result, error } = await auth.getOAuthUrl("google", {
           scopes: ["email", "profile"],
         });
 
         expect(mockFetch.get).toHaveBeenCalledWith(
           "/api/v1/auth/oauth/google/authorize?scopes=email%2Cprofile"
         );
+        expect(error).toBeNull();
       });
 
       it("should get OAuth URL with both redirect_to and scopes", async () => {
@@ -563,7 +605,7 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.get).mockResolvedValue(response);
 
-        const result = await auth.getOAuthUrl("github", {
+        const { data: result, error } = await auth.getOAuthUrl("github", {
           redirect_to: "https://app.example.com/callback",
           scopes: ["read:user", "repo"],
         });
@@ -575,6 +617,7 @@ describe("FluxbaseAuth", () => {
           expect.stringContaining("redirect_to=")
         );
         expect(mockFetch.get).toHaveBeenCalledWith(expect.stringContaining("scopes="));
+        expect(error).toBeNull();
       });
     });
 
@@ -594,13 +637,16 @@ describe("FluxbaseAuth", () => {
 
         vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-        const session = await auth.exchangeCodeForSession("auth-code-123");
+        const { data: session, error } = await auth.exchangeCodeForSession("auth-code-123");
 
         expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/oauth/callback", {
           code: "auth-code-123",
         });
-        expect(session.access_token).toBe("oauth-token");
-        expect(auth.getSession()).toEqual(session);
+        expect(error).toBeNull();
+        expect(session).toBeDefined();
+        expect(session!.user.email).toBe("user@example.com");
+        expect(session!.session.access_token).toBe("oauth-token");
+        expect(auth.getSession()?.access_token).toBe("oauth-token");
       });
     });
 
@@ -618,9 +664,11 @@ describe("FluxbaseAuth", () => {
         delete (global as any).window;
         (global as any).window = { location: { href: "" } };
 
-        await auth.signInWithOAuth("google");
+        const { data, error } = await auth.signInWithOAuth("google");
 
         expect(window.location.href).toBe(response.url);
+        expect(error).toBeNull();
+        expect(data).toBeDefined();
 
         // Restore
         if (originalLocation) {
@@ -630,7 +678,7 @@ describe("FluxbaseAuth", () => {
         }
       });
 
-      it("should throw error in non-browser environment", async () => {
+      it("should return error in non-browser environment", async () => {
         const response = {
           url: "https://accounts.google.com/o/oauth2/v2/auth?...",
           provider: "google",
@@ -642,9 +690,11 @@ describe("FluxbaseAuth", () => {
         const originalWindow = global.window;
         delete (global as any).window;
 
-        await expect(auth.signInWithOAuth("google")).rejects.toThrow(
-          "signInWithOAuth can only be called in a browser environment"
-        );
+        const { data, error } = await auth.signInWithOAuth("google");
+
+        expect(data).toBeNull();
+        expect(error).toBeDefined();
+        expect(error?.message).toBe("signInWithOAuth can only be called in a browser environment");
 
         // Restore
         if (originalWindow) {

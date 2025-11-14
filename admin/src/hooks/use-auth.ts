@@ -12,7 +12,7 @@ export function useAuth() {
   const client = useFluxbaseClient()
 
   // Fetch current user data
-  const { data: user, isLoading: isLoadingUser } = useQuery({
+  const { data: userResponse, isLoading: isLoadingUser } = useQuery({
     queryKey: ['auth', 'user'],
     queryFn: async () => {
       return await client.auth.getCurrentUser()
@@ -22,21 +22,29 @@ export function useAuth() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
+  // Extract user from response
+  const user = userResponse?.data?.user || auth.user
+
   // Sign in mutation
   const signInMutation = useMutation({
     mutationFn: async (data: SignInCredentials) => {
       return await client.auth.signIn(data)
     },
-    onSuccess: (session) => {
+    onSuccess: (response) => {
       // Check if 2FA is required
-      if ('requires_2fa' in session && session.requires_2fa) {
+      if (response.data && 'requires_2fa' in response.data && response.data.requires_2fa) {
         // Handle 2FA flow - don't store tokens yet
-        toast.info(session.message || 'Two-factor authentication required')
+        toast.info('message' in response.data ? response.data.message : 'Two-factor authentication required')
         return
       }
 
       // Type guard: at this point we know it's an AuthSession
-      const authSession = session as AuthSession
+      if (!response.data || !('access_token' in response.data)) {
+        toast.error('Invalid response from server')
+        return
+      }
+
+      const authSession = response.data as AuthSession
 
       // Store tokens
       auth.setAccessToken(authSession.access_token)
@@ -65,23 +73,30 @@ export function useAuth() {
     mutationFn: async (data: SignUpCredentials) => {
       return await client.auth.signUp(data)
     },
-    onSuccess: (session) => {
+    onSuccess: (response) => {
+      if (!response.data) {
+        toast.error('Invalid response from server')
+        return
+      }
+
+      const { session, user } = response.data
+
       // Store tokens
       auth.setAccessToken(session.access_token)
       localStorage.setItem('refresh_token', session.refresh_token)
 
       // Store user in Zustand
       auth.setUser({
-        accountNo: session.user.id,
-        email: session.user.email,
-        role: [session.user.role],
+        accountNo: user.id,
+        email: user.email,
+        role: [user.role],
         exp: Date.now() + session.expires_in * 1000,
       })
 
       // Invalidate and refetch user query
       queryClient.invalidateQueries({ queryKey: ['auth', 'user'] })
 
-      toast.success(`Account created successfully! Welcome, ${session.user.email}!`)
+      toast.success(`Account created successfully! Welcome, ${user.email}!`)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to create account')
@@ -118,7 +133,7 @@ export function useAuth() {
   })
 
   return {
-    user: user || auth.user,
+    user,
     isAuthenticated: !!auth.accessToken,
     isLoading: isLoadingUser,
     signIn: signInMutation.mutate,

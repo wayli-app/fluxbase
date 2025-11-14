@@ -13,7 +13,7 @@ npm install @fluxbase/sdk
 ```typescript
 import { createClient } from '@fluxbase/sdk'
 
-const client = createClient('http://localhost:8080', 'your-api-key')
+const client = createClient('http://localhost:8080', 'your-anon-key')
 
 // Subscribe to table changes
 const channel = client.realtime
@@ -63,7 +63,7 @@ import { createClient } from '@fluxbase/sdk'
 
 function useRealtimeTable(tableName) {
   const [data, setData] = useState([])
-  const client = createClient('http://localhost:8080', 'your-api-key')
+  const client = createClient('http://localhost:8080', 'your-anon-key')
 
   useEffect(() => {
     const channel = client.realtime
