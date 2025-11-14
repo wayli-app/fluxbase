@@ -1345,14 +1345,14 @@ export interface EdgeFunctionExecution {
 }
 
 // ============================================================================
-// Supabase-Compatible Response Types
+// Fluxbase Response Types (Supabase-compatible)
 // ============================================================================
 
 /**
- * Base Supabase-compatible response type
- * Returns either { data, error: null } on success or { data: null, error } on failure
+ * Base Fluxbase response type (Supabase-compatible)
+ * Returns either `{ data, error: null }` on success or `{ data: null, error }` on failure
  */
-export type SupabaseResponse<T> =
+export type FluxbaseResponse<T> =
   | { data: T; error: null }
   | { data: null; error: Error }
 
@@ -1362,8 +1362,7 @@ export type SupabaseResponse<T> =
 export type VoidResponse = { error: Error | null }
 
 /**
- * Auth response with user and session (Supabase-compatible)
- * Note: This replaces the old AuthResponse interface for compatibility
+ * Auth response with user and session
  */
 export type AuthResponseData = {
   user: User
@@ -1371,21 +1370,35 @@ export type AuthResponseData = {
 }
 
 /**
- * Supabase-compatible auth response
+ * Fluxbase auth response
  */
-export type SupabaseAuthResponse = SupabaseResponse<AuthResponseData>
+export type FluxbaseAuthResponse = FluxbaseResponse<AuthResponseData>
 
 /**
- * User response (Supabase-compatible)
+ * User response
  */
-export type UserResponse = SupabaseResponse<{ user: User }>
+export type UserResponse = FluxbaseResponse<{ user: User }>
 
 /**
- * Session response (Supabase-compatible)
+ * Session response
  */
-export type SessionResponse = SupabaseResponse<{ session: AuthSession }>
+export type SessionResponse = FluxbaseResponse<{ session: AuthSession }>
 
 /**
- * Generic data response (Supabase-compatible)
+ * Generic data response
  */
-export type DataResponse<T> = SupabaseResponse<T>
+export type DataResponse<T> = FluxbaseResponse<T>
+
+// ============================================================================
+// Deprecated Supabase-compatible type aliases (for backward compatibility)
+// ============================================================================
+
+/**
+ * @deprecated Use FluxbaseResponse instead
+ */
+export type SupabaseResponse<T> = FluxbaseResponse<T>
+
+/**
+ * @deprecated Use FluxbaseAuthResponse instead
+ */
+export type SupabaseAuthResponse = FluxbaseAuthResponse

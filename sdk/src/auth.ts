@@ -26,12 +26,12 @@ import type {
   AuthChangeEvent,
   AuthStateChangeCallback,
   AuthSubscription,
-  SupabaseAuthResponse,
+  FluxbaseAuthResponse,
+  FluxbaseResponse,
   UserResponse,
   SessionResponse,
   DataResponse,
   VoidResponse,
-  SupabaseResponse,
 } from "./types";
 import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
@@ -120,7 +120,7 @@ export class FluxbaseAuth {
    */
   async signIn(
     credentials: SignInCredentials,
-  ): Promise<SupabaseResponse<AuthSession | SignInWith2FAResponse>> {
+  ): Promise<FluxbaseResponse<AuthSession | SignInWith2FAResponse>> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<
         AuthResponse | SignInWith2FAResponse
@@ -150,14 +150,14 @@ export class FluxbaseAuth {
    */
   async signInWithPassword(
     credentials: SignInCredentials,
-  ): Promise<SupabaseResponse<AuthSession | SignInWith2FAResponse>> {
+  ): Promise<FluxbaseResponse<AuthSession | SignInWith2FAResponse>> {
     return this.signIn(credentials);
   }
 
   /**
    * Sign up with email and password
    */
-  async signUp(credentials: SignUpCredentials): Promise<SupabaseAuthResponse> {
+  async signUp(credentials: SignUpCredentials): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/signup",
@@ -278,7 +278,9 @@ export class FluxbaseAuth {
    * Enable 2FA after verifying the TOTP code
    * Returns backup codes that should be saved by the user
    */
-  async enable2FA(code: string): Promise<DataResponse<TwoFactorEnableResponse>> {
+  async enable2FA(
+    code: string,
+  ): Promise<DataResponse<TwoFactorEnableResponse>> {
     return wrapAsync(async () => {
       if (!this.session) {
         throw new Error("Not authenticated");
@@ -329,7 +331,9 @@ export class FluxbaseAuth {
    * Verify 2FA code during login
    * Call this after signIn returns requires_2fa: true
    */
-  async verify2FA(request: TwoFactorVerifyRequest): Promise<SupabaseAuthResponse> {
+  async verify2FA(
+    request: TwoFactorVerifyRequest,
+  ): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/2fa/verify",
@@ -351,7 +355,9 @@ export class FluxbaseAuth {
    * Sends a password reset link to the provided email address
    * @param email - Email address to send reset link to
    */
-  async sendPasswordReset(email: string): Promise<DataResponse<PasswordResetResponse>> {
+  async sendPasswordReset(
+    email: string,
+  ): Promise<DataResponse<PasswordResetResponse>> {
     return wrapAsync(async () => {
       return await this.fetch.post<PasswordResetResponse>(
         "/api/v1/auth/password/reset",
@@ -377,7 +383,9 @@ export class FluxbaseAuth {
    * Check if a password reset token is valid before allowing password reset
    * @param token - Password reset token to verify
    */
-  async verifyResetToken(token: string): Promise<DataResponse<VerifyResetTokenResponse>> {
+  async verifyResetToken(
+    token: string,
+  ): Promise<DataResponse<VerifyResetTokenResponse>> {
     return wrapAsync(async () => {
       return await this.fetch.post<VerifyResetTokenResponse>(
         "/api/v1/auth/password/reset/verify",
@@ -419,10 +427,13 @@ export class FluxbaseAuth {
     options?: MagicLinkOptions,
   ): Promise<DataResponse<MagicLinkResponse>> {
     return wrapAsync(async () => {
-      return await this.fetch.post<MagicLinkResponse>("/api/v1/auth/magiclink", {
-        email,
-        redirect_to: options?.redirect_to,
-      });
+      return await this.fetch.post<MagicLinkResponse>(
+        "/api/v1/auth/magiclink",
+        {
+          email,
+          redirect_to: options?.redirect_to,
+        },
+      );
     });
   }
 
@@ -430,7 +441,7 @@ export class FluxbaseAuth {
    * Verify magic link token and sign in
    * @param token - Magic link token from email
    */
-  async verifyMagicLink(token: string): Promise<SupabaseAuthResponse> {
+  async verifyMagicLink(token: string): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/magiclink/verify",
@@ -453,7 +464,7 @@ export class FluxbaseAuth {
    * Sign in anonymously
    * Creates a temporary anonymous user session
    */
-  async signInAnonymously(): Promise<SupabaseAuthResponse> {
+  async signInAnonymously(): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AnonymousSignInResponse>(
         "/api/v1/auth/signin/anonymous",
@@ -513,7 +524,7 @@ export class FluxbaseAuth {
    * This is typically called in your OAuth callback handler
    * @param code - Authorization code from OAuth callback
    */
-  async exchangeCodeForSession(code: string): Promise<SupabaseAuthResponse> {
+  async exchangeCodeForSession(code: string): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/oauth/callback",

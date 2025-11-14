@@ -253,11 +253,15 @@ export type {
   HttpMethod,
   RequestOptions,
 
-  // Supabase-compatible response wrapper types
+  // Fluxbase response wrapper types
+  FluxbaseResponse,
+  FluxbaseAuthResponse,
   DataResponse,
   VoidResponse,
-  SupabaseAuthResponse,
   UserResponse,
   SessionResponse,
+
+  // Deprecated Supabase-compatible aliases
   SupabaseResponse,
+  SupabaseAuthResponse,
 } from "./types";

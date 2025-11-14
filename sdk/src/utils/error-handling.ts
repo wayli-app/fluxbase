@@ -1,13 +1,13 @@
-import type { SupabaseResponse, VoidResponse } from '../types'
+import type { FluxbaseResponse, VoidResponse } from '../types'
 
 /**
- * Wraps an async operation with try-catch, returning Supabase-compatible response
+ * Wraps an async operation with try-catch, returning Fluxbase response format
  * @param operation The async operation to wrap
  * @returns Promise resolving to { data, error: null } on success or { data: null, error } on failure
  */
 export async function wrapAsync<T>(
   operation: () => Promise<T>
-): Promise<SupabaseResponse<T>> {
+): Promise<FluxbaseResponse<T>> {
   try {
     const data = await operation()
     return { data, error: null }
@@ -44,7 +44,7 @@ export async function wrapAsyncVoid(
  */
 export function wrapSync<T>(
   operation: () => T
-): SupabaseResponse<T> {
+): FluxbaseResponse<T> {
   try {
     const data = operation()
     return { data, error: null }
