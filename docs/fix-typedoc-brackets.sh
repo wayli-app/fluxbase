@@ -67,6 +67,11 @@ find docs/api -name "*.md" -type f | while read -r file; do
   # Fix cases where < appears after : (common in type annotations)
   $SED_INPLACE 's/: <\([a-zA-Z][a-zA-Z0-9]*\)>/: \&lt;\1\&gt;/g' "$file"
 
+  # Fix JSX expressions that look like { data, error } tuple
+  # These need to be wrapped in backticks to avoid being interpreted as JSX
+  $SED_INPLACE 's/to { data, error } tuple/to `{ data, error }` tuple/g' "$file"
+  $SED_INPLACE 's/Promise { data, error }/Promise `{ data, error }`/g' "$file"
+
   # Skip warning output - angle brackets in code blocks are safe and expected
   # The MDX compiler properly handles them during build
 done
