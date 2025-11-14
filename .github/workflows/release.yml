@@ -470,18 +470,11 @@ jobs:
           npm ci
           npm run build
 
-      - name: Pre-generate TypeDoc API documentation
+      - name: Build docs site
         working-directory: ./docs
         run: |
           npm ci
-
-          # Generate TypeDoc markdown files (build will fail due to angle brackets, but files are generated)
-          npx docusaurus build || true
-
-          # Apply angle bracket fixes
-          bash fix-typedoc-brackets.sh
-
-          echo "TypeDoc files pre-generated and fixed"
+          npm run build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
