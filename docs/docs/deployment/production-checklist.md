@@ -512,4 +512,4 @@ After completing this checklist:
 For ongoing operations, see:
 
 - [Scaling Guide](scaling) - Performance optimization
-- [Monitoring Guide](../guides/monitoring) - Observability setup
+- [Monitoring Guide](../guides/monitoring-observability) - Observability setup

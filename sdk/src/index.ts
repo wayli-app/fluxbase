@@ -54,6 +54,9 @@ export { FluxbaseRealtime, RealtimeChannel } from './realtime'
 // Storage module
 export { FluxbaseStorage, StorageBucket } from './storage'
 
+// Functions module
+export { FluxbaseFunctions } from './functions'
+
 // Admin module
 export { FluxbaseAdmin } from './admin'
 
@@ -102,14 +105,24 @@ export type {
 
   // Realtime types
   RealtimeMessage,
-  RealtimeChangePayload,
+  RealtimePostgresChangesPayload,
+  RealtimeChangePayload, // Deprecated
   RealtimeCallback,
+  PostgresChangesConfig,
 
   // Storage types
-  StorageObject,
+  FileObject,
+  StorageObject, // Deprecated alias for FileObject
   UploadOptions,
   ListOptions,
   SignedUrlOptions,
+
+  // Functions types
+  FunctionInvokeOptions,
+  EdgeFunction,
+  CreateFunctionRequest,
+  UpdateFunctionRequest,
+  EdgeFunctionExecution,
 
   // Admin types
   AdminSetupStatusResponse,

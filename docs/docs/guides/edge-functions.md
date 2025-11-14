@@ -446,7 +446,7 @@ async function handler(req) {
 
 ## REST API
 
-For direct HTTP access without the SDK, see the [Functions API Reference](/docs/api/functions).
+For direct HTTP access without the SDK, see the [SDK Documentation](/docs/api/sdk).
 
 ## Troubleshooting
 
@@ -499,4 +499,4 @@ async function handler(req) {
 
 - [Authentication](/docs/guides/authentication) - Secure function access
 - [Webhooks](/docs/guides/webhooks) - Trigger functions from events
-- [API Reference](/docs/api/functions) - Complete API documentation
+- [SDK Documentation](/docs/api/sdk) - Complete SDK documentation

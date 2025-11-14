@@ -5,6 +5,10 @@ title: Introduction
 
 # Welcome to Fluxbase
 
+:::caution Pre-Release Software
+Fluxbase is currently in active development and **pre-release phase**. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We recommend using Fluxbase for testing and development purposes, but exercise caution before deploying to production environments.
+:::
+
 Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. It provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.
 
 ## Why Fluxbase?
@@ -193,8 +197,8 @@ graph TB
 - [Installation Guide](getting-started/installation) - Set up Fluxbase in your environment
 - [Quick Start Tutorial](getting-started/quick-start) - Build your first application
 - [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
-- [API Documentation](api/rest) - Learn about all available endpoints
-- [SDK Documentation](guides/typescript-sdk) - Use our TypeScript or Go SDKs
+- [SDK Documentation](api/sdk) - TypeScript SDK API reference
+- [SDK Guides](/docs/category/sdks) - Learn how to use the TypeScript SDK
 
 ## Community & Support
 

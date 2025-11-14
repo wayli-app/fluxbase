@@ -380,5 +380,5 @@ const allUsers = await adminClient.from('users').select('*')
 ## Related Documentation
 
 - [Authentication](/docs/guides/authentication) - JWT tokens and roles
-- [Database](/docs/guides/database) - Table management
+- [Database Guide](/docs/guides/typescript-sdk/database) - Table management and querying
 - [Security](/docs/security/overview) - Overall security best practices

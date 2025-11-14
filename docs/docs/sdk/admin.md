@@ -795,7 +795,7 @@ import type {
 
 ## Next Steps
 
-- [Authentication SDK](authentication) - User authentication methods
-- [Database SDK](database) - Query and manipulate data
-- [Storage SDK](storage) - File upload and management
-- [Realtime SDK](realtime) - WebSocket subscriptions
+- [Authentication Guide](/docs/guides/authentication) - User authentication methods
+- [Database Guide](/docs/guides/typescript-sdk/database) - Query and manipulate data
+- [Storage Guide](/docs/guides/storage) - File upload and management
+- [Realtime Guide](/docs/guides/realtime) - WebSocket subscriptions

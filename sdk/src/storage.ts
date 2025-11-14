@@ -4,7 +4,7 @@
 
 import type { FluxbaseFetch } from "./fetch";
 import type {
-  StorageObject,
+  FileObject,
   UploadOptions,
   ListOptions,
   SignedUrlOptions,
@@ -33,7 +33,7 @@ export class StorageBucket {
     path: string,
     file: File | Blob | ArrayBuffer,
     options?: UploadOptions,
-  ): Promise<{ data: StorageObject | null; error: Error | null }> {
+  ): Promise<{ data: { id: string; path: string; fullPath: string } | null; error: Error | null }> {
     try {
       const formData = new FormData();
 
@@ -58,7 +58,7 @@ export class StorageBucket {
         formData.append("upsert", String(options.upsert));
       }
 
-      const data = await this.fetch.request<StorageObject>(
+      const response = await this.fetch.request<any>(
         `/api/v1/storage/${this.bucketName}/${path}`,
         {
           method: "POST",
@@ -67,7 +67,15 @@ export class StorageBucket {
         },
       );
 
-      return { data, error: null };
+      // Return Supabase-compatible response format
+      return {
+        data: {
+          id: response.id || response.key || path,
+          path: path,
+          fullPath: `${this.bucketName}/${path}`
+        },
+        error: null
+      };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -101,16 +109,33 @@ export class StorageBucket {
 
   /**
    * List files in the bucket
-   * @param options - List options (prefix, limit, offset)
+   * Supports both Supabase-style list(path, options) and Fluxbase-style list(options)
+   * @param pathOrOptions - The folder path or list options
+   * @param maybeOptions - List options when first param is a path
    */
   async list(
-    options?: ListOptions,
-  ): Promise<{ data: StorageObject[] | null; error: Error | null }> {
+    pathOrOptions?: string | ListOptions,
+    maybeOptions?: ListOptions,
+  ): Promise<{ data: FileObject[] | null; error: Error | null }> {
     try {
       const params = new URLSearchParams();
 
-      if (options?.prefix) {
-        params.set("prefix", options.prefix);
+      // Determine if first arg is path or options
+      let prefix: string | undefined;
+      let options: ListOptions | undefined;
+
+      if (typeof pathOrOptions === 'string') {
+        // Supabase-style: list('path/', { limit: 10 })
+        prefix = pathOrOptions;
+        options = maybeOptions;
+      } else {
+        // Fluxbase-style: list({ prefix: 'path/', limit: 10 })
+        options = pathOrOptions;
+        prefix = options?.prefix;
+      }
+
+      if (prefix) {
+        params.set("prefix", prefix);
       }
 
       if (options?.limit) {
@@ -124,9 +149,20 @@ export class StorageBucket {
       const queryString = params.toString();
       const path = `/api/v1/storage/${this.bucketName}${queryString ? `?${queryString}` : ""}`;
 
-      const data = await this.fetch.get<{ files: StorageObject[] }>(path);
+      const response = await this.fetch.get<{ files: any[] }>(path);
 
-      return { data: data.files || [], error: null };
+      // Convert to FileObject format
+      const files: FileObject[] = (response.files || []).map((file: any) => ({
+        name: file.key || file.name,
+        id: file.id,
+        bucket_id: file.bucket || this.bucketName,
+        created_at: file.last_modified || file.created_at,
+        updated_at: file.updated_at,
+        last_accessed_at: file.last_accessed_at,
+        metadata: file.metadata,
+      }));
+
+      return { data: files, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -136,14 +172,21 @@ export class StorageBucket {
    * Remove files from the bucket
    * @param paths - Array of file paths to remove
    */
-  async remove(paths: string[]): Promise<{ data: null; error: Error | null }> {
+  async remove(paths: string[]): Promise<{ data: FileObject[] | null; error: Error | null }> {
     try {
+      const removedFiles: FileObject[] = [];
+
       // Delete files one by one (could be optimized with batch endpoint)
       for (const path of paths) {
         await this.fetch.delete(`/api/v1/storage/${this.bucketName}/${path}`);
+        // Add to removed files list
+        removedFiles.push({
+          name: path,
+          bucket_id: this.bucketName,
+        });
       }
 
-      return { data: null, error: null };
+      return { data: removedFiles, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -189,9 +232,9 @@ export class StorageBucket {
   async move(
     fromPath: string,
     toPath: string,
-  ): Promise<{ data: StorageObject | null; error: Error | null }> {
+  ): Promise<{ data: { message: string } | null; error: Error | null }> {
     try {
-      const data = await this.fetch.post<StorageObject>(
+      await this.fetch.post(
         `/api/v1/storage/${this.bucketName}/move`,
         {
           from_path: fromPath,
@@ -199,7 +242,10 @@ export class StorageBucket {
         },
       );
 
-      return { data, error: null };
+      return {
+        data: { message: 'Successfully moved' },
+        error: null
+      };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -213,9 +259,9 @@ export class StorageBucket {
   async copy(
     fromPath: string,
     toPath: string,
-  ): Promise<{ data: StorageObject | null; error: Error | null }> {
+  ): Promise<{ data: { path: string } | null; error: Error | null }> {
     try {
-      const data = await this.fetch.post<StorageObject>(
+      await this.fetch.post(
         `/api/v1/storage/${this.bucketName}/copy`,
         {
           from_path: fromPath,
@@ -223,7 +269,10 @@ export class StorageBucket {
         },
       );
 
-      return { data, error: null };
+      return {
+        data: { path: toPath },
+        error: null
+      };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -331,10 +380,10 @@ export class FluxbaseStorage {
    */
   async createBucket(
     bucketName: string,
-  ): Promise<{ data: null; error: Error | null }> {
+  ): Promise<{ data: { name: string } | null; error: Error | null }> {
     try {
       await this.fetch.post(`/api/v1/storage/buckets/${bucketName}`);
-      return { data: null, error: null };
+      return { data: { name: bucketName }, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -346,10 +395,10 @@ export class FluxbaseStorage {
    */
   async deleteBucket(
     bucketName: string,
-  ): Promise<{ data: null; error: Error | null }> {
+  ): Promise<{ data: { message: string } | null; error: Error | null }> {
     try {
       await this.fetch.delete(`/api/v1/storage/buckets/${bucketName}`);
-      return { data: null, error: null };
+      return { data: { message: 'Successfully deleted' }, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -361,7 +410,7 @@ export class FluxbaseStorage {
    */
   async emptyBucket(
     bucketName: string,
-  ): Promise<{ data: null; error: Error | null }> {
+  ): Promise<{ data: { message: string } | null; error: Error | null }> {
     try {
       // List all files and delete them
       const bucket = this.from(bucketName);
@@ -372,7 +421,7 @@ export class FluxbaseStorage {
       }
 
       if (objects && objects.length > 0) {
-        const paths = objects.map((obj) => obj.key);
+        const paths = objects.map((obj) => obj.name);
         const { error: removeError } = await bucket.remove(paths);
 
         if (removeError) {
@@ -380,7 +429,7 @@ export class FluxbaseStorage {
         }
       }
 
-      return { data: null, error: null };
+      return { data: { message: 'Successfully emptied' }, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }

@@ -352,7 +352,7 @@ try {
 
 ## REST API
 
-For direct HTTP access without the SDK, see the [Storage API Reference](/docs/api/storage).
+For direct HTTP access without the SDK, see the [Storage SDK Documentation](/docs/api/sdk/classes/FluxbaseStorage).
 
 ## Related Documentation
 

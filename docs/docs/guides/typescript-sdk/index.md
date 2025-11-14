@@ -72,11 +72,11 @@ Want an SDK for your favorite language? [Open an issue](https://github.com/wayli
 - **[Getting Started](./getting-started.md)** - Installation and setup guide
 - **[Database Operations](./database.md)** - Queries, filters, aggregations, and batch operations
 - **[React Hooks](./react-hooks.md)** - Complete React integration guide
-- **[TypeScript API Reference](../../api/sdk/)** - Auto-generated API documentation
-- **[React API Reference](../../api/sdk-react/)** - React hooks API documentation
+- **[TypeScript API Reference](/docs/api/sdk/)** - Auto-generated API documentation
+- **[React API Reference](/docs/api/sdk-react/)** - React hooks API documentation
 
 ## Need Help?
 
 - **[GitHub Discussions](https://github.com/wayli-app/fluxbase/discussions)** - Ask questions and share ideas
 - **[GitHub Issues](https://github.com/wayli-app/fluxbase/issues)** - Report bugs and request features
-- **[Documentation](../../intro.md)** - Full Fluxbase documentation
+- **[Documentation](/docs/intro)** - Full Fluxbase documentation

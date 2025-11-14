@@ -322,7 +322,7 @@ When authenticated, users receive realtime updates only for their own posts.
 
 ## Raw WebSocket Protocol
 
-For non-JavaScript environments, see the [Realtime API Reference](/docs/api/realtime) for WebSocket protocol details.
+For non-JavaScript environments, see the [Realtime SDK Documentation](/docs/api/sdk/classes/FluxbaseRealtime) for WebSocket protocol details.
 
 ## Troubleshooting
 
@@ -349,3 +349,4 @@ For non-JavaScript environments, see the [Realtime API Reference](/docs/api/real
 - [Row-Level Security](/docs/guides/row-level-security) - Control data access
 - [Authentication](/docs/guides/authentication) - Secure subscriptions
 - [Monitoring](/docs/guides/monitoring-observability) - Track realtime performance
+- [Scaling Guide](/docs/deployment/scaling#horizontal-scaling) - Configure realtime for horizontal scaling

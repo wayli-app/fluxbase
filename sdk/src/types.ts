@@ -198,26 +198,64 @@ export interface PostgresChangesConfig {
   filter?: string // Optional filter: column=operator.value
 }
 
+/**
+ * Realtime postgres_changes payload structure
+ * Compatible with Supabase realtime payloads
+ */
+export interface RealtimePostgresChangesPayload<T = any> {
+  /** Event type (Supabase-compatible field name) */
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*'
+  /** Database schema */
+  schema: string
+  /** Table name */
+  table: string
+  /** Commit timestamp (Supabase-compatible field name) */
+  commit_timestamp: string
+  /** New record data (Supabase-compatible field name) */
+  new: T
+  /** Old record data (Supabase-compatible field name) */
+  old: T
+  /** Error message if any */
+  errors: string | null
+}
+
+/**
+ * @deprecated Use RealtimePostgresChangesPayload instead
+ */
 export interface RealtimeChangePayload {
+  /** @deprecated Use eventType instead */
   type: 'INSERT' | 'UPDATE' | 'DELETE'
   schema: string
   table: string
+  /** @deprecated Use 'new' instead */
   new_record?: Record<string, unknown>
+  /** @deprecated Use 'old' instead */
   old_record?: Record<string, unknown>
+  /** @deprecated Use commit_timestamp instead */
   timestamp: string
 }
 
-export type RealtimeCallback = (payload: RealtimeChangePayload) => void
+export type RealtimeCallback = (payload: RealtimePostgresChangesPayload) => void
 
-export interface StorageObject {
-  key: string
-  bucket: string
-  size: number
-  content_type: string
-  last_modified: string
-  etag?: string
-  metadata?: Record<string, string>
+/**
+ * File object returned by storage operations
+ * Compatible with Supabase FileObject structure
+ */
+export interface FileObject {
+  name: string
+  id?: string
+  bucket_id?: string
+  owner?: string
+  created_at?: string
+  updated_at?: string
+  last_accessed_at?: string
+  metadata?: Record<string, any>
 }
+
+/**
+ * @deprecated Use FileObject instead. This alias is provided for backwards compatibility.
+ */
+export type StorageObject = FileObject
 
 export interface UploadOptions {
   contentType?: string
@@ -1211,4 +1249,100 @@ export interface AuthSubscription {
    * Unsubscribe from auth state changes
    */
   unsubscribe: () => void
+}
+
+/**
+ * Options for invoking an edge function
+ */
+export interface FunctionInvokeOptions {
+  /**
+   * Request body to send to the function
+   */
+  body?: any
+
+  /**
+   * Custom headers to include in the request
+   */
+  headers?: Record<string, string>
+
+  /**
+   * HTTP method to use
+   * @default 'POST'
+   */
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+}
+
+/**
+ * Edge function metadata
+ */
+export interface EdgeFunction {
+  id: string
+  name: string
+  description?: string
+  code: string
+  version: number
+  enabled: boolean
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  allow_unauthenticated: boolean
+  cron_schedule?: string
+  created_at: string
+  updated_at: string
+  created_by?: string
+}
+
+/**
+ * Request to create a new edge function
+ */
+export interface CreateFunctionRequest {
+  name: string
+  description?: string
+  code: string
+  enabled?: boolean
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  allow_unauthenticated?: boolean
+  cron_schedule?: string
+}
+
+/**
+ * Request to update an existing edge function
+ */
+export interface UpdateFunctionRequest {
+  description?: string
+  code?: string
+  enabled?: boolean
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  allow_unauthenticated?: boolean
+  cron_schedule?: string
+}
+
+/**
+ * Edge function execution record
+ */
+export interface EdgeFunctionExecution {
+  id: string
+  function_id: string
+  trigger_type: string
+  status: 'success' | 'error'
+  status_code?: number
+  duration_ms?: number
+  result?: string
+  logs?: string
+  error_message?: string
+  executed_at: string
+  completed_at?: string
 }

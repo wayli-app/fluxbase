@@ -909,7 +909,7 @@ These features may be added in future releases based on user feedback.
 
 ## Next Steps
 
-- Learn about [Admin SDK](/sdk/admin) for user management
-- Explore [Settings SDK](/sdk/settings) for configuration management
-- Read [Database](/sdk/database) docs for data operations
-- Check out [Advanced Guides](/advanced-guides) for schema design patterns
+- Learn about [Admin SDK](/docs/sdk/admin) for user management
+- Explore [Settings SDK](/docs/sdk/settings) for configuration management
+- Read [Database](/docs/guides/typescript-sdk/database) docs for data operations
+- Check out [Advanced Features](/docs/sdk/advanced-features) for schema design patterns

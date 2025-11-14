@@ -610,7 +610,7 @@ try {
 ## Related Documentation
 
 - [Authentication Guide](/docs/guides/authentication)
-- [Database Queries](/docs/guides/database)
+- [Database Queries](/docs/guides/typescript-sdk/database)
 - [Realtime](/docs/guides/realtime)
 - [Storage](/docs/guides/storage)
 - [Row-Level Security](/docs/guides/row-level-security)

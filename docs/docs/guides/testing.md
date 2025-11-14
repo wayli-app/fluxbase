@@ -163,17 +163,17 @@ npm run type-check
 
 **Available Test Files**:
 
-- [src/auth.test.ts](sdk/src/auth.test.ts) - Authentication tests
-- [src/admin.test.ts](sdk/src/admin.test.ts) - Admin SDK tests
-- [src/management.test.ts](sdk/src/management.test.ts) - Management SDK tests
-- [src/query-builder.test.ts](sdk/src/query-builder.test.ts) - Query builder tests
-- [src/realtime.test.ts](sdk/src/realtime.test.ts) - Realtime tests
-- [src/storage.test.ts](sdk/src/storage.test.ts) - Storage tests
-- [src/aggregations.test.ts](sdk/src/aggregations.test.ts) - Aggregation tests
+- `src/auth.test.ts` - Authentication tests
+- `src/admin.test.ts` - Admin SDK tests
+- `src/management.test.ts` - Management SDK tests
+- `src/query-builder.test.ts` - Query builder tests
+- `src/realtime.test.ts` - Realtime tests
+- `src/storage.test.ts` - Storage tests
+- `src/aggregations.test.ts` - Aggregation tests
 
 ### Example SDK Test
 
-**Authentication Test** ([sdk/src/auth.test.ts:1-150](sdk/src/auth.test.ts#L1-L150)):
+**Authentication Test** (from `sdk/src/auth.test.ts`):
 
 ```typescript
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -335,7 +335,7 @@ FLUXBASE_EMAIL_SMTP_HOST=mailhog
 FLUXBASE_STORAGE_S3_ENDPOINT=minio:9000
 ```
 
-**Test Config** ([test/e2e_helpers.go:174-230](test/e2e_helpers.go#L174-L230)):
+**Test Config** (from `test/e2e_helpers.go`):
 
 ```go
 func GetTestConfig() *config.Config {

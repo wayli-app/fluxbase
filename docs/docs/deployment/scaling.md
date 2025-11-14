@@ -42,7 +42,7 @@ resources:
     memory: 16Gi
 ```
 
-### Horizontal Scaling (Scale Out)
+### Horizontal Scaling (Scale Out) {#horizontal-scaling}
 
 **When to use**: Long-term growth, high availability needs
 
@@ -1183,5 +1183,5 @@ kubectl logs <pod> -n fluxbase | grep "connection pool"
 ## Next Steps
 
 - [Production Checklist](production-checklist) - Pre-deployment verification
-- [Monitoring Guide](../guides/monitoring) - Set up observability
-- [Database Optimization](../guides/database-optimization) - Advanced database tuning
+- [Monitoring Guide](../guides/monitoring-observability) - Set up observability
+- [Database Guide](../guides/typescript-sdk/database) - Database operations and best practices

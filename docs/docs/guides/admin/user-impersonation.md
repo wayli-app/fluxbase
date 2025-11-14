@@ -358,4 +358,4 @@ Use all three impersonation modes to thoroughly test:
 
 - [Authentication Guide](/docs/guides/authentication) - Learn about authentication and user roles
 - [API Cookbook](/docs/api-cookbook) - Examples of common API patterns
-- [Advanced Guides](/docs/advanced-guides) - Advanced Fluxbase features
+- [Row-Level Security](/docs/guides/row-level-security) - Advanced RLS features and testing

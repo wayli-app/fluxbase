@@ -14,6 +14,19 @@ function HomepageHeader() {
       <div className="container">
         <h1 className="hero__title">{siteConfig.title}</h1>
         <p className="hero__subtitle">{siteConfig.tagline}</p>
+        <div style={{
+          backgroundColor: 'rgba(255, 193, 7, 0.1)',
+          border: '2px solid #ffc107',
+          borderRadius: '8px',
+          padding: '12px 20px',
+          marginTop: '20px',
+          marginBottom: '20px',
+        }}>
+          <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.5' }}>
+            <strong>⚠️ Pre-Release Software:</strong> Fluxbase is in active development.
+            Expect breaking changes between versions. Use for testing and development purposes.
+          </p>
+        </div>
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"

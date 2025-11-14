@@ -624,5 +624,5 @@ await client.admin.settings.app.update({
 - [DDL SDK](/docs/sdk/ddl) - Database schema operations
 - [OAuth SDK](/docs/sdk/oauth) - Authentication provider configuration
 - [Impersonation SDK](/docs/sdk/impersonation) - User impersonation and debugging
-- [TypeScript SDK Guide](/docs/guides/typescript-sdk) - General SDK usage
+- [TypeScript SDK Guide](/docs/category/sdks) - General SDK usage
 - [API Cookbook](/docs/api-cookbook) - Common API patterns

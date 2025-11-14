@@ -2,99 +2,113 @@
  * Realtime subscription hooks for Fluxbase SDK
  */
 
-import { useEffect, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useFluxbaseClient } from './context'
-import type { RealtimeCallback, RealtimeChangePayload } from '@fluxbase/sdk'
+import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFluxbaseClient } from "./context";
+import type {
+  RealtimeCallback,
+  RealtimePostgresChangesPayload,
+} from "@fluxbase/sdk";
 
 export interface UseRealtimeOptions {
   /**
    * The channel name (e.g., 'table:public.products')
    */
-  channel: string
+  channel: string;
 
   /**
    * Event type to listen for ('INSERT', 'UPDATE', 'DELETE', or '*' for all)
    */
-  event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*'
+  event?: "INSERT" | "UPDATE" | "DELETE" | "*";
 
   /**
    * Callback function when an event is received
    */
-  callback?: RealtimeCallback
+  callback?: RealtimeCallback;
 
   /**
    * Whether to automatically invalidate queries for the table
    * Default: true
    */
-  autoInvalidate?: boolean
+  autoInvalidate?: boolean;
 
   /**
    * Custom query key to invalidate (if autoInvalidate is true)
    * Default: ['fluxbase', 'table', tableName]
    */
-  invalidateKey?: unknown[]
+  invalidateKey?: unknown[];
 
   /**
    * Whether the subscription is enabled
    * Default: true
    */
-  enabled?: boolean
+  enabled?: boolean;
 }
 
 /**
  * Hook to subscribe to realtime changes for a channel
  */
 export function useRealtime(options: UseRealtimeOptions) {
-  const client = useFluxbaseClient()
-  const queryClient = useQueryClient()
-  const channelRef = useRef<ReturnType<typeof client.realtime.channel> | null>(null)
+  const client = useFluxbaseClient();
+  const queryClient = useQueryClient();
+  const channelRef = useRef<ReturnType<typeof client.realtime.channel> | null>(
+    null,
+  );
 
   const {
     channel: channelName,
-    event = '*',
+    event = "*",
     callback,
     autoInvalidate = true,
     invalidateKey,
     enabled = true,
-  } = options
+  } = options;
 
   useEffect(() => {
     if (!enabled) {
-      return
+      return;
     }
 
     // Create channel and subscribe
-    const channel = client.realtime.channel(channelName)
-    channelRef.current = channel
+    const channel = client.realtime.channel(channelName);
+    channelRef.current = channel;
 
-    const handleChange = (payload: RealtimeChangePayload) => {
+    const handleChange = (payload: RealtimePostgresChangesPayload) => {
       // Call user callback
       if (callback) {
-        callback(payload)
+        callback(payload);
       }
 
       // Auto-invalidate queries if enabled
       if (autoInvalidate) {
         // Extract table name from channel (e.g., 'table:public.products' -> 'public.products')
-        const tableName = channelName.replace(/^table:/, '')
+        const tableName = channelName.replace(/^table:/, "");
 
-        const key = invalidateKey || ['fluxbase', 'table', tableName]
-        queryClient.invalidateQueries({ queryKey: key })
+        const key = invalidateKey || ["fluxbase", "table", tableName];
+        queryClient.invalidateQueries({ queryKey: key });
       }
-    }
+    };
 
-    channel.on(event, handleChange).subscribe()
+    channel.on(event, handleChange).subscribe();
 
     return () => {
-      channel.unsubscribe()
-      channelRef.current = null
-    }
-  }, [client, channelName, event, callback, autoInvalidate, invalidateKey, queryClient, enabled])
+      channel.unsubscribe();
+      channelRef.current = null;
+    };
+  }, [
+    client,
+    channelName,
+    event,
+    callback,
+    autoInvalidate,
+    invalidateKey,
+    queryClient,
+    enabled,
+  ]);
 
   return {
     channel: channelRef.current,
-  }
+  };
 }
 
 /**
@@ -104,12 +118,12 @@ export function useRealtime(options: UseRealtimeOptions) {
  */
 export function useTableSubscription(
   table: string,
-  options?: Omit<UseRealtimeOptions, 'channel'>
+  options?: Omit<UseRealtimeOptions, "channel">,
 ) {
   return useRealtime({
     ...options,
     channel: `table:${table}`,
-  })
+  });
 }
 
 /**
@@ -117,15 +131,15 @@ export function useTableSubscription(
  */
 export function useTableInserts(
   table: string,
-  callback: (payload: RealtimeChangePayload) => void,
-  options?: Omit<UseRealtimeOptions, 'channel' | 'event' | 'callback'>
+  callback: (payload: RealtimePostgresChangesPayload) => void,
+  options?: Omit<UseRealtimeOptions, "channel" | "event" | "callback">,
 ) {
   return useRealtime({
     ...options,
     channel: `table:${table}`,
-    event: 'INSERT',
+    event: "INSERT",
     callback,
-  })
+  });
 }
 
 /**
@@ -133,15 +147,15 @@ export function useTableInserts(
  */
 export function useTableUpdates(
   table: string,
-  callback: (payload: RealtimeChangePayload) => void,
-  options?: Omit<UseRealtimeOptions, 'channel' | 'event' | 'callback'>
+  callback: (payload: RealtimePostgresChangesPayload) => void,
+  options?: Omit<UseRealtimeOptions, "channel" | "event" | "callback">,
 ) {
   return useRealtime({
     ...options,
     channel: `table:${table}`,
-    event: 'UPDATE',
+    event: "UPDATE",
     callback,
-  })
+  });
 }
 
 /**
@@ -149,13 +163,13 @@ export function useTableUpdates(
  */
 export function useTableDeletes(
   table: string,
-  callback: (payload: RealtimeChangePayload) => void,
-  options?: Omit<UseRealtimeOptions, 'channel' | 'event' | 'callback'>
+  callback: (payload: RealtimePostgresChangesPayload) => void,
+  options?: Omit<UseRealtimeOptions, "channel" | "event" | "callback">,
 ) {
   return useRealtime({
     ...options,
     channel: `table:${table}`,
-    event: 'DELETE',
+    event: "DELETE",
     callback,
-  })
+  });
 }

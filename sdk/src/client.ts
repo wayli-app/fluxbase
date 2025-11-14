@@ -6,6 +6,7 @@
  * - Authentication and user management
  * - Real-time subscriptions via WebSockets
  * - File storage and management
+ * - Edge functions for serverless compute
  * - PostgreSQL function calls (RPC)
  *
  * @example
@@ -23,6 +24,11 @@
  * // Query database
  * const { data } = await client.from('users').select('*').execute()
  *
+ * // Invoke edge function
+ * const { data, error } = await client.functions.invoke('hello-world', {
+ *   body: { name: 'Alice' }
+ * })
+ *
  * // Subscribe to realtime changes
  * client.realtime.subscribe('users', (payload) => {
  *   console.log('Change:', payload)
@@ -32,14 +38,15 @@
  * @category Client
  */
 
-import { FluxbaseFetch } from './fetch'
-import { FluxbaseAuth } from './auth'
-import { FluxbaseRealtime } from './realtime'
-import { FluxbaseStorage } from './storage'
-import { FluxbaseAdmin } from './admin'
-import { FluxbaseManagement } from './management'
-import { QueryBuilder } from './query-builder'
-import type { FluxbaseClientOptions } from './types'
+import { FluxbaseFetch } from "./fetch";
+import { FluxbaseAuth } from "./auth";
+import { FluxbaseRealtime } from "./realtime";
+import { FluxbaseStorage } from "./storage";
+import { FluxbaseFunctions } from "./functions";
+import { FluxbaseAdmin } from "./admin";
+import { FluxbaseManagement } from "./management";
+import { QueryBuilder } from "./query-builder";
+import type { FluxbaseClientOptions } from "./types";
 
 /**
  * Main Fluxbase client class
@@ -47,22 +54,25 @@ import type { FluxbaseClientOptions } from './types'
  */
 export class FluxbaseClient {
   /** Internal HTTP client for making requests */
-  private fetch: FluxbaseFetch
+  private fetch: FluxbaseFetch;
 
   /** Authentication module for user management */
-  public auth: FluxbaseAuth
+  public auth: FluxbaseAuth;
 
   /** Realtime module for WebSocket subscriptions */
-  public realtime: FluxbaseRealtime
+  public realtime: FluxbaseRealtime;
 
   /** Storage module for file operations */
-  public storage: FluxbaseStorage
+  public storage: FluxbaseStorage;
+
+  /** Functions module for invoking and managing edge functions */
+  public functions: FluxbaseFunctions;
 
   /** Admin module for instance management (requires admin authentication) */
-  public admin: FluxbaseAdmin
+  public admin: FluxbaseAdmin;
 
   /** Management module for API keys, webhooks, and invitations */
-  public management: FluxbaseManagement
+  public management: FluxbaseManagement;
 
   /**
    * Create a new Fluxbase client instance
@@ -74,34 +84,40 @@ export class FluxbaseClient {
       headers: options.headers,
       timeout: options.timeout,
       debug: options.debug,
-    })
+    });
 
     // Initialize auth module
     this.auth = new FluxbaseAuth(
       this.fetch,
       options.auth?.autoRefresh ?? true,
-      options.auth?.persist ?? true
-    )
+      options.auth?.persist ?? true,
+    );
 
     // Set auth token if provided
     if (options.auth?.token) {
-      this.fetch.setAuthToken(options.auth.token)
+      this.fetch.setAuthToken(options.auth.token);
     }
 
     // Initialize realtime module
-    this.realtime = new FluxbaseRealtime(options.url, options.auth?.token || null)
+    this.realtime = new FluxbaseRealtime(
+      options.url,
+      options.auth?.token || null,
+    );
 
     // Initialize storage module
-    this.storage = new FluxbaseStorage(this.fetch)
+    this.storage = new FluxbaseStorage(this.fetch);
+
+    // Initialize functions module
+    this.functions = new FluxbaseFunctions(this.fetch);
 
     // Initialize admin module
-    this.admin = new FluxbaseAdmin(this.fetch)
+    this.admin = new FluxbaseAdmin(this.fetch);
 
     // Initialize management module
-    this.management = new FluxbaseManagement(this.fetch)
+    this.management = new FluxbaseManagement(this.fetch);
 
     // Subscribe to auth changes to update realtime token
-    this.setupAuthSync()
+    this.setupAuthSync();
   }
 
   /**
@@ -129,7 +145,7 @@ export class FluxbaseClient {
    * @category Database
    */
   from<T = any>(table: string): QueryBuilder<T> {
-    return new QueryBuilder<T>(this.fetch, table)
+    return new QueryBuilder<T>(this.fetch, table);
   }
 
   /**
@@ -155,13 +171,16 @@ export class FluxbaseClient {
    */
   async rpc<T = any>(
     functionName: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
   ): Promise<{ data: T | null; error: Error | null }> {
     try {
-      const data = await this.fetch.post<T>(`/api/v1/rpc/${functionName}`, params || {})
-      return { data, error: null }
+      const data = await this.fetch.post<T>(
+        `/api/v1/rpc/${functionName}`,
+        params || {},
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -171,11 +190,11 @@ export class FluxbaseClient {
    */
   private setupAuthSync() {
     // When auth token changes, update realtime
-    const originalSetAuthToken = this.fetch.setAuthToken.bind(this.fetch)
+    const originalSetAuthToken = this.fetch.setAuthToken.bind(this.fetch);
     this.fetch.setAuthToken = (token: string | null) => {
-      originalSetAuthToken(token)
-      this.realtime.setToken(token)
-    }
+      originalSetAuthToken(token);
+      this.realtime.setToken(token);
+    };
   }
 
   /**
@@ -186,7 +205,7 @@ export class FluxbaseClient {
    * @category Authentication
    */
   getAuthToken(): string | null {
-    return this.auth.getAccessToken()
+    return this.auth.getAccessToken();
   }
 
   /**
@@ -199,8 +218,39 @@ export class FluxbaseClient {
    * @category Authentication
    */
   setAuthToken(token: string | null) {
-    this.fetch.setAuthToken(token)
-    this.realtime.setToken(token)
+    this.fetch.setAuthToken(token);
+    this.realtime.setToken(token);
+  }
+
+  /**
+   * Create or get a realtime channel (Supabase-compatible alias)
+   *
+   * This is a convenience method that delegates to client.realtime.channel().
+   * Both patterns work identically:
+   * - client.channel('room-1') - Supabase-style
+   * - client.realtime.channel('room-1') - Fluxbase-style
+   *
+   * @param name - Channel name
+   * @returns RealtimeChannel instance
+   *
+   * @example
+   * ```typescript
+   * // Supabase-compatible usage
+   * const channel = client.channel('room-1')
+   *   .on('postgres_changes', {
+   *     event: '*',
+   *     schema: 'public',
+   *     table: 'messages'
+   *   }, (payload) => {
+   *     console.log('Change:', payload)
+   *   })
+   *   .subscribe()
+   * ```
+   *
+   * @category Realtime
+   */
+  channel(name: string) {
+    return this.realtime.channel(name);
   }
 
   /**
@@ -219,7 +269,7 @@ export class FluxbaseClient {
    * @category Advanced
    */
   get http(): FluxbaseFetch {
-    return this.fetch
+    return this.fetch;
   }
 }
 
@@ -250,5 +300,5 @@ export class FluxbaseClient {
  * @category Client
  */
 export function createClient(options: FluxbaseClientOptions): FluxbaseClient {
-  return new FluxbaseClient(options)
+  return new FluxbaseClient(options);
 }

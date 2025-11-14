@@ -721,7 +721,7 @@ Firebase rate limits are per-function. Fluxbase applies global + endpoint-specif
 
 ## Next Steps
 
-- [Authentication](authentication) - Secure your API endpoints
-- [API Keys](api-keys) - Create API keys for integrations
-- [Monitoring](monitoring) - Set up observability
-- [Security](security) - Additional security measures
+- [Authentication](/docs/guides/authentication) - Secure your API endpoints
+- [SDK Admin Documentation](/docs/api/sdk/classes/APIKeysManager) - Create API keys for integrations
+- [Monitoring](/docs/guides/monitoring-observability) - Set up observability
+- [Security](/docs/security/overview) - Additional security measures
