@@ -80,6 +80,9 @@ func NewService(
 	systemSettingsService := NewSystemSettingsService(db)
 	settingsCache := NewSettingsCache(systemSettingsService, 30*time.Second)
 
+	// Wire up cache to settings service for cache invalidation on updates
+	systemSettingsService.SetCache(settingsCache)
+
 	return &Service{
 		userRepo:              userRepo,
 		sessionRepo:           sessionRepo,
@@ -520,6 +523,11 @@ func (s *Service) IsSignupEnabled() bool {
 	// Use background context for health check endpoint
 	ctx := context.Background()
 	return s.settingsCache.GetBool(ctx, "app.auth.enable_signup", s.config.EnableSignup)
+}
+
+// GetSettingsCache returns the settings cache
+func (s *Service) GetSettingsCache() *SettingsCache {
+	return s.settingsCache
 }
 
 // SetupTOTP generates a new TOTP secret for 2FA setup

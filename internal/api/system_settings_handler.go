@@ -11,12 +11,14 @@ import (
 // SystemSettingsHandler handles system settings operations
 type SystemSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
+	settingsCache   *auth.SettingsCache
 }
 
 // NewSystemSettingsHandler creates a new system settings handler
-func NewSystemSettingsHandler(settingsService *auth.SystemSettingsService) *SystemSettingsHandler {
+func NewSystemSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache) *SystemSettingsHandler {
 	return &SystemSettingsHandler{
 		settingsService: settingsService,
+		settingsCache:   settingsCache,
 	}
 }
 
@@ -93,6 +95,15 @@ func (h *SystemSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid setting key",
 			"code":  "INVALID_SETTING_KEY",
+		})
+	}
+
+	// Check if setting is overridden by environment variable
+	if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"error": "This setting cannot be updated because it is overridden by an environment variable",
+			"code":  "ENV_OVERRIDE",
+			"key":   key,
 		})
 	}
 

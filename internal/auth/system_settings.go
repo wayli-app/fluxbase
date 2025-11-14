@@ -36,12 +36,18 @@ type SetupCompleteValue struct {
 
 // SystemSettingsService handles system-wide settings
 type SystemSettingsService struct {
-	db *database.Connection
+	db    *database.Connection
+	cache *SettingsCache
 }
 
 // NewSystemSettingsService creates a new system settings service
 func NewSystemSettingsService(db *database.Connection) *SystemSettingsService {
 	return &SystemSettingsService{db: db}
+}
+
+// SetCache sets the settings cache for invalidation on updates
+func (s *SystemSettingsService) SetCache(cache *SettingsCache) {
+	s.cache = cache
 }
 
 // IsSetupComplete checks if the initial setup has been completed
@@ -164,7 +170,16 @@ func (s *SystemSettingsService) SetSetting(ctx context.Context, key string, valu
 		    updated_at = NOW()
 	`, key, valueJSON, description)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache for this key
+	if s.cache != nil {
+		s.cache.Invalidate(key)
+	}
+
+	return nil
 }
 
 // DeleteSetting removes a system setting by key
@@ -179,6 +194,11 @@ func (s *SystemSettingsService) DeleteSetting(ctx context.Context, key string) e
 
 	if result.RowsAffected() == 0 {
 		return ErrSettingNotFound
+	}
+
+	// Invalidate cache for this key
+	if s.cache != nil {
+		s.cache.Invalidate(key)
 	}
 
 	return nil

@@ -36,10 +36,20 @@ else
     TEST_TYPE="Integration"
 fi
 
-# Print header
+# Print header with proper padding
+# Box width is 59 characters (61 including ║)
+# Calculate padding to center the text
+TEXT="🧪 Running $TEST_TYPE Test Suite"
+TEXT_LENGTH=${#TEXT}
+# Account for emoji taking 2 display columns but 4 bytes
+DISPLAY_LENGTH=$((TEXT_LENGTH - 2))
+PADDING=$(( (59 - DISPLAY_LENGTH) / 2 ))
+LEFT_PAD=$(printf '%*s' $PADDING '')
+RIGHT_PAD=$(printf '%*s' $((59 - DISPLAY_LENGTH - PADDING)) '')
+
 echo ""
 echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║         🧪 Running $TEST_TYPE Test Suite                    ║${NC}"
+echo -e "${BOLD}${CYAN}║${LEFT_PAD}${TEXT}${RIGHT_PAD}║${NC}"
 echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

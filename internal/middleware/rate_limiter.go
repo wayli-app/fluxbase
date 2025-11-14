@@ -55,7 +55,7 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 // AuthLoginLimiter limits login attempts per IP
 func AuthLoginLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        5,
+		Max:        10,
 		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "login:" + c.IP()
@@ -67,24 +67,24 @@ func AuthLoginLimiter() fiber.Handler {
 // AuthSignupLimiter limits signup attempts per IP
 func AuthSignupLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        3,
-		Expiration: 1 * time.Hour,
+		Max:        10,
+		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "signup:" + c.IP()
 		},
-		Message: "Too many signup attempts. Please try again in 1 hour.",
+		Message: "Too many signup attempts. Please try again in 15 minutes.",
 	})
 }
 
 // AuthPasswordResetLimiter limits password reset requests per IP
 func AuthPasswordResetLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        3,
-		Expiration: 1 * time.Hour,
+		Max:        5,
+		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "password_reset:" + c.IP()
 		},
-		Message: "Too many password reset requests. Please try again in 1 hour.",
+		Message: "Too many password reset requests. Please try again in 15 minutes.",
 	})
 }
 
@@ -111,12 +111,12 @@ func AuthRefreshLimiter() fiber.Handler {
 // AuthMagicLinkLimiter limits magic link requests per IP
 func AuthMagicLinkLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        3,
-		Expiration: 1 * time.Hour,
+		Max:        5,
+		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "magiclink:" + c.IP()
 		},
-		Message: "Too many magic link requests. Please try again in 1 hour.",
+		Message: "Too many magic link requests. Please try again in 15 minutes.",
 	})
 }
 

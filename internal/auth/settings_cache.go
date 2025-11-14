@@ -4,9 +4,12 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 // SettingsCache provides a simple in-memory cache for settings with TTL
+// It supports environment variable overrides that take precedence over database values
 type SettingsCache struct {
 	mu      sync.RWMutex
 	cache   map[string]cacheEntry
@@ -29,7 +32,17 @@ func NewSettingsCache(service *SystemSettingsService, ttl time.Duration) *Settin
 }
 
 // GetBool retrieves a boolean setting with caching
+// Priority: Environment variables > Cache > Database > Default value
 func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bool) bool {
+	// Convert app.* key format to viper config format (e.g., app.auth.enable_signup -> auth.enable_signup)
+	viperKey := c.toViperKey(key)
+
+	// Check if environment variable override exists
+	if viper.IsSet(viperKey) {
+		return viper.GetBool(viperKey)
+	}
+
+	// Check cache
 	c.mu.RLock()
 	if entry, exists := c.cache[key]; exists && time.Now().Before(entry.expiration) {
 		c.mu.RUnlock()
@@ -66,7 +79,17 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 }
 
 // GetInt retrieves an integer setting with caching
+// Priority: Environment variables > Cache > Database > Default value
 func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int) int {
+	// Convert app.* key format to viper config format
+	viperKey := c.toViperKey(key)
+
+	// Check if environment variable override exists
+	if viper.IsSet(viperKey) {
+		return viper.GetInt(viperKey)
+	}
+
+	// Check cache
 	c.mu.RLock()
 	if entry, exists := c.cache[key]; exists && time.Now().Before(entry.expiration) {
 		c.mu.RUnlock()
@@ -103,6 +126,22 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 	c.mu.Unlock()
 
 	return intValue
+}
+
+// toViperKey converts app.* key format to viper config format
+// e.g., "app.auth.enable_signup" -> "auth.enable_signup"
+// e.g., "app.features.enable_realtime" -> "features.enable_realtime"
+func (c *SettingsCache) toViperKey(key string) string {
+	if len(key) > 4 && key[:4] == "app." {
+		return key[4:] // Remove "app." prefix
+	}
+	return key
+}
+
+// IsOverriddenByEnv checks if a setting is overridden by an environment variable
+func (c *SettingsCache) IsOverriddenByEnv(key string) bool {
+	viperKey := c.toViperKey(key)
+	return viper.IsSet(viperKey)
 }
 
 // Invalidate removes a key from the cache

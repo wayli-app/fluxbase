@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
@@ -11,12 +12,14 @@ import (
 // AppSettingsHandler handles application settings operations
 type AppSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
+	settingsCache   *auth.SettingsCache
 }
 
 // NewAppSettingsHandler creates a new app settings handler
-func NewAppSettingsHandler(settingsService *auth.SystemSettingsService) *AppSettingsHandler {
+func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache) *AppSettingsHandler {
 	return &AppSettingsHandler{
 		settingsService: settingsService,
+		settingsCache:   settingsCache,
 	}
 }
 
@@ -26,6 +29,15 @@ type AppSettings struct {
 	Features       FeatureSettings        `json:"features"`
 	Email          EmailSettings          `json:"email"`
 	Security       SecuritySettings       `json:"security"`
+	Overrides      SettingOverrides       `json:"overrides,omitempty"` // Indicates which settings are overridden by environment variables
+}
+
+// SettingOverrides indicates which settings are overridden by environment variables
+type SettingOverrides struct {
+	Authentication map[string]bool `json:"authentication,omitempty"`
+	Features       map[string]bool `json:"features,omitempty"`
+	Email          map[string]bool `json:"email,omitempty"`
+	Security       map[string]bool `json:"security,omitempty"`
 }
 
 // AuthenticationSettings contains authentication-related settings
@@ -208,6 +220,12 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 			Provider: "smtp",
 		},
 		Security: SecuritySettings{},
+		Overrides: SettingOverrides{
+			Authentication: make(map[string]bool),
+			Features:       make(map[string]bool),
+			Email:          make(map[string]bool),
+			Security:       make(map[string]bool),
+		},
 	}
 
 	for _, setting := range settings {
@@ -262,6 +280,47 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 		}
 	}
 
+	// Check for environment variable overrides
+	if h.settingsCache != nil {
+		// Authentication overrides
+		if h.settingsCache.IsOverriddenByEnv("app.auth.enable_signup") {
+			appSettings.Overrides.Authentication["enable_signup"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.auth.enable_magic_link") {
+			appSettings.Overrides.Authentication["enable_magic_link"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.auth.password_min_length") {
+			appSettings.Overrides.Authentication["password_min_length"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.auth.require_email_verification") {
+			appSettings.Overrides.Authentication["require_email_verification"] = true
+		}
+
+		// Features overrides
+		if h.settingsCache.IsOverriddenByEnv("app.features.enable_realtime") {
+			appSettings.Overrides.Features["enable_realtime"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.features.enable_storage") {
+			appSettings.Overrides.Features["enable_storage"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.features.enable_functions") {
+			appSettings.Overrides.Features["enable_functions"] = true
+		}
+
+		// Email overrides
+		if h.settingsCache.IsOverriddenByEnv("app.email.enabled") {
+			appSettings.Overrides.Email["enabled"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.provider") {
+			appSettings.Overrides.Email["provider"] = true
+		}
+
+		// Security overrides
+		if h.settingsCache.IsOverriddenByEnv("app.security.enable_global_rate_limit") {
+			appSettings.Overrides.Security["enable_global_rate_limit"] = true
+		}
+	}
+
 	return appSettings
 }
 
@@ -275,6 +334,12 @@ func (h *AppSettingsHandler) updateAuthSettings(ctx context.Context, auth *Authe
 	}
 
 	for key, value := range settingsMap {
+		// Check if setting is overridden by environment variable
+		if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
+			return fiber.NewError(fiber.StatusConflict,
+				fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", key))
+		}
+
 		if err := h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": value}, ""); err != nil {
 			return err
 		}
@@ -291,6 +356,12 @@ func (h *AppSettingsHandler) updateFeatureSettings(ctx context.Context, features
 	}
 
 	for key, value := range settingsMap {
+		// Check if setting is overridden by environment variable
+		if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
+			return fiber.NewError(fiber.StatusConflict,
+				fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", key))
+		}
+
 		if err := h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": value}, ""); err != nil {
 			return err
 		}
@@ -306,6 +377,12 @@ func (h *AppSettingsHandler) updateEmailSettings(ctx context.Context, email *Ema
 	}
 
 	for key, value := range settingsMap {
+		// Check if setting is overridden by environment variable
+		if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
+			return fiber.NewError(fiber.StatusConflict,
+				fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", key))
+		}
+
 		if err := h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": value}, ""); err != nil {
 			return err
 		}
@@ -315,9 +392,17 @@ func (h *AppSettingsHandler) updateEmailSettings(ctx context.Context, email *Ema
 }
 
 func (h *AppSettingsHandler) updateSecuritySettings(ctx context.Context, security *SecuritySettings) error {
+	key := "app.security.enable_global_rate_limit"
+
+	// Check if setting is overridden by environment variable
+	if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
+		return fiber.NewError(fiber.StatusConflict,
+			fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", key))
+	}
+
 	return h.settingsService.SetSetting(
 		ctx,
-		"app.security.enable_global_rate_limit",
+		key,
 		map[string]interface{}{"value": security.EnableGlobalRateLimit},
 		"",
 	)

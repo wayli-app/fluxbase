@@ -258,7 +258,7 @@ func setDefaults() {
 	viper.SetDefault("auth.password_reset_expiry", "1h")
 	viper.SetDefault("auth.password_min_length", 8)
 	viper.SetDefault("auth.bcrypt_cost", 10)
-	viper.SetDefault("auth.enable_signup", false) // Default to disabled for security
+	viper.SetDefault("auth.enable_signup", true) // Default to enabled to allow user registration
 	viper.SetDefault("auth.enable_magic_link", true)
 	viper.SetDefault("auth.enable_rls", true) // Row Level Security enabled by default
 

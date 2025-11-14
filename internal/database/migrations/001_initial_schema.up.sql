@@ -1982,7 +1982,7 @@ COMMENT ON TABLE realtime.schema_registry IS 'Realtime schema registry. No RLS -
 
 -- Initialize authentication settings
 INSERT INTO dashboard.system_settings (key, value, description) VALUES
-    ('app.auth.enable_signup', '{"value": false}', 'Enable user signup'),
+    ('app.auth.enable_signup', '{"value": true}', 'Enable user signup'),
     ('app.auth.enable_magic_link', '{"value": true}', 'Enable magic link authentication'),
     ('app.auth.password_min_length', '{"value": 8}', 'Minimum password length'),
     ('app.auth.require_email_verification', '{"value": false}', 'Require email verification')
