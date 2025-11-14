@@ -163,8 +163,10 @@ func TestAdminSetupRateLimit(t *testing.T) {
 	for i := 1; i <= 6; i++ {
 		resp := tc.NewRequest("POST", "/api/v1/admin/setup").
 			WithBody(map[string]interface{}{
-				"email":    fmt.Sprintf("admin%d@example.com", i),
-				"password": "securepassword123",
+				"email":       fmt.Sprintf("admin%d@example.com", i),
+				"password":    "securepassword123",
+				"name":        "Admin User",
+				"setup_token": tc.Config.Security.SetupToken,
 			}).Send()
 
 		// First 5 attempts should either succeed or fail with setup already complete or validation error

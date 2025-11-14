@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
@@ -47,13 +48,22 @@ import {
 } from '@/components/ui/select'
 import { webhooksApi, databaseApi, type WebhookDelivery, type WebhookType, type EventConfig } from '@/lib/api'
 
+const webhooksSearchSchema = z.object({
+  tab: z.string().optional().catch('webhooks'),
+})
+
 export const Route = createFileRoute('/_authenticated/webhooks/')({
+  validateSearch: webhooksSearchSchema,
   component: WebhooksPage,
 })
+
+const route = getRouteApi('/_authenticated/webhooks/')
 
 const OPERATIONS = ['INSERT', 'UPDATE', 'DELETE']
 
 function WebhooksPage() {
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
   const queryClient = useQueryClient()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookType | null>(null)
@@ -267,7 +277,7 @@ function WebhooksPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue='webhooks' className='space-y-4'>
+      <Tabs value={search.tab || 'webhooks'} onValueChange={(tab) => navigate({ search: { tab } })} className='space-y-4'>
         <TabsList>
           <TabsTrigger value='webhooks'>Webhooks</TabsTrigger>
           <TabsTrigger value='deliveries' disabled={!selectedWebhook}>

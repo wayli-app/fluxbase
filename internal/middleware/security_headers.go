@@ -99,11 +99,12 @@ func SecurityHeaders(config ...SecurityHeadersConfig) fiber.Handler {
 func AdminUISecurityHeaders() fiber.Handler {
 	cfg := SecurityHeadersConfig{
 		ContentSecurityPolicy: "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
 			"img-src 'self' data: blob: https:; " +
 			"font-src 'self' data: https://fonts.gstatic.com; " +
 			"connect-src 'self' ws: wss: http: https:; " +
+			"worker-src 'self' blob:; " +
 			"frame-ancestors 'none'",
 		XFrameOptions:       "DENY",
 		XContentTypeOptions: "nosniff",

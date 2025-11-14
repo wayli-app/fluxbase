@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,11 +8,20 @@ import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCir
 import { useState } from 'react'
 import { monitoringApi, type SystemMetrics, type SystemHealth } from '@/lib/api'
 
+const monitoringSearchSchema = z.object({
+  tab: z.string().optional().catch('overview'),
+})
+
 export const Route = createFileRoute('/_authenticated/monitoring/')({
+  validateSearch: monitoringSearchSchema,
   component: MonitoringPage,
 })
 
+const route = getRouteApi('/_authenticated/monitoring/')
+
 function MonitoringPage() {
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
   const [autoRefresh, setAutoRefresh] = useState(true)
 
   // Fetch metrics
@@ -138,7 +148,7 @@ function MonitoringPage() {
       </div>
 
       {/* Detailed Metrics Tabs */}
-      <Tabs defaultValue='overview' className='w-full'>
+      <Tabs value={search.tab || 'overview'} onValueChange={(tab) => navigate({ search: { tab } })} className='w-full'>
         <TabsList>
           <TabsTrigger value='overview'>Overview</TabsTrigger>
           <TabsTrigger value='database'>Database</TabsTrigger>

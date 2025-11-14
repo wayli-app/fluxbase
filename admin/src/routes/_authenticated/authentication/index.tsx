@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,9 +30,16 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import api, { oauthProviderApi, authSettingsApi, type OAuthProviderConfig, type CreateOAuthProviderRequest, type UpdateOAuthProviderRequest, type AuthSettings } from '@/lib/api'
 
+const authenticationSearchSchema = z.object({
+  tab: z.string().optional().catch('providers'),
+})
+
 export const Route = createFileRoute('/_authenticated/authentication/')({
+  validateSearch: authenticationSearchSchema,
   component: AuthenticationPage,
 })
+
+const route = getRouteApi('/_authenticated/authentication/')
 
 interface Session {
   id: string
@@ -47,7 +55,8 @@ interface Session {
 }
 
 function AuthenticationPage() {
-  const [selectedTab, setSelectedTab] = useState('providers')
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -61,7 +70,7 @@ function AuthenticationPage() {
         </p>
       </div>
 
-          <Tabs value={selectedTab} onValueChange={setSelectedTab} className='w-full'>
+          <Tabs value={search.tab || 'providers'} onValueChange={(tab) => navigate({ search: { tab } })} className='w-full'>
             <TabsList className='grid w-full grid-cols-3'>
               <TabsTrigger value='providers'>
                 <Key className='mr-2 h-4 w-4' />

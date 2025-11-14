@@ -347,6 +347,7 @@ export interface AdminSetupRequest {
   email: string
   password: string
   name: string
+  setup_token: string
 }
 
 export interface AdminUser {

@@ -18,12 +18,14 @@ var (
 
 // SystemSetting represents a system-wide configuration setting
 type SystemSetting struct {
-	ID          uuid.UUID              `json:"id"`
-	Key         string                 `json:"key"`
-	Value       map[string]interface{} `json:"value"`
-	Description string                 `json:"description,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID             uuid.UUID              `json:"id"`
+	Key            string                 `json:"key"`
+	Value          map[string]interface{} `json:"value"`
+	Description    string                 `json:"description,omitempty"`
+	IsOverridden   bool                   `json:"is_overridden"`
+	OverrideSource string                 `json:"override_source,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
 // SetupCompleteValue represents the value stored for setup_completed setting

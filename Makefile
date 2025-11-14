@@ -55,8 +55,12 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 	@echo ""
 	@echo "${YELLOW}Press Ctrl+C to stop both servers${NC}"
 	@echo ""
-	@./run-server.sh & \
-	cd admin && npm run dev
+	@trap 'kill 0' EXIT; \
+	./run-server.sh & \
+	SERVER_PID=$$!; \
+	cd admin && npm run dev & \
+	NPM_PID=$$!; \
+	wait
 
 version: ## Show version information
 	@echo "${GREEN}Version:${NC}    $(VERSION)"

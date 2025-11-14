@@ -90,6 +90,7 @@ image:
 ## @param config.server.host HTTP server host
 ## @param config.jwt.secret JWT secret key (use existingSecret instead)
 ## @param config.jwt.expirationMinutes JWT access token expiration in minutes
+## @param config.security.setupToken Admin setup token - REQUIRED to enable dashboard (use existingSecret instead for production)
 ## @param config.storage.provider Storage provider (local or s3)
 ## @param config.storage.local.basePath Base path for local storage
 ## @param config.storage.s3.bucket S3 bucket name
@@ -114,6 +115,11 @@ config:
   jwt:
     secret: "" # Use existingSecret instead
     expirationMinutes: 60
+  security:
+    # REQUIRED: Admin setup token - enables admin dashboard
+    # If not set, admin dashboard will be disabled
+    # Generate with: openssl rand -base64 32
+    setupToken: "" # Use existingSecret instead
   storage:
     provider: local
     local:
@@ -127,8 +133,9 @@ config:
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
 ## The secret should contain the following keys:
-## - database-password: PostgreSQL database password
+## - database-password: PostgreSQL database password (if using external database)
 ## - jwt-secret: JWT secret key
+## - setup-token: Admin setup token (REQUIRED to enable dashboard)
 ## - s3-access-key-id: S3 access key ID (if using S3 storage)
 ## - s3-secret-access-key: S3 secret access key (if using S3 storage)
 ## - service-key: Service role key for backend services (optional, highly sensitive)

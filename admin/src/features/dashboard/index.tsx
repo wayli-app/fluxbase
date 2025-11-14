@@ -12,8 +12,13 @@ import { Main } from '@/components/layout/main'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { FluxbaseStats } from './components/fluxbase-stats'
+import { getRouteApi } from '@tanstack/react-router'
+
+const route = getRouteApi('/_authenticated/')
 
 export function Dashboard() {
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
   return (
     <>
       {/* ===== Top Heading ===== */}
@@ -37,7 +42,8 @@ export function Dashboard() {
         </div>
         <Tabs
           orientation='vertical'
-          defaultValue='overview'
+          value={search.tab || 'overview'}
+          onValueChange={(tab) => navigate({ search: { tab } })}
           className='space-y-4'
         >
           <div className='w-full overflow-x-auto pb-2'>

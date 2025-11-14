@@ -144,6 +144,28 @@ func (c *SettingsCache) IsOverriddenByEnv(key string) bool {
 	return viper.IsSet(viperKey)
 }
 
+// GetEnvVarName returns the environment variable name for a given setting key
+// e.g., "app.auth.enable_signup" -> "FLUXBASE_AUTH_ENABLE_SIGNUP"
+func (c *SettingsCache) GetEnvVarName(key string) string {
+	viperKey := c.toViperKey(key)
+	// Convert to uppercase and replace dots with underscores
+	envVar := "FLUXBASE_"
+	for _, char := range viperKey {
+		if char == '.' {
+			envVar += "_"
+		} else if char >= 'a' && char <= 'z' {
+			envVar += string(char - 32) // Convert to uppercase
+		} else if char >= 'A' && char <= 'Z' {
+			envVar += string(char)
+		} else if char >= '0' && char <= '9' {
+			envVar += string(char)
+		} else {
+			envVar += "_"
+		}
+	}
+	return envVar
+}
+
 // Invalidate removes a key from the cache
 func (c *SettingsCache) Invalidate(key string) {
 	c.mu.Lock()

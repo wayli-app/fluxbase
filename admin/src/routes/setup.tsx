@@ -23,11 +23,16 @@ function SetupPage() {
     email: '',
     password: '',
     confirmPassword: '',
+    setupToken: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
+
+    if (!formData.setupToken.trim()) {
+      newErrors.setupToken = 'Setup token is required'
+    }
 
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required'
@@ -67,6 +72,7 @@ function SetupPage() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
+        setup_token: formData.setupToken,
       })
 
       // Store tokens
@@ -124,6 +130,23 @@ function SetupPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='setupToken'>Setup Token</Label>
+                <PasswordInput
+                  id='setupToken'
+                  placeholder='Enter your setup token from deployment config'
+                  value={formData.setupToken}
+                  onChange={(e) => setFormData({ ...formData, setupToken: e.target.value })}
+                  disabled={isLoading}
+                />
+                {errors.setupToken && (
+                  <p className='text-sm text-destructive'>{errors.setupToken}</p>
+                )}
+                <p className='text-xs text-muted-foreground'>
+                  This is the FLUXBASE_SECURITY_SETUP_TOKEN value from your deployment configuration.
+                </p>
+              </div>
+
               <div className='space-y-2'>
                 <Label htmlFor='name'>Full Name</Label>
                 <Input

@@ -35,6 +35,16 @@ func (h *SystemSettingsHandler) ListSettings(c *fiber.Ctx) error {
 		})
 	}
 
+	// Populate override information for each setting
+	if h.settingsCache != nil {
+		for i := range settings {
+			settings[i].IsOverridden = h.settingsCache.IsOverriddenByEnv(settings[i].Key)
+			if settings[i].IsOverridden {
+				settings[i].OverrideSource = h.settingsCache.GetEnvVarName(settings[i].Key)
+			}
+		}
+	}
+
 	return c.JSON(settings)
 }
 
@@ -61,6 +71,14 @@ func (h *SystemSettingsHandler) GetSetting(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve setting",
 		})
+	}
+
+	// Populate override information
+	if h.settingsCache != nil {
+		setting.IsOverridden = h.settingsCache.IsOverriddenByEnv(key)
+		if setting.IsOverridden {
+			setting.OverrideSource = h.settingsCache.GetEnvVarName(key)
+		}
 	}
 
 	return c.JSON(setting)

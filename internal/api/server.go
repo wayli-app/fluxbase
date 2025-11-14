@@ -113,7 +113,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), dashboardJWTManager)
 	systemSettingsService := auth.NewSystemSettingsService(db)
-	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService)
+	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService, db)
@@ -122,7 +122,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	invitationService := auth.NewInvitationService(db)
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService)
 	ddlHandler := NewDDLHandler(db)
-	oauthProviderHandler := NewOAuthProviderHandler(db.Pool())
+	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
@@ -335,17 +335,21 @@ func (s *Server) setupRoutes() {
 		s.handleRealtimeBroadcast,
 	)
 
-	// Admin routes (optional)
-	admin := v1.Group("/admin")
-	s.setupAdminRoutes(admin)
+	// Admin routes and UI (only enabled if setup token is configured)
+	if s.config.Security.SetupToken != "" {
+		admin := v1.Group("/admin")
+		s.setupAdminRoutes(admin)
 
-	// Public invitation routes (no auth required)
-	invitations := v1.Group("/invitations")
-	s.setupPublicInvitationRoutes(invitations)
+		// Public invitation routes (no auth required)
+		invitations := v1.Group("/invitations")
+		s.setupPublicInvitationRoutes(invitations)
 
-	// Admin UI (embedded React app)
-	adminUI := adminui.New()
-	adminUI.RegisterRoutes(s.app)
+		// Admin UI (embedded React app)
+		adminUI := adminui.New()
+		adminUI.RegisterRoutes(s.app)
+	} else {
+		log.Warn().Msg("Admin dashboard is disabled. Set FLUXBASE_SECURITY_SETUP_TOKEN to enable admin functionality.")
+	}
 
 	// OpenAPI specification
 	openAPIHandler := NewOpenAPIHandler(s.db)
@@ -373,14 +377,12 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 		return
 	}
 
-	// Register tables from all schemas (excluding system and sensitive schemas)
+	// Register tables from all schemas (excluding system schemas only)
 	for _, schema := range schemas {
-		// Skip system schemas and sensitive schemas (dashboard, auth, _fluxbase)
-		// Sensitive schemas contain user credentials and should not be exposed via REST API
-		// They are only accessible through protected admin endpoints
-		// _fluxbase is an internal schema for migration tracking
+		// Skip system schemas and internal migration tracking schema
+		// Note: auth and dashboard schemas are included and protected by RLS/authentication
 		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" ||
-			schema == "dashboard" || schema == "auth" || schema == "_fluxbase" {
+			schema == "_fluxbase" {
 			continue
 		}
 

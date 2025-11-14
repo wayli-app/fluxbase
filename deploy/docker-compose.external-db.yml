@@ -59,6 +59,9 @@ services:
       FLUXBASE_AUTH_REFRESH_EXPIRY: 168h
       FLUXBASE_AUTH_ENABLE_SIGNUP: ${ENABLE_SIGNUP:-true}
 
+      # Security - Admin Setup Token (REQUIRED)
+      FLUXBASE_SECURITY_SETUP_TOKEN: ${SETUP_TOKEN:?SETUP_TOKEN is required}
+
       # Storage - Local (can be changed to S3)
       FLUXBASE_STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage

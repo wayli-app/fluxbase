@@ -115,19 +115,8 @@ func (h *RESTHandler) RegisterViewRoutes(router fiber.Router, view database.Tabl
 // BuildTablePath builds the REST API path for a table (relative to router group)
 // Used for registering routes on the /api/v1/tables router group
 func (h *RESTHandler) BuildTablePath(table database.TableInfo) string {
-	// Simple pluralization
+	// Use table name as-is without pluralization
 	tableName := table.Name
-	if !strings.HasSuffix(tableName, "s") {
-		if strings.HasSuffix(tableName, "y") {
-			tableName = strings.TrimSuffix(tableName, "y") + "ies"
-		} else if strings.HasSuffix(tableName, "x") ||
-			strings.HasSuffix(tableName, "ch") ||
-			strings.HasSuffix(tableName, "sh") {
-			tableName += "es"
-		} else {
-			tableName += "s"
-		}
-	}
 
 	// Paths are relative to the router group
 	if table.Schema != "public" {

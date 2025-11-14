@@ -11,16 +11,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // OAuthProviderHandler handles OAuth provider configuration management
 type OAuthProviderHandler struct {
-	db *pgxpool.Pool
+	db            *pgxpool.Pool
+	settingsCache *auth.SettingsCache
 }
 
 // NewOAuthProviderHandler creates a new OAuth provider handler
-func NewOAuthProviderHandler(db *pgxpool.Pool) *OAuthProviderHandler {
-	return &OAuthProviderHandler{db: db}
+func NewOAuthProviderHandler(db *pgxpool.Pool, settingsCache *auth.SettingsCache) *OAuthProviderHandler {
+	return &OAuthProviderHandler{
+		db:            db,
+		settingsCache: settingsCache,
+	}
 }
 
 // OAuthProvider represents an OAuth provider configuration
@@ -71,16 +76,23 @@ type UpdateOAuthProviderRequest struct {
 
 // Auth settings types
 type AuthSettings struct {
-	EnableSignup             bool `json:"enable_signup"`
-	RequireEmailVerification bool `json:"require_email_verification"`
-	EnableMagicLink          bool `json:"enable_magic_link"`
-	PasswordMinLength        int  `json:"password_min_length"`
-	PasswordRequireUppercase bool `json:"password_require_uppercase"`
-	PasswordRequireLowercase bool `json:"password_require_lowercase"`
-	PasswordRequireNumber    bool `json:"password_require_number"`
-	PasswordRequireSpecial   bool `json:"password_require_special"`
-	SessionTimeoutMinutes    int  `json:"session_timeout_minutes"`
-	MaxSessionsPerUser       int  `json:"max_sessions_per_user"`
+	EnableSignup             bool                       `json:"enable_signup"`
+	RequireEmailVerification bool                       `json:"require_email_verification"`
+	EnableMagicLink          bool                       `json:"enable_magic_link"`
+	PasswordMinLength        int                        `json:"password_min_length"`
+	PasswordRequireUppercase bool                       `json:"password_require_uppercase"`
+	PasswordRequireLowercase bool                       `json:"password_require_lowercase"`
+	PasswordRequireNumber    bool                       `json:"password_require_number"`
+	PasswordRequireSpecial   bool                       `json:"password_require_special"`
+	SessionTimeoutMinutes    int                        `json:"session_timeout_minutes"`
+	MaxSessionsPerUser       int                        `json:"max_sessions_per_user"`
+	Overrides                map[string]SettingOverride `json:"_overrides,omitempty"`
+}
+
+// SettingOverride contains override information for a specific setting
+type SettingOverride struct {
+	IsOverridden bool   `json:"is_overridden"`
+	EnvVar       string `json:"env_var"`
 }
 
 var providerNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,49}$`)
@@ -411,6 +423,7 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 		PasswordMinLength:     8,
 		SessionTimeoutMinutes: 60,
 		MaxSessionsPerUser:    5,
+		Overrides:             make(map[string]SettingOverride),
 	}
 
 	for rows.Next() {
@@ -465,6 +478,25 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 		}
 	}
 
+	// Populate override information for settings that can be overridden
+	if h.settingsCache != nil {
+		settingsMap := map[string]string{
+			"enable_signup":              "app.auth.enable_signup",
+			"enable_magic_link":          "app.auth.enable_magic_link",
+			"password_min_length":        "app.auth.password_min_length",
+			"require_email_verification": "app.auth.require_email_verification",
+		}
+
+		for fieldName, settingKey := range settingsMap {
+			if h.settingsCache.IsOverriddenByEnv(settingKey) {
+				settings.Overrides[fieldName] = SettingOverride{
+					IsOverridden: true,
+					EnvVar:       h.settingsCache.GetEnvVarName(settingKey),
+				}
+			}
+		}
+	}
+
 	return c.JSON(settings)
 }
 
@@ -479,11 +511,32 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update each setting
-	updateQuery := `
-		UPDATE dashboard.auth_settings
-		SET value = $1, updated_at = NOW()
-		WHERE key = $2
+	// Check for environment variable overrides before updating
+	if h.settingsCache != nil {
+		settingsKeyMap := map[string]string{
+			"enable_signup":              "app.auth.enable_signup",
+			"enable_magic_link":          "app.auth.enable_magic_link",
+			"password_min_length":        "app.auth.password_min_length",
+			"require_email_verification": "app.auth.require_email_verification",
+		}
+
+		for fieldName, settingKey := range settingsKeyMap {
+			if h.settingsCache.IsOverriddenByEnv(settingKey) {
+				return c.Status(409).JSON(fiber.Map{
+					"error": fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", fieldName),
+					"code":  "ENV_OVERRIDE",
+					"field": fieldName,
+				})
+			}
+		}
+	}
+
+	// Upsert each setting (insert or update if exists)
+	upsertQuery := `
+		INSERT INTO dashboard.auth_settings (key, value, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (key) DO UPDATE
+		SET value = EXCLUDED.value, updated_at = NOW()
 	`
 
 	updates := map[string]interface{}{
@@ -500,9 +553,9 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 	}
 
 	for key, value := range updates {
-		_, err := h.db.Exec(ctx, updateQuery, value, key)
+		_, err := h.db.Exec(ctx, upsertQuery, key, value)
 		if err != nil {
-			log.Error().Err(err).Str("setting", key).Msg("Failed to update auth setting")
+			log.Error().Err(err).Str("setting", key).Msg("Failed to upsert auth setting")
 			return c.Status(500).JSON(fiber.Map{
 				"error": fmt.Sprintf("Failed to update setting: %s", key),
 			})

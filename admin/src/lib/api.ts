@@ -197,6 +197,28 @@ export const authApi = {
     const response = await api.patch<User>('/api/v1/auth/user', data)
     return response.data
   },
+
+  requestPasswordReset: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/api/v1/auth/password/reset', { email })
+    return response.data
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/api/v1/auth/password/reset/confirm', {
+      token,
+      new_password: newPassword,
+    })
+    return response.data
+  },
+
+  verifyResetToken: async (token: string): Promise<{ valid: boolean; message?: string }> => {
+    try {
+      const response = await api.post<{ message: string }>('/api/v1/auth/password/reset/verify', { token })
+      return { valid: true, message: response.data.message }
+    } catch {
+      return { valid: false, message: 'Invalid or expired token' }
+    }
+  },
 }
 
 // Database API methods
@@ -270,7 +292,7 @@ export const databaseApi = {
       filter?: Record<string, unknown>
     }
   ): Promise<T[]> => {
-    const response = await api.get<T[]>(`/api/rest/${table}`, { params })
+    const response = await api.get<T[]>(`/api/v1/tables/${table}`, { params })
     return response.data
   },
 
@@ -278,7 +300,7 @@ export const databaseApi = {
     table: string,
     data: Record<string, unknown>
   ): Promise<T> => {
-    const response = await api.post<T>(`/api/rest/${table}`, data)
+    const response = await api.post<T>(`/api/v1/tables/${table}`, data)
     return response.data
   },
 
@@ -287,12 +309,12 @@ export const databaseApi = {
     id: string | number,
     data: Record<string, unknown>
   ): Promise<T> => {
-    const response = await api.patch<T>(`/api/rest/${table}/${id}`, data)
+    const response = await api.patch<T>(`/api/v1/tables/${table}/${id}`, data)
     return response.data
   },
 
   deleteRecord: async (table: string, id: string | number): Promise<void> => {
-    await api.delete(`/api/rest/${table}/${id}`)
+    await api.delete(`/api/v1/tables/${table}/${id}`)
   },
 
   getTableSchema: async (
@@ -549,16 +571,29 @@ export const rpcApi = {
 
 // Storage API Types
 export interface StorageObject {
-  key: string
+  id: string
+  bucket: string
+  path: string
+  mime_type: string
   size: number
-  last_modified: string
-  content_type?: string
-  etag?: string
-  metadata?: Record<string, string>
+  metadata: Record<string, unknown> | null
+  owner_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Bucket {
+  id: string
+  name: string
+  public: boolean
+  allowed_mime_types: string[] | null
+  max_file_size: number | null
+  created_at: string
+  updated_at: string
 }
 
 export interface BucketListResponse {
-  buckets: string[]
+  buckets: Bucket[]
 }
 
 export interface ObjectListResponse {
@@ -850,6 +885,7 @@ export const adminAuthAPI = {
     email: string
     password: string
     name: string
+    setup_token?: string
   }): Promise<{ user: AdminUser; access_token: string; refresh_token: string; expires_in: number }> => {
     const response = await axios.post(`${API_BASE_URL}/api/v1/admin/setup`, data)
     return response.data

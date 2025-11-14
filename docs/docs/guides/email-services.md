@@ -45,6 +45,10 @@ FLUXBASE_EMAIL_SMTP_PASSWORD=your-app-password
 FLUXBASE_EMAIL_SMTP_TLS=true
 ```
 
+:::note Configuration Management
+Email settings can be controlled via **environment variables** or the **admin UI**. When set via environment variables, UI settings become read-only. See [Configuration Management](/guides/admin/configuration-management) for details.
+:::
+
 ---
 
 ## Provider Configuration

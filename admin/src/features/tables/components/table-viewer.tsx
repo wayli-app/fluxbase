@@ -67,8 +67,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   })
 
   const tableInfo = tablesData?.find(t => `${t.schema}.${t.name}` === tableName)
-  // Use schema.table format for REST API path since we removed REST path computation
-  const tableApiPath = `${schema}.${tableInfo?.name || tableName.split('.')[1]}`
+  // Use schema/table format for REST API path to match backend expectations
+  const tableApiPath = schema === 'public'
+    ? (tableInfo?.name || tableName.split('.')[1])
+    : `${schema}/${tableInfo?.name || tableName.split('.')[1]}`
 
   const {
     pagination,

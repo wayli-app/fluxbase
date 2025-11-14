@@ -71,6 +71,9 @@ type AuthConfig struct {
 type SecurityConfig struct {
 	EnableGlobalRateLimit bool `mapstructure:"enable_global_rate_limit"` // Global API rate limiting (100 req/min per IP)
 
+	// Admin setup security token
+	SetupToken string `mapstructure:"setup_token"` // Required token for admin setup. If empty, admin dashboard is disabled.
+
 	// Rate limiting for specific endpoints
 	AdminSetupRateLimit  int           `mapstructure:"admin_setup_rate_limit"`  // Max attempts for admin setup
 	AdminSetupRateWindow time.Duration `mapstructure:"admin_setup_rate_window"` // Time window for admin setup rate limit
@@ -264,6 +267,7 @@ func setDefaults() {
 
 	// Security defaults
 	viper.SetDefault("security.enable_global_rate_limit", false) // Disabled by default, enable in production if needed
+	viper.SetDefault("security.setup_token", "")                 // Empty by default - admin dashboard disabled until set
 	viper.SetDefault("security.admin_setup_rate_limit", 5)       // 5 attempts
 	viper.SetDefault("security.admin_setup_rate_window", "15m")  // per 15 minutes
 	viper.SetDefault("security.auth_login_rate_limit", 10)       // 10 attempts

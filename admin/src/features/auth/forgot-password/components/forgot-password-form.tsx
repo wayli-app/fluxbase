@@ -5,7 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { sleep, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { authApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -18,9 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 
 const formSchema = z.object({
-  email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email' : undefined),
-  }),
+  email: z.string().email('Please enter a valid email address'),
 })
 
 export function ForgotPasswordForm({
@@ -29,27 +28,32 @@ export function ForgotPasswordForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: { email: '' },
   })
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
-    // eslint-disable-next-line no-console
-    console.log(data)
 
-    toast.promise(sleep(2000), {
-      loading: 'Sending email...',
-      success: () => {
-        setIsLoading(false)
-        form.reset()
-        navigate({ to: '/otp' })
-        return `Email sent to ${data.email}`
-      },
-      error: 'Error',
-    })
+    try {
+      await authApi.requestPasswordReset(data.email)
+      setEmailSent(true)
+      toast.success(`Password reset email sent to ${data.email}`)
+      form.reset()
+
+      // Redirect to sign-in after 3 seconds
+      setTimeout(() => {
+        navigate({ to: '/sign-in' })
+      }, 3000)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send password reset email'
+      toast.error(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -72,9 +76,25 @@ export function ForgotPasswordForm({
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={isLoading}>
-          Continue
-          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
+        {emailSent && (
+          <div className='rounded-md bg-green-50 dark:bg-green-900/20 p-3 text-sm text-green-800 dark:text-green-200'>
+            Check your email for a password reset link. Redirecting to sign in...
+          </div>
+        )}
+        <Button className='mt-2' disabled={isLoading || emailSent}>
+          {isLoading ? (
+            <>
+              Sending email...
+              <Loader2 className='animate-spin ml-2 h-4 w-4' />
+            </>
+          ) : emailSent ? (
+            'Email sent'
+          ) : (
+            <>
+              Continue
+              <ArrowRight className='ml-2 h-4 w-4' />
+            </>
+          )}
         </Button>
       </form>
     </Form>

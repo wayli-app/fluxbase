@@ -63,6 +63,10 @@ config:
   jwt:
     secret: "" # Generate with: openssl rand -base64 32
 
+  # Security configuration
+  security:
+    setupToken: "" # REQUIRED: Generate with: openssl rand -base64 32
+
   # Storage configuration
   storage:
     provider: local # or s3

@@ -8,8 +8,8 @@ version: "3.8"
 #
 # Quick Start:
 # 1. Copy .env.example to .env
-# 2. Generate a JWT secret: openssl rand -base64 32
-# 3. Update FLUXBASE_AUTH_JWT_SECRET in .env
+# 2. Generate secrets: openssl rand -base64 32
+# 3. Update FLUXBASE_AUTH_JWT_SECRET and FLUXBASE_SECURITY_SETUP_TOKEN in .env
 # 4. Run: docker-compose -f docker-compose.minimal.yml up -d
 # 5. Access at: http://localhost:8080
 # ==============================================================================

@@ -1,26 +1,51 @@
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Mail, FileText, Send, RotateCcw, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { useState } from 'react'
+import { OverridableSwitch } from '@/components/admin/overridable-switch'
+import { OverridableSelect, SelectItem } from '@/components/admin/overridable-select'
+
+const emailSettingsSearchSchema = z.object({
+  tab: z.string().optional().catch('configuration'),
+})
 
 export const Route = createFileRoute('/_authenticated/email-settings/')({
+  validateSearch: emailSettingsSearchSchema,
   component: EmailSettingsPage,
 })
+
+const route = getRouteApi('/_authenticated/email-settings/')
+
+interface SystemSetting {
+  id: string
+  key: string
+  value: {
+    value: boolean | string
+  }
+  description?: string
+  is_overridden: boolean
+  override_source?: string
+  created_at: string
+  updated_at: string
+}
 
 interface EmailSettings {
   enabled: boolean
   provider: string
+  _overrides?: {
+    enabled?: { is_overridden: boolean; env_var: string }
+    provider?: { is_overridden: boolean; env_var: string }
+  }
 }
 
 interface EmailTemplate {
@@ -36,6 +61,8 @@ interface EmailTemplate {
 
 function EmailSettingsPage() {
   const queryClient = useQueryClient()
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<Partial<EmailTemplate> | null>(null)
 
@@ -44,12 +71,22 @@ function EmailSettingsPage() {
     queryKey: ['email-settings'],
     queryFn: async () => {
       const [enabled, provider] = await Promise.all([
-        apiClient.get('/api/v1/admin/system/settings/app.email.enabled'),
-        apiClient.get('/api/v1/admin/system/settings/app.email.provider'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.email.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.email.provider'),
       ])
       return {
-        enabled: enabled.data.value.value,
-        provider: provider.data.value.value,
+        enabled: enabled.data.value.value as boolean,
+        provider: provider.data.value.value as string,
+        _overrides: {
+          enabled: enabled.data.is_overridden ? {
+            is_overridden: true,
+            env_var: enabled.data.override_source || '',
+          } : undefined,
+          provider: provider.data.is_overridden ? {
+            is_overridden: true,
+            env_var: provider.data.override_source || '',
+          } : undefined,
+        },
       }
     },
   })
@@ -74,7 +111,14 @@ function EmailSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['email-settings'] })
       toast.success('Email settings updated')
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const err = error as { response?: { status?: number; data?: { code?: string } } }
+        if (err.response?.status === 409 && err.response?.data?.code === 'ENV_OVERRIDE') {
+          toast.error('This setting is controlled by an environment variable and cannot be changed')
+          return
+        }
+      }
       toast.error('Failed to update email settings')
     },
   })
@@ -190,7 +234,7 @@ function EmailSettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="configuration" className="space-y-4">
+      <Tabs value={search.tab || 'configuration'} onValueChange={(tab) => navigate({ search: { tab } })} className="space-y-4">
         <TabsList>
           <TabsTrigger value="configuration" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
@@ -211,41 +255,29 @@ function EmailSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="email-enabled">Enable Email Service</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable or disable email functionality
-                  </p>
-                </div>
-                <Switch
-                  id="email-enabled"
-                  checked={settings?.enabled || false}
-                  onCheckedChange={handleToggleEnabled}
-                  disabled={updateSettingMutation.isPending}
-                />
-              </div>
+              <OverridableSwitch
+                id="email-enabled"
+                label="Enable Email Service"
+                description="Enable or disable email functionality"
+                checked={settings?.enabled || false}
+                onCheckedChange={handleToggleEnabled}
+                override={settings?._overrides?.enabled}
+                disabled={updateSettingMutation.isPending}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="email-provider">Email Provider</Label>
-                <Select
-                  value={settings?.provider || 'smtp'}
-                  onValueChange={handleProviderChange}
-                  disabled={updateSettingMutation.isPending}
-                >
-                  <SelectTrigger id="email-provider">
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="smtp">SMTP</SelectItem>
-                    <SelectItem value="sendgrid">SendGrid</SelectItem>
-                    <SelectItem value="ses">AWS SES</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  Configure provider settings via environment variables
-                </p>
-              </div>
+              <OverridableSelect
+                id="email-provider"
+                label="Email Provider"
+                description="Select your email service provider"
+                value={settings?.provider || 'smtp'}
+                onValueChange={handleProviderChange}
+                override={settings?._overrides?.provider}
+                disabled={updateSettingMutation.isPending}
+              >
+                <SelectItem value="smtp">SMTP</SelectItem>
+                <SelectItem value="sendgrid">SendGrid</SelectItem>
+                <SelectItem value="ses">AWS SES</SelectItem>
+              </OverridableSelect>
 
               <div className="rounded-lg bg-muted p-4">
                 <div className="flex gap-2">
@@ -253,7 +285,7 @@ function EmailSettingsPage() {
                   <div className="text-sm space-y-1">
                     <p className="font-medium">Email Provider Configuration</p>
                     <p className="text-muted-foreground">
-                      Email provider credentials should be configured via environment variables.
+                      Email provider credentials (SMTP host, port, username, password) must be configured via environment variables for security.
                       See documentation for specific provider requirements.
                     </p>
                   </div>

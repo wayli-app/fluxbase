@@ -76,6 +76,10 @@ services:
       FLUXBASE_AUTH_JWT_SECRET: haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=
       FLUXBASE_AUTH_JWT_EXPIRY: 15m
 
+      # Security - Admin Setup Token (REQUIRED)
+      # Generate with: openssl rand -base64 32
+      FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:-your-secret-setup-token-change-in-production}
+
       # API Keys (Optional - for client applications)
       #
       # Anon Key: JWT token with 'anon' role for client-side applications

@@ -311,6 +311,7 @@ jobs:
           FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
           FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
           FLUXBASE_STORAGE_S3_BUCKET: fluxbase-test
+          FLUXBASE_SECURITY_SETUP_TOKEN: test-setup-token-e2e-ci
         run: |
           # Run e2e tests with fluxbase_app user for proper RLS testing
           # Use -parallel=1 within each package to run test functions sequentially (avoid DB connection exhaustion)

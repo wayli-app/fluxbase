@@ -344,6 +344,16 @@ func GetTestConfig() *config.Config {
 			EnableMagicLink: true,
 			EnableRLS:       true, // Enable RLS for tests
 		},
+		Security: config.SecurityConfig{
+			SetupToken:            "test-setup-token-for-e2e-testing",
+			EnableGlobalRateLimit: false,
+			AdminSetupRateLimit:   10,
+			AdminSetupRateWindow:  15 * time.Minute,
+			AdminLoginRateLimit:   10,
+			AdminLoginRateWindow:  15 * time.Minute,
+			AuthLoginRateLimit:    10,
+			AuthLoginRateWindow:   15 * time.Minute,
+		},
 		Realtime: config.RealtimeConfig{
 			Enabled:        false, // Disabled for most tests
 			MaxConnections: 1000,
@@ -966,9 +976,10 @@ func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID,
 	// Try the initial setup endpoint (creates first admin user)
 	setupResp := tc.NewRequest("POST", "/api/v1/admin/setup").
 		WithBody(map[string]interface{}{
-			"email":    email,
-			"password": password,
-			"name":     "Admin User",
+			"email":       email,
+			"password":    password,
+			"name":        "Admin User",
+			"setup_token": tc.Config.Security.SetupToken,
 		}).
 		Send()
 

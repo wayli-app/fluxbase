@@ -140,6 +140,21 @@ spec:
                   key: jwt-secret
             - name: JWT_EXPIRATION_MINUTES
               value: {{ .Values.config.jwt.expirationMinutes | quote }}
+            # Security Configuration
+            - name: FLUXBASE_SECURITY_SETUP_TOKEN
+              {{- if .Values.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: setup-token
+              {{- else if .Values.config.security.setupToken }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.jwtSecretName" . }}
+                  key: setup-token
+              {{- else }}
+              value: "" # Empty - dashboard will be disabled
+              {{- end }}
             # Storage Configuration
             - name: STORAGE_PROVIDER
               value: {{ .Values.config.storage.provider | quote }}

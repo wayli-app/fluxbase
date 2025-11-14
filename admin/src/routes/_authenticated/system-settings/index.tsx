@@ -1,20 +1,28 @@
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Database, Mail, HardDrive, Download, Settings2, CheckCircle2, AlertCircle, Zap, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { monitoringApi, apiClient } from '@/lib/api'
 import { toast } from 'sonner'
+import { OverridableSwitch } from '@/components/admin/overridable-switch'
+
+const systemSettingsSearchSchema = z.object({
+  tab: z.string().optional().catch('features'),
+})
 
 export const Route = createFileRoute('/_authenticated/system-settings/')({
+  validateSearch: systemSettingsSearchSchema,
   component: SystemSettingsPage,
 })
+
+const route = getRouteApi('/_authenticated/system-settings/')
 
 interface DatabaseConfig {
   host: string
@@ -49,28 +57,62 @@ interface StorageConfig {
   max_upload_size_mb: number
 }
 
+interface SystemSetting {
+  id: string
+  key: string
+  value: {
+    value: boolean
+  }
+  description?: string
+  is_overridden: boolean
+  override_source?: string
+  created_at: string
+  updated_at: string
+}
+
 interface FeatureSettings {
   enable_realtime: boolean
   enable_storage: boolean
   enable_functions: boolean
+  _overrides?: {
+    enable_realtime?: { is_overridden: boolean; env_var: string }
+    enable_storage?: { is_overridden: boolean; env_var: string }
+    enable_functions?: { is_overridden: boolean; env_var: string }
+  }
 }
 
 function SystemSettingsPage() {
   const queryClient = useQueryClient()
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
 
   // Fetch feature settings
   const { data: features, isLoading: featuresLoading } = useQuery<FeatureSettings>({
     queryKey: ['feature-settings'],
     queryFn: async () => {
       const [realtime, storage, functions] = await Promise.all([
-        apiClient.get('/api/v1/admin/system/settings/app.features.enable_realtime'),
-        apiClient.get('/api/v1/admin/system/settings/app.features.enable_storage'),
-        apiClient.get('/api/v1/admin/system/settings/app.features.enable_functions'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_realtime'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_storage'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_functions'),
       ])
       return {
         enable_realtime: realtime.data.value.value,
         enable_storage: storage.data.value.value,
         enable_functions: functions.data.value.value,
+        _overrides: {
+          enable_realtime: realtime.data.is_overridden ? {
+            is_overridden: true,
+            env_var: realtime.data.override_source || '',
+          } : undefined,
+          enable_storage: storage.data.is_overridden ? {
+            is_overridden: true,
+            env_var: storage.data.override_source || '',
+          } : undefined,
+          enable_functions: functions.data.is_overridden ? {
+            is_overridden: true,
+            env_var: functions.data.override_source || '',
+          } : undefined,
+        },
       }
     },
   })
@@ -86,7 +128,14 @@ function SystemSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['feature-settings'] })
       toast.success('Feature settings updated')
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      if (error && typeof error === 'object' && 'response' in error) {
+        const err = error as { response?: { status?: number; data?: { code?: string } } }
+        if (err.response?.status === 409 && err.response?.data?.code === 'ENV_OVERRIDE') {
+          toast.error('This setting is controlled by an environment variable and cannot be changed')
+          return
+        }
+      }
       toast.error('Failed to update feature settings')
     },
   })
@@ -156,7 +205,7 @@ function SystemSettingsPage() {
         </Badge>
       </div>
 
-      <Tabs defaultValue='features' className='w-full'>
+      <Tabs value={search.tab || 'features'} onValueChange={(tab) => navigate({ search: { tab } })} className='w-full'>
         <TabsList className='grid w-full grid-cols-5'>
           <TabsTrigger value='features'>Features</TabsTrigger>
           <TabsTrigger value='database'>Database</TabsTrigger>
@@ -182,65 +231,50 @@ function SystemSettingsPage() {
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center justify-between'>
-                    <div className='space-y-0.5'>
-                      <Label htmlFor='enable-realtime'>Enable Realtime</Label>
-                      <p className='text-sm text-muted-foreground'>
-                        Real-time subscriptions and WebSocket connections
-                      </p>
-                    </div>
-                    <Switch
-                      id='enable-realtime'
-                      checked={features?.enable_realtime || false}
-                      onCheckedChange={(checked) => {
-                        updateFeatureMutation.mutate({
-                          key: 'app.features.enable_realtime',
-                          value: checked,
-                        })
-                      }}
-                      disabled={updateFeatureMutation.isPending}
-                    />
-                  </div>
+                  <OverridableSwitch
+                    id='enable-realtime'
+                    label='Enable Realtime'
+                    description='Real-time subscriptions and WebSocket connections'
+                    checked={features?.enable_realtime || false}
+                    onCheckedChange={(checked) => {
+                      updateFeatureMutation.mutate({
+                        key: 'app.features.enable_realtime',
+                        value: checked,
+                      })
+                    }}
+                    override={features?._overrides?.enable_realtime}
+                    disabled={updateFeatureMutation.isPending}
+                  />
 
-                  <div className='flex items-center justify-between'>
-                    <div className='space-y-0.5'>
-                      <Label htmlFor='enable-storage'>Enable Storage</Label>
-                      <p className='text-sm text-muted-foreground'>
-                        File storage and media management
-                      </p>
-                    </div>
-                    <Switch
-                      id='enable-storage'
-                      checked={features?.enable_storage || false}
-                      onCheckedChange={(checked) => {
-                        updateFeatureMutation.mutate({
-                          key: 'app.features.enable_storage',
-                          value: checked,
-                        })
-                      }}
-                      disabled={updateFeatureMutation.isPending}
-                    />
-                  </div>
+                  <OverridableSwitch
+                    id='enable-storage'
+                    label='Enable Storage'
+                    description='File storage and media management'
+                    checked={features?.enable_storage || false}
+                    onCheckedChange={(checked) => {
+                      updateFeatureMutation.mutate({
+                        key: 'app.features.enable_storage',
+                        value: checked,
+                      })
+                    }}
+                    override={features?._overrides?.enable_storage}
+                    disabled={updateFeatureMutation.isPending}
+                  />
 
-                  <div className='flex items-center justify-between'>
-                    <div className='space-y-0.5'>
-                      <Label htmlFor='enable-functions'>Enable Edge Functions</Label>
-                      <p className='text-sm text-muted-foreground'>
-                        Serverless functions and custom business logic
-                      </p>
-                    </div>
-                    <Switch
-                      id='enable-functions'
-                      checked={features?.enable_functions || false}
-                      onCheckedChange={(checked) => {
-                        updateFeatureMutation.mutate({
-                          key: 'app.features.enable_functions',
-                          value: checked,
-                        })
-                      }}
-                      disabled={updateFeatureMutation.isPending}
-                    />
-                  </div>
+                  <OverridableSwitch
+                    id='enable-functions'
+                    label='Enable Edge Functions'
+                    description='Serverless functions and custom business logic'
+                    checked={features?.enable_functions || false}
+                    onCheckedChange={(checked) => {
+                      updateFeatureMutation.mutate({
+                        key: 'app.features.enable_functions',
+                        value: checked,
+                      })
+                    }}
+                    override={features?._overrides?.enable_functions}
+                    disabled={updateFeatureMutation.isPending}
+                  />
 
                   <div className='rounded-lg bg-muted p-4'>
                     <div className='flex gap-2'>

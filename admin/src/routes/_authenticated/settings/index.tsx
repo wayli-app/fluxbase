@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import z from 'zod'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { Loader2, User, Shield, AlertCircle, Copy, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { dashboardAuthAPI, type DashboardUser } from '@/lib/api'
@@ -29,12 +30,21 @@ import {
 } from '@/components/ui/alert-dialog'
 import { clearTokens } from '@/lib/auth'
 
+const settingsSearchSchema = z.object({
+  tab: z.string().optional().catch('profile'),
+})
+
 export const Route = createFileRoute('/_authenticated/settings/')({
+  validateSearch: settingsSearchSchema,
   component: SettingsPage,
 })
 
+const route = getRouteApi('/_authenticated/settings/')
+
 function SettingsPage() {
   const queryClient = useQueryClient()
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
 
   // Fetch current user data
   const { data: user, isLoading } = useQuery<DashboardUser>({
@@ -270,7 +280,7 @@ function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-4">
+      <Tabs value={search.tab || 'profile'} onValueChange={(tab) => navigate({ search: { tab } })} className="space-y-4">
         <TabsList>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />

@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // AdminAuthHandler handles admin-specific authentication
@@ -16,6 +18,7 @@ type AdminAuthHandler struct {
 	userRepo       *auth.UserRepository
 	dashboardAuth  *auth.DashboardAuthService
 	systemSettings *auth.SystemSettingsService
+	config         *config.Config
 }
 
 // NewAdminAuthHandler creates a new admin auth handler
@@ -24,12 +27,14 @@ func NewAdminAuthHandler(
 	userRepo *auth.UserRepository,
 	dashboardAuth *auth.DashboardAuthService,
 	systemSettings *auth.SystemSettingsService,
+	cfg *config.Config,
 ) *AdminAuthHandler {
 	return &AdminAuthHandler{
 		authService:    authService,
 		userRepo:       userRepo,
 		dashboardAuth:  dashboardAuth,
 		systemSettings: systemSettings,
+		config:         cfg,
 	}
 }
 
@@ -41,9 +46,10 @@ type SetupStatusResponse struct {
 
 // InitialSetupRequest represents the initial setup request
 type InitialSetupRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=12"`
-	Name     string `json:"name" validate:"required,min=2"`
+	Email      string `json:"email" validate:"required,email"`
+	Password   string `json:"password" validate:"required,min=12"`
+	Name       string `json:"name" validate:"required,min=2"`
+	SetupToken string `json:"setup_token" validate:"required"`
 }
 
 // InitialSetupResponse represents the initial setup response
@@ -111,6 +117,27 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+
+	// Validate setup token using constant-time comparison to prevent timing attacks
+	configuredToken := h.config.Security.SetupToken
+	if configuredToken == "" {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin setup is disabled. Set FLUXBASE_SECURITY_SETUP_TOKEN to enable.",
+		})
+	}
+
+	if req.SetupToken == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "setup_token is required",
+		})
+	}
+
+	// Use constant-time comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare([]byte(req.SetupToken), []byte(configuredToken)) != 1 {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid setup token",
 		})
 	}
 
