@@ -263,16 +263,18 @@ jobs:
   publish-binaries:
     name: Publish Binaries
     needs: get-version
-    runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_binaries
     strategy:
       matrix:
         include:
           - goos: linux
             goarch: amd64
+            runner: ubuntu-latest
           - goos: linux
             goarch: arm64
+            runner: ubuntu-24.04-arm64
 
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
 
@@ -336,8 +338,8 @@ jobs:
             fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}* \
             --clobber
 
-  publish-docker:
-    name: Publish Docker Image
+  publish-docker-amd64:
+    name: Build Docker Image (AMD64)
     needs: get-version
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
@@ -347,6 +349,67 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-amd64
+          build-args: |
+            VERSION=${{ needs.get-version.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,mode=max,scope=amd64
+
+  publish-docker-arm64:
+    name: Build Docker Image (ARM64)
+    needs: get-version
+    runs-on: ubuntu-24.04-arm64
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-arm64
+          build-args: |
+            VERSION=${{ needs.get-version.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha,scope=arm64
+          cache-to: type=gha,mode=max,scope=arm64
+
+  publish-docker-manifest:
+    name: Create Docker Multi-arch Manifest
+    needs: [get-version, publish-docker-amd64, publish-docker-arm64]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_docker
+    steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -367,21 +430,15 @@ jobs:
             type=raw,value=latest,enable=${{ needs.get-version.outputs.is_prerelease == 'false' }}
             type=raw,value=rc,enable=${{ needs.get-version.outputs.is_prerelease == 'true' }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ needs.get-version.outputs.version }}
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ github.event.repository.updated_at }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Create and push multi-arch manifest
+        run: |
+          TAGS="${{ steps.meta.outputs.tags }}"
+
+          for TAG in $TAGS; do
+            docker buildx imagetools create -t $TAG \
+              ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-amd64 \
+              ghcr.io/${{ github.repository }}:${{ needs.get-version.outputs.version }}-arm64
+          done
 
   publish-docs-image:
     name: Build and Push Documentation Image
