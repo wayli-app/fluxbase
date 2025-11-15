@@ -196,7 +196,8 @@ jobs:
           # Create fluxbase_app user with BYPASSRLS for migrations and general testing
           # This user can bypass RLS policies to manage data freely (like in production)
           # Note: No CONNECTION LIMIT to allow tests to create many concurrent connections
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB;"
+          # CREATEROLE is needed for migrations that create database roles (anon, authenticated, service_role)
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE;"
           psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
 
           # Grant schema permissions to fluxbase_app for migrations
