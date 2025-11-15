@@ -1,9 +1,8 @@
 # Dockerfile for Fluxbase Documentation Site
 # This builds a standalone container for the Docusaurus documentation
 #
-# IMPORTANT: This Dockerfile expects pre-generated TypeDoc files to be present
-# in docs/docs/api/sdk and docs/docs/api/sdk-react directories.
-# The CI workflow generates these files before building the Docker image.
+# This Dockerfile generates TypeDoc API documentation from the SDK source files
+# and builds the complete documentation site.
 
 FROM node:25-alpine AS base
 
@@ -17,16 +16,25 @@ RUN npm ci
 
 # Build the documentation
 FROM base AS builder
+
+# Install bash (needed for build scripts)
+RUN apk add --no-cache bash
+
 WORKDIR /app
 
-# Copy docs (including pre-generated TypeDoc API files from CI)
+# Copy SDK source files (needed for TypeDoc generation)
+COPY sdk/ ./sdk/
+COPY sdk-react/ ./sdk-react/
+
+# Copy docs with node_modules
 COPY --from=deps /app/docs/node_modules ./docs/node_modules
 COPY docs/ ./docs/
 
-# Build the static site (TypeDoc files are already present, skip generation)
+# Build the static site using the build script that handles TypeDoc generation and fixing
 WORKDIR /app/docs
-ENV SKIP_TYPEDOC=true
-RUN npx docusaurus build
+# Set NODE_OPTIONS to provide a localstorage file path for Node.js 25
+ENV NODE_OPTIONS="--localstorage-file=/tmp/localstorage.db"
+RUN npm run build
 
 # Production image - serve with nginx
 FROM nginx:alpine AS runner

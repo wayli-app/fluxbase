@@ -69,17 +69,20 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Get the current session
+   * Get the current session (Supabase-compatible)
+   * Returns the session from the client-side cache without making a network request
    */
-  getSession(): AuthSession | null {
-    return this.session;
+  async getSession(): Promise<FluxbaseResponse<{ session: AuthSession | null }>> {
+    return { data: { session: this.session }, error: null };
   }
 
   /**
-   * Get the current user
+   * Get the current user (Supabase-compatible)
+   * Returns the user from the client-side session without making a network request
+   * For server-side validation, use getCurrentUser() instead
    */
-  getUser(): User | null {
-    return this.session?.user ?? null;
+  async getUser(): Promise<FluxbaseResponse<{ user: User | null }>> {
+    return { data: { user: this.session?.user ?? null }, error: null };
   }
 
   /**
@@ -90,9 +93,9 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Listen to auth state changes
+   * Listen to auth state changes (Supabase-compatible)
    * @param callback - Function called when auth state changes
-   * @returns Subscription object with unsubscribe method
+   * @returns Object containing subscription data
    *
    * @example
    * ```typescript
@@ -104,14 +107,16 @@ export class FluxbaseAuth {
    * subscription.unsubscribe()
    * ```
    */
-  onAuthStateChange(callback: AuthStateChangeCallback): AuthSubscription {
+  onAuthStateChange(callback: AuthStateChangeCallback): { data: { subscription: AuthSubscription } } {
     this.stateChangeListeners.add(callback);
 
-    return {
+    const subscription: AuthSubscription = {
       unsubscribe: () => {
         this.stateChangeListeners.delete(callback);
       },
     };
+
+    return { data: { subscription } };
   }
 
   /**
@@ -138,7 +143,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + authResponse.expires_in * 1000,
       };
 
-      this.setSession(session);
+      this.setSessionInternal(session);
       return session;
     });
   }
@@ -169,7 +174,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session);
+      this.setSessionInternal(session);
       return { user: session.user, session };
     });
   }
@@ -188,9 +193,10 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Refresh the access token
+   * Refresh the session (Supabase-compatible)
+   * Returns a new session with refreshed tokens
    */
-  async refreshToken(): Promise<SessionResponse> {
+  async refreshSession(): Promise<FluxbaseResponse<{ session: AuthSession; user: User }>> {
     return wrapAsync(async () => {
       if (!this.session?.refresh_token) {
         throw new Error("No refresh token available");
@@ -208,8 +214,8 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session, "TOKEN_REFRESHED");
-      return { session };
+      this.setSessionInternal(session, "TOKEN_REFRESHED");
+      return { session, user: session.user };
     });
   }
 
@@ -252,10 +258,34 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Set the auth token manually
+   * Set the session manually (Supabase-compatible)
+   * Useful for restoring a session from storage or SSR scenarios
+   * @param session - Object containing access_token and refresh_token
+   * @returns Promise with session data
    */
-  setToken(token: string) {
-    this.fetch.setAuthToken(token);
+  async setSession(session: { access_token: string; refresh_token: string }): Promise<FluxbaseAuthResponse> {
+    return wrapAsync(async () => {
+      // Create a full auth session from the tokens
+      const authSession: AuthSession = {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        user: null as any, // Will be populated by getCurrentUser
+        expires_in: 3600, // Default, will be updated on refresh
+        expires_at: Date.now() + 3600 * 1000,
+      };
+
+      // Set the token so we can make authenticated requests
+      this.fetch.setAuthToken(session.access_token);
+
+      // Fetch the current user to populate the session
+      const user = await this.fetch.get<User>("/api/v1/auth/user");
+      authSession.user = user;
+
+      // Store the session
+      this.setSessionInternal(authSession, "SIGNED_IN");
+
+      return { user, session: authSession };
+    });
   }
 
   /**
@@ -345,7 +375,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session, "MFA_CHALLENGE_VERIFIED");
+      this.setSessionInternal(session, "MFA_CHALLENGE_VERIFIED");
       return { user: session.user, session };
     });
   }
@@ -455,7 +485,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session);
+      this.setSessionInternal(session);
       return { user: session.user, session };
     });
   }
@@ -475,7 +505,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session);
+      this.setSessionInternal(session);
       return { user: session.user, session };
     });
   }
@@ -536,7 +566,7 @@ export class FluxbaseAuth {
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
-      this.setSession(session);
+      this.setSessionInternal(session);
       return { user: session.user, session };
     });
   }
@@ -575,7 +605,7 @@ export class FluxbaseAuth {
   /**
    * Internal: Set the session and persist it
    */
-  private setSession(
+  private setSessionInternal(
     session: AuthSession,
     event: AuthChangeEvent = "SIGNED_IN",
   ) {
@@ -633,7 +663,7 @@ export class FluxbaseAuth {
 
     if (delay > 0) {
       this.refreshTimer = setTimeout(async () => {
-        const result = await this.refreshToken();
+        const result = await this.refreshSession();
         if (result.error) {
           console.error("Failed to refresh token:", result.error);
           this.clearSession();

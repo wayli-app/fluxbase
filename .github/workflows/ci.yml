@@ -245,7 +245,7 @@ jobs:
           EOF
 
           # Grant permissions to fluxbase_rls_test for RLS testing (AFTER migrations complete)
-          SCHEMAS="_fluxbase public auth storage functions realtime dashboard"
+          SCHEMAS="_fluxbase public auth app storage functions realtime dashboard"
 
           # Grant permissions on existing objects
           for schema in $SCHEMAS; do
