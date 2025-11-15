@@ -24,7 +24,7 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	tc.ExecuteSQL("TRUNCATE TABLE auth.magic_links CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE auth.password_reset_tokens CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE dashboard.oauth_providers CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE dashboard.auth_settings CASCADE")
+	tc.ExecuteSQL("DELETE FROM app.settings WHERE category = 'auth'")
 	tc.ExecuteSQL("TRUNCATE TABLE dashboard.activity_log CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE tasks CASCADE")
 
@@ -726,12 +726,12 @@ func TestRLSDashboardAdminTablesProtected(t *testing.T) {
 
 	// Test 2: Auth settings should be admin-only
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO dashboard.auth_settings (id, key, value, created_at, updated_at)
-		VALUES (gen_random_uuid(), 'max_login_attempts', '5'::jsonb, NOW(), NOW())
+		INSERT INTO app.settings (id, key, value, category, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'max_login_attempts', '5'::jsonb, 'auth', NOW(), NOW())
 	`)
 
 	authSettings := tc.QuerySQLAsRLSUser(`
-		SELECT * FROM dashboard.auth_settings
+		SELECT * FROM app.settings WHERE category = 'auth'
 	`, userID)
 
 	require.Len(t, authSettings, 0, "Regular user should NOT see auth_settings (dashboard admin only)")

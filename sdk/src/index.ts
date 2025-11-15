@@ -74,6 +74,7 @@ export {
   SystemSettingsManager,
   AppSettingsManager,
   EmailTemplateManager,
+  SettingsClient,
 } from "./settings";
 
 // DDL module

@@ -214,8 +214,8 @@ func TestAuthMagicLink(t *testing.T) {
 
 	// Enable magic link via database settings
 	tc.ExecuteSQL(`
-		INSERT INTO dashboard.system_settings (key, value)
-		VALUES ('app.auth.enable_magic_link', '{"value": true}'::jsonb)
+		INSERT INTO app.settings (key, value, category)
+		VALUES ('app.auth.enable_magic_link', '{"value": true}'::jsonb, 'system')
 		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 	`)
 
@@ -286,8 +286,8 @@ func TestAuthSignupToggle(t *testing.T) {
 
 		// Disable signup via database settings (this is what the service checks)
 		tc.ExecuteSQL(`
-			INSERT INTO dashboard.system_settings (key, value)
-			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb)
+			INSERT INTO app.settings (key, value, category)
+			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb, 'system')
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb
 		`)
 
@@ -319,8 +319,8 @@ func TestAuthSignupToggle(t *testing.T) {
 
 		// Ensure signup is enabled via database settings
 		tc.ExecuteSQL(`
-			INSERT INTO dashboard.system_settings (key, value)
-			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb)
+			INSERT INTO app.settings (key, value, category)
+			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system')
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 		`)
 

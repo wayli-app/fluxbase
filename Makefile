@@ -191,6 +191,7 @@ migrate-create: ## Create new migration (usage: make migrate-create name=add_use
 db-reset: ## Reset database (drop all schemas and run migrations)
 	@echo "${YELLOW}Resetting database...${NC}"
 	@echo "${YELLOW}Dropping all schemas except public...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS app CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS auth CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS dashboard CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS storage CASCADE;" || true
@@ -206,12 +207,15 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER postgres SET search_path TO public;" || true
 	@echo "${YELLOW}Granting permissions to test users (fluxbase_app, fluxbase_rls_test)...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA dashboard TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_app, fluxbase_rls_test;" || true

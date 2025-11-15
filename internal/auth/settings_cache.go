@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -130,6 +132,125 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 	c.mu.Unlock()
 
 	return intValue
+}
+
+// GetString retrieves a string setting with caching
+// Priority: Environment variables > Cache > Database > Default value
+func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue string) string {
+	// Convert app.* key format to viper config format
+	viperKey := c.toViperKey(key)
+	envKey := c.GetEnvVarName(key)
+
+	// Check if environment variable override exists
+	if os.Getenv(envKey) != "" {
+		return viper.GetString(viperKey)
+	}
+
+	// Check cache
+	c.mu.RLock()
+	if entry, exists := c.cache[key]; exists && time.Now().Before(entry.expiration) {
+		c.mu.RUnlock()
+		if val, ok := entry.value.(string); ok {
+			return val
+		}
+		return defaultValue
+	}
+	c.mu.RUnlock()
+
+	// Cache miss or expired - fetch from database
+	setting, err := c.service.GetSetting(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+
+	// Extract string value from the setting
+	var strValue string
+	if val, ok := setting.Value["value"].(string); ok {
+		strValue = val
+	} else {
+		strValue = defaultValue
+	}
+
+	// Store in cache
+	c.mu.Lock()
+	c.cache[key] = cacheEntry{
+		value:      strValue,
+		expiration: time.Now().Add(c.ttl),
+	}
+	c.mu.Unlock()
+
+	return strValue
+}
+
+// GetJSON retrieves a JSON setting and unmarshals it into the target
+// Priority: Environment variables > Cache > Database > Error
+func (c *SettingsCache) GetJSON(ctx context.Context, key string, target interface{}) error {
+	// Convert app.* key format to viper config format
+	viperKey := c.toViperKey(key)
+	envKey := c.GetEnvVarName(key)
+
+	// Check if environment variable override exists
+	if os.Getenv(envKey) != "" {
+		return viper.UnmarshalKey(viperKey, target)
+	}
+
+	// Check cache
+	c.mu.RLock()
+	if entry, exists := c.cache[key]; exists && time.Now().Before(entry.expiration) {
+		c.mu.RUnlock()
+		// Cache stores the raw value, marshal and unmarshal to target
+		if jsonBytes, ok := entry.value.([]byte); ok {
+			return json.Unmarshal(jsonBytes, target)
+		}
+	}
+	c.mu.RUnlock()
+
+	// Cache miss or expired - fetch from database
+	setting, err := c.service.GetSetting(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to get setting: %w", err)
+	}
+
+	// Marshal the value to JSON bytes
+	jsonBytes, err := json.Marshal(setting.Value["value"])
+	if err != nil {
+		return fmt.Errorf("failed to marshal setting value: %w", err)
+	}
+
+	// Store in cache
+	c.mu.Lock()
+	c.cache[key] = cacheEntry{
+		value:      jsonBytes,
+		expiration: time.Now().Add(c.ttl),
+	}
+	c.mu.Unlock()
+
+	// Unmarshal into target
+	return json.Unmarshal(jsonBytes, target)
+}
+
+// GetMany retrieves multiple settings at once
+// Returns a map of key -> value (the actual setting value, not the full setting object)
+// Missing or unauthorized settings are omitted from the result (no error)
+func (c *SettingsCache) GetMany(ctx context.Context, keys []string) (map[string]interface{}, error) {
+	result := make(map[string]interface{}, len(keys))
+
+	// For now, fetch each setting individually
+	// TODO: Optimize with batch query if SystemSettingsService supports it
+	for _, key := range keys {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err != nil {
+			// Skip settings that don't exist or user can't access
+			continue
+		}
+
+		// Extract value from setting
+		if val, ok := setting.Value["value"]; ok {
+			result[key] = val
+		}
+	}
+
+	return result, nil
 }
 
 // toViperKey converts app.* key format to viper config format

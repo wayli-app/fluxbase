@@ -134,9 +134,9 @@ func (s *CustomSettingsService) CreateSetting(ctx context.Context, req CreateCus
 	var editableByResult []string
 
 	err = s.db.QueryRow(ctx, `
-		INSERT INTO dashboard.custom_settings
-		(key, value, value_type, description, editable_by, metadata, created_by, updated_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		INSERT INTO app.settings
+		(key, value, value_type, description, editable_by, metadata, created_by, updated_by, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 'custom')
 		RETURNING id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
 	`, req.Key, valueJSON, req.ValueType, req.Description, req.EditableBy, metadataJSON, createdBy).Scan(
 		&setting.ID,
@@ -179,7 +179,7 @@ func (s *CustomSettingsService) GetSetting(ctx context.Context, key string) (*Cu
 
 	err := s.db.QueryRow(ctx, `
 		SELECT id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
-		FROM dashboard.custom_settings
+		FROM app.settings
 		WHERE key = $1
 	`, key).Scan(
 		&setting.ID,
@@ -257,7 +257,7 @@ func (s *CustomSettingsService) UpdateSetting(ctx context.Context, key string, r
 	var editableByResult []string
 
 	err = s.db.QueryRow(ctx, `
-		UPDATE dashboard.custom_settings
+		UPDATE app.settings
 		SET value = $1,
 		    description = $2,
 		    editable_by = $3,
@@ -309,7 +309,7 @@ func (s *CustomSettingsService) DeleteSetting(ctx context.Context, key string, u
 	}
 
 	result, err := s.db.Exec(ctx, `
-		DELETE FROM dashboard.custom_settings WHERE key = $1
+		DELETE FROM app.settings WHERE key = $1
 	`, key)
 
 	if err != nil {
@@ -327,7 +327,8 @@ func (s *CustomSettingsService) DeleteSetting(ctx context.Context, key string, u
 func (s *CustomSettingsService) ListSettings(ctx context.Context, userRole string) ([]CustomSetting, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
-		FROM dashboard.custom_settings
+		FROM app.settings
+		WHERE category = 'custom'
 		ORDER BY key
 	`)
 	if err != nil {

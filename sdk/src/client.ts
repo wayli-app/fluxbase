@@ -45,6 +45,7 @@ import { FluxbaseStorage } from "./storage";
 import { FluxbaseFunctions } from "./functions";
 import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
+import { SettingsClient } from "./settings";
 import { QueryBuilder } from "./query-builder";
 import type { FluxbaseClientOptions } from "./types";
 
@@ -54,7 +55,7 @@ import type { FluxbaseClientOptions } from "./types";
  */
 export class FluxbaseClient<
   Database = any,
-  _SchemaName extends string & keyof Database = any
+  _SchemaName extends string & keyof Database = any,
 > {
   /** Internal HTTP client for making requests */
   private fetch: FluxbaseFetch;
@@ -77,6 +78,9 @@ export class FluxbaseClient<
   /** Management module for API keys, webhooks, and invitations */
   public management: FluxbaseManagement;
 
+  /** Settings module for reading public application settings (respects RLS policies) */
+  public settings: SettingsClient;
+
   /**
    * Create a new Fluxbase client instance
    *
@@ -96,12 +100,12 @@ export class FluxbaseClient<
   constructor(
     protected fluxbaseUrl: string,
     protected fluxbaseKey: string,
-    options?: FluxbaseClientOptions
+    options?: FluxbaseClientOptions,
   ) {
     // Prepare headers with anon key
     const headers = {
-      'apikey': fluxbaseKey,
-      'Authorization': `Bearer ${fluxbaseKey}`,
+      apikey: fluxbaseKey,
+      Authorization: `Bearer ${fluxbaseKey}`,
       ...options?.headers,
     };
 
@@ -141,6 +145,9 @@ export class FluxbaseClient<
 
     // Initialize management module
     this.management = new FluxbaseManagement(this.fetch);
+
+    // Initialize settings module (public read-only access with RLS)
+    this.settings = new SettingsClient(this.fetch);
 
     // Subscribe to auth changes to update realtime token
     this.setupAuthSync();
@@ -337,15 +344,15 @@ export class FluxbaseClient<
  */
 export function createClient<
   Database = any,
-  SchemaName extends string & keyof Database = any
+  SchemaName extends string & keyof Database = any,
 >(
   fluxbaseUrl: string,
   fluxbaseKey: string,
-  options?: FluxbaseClientOptions
+  options?: FluxbaseClientOptions,
 ): FluxbaseClient<Database, SchemaName> {
   return new FluxbaseClient<Database, SchemaName>(
     fluxbaseUrl,
     fluxbaseKey,
-    options
+    options,
   );
 }

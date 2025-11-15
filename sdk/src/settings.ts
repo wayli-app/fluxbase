@@ -621,128 +621,144 @@ export class AppSettingsManager {
       authentication: { require_email_verification: required },
     });
   }
-}
 
-/**
- * Custom Settings Manager
- *
- * Manages custom admin-created settings with flexible key-value storage.
- * Unlike system settings, custom settings allow admins to create arbitrary configuration entries
- * with role-based editing permissions.
- *
- * @example
- * ```typescript
- * const custom = client.admin.settings.custom
- *
- * // Create a custom setting
- * const setting = await custom.create({
- *   key: 'feature.dark_mode',
- *   value: { enabled: true, theme: 'dark' },
- *   value_type: 'json',
- *   description: 'Dark mode configuration',
- *   editable_by: ['dashboard_admin', 'admin']
- * })
- *
- * // List all custom settings
- * const { settings } = await custom.list()
- *
- * // Get specific setting
- * const darkMode = await custom.get('feature.dark_mode')
- *
- * // Update setting
- * await custom.update('feature.dark_mode', {
- *   value: { enabled: false, theme: 'light' }
- * })
- *
- * // Delete setting
- * await custom.delete('feature.dark_mode')
- * ```
- */
-export class CustomSettingsManager {
-  constructor(private fetch: FluxbaseFetch) {}
+  // ===================================================================
+  // CUSTOM SETTINGS METHODS
+  // Flexible key-value storage for application-specific configuration
+  // ===================================================================
 
   /**
-   * Create a new custom setting
+   * Get a specific custom setting's value only (without metadata)
    *
-   * @param request - Custom setting creation request
+   * Convenience method that returns just the value field instead of the full CustomSetting object.
+   *
+   * @param key - Setting key (e.g., 'billing.tiers', 'features.beta_enabled')
+   * @returns Promise resolving to the setting's value
+   *
+   * @example
+   * ```typescript
+   * const tiers = await client.admin.settings.app.getSetting('billing.tiers')
+   * console.log(tiers) // { free: 1000, pro: 10000, enterprise: 100000 }
+   * ```
+   */
+  async getSetting(key: string): Promise<any> {
+    const setting = await this.fetch.get<CustomSetting>(
+      `/api/v1/admin/settings/custom/${key}`,
+    );
+    return setting.value;
+  }
+
+  /**
+   * Get multiple custom settings' values by keys
+   *
+   * Fetches multiple settings in a single request and returns only their values.
+   *
+   * @param keys - Array of setting keys to fetch
+   * @returns Promise resolving to object mapping keys to values
+   *
+   * @example
+   * ```typescript
+   * const values = await client.admin.settings.app.getSettings([
+   *   'billing.tiers',
+   *   'features.beta_enabled'
+   * ])
+   * console.log(values)
+   * // {
+   * //   'billing.tiers': { free: 1000, pro: 10000 },
+   * //   'features.beta_enabled': { enabled: true }
+   * // }
+   * ```
+   */
+  async getSettings(keys: string[]): Promise<Record<string, any>> {
+    const response = await this.fetch.post<CustomSetting[]>(
+      "/api/v1/settings/batch",
+      { keys },
+    );
+    return response.reduce(
+      (acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+  }
+
+  /**
+   * Set or create a custom setting
+   *
+   * Creates a new custom setting or updates an existing one.
+   *
+   * @param key - Setting key
+   * @param value - Setting value (any JSON-serializable value)
+   * @param options - Optional configuration (description, is_public, is_secret, etc.)
    * @returns Promise resolving to CustomSetting
    *
    * @example
    * ```typescript
-   * const setting = await client.admin.settings.custom.create({
-   *   key: 'api.quotas',
-   *   value: { free: 1000, pro: 10000, enterprise: 100000 },
-   *   value_type: 'json',
-   *   description: 'API request quotas by tier',
-   *   metadata: { category: 'billing' }
+   * await client.admin.settings.app.setSetting('billing.tiers', {
+   *   free: 1000,
+   *   pro: 10000,
+   *   enterprise: 100000
+   * }, {
+   *   description: 'API quotas per billing tier',
+   *   is_public: false
    * })
    * ```
    */
-  async create(request: CreateCustomSettingRequest): Promise<CustomSetting> {
-    return await this.fetch.post<CustomSetting>(
-      "/api/v1/admin/settings/custom",
-      request,
-    );
+  async setSetting(
+    key: string,
+    value: any,
+    options?: {
+      description?: string;
+      is_public?: boolean;
+      is_secret?: boolean;
+      value_type?: string;
+    },
+  ): Promise<CustomSetting> {
+    // Try to update first, if not found, create
+    try {
+      return await this.fetch.put<CustomSetting>(
+        `/api/v1/admin/settings/custom/${key}`,
+        {
+          value,
+          description: options?.description,
+          is_public: options?.is_public,
+          is_secret: options?.is_secret,
+        },
+      );
+    } catch (error: any) {
+      // If not found (404), create new setting
+      if (error.status === 404 || error.message?.includes("not found")) {
+        return await this.fetch.post<CustomSetting>(
+          "/api/v1/admin/settings/custom",
+          {
+            key,
+            value,
+            value_type: options?.value_type || "json",
+            description: options?.description,
+            is_public: options?.is_public ?? false,
+            is_secret: options?.is_secret ?? false,
+          },
+        );
+      }
+      throw error;
+    }
   }
 
   /**
    * List all custom settings
    *
-   * @returns Promise resolving to ListCustomSettingsResponse
+   * @returns Promise resolving to array of CustomSetting objects
    *
    * @example
    * ```typescript
-   * const response = await client.admin.settings.custom.list()
-   * console.log(response.settings)
+   * const settings = await client.admin.settings.app.listSettings()
+   * settings.forEach(s => console.log(s.key, s.value))
    * ```
    */
-  async list(): Promise<ListCustomSettingsResponse> {
-    const settings = await this.fetch.get<CustomSetting[]>(
+  async listSettings(): Promise<CustomSetting[]> {
+    return await this.fetch.get<CustomSetting[]>(
       "/api/v1/admin/settings/custom",
-    );
-    return { settings: Array.isArray(settings) ? settings : [] };
-  }
-
-  /**
-   * Get a specific custom setting by key
-   *
-   * @param key - Setting key (e.g., 'feature.dark_mode')
-   * @returns Promise resolving to CustomSetting
-   *
-   * @example
-   * ```typescript
-   * const setting = await client.admin.settings.custom.get('feature.dark_mode')
-   * console.log(setting.value)
-   * ```
-   */
-  async get(key: string): Promise<CustomSetting> {
-    return await this.fetch.get<CustomSetting>(
-      `/api/v1/admin/settings/custom/${key}`,
-    );
-  }
-
-  /**
-   * Update an existing custom setting
-   *
-   * @param key - Setting key
-   * @param request - Update request with new values
-   * @returns Promise resolving to CustomSetting
-   *
-   * @example
-   * ```typescript
-   * const updated = await client.admin.settings.custom.update('feature.dark_mode', {
-   *   value: { enabled: false },
-   *   description: 'Updated description'
-   * })
-   * ```
-   */
-  async update(
-    key: string,
-    request: UpdateCustomSettingRequest,
-  ): Promise<CustomSetting> {
-    return await this.fetch.put<CustomSetting>(
-      `/api/v1/admin/settings/custom/${key}`,
-      request,
     );
   }
 
@@ -754,10 +770,10 @@ export class CustomSettingsManager {
    *
    * @example
    * ```typescript
-   * await client.admin.settings.custom.delete('feature.dark_mode')
+   * await client.admin.settings.app.deleteSetting('billing.tiers')
    * ```
    */
-  async delete(key: string): Promise<void> {
+  async deleteSetting(key: string): Promise<void> {
     await this.fetch.delete(`/api/v1/admin/settings/custom/${key}`);
   }
 }
@@ -908,7 +924,8 @@ export class EmailTemplateManager {
 /**
  * Settings Manager
  *
- * Provides access to system-level, application-level, and custom settings.
+ * Provides access to system-level and application-level settings.
+ * AppSettingsManager now handles both structured framework settings and custom key-value settings.
  *
  * @example
  * ```typescript
@@ -917,21 +934,124 @@ export class EmailTemplateManager {
  * // Access system settings
  * const systemSettings = await settings.system.list()
  *
- * // Access app settings
+ * // Access app settings (structured)
  * const appSettings = await settings.app.get()
+ * await settings.app.enableSignup()
  *
- * // Access custom settings
- * const customSettings = await settings.custom.list()
+ * // Access custom settings (key-value)
+ * await settings.app.setSetting('billing.tiers', { free: 1000, pro: 10000 })
+ * const tiers = await settings.app.getSetting('billing.tiers')
  * ```
  */
 export class FluxbaseSettings {
   public system: SystemSettingsManager;
   public app: AppSettingsManager;
-  public custom: CustomSettingsManager;
 
   constructor(fetch: FluxbaseFetch) {
     this.system = new SystemSettingsManager(fetch);
     this.app = new AppSettingsManager(fetch);
-    this.custom = new CustomSettingsManager(fetch);
+  }
+}
+
+/**
+ * Public Settings Client
+ *
+ * Provides read-only access to public settings for non-admin users.
+ * Access is controlled by RLS policies on the app.settings table.
+ *
+ * @example
+ * ```typescript
+ * const client = new FluxbaseClient(url, userToken)
+ *
+ * // Get single public setting
+ * const betaEnabled = await client.settings.get('features.beta_enabled')
+ * console.log(betaEnabled) // { enabled: true }
+ *
+ * // Get multiple public settings
+ * const values = await client.settings.getMany([
+ *   'features.beta_enabled',
+ *   'features.dark_mode',
+ *   'public.app_version'
+ * ])
+ * console.log(values)
+ * // {
+ * //   'features.beta_enabled': { enabled: true },
+ * //   'features.dark_mode': { enabled: false },
+ * //   'public.app_version': '1.0.0'
+ * // }
+ * ```
+ */
+export class SettingsClient {
+  constructor(private fetch: FluxbaseFetch) {}
+
+  /**
+   * Get a single setting's value
+   *
+   * Returns only the value field of the setting.
+   * Access is controlled by RLS policies - will return 403 if the user
+   * doesn't have permission to read the setting.
+   *
+   * @param key - Setting key (e.g., 'features.beta_enabled')
+   * @returns Promise resolving to the setting's value
+   * @throws Error if setting doesn't exist or user lacks permission
+   *
+   * @example
+   * ```typescript
+   * // Get public setting (any user)
+   * const value = await client.settings.get('features.beta_enabled')
+   * console.log(value) // { enabled: true }
+   *
+   * // Get restricted setting (requires permission)
+   * try {
+   *   const secret = await client.settings.get('internal.api_key')
+   * } catch (error) {
+   *   console.error('Access denied:', error)
+   * }
+   * ```
+   */
+  async get(key: string): Promise<any> {
+    const response = await this.fetch.get<{ value: any }>(
+      `/api/v1/settings/${encodeURIComponent(key)}`,
+    );
+    return response.value;
+  }
+
+  /**
+   * Get multiple settings' values by keys
+   *
+   * Fetches multiple settings in a single request.
+   * Only returns settings the user has permission to read based on RLS policies.
+   * Settings the user can't access will be omitted from the result (no error thrown).
+   *
+   * @param keys - Array of setting keys to fetch
+   * @returns Promise resolving to object mapping keys to values
+   *
+   * @example
+   * ```typescript
+   * const values = await client.settings.getMany([
+   *   'features.beta_enabled',  // public - will be returned
+   *   'features.dark_mode',      // public - will be returned
+   *   'internal.api_key'         // secret - will be omitted
+   * ])
+   * console.log(values)
+   * // {
+   * //   'features.beta_enabled': { enabled: true },
+   * //   'features.dark_mode': { enabled: false }
+   * //   // 'internal.api_key' is omitted (no error)
+   * // }
+   * ```
+   */
+  async getMany(keys: string[]): Promise<Record<string, any>> {
+    const response = await this.fetch.post<Array<{ key: string; value: any }>>(
+      "/api/v1/settings/batch",
+      { keys },
+    );
+    return response.reduce(
+      (acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
   }
 }

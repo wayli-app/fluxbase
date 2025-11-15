@@ -409,7 +409,7 @@ func (h *OAuthProviderHandler) DeleteOAuthProvider(c *fiber.Ctx) error {
 func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 	ctx := c.Context()
 
-	query := "SELECT key, value FROM dashboard.auth_settings"
+	query := "SELECT key, value FROM app.settings WHERE category = 'auth'"
 	rows, err := h.db.Query(ctx, query)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get auth settings")
@@ -533,8 +533,8 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 
 	// Upsert each setting (insert or update if exists)
 	upsertQuery := `
-		INSERT INTO dashboard.auth_settings (key, value, updated_at)
-		VALUES ($1, $2, NOW())
+		INSERT INTO app.settings (key, value, category, updated_at)
+		VALUES ($1, $2, 'auth', NOW())
 		ON CONFLICT (key) DO UPDATE
 		SET value = EXCLUDED.value, updated_at = NOW()
 	`

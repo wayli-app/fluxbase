@@ -14,9 +14,8 @@ DROP TRIGGER IF EXISTS update_functions_edge_functions_updated_at ON functions.e
 -- Dashboard schema triggers
 DROP TRIGGER IF EXISTS validate_app_metadata_trigger ON dashboard.users;
 DROP TRIGGER IF EXISTS update_dashboard_email_templates_updated_at ON dashboard.email_templates;
-DROP TRIGGER IF EXISTS update_dashboard_custom_settings_updated_at ON dashboard.custom_settings;
-DROP TRIGGER IF EXISTS update_dashboard_system_settings_updated_at ON dashboard.system_settings;
-DROP TRIGGER IF EXISTS update_dashboard_auth_settings_updated_at ON dashboard.auth_settings;
+-- Note: dashboard.auth_settings, dashboard.system_settings, and dashboard.custom_settings
+-- have been migrated to app.settings
 DROP TRIGGER IF EXISTS update_dashboard_oauth_providers_updated_at ON dashboard.oauth_providers;
 DROP TRIGGER IF EXISTS update_dashboard_sessions_updated_at ON dashboard.sessions;
 DROP TRIGGER IF EXISTS update_dashboard_users_updated_at ON dashboard.users;

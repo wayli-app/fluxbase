@@ -18,6 +18,16 @@ CREATE SCHEMA IF NOT EXISTS auth;
 GRANT USAGE, CREATE ON SCHEMA auth TO CURRENT_USER;
 
 --
+-- APP SCHEMA
+-- Handles application-level configuration and settings
+--
+
+CREATE SCHEMA IF NOT EXISTS app;
+GRANT USAGE, CREATE ON SCHEMA app TO CURRENT_USER;
+
+COMMENT ON SCHEMA app IS 'Schema for application-level configuration, settings, and metadata';
+
+--
 -- DASHBOARD SCHEMA
 -- Handles Fluxbase platform administrator authentication and management
 --

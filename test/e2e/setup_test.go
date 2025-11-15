@@ -216,8 +216,8 @@ func setupTestTables() {
 
 	// Enable signup for all tests (settings are checked from database first, then config)
 	_, err = db.Exec(ctx, `
-		INSERT INTO dashboard.system_settings (key, value)
-		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb)
+		INSERT INTO app.settings (key, value, category)
+		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system')
 		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 	`)
 	if err != nil {
@@ -265,6 +265,7 @@ func grantRLSTestPermissions() {
 	// Grant database and schema permissions to both test users
 	_, err = db.Exec(ctx, `
 		GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_rls_test, fluxbase_app;
+		GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_rls_test, fluxbase_app;
@@ -281,6 +282,8 @@ func grantRLSTestPermissions() {
 	_, err = db.Exec(ctx, `
 		GRANT ALL ON ALL TABLES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
@@ -297,6 +300,8 @@ func grantRLSTestPermissions() {
 		-- Grant permissions on future tables/sequences (in case migrations add new ones)
 		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;

@@ -40,10 +40,11 @@ COMMENT ON ROLE service_role IS 'Service role for backend services with elevated
 
 -- Grant schema usage permissions to roles
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA functions TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
 -- Note: Specific table permissions will be managed through RLS policies
--- The dashboard schema is not granted to these roles as it's admin-only
+-- The dashboard and app schemas contain admin settings, access controlled via RLS

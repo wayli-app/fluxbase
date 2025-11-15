@@ -52,54 +52,11 @@ CREATE POLICY dashboard_sessions_all_policy ON dashboard.sessions
         OR auth.current_user_id()::TEXT = user_id::TEXT
     );
 
--- Dashboard system settings table
-ALTER TABLE dashboard.system_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE dashboard.system_settings FORCE ROW LEVEL SECURITY;
+-- Note: dashboard.system_settings has been migrated to app.settings
+-- RLS policies for app.settings are in migration 014_policies_app
 
-CREATE POLICY dashboard_system_settings_select_policy ON dashboard.system_settings
-    FOR SELECT
-    USING (auth.current_user_role() = 'dashboard_admin');
-
-CREATE POLICY dashboard_system_settings_modify_policy ON dashboard.system_settings
-    FOR ALL
-    USING (auth.current_user_role() = 'dashboard_admin');
-
--- Dashboard custom settings table
-ALTER TABLE dashboard.custom_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE dashboard.custom_settings FORCE ROW LEVEL SECURITY;
-
--- dashboard_admin can do everything with custom settings
-CREATE POLICY dashboard_custom_settings_dashboard_admin_all ON dashboard.custom_settings
-    FOR ALL
-    USING (auth.current_user_role() = 'dashboard_admin')
-    WITH CHECK (auth.current_user_role() = 'dashboard_admin');
-
--- admin can read all custom settings
-CREATE POLICY dashboard_custom_settings_admin_select ON dashboard.custom_settings
-    FOR SELECT
-    USING (auth.current_user_role() = 'admin');
-
--- admin can update/delete only if 'admin' is in editable_by array
-CREATE POLICY dashboard_custom_settings_admin_update ON dashboard.custom_settings
-    FOR UPDATE
-    USING (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by))
-    WITH CHECK (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by));
-
-CREATE POLICY dashboard_custom_settings_admin_delete ON dashboard.custom_settings
-    FOR DELETE
-    USING (auth.current_user_role() = 'admin' AND 'admin' = ANY(editable_by));
-
--- service_role can do everything (for internal operations)
-CREATE POLICY dashboard_custom_settings_service_role_all ON dashboard.custom_settings
-    FOR ALL
-    USING (auth.current_user_role() = 'service_role')
-    WITH CHECK (auth.current_user_role() = 'service_role');
-
-COMMENT ON POLICY dashboard_custom_settings_dashboard_admin_all ON dashboard.custom_settings IS 'Dashboard admins have full access to all custom settings';
-COMMENT ON POLICY dashboard_custom_settings_admin_select ON dashboard.custom_settings IS 'Admins can read all custom settings';
-COMMENT ON POLICY dashboard_custom_settings_admin_update ON dashboard.custom_settings IS 'Admins can update custom settings only if admin is in editable_by array';
-COMMENT ON POLICY dashboard_custom_settings_admin_delete ON dashboard.custom_settings IS 'Admins can delete custom settings only if admin is in editable_by array';
-COMMENT ON POLICY dashboard_custom_settings_service_role_all ON dashboard.custom_settings IS 'Service role has full access for internal operations';
+-- Note: dashboard.custom_settings has been migrated to app.settings
+-- RLS policies for app.settings are in migration 014_policies_app
 
 -- Dashboard invitation tokens table
 ALTER TABLE dashboard.invitation_tokens ENABLE ROW LEVEL SECURITY;
@@ -183,15 +140,5 @@ CREATE POLICY oauth_providers_dashboard_admin_only ON dashboard.oauth_providers
 
 COMMENT ON POLICY oauth_providers_dashboard_admin_only ON dashboard.oauth_providers IS 'Only dashboard admins and service role can manage OAuth providers.';
 
--- Dashboard auth settings
-ALTER TABLE dashboard.auth_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE dashboard.auth_settings FORCE ROW LEVEL SECURITY;
-
-CREATE POLICY auth_settings_dashboard_admin_only ON dashboard.auth_settings
-    FOR ALL
-    USING (
-        auth.current_user_role() = 'service_role'
-        OR auth.current_user_role() = 'dashboard_admin'
-    );
-
-COMMENT ON POLICY auth_settings_dashboard_admin_only ON dashboard.auth_settings IS 'Only dashboard admins and service role can manage auth settings.';
+-- Note: dashboard.auth_settings has been migrated to app.settings
+-- RLS policies for app.settings are in migration 014_policies_app

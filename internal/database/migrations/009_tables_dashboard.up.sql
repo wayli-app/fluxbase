@@ -117,51 +117,6 @@ CREATE TABLE IF NOT EXISTS dashboard.oauth_providers (
 CREATE INDEX IF NOT EXISTS idx_dashboard_oauth_providers_provider_name ON dashboard.oauth_providers(provider_name);
 CREATE INDEX IF NOT EXISTS idx_dashboard_oauth_providers_enabled ON dashboard.oauth_providers(enabled);
 
--- Auth settings table
-CREATE TABLE IF NOT EXISTS dashboard.auth_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key TEXT UNIQUE NOT NULL,
-    value JSONB NOT NULL,
-    description TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_dashboard_auth_settings_key ON dashboard.auth_settings(key);
-
--- System settings table
-CREATE TABLE IF NOT EXISTS dashboard.system_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key TEXT UNIQUE NOT NULL,
-    value JSONB NOT NULL,
-    description TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_dashboard_system_settings_key ON dashboard.system_settings(key);
-
--- Custom settings table (flexible admin-managed key-value configuration)
-CREATE TABLE IF NOT EXISTS dashboard.custom_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key TEXT UNIQUE NOT NULL,
-    value JSONB NOT NULL,
-    value_type TEXT NOT NULL DEFAULT 'string' CHECK (value_type IN ('string', 'number', 'boolean', 'json')),
-    description TEXT,
-    editable_by TEXT[] NOT NULL DEFAULT ARRAY['dashboard_admin']::TEXT[],
-    metadata JSONB DEFAULT '{}'::JSONB,
-    created_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
-    updated_by UUID REFERENCES dashboard.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_key ON dashboard.custom_settings(key);
-CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_editable_by ON dashboard.custom_settings USING GIN(editable_by);
-CREATE INDEX IF NOT EXISTS idx_dashboard_custom_settings_created_at ON dashboard.custom_settings(created_at);
-
-COMMENT ON TABLE dashboard.custom_settings IS 'Flexible key-value settings that can be created and managed by admins and dashboard_admins';
-
 -- Invitation tokens table
 CREATE TABLE IF NOT EXISTS dashboard.invitation_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

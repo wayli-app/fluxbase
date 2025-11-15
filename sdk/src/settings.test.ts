@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { SystemSettingsManager, AppSettingsManager, FluxbaseSettings } from './settings'
+import { SystemSettingsManager, AppSettingsManager, FluxbaseSettings, SettingsClient } from './settings'
 import type { FluxbaseFetch } from './fetch'
 import type {
   SystemSetting,
   AppSettings,
+  CustomSetting,
 } from './types'
 
 describe('SystemSettingsManager', () => {
@@ -362,6 +363,236 @@ describe('AppSettingsManager', () => {
         security: { enable_global_rate_limit: true },
       })
       expect(result.security.enable_global_rate_limit).toBe(true)
+    })
+  })
+})
+
+describe('AppSettingsManager - Custom Settings', () => {
+  let manager: AppSettingsManager
+  let mockFetch: any
+
+  beforeEach(() => {
+    mockFetch = {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    }
+    manager = new AppSettingsManager(mockFetch as unknown as FluxbaseFetch)
+  })
+
+  describe('getSetting', () => {
+    it('should get setting value without metadata', async () => {
+      const mockSetting: CustomSetting = {
+        id: 'setting-1',
+        key: 'features.beta_enabled',
+        value: { enabled: true },
+        value_type: 'json',
+        description: 'Beta feature toggle',
+        editable_by: ['dashboard_admin'],
+        metadata: {},
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }
+
+      vi.mocked(mockFetch.get).mockResolvedValue(mockSetting)
+
+      const result = await manager.getSetting('features.beta_enabled')
+
+      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/admin/settings/custom/features.beta_enabled')
+      expect(result).toEqual({ enabled: true })
+      expect(result).not.toHaveProperty('id')
+    })
+
+    it('should handle errors', async () => {
+      vi.mocked(mockFetch.get).mockRejectedValue(new Error('Setting not found'))
+
+      await expect(manager.getSetting('nonexistent')).rejects.toThrow('Setting not found')
+    })
+  })
+
+  describe('getSettings', () => {
+    it('should get multiple setting values', async () => {
+      const mockSettings: CustomSetting[] = [
+        {
+          id: 'setting-1',
+          key: 'features.beta_enabled',
+          value: { enabled: true },
+          value_type: 'json',
+          description: 'Beta toggle',
+          editable_by: ['dashboard_admin'],
+          metadata: {},
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: 'setting-2',
+          key: 'features.dark_mode',
+          value: { enabled: false },
+          value_type: 'json',
+          description: 'Dark mode toggle',
+          editable_by: ['dashboard_admin'],
+          metadata: {},
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      ]
+
+      vi.mocked(mockFetch.post).mockResolvedValue(mockSettings)
+
+      const result = await manager.getSettings(['features.beta_enabled', 'features.dark_mode'])
+
+      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/settings/batch', {
+        keys: ['features.beta_enabled', 'features.dark_mode'],
+      })
+      expect(result).toEqual({
+        'features.beta_enabled': { enabled: true },
+        'features.dark_mode': { enabled: false },
+      })
+    })
+
+    it('should handle empty keys array', async () => {
+      vi.mocked(mockFetch.post).mockResolvedValue([])
+
+      const result = await manager.getSettings([])
+
+      expect(result).toEqual({})
+    })
+  })
+
+  describe('setSetting', () => {
+    it('should create new setting if not found', async () => {
+      const mockSetting: CustomSetting = {
+        id: 'setting-1',
+        key: 'billing.tiers',
+        value: { free: 1000, pro: 10000 },
+        value_type: 'json',
+        description: 'API quotas',
+        editable_by: ['dashboard_admin'],
+        metadata: {},
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }
+
+      vi.mocked(mockFetch.put).mockRejectedValue({ status: 404, message: 'not found' })
+      vi.mocked(mockFetch.post).mockResolvedValue(mockSetting)
+
+      const result = await manager.setSetting('billing.tiers', { free: 1000, pro: 10000 }, {
+        description: 'API quotas'
+      })
+
+      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/admin/settings/custom', {
+        key: 'billing.tiers',
+        value: { free: 1000, pro: 10000 },
+        value_type: 'json',
+        description: 'API quotas',
+        is_public: false,
+        is_secret: false,
+      })
+      expect(result).toEqual(mockSetting)
+    })
+  })
+})
+
+describe('SettingsClient', () => {
+  let client: SettingsClient
+  let mockFetch: any
+
+  beforeEach(() => {
+    mockFetch = {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    }
+    client = new SettingsClient(mockFetch as unknown as FluxbaseFetch)
+  })
+
+  describe('get', () => {
+    it('should get public setting value', async () => {
+      vi.mocked(mockFetch.get).mockResolvedValue({ value: { enabled: true } })
+
+      const result = await client.get('features.beta_enabled')
+
+      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/settings/features.beta_enabled')
+      expect(result).toEqual({ enabled: true })
+    })
+
+    it('should handle settings with special characters in key', async () => {
+      vi.mocked(mockFetch.get).mockResolvedValue({ value: '1.0.0' })
+
+      const result = await client.get('public.app_version')
+
+      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/settings/public.app_version')
+      expect(result).toBe('1.0.0')
+    })
+
+    it('should throw error for unauthorized access', async () => {
+      vi.mocked(mockFetch.get).mockRejectedValue(new Error('Forbidden'))
+
+      await expect(client.get('internal.secret')).rejects.toThrow('Forbidden')
+    })
+
+    it('should throw error for non-existent setting', async () => {
+      vi.mocked(mockFetch.get).mockRejectedValue(new Error('Not found'))
+
+      await expect(client.get('nonexistent.key')).rejects.toThrow('Not found')
+    })
+  })
+
+  describe('getMany', () => {
+    it('should get multiple public settings', async () => {
+      vi.mocked(mockFetch.post).mockResolvedValue([
+        { key: 'features.beta_enabled', value: { enabled: true } },
+        { key: 'features.dark_mode', value: { enabled: false } },
+        { key: 'public.app_version', value: '1.0.0' },
+      ])
+
+      const result = await client.getMany([
+        'features.beta_enabled',
+        'features.dark_mode',
+        'public.app_version',
+      ])
+
+      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/settings/batch', {
+        keys: ['features.beta_enabled', 'features.dark_mode', 'public.app_version'],
+      })
+      expect(result).toEqual({
+        'features.beta_enabled': { enabled: true },
+        'features.dark_mode': { enabled: false },
+        'public.app_version': '1.0.0',
+      })
+    })
+
+    it('should filter unauthorized settings (RLS)', async () => {
+      // Backend filters out settings user can't access
+      vi.mocked(mockFetch.post).mockResolvedValue([
+        { key: 'features.beta_enabled', value: { enabled: true } },
+        { key: 'features.dark_mode', value: { enabled: false } },
+        // 'internal.secret' is omitted by RLS
+      ])
+
+      const result = await client.getMany([
+        'features.beta_enabled',
+        'features.dark_mode',
+        'internal.secret',
+      ])
+
+      expect(result).toEqual({
+        'features.beta_enabled': { enabled: true },
+        'features.dark_mode': { enabled: false },
+      })
+      expect(result).not.toHaveProperty('internal.secret')
+    })
+
+    it('should handle empty keys array', async () => {
+      vi.mocked(mockFetch.post).mockResolvedValue([])
+
+      const result = await client.getMany([])
+
+      expect(result).toEqual({})
     })
   })
 })

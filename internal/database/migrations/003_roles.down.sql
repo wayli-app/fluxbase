@@ -2,6 +2,7 @@
 
 -- Revoke schema permissions
 REVOKE USAGE ON SCHEMA auth FROM anon, authenticated, service_role;
+REVOKE USAGE ON SCHEMA app FROM anon, authenticated, service_role;
 REVOKE USAGE ON SCHEMA storage FROM anon, authenticated, service_role;
 REVOKE USAGE ON SCHEMA functions FROM anon, authenticated, service_role;
 REVOKE USAGE ON SCHEMA realtime FROM anon, authenticated, service_role;

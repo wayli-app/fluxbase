@@ -48,6 +48,7 @@ type Server struct {
 	systemSettingsHandler *SystemSettingsHandler
 	customSettingsHandler *CustomSettingsHandler
 	appSettingsHandler    *AppSettingsHandler
+	settingsHandler       *SettingsHandler
 	emailTemplateHandler  *EmailTemplateHandler
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
@@ -130,6 +131,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	customSettingsService := settings.NewCustomSettingsService(db)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache())
+	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
 	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
@@ -168,6 +170,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		systemSettingsHandler: systemSettingsHandler,
 		customSettingsHandler: customSettingsHandler,
 		appSettingsHandler:    appSettingsHandler,
+		settingsHandler:       settingsHandler,
 		emailTemplateHandler:  emailTemplateHandler,
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
@@ -297,6 +300,12 @@ func (s *Server) setupRoutes() {
 	// Auth routes
 	auth := v1.Group("/auth")
 	s.setupAuthRoutes(auth)
+
+	// Public settings routes - optional authentication with RLS support
+	// These routes respect app.settings RLS policies based on is_public and is_secret flags
+	settings := v1.Group("/settings", OptionalAuthMiddleware(s.authHandler.authService))
+	settings.Get("/:key", s.settingsHandler.GetSetting)
+	settings.Post("/batch", s.settingsHandler.GetSettings)
 
 	// Dashboard auth routes (separate from application auth)
 	s.dashboardAuthHandler.RegisterRoutes(s.app)

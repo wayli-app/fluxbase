@@ -57,7 +57,7 @@ func (s *SystemSettingsService) IsSetupComplete(ctx context.Context) (bool, erro
 	var exists bool
 	err := s.db.QueryRow(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM dashboard.system_settings
+			SELECT 1 FROM app.settings
 			WHERE key = 'setup_completed'
 		)
 	`).Scan(&exists)
@@ -94,8 +94,8 @@ func (s *SystemSettingsService) MarkSetupComplete(ctx context.Context, adminID u
 	}
 
 	_, err = s.db.Exec(ctx, `
-		INSERT INTO dashboard.system_settings (key, value, description)
-		VALUES ($1, $2, $3)
+		INSERT INTO app.settings (key, value, description, category)
+		VALUES ($1, $2, $3, 'system')
 	`, "setup_completed", valueJSON, "Tracks initial setup completion")
 
 	return err
@@ -105,7 +105,7 @@ func (s *SystemSettingsService) MarkSetupComplete(ctx context.Context, adminID u
 func (s *SystemSettingsService) GetSetupInfo(ctx context.Context) (*SetupCompleteValue, error) {
 	var valueJSON []byte
 	err := s.db.QueryRow(ctx, `
-		SELECT value FROM dashboard.system_settings
+		SELECT value FROM app.settings
 		WHERE key = 'setup_completed'
 	`).Scan(&valueJSON)
 
@@ -131,7 +131,7 @@ func (s *SystemSettingsService) GetSetting(ctx context.Context, key string) (*Sy
 
 	err := s.db.QueryRow(ctx, `
 		SELECT id, key, value, description, created_at, updated_at
-		FROM dashboard.system_settings
+		FROM app.settings
 		WHERE key = $1
 	`, key).Scan(
 		&setting.ID,
@@ -164,8 +164,8 @@ func (s *SystemSettingsService) SetSetting(ctx context.Context, key string, valu
 	}
 
 	_, err = s.db.Exec(ctx, `
-		INSERT INTO dashboard.system_settings (key, value, description)
-		VALUES ($1, $2, $3)
+		INSERT INTO app.settings (key, value, description, category)
+		VALUES ($1, $2, $3, 'system')
 		ON CONFLICT (key) DO UPDATE
 		SET value = EXCLUDED.value,
 		    description = EXCLUDED.description,
@@ -187,7 +187,7 @@ func (s *SystemSettingsService) SetSetting(ctx context.Context, key string, valu
 // DeleteSetting removes a system setting by key
 func (s *SystemSettingsService) DeleteSetting(ctx context.Context, key string) error {
 	result, err := s.db.Exec(ctx, `
-		DELETE FROM dashboard.system_settings WHERE key = $1
+		DELETE FROM app.settings WHERE key = $1
 	`, key)
 
 	if err != nil {
@@ -210,7 +210,7 @@ func (s *SystemSettingsService) DeleteSetting(ctx context.Context, key string) e
 func (s *SystemSettingsService) ListSettings(ctx context.Context) ([]SystemSetting, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT id, key, value, description, created_at, updated_at
-		FROM dashboard.system_settings
+		FROM app.settings
 		ORDER BY key
 	`)
 	if err != nil {
