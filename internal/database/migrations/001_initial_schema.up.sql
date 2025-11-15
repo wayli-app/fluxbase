@@ -102,6 +102,16 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 COMMENT ON FUNCTION auth.jwt() IS 'Supabase-compatible function that returns JWT claims as JSONB, including user_metadata and app_metadata. Use ->> operator to extract text values or -> for JSONB.';
 
+-- Supabase compatibility: auth.role() returns the current user's role
+CREATE OR REPLACE FUNCTION auth.role()
+RETURNS TEXT AS $$
+BEGIN
+    RETURN auth.current_user_role();
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+COMMENT ON FUNCTION auth.role() IS 'Supabase-compatible alias for auth.current_user_role(). Returns the current user role.';
+
 CREATE OR REPLACE FUNCTION auth.current_user_role()
 RETURNS TEXT AS $$
 DECLARE

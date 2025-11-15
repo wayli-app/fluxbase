@@ -47,6 +47,10 @@ Example usage:
 (auth.jwt() -> 'app_metadata' -> 'permissions' ? 'can_delete')
 ```
 
+### `auth.role()` -> TEXT
+
+Returns the current user's role (`anon`, `authenticated`, `admin`, etc.). This is a Supabase-compatible alias for `auth.current_user_role()`.
+
 ### `auth.current_user_id()` -> UUID
 
 Returns the authenticated user's ID, or NULL for anonymous users.
@@ -210,13 +214,18 @@ CREATE POLICY org_access ON public.documents
 CREATE POLICY role_based ON public.sensitive_data
     FOR SELECT
     USING (
-        CASE auth.current_user_role()
+        CASE auth.role()
             WHEN 'admin' THEN TRUE
             WHEN 'manager' THEN department_id = (SELECT department_id FROM auth.users WHERE id = auth.uid())
             WHEN 'user' THEN user_id = auth.uid()
             ELSE FALSE
         END
     );
+
+-- Simple role check
+CREATE POLICY admin_only ON public.admin_settings
+    FOR ALL
+    USING (auth.role() = 'admin');
 ```
 
 ### Custom Claims from JWT
