@@ -169,7 +169,7 @@ func (r *DenoRuntime) wrapCode(userCode string, req ExecutionRequest) string {
     const request = %s;
 
     // Set up Fluxbase API URL (if needed by user code)
-    const FLUXBASE_URL = Deno.env.get("FLUXBASE_URL") || "http://localhost:8080";
+    const FLUXBASE_URL = Deno.env.get("FLUXBASE_BASE_URL") || "http://localhost:8080";
     const FLUXBASE_TOKEN = Deno.env.get("FLUXBASE_TOKEN") || "";
 
     // User function code starts here

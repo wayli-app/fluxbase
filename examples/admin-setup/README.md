@@ -27,7 +27,7 @@ npm install
 Create a `.env` file:
 
 ```env
-FLUXBASE_URL=http://localhost:8080
+FLUXBASE_BASE_URL=http://localhost:8080
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=your-admin-password
 
@@ -274,7 +274,7 @@ If you can't connect to Fluxbase:
 # Check if server is running
 curl http://localhost:8080/api/v1/health
 
-# Verify FLUXBASE_URL in .env
+# Verify FLUXBASE_BASE_URL in .env
 ```
 
 ### Permission Errors

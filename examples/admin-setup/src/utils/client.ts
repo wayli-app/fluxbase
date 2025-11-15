@@ -8,7 +8,7 @@ dotenv.config()
  * Create and configure the Fluxbase client
  */
 export function getClient(): FluxbaseClient {
-  const url = process.env.FLUXBASE_URL || 'http://localhost:8080'
+  const url = process.env.FLUXBASE_BASE_URL || 'http://localhost:8080'
 
   const client = createClient({ url })
 

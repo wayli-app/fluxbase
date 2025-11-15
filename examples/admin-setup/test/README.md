@@ -15,7 +15,7 @@ These tests verify that all admin example scripts work correctly against a real 
 
 Before running the tests, ensure you have:
 
-1. **Fluxbase server running** on `localhost:8080` (or configure `FLUXBASE_URL`)
+1. **Fluxbase server running** on `localhost:8080` (or configure `FLUXBASE_BASE_URL`)
 2. **Database initialized** with migrations applied
 3. **Admin credentials** configured in `.env` file
 4. **Test dependencies installed**: `npm install`
@@ -31,7 +31,7 @@ cp .env.example .env
 Edit `.env` with your admin credentials:
 
 ```env
-FLUXBASE_URL=http://localhost:8080
+FLUXBASE_BASE_URL=http://localhost:8080
 ADMIN_EMAIL=admin@fluxbase.local
 ADMIN_PASSWORD=your-admin-password
 ```
@@ -180,11 +180,11 @@ hookTimeout: 30000;
 
 ### Environment Variables
 
-| Variable         | Default                 | Description         |
-| ---------------- | ----------------------- | ------------------- |
-| `FLUXBASE_URL`   | `http://localhost:8080` | Fluxbase server URL |
-| `ADMIN_EMAIL`    | `admin@fluxbase.local`  | Admin email         |
-| `ADMIN_PASSWORD` | `password`              | Admin password      |
+| Variable              | Default                 | Description         |
+| --------------------- | ----------------------- | ------------------- |
+| `FLUXBASE_BASE_URL`   | `http://localhost:8080` | Fluxbase server URL |
+| `ADMIN_EMAIL`         | `admin@fluxbase.local`  | Admin email         |
+| `ADMIN_PASSWORD`      | `password`              | Admin password      |
 
 ### Test Data
 
@@ -278,7 +278,7 @@ jobs:
 **Solution:**
 
 1. Verify server is running: `curl http://localhost:8080/health`
-2. Check `FLUXBASE_URL` in `.env`
+2. Check `FLUXBASE_BASE_URL` in `.env`
 3. Ensure no firewall blocking port 8080
 
 ### Authentication Errors

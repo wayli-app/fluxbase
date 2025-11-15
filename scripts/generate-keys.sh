@@ -379,7 +379,7 @@ EOF
         echo -e "${BLUE}1. Environment Variable (Client-side):${NC}"
         cat <<'EOF'
 # .env.local
-VITE_FLUXBASE_URL=http://localhost:8080
+VITE_FLUXBASE_BASE_URL=http://localhost:8080
 VITE_FLUXBASE_ANON_KEY=<your-anon-key>
 EOF
         echo ""
@@ -389,7 +389,7 @@ EOF
 import { createClient } from "@fluxbase/client";
 
 const fluxbase = createClient({
-  url: import.meta.env.VITE_FLUXBASE_URL,
+  url: import.meta.env.VITE_FLUXBASE_BASE_URL,
   anonKey: import.meta.env.VITE_FLUXBASE_ANON_KEY,
 });
 

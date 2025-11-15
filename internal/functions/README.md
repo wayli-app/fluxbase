@@ -101,14 +101,14 @@ Functions have access to:
 
 - **Deno standard library**: All Deno APIs
 - **Fluxbase API**: Access via environment variables
-  - `FLUXBASE_URL`: API endpoint
+  - `FLUXBASE_BASE_URL`: API endpoint
   - `FLUXBASE_TOKEN`: Authentication token
 
 ### Example: Database Query
 
 ```typescript
 async function handler(request) {
-  const url = Deno.env.get("FLUXBASE_URL");
+  const url = Deno.env.get("FLUXBASE_BASE_URL");
   const token = Deno.env.get("FLUXBASE_TOKEN");
 
   // Query Fluxbase REST API

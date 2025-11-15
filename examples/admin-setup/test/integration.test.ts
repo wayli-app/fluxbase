@@ -36,7 +36,7 @@ describe('Admin Setup Integration Tests', () => {
     testUserEmail = `test-${Date.now()}@example.com`
 
     client = createClient({
-      url: process.env.FLUXBASE_URL || 'http://localhost:8080'
+      url: process.env.FLUXBASE_BASE_URL || 'http://localhost:8080'
     })
 
     // Ensure admin is logged in for tests

@@ -139,7 +139,7 @@ if userID := c.Locals("user_id"); userID != nil {
 // Edge Function receives:
 // - FLUXBASE_USER_ID
 // - FLUXBASE_AUTHENTICATED
-// - FLUXBASE_URL (API base URL)
+// - FLUXBASE_BASE_URL (API base URL)
 // - FLUXBASE_TOKEN (service role token)
 ```
 

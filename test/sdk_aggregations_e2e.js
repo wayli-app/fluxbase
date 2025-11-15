@@ -6,7 +6,7 @@
 
 import { createClient } from '../sdk/dist/index.js'
 
-const API_URL = process.env.FLUXBASE_URL || 'http://localhost:8080'
+const API_URL = process.env.FLUXBASE_BASE_URL || 'http://localhost:8080'
 
 async function main() {
   console.log('🧪 Testing SDK Aggregations & Batch Operations\n')

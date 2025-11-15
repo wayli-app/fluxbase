@@ -54,7 +54,7 @@ node examples/01-quickstart.js
 import { createClient } from '@fluxbase/sdk'
 
 const client = createClient({
-  url: process.env.FLUXBASE_URL || 'http://localhost:8080',
+  url: process.env.FLUXBASE_BASE_URL || 'http://localhost:8080',
   auth: {
     autoRefresh: true,
     persist: true,
@@ -111,7 +111,7 @@ console.log('Products:', data)
 Create a `.env` file for configuration:
 
 ```bash
-FLUXBASE_URL=http://localhost:8080
+FLUXBASE_BASE_URL=http://localhost:8080
 FLUXBASE_ANON_KEY=your-anon-key  # Optional
 ```
 
