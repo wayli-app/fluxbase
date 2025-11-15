@@ -4,8 +4,8 @@ entries:
   - annotations:
       artifacthub.io/prerelease: "true"
     apiVersion: v2
-    appVersion: 0.0.1-rc.22
-    created: "2025-11-15T14:41:42.357361172Z"
+    appVersion: 0.0.1-rc.23
+    created: "2025-11-15T16:30:49.134916803Z"
     dependencies:
     - alias: cnpg
       condition: postgresql.cnpg.enabled
@@ -14,7 +14,7 @@ entries:
       version: ~0.0.10
     description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
       PostgreSQL
-    digest: 945ffbb896ecc9cfb8978aae292b0a9b04d0b28b6595ae3874be3d4871ead803
+    digest: b468415ac2090b788db4921f50d36877bfaa117b0c563d419d048a3f23bc2d53
     home: https://github.com/yourusername/fluxbase
     icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/img/logo.png
     keywords:
@@ -33,6 +33,6 @@ entries:
     - https://github.com/yourusername/fluxbase
     type: application
     urls:
-    - https://wayli-app.github.io/fluxbase/fluxbase-0.0.1-rc.22.tgz
-    version: 0.0.1-rc.22
-generated: "2025-11-15T14:41:42.354080814Z"
+    - https://wayli-app.github.io/fluxbase/fluxbase-0.0.1-rc.23.tgz
+    version: 0.0.1-rc.23
+generated: "2025-11-15T16:30:49.130812687Z"
