@@ -279,6 +279,8 @@ func grantRLSTestPermissions() {
 
 	// Grant table and sequence permissions to both test users
 	_, err = db.Exec(ctx, `
+		GRANT ALL ON ALL TABLES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
+		GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
@@ -293,6 +295,8 @@ func grantRLSTestPermissions() {
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
 
 		-- Grant permissions on future tables/sequences (in case migrations add new ones)
+		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO fluxbase_rls_test, fluxbase_app;
 		ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;

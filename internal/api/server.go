@@ -697,6 +697,14 @@ func (s *Server) GetWebhookTriggerService() *webhook.TriggerService {
 	return s.webhookTriggerService
 }
 
+// GetAuthService returns the auth service from the auth handler
+func (s *Server) GetAuthService() *auth.Service {
+	if s.authHandler == nil {
+		return nil
+	}
+	return s.authHandler.authService
+}
+
 // customErrorHandler handles errors globally
 func customErrorHandler(c *fiber.Ctx, err error) error {
 	// Default to 500 status code

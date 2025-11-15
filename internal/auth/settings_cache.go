@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
@@ -36,9 +37,11 @@ func NewSettingsCache(service *SystemSettingsService, ttl time.Duration) *Settin
 func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bool) bool {
 	// Convert app.* key format to viper config format (e.g., app.auth.enable_signup -> auth.enable_signup)
 	viperKey := c.toViperKey(key)
+	envKey := c.GetEnvVarName(key)
 
-	// Check if environment variable override exists
-	if viper.IsSet(viperKey) {
+	// Check if environment variable override exists (not just a viper default)
+	// Only use environment override if it's actually set
+	if os.Getenv(envKey) != "" {
 		return viper.GetBool(viperKey)
 	}
 
@@ -83,9 +86,10 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int) int {
 	// Convert app.* key format to viper config format
 	viperKey := c.toViperKey(key)
+	envKey := c.GetEnvVarName(key)
 
-	// Check if environment variable override exists
-	if viper.IsSet(viperKey) {
+	// Check if environment variable override exists (not just a viper default)
+	if os.Getenv(envKey) != "" {
 		return viper.GetInt(viperKey)
 	}
 

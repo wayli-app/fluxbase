@@ -291,6 +291,11 @@ func TestAuthSignupToggle(t *testing.T) {
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb
 		`)
 
+		// Invalidate the settings cache so it re-reads from database
+		authService := tc.Server.GetAuthService()
+		require.NotNil(t, authService, "Auth service should not be nil")
+		authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
+
 		// Try to signup
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
 			WithBody(map[string]interface{}{
@@ -318,6 +323,12 @@ func TestAuthSignupToggle(t *testing.T) {
 			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb)
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 		`)
+
+		// Invalidate the settings cache so it re-reads from database
+		authService := tc.Server.GetAuthService()
+		if authService != nil {
+			authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
+		}
 
 		// Try to signup
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").

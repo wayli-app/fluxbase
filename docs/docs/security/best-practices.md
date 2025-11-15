@@ -771,7 +771,7 @@ snyk container test fluxbase/fluxbase:latest
 
 ```dockerfile
 # Dockerfile
-FROM node:18-alpine
+FROM node:25-alpine
 
 # Create non-root user
 RUN addgroup -g 1001 -S fluxbase && \

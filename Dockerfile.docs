@@ -5,7 +5,7 @@
 # in docs/docs/api/sdk and docs/docs/api/sdk-react directories.
 # The CI workflow generates these files before building the Docker image.
 
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps

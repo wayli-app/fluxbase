@@ -170,7 +170,7 @@ sudo systemctl start fluxbase
 
 ```dockerfile
 # Multi-stage build with Admin UI
-FROM node:20-alpine AS admin-builder
+FROM node:25-alpine AS admin-builder
 WORKDIR /build/admin
 COPY admin/ ./
 RUN npm ci --only=production && npm run build

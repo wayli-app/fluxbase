@@ -26,6 +26,7 @@ Client (React) → Fluxbase SDK → Fluxbase Server → PostgreSQL
 ```
 
 **Data Flow**:
+
 1. User authenticates → JWT token stored in SDK
 2. User creates todo → INSERT with user_id
 3. PostgreSQL RLS ensures user_id matches authenticated user
@@ -183,104 +184,104 @@ todo-app/
 
 ```typescript
 // src/lib/fluxbase.ts
-import { createClient } from '@fluxbase/client'
+import { createClient } from "@fluxbase/client";
 
 export const fluxbase = createClient({
   url: import.meta.env.VITE_FLUXBASE_URL,
   anonKey: import.meta.env.VITE_FLUXBASE_ANON_KEY,
-})
+});
 
 export type Todo = {
-  id: string
-  user_id: string
-  title: string
-  completed: boolean
-  created_at: string
-  updated_at: string
-}
+  id: string;
+  user_id: string;
+  title: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+};
 ```
 
 ### Custom Hook: useTodos
 
 ```typescript
 // src/hooks/useTodos.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fluxbase, type Todo } from '../lib/fluxbase'
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fluxbase, type Todo } from "../lib/fluxbase";
 
-export function useTodos(filter: 'all' | 'active' | 'completed' = 'all') {
-  const queryClient = useQueryClient()
+export function useTodos(filter: "all" | "active" | "completed" = "all") {
+  const queryClient = useQueryClient();
 
   // Fetch todos
   const { data: todos, isLoading } = useQuery({
-    queryKey: ['todos', filter],
+    queryKey: ["todos", filter],
     queryFn: async () => {
       let query = fluxbase
-        .from<Todo>('todos')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from<Todo>("todos")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (filter === 'active') {
-        query = query.eq('completed', false)
-      } else if (filter === 'completed') {
-        query = query.eq('completed', true)
+      if (filter === "active") {
+        query = query.eq("completed", false);
+      } else if (filter === "completed") {
+        query = query.eq("completed", true);
       }
 
-      const { data, error } = await query
+      const { data, error } = await query;
 
-      if (error) throw error
-      return data || []
+      if (error) throw error;
+      return data || [];
     },
-  })
+  });
 
   // Create todo
   const createTodo = useMutation({
     mutationFn: async (title: string) => {
       const { data, error } = await fluxbase
-        .from<Todo>('todos')
+        .from<Todo>("todos")
         .insert({ title, user_id: fluxbase.auth.user()!.id })
         .select()
-        .single()
+        .single();
 
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] })
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
     },
-  })
+  });
 
   // Update todo
   const updateTodo = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Todo> & { id: string }) => {
       const { data, error } = await fluxbase
-        .from<Todo>('todos')
+        .from<Todo>("todos")
         .update(updates)
-        .eq('id', id)
+        .eq("id", id)
         .select()
-        .single()
+        .single();
 
-      if (error) throw error
-      return data
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] })
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
     },
-  })
+  });
 
   // Delete todo
   const deleteTodo = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await fluxbase
-        .from<Todo>('todos')
+        .from<Todo>("todos")
         .delete()
-        .eq('id', id)
+        .eq("id", id);
 
-      if (error) throw error
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] })
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
     },
-  })
+  });
 
   return {
     todos: todos || [],
@@ -288,7 +289,7 @@ export function useTodos(filter: 'all' | 'active' | 'completed' = 'all') {
     createTodo: createTodo.mutate,
     updateTodo: updateTodo.mutate,
     deleteTodo: deleteTodo.mutate,
-  }
+  };
 }
 ```
 
@@ -296,27 +297,27 @@ export function useTodos(filter: 'all' | 'active' | 'completed' = 'all') {
 
 ```typescript
 // src/hooks/useRealtime.ts
-import { useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { fluxbase } from '../lib/fluxbase'
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { fluxbase } from "../lib/fluxbase";
 
 export function useRealtimeTodos() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Subscribe to todo changes
     const subscription = fluxbase
-      .from('todos')
-      .on('*', () => {
+      .from("todos")
+      .on("*", () => {
         // Invalidate todos query when any change occurs
-        queryClient.invalidateQueries({ queryKey: ['todos'] })
+        queryClient.invalidateQueries({ queryKey: ["todos"] });
       })
-      .subscribe()
+      .subscribe();
 
     return () => {
-      subscription.unsubscribe()
-    }
-  }, [queryClient])
+      subscription.unsubscribe();
+    };
+  }, [queryClient]);
 }
 ```
 
@@ -324,25 +325,26 @@ export function useRealtimeTodos() {
 
 ```typescript
 // src/components/Todo/TodoList.tsx
-import { useState } from 'react'
-import { useTodos } from '../../hooks/useTodos'
-import { useRealtimeTodos } from '../../hooks/useRealtime'
-import TodoItem from './TodoItem'
-import TodoForm from './TodoForm'
-import TodoFilters from './TodoFilters'
+import { useState } from "react";
+import { useTodos } from "../../hooks/useTodos";
+import { useRealtimeTodos } from "../../hooks/useRealtime";
+import TodoItem from "./TodoItem";
+import TodoForm from "./TodoForm";
+import TodoFilters from "./TodoFilters";
 
 export default function TodoList() {
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
-  const { todos, isLoading, createTodo, updateTodo, deleteTodo } = useTodos(filter)
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const { todos, isLoading, createTodo, updateTodo, deleteTodo } =
+    useTodos(filter);
 
   // Enable realtime updates
-  useRealtimeTodos()
+  useRealtimeTodos();
 
   if (isLoading) {
-    return <div className="text-center p-8">Loading...</div>
+    return <div className="text-center p-8">Loading...</div>;
   }
 
-  const activeCount = todos.filter((t) => !t.completed).length
+  const activeCount = todos.filter((t) => !t.completed).length;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -375,11 +377,11 @@ export default function TodoList() {
 
       {todos.length > 0 && (
         <div className="mt-4 text-sm text-gray-600 text-center">
-          {activeCount} {activeCount === 1 ? 'item' : 'items'} left
+          {activeCount} {activeCount === 1 ? "item" : "items"} left
         </div>
       )}
     </div>
-  )
+  );
 }
 ```
 
@@ -387,40 +389,42 @@ export default function TodoList() {
 
 ```typescript
 // src/components/Auth/SignIn.tsx
-import { useState } from 'react'
-import { fluxbase } from '../../lib/fluxbase'
+import { useState } from "react";
+import { fluxbase } from "../../lib/fluxbase";
 
-export default function SignIn({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function SignIn({
+  onSwitchToSignUp,
+}: {
+  onSwitchToSignUp: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     const { error } = await fluxbase.auth.signIn({
       email,
       password,
-    })
+    });
 
     if (error) {
-      setError(error.message)
+      setError(error.message);
     }
 
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
   return (
     <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow">
       <h2 className="text-2xl font-bold mb-4">Sign In</h2>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-          {error}
-        </div>
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -457,7 +461,7 @@ export default function SignIn({ onSwitchToSignUp }: { onSwitchToSignUp: () => v
           disabled={loading}
           className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
 
@@ -470,7 +474,7 @@ export default function SignIn({ onSwitchToSignUp }: { onSwitchToSignUp: () => v
         </button>
       </div>
     </div>
-  )
+  );
 }
 ```
 
@@ -528,7 +532,7 @@ netlify env:set VITE_FLUXBASE_ANON_KEY your-key
 
 ```dockerfile
 # Dockerfile
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./

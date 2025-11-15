@@ -7,7 +7,7 @@
 #   Development:                 Use docker-compose.yml or make dev
 
 # Stage 1: Build SDKs and Admin UI
-FROM node:20-alpine AS admin-builder
+FROM node:25-alpine AS admin-builder
 
 WORKDIR /build
 
