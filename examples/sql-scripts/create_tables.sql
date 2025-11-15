@@ -89,19 +89,19 @@ CREATE POLICY "Public posts are viewable by everyone"
 
 CREATE POLICY "Authors can view their own posts"
     ON posts FOR SELECT
-    USING (author_id = current_setting('app.current_user_id', true)::UUID);
+    USING (author_id = auth.uid());
 
 CREATE POLICY "Authors can insert their own posts"
     ON posts FOR INSERT
-    WITH CHECK (author_id = current_setting('app.current_user_id', true)::UUID);
+    WITH CHECK (author_id = auth.uid());
 
 CREATE POLICY "Authors can update their own posts"
     ON posts FOR UPDATE
-    USING (author_id = current_setting('app.current_user_id', true)::UUID);
+    USING (author_id = auth.uid());
 
 CREATE POLICY "Authors can delete their own posts"
     ON posts FOR DELETE
-    USING (author_id = current_setting('app.current_user_id', true)::UUID);
+    USING (author_id = auth.uid());
 
 -- Comments policies
 CREATE POLICY "Approved comments are viewable by everyone"
@@ -110,15 +110,15 @@ CREATE POLICY "Approved comments are viewable by everyone"
 
 CREATE POLICY "Users can insert comments"
     ON comments FOR INSERT
-    WITH CHECK (author_id = current_setting('app.current_user_id', true)::UUID);
+    WITH CHECK (author_id = auth.uid());
 
 CREATE POLICY "Users can update their own comments"
     ON comments FOR UPDATE
-    USING (author_id = current_setting('app.current_user_id', true)::UUID);
+    USING (author_id = auth.uid());
 
 CREATE POLICY "Users can delete their own comments"
     ON comments FOR DELETE
-    USING (author_id = current_setting('app.current_user_id', true)::UUID);
+    USING (author_id = auth.uid());
 
 -- Categories are publicly readable
 CREATE POLICY "Categories are viewable by everyone"

@@ -221,7 +221,7 @@ ALTER TABLE public.my_table FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY user_isolation ON public.my_table
   FOR ALL
-  USING (user_id = auth.current_user_id());
+  USING (user_id = auth.uid());
 ```
 
 #### 5. Implement Rate Limiting

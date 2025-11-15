@@ -16,7 +16,7 @@ RLS is enabled by default. To disable it, set in your `fluxbase.yaml`:
 
 ```yaml
 auth:
-  enable_rls: true  # Set to false to disable
+  enable_rls: true # Set to false to disable
 ```
 
 Or via environment variable:
@@ -29,22 +29,32 @@ FLUXBASE_AUTH_ENABLE_RLS=false
 
 Fluxbase provides several helper functions for writing RLS policies:
 
+### `auth.uid()` -> UUID
+
+Returns the authenticated user's ID, or NULL for anonymous users. This is a Supabase-compatible alias for `auth.current_user_id()`.
+
 ### `auth.current_user_id()` -> UUID
+
 Returns the authenticated user's ID, or NULL for anonymous users.
 
 ### `auth.current_user_role()` -> TEXT
+
 Returns the current user's role (`anon`, `authenticated`, `admin`, etc.)
 
 ### `auth.is_authenticated()` -> BOOLEAN
+
 Returns TRUE if a user is logged in.
 
 ### `auth.is_admin()` -> BOOLEAN
+
 Returns TRUE if the current user is an admin.
 
 ### `auth.enable_rls(table_name, schema_name)`
+
 Helper function to enable RLS on a table.
 
 ### `auth.disable_rls(table_name, schema_name)`
+
 Helper function to disable RLS on a table.
 
 ## Example: Multi-Tenant Tasks Table
@@ -66,7 +76,7 @@ ALTER TABLE public.tasks FORCE ROW LEVEL SECURITY;
 -- Policy: Users can see their own tasks
 CREATE POLICY tasks_select_own ON public.tasks
     FOR SELECT
-    USING (user_id = auth.current_user_id());
+    USING (user_id = auth.uid());
 
 -- Policy: Anyone can see public tasks
 CREATE POLICY tasks_select_public ON public.tasks
@@ -78,14 +88,14 @@ CREATE POLICY tasks_insert_own ON public.tasks
     FOR INSERT
     WITH CHECK (
         auth.is_authenticated()
-        AND user_id = auth.current_user_id()
+        AND user_id = auth.uid()
     );
 
 -- Policy: Users can update their own tasks
 CREATE POLICY tasks_update_own ON public.tasks
     FOR UPDATE
-    USING (user_id = auth.current_user_id())
-    WITH CHECK (user_id = auth.current_user_id());
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
 
 -- Policy: Admins can see/update/delete all tasks
 CREATE POLICY tasks_admin_all ON public.tasks
@@ -136,7 +146,7 @@ CREATE POLICY table_select ON public.my_table
     FOR SELECT
     USING (
         is_public = TRUE
-        OR user_id = auth.current_user_id()
+        OR user_id = auth.uid()
     );
 ```
 
@@ -150,7 +160,7 @@ CREATE POLICY org_access ON public.documents
         organization_id IN (
             SELECT organization_id
             FROM auth.user_organizations
-            WHERE user_id = auth.current_user_id()
+            WHERE user_id = auth.uid()
         )
     );
 ```
@@ -164,8 +174,8 @@ CREATE POLICY role_based ON public.sensitive_data
     USING (
         CASE auth.current_user_role()
             WHEN 'admin' THEN TRUE
-            WHEN 'manager' THEN department_id = (SELECT department_id FROM auth.users WHERE id = auth.current_user_id())
-            WHEN 'user' THEN user_id = auth.current_user_id()
+            WHEN 'manager' THEN department_id = (SELECT department_id FROM auth.users WHERE id = auth.uid())
+            WHEN 'user' THEN user_id = auth.uid()
             ELSE FALSE
         END
     );

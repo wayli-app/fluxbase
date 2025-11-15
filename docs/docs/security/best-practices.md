@@ -124,8 +124,8 @@ ALTER TABLE public.user_data FORCE ROW LEVEL SECURITY;
 -- Create isolation policy
 CREATE POLICY user_isolation ON public.user_data
   FOR ALL
-  USING (user_id = auth.current_user_id())
-  WITH CHECK (user_id = auth.current_user_id());
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 ```
 
 [Learn more about RLS →](../guides/row-level-security.md)

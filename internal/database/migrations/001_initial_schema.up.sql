@@ -50,6 +50,16 @@ $$ LANGUAGE plpgsql STABLE;
 
 COMMENT ON FUNCTION auth.current_user_id() IS 'Returns the current authenticated user ID from PostgreSQL session variable app.user_id. Returns NULL if not set or invalid.';
 
+-- Supabase compatibility: auth.uid() is an alias for auth.current_user_id()
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS UUID AS $$
+BEGIN
+    RETURN auth.current_user_id();
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+COMMENT ON FUNCTION auth.uid() IS 'Supabase-compatible alias for auth.current_user_id(). Returns the current authenticated user ID.';
+
 CREATE OR REPLACE FUNCTION auth.current_user_role()
 RETURNS TEXT AS $$
 DECLARE
