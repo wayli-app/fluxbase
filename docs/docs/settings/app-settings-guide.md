@@ -550,6 +550,6 @@ settingsCache.InvalidateAll()
 
 ## Related Documentation
 
-- [RLS Guide](../security/rls-guide.md)
-- [User Migrations](../migrations/user-migrations.md)
+- [Security Overview](../security/overview.md)
+- [Database Migrations](../guides/database-migrations.md)
 - [SDK Reference](../sdk/settings.md)
