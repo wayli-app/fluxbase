@@ -46,7 +46,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.22
+    image: ghcr.io/wayli-app/fluxbase:0.0.1-rc.23
     container_name: fluxbase-api
     ports:
       - "8080:8080"
