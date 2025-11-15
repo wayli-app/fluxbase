@@ -13,6 +13,7 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	// Use RLS test context which connects with fluxbase_rls_test user (no BYPASSRLS)
 	tc := test.NewRLSTestContext(t)
 	tc.EnsureAuthSchema()
+	tc.EnsureRLSTestTables()
 
 	// Clean all tables before each test to ensure isolation
 	// Using CASCADE will clean related tables automatically
@@ -28,14 +29,12 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	tc.ExecuteSQL("TRUNCATE TABLE dashboard.activity_log CASCADE")
 	tc.ExecuteSQL("TRUNCATE TABLE tasks CASCADE")
 
-	// Note: tasks table exists with RLS enabled from the initial schema
+	// Note: tasks table created by EnsureRLSTestTables with RLS enabled
 	// The table has the following RLS policies:
-	// - tasks_select_own: Users can select their own tasks
-	// - tasks_select_public: Anyone can select public tasks
-	// - tasks_insert_own: Authenticated users can insert their own tasks
+	// - tasks_select_own: Users can select their own tasks or public tasks
+	// - tasks_insert_own: Authenticated users can insert tasks
 	// - tasks_update_own: Users can update their own tasks
 	// - tasks_delete_own: Users can delete their own tasks
-	// - Admin policies for select/update/delete all tasks
 
 	return tc
 }
@@ -727,7 +726,7 @@ func TestRLSDashboardAdminTablesProtected(t *testing.T) {
 	// Test 2: Auth settings should be admin-only
 	tc.ExecuteSQLAsSuperuser(`
 		INSERT INTO app.settings (id, key, value, category, created_at, updated_at)
-		VALUES (gen_random_uuid(), 'max_login_attempts', '5'::jsonb, 'auth', NOW(), NOW())
+		VALUES (gen_random_uuid(), 'test_rls_setting_' || gen_random_uuid()::text, '5'::jsonb, 'auth', NOW(), NOW())
 	`)
 
 	authSettings := tc.QuerySQLAsRLSUser(`

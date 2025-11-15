@@ -106,7 +106,7 @@
     },
     "5050": {
       "label": "pgAdmin",
-      "onAutoForward": "openBrowser",
+      "onAutoForward": "notify",
       "protocol": "http"
     },
     "3000": {

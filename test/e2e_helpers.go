@@ -1179,6 +1179,70 @@ func (tc *TestContext) EnsureFunctionsSchema() {
 	}
 }
 
+// EnsureRLSTestTables ensures test tables for RLS testing exist with proper policies
+func (tc *TestContext) EnsureRLSTestTables() {
+	ctx := context.Background()
+
+	queries := []string{
+		// Create tasks table for RLS testing
+		`CREATE TABLE IF NOT EXISTS public.tasks (
+			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+			user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+			title TEXT NOT NULL,
+			description TEXT,
+			completed BOOLEAN DEFAULT FALSE,
+			is_public BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+
+		// Enable RLS on tasks table
+		`ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY`,
+		`ALTER TABLE public.tasks FORCE ROW LEVEL SECURITY`,
+
+		// Drop existing policies if they exist (for idempotency)
+		`DROP POLICY IF EXISTS tasks_select_own ON public.tasks`,
+		`DROP POLICY IF EXISTS tasks_insert_own ON public.tasks`,
+		`DROP POLICY IF EXISTS tasks_update_own ON public.tasks`,
+		`DROP POLICY IF EXISTS tasks_delete_own ON public.tasks`,
+
+		// CREATE policies for tasks table
+		// SELECT: Users can see their own tasks or public tasks
+		`CREATE POLICY tasks_select_own ON public.tasks
+			FOR SELECT
+			USING (user_id = auth.current_user_id() OR is_public = true)`,
+
+		// INSERT: Authenticated users can insert tasks
+		`CREATE POLICY tasks_insert_own ON public.tasks
+			FOR INSERT
+			WITH CHECK (user_id = auth.current_user_id())`,
+
+		// UPDATE: Users can update their own tasks
+		`CREATE POLICY tasks_update_own ON public.tasks
+			FOR UPDATE
+			USING (user_id = auth.current_user_id())`,
+
+		// DELETE: Users can delete their own tasks
+		`CREATE POLICY tasks_delete_own ON public.tasks
+			FOR DELETE
+			USING (user_id = auth.current_user_id())`,
+	}
+
+	// Create a temporary connection as postgres superuser to create tables and policies
+	// This is necessary because the RLS test user doesn't have table ownership permissions
+	connStr := fmt.Sprintf("host=%s port=%d user=postgres password=postgres dbname=%s sslmode=disable",
+		tc.Config.Database.Host, tc.Config.Database.Port, tc.Config.Database.Database)
+
+	conn, err := pgx.Connect(ctx, connStr)
+	require.NoError(tc.T, err, "Failed to connect as superuser for table creation")
+	defer conn.Close(ctx)
+
+	for _, query := range queries {
+		_, err := conn.Exec(ctx, query)
+		require.NoError(tc.T, err, "Failed to create RLS test tables: %v", err)
+	}
+}
+
 // MailHogMessage represents an email message from MailHog
 type MailHogMessage struct {
 	ID   string `json:"ID"`
