@@ -18,6 +18,7 @@ type Config struct {
 	Database  DatabaseConfig  `mapstructure:"database"`
 	Auth      AuthConfig      `mapstructure:"auth"`
 	Security  SecurityConfig  `mapstructure:"security"`
+	CORS      CORSConfig      `mapstructure:"cors"`
 	Storage   StorageConfig   `mapstructure:"storage"`
 	Realtime  RealtimeConfig  `mapstructure:"realtime"`
 	Email     EmailConfig     `mapstructure:"email"`
@@ -81,6 +82,16 @@ type SecurityConfig struct {
 	AuthLoginRateWindow  time.Duration `mapstructure:"auth_login_rate_window"`  // Time window for auth login rate limit
 	AdminLoginRateLimit  int           `mapstructure:"admin_login_rate_limit"`  // Max attempts for admin login
 	AdminLoginRateWindow time.Duration `mapstructure:"admin_login_rate_window"` // Time window for admin login rate limit
+}
+
+// CORSConfig contains CORS settings
+type CORSConfig struct {
+	AllowedOrigins   string `mapstructure:"allowed_origins"`   // Comma-separated list of allowed origins (use "*" for all)
+	AllowedMethods   string `mapstructure:"allowed_methods"`   // Comma-separated list of allowed HTTP methods
+	AllowedHeaders   string `mapstructure:"allowed_headers"`   // Comma-separated list of allowed headers
+	ExposedHeaders   string `mapstructure:"exposed_headers"`   // Comma-separated list of exposed headers
+	AllowCredentials bool   `mapstructure:"allow_credentials"` // Allow credentials (cookies, authorization headers)
+	MaxAge           int    `mapstructure:"max_age"`           // Max age for preflight cache in seconds
 }
 
 // StorageConfig contains file storage settings
@@ -274,6 +285,14 @@ func setDefaults() {
 	viper.SetDefault("security.auth_login_rate_window", "1m")    // per minute
 	viper.SetDefault("security.admin_login_rate_limit", 10)      // 10 attempts
 	viper.SetDefault("security.admin_login_rate_window", "1m")   // per minute
+
+	// CORS defaults
+	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080")
+	viper.SetDefault("cors.allowed_methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,Prefer,apikey")
+	viper.SetDefault("cors.exposed_headers", "Content-Range,Content-Encoding,Content-Length,X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset")
+	viper.SetDefault("cors.allow_credentials", true) // Required for CSRF tokens
+	viper.SetDefault("cors.max_age", 300)
 
 	// Storage defaults
 	viper.SetDefault("storage.provider", "local")

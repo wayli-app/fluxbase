@@ -243,12 +243,12 @@ func (s *Server) setupMiddlewares() {
 	// CORS middleware
 	log.Debug().Msg("Adding CORS middleware")
 	s.app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:5173,http://localhost:8080", // Can't use "*" with AllowCredentials
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Request-ID, X-CSRF-Token, Prefer",
-		ExposeHeaders:    "Content-Range, Content-Encoding, Content-Length, X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
-		AllowCredentials: true, // Required for CSRF tokens
-		MaxAge:           300,
+		AllowOrigins:     s.config.CORS.AllowedOrigins,
+		AllowMethods:     s.config.CORS.AllowedMethods,
+		AllowHeaders:     s.config.CORS.AllowedHeaders,
+		ExposeHeaders:    s.config.CORS.ExposedHeaders,
+		AllowCredentials: s.config.CORS.AllowCredentials,
+		MaxAge:           s.config.CORS.MaxAge,
 	}))
 
 	// Global rate limiting - 100 requests per minute per IP
