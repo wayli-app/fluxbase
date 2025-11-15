@@ -6,6 +6,7 @@ import type { FluxbaseFetch } from "./fetch";
 import type {
   FileObject,
   UploadOptions,
+  UploadProgress,
   ListOptions,
   SignedUrlOptions,
   ShareFileOptions,
@@ -35,6 +36,7 @@ export class StorageBucket {
     options?: UploadOptions,
   ): Promise<{ data: { id: string; path: string; fullPath: string } | null; error: Error | null }> {
     try {
+      // Prepare FormData (common to both code paths)
       const formData = new FormData();
 
       // Convert to Blob if ArrayBuffer
@@ -58,14 +60,22 @@ export class StorageBucket {
         formData.append("upsert", String(options.upsert));
       }
 
-      const response = await this.fetch.request<any>(
-        `/api/v1/storage/${this.bucketName}/${path}`,
-        {
-          method: "POST",
-          body: formData,
-          headers: {}, // Let browser set Content-Type for FormData
-        },
-      );
+      let response: any;
+
+      // Use XMLHttpRequest for progress tracking if callback is provided
+      if (options?.onUploadProgress) {
+        response = await this.uploadWithProgress(path, formData, options.onUploadProgress);
+      } else {
+        // Use standard fetch for uploads without progress tracking
+        response = await this.fetch.request<any>(
+          `/api/v1/storage/${this.bucketName}/${path}`,
+          {
+            method: "POST",
+            body: formData,
+            headers: {}, // Let browser set Content-Type for FormData
+          },
+        );
+      }
 
       // Return Supabase-compatible response format
       return {
@@ -79,6 +89,75 @@ export class StorageBucket {
     } catch (error) {
       return { data: null, error: error as Error };
     }
+  }
+
+  /**
+   * Upload with progress tracking using XMLHttpRequest
+   * @private
+   */
+  private uploadWithProgress(
+    path: string,
+    formData: FormData,
+    onProgress: (progress: UploadProgress) => void,
+  ): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const url = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentage = Math.round((event.loaded / event.total) * 100);
+          onProgress({
+            loaded: event.loaded,
+            total: event.total,
+            percentage,
+          });
+        }
+      });
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            resolve(xhr.responseText);
+          }
+        } else {
+          try {
+            const errorData = JSON.parse(xhr.responseText);
+            reject(new Error(errorData.error || xhr.statusText));
+          } catch (e) {
+            reject(new Error(xhr.statusText));
+          }
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload aborted'));
+      });
+
+      // Open and send request
+      xhr.open('POST', url);
+
+      // Set authorization header if present
+      const headers = this.fetch["defaultHeaders"];
+      for (const [key, value] of Object.entries(headers)) {
+        // Don't set Content-Type header - let browser handle it for FormData
+        if (key.toLowerCase() !== 'content-type') {
+          xhr.setRequestHeader(key, value);
+        }
+      }
+
+      xhr.send(formData);
+    });
   }
 
   /**

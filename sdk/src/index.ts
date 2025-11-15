@@ -129,6 +129,7 @@ export type {
   FileObject,
   StorageObject, // Deprecated alias for FileObject
   UploadOptions,
+  UploadProgress,
   ListOptions,
   SignedUrlOptions,
 

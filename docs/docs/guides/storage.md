@@ -45,11 +45,13 @@ FLUXBASE_STORAGE_S3_REGION=us-east-1
 ## Provider Comparison
 
 **Local Storage:**
+
 - Simple setup, no external dependencies
 - Best for development and single-server deployments
 - Not scalable across multiple servers
 
 **S3-Compatible:**
+
 - Highly scalable and distributed
 - Best for production with multiple servers
 - Requires external service (AWS S3, MinIO, etc.)
@@ -74,6 +76,7 @@ graph TB
 ```
 
 **Limitations:**
+
 - Single server only - files stored locally cannot be accessed by multiple Fluxbase instances
 - No horizontal scaling possible
 - Server failure means data loss (unless backups exist)
@@ -109,12 +112,14 @@ graph TB
 ```
 
 **Benefits:**
+
 - Multiple Fluxbase instances can access the same storage
 - Horizontally scalable - add more instances as needed
 - High availability - storage cluster handles redundancy
 - No single point of failure
 
 **Use Cases:**
+
 - **Local Storage**: Development, testing, single-server deployments
 - **MinIO**: Self-hosted production with horizontal scaling needs
 - **AWS S3/DigitalOcean Spaces**: Cloud production with managed infrastructure
@@ -128,125 +133,241 @@ npm install @fluxbase/sdk
 ## Basic Usage
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient('http://localhost:8080', 'your-anon-key')
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // Upload file
-const file = document.getElementById('fileInput').files[0]
+const file = document.getElementById("fileInput").files[0];
 const { data, error } = await client.storage
-  .from('avatars')
-  .upload('user1.png', file)
+  .from("avatars")
+  .upload("user1.png", file);
 
 // Download file
 const { data: blob } = await client.storage
-  .from('avatars')
-  .download('user1.png')
+  .from("avatars")
+  .download("user1.png");
 
 // List files
-const { data: files } = await client.storage
-  .from('avatars')
-  .list()
+const { data: files } = await client.storage.from("avatars").list();
 
 // Delete file
-await client.storage
-  .from('avatars')
-  .remove(['user1.png'])
+await client.storage.from("avatars").remove(["user1.png"]);
 ```
 
 ## Bucket Operations
 
-| Method | Purpose | Parameters |
-|--------|---------|------------|
-| `createBucket()` | Create new bucket | `name`, `options` (public, file_size_limit, allowed_mime_types) |
-| `listBuckets()` | List all buckets | None |
-| `getBucket()` | Get bucket details | `name` |
-| `deleteBucket()` | Delete bucket | `name` |
+| Method           | Purpose            | Parameters                                                      |
+| ---------------- | ------------------ | --------------------------------------------------------------- |
+| `createBucket()` | Create new bucket  | `name`, `options` (public, file_size_limit, allowed_mime_types) |
+| `listBuckets()`  | List all buckets   | None                                                            |
+| `getBucket()`    | Get bucket details | `name`                                                          |
+| `deleteBucket()` | Delete bucket      | `name`                                                          |
 
 **Example:**
 
 ```typescript
 // Create bucket
-await client.storage.createBucket('avatars', {
+await client.storage.createBucket("avatars", {
   public: false,
   file_size_limit: 5242880,
-  allowed_mime_types: ['image/png', 'image/jpeg']
-})
+  allowed_mime_types: ["image/png", "image/jpeg"],
+});
 
 // List/get/delete
-const { data: buckets } = await client.storage.listBuckets()
-const { data: bucket } = await client.storage.getBucket('avatars')
-await client.storage.deleteBucket('avatars')
+const { data: buckets } = await client.storage.listBuckets();
+const { data: bucket } = await client.storage.getBucket("avatars");
+await client.storage.deleteBucket("avatars");
 ```
 
 ## File Operations
 
-| Method | Purpose | Parameters |
-|--------|---------|------------|
-| `upload()` | Upload file | `path`, `file`, `options` (contentType, cacheControl, upsert) |
-| `download()` | Download file | `path` |
-| `list()` | List files | `path`, `options` (limit, offset, sortBy) |
-| `remove()` | Delete files | `paths[]` |
-| `copy()` | Copy file | `from`, `to` |
-| `move()` | Move file | `from`, `to` |
+| Method       | Purpose       | Parameters                                                    |
+| ------------ | ------------- | ------------------------------------------------------------- |
+| `upload()`   | Upload file   | `path`, `file`, `options` (contentType, cacheControl, upsert) |
+| `download()` | Download file | `path`                                                        |
+| `list()`     | List files    | `path`, `options` (limit, offset, sortBy)                     |
+| `remove()`   | Delete files  | `paths[]`                                                     |
+| `copy()`     | Copy file     | `from`, `to`                                                  |
+| `move()`     | Move file     | `from`, `to`                                                  |
 
 **Example:**
 
 ```typescript
 // Upload
 await client.storage
-  .from('avatars')
-  .upload('user1.png', file, { upsert: true })
+  .from("avatars")
+  .upload("user1.png", file, { upsert: true });
 
 // Download
-const { data } = await client.storage
-  .from('avatars')
-  .download('user1.png')
+const { data } = await client.storage.from("avatars").download("user1.png");
 
 // List
 const { data: files } = await client.storage
-  .from('avatars')
-  .list('subfolder/', { limit: 100 })
+  .from("avatars")
+  .list("subfolder/", { limit: 100 });
 
 // Delete
-await client.storage
-  .from('avatars')
-  .remove(['file1.png', 'file2.png'])
+await client.storage.from("avatars").remove(["file1.png", "file2.png"]);
 
 // Copy/Move
-await client.storage.from('avatars').copy('old.png', 'new.png')
-await client.storage.from('avatars').move('old.png', 'new.png')
+await client.storage.from("avatars").copy("old.png", "new.png");
+await client.storage.from("avatars").move("old.png", "new.png");
 ```
+
+## Upload Progress Tracking
+
+Track upload progress by providing an `onUploadProgress` callback in the upload options:
+
+### Vanilla SDK
+
+```typescript
+import { createClient } from "@fluxbase/sdk";
+
+const client = createClient("http://localhost:8080", "your-anon-key");
+const file = document.getElementById("fileInput").files[0];
+
+// Upload with progress tracking
+const { data, error } = await client.storage
+  .from("avatars")
+  .upload("user1.png", file, {
+    onUploadProgress: (progress) => {
+      console.log(`Upload progress: ${progress.percentage}%`);
+      console.log(`Loaded: ${progress.loaded} / ${progress.total} bytes`);
+
+      // Update UI progress bar
+      const progressBar = document.getElementById("progress");
+      progressBar.value = progress.percentage;
+    },
+  });
+```
+
+### React Hook (with automatic state management)
+
+```tsx
+import { useStorageUploadWithProgress } from "@fluxbase/sdk-react";
+
+function UploadComponent() {
+  const { upload, progress, reset } = useStorageUploadWithProgress("avatars");
+
+  const handleUpload = (file: File) => {
+    upload.mutate({
+      path: "user-avatar.png",
+      file: file,
+    });
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={(e) => handleUpload(e.target.files[0])} />
+
+      {progress && (
+        <div>
+          <progress value={progress.percentage} max="100" />
+          <p>{progress.percentage}% uploaded</p>
+          <p>
+            {progress.loaded} / {progress.total} bytes
+          </p>
+        </div>
+      )}
+
+      {upload.isSuccess && <p>Upload complete!</p>}
+      {upload.isError && <p>Upload failed: {upload.error?.message}</p>}
+    </div>
+  );
+}
+```
+
+### React Hook (with custom callback)
+
+```tsx
+import { useState } from "react";
+import { useStorageUpload } from "@fluxbase/sdk-react";
+
+function UploadComponent() {
+  const upload = useStorageUpload("avatars");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleUpload = (file: File) => {
+    upload.mutate({
+      path: "user-avatar.png",
+      file: file,
+      options: {
+        onUploadProgress: (progress) => {
+          setUploadProgress(progress.percentage);
+        },
+      },
+    });
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={(e) => handleUpload(e.target.files[0])} />
+
+      {uploadProgress > 0 && uploadProgress < 100 && (
+        <div>
+          <progress value={uploadProgress} max="100" />
+          <p>{uploadProgress}% uploaded</p>
+        </div>
+      )}
+
+      {upload.isSuccess && <p>Upload complete!</p>}
+    </div>
+  );
+}
+```
+
+### Progress Object
+
+The `onUploadProgress` callback receives an object with the following properties:
+
+```typescript
+interface UploadProgress {
+  loaded: number; // Number of bytes uploaded so far
+  total: number; // Total number of bytes to upload
+  percentage: number; // Upload percentage (0-100)
+}
+```
+
+### Notes
+
+- Progress tracking uses `XMLHttpRequest` instead of `fetch()` for better progress events
+- Progress tracking is optional and backward-compatible
+- When no progress callback is provided, the standard `fetch()` API is used
+- Progress updates may not be perfectly linear depending on network conditions
+- The progress callback is called multiple times during the upload
 
 ## Public vs Private Files
 
 ```typescript
 // Public bucket (no auth required)
-await client.storage.createBucket('public-images', { public: true })
-const url = client.storage.from('public-images').getPublicUrl('logo.png')
+await client.storage.createBucket("public-images", { public: true });
+const url = client.storage.from("public-images").getPublicUrl("logo.png");
 
 // Private bucket (requires auth or signed URL)
-await client.storage.createBucket('private-docs', { public: false })
+await client.storage.createBucket("private-docs", { public: false });
 ```
 
 ## Signed URLs (S3 Only)
 
 ```typescript
 const { data } = await client.storage
-  .from('private-docs')
-  .createSignedUrl('document.pdf', 3600) // 1 hour expiry
+  .from("private-docs")
+  .createSignedUrl("document.pdf", 3600); // 1 hour expiry
 ```
 
 ## Metadata
 
 ```typescript
 // Upload with metadata
-await client.storage.from('avatars').upload('profile.png', file, {
-  metadata: { user_id: '123', description: 'Profile picture' }
-})
+await client.storage.from("avatars").upload("profile.png", file, {
+  metadata: { user_id: "123", description: "Profile picture" },
+});
 
 // Get file info
-const { data } = await client.storage.from('avatars').getFileInfo('profile.png')
+const { data } = await client.storage
+  .from("avatars")
+  .getFileInfo("profile.png");
 ```
 
 ## S3 Provider Setup
@@ -304,12 +425,14 @@ storage:
 ## Best Practices
 
 **File Naming:**
+
 - Use consistent naming conventions
 - Avoid special characters
 - Use lowercase for better compatibility
 - Include file extensions
 
 **Security:**
+
 - Keep buckets private by default
 - Use signed URLs for temporary access
 - Validate file types before upload
@@ -317,12 +440,14 @@ storage:
 - Never expose S3 credentials in client code
 
 **Performance:**
+
 - Use appropriate file size limits
 - Implement client-side compression for large files
 - Use CDN for public files
 - Cache control headers for static assets
 
 **Organization:**
+
 - Use path prefixes to organize files (e.g., `users/123/avatar.png`)
 - Separate buckets by access level
 - Use metadata for searchability
@@ -332,21 +457,21 @@ storage:
 ```typescript
 try {
   const { data, error } = await client.storage
-    .from('avatars')
-    .upload('file.png', file)
+    .from("avatars")
+    .upload("file.png", file);
 
   if (error) {
-    if (error.message.includes('already exists')) {
+    if (error.message.includes("already exists")) {
       // File exists, use upsert: true or different name
-    } else if (error.message.includes('too large')) {
+    } else if (error.message.includes("too large")) {
       // File exceeds size limit
     } else {
       // Other error
-      console.error('Upload error:', error)
+      console.error("Upload error:", error);
     }
   }
 } catch (err) {
-  console.error('Network error:', err)
+  console.error("Network error:", err);
 }
 ```
 

@@ -254,11 +254,25 @@ export interface FileObject {
  */
 export type StorageObject = FileObject
 
+/**
+ * Upload progress information
+ */
+export interface UploadProgress {
+  /** Number of bytes uploaded so far */
+  loaded: number
+  /** Total number of bytes to upload */
+  total: number
+  /** Upload percentage (0-100) */
+  percentage: number
+}
+
 export interface UploadOptions {
   contentType?: string
   metadata?: Record<string, string>
   cacheControl?: string
   upsert?: boolean
+  /** Optional callback to track upload progress */
+  onUploadProgress?: (progress: UploadProgress) => void
 }
 
 export interface ListOptions {

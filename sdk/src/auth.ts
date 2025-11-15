@@ -29,7 +29,6 @@ import type {
   FluxbaseAuthResponse,
   FluxbaseResponse,
   UserResponse,
-  SessionResponse,
   DataResponse,
   VoidResponse,
 } from "./types";
@@ -72,7 +71,9 @@ export class FluxbaseAuth {
    * Get the current session (Supabase-compatible)
    * Returns the session from the client-side cache without making a network request
    */
-  async getSession(): Promise<FluxbaseResponse<{ session: AuthSession | null }>> {
+  async getSession(): Promise<
+    FluxbaseResponse<{ session: AuthSession | null }>
+  > {
     return { data: { session: this.session }, error: null };
   }
 
@@ -107,7 +108,9 @@ export class FluxbaseAuth {
    * subscription.unsubscribe()
    * ```
    */
-  onAuthStateChange(callback: AuthStateChangeCallback): { data: { subscription: AuthSubscription } } {
+  onAuthStateChange(callback: AuthStateChangeCallback): {
+    data: { subscription: AuthSubscription };
+  } {
     this.stateChangeListeners.add(callback);
 
     const subscription: AuthSubscription = {
@@ -196,7 +199,9 @@ export class FluxbaseAuth {
    * Refresh the session (Supabase-compatible)
    * Returns a new session with refreshed tokens
    */
-  async refreshSession(): Promise<FluxbaseResponse<{ session: AuthSession; user: User }>> {
+  async refreshSession(): Promise<
+    FluxbaseResponse<{ session: AuthSession; user: User }>
+  > {
     return wrapAsync(async () => {
       if (!this.session?.refresh_token) {
         throw new Error("No refresh token available");
@@ -263,7 +268,10 @@ export class FluxbaseAuth {
    * @param session - Object containing access_token and refresh_token
    * @returns Promise with session data
    */
-  async setSession(session: { access_token: string; refresh_token: string }): Promise<FluxbaseAuthResponse> {
+  async setSession(session: {
+    access_token: string;
+    refresh_token: string;
+  }): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
       // Create a full auth session from the tokens
       const authSession: AuthSession = {

@@ -21,7 +21,7 @@ export function useUser() {
     queryKey: ["fluxbase", "auth", "user"],
     queryFn: async () => {
       const { data } = await client.auth.getSession();
-      if (!data.session) {
+      if (!data?.session) {
         return null;
       }
 
@@ -46,7 +46,7 @@ export function useSession() {
     queryKey: ["fluxbase", "auth", "session"],
     queryFn: async () => {
       const { data } = await client.auth.getSession();
-      return data.session;
+      return data?.session ?? null;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
