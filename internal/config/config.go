@@ -251,7 +251,7 @@ func setDefaults() {
 	viper.SetDefault("database.max_conn_lifetime", "1h")
 	viper.SetDefault("database.max_conn_idle_time", "30m")
 	viper.SetDefault("database.health_check_period", "1m")
-	viper.SetDefault("database.user_migrations_path", "") // Empty means no user migrations
+	viper.SetDefault("database.user_migrations_path", "/migrations/user")
 
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
