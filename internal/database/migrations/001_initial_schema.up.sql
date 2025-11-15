@@ -60,6 +60,48 @@ $$ LANGUAGE plpgsql STABLE;
 
 COMMENT ON FUNCTION auth.uid() IS 'Supabase-compatible alias for auth.current_user_id(). Returns the current authenticated user ID.';
 
+-- Supabase compatibility: auth.jwt() returns JWT claims as JSONB
+CREATE OR REPLACE FUNCTION auth.jwt()
+RETURNS JSONB AS $$
+DECLARE
+    user_record RECORD;
+    jwt_claims JSONB;
+BEGIN
+    -- Get the current user ID
+    IF auth.current_user_id() IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    -- Fetch user data including metadata
+    SELECT
+        id,
+        email,
+        role,
+        user_metadata,
+        app_metadata
+    INTO user_record
+    FROM auth.users
+    WHERE id = auth.current_user_id();
+
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    -- Build JWT claims object compatible with Supabase
+    jwt_claims := jsonb_build_object(
+        'sub', user_record.id,
+        'email', user_record.email,
+        'role', COALESCE(user_record.role, auth.current_user_role()),
+        'user_metadata', COALESCE(user_record.user_metadata, '{}'::JSONB),
+        'app_metadata', COALESCE(user_record.app_metadata, '{}'::JSONB)
+    );
+
+    RETURN jwt_claims;
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+
+COMMENT ON FUNCTION auth.jwt() IS 'Supabase-compatible function that returns JWT claims as JSONB, including user_metadata and app_metadata. Use ->> operator to extract text values or -> for JSONB.';
+
 CREATE OR REPLACE FUNCTION auth.current_user_role()
 RETURNS TEXT AS $$
 DECLARE
@@ -1856,6 +1898,34 @@ $$;
 
 COMMENT ON FUNCTION storage.has_object_permission IS
     'Check if user has permission on object, bypassing RLS to prevent infinite recursion';
+
+-- Supabase compatibility: storage.foldername() extracts folder path from object name
+CREATE OR REPLACE FUNCTION storage.foldername(name TEXT)
+RETURNS TEXT[] AS $$
+DECLARE
+    path_parts TEXT[];
+    folder_parts TEXT[];
+BEGIN
+    IF name IS NULL OR name = '' THEN
+        RETURN ARRAY[]::TEXT[];
+    END IF;
+
+    -- Split the path by '/' to get folder structure
+    path_parts := string_to_array(name, '/');
+
+    -- Remove the last element (filename) to get just folders
+    IF array_length(path_parts, 1) > 1 THEN
+        folder_parts := path_parts[1:array_length(path_parts, 1) - 1];
+    ELSE
+        -- No folders, just a filename at root
+        folder_parts := ARRAY[]::TEXT[];
+    END IF;
+
+    RETURN folder_parts;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION storage.foldername(TEXT) IS 'Supabase-compatible function that extracts folder path components from an object name/path. Returns array of folder names. Use [1] to get first folder, [2] for second, etc.';
 
 -- Update storage.objects public read policy to use SECURITY DEFINER function
 DROP POLICY IF EXISTS storage_objects_public_read ON storage.objects;

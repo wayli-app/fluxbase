@@ -33,6 +33,20 @@ Fluxbase provides several helper functions for writing RLS policies:
 
 Returns the authenticated user's ID, or NULL for anonymous users. This is a Supabase-compatible alias for `auth.current_user_id()`.
 
+### `auth.jwt()` -> JSONB
+
+Returns JWT claims as JSONB, including `user_metadata` and `app_metadata`. This is a Supabase-compatible function. Use the `->` operator to extract JSONB values or `->>` to extract text values.
+
+Example usage:
+
+```sql
+-- Extract a custom role from app_metadata
+(auth.jwt() -> 'app_metadata' ->> 'custom_role')
+
+-- Check if user has a specific permission
+(auth.jwt() -> 'app_metadata' -> 'permissions' ? 'can_delete')
+```
+
 ### `auth.current_user_id()` -> UUID
 
 Returns the authenticated user's ID, or NULL for anonymous users.
@@ -56,6 +70,30 @@ Helper function to enable RLS on a table.
 ### `auth.disable_rls(table_name, schema_name)`
 
 Helper function to disable RLS on a table.
+
+### `storage.foldername(name)` -> TEXT[]
+
+Supabase-compatible function that extracts folder path components from a storage object name/path. Returns an array of folder names. Use `[1]` to get the first folder, `[2]` for the second, etc.
+
+Example usage:
+
+```sql
+-- Allow uploads to user-specific folders
+CREATE POLICY user_folder_upload ON storage.objects
+    FOR INSERT
+    WITH CHECK (
+        bucket_id = 'avatars'
+        AND (storage.foldername(path))[1] = auth.uid()::text
+    );
+
+-- Allow uploads to a specific folder
+CREATE POLICY private_folder ON storage.objects
+    FOR INSERT
+    WITH CHECK (
+        bucket_id = 'documents'
+        AND (storage.foldername(path))[1] = 'private'
+    );
+```
 
 ## Example: Multi-Tenant Tasks Table
 
@@ -178,6 +216,28 @@ CREATE POLICY role_based ON public.sensitive_data
             WHEN 'user' THEN user_id = auth.uid()
             ELSE FALSE
         END
+    );
+```
+
+### Custom Claims from JWT
+
+```sql
+-- Use custom claims from app_metadata for fine-grained access control
+CREATE POLICY team_access ON public.projects
+    FOR SELECT
+    USING (
+        -- Check if user's team (stored in app_metadata) matches project team
+        team_id = (auth.jwt() -> 'app_metadata' ->> 'team_id')::UUID
+        OR auth.is_admin()
+    );
+
+-- Permission-based access using app_metadata
+CREATE POLICY permission_based ON public.documents
+    FOR DELETE
+    USING (
+        -- Check if user has 'can_delete' permission in their app_metadata
+        (auth.jwt() -> 'app_metadata' -> 'permissions' ? 'can_delete')
+        OR auth.is_admin()
     );
 ```
 
