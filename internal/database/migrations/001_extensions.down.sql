@@ -1,0 +1,2 @@
+-- Rollback Extensions
+-- Note: Extensions are typically not dropped as they may be used by other databases

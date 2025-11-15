@@ -1,0 +1,2 @@
+-- Fluxbase Initial Database Schema - Extensions
+-- This file enables required PostgreSQL extensions

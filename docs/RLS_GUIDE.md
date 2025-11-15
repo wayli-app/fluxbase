@@ -79,10 +79,20 @@ Helper function to disable RLS on a table.
 
 Supabase-compatible function that extracts folder path components from a storage object name/path. Returns an array of folder names. Use `[1]` to get the first folder, `[2]` for the second, etc.
 
+**Note**: The `storage.objects` table has both `path` (Fluxbase) and `name` (Supabase) columns that are synchronized. You can use either in your policies.
+
 Example usage:
 
 ```sql
--- Allow uploads to user-specific folders
+-- Supabase-style: using 'name' column
+CREATE POLICY "Users upload own trip images" ON storage.objects
+    FOR INSERT
+    WITH CHECK (
+        bucket_id = 'trip-images'
+        AND (auth.uid())::text = (storage.foldername(name))[1]
+    );
+
+-- Fluxbase-style: using 'path' column (equivalent)
 CREATE POLICY user_folder_upload ON storage.objects
     FOR INSERT
     WITH CHECK (
@@ -95,7 +105,7 @@ CREATE POLICY private_folder ON storage.objects
     FOR INSERT
     WITH CHECK (
         bucket_id = 'documents'
-        AND (storage.foldername(path))[1] = 'private'
+        AND (storage.foldername(name))[1] = 'private'
     );
 ```
 

@@ -32,15 +32,6 @@
         "editor.guides.bracketPairs": true,
         "editor.inlineSuggest.enabled": true,
         "terminal.integrated.defaultProfile.linux": "zsh",
-        "terminal.integrated.profiles.linux": {
-          "bash": {
-            "path": "bash",
-            "icon": "terminal-bash"
-          },
-          "zsh": {
-            "path": "zsh"
-          }
-        },
         "files.eol": "\n",
         "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true,
@@ -146,16 +137,9 @@
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "postStartCommand": "echo 'Fluxbase dev environment ready! Run: make dev'",
   "remoteUser": "vscode",
-  "containerEnv": {
-    "NODE_OPTIONS": "--max-old-space-size=4096",
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
-    "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
-  },
   "mounts": [
     "source=${localWorkspaceFolderBasename}-go-modules,target=/go/pkg,type=volume",
-    "source=${localWorkspaceFolderBasename}-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume",
-    "source=${localWorkspaceFolderBasename}-claude-config,target=/home/vscode/.claude,type=volume",
-    "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume"
+    "source=${localWorkspaceFolderBasename}-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
   ],
   "hostRequirements": {
     "cpus": 2,

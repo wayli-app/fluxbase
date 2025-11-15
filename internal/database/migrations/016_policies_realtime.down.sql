@@ -1,0 +1,2 @@
+-- No RLS policies to drop for realtime schema
+-- The realtime.schema_registry table is managed by the realtime service
