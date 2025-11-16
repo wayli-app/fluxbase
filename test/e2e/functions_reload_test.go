@@ -14,12 +14,21 @@ import (
 
 // setupFunctionsTest prepares the test context for functions reload tests
 func setupFunctionsTest(t *testing.T) (*test.TestContext, string, string) {
-	tc := test.NewTestContext(t)
-	tc.EnsureAuthSchema()
-
 	// Create temporary functions directory for this test
 	tmpDir, err := os.MkdirTemp("", "functions-test-")
 	require.NoError(t, err, "Failed to create temp functions directory")
+
+	// Set the functions directory in the environment before creating the test context
+	// This ensures the server uses our temp directory
+	os.Setenv("FLUXBASE_FUNCTIONS_FUNCTIONS_DIR", tmpDir)
+
+	// Clean up environment variable when test is done
+	t.Cleanup(func() {
+		os.Unsetenv("FLUXBASE_FUNCTIONS_FUNCTIONS_DIR")
+	})
+
+	tc := test.NewTestContext(t)
+	tc.EnsureAuthSchema()
 
 	// Create admin user for authentication
 	timestamp := time.Now().UnixNano()
@@ -255,4 +264,114 @@ func TestFunctionsReloadConcurrent(t *testing.T) {
 	}
 
 	t.Log("All concurrent reload requests completed successfully")
+}
+
+// TestFunctionsDirectoryBasedPattern tests the directory-based function pattern ({name}/index.ts)
+func TestFunctionsDirectoryBasedPattern(t *testing.T) {
+	tc, token, functionsDir := setupFunctionsTest(t)
+	defer tc.Close()
+	defer os.RemoveAll(functionsDir)
+
+	// Test 1: Create a directory-based function
+	dirFunctionName := "complex-function"
+	dirFunctionPath := filepath.Join(functionsDir, dirFunctionName)
+	err := os.Mkdir(dirFunctionPath, 0755)
+	require.NoError(t, err, "Failed to create function directory")
+
+	indexFilePath := filepath.Join(dirFunctionPath, "index.ts")
+	dirFunctionCode := `async function handler(req) {
+	return {
+		status: 200,
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ message: "Directory-based function", type: "directory" })
+	};
+}`
+	err = os.WriteFile(indexFilePath, []byte(dirFunctionCode), 0644)
+	require.NoError(t, err, "Failed to create index.ts file")
+
+	// Test 2: Create a flat file function
+	flatFunctionName := "simple-function"
+	flatFilePath := filepath.Join(functionsDir, flatFunctionName+".ts")
+	flatFunctionCode := `async function handler(req) {
+	return {
+		status: 200,
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ message: "Flat file function", type: "flat" })
+	};
+}`
+	err = os.WriteFile(flatFilePath, []byte(flatFunctionCode), 0644)
+	require.NoError(t, err, "Failed to create flat function file")
+
+	// Reload functions - should load both patterns
+	resp := tc.NewRequest("POST", "/api/v1/admin/functions/reload").
+		WithAuth(token).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	var result map[string]interface{}
+	resp.JSON(&result)
+
+	t.Logf("Reload result: %+v", result)
+	require.Contains(t, result, "created", "Response should contain created list")
+}
+
+// TestFunctionsPriorityPattern tests that flat files take precedence over directory-based functions
+func TestFunctionsPriorityPattern(t *testing.T) {
+	tc, token, functionsDir := setupFunctionsTest(t)
+	defer tc.Close()
+	defer os.RemoveAll(functionsDir)
+
+	functionName := "priority-test"
+
+	// Create directory-based version
+	dirPath := filepath.Join(functionsDir, functionName)
+	err := os.Mkdir(dirPath, 0755)
+	require.NoError(t, err, "Failed to create function directory")
+
+	dirIndexPath := filepath.Join(dirPath, "index.ts")
+	dirCode := `async function handler(req) {
+	return {
+		status: 200,
+		body: JSON.stringify({ source: "directory" })
+	};
+}`
+	err = os.WriteFile(dirIndexPath, []byte(dirCode), 0644)
+	require.NoError(t, err, "Failed to create directory-based function")
+
+	// Create flat file version (should take priority)
+	flatPath := filepath.Join(functionsDir, functionName+".ts")
+	flatCode := `async function handler(req) {
+	return {
+		status: 200,
+		body: JSON.stringify({ source: "flat" })
+	};
+}`
+	err = os.WriteFile(flatPath, []byte(flatCode), 0644)
+	require.NoError(t, err, "Failed to create flat file function")
+
+	// Reload functions - should only create one function using the flat file
+	resp := tc.NewRequest("POST", "/api/v1/admin/functions/reload").
+		WithAuth(token).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	var result map[string]interface{}
+	resp.JSON(&result)
+
+	t.Logf("Reload result: %+v", result)
+
+	// Verify only one function was created (flat file should take precedence)
+	created, ok := result["created"].([]interface{})
+	require.True(t, ok, "Created should be an array")
+
+	// Count how many functions named "priority-test" were created
+	priorityTestCount := 0
+	for _, item := range created {
+		if item == functionName {
+			priorityTestCount++
+		}
+	}
+
+	require.Equal(t, 1, priorityTestCount, "Should only create one function, not both patterns")
+	t.Log("Correctly prioritized flat file over directory-based function")
 }

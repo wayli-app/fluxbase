@@ -6,12 +6,24 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 )
 
+// testConfig creates a test config with default API settings for testing
+func testConfigForInjectionTests() *config.Config {
+	return &config.Config{
+		API: config.APIConfig{
+			MaxPageSize:     -1, // Unlimited for tests
+			MaxTotalResults: -1, // Unlimited for tests
+			DefaultPageSize: -1, // No default for tests
+		},
+	}
+}
+
 // TestSQLInjectionPrevention tests that the query parser properly prevents SQL injection attacks
 func TestSQLInjectionPrevention(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfigForInjectionTests())
 
 	tests := []struct {
 		name           string
@@ -197,7 +209,7 @@ func TestColumnNameValidation(t *testing.T) {
 	// Create handler (db can be nil for this test)
 	handler := &RESTHandler{
 		db:     nil,
-		parser: NewQueryParser(),
+		parser: NewQueryParser(testConfigForInjectionTests()),
 	}
 
 	tests := []struct {
@@ -248,7 +260,7 @@ func TestColumnNameValidation(t *testing.T) {
 
 // TestOrderByInjection tests that ORDER BY clauses are safe
 func TestOrderByInjection(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfigForInjectionTests())
 
 	tests := []struct {
 		name          string
@@ -289,7 +301,7 @@ func TestOrderByInjection(t *testing.T) {
 
 // BenchmarkQueryParsing benchmarks the query parser with injection payloads
 func BenchmarkQueryParsing(b *testing.B) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfigForInjectionTests())
 	queryString := "email=eq.admin' OR '1'='1&id=gt.100&name=like.%test%"
 
 	values, err := url.ParseQuery(queryString)
@@ -303,7 +315,7 @@ func BenchmarkQueryParsing(b *testing.B) {
 
 // TestOWASPInjectionPayloads tests against OWASP injection payloads
 func TestOWASPInjectionPayloads(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfigForInjectionTests())
 
 	// OWASP common injection payloads
 	payloads := []string{

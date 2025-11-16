@@ -1,4 +1,4 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create db-reset deps setup-dev docs docs-build version docker-build docker-push release
+.PHONY: help dev build clean test migrate-up migrate-down migrate-create db-reset deps setup-dev install-hooks uninstall-hooks docs docs-build version docker-build docker-push release
 
 # Variables
 BINARY_NAME=fluxbase
@@ -162,11 +162,25 @@ setup-dev: ## Set up development environment (first-time setup)
 	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	@cd admin && npm install
 	@cp .env.example .env 2>/dev/null || echo ".env already exists"
+	@$(MAKE) install-hooks
 	@echo "${GREEN}Development environment ready!${NC}"
 	@echo "${YELLOW}Next steps:${NC}"
 	@echo "  1. Configure your database in .env"
 	@echo "  2. Run: make migrate-up"
 	@echo "  3. Run: make dev"
+
+install-hooks: ## Install git pre-commit hooks
+	@echo "${YELLOW}Installing git pre-commit hooks...${NC}"
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "${GREEN}✓ Pre-commit hook installed${NC}"
+	@echo "${YELLOW}The hook will run go fmt and TypeScript type checking before commits${NC}"
+	@echo "${YELLOW}To skip: git commit --no-verify${NC}"
+
+uninstall-hooks: ## Uninstall git pre-commit hooks
+	@echo "${YELLOW}Uninstalling git pre-commit hooks...${NC}"
+	@rm -f .git/hooks/pre-commit
+	@echo "${GREEN}✓ Pre-commit hook uninstalled${NC}"
 
 migrate-up: ## Run database migrations
 	@echo "${YELLOW}Running migrations...${NC}"

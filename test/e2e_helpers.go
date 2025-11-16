@@ -310,6 +310,7 @@ func GetTestConfig() *config.Config {
 	dbDatabase := getEnvOrDefault("FLUXBASE_DATABASE_DATABASE", "fluxbase_test")
 	smtpHost := getEnvOrDefault("FLUXBASE_EMAIL_SMTP_HOST", "mailhog")
 	s3Endpoint := getEnvOrDefault("FLUXBASE_STORAGE_S3_ENDPOINT", "minio:9000")
+	functionsDir := getEnvOrDefault("FLUXBASE_FUNCTIONS_FUNCTIONS_DIR", "")
 
 	return &config.Config{
 		Server: config.ServerConfig{
@@ -376,6 +377,20 @@ func GetTestConfig() *config.Config {
 			SMTPPort:    1025,
 			FromAddress: "test@fluxbase.test",
 			FromName:    "Fluxbase Test",
+		},
+		Functions: config.FunctionsConfig{
+			Enabled:            true,
+			FunctionsDir:       functionsDir,
+			AutoLoadOnBoot:     false,
+			DefaultTimeout:     30,
+			MaxTimeout:         300,
+			DefaultMemoryLimit: 128,
+			MaxMemoryLimit:     1024,
+		},
+		API: config.APIConfig{
+			MaxPageSize:     1000,
+			MaxTotalResults: 10000,
+			DefaultPageSize: 1000,
 		},
 		Debug: true,
 	}

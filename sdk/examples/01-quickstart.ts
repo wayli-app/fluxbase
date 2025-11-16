@@ -86,12 +86,13 @@ async function main() {
     console.log('✅ Product created:', newProduct)
   }
 
-  // Query products
-  const { data: products, error: selectError } = await client
+  // Query products with advanced filters
+  const { data: products, error: selectError} = await client
     .from('products')
     .select('*')
     .eq('category', 'electronics')
     .gte('price', 1000)
+    .not('status', 'eq', 'discontinued')  // NOT operator
     .order('price', 'desc')
     .limit(10)
     .execute()
@@ -100,6 +101,63 @@ async function main() {
     console.log('⚠️  Query failed:', selectError.message)
   } else {
     console.log('✅ Found', products?.length || 0, 'electronics products')
+  }
+
+  // Advanced query with OR and match
+  const { data: activeProducts } = await client
+    .from('products')
+    .match({ category: 'electronics', in_stock: true })  // match() shorthand
+    .or('status.eq.active,status.eq.pending')  // OR operator
+    .execute()
+
+  if (activeProducts) {
+    console.log('✅ Active/pending products:', activeProducts.length)
+  }
+
+  // Query with AND operator
+  const { data: verifiedProducts } = await client
+    .from('products')
+    .and('verified.eq.true,in_stock.eq.true')  // AND operator
+    .gte('rating', 4.0)
+    .execute()
+
+  if (verifiedProducts) {
+    console.log('✅ Verified in-stock products:', verifiedProducts.length)
+  }
+
+  // maybeSingle() - returns null if not found (doesn't error)
+  const { data: product, error: productError } = await client
+    .from('products')
+    .eq('id', 99999)  // Non-existent ID
+    .maybeSingle()
+
+  if (!productError && product === null) {
+    console.log('✅ maybeSingle() returned null for non-existent product')
+  }
+
+  // throwOnError() - throws error instead of returning { data, error }
+  try {
+    const topProduct = await client
+      .from('products')
+      .select('*')
+      .order('price', { ascending: false })
+      .limit(1)
+      .throwOnError()  // Returns data directly or throws
+    console.log('✅ throwOnError() returned top product directly')
+  } catch (error: any) {
+    console.log('⚠️  Query with throwOnError failed:', error.message)
+  }
+
+  // Upsert with options
+  const { data: upsertedProduct } = await client
+    .from('products')
+    .upsert(
+      { name: 'Tablet', price: 599.99, category: 'electronics' },
+      { onConflict: 'name', ignoreDuplicates: false }  // Update on name conflict
+    )
+
+  if (upsertedProduct) {
+    console.log('✅ Product upserted with conflict resolution')
   }
 
   // ========================================

@@ -5,6 +5,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // QueryParams represents parsed query parameters for REST API
@@ -100,11 +103,15 @@ const (
 )
 
 // QueryParser parses PostgREST-compatible query parameters
-type QueryParser struct{}
+type QueryParser struct {
+	config *config.Config
+}
 
 // NewQueryParser creates a new query parser
-func NewQueryParser() *QueryParser {
-	return &QueryParser{}
+func NewQueryParser(cfg *config.Config) *QueryParser {
+	return &QueryParser{
+		config: cfg,
+	}
 }
 
 // Parse parses URL query parameters into QueryParams
@@ -132,6 +139,16 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid limit parameter: %w", err)
 			}
+
+			// Enforce max_page_size (unless it's -1 for unlimited)
+			if qp.config.API.MaxPageSize > 0 && limit > qp.config.API.MaxPageSize {
+				log.Debug().
+					Int("requested", limit).
+					Int("max", qp.config.API.MaxPageSize).
+					Msg("Limit capped to max_page_size")
+				limit = qp.config.API.MaxPageSize
+			}
+
 			params.Limit = &limit
 
 		case "offset":
@@ -163,6 +180,46 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 					return nil, fmt.Errorf("invalid filter parameter %s: %w", key, err)
 				}
 			}
+		}
+	}
+
+	// Apply default limit if none specified (unless default is -1)
+	if params.Limit == nil && qp.config.API.DefaultPageSize > 0 {
+		defaultLimit := qp.config.API.DefaultPageSize
+		params.Limit = &defaultLimit
+		log.Debug().
+			Int("default", defaultLimit).
+			Msg("Applied default_page_size")
+	}
+
+	// Validate total results limit (offset + limit <= max_total_results)
+	if qp.config.API.MaxTotalResults > 0 {
+		offset := 0
+		if params.Offset != nil {
+			offset = *params.Offset
+		}
+
+		limit := 0
+		if params.Limit != nil {
+			limit = *params.Limit
+		}
+
+		totalRows := offset + limit
+		if totalRows > qp.config.API.MaxTotalResults {
+			// Cap the limit so that offset + limit = max_total_results
+			cappedLimit := qp.config.API.MaxTotalResults - offset
+			if cappedLimit < 0 {
+				cappedLimit = 0
+			}
+
+			log.Debug().
+				Int("offset", offset).
+				Int("requested_limit", limit).
+				Int("capped_limit", cappedLimit).
+				Int("max_total", qp.config.API.MaxTotalResults).
+				Msg("Limit capped due to max_total_results")
+
+			params.Limit = &cappedLimit
 		}
 	}
 
@@ -758,9 +815,57 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 
 	case OpNot:
 		// NOT operator - negates the condition
-		sql := fmt.Sprintf("NOT (%s = $%d)", f.Column, *argCounter)
-		*argCounter++
-		return sql, f.Value
+		// Value format: "operator.value" (e.g., "eq.deleted" or "is.null")
+		valueStr, ok := f.Value.(string)
+		if !ok {
+			return "", fmt.Errorf("NOT operator requires string value in format operator.value")
+		}
+
+		// Parse nested operator and value
+		dotIndex := strings.Index(valueStr, ".")
+		if dotIndex <= 0 {
+			return "", fmt.Errorf("NOT operator value must be in format operator.value, got: %s", valueStr)
+		}
+
+		nestedOp := FilterOperator(valueStr[:dotIndex])
+		nestedValue := valueStr[dotIndex+1:]
+
+		// Parse the nested value based on nested operator
+		var parsedValue interface{}
+		switch nestedOp {
+		case OpIn:
+			// Parse array values: (1,2,3) or ["a","b","c"]
+			trimmed := strings.Trim(nestedValue, "()[]")
+			items := strings.Split(trimmed, ",")
+			parsedValue = items
+		case OpIs:
+			switch nestedValue {
+			case "null":
+				parsedValue = nil
+			case "true":
+				parsedValue = true
+			case "false":
+				parsedValue = false
+			default:
+				parsedValue = nestedValue
+			}
+		default:
+			parsedValue = nestedValue
+		}
+
+		// Create a filter with the nested operator
+		nestedFilter := Filter{
+			Column:   f.Column,
+			Operator: nestedOp,
+			Value:    parsedValue,
+		}
+
+		// Generate SQL for the nested filter
+		nestedSQL, nestedArg := nestedFilter.toSQL(argCounter)
+
+		// Wrap in NOT
+		sql := fmt.Sprintf("NOT (%s)", nestedSQL)
+		return sql, nestedArg
 
 	case OpAdjacent:
 		sql := fmt.Sprintf("%s << $%d", f.Column, *argCounter)

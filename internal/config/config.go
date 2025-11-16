@@ -23,6 +23,7 @@ type Config struct {
 	Realtime  RealtimeConfig  `mapstructure:"realtime"`
 	Email     EmailConfig     `mapstructure:"email"`
 	Functions FunctionsConfig `mapstructure:"functions"`
+	API       APIConfig       `mapstructure:"api"`
 	BaseURL   string          `mapstructure:"base_url"`
 	Debug     bool            `mapstructure:"debug"`
 }
@@ -160,6 +161,13 @@ type FunctionsConfig struct {
 	MaxTimeout         int    `mapstructure:"max_timeout"`          // seconds
 	DefaultMemoryLimit int    `mapstructure:"default_memory_limit"` // MB
 	MaxMemoryLimit     int    `mapstructure:"max_memory_limit"`     // MB
+}
+
+// APIConfig contains REST API settings
+type APIConfig struct {
+	MaxPageSize     int `mapstructure:"max_page_size"`     // Max rows per request (-1 = unlimited)
+	MaxTotalResults int `mapstructure:"max_total_results"` // Max total retrievable rows via offset+limit (-1 = unlimited)
+	DefaultPageSize int `mapstructure:"default_page_size"` // Auto-applied when no limit specified (-1 = no default)
 }
 
 // Load loads configuration from file and environment variables
@@ -332,6 +340,11 @@ func setDefaults() {
 	viper.SetDefault("functions.default_memory_limit", 128) // 128MB
 	viper.SetDefault("functions.max_memory_limit", 1024)    // 1GB
 
+	// API defaults
+	viper.SetDefault("api.max_page_size", 1000)      // Max 1000 rows per request
+	viper.SetDefault("api.max_total_results", 10000) // Max 10k total rows retrievable
+	viper.SetDefault("api.default_page_size", 1000)  // Default to 1000 rows if not specified
+
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("debug", false)
@@ -371,6 +384,11 @@ func (c *Config) Validate() error {
 		if err := c.Functions.Validate(); err != nil {
 			return fmt.Errorf("functions configuration error: %w", err)
 		}
+	}
+
+	// Validate API configuration
+	if err := c.API.Validate(); err != nil {
+		return fmt.Errorf("api configuration error: %w", err)
 	}
 
 	// Validate base URL
@@ -668,6 +686,42 @@ func (fc *FunctionsConfig) Validate() error {
 	// Warn if max_memory_limit is very high (over 1GB)
 	if fc.MaxMemoryLimit > 1024 {
 		log.Warn().Int("max_memory_limit", fc.MaxMemoryLimit).Msg("max_memory_limit is over 1GB - high memory functions may impact performance")
+	}
+
+	return nil
+}
+
+// Validate validates API configuration
+func (ac *APIConfig) Validate() error {
+	// Validate max_page_size (-1 is allowed for unlimited)
+	if ac.MaxPageSize == 0 || ac.MaxPageSize < -1 {
+		return fmt.Errorf("max_page_size must be positive or -1 for unlimited, got: %d", ac.MaxPageSize)
+	}
+
+	// Validate max_total_results (-1 is allowed for unlimited)
+	if ac.MaxTotalResults == 0 || ac.MaxTotalResults < -1 {
+		return fmt.Errorf("max_total_results must be positive or -1 for unlimited, got: %d", ac.MaxTotalResults)
+	}
+
+	// Validate default_page_size (-1 is allowed for no default)
+	if ac.DefaultPageSize == 0 || ac.DefaultPageSize < -1 {
+		return fmt.Errorf("default_page_size must be positive or -1 for no default, got: %d", ac.DefaultPageSize)
+	}
+
+	// Validate that default_page_size doesn't exceed max_page_size (unless either is -1)
+	if ac.DefaultPageSize > 0 && ac.MaxPageSize > 0 && ac.DefaultPageSize > ac.MaxPageSize {
+		return fmt.Errorf("default_page_size (%d) cannot exceed max_page_size (%d)", ac.DefaultPageSize, ac.MaxPageSize)
+	}
+
+	// Warn if limits are disabled
+	if ac.MaxPageSize == -1 {
+		log.Warn().Msg("max_page_size is set to -1 (unlimited) - this may allow expensive queries")
+	}
+	if ac.MaxTotalResults == -1 {
+		log.Warn().Msg("max_total_results is set to -1 (unlimited) - this may allow deep pagination attacks")
+	}
+	if ac.DefaultPageSize == -1 {
+		log.Warn().Msg("default_page_size is set to -1 (no default) - queries without limit parameter will return all rows")
 	}
 
 	return nil

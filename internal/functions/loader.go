@@ -11,9 +11,10 @@ import (
 )
 
 // LoadFunctionCode loads function code from the filesystem
+// Supports both flat files ({name}.ts) and directory-based ({name}/index.ts) patterns
 func LoadFunctionCode(functionsDir, functionName string) (string, error) {
-	// Validate and get safe path
-	functionPath, err := ValidateFunctionPath(functionsDir, functionName)
+	// Resolve which pattern exists (priority: flat file > directory-based)
+	functionPath, err := ResolveFunctionPath(functionsDir, functionName)
 	if err != nil {
 		return "", fmt.Errorf("invalid function path: %w", err)
 	}
@@ -68,9 +69,10 @@ func SaveFunctionCode(functionsDir, functionName, code string) error {
 }
 
 // DeleteFunctionCode removes a function file from the filesystem
+// Supports both flat files ({name}.ts) and directory-based ({name}/index.ts) patterns
 func DeleteFunctionCode(functionsDir, functionName string) error {
-	// Validate and get safe path
-	functionPath, err := ValidateFunctionPath(functionsDir, functionName)
+	// Resolve which pattern exists (priority: flat file > directory-based)
+	functionPath, err := ResolveFunctionPath(functionsDir, functionName)
 	if err != nil {
 		return fmt.Errorf("invalid function path: %w", err)
 	}
@@ -117,9 +119,10 @@ func ListFunctionFiles(functionsDir string) ([]FunctionFileInfo, error) {
 	}
 
 	var functions []FunctionFileInfo
+	processedNames := make(map[string]bool) // Track which function names we've seen
 
+	// First pass: Process flat .ts files (these have priority)
 	for _, entry := range entries {
-		// Skip directories and non-.ts files
 		if entry.IsDir() {
 			continue
 		}
@@ -159,6 +162,54 @@ func ListFunctionFiles(functionsDir string) ([]FunctionFileInfo, error) {
 			Size:         info.Size(),
 			ModifiedTime: info.ModTime().Unix(),
 		})
+		processedNames[functionName] = true
+	}
+
+	// Second pass: Process directories with index.ts
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		functionName := entry.Name()
+
+		// Skip if we already have a flat file for this function name
+		if processedNames[functionName] {
+			log.Debug().
+				Str("function", functionName).
+				Msg("Skipping directory-based function (flat file takes precedence)")
+			continue
+		}
+
+		// Check if directory contains index.ts
+		indexPath := filepath.Join(functionsDir, functionName, "index.ts")
+		indexInfo, err := os.Stat(indexPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				log.Warn().
+					Str("directory", functionName).
+					Err(err).
+					Msg("Failed to check for index.ts")
+			}
+			continue
+		}
+
+		// Validate function name
+		if err := ValidateFunctionName(functionName); err != nil {
+			log.Warn().
+				Str("directory", functionName).
+				Err(err).
+				Msg("Skipping directory with invalid function name")
+			continue
+		}
+
+		functions = append(functions, FunctionFileInfo{
+			Name:         functionName,
+			Path:         indexPath,
+			Size:         indexInfo.Size(),
+			ModifiedTime: indexInfo.ModTime().Unix(),
+		})
+		processedNames[functionName] = true
 	}
 
 	log.Debug().
@@ -170,23 +221,27 @@ func ListFunctionFiles(functionsDir string) ([]FunctionFileInfo, error) {
 }
 
 // FunctionExists checks if a function file exists in the filesystem
+// Supports both flat files ({name}.ts) and directory-based ({name}/index.ts) patterns
 func FunctionExists(functionsDir, functionName string) (bool, error) {
-	// Validate and get safe path
-	functionPath, err := ValidateFunctionPath(functionsDir, functionName)
-	if err != nil {
-		return false, fmt.Errorf("invalid function path: %w", err)
+	// Validate function name first
+	if err := ValidateFunctionName(functionName); err != nil {
+		return false, fmt.Errorf("invalid function name: %w", err)
 	}
 
-	// Check if file exists
-	_, err = os.Stat(functionPath)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to check function file: %w", err)
+	// Check flat file pattern first ({name}.ts)
+	flatPath := filepath.Join(functionsDir, functionName+".ts")
+	if _, err := os.Stat(flatPath); err == nil {
+		return true, nil
 	}
 
-	return true, nil
+	// Check directory-based pattern ({name}/index.ts)
+	dirPath := filepath.Join(functionsDir, functionName, "index.ts")
+	if _, err := os.Stat(dirPath); err == nil {
+		return true, nil
+	}
+
+	// Neither pattern exists
+	return false, nil
 }
 
 // FunctionConfig contains configuration parsed from function code comments

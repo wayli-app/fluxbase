@@ -47,9 +47,27 @@ const { data } = await client.from('users').select('id, name, email')
 
 ```typescript
 // Get a single row (adds LIMIT 1)
+// Errors if no rows found
 const { data: user } = await client.from('users')
   .eq('id', 123)
   .single()
+
+// Returns null if no rows found (doesn't error)
+const { data: user } = await client.from('users')
+  .eq('id', 999)
+  .maybeSingle()
+// data will be null if user doesn't exist, error will be null
+
+// Throw error instead of returning { data, error }
+try {
+  const user = await client.from('users')
+    .eq('id', 123)
+    .single()
+    .throwOnError() // Returns user directly or throws
+  console.log('User:', user)
+} catch (error) {
+  console.error('Failed to fetch user:', error)
+}
 ```
 
 ### Nested Relations
@@ -131,6 +149,105 @@ const { data } = await client.from('products')
   .ilike('name', '%phone%')
 ```
 
+### Advanced Filtering
+
+#### NOT Operator
+
+Negate any filter condition:
+
+```typescript
+// NOT equal
+const { data } = await client.from('products')
+  .not('status', 'eq', 'deleted')
+
+// NOT NULL
+const { data } = await client.from('tasks')
+  .not('completed_at', 'is', null)
+
+// NOT IN
+const { data } = await client.from('products')
+  .not('category', 'in', ['discontinued', 'archived'])
+```
+
+#### OR Operator
+
+Combine multiple conditions with OR logic:
+
+```typescript
+// Simple OR
+const { data } = await client.from('products')
+  .or('status.eq.active,status.eq.pending')
+
+// Complex queries with OR and other filters
+const { data } = await client.from('products')
+  .or('status.eq.active,priority.eq.high')
+  .gte('score', 80)
+  .order('created_at', { ascending: false })
+```
+
+#### AND Operator
+
+Group multiple conditions that must all be true:
+
+```typescript
+// Simple AND grouping
+const { data } = await client.from('users')
+  .and('status.eq.active,verified.eq.true')
+
+// Complex AND with age range
+const { data } = await client.from('users')
+  .and('age.gte.18,age.lte.65')
+  .eq('country', 'US')
+
+// Combining AND and OR
+const { data } = await client.from('products')
+  .and('in_stock.eq.true,price.lte.1000')
+  .or('category.eq.electronics,category.eq.computers')
+```
+
+#### Match Multiple Values
+
+Shorthand for multiple exact matches:
+
+```typescript
+// Match multiple columns
+const { data } = await client.from('users')
+  .match({
+    role: 'admin',
+    status: 'active',
+    department: 'engineering'
+  })
+
+// Equivalent to:
+// .eq('role', 'admin').eq('status', 'active').eq('department', 'engineering')
+```
+
+#### Array and JSONB Operations
+
+```typescript
+// Contains (array/JSONB contains value)
+const { data } = await client.from('posts')
+  .contains('tags', '["typescript","javascript"]')
+
+// Contained by (value is contained in array/JSONB)
+const { data } = await client.from('posts')
+  .containedBy('tags', '["news","update","feature"]')
+
+// Overlaps (arrays have common elements)
+const { data } = await client.from('posts')
+  .overlaps('tags', '["typescript","react"]')
+```
+
+#### Generic Filter
+
+Use raw PostgREST syntax:
+
+```typescript
+const { data } = await client.from('users')
+  .filter('age', 'gte', '18')
+  .filter('country', 'in', '("US","CA","UK")')
+```
+
 ## Inserting Data
 
 ### Single Insert
@@ -170,12 +287,36 @@ const { data } = await client.from('products').insertMany([
 ### Upsert (Insert or Update)
 
 ```typescript
-// Insert or update if unique constraint conflict
+// Basic upsert - insert or update if unique constraint conflict
 const { data } = await client.from('users').upsert({
   id: 123, // Will update if ID exists, insert if not
   name: 'Updated Name',
   email: 'updated@example.com'
 })
+
+// Upsert with conflict resolution on specific column
+const { data } = await client.from('users').upsert(
+  { email: 'alice@example.com', name: 'Alice', age: 30 },
+  { onConflict: 'email' } // Resolve conflicts based on email column
+)
+
+// Upsert with multiple conflict columns
+const { data } = await client.from('user_roles').upsert(
+  { user_id: 1, tenant_id: 5, role: 'admin' },
+  { onConflict: 'user_id,tenant_id' }
+)
+
+// Ignore duplicates instead of updating
+const { data } = await client.from('logs').upsert(
+  { id: 1, message: 'System started' },
+  { ignoreDuplicates: true } // Don't update if row exists
+)
+
+// Set missing columns to null instead of keeping existing values
+const { data } = await client.from('profiles').upsert(
+  { user_id: 1, bio: 'New bio' }, // Only updating bio
+  { defaultToNull: true } // Other columns will be set to null
+)
 ```
 
 ## Updating Data

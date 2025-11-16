@@ -4,17 +4,20 @@
  */
 
 import type { FluxbaseFetch } from './fetch'
-import type { FilterOperator, OrderBy, PostgrestResponse } from './types'
+import type { FilterOperator, OrderBy, PostgrestResponse, UpsertOptions } from './types'
 
 export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<T>> {
   private fetch: FluxbaseFetch
   private table: string
   private selectQuery: string = '*'
   private filters: Array<{ column: string; operator: FilterOperator; value: unknown }> = []
+  private orFilters: string[] = []
+  private andFilters: string[] = []
   private orderBys: OrderBy[] = []
   private limitValue?: number
   private offsetValue?: number
   private singleRow: boolean = false
+  private maybeSingleRow: boolean = false
   private groupByColumns?: string[]
 
   constructor(fetch: FluxbaseFetch, table: string) {
@@ -50,15 +53,37 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   }
 
   /**
-   * Upsert (insert or update) rows
+   * Upsert (insert or update) rows (Supabase-compatible)
+   * @param data - Row(s) to upsert
+   * @param options - Upsert options (onConflict, ignoreDuplicates, defaultToNull)
    */
-  async upsert(data: Partial<T> | Array<Partial<T>>): Promise<PostgrestResponse<T>> {
+  async upsert(data: Partial<T> | Array<Partial<T>>, options?: UpsertOptions): Promise<PostgrestResponse<T>> {
     const body = Array.isArray(data) ? data : data
-    const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body, {
-      headers: {
-        Prefer: 'resolution=merge-duplicates',
-      },
-    })
+
+    // Build Prefer header based on options
+    const preferValues: string[] = []
+
+    if (options?.ignoreDuplicates) {
+      preferValues.push('resolution=ignore-duplicates')
+    } else {
+      preferValues.push('resolution=merge-duplicates')
+    }
+
+    if (options?.defaultToNull) {
+      preferValues.push('missing=default')
+    }
+
+    const headers: Record<string, string> = {
+      Prefer: preferValues.join(','),
+    }
+
+    // Add onConflict as query parameter if specified
+    let path = `/api/v1/tables/${this.table}`
+    if (options?.onConflict) {
+      path += `?on_conflict=${encodeURIComponent(options.onConflict)}`
+    }
+
+    const response = await this.fetch.post<T>(path, body, { headers })
 
     return {
       data: response,
@@ -200,6 +225,78 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   }
 
   /**
+   * Negate a filter condition (Supabase-compatible)
+   * @example not('status', 'eq', 'deleted')
+   * @example not('completed_at', 'is', null)
+   */
+  not(column: string, operator: FilterOperator, value: unknown): this {
+    this.filters.push({ column, operator: 'not' as FilterOperator, value: `${operator}.${this.formatValue(value)}` })
+    return this
+  }
+
+  /**
+   * Apply OR logic to filters (Supabase-compatible)
+   * @example or('status.eq.active,status.eq.pending')
+   * @example or('id.eq.2,name.eq.Han')
+   */
+  or(filters: string): this {
+    this.orFilters.push(filters)
+    return this
+  }
+
+  /**
+   * Apply AND logic to filters (Supabase-compatible)
+   * Groups multiple conditions that must all be true
+   * @example and('status.eq.active,verified.eq.true')
+   * @example and('age.gte.18,age.lte.65')
+   */
+  and(filters: string): this {
+    this.andFilters.push(filters)
+    return this
+  }
+
+  /**
+   * Match multiple columns with exact values (Supabase-compatible)
+   * Shorthand for multiple .eq() calls
+   * @example match({ id: 1, status: 'active', role: 'admin' })
+   */
+  match(conditions: Record<string, unknown>): this {
+    for (const [column, value] of Object.entries(conditions)) {
+      this.eq(column, value)
+    }
+    return this
+  }
+
+  /**
+   * Generic filter method using PostgREST syntax (Supabase-compatible)
+   * @example filter('name', 'in', '("Han","Yoda")')
+   * @example filter('age', 'gte', '18')
+   */
+  filter(column: string, operator: FilterOperator, value: unknown): this {
+    this.filters.push({ column, operator, value })
+    return this
+  }
+
+  /**
+   * Check if column is contained by value (Supabase-compatible)
+   * For arrays and JSONB
+   * @example containedBy('tags', '["news","update"]')
+   */
+  containedBy(column: string, value: unknown): this {
+    this.filters.push({ column, operator: 'cd', value })
+    return this
+  }
+
+  /**
+   * Check if arrays have common elements (Supabase-compatible)
+   * @example overlaps('tags', '["news","sports"]')
+   */
+  overlaps(column: string, value: unknown): this {
+    this.filters.push({ column, operator: 'ov', value })
+    return this
+  }
+
+  /**
    * Order results
    */
   order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this {
@@ -229,9 +326,30 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
 
   /**
    * Return a single row (adds limit(1))
+   * Errors if no rows found
    */
   single(): this {
     this.singleRow = true
+    this.limitValue = 1
+    return this
+  }
+
+  /**
+   * Return a single row or null (adds limit(1))
+   * Does not error if no rows found (Supabase-compatible)
+   * @example
+   * ```typescript
+   * // Returns null instead of erroring when no row exists
+   * const { data, error } = await client
+   *   .from('users')
+   *   .select('*')
+   *   .eq('id', 999)
+   *   .maybeSingle()
+   * // data will be null if no row found
+   * ```
+   */
+  maybeSingle(): this {
+    this.maybeSingleRow = true
     this.limitValue = 1
     return this
   }
@@ -517,6 +635,27 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
         }
       }
 
+      // Handle maybeSingle row response (returns null instead of error when no rows found)
+      if (this.maybeSingleRow) {
+        if (Array.isArray(data) && data.length === 0) {
+          return {
+            data: null,
+            error: null,
+            count: 0,
+            status: 200,
+            statusText: 'OK',
+          }
+        }
+        const singleData = Array.isArray(data) ? data[0] : data
+        return {
+          data: singleData as T,
+          error: null,
+          count: 1,
+          status: 200,
+          statusText: 'OK',
+        }
+      }
+
       return {
         data: data as T,
         error: null,
@@ -537,6 +676,41 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
         statusText: 'Internal Server Error',
       }
     }
+  }
+
+  /**
+   * Execute the query and throw an error if one occurs (Supabase-compatible)
+   * Returns the data directly instead of { data, error } wrapper
+   *
+   * @throws {Error} If the query fails or returns an error
+   * @example
+   * ```typescript
+   * // Throws error instead of returning { data, error }
+   * try {
+   *   const user = await client
+   *     .from('users')
+   *     .select('*')
+   *     .eq('id', 1)
+   *     .single()
+   *     .throwOnError()
+   * } catch (error) {
+   *   console.error('Query failed:', error)
+   * }
+   * ```
+   */
+  async throwOnError(): Promise<T> {
+    const response = await this.execute()
+
+    if (response.error) {
+      const error = new Error(response.error.message)
+      // Preserve error code if available
+      if (response.error.code) {
+        (error as any).code = response.error.code
+      }
+      throw error
+    }
+
+    return response.data as T
   }
 
   /**
@@ -573,6 +747,16 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
     // Filters
     for (const filter of this.filters) {
       params.append(filter.column, `${filter.operator}.${this.formatValue(filter.value)}`)
+    }
+
+    // OR Filters
+    for (const orFilter of this.orFilters) {
+      params.append('or', `(${orFilter})`)
+    }
+
+    // AND Filters
+    for (const andFilter of this.andFilters) {
+      params.append('and', `(${andFilter})`)
     }
 
     // Group By

@@ -384,10 +384,10 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 	}
 
 	// Track results
-	var created []string
-	var updated []string
-	var deleted []string
-	var errors []string
+	created := []string{}
+	updated := []string{}
+	deleted := []string{}
+	errors := []string{}
 
 	// Process each function file
 	for _, fileInfo := range functionFiles {
@@ -545,9 +545,9 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 	}
 
 	// Track results
-	var created []string
-	var updated []string
-	var errors []string
+	created := []string{}
+	updated := []string{}
+	errors := []string{}
 
 	// Process each function file
 	for _, fileInfo := range functionFiles {

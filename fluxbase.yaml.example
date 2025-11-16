@@ -121,11 +121,23 @@ email:
 # Edge Functions configuration
 functions:
   enabled: true                         # FLUXBASE_FUNCTIONS_ENABLED
-  functions_dir: "./functions"          # FLUXBASE_FUNCTIONS_DIR (directory for function files)
+  functions_dir: "./functions"          # FLUXBASE_FUNCTIONS_FUNCTIONS_DIR (directory for function files)
   default_timeout: 30                   # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT (seconds)
   max_timeout: 300                      # FLUXBASE_FUNCTIONS_MAX_TIMEOUT (max 5 minutes)
   default_memory_limit: 128             # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT (MB)
   max_memory_limit: 1024                # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT (max 1GB)
+
+# REST API configuration
+api:
+  max_page_size: 1000                   # FLUXBASE_API_MAX_PAGE_SIZE (max rows per request, -1 for unlimited)
+  max_total_results: 10000              # FLUXBASE_API_MAX_TOTAL_RESULTS (max total rows via offset+limit, -1 for unlimited)
+  default_page_size: 1000               # FLUXBASE_API_DEFAULT_PAGE_SIZE (applied when no limit specified, -1 for no default)
+
+  # Pagination behavior:
+  # - If a client requests ?limit=5000 and max_page_size=1000, they receive 1000 rows
+  # - If a client requests ?offset=9500&limit=1000 and max_total_results=10000, they receive 500 rows
+  # - If a client doesn't specify ?limit and default_page_size=1000, they receive 1000 rows
+  # - Set any value to -1 to disable that limit (allows unlimited queries)
 
 # General settings
 base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL (must include http:// or https://)

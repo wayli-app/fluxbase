@@ -357,14 +357,17 @@ services:
       - ./functions:/app/functions
     environment:
       FLUXBASE_FUNCTIONS_ENABLED: "true"
-      FLUXBASE_FUNCTIONS_DIR: /app/functions
+      FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /app/functions
       FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT: "true" # Load on startup (default: true)
 ```
 
-Create function file:
+**Function File Patterns:**
 
-```bash
-# functions/hello.ts
+Fluxbase supports two ways to organize your functions:
+
+**1. Flat File Pattern** (simple functions):
+```typescript
+// functions/hello.ts
 async function handler(req) {
   return {
     status: 200,
@@ -372,6 +375,35 @@ async function handler(req) {
   }
 }
 ```
+
+**2. Directory Pattern** (complex functions with multiple files):
+```
+functions/
+└── complex-webhook/
+    ├── index.ts       ← Entry point (handler function)
+    ├── types.ts       ← Type definitions
+    ├── helpers.ts     ← Shared utilities
+    └── config.ts      ← Configuration
+```
+
+```typescript
+// functions/complex-webhook/index.ts
+import { processData } from './helpers.ts';
+import { WebhookConfig } from './types.ts';
+
+async function handler(req) {
+  const data = processData(req.body);
+  return {
+    status: 200,
+    body: JSON.stringify(data)
+  }
+}
+```
+
+**Priority Rules:**
+- If both `hello.ts` and `hello/index.ts` exist, the flat file takes precedence
+- Directory pattern requires `index.ts` as the entry point
+- Only `.ts` files are supported
 
 **Auto-Load on Boot:**
 By default (`AUTO_LOAD_ON_BOOT=true`), functions are automatically loaded from the filesystem when Fluxbase starts. Auto-load:

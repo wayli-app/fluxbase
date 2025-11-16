@@ -12,13 +12,18 @@ class MockFetch implements FluxbaseFetch {
   public lastMethod: string = ''
   public lastBody: unknown = null
   public lastHeaders: Record<string, string> = {}
+  public mockResponse: unknown = []
+  public mockError: Error | null = null
 
   constructor(public baseUrl: string = 'http://localhost:8080', public headers: Record<string, string> = {}) {}
 
   async get<T>(path: string): Promise<T> {
     this.lastUrl = path
     this.lastMethod = 'GET'
-    return [] as T
+    if (this.mockError) {
+      throw this.mockError
+    }
+    return this.mockResponse as T
   }
 
   async post<T>(path: string, body?: unknown, options?: { headers?: Record<string, string> }): Promise<T> {
@@ -523,6 +528,96 @@ describe('QueryBuilder - Advanced Features', () => {
     expect(url).toContain('or=')
     expect(url).toContain('score=gte.80')
     expect(url).toContain('limit=50')
+  })
+
+  it('should support match() for multiple exact matches', async () => {
+    await builder.match({ id: 1, status: 'active', role: 'admin' }).execute()
+
+    const url = fetch.lastUrl
+    expect(url).toContain('id=eq.1')
+    expect(url).toContain('status=eq.active')
+    expect(url).toContain('role=eq.admin')
+  })
+
+  it('should support filter() generic method', async () => {
+    await builder.filter('age', 'gte', '18').execute()
+
+    expect(fetch.lastUrl).toContain('age=gte.18')
+  })
+
+  it('should support containedBy() for arrays', async () => {
+    await builder.containedBy('tags', '["news","update"]').execute()
+
+    expect(fetch.lastUrl).toContain('tags=cd.')
+  })
+
+  it('should support overlaps() for arrays', async () => {
+    await builder.overlaps('tags', '["news","sports"]').execute()
+
+    expect(fetch.lastUrl).toContain('tags=ov.')
+  })
+
+  it('should support and() operator for grouped conditions', async () => {
+    await builder.and('status.eq.active,verified.eq.true').execute()
+
+    const url = fetch.lastUrl
+    expect(url).toContain('and=')
+    expect(url).toContain('status.eq.active')
+    expect(url).toContain('verified.eq.true')
+  })
+
+  it('should support maybeSingle() returning null for no results', async () => {
+    fetch.mockResponse = []
+
+    const { data, error } = await builder.eq('id', 999).maybeSingle().execute()
+
+    expect(data).toBeNull()
+    expect(error).toBeNull()
+  })
+
+  it('should support maybeSingle() returning single row', async () => {
+    const mockUser = { id: 1, name: 'Alice' }
+    fetch.mockResponse = [mockUser]
+
+    const { data, error } = await builder.eq('id', 1).maybeSingle().execute()
+
+    expect(data).toEqual(mockUser)
+    expect(error).toBeNull()
+  })
+
+  it('should support throwOnError() returning data directly', async () => {
+    const mockUsers = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }]
+    fetch.mockResponse = mockUsers
+
+    const data = await builder.throwOnError()
+
+    expect(data).toEqual(mockUsers)
+  })
+
+  it('should support throwOnError() throwing on error', async () => {
+    fetch.mockError = new Error('Network error')
+
+    await expect(builder.throwOnError()).rejects.toThrow('Network error')
+  })
+
+  it('should support upsert() with onConflict option', async () => {
+    await builder.upsert({ id: 1, email: 'alice@example.com' }, { onConflict: 'email' })
+
+    const url = fetch.lastUrl
+    expect(url).toContain('on_conflict=email')
+    expect(fetch.lastHeaders?.Prefer).toContain('resolution=merge-duplicates')
+  })
+
+  it('should support upsert() with ignoreDuplicates option', async () => {
+    await builder.upsert({ id: 1, email: 'alice@example.com' }, { ignoreDuplicates: true })
+
+    expect(fetch.lastHeaders?.Prefer).toContain('resolution=ignore-duplicates')
+  })
+
+  it('should support upsert() with defaultToNull option', async () => {
+    await builder.upsert({ id: 1, name: 'Alice' }, { defaultToNull: true })
+
+    expect(fetch.lastHeaders?.Prefer).toContain('missing=default')
   })
 })
 

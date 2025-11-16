@@ -5,10 +5,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/wayli-app/fluxbase/internal/config"
 )
 
+// testConfig creates a test config with default API settings for testing
+func testConfig() *config.Config {
+	return &config.Config{
+		API: config.APIConfig{
+			MaxPageSize:     -1, // Unlimited for most tests
+			MaxTotalResults: -1, // Unlimited for most tests
+			DefaultPageSize: -1, // No default for most tests
+		},
+	}
+}
+
 func TestQueryParser_ParseSelect(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	tests := []struct {
 		name     string
@@ -44,7 +57,7 @@ func TestQueryParser_ParseSelect(t *testing.T) {
 }
 
 func TestQueryParser_ParseFilters(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	tests := []struct {
 		name           string
@@ -105,7 +118,7 @@ func TestQueryParser_ParseFilters(t *testing.T) {
 }
 
 func TestQueryParser_ParseOrder(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	tests := []struct {
 		name           string
@@ -152,7 +165,7 @@ func TestQueryParser_ParseOrder(t *testing.T) {
 }
 
 func TestQueryParser_ParsePagination(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	values, _ := url.ParseQuery("limit=10&offset=20")
 	params, err := parser.Parse(values)
@@ -250,7 +263,7 @@ func intPtr(i int) *int {
 }
 
 func TestQueryParser_ParseAggregations(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	tests := []struct {
 		name                 string
@@ -345,7 +358,7 @@ func TestQueryParser_ParseAggregations(t *testing.T) {
 }
 
 func TestQueryParser_ParseGroupBy(t *testing.T) {
-	parser := NewQueryParser()
+	parser := NewQueryParser(testConfig())
 
 	tests := []struct {
 		name            string
@@ -520,6 +533,149 @@ func TestAggregation_ToSQL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sql := tt.agg.ToSQL()
 			assert.Equal(t, tt.expectedSQL, sql)
+		})
+	}
+}
+
+func TestPaginationLimitEnforcement(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *config.Config
+		queryString    string
+		expectedLimit  *int
+		expectedOffset *int
+		description    string
+	}{
+		{
+			name: "Enforce max_page_size - cap requested limit",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     1000,
+					MaxTotalResults: -1,
+					DefaultPageSize: -1,
+				},
+			},
+			queryString:   "limit=5000",
+			expectedLimit: intPtr(1000),
+			description:   "Requested limit of 5000 should be capped to max_page_size of 1000",
+		},
+		{
+			name: "Apply default_page_size when no limit specified",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     10000,
+					MaxTotalResults: -1,
+					DefaultPageSize: 1000,
+				},
+			},
+			queryString:   "",
+			expectedLimit: intPtr(1000),
+			description:   "No limit specified should apply default_page_size of 1000",
+		},
+		{
+			name: "No default applied when default_page_size is -1",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     10000,
+					MaxTotalResults: -1,
+					DefaultPageSize: -1,
+				},
+			},
+			queryString:   "",
+			expectedLimit: nil,
+			description:   "When default_page_size is -1, no default limit should be applied",
+		},
+		{
+			name: "Enforce max_total_results - cap limit based on offset",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     5000,
+					MaxTotalResults: 10000,
+					DefaultPageSize: -1,
+				},
+			},
+			queryString:    "offset=9500&limit=1000",
+			expectedLimit:  intPtr(500),
+			expectedOffset: intPtr(9500),
+			description:    "Offset 9500 + limit 1000 exceeds max_total_results 10000, should cap limit to 500",
+		},
+		{
+			name: "Enforce max_total_results - zero limit when offset exceeds max",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     5000,
+					MaxTotalResults: 10000,
+					DefaultPageSize: -1,
+				},
+			},
+			queryString:    "offset=10500&limit=1000",
+			expectedLimit:  intPtr(0),
+			expectedOffset: intPtr(10500),
+			description:    "Offset 10500 exceeds max_total_results 10000, should cap limit to 0",
+		},
+		{
+			name: "Allow unlimited when max_page_size is -1",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     -1,
+					MaxTotalResults: -1,
+					DefaultPageSize: -1,
+				},
+			},
+			queryString:   "limit=100000",
+			expectedLimit: intPtr(100000),
+			description:   "When max_page_size is -1, allow any limit",
+		},
+		{
+			name: "Combine max_page_size and max_total_results enforcement",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     1000,
+					MaxTotalResults: 5000,
+					DefaultPageSize: 500,
+				},
+			},
+			queryString:    "offset=4500&limit=2000",
+			expectedLimit:  intPtr(500),
+			expectedOffset: intPtr(4500),
+			description:    "Limit 2000 capped to max_page_size 1000, then further capped to 500 due to max_total_results",
+		},
+		{
+			name: "Default limit respects max_total_results",
+			config: &config.Config{
+				API: config.APIConfig{
+					MaxPageSize:     5000,
+					MaxTotalResults: 10000,
+					DefaultPageSize: 1000,
+				},
+			},
+			queryString:    "offset=9800",
+			expectedLimit:  intPtr(200),
+			expectedOffset: intPtr(9800),
+			description:    "Default limit 1000 applied, then capped to 200 due to max_total_results",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := NewQueryParser(tt.config)
+			values, err := url.ParseQuery(tt.queryString)
+			require.NoError(t, err)
+
+			params, err := parser.Parse(values)
+			require.NoError(t, err, tt.description)
+
+			if tt.expectedLimit != nil {
+				require.NotNil(t, params.Limit, "Expected limit to be set but got nil")
+				assert.Equal(t, *tt.expectedLimit, *params.Limit, tt.description)
+			} else {
+				assert.Nil(t, params.Limit, "Expected limit to be nil but got a value")
+			}
+
+			if tt.expectedOffset != nil {
+				require.NotNil(t, params.Offset, "Expected offset to be set but got nil")
+				assert.Equal(t, *tt.expectedOffset, *params.Offset)
+			}
 		})
 	}
 }

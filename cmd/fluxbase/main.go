@@ -240,6 +240,11 @@ func printConfigSummary(cfg *config.Config) {
 	log.Info().
 		Bool("realtime_enabled", cfg.Realtime.Enabled).
 		Msg("  Realtime")
+	log.Info().
+		Bool("functions_enabled", cfg.Functions.Enabled).
+		Str("functions_dir", cfg.Functions.FunctionsDir).
+		Bool("auto_load_on_boot", cfg.Functions.AutoLoadOnBoot).
+		Msg("  Functions")
 	log.Info().Bool("debug_mode", cfg.Debug).Msg("  Debug Mode")
 }
 

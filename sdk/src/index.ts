@@ -117,6 +117,7 @@ export type {
   QueryFilter,
   OrderBy,
   OrderDirection,
+  UpsertOptions,
 
   // Realtime types
   RealtimeMessage,

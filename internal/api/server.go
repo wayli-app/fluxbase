@@ -153,7 +153,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		app:                   app,
 		config:                cfg,
 		db:                    db,
-		rest:                  NewRESTHandler(db, NewQueryParser()),
+		rest:                  NewRESTHandler(db, NewQueryParser(cfg)),
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
 		dashboardAuthHandler:  dashboardAuthHandler,

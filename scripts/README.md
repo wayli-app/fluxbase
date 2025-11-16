@@ -44,3 +44,45 @@ FLUXBASE_DATABASE_DATABASE=fluxbase_dev
 ```
 
 This ensures RLS works correctly in both development and tests.
+
+---
+
+## Git Hooks
+
+### Pre-commit Hook
+
+The pre-commit hook automatically runs before each commit to catch issues early and reduce CI failures.
+
+**Checks performed:**
+1. **Go Formatting** - Runs `go fmt ./...` on all staged Go files and auto-stages formatting changes
+2. **Admin TypeScript** - Type checks admin UI code (`cd admin && npm run type-check`)
+3. **SDK TypeScript** - Type checks SDK code (`cd sdk && npm run type-check`)
+4. **SDK React TypeScript** - Type checks React SDK code (`cd sdk-react && npm run type-check`)
+
+**Installation:**
+```bash
+# Automatically installed with:
+make setup-dev
+
+# Or install manually:
+make install-hooks
+```
+
+**Usage:**
+The hook runs automatically on `git commit`. If any checks fail, the commit is blocked.
+
+To bypass the hook (not recommended):
+```bash
+git commit --no-verify
+```
+
+**Uninstall:**
+```bash
+make uninstall-hooks
+```
+
+**Benefits:**
+- Catches formatting and type errors before they reach CI
+- Auto-formats Go code
+- Reduces failed CI pipeline runs
+- Provides fast feedback during development

@@ -243,15 +243,20 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx := c.Context()
 
-		// Check for upsert preference
+		// Check for upsert preferences
 		preferHeader := c.Get("Prefer", "")
-		isUpsert := strings.Contains(preferHeader, "resolution=merge-duplicates")
+		isUpsert := strings.Contains(preferHeader, "resolution=merge-duplicates") || strings.Contains(preferHeader, "resolution=ignore-duplicates")
+		ignoreDuplicates := strings.Contains(preferHeader, "resolution=ignore-duplicates")
+		defaultToNull := strings.Contains(preferHeader, "missing=default")
+
+		// Get custom conflict target from query parameter
+		onConflict := c.Query("on_conflict", "")
 
 		// Try to parse as array first (batch insert)
 		var dataArray []map[string]interface{}
 		if err := c.BodyParser(&dataArray); err == nil && len(dataArray) > 0 {
 			// Batch insert
-			return h.batchInsert(ctx, c, table, dataArray, isUpsert)
+			return h.batchInsert(ctx, c, table, dataArray, isUpsert, ignoreDuplicates, defaultToNull, onConflict)
 		}
 
 		// Otherwise parse as single object
@@ -291,33 +296,48 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 
 		// Add ON CONFLICT clause for upsert
 		if isUpsert {
-			conflictTarget := h.getConflictTarget(table)
+			// Use custom conflict target if provided, otherwise auto-detect
+			conflictTarget := onConflict
+			if conflictTarget == "" {
+				conflictTarget = h.getConflictTarget(table)
+			}
+
 			if conflictTarget == "" {
 				return c.Status(400).JSON(fiber.Map{
 					"error": "Cannot perform upsert: table has no primary key or unique constraint",
 				})
 			}
 
-			// Build UPDATE SET clause (all columns except conflict target)
-			updateClauses := make([]string, 0)
-			for _, col := range columns {
-				// Skip columns that are part of the conflict target
-				if !h.isInConflictTarget(col, conflictTarget) {
-					updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
-				}
-			}
-
-			if len(updateClauses) > 0 {
-				query += fmt.Sprintf(
-					" ON CONFLICT (%s) DO UPDATE SET %s",
-					conflictTarget,
-					strings.Join(updateClauses, ", "),
-				)
-			} else {
+			// Handle ignore duplicates (DO NOTHING)
+			if ignoreDuplicates {
 				query += fmt.Sprintf(
 					" ON CONFLICT (%s) DO NOTHING",
 					conflictTarget,
 				)
+			} else {
+				// Build UPDATE SET clause (all columns except conflict target)
+				updateClauses := make([]string, 0)
+				for _, col := range columns {
+					// Skip columns that are part of the conflict target
+					if !h.isInConflictTarget(col, conflictTarget) {
+						// If defaultToNull is true, set missing columns to NULL explicitly
+						// (This doesn't apply here since we're setting all provided columns)
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
+					}
+				}
+
+				if len(updateClauses) > 0 {
+					query += fmt.Sprintf(
+						" ON CONFLICT (%s) DO UPDATE SET %s",
+						conflictTarget,
+						strings.Join(updateClauses, ", "),
+					)
+				} else {
+					query += fmt.Sprintf(
+						" ON CONFLICT (%s) DO NOTHING",
+						conflictTarget,
+					)
+				}
 			}
 		}
 
@@ -351,7 +371,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 }
 
 // batchInsert handles batch insert operations
-func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table database.TableInfo, dataArray []map[string]interface{}, isUpsert bool) error {
+func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table database.TableInfo, dataArray []map[string]interface{}, isUpsert bool, ignoreDuplicates bool, defaultToNull bool, onConflict string) error {
 	if len(dataArray) == 0 {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Empty array provided",
@@ -398,33 +418,77 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 
 	// Add ON CONFLICT clause for upsert
 	if isUpsert {
-		conflictTarget := h.getConflictTarget(table)
+		// Use custom conflict target if provided, otherwise auto-detect
+		conflictTarget := onConflict
+		if conflictTarget == "" {
+			conflictTarget = h.getConflictTarget(table)
+		}
+
 		if conflictTarget == "" {
 			return c.Status(400).JSON(fiber.Map{
 				"error": "Cannot perform upsert: table has no primary key or unique constraint",
 			})
 		}
 
-		// Build UPDATE SET clause (all columns except conflict target)
-		updateClauses := make([]string, 0)
-		for _, col := range columns {
-			// Skip columns that are part of the conflict target
-			if !h.isInConflictTarget(col, conflictTarget) {
-				updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
-			}
-		}
-
-		if len(updateClauses) > 0 {
-			query += fmt.Sprintf(
-				" ON CONFLICT (%s) DO UPDATE SET %s",
-				conflictTarget,
-				strings.Join(updateClauses, ", "),
-			)
-		} else {
+		// Handle ignore duplicates (DO NOTHING)
+		if ignoreDuplicates {
 			query += fmt.Sprintf(
 				" ON CONFLICT (%s) DO NOTHING",
 				conflictTarget,
 			)
+		} else {
+			// Build UPDATE SET clause (all columns except conflict target)
+			updateClauses := make([]string, 0)
+
+			// If defaultToNull is true, we need to update ALL columns in the table, not just the ones provided
+			if defaultToNull {
+				// Get all columns from table and set them either to EXCLUDED.column or NULL
+				for _, tableCol := range table.Columns {
+					colName := tableCol.Name
+					// Skip columns that are part of the conflict target
+					if h.isInConflictTarget(colName, conflictTarget) {
+						continue
+					}
+
+					// Check if column was provided in the data
+					columnProvided := false
+					for _, providedCol := range columns {
+						if providedCol == colName {
+							columnProvided = true
+							break
+						}
+					}
+
+					if columnProvided {
+						// Use the provided value
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", colName, colName))
+					} else {
+						// Set to NULL (missing column)
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = NULL", colName))
+					}
+				}
+			} else {
+				// Only update columns that were provided
+				for _, col := range columns {
+					// Skip columns that are part of the conflict target
+					if !h.isInConflictTarget(col, conflictTarget) {
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
+					}
+				}
+			}
+
+			if len(updateClauses) > 0 {
+				query += fmt.Sprintf(
+					" ON CONFLICT (%s) DO UPDATE SET %s",
+					conflictTarget,
+					strings.Join(updateClauses, ", "),
+				)
+			} else {
+				query += fmt.Sprintf(
+					" ON CONFLICT (%s) DO NOTHING",
+					conflictTarget,
+				)
+			}
 		}
 	}
 

@@ -181,26 +181,28 @@ export interface PostgrestResponse<T> {
 }
 
 export type FilterOperator =
-  | 'eq'
-  | 'neq'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'like'
-  | 'ilike'
-  | 'is'
-  | 'in'
-  | 'cs'
-  | 'cd'
-  | 'ov'
-  | 'sl'
-  | 'sr'
-  | 'nxr'
-  | 'nxl'
-  | 'fts'
-  | 'plfts'
-  | 'wfts'
+  | 'eq'     // equals
+  | 'neq'    // not equals
+  | 'gt'     // greater than
+  | 'gte'    // greater than or equal
+  | 'lt'     // less than
+  | 'lte'    // less than or equal
+  | 'like'   // LIKE operator (case-sensitive)
+  | 'ilike'  // ILIKE operator (case-insensitive)
+  | 'is'     // IS operator (for null checks)
+  | 'in'     // IN operator
+  | 'cs'     // contains (array/JSONB)
+  | 'cd'     // contained by (array/JSONB)
+  | 'ov'     // overlaps (array)
+  | 'sl'     // strictly left of (range)
+  | 'sr'     // strictly right of (range)
+  | 'nxr'    // does not extend to right (range)
+  | 'nxl'    // does not extend to left (range)
+  | 'adj'    // adjacent to (range)
+  | 'not'    // negates another operator
+  | 'fts'    // full text search
+  | 'plfts'  // phrase full text search
+  | 'wfts'   // web full text search
 
 export interface QueryFilter {
   column: string
@@ -214,6 +216,30 @@ export interface OrderBy {
   column: string
   direction: OrderDirection
   nulls?: 'first' | 'last'
+}
+
+/**
+ * Options for upsert operations (Supabase-compatible)
+ */
+export interface UpsertOptions {
+  /**
+   * Comma-separated columns to use for conflict resolution
+   * @example 'email'
+   * @example 'user_id,tenant_id'
+   */
+  onConflict?: string
+
+  /**
+   * If true, duplicate rows are ignored (not upserted)
+   * @default false
+   */
+  ignoreDuplicates?: boolean
+
+  /**
+   * If true, missing columns default to null instead of using existing values
+   * @default false
+   */
+  defaultToNull?: boolean
 }
 
 export interface RealtimeMessage {

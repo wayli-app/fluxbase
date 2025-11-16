@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -54,13 +55,14 @@ func ValidateFunctionName(name string) error {
 
 // ValidateFunctionPath validates that a constructed function path is safe
 // This provides defense-in-depth by ensuring the final path is within the functions directory
+// Note: This always returns the flat file pattern ({name}.ts) for writing operations
 func ValidateFunctionPath(functionsDir, functionName string) (string, error) {
 	// First validate the function name
 	if err := ValidateFunctionName(functionName); err != nil {
 		return "", err
 	}
 
-	// Construct the path
+	// Construct the path (flat file pattern)
 	functionPath := filepath.Join(functionsDir, functionName+".ts")
 
 	// Get absolute path of functions directory
@@ -81,6 +83,57 @@ func ValidateFunctionPath(functionsDir, functionName string) (string, error) {
 	}
 
 	return absFunctionPath, nil
+}
+
+// ResolveFunctionPath resolves which function pattern exists (flat file or directory-based)
+// Priority: {name}.ts takes precedence over {name}/index.ts
+// This is used for reading operations to support both patterns
+func ResolveFunctionPath(functionsDir, functionName string) (string, error) {
+	// First validate the function name
+	if err := ValidateFunctionName(functionName); err != nil {
+		return "", err
+	}
+
+	// Get absolute path of functions directory for validation
+	absFunctionsDir, err := filepath.Abs(functionsDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve functions directory: %w", err)
+	}
+
+	// Helper to validate a path is within functionsDir and exists
+	validatePath := func(path string) (string, error) {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve function path: %w", err)
+		}
+
+		// Ensure the function path is within the functions directory
+		if !strings.HasPrefix(absPath, absFunctionsDir+string(filepath.Separator)) {
+			return "", fmt.Errorf("function path is outside of functions directory")
+		}
+
+		// Check if file exists
+		if _, err := os.Stat(absPath); err != nil {
+			return "", err
+		}
+
+		return absPath, nil
+	}
+
+	// Check pattern 1: flat file ({name}.ts) - has priority
+	flatPath := filepath.Join(functionsDir, functionName+".ts")
+	if absPath, err := validatePath(flatPath); err == nil {
+		return absPath, nil
+	}
+
+	// Check pattern 2: directory-based ({name}/index.ts)
+	dirPath := filepath.Join(functionsDir, functionName, "index.ts")
+	if absPath, err := validatePath(dirPath); err == nil {
+		return absPath, nil
+	}
+
+	// Neither pattern is valid
+	return "", fmt.Errorf("could not resolve function path for: %s", functionName)
 }
 
 // ValidateFunctionCode performs basic validation on function code
