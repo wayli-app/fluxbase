@@ -1184,6 +1184,9 @@ func (tc *TestContext) EnsureRLSTestTables() {
 	ctx := context.Background()
 
 	queries := []string{
+		// Ensure uuid-ossp extension is available for uuid_generate_v4()
+		`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`,
+
 		// Create tasks table for RLS testing
 		`CREATE TABLE IF NOT EXISTS public.tasks (
 			id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

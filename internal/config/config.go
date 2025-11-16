@@ -155,6 +155,7 @@ type EmailConfig struct {
 type FunctionsConfig struct {
 	Enabled            bool   `mapstructure:"enabled"`
 	FunctionsDir       string `mapstructure:"functions_dir"`
+	AutoLoadOnBoot     bool   `mapstructure:"auto_load_on_boot"`    // Load functions from filesystem at boot
 	DefaultTimeout     int    `mapstructure:"default_timeout"`      // seconds
 	MaxTimeout         int    `mapstructure:"max_timeout"`          // seconds
 	DefaultMemoryLimit int    `mapstructure:"default_memory_limit"` // MB
@@ -325,6 +326,7 @@ func setDefaults() {
 	// Functions defaults
 	viper.SetDefault("functions.enabled", true)
 	viper.SetDefault("functions.functions_dir", "./functions")
+	viper.SetDefault("functions.auto_load_on_boot", true)   // Enabled by default for better DX
 	viper.SetDefault("functions.default_timeout", 30)       // 30 seconds
 	viper.SetDefault("functions.max_timeout", 300)          // 5 minutes
 	viper.SetDefault("functions.default_memory_limit", 128) // 128MB

@@ -14,7 +14,10 @@ type EdgeFunction struct {
 	ID                   uuid.UUID  `json:"id"`
 	Name                 string     `json:"name"`
 	Description          *string    `json:"description"`
-	Code                 string     `json:"code"`
+	Code                 string     `json:"code"`          // Bundled code (for execution)
+	OriginalCode         *string    `json:"original_code"` // Original code before bundling (for editing)
+	IsBundled            bool       `json:"is_bundled"`    // Whether code is bundled
+	BundleError          *string    `json:"bundle_error"`  // Error if bundling failed
 	Version              int        `json:"version"`
 	CronSchedule         *string    `json:"cron_schedule"`
 	Enabled              bool       `json:"enabled"`
@@ -61,14 +64,16 @@ func NewStorage(db *pgxpool.Pool) *Storage {
 func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 	query := `
 		INSERT INTO functions.edge_functions (
-			name, description, code, enabled, timeout_seconds, memory_limit_mb,
+			name, description, code, original_code, is_bundled, bundle_error,
+			enabled, timeout_seconds, memory_limit_mb,
 			allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, cron_schedule, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, version, created_at, updated_at
 	`
 
 	err := s.db.QueryRow(ctx, query,
-		fn.Name, fn.Description, fn.Code, fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
+		fn.Name, fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
+		fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
 		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.CronSchedule, fn.CreatedBy,
 	).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 
@@ -82,7 +87,7 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 // GetFunction retrieves a function by name
 func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, error) {
 	query := `
-		SELECT id, name, description, code, version, cron_schedule, enabled,
+		SELECT id, name, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated,
 		       created_at, updated_at, created_by
 		FROM functions.edge_functions
@@ -91,7 +96,8 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 
 	fn := &EdgeFunction{}
 	err := s.db.QueryRow(ctx, query, name).Scan(
-		&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.Version, &fn.CronSchedule, &fn.Enabled,
+		&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+		&fn.Version, &fn.CronSchedule, &fn.Enabled,
 		&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
 		&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
 	)
@@ -106,7 +112,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 // ListFunctions returns all functions
 func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 	query := `
-		SELECT id, name, description, code, version, cron_schedule, enabled,
+		SELECT id, name, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated,
 		       created_at, updated_at, created_by
 		FROM functions.edge_functions
@@ -123,7 +129,8 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 	for rows.Next() {
 		fn := EdgeFunction{}
 		err := rows.Scan(
-			&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.Version, &fn.CronSchedule, &fn.Enabled,
+			&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+			&fn.Version, &fn.CronSchedule, &fn.Enabled,
 			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
 			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
 		)

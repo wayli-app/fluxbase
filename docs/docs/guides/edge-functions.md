@@ -29,17 +29,17 @@ npm install @fluxbase/sdk
 ## Quick Start
 
 ```typescript
-import { FluxbaseClient } from '@fluxbase/sdk'
+import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({
-  url: 'http://localhost:8080',
-  apiKey: process.env.FLUXBASE_API_KEY
-})
+  url: "http://localhost:8080",
+  apiKey: process.env.FLUXBASE_API_KEY,
+});
 
 // Create function
 await client.functions.create({
-  name: 'hello-world',
-  description: 'My first edge function',
+  name: "hello-world",
+  description: "My first edge function",
   code: `
     async function handler(req) {
       const data = JSON.parse(req.body || '{}')
@@ -52,26 +52,26 @@ await client.functions.create({
       }
     }
   `,
-  enabled: true
-})
+  enabled: true,
+});
 
 // Invoke function
-const result = await client.functions.invoke('hello-world', {
-  name: 'Alice'
-})
+const result = await client.functions.invoke("hello-world", {
+  name: "Alice",
+});
 
-console.log(result) // { message: "Hello Alice!" }
+console.log(result); // { message: "Hello Alice!" }
 
 // List functions
-const functions = await client.functions.list()
+const functions = await client.functions.list();
 
 // Get function details
-const details = await client.functions.get('hello-world')
+const details = await client.functions.get("hello-world");
 
 // View execution history
-const executions = await client.functions.getExecutions('hello-world', {
-  limit: 10
-})
+const executions = await client.functions.getExecutions("hello-world", {
+  limit: 10,
+});
 ```
 
 ## Writing Functions
@@ -87,8 +87,8 @@ async function handler(req) {
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ result: 'success' })
-  }
+    body: JSON.stringify({ result: "success" }),
+  };
 }
 ```
 
@@ -96,11 +96,11 @@ async function handler(req) {
 
 ```typescript
 interface Request {
-  method: string // GET, POST, etc.
-  url: string
-  headers: Record<string, string>
-  body: string // Raw body (use JSON.parse for JSON)
-  params: Record<string, string> // Query parameters
+  method: string; // GET, POST, etc.
+  url: string;
+  headers: Record<string, string>;
+  body: string; // Raw body (use JSON.parse for JSON)
+  params: Record<string, string>; // Query parameters
 }
 ```
 
@@ -108,9 +108,9 @@ interface Request {
 
 ```typescript
 interface Response {
-  status: number
-  headers?: Record<string, string>
-  body?: string
+  status: number;
+  headers?: Record<string, string>;
+  body?: string;
 }
 ```
 
@@ -120,20 +120,20 @@ interface Response {
 
 ```typescript
 async function handler(req) {
-  const { email } = JSON.parse(req.body || '{}')
+  const { email } = JSON.parse(req.body || "{}");
 
   // Validate email
-  if (!email || !email.includes('@')) {
+  if (!email || !email.includes("@")) {
     return {
       status: 400,
-      body: JSON.stringify({ error: 'Invalid email' })
-    }
+      body: JSON.stringify({ error: "Invalid email" }),
+    };
   }
 
   return {
     status: 200,
-    body: JSON.stringify({ valid: true })
-  }
+    body: JSON.stringify({ valid: true }),
+  };
 }
 ```
 
@@ -142,15 +142,15 @@ async function handler(req) {
 ```typescript
 async function handler(req) {
   // Database client is available via env
-  const dbUrl = Deno.env.get('DATABASE_URL')
+  const dbUrl = Deno.env.get("DATABASE_URL");
 
   // Use pg client or any PostgreSQL library
-  const result = await fetch(`${dbUrl}/users`)
+  const result = await fetch(`${dbUrl}/users`);
 
   return {
     status: 200,
-    body: JSON.stringify(result)
-  }
+    body: JSON.stringify(result),
+  };
 }
 ```
 
@@ -158,17 +158,17 @@ async function handler(req) {
 
 ```typescript
 async function handler(req) {
-  const { query } = JSON.parse(req.body || '{}')
+  const { query } = JSON.parse(req.body || "{}");
 
   // Call external API
-  const response = await fetch(`https://api.example.com/search?q=${query}`)
-  const data = await response.json()
+  const response = await fetch(`https://api.example.com/search?q=${query}`);
+  const data = await response.json();
 
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data)
-  }
+    body: JSON.stringify(data),
+  };
 }
 ```
 
@@ -177,23 +177,23 @@ async function handler(req) {
 ```typescript
 async function handler(req) {
   try {
-    const data = JSON.parse(req.body || '{}')
+    const data = JSON.parse(req.body || "{}");
 
     // Process data
-    const result = await processData(data)
+    const result = await processData(data);
 
     return {
       status: 200,
-      body: JSON.stringify({ result })
-    }
+      body: JSON.stringify({ result }),
+    };
   } catch (error) {
     return {
       status: 500,
       body: JSON.stringify({
-        error: 'Processing failed',
-        message: error.message
-      })
-    }
+        error: "Processing failed",
+        message: error.message,
+      }),
+    };
   }
 }
 ```
@@ -205,24 +205,25 @@ Functions automatically receive the authenticated user context:
 ```typescript
 async function handler(req) {
   // User info from JWT token (if authenticated)
-  const userId = req.headers['x-user-id']
-  const userEmail = req.headers['x-user-email']
+  const userId = req.headers["x-user-id"];
+  const userEmail = req.headers["x-user-email"];
 
   if (!userId) {
     return {
       status: 401,
-      body: JSON.stringify({ error: 'Unauthorized' })
-    }
+      body: JSON.stringify({ error: "Unauthorized" }),
+    };
   }
 
   return {
     status: 200,
-    body: JSON.stringify({ userId, userEmail })
-  }
+    body: JSON.stringify({ userId, userEmail }),
+  };
 }
 ```
 
 **How it works:**
+
 1. Fluxbase validates the JWT token in the `Authorization` header
 2. User context (id, email, role) is extracted from the token
 3. User info is injected into request headers (`x-user-id`, `x-user-email`)
@@ -248,11 +249,83 @@ graph TB
 ```
 
 **Execution steps:**
+
 1. Initialize Deno runtime with configured permissions
 2. Load the function code into the sandbox
 3. Apply security permissions (net, env, read, write)
 4. Execute the handler with the request object
 5. Return the response to the client
+
+## npm Package Support
+
+Fluxbase supports importing npm packages in your edge functions using Deno's `npm:` specifier or URL imports. Functions are automatically bundled when they contain imports.
+
+### Using npm Packages
+
+```typescript
+// Import from npm
+import { z } from "npm:zod@3.22.4";
+import dayjs from "npm:dayjs@1.11.10";
+
+// Import from URL
+import { marked } from "https://esm.sh/marked@9.1.0";
+
+async function handler(req) {
+  const data = JSON.parse(req.body || "{}");
+
+  // Use zod for validation
+  const schema = z.object({
+    name: z.string(),
+    email: z.email(),
+  });
+
+  const validated = schema.parse(data);
+
+  return {
+    status: 200,
+    body: JSON.stringify({ success: true, data: validated }),
+  };
+}
+```
+
+### How Bundling Works
+
+1. **Detection** - Fluxbase detects import statements in your code
+2. **Validation** - Imports are checked against security blocklist
+3. **Bundling** - Deno bundles your code with dependencies into a single file
+4. **Storage** - Bundled code is stored in the database for fast execution
+5. **Execution** - Runtime uses the pre-bundled code (no bundling overhead)
+
+**Performance:** Bundling happens once at creation/update time, not on every invocation.
+
+### Security Restrictions
+
+For security, the following packages are blocked:
+
+- `child_process` / `node:child_process` - Process execution
+- `vm` / `node:vm` - Code evaluation
+- `fs` / `node:fs` - Filesystem access
+- `process` / `node:process` - Process manipulation
+
+Use Deno's built-in APIs or web-standard alternatives instead.
+
+### Bundling Errors
+
+If bundling fails, Fluxbase stores the error but keeps the unbundled code:
+
+```typescript
+// Check bundling status
+const func = await client.functions.get("my-function");
+console.log("Is bundled:", func.is_bundled);
+console.log("Bundle error:", func.bundle_error);
+```
+
+Common bundling errors:
+
+- **Package not found** - Check package name and version
+- **Network timeout** - npm registry may be slow/unavailable
+- **Bundle too large** - Limit is 5MB after bundling
+- **Blocked package** - Using a restricted security package
 
 ## Deployment Methods
 
@@ -260,15 +333,15 @@ graph TB
 
 ```typescript
 await client.functions.create({
-  name: 'my-function',
+  name: "my-function",
   code: `async function handler(req) { ... }`,
-  enabled: true
-})
+  enabled: true,
+});
 
 // Update existing function
-await client.functions.update('my-function', {
-  code: `async function handler(req) { ... }`
-})
+await client.functions.update("my-function", {
+  code: `async function handler(req) { ... }`,
+});
 ```
 
 ### 2. File-Based Deployment
@@ -285,6 +358,7 @@ services:
     environment:
       FLUXBASE_FUNCTIONS_ENABLED: "true"
       FLUXBASE_FUNCTIONS_DIR: /app/functions
+      FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT: "true" # Load on startup (default: true)
 ```
 
 Create function file:
@@ -299,12 +373,43 @@ async function handler(req) {
 }
 ```
 
-Reload functions:
+**Auto-Load on Boot:**
+By default (`AUTO_LOAD_ON_BOOT=true`), functions are automatically loaded from the filesystem when Fluxbase starts. Auto-load:
+
+- ✅ Creates new functions from filesystem
+- ✅ Updates existing functions from filesystem
+- ❌ **Never deletes** functions (preserves UI-created functions)
+
+**Manual Reload:**
+Trigger full sync after adding/updating/deleting function files:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
+
+Manual reload performs **full synchronization**:
+
+- ✅ Creates new functions from filesystem
+- ✅ Updates existing functions from filesystem
+- ✅ **Deletes functions** missing from filesystem
+
+**File-Based Workflow:**
+
+**Mixed UI + File-based Functions:**
+
+- Functions created via UI/SDK remain in database even after container restarts
+- File-based functions sync on boot (create/update only)
+- Use manual reload to remove functions deleted from filesystem
+
+**Pure File-based Functions:**
+
+1. Mount functions directory to container
+2. Add/update/delete `.ts` or `.js` files
+3. Call reload endpoint to sync deletions
+4. Functions are bundled and stored in database
+
+**Important:** If you use both UI-created and file-based functions, **do not** call the reload endpoint unless you understand it will delete UI-created functions that don't exist on the filesystem.
 
 ### 3. Admin Dashboard
 
@@ -316,12 +421,14 @@ curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
 ## Best Practices
 
 **Performance:**
+
 - Keep functions lightweight
 - Avoid long-running operations (use timeouts)
 - Cache external API responses when possible
 - Minimize database queries
 
 **Security:**
+
 - Validate all inputs
 - Never expose secrets in function code
 - Use environment variables for sensitive data
@@ -329,12 +436,14 @@ curl -X POST http://localhost:8080/api/v1/admin/functions/reload \
 - Sanitize user-provided data
 
 **Error Handling:**
+
 - Always wrap code in try-catch blocks
 - Return appropriate HTTP status codes
 - Log errors for debugging
 - Provide meaningful error messages
 
 **Code Organization:**
+
 - Keep functions focused on single tasks
 - Extract shared logic into utility modules
 - Use consistent naming conventions
@@ -346,22 +455,22 @@ Set function-level configuration:
 
 ```typescript
 await client.functions.create({
-  name: 'my-function',
-  code: '...',
+  name: "my-function",
+  code: "...",
   timeout: 30, // seconds
   memory: 256, // MB
   env: {
-    API_KEY: 'secret-key',
-    API_URL: 'https://api.example.com'
-  }
-})
+    API_KEY: "secret-key",
+    API_URL: "https://api.example.com",
+  },
+});
 ```
 
 Access environment variables in function:
 
 ```typescript
 async function handler(req) {
-  const apiKey = Deno.env.get('API_KEY')
+  const apiKey = Deno.env.get("API_KEY");
   // Use apiKey...
 }
 ```
@@ -371,13 +480,13 @@ async function handler(req) {
 ### View Logs
 
 ```typescript
-const logs = await client.functions.getLogs('my-function', {
-  limit: 50
-})
+const logs = await client.functions.getLogs("my-function", {
+  limit: 50,
+});
 
-logs.forEach(log => {
-  console.log(`${log.timestamp}: ${log.message}`)
-})
+logs.forEach((log) => {
+  console.log(`${log.timestamp}: ${log.message}`);
+});
 ```
 
 ### Test Locally
@@ -391,13 +500,13 @@ deno run --allow-net --allow-env my-function.ts
 ### Execution History
 
 ```typescript
-const executions = await client.functions.getExecutions('my-function')
+const executions = await client.functions.getExecutions("my-function");
 
-executions.forEach(exec => {
-  console.log('Status:', exec.status)
-  console.log('Duration:', exec.duration_ms, 'ms')
-  console.log('Error:', exec.error)
-})
+executions.forEach((exec) => {
+  console.log("Status:", exec.status);
+  console.log("Duration:", exec.duration_ms, "ms");
+  console.log("Error:", exec.error);
+});
 ```
 
 ## Limitations
@@ -414,15 +523,15 @@ Functions run with restricted permissions. Enable only what's needed:
 
 ```typescript
 await client.functions.create({
-  name: 'my-function',
-  code: '...',
+  name: "my-function",
+  code: "...",
   permissions: {
     net: true, // Allow network access
     env: true, // Allow environment variables
     read: false, // Deny filesystem read
-    write: false // Deny filesystem write
-  }
-})
+    write: false, // Deny filesystem write
+  },
+});
 ```
 
 **Input Validation:**
@@ -430,15 +539,15 @@ Always validate and sanitize inputs:
 
 ```typescript
 async function handler(req) {
-  const data = JSON.parse(req.body || '{}')
+  const data = JSON.parse(req.body || "{}");
 
   // Validate required fields
-  if (!data.email || typeof data.email !== 'string') {
-    return { status: 400, body: JSON.stringify({ error: 'Invalid email' }) }
+  if (!data.email || typeof data.email !== "string") {
+    return { status: 400, body: JSON.stringify({ error: "Invalid email" }) };
   }
 
   // Sanitize inputs
-  const email = data.email.trim().toLowerCase()
+  const email = data.email.trim().toLowerCase();
 
   // Continue processing...
 }
@@ -451,20 +560,24 @@ For direct HTTP access without the SDK, see the [SDK Documentation](/docs/api/sd
 ## Troubleshooting
 
 **Function not executing:**
+
 - Verify function is enabled: `enabled: true`
 - Check function syntax (use Deno to validate TypeScript)
 - Review execution logs for errors
 
 **Timeout errors:**
+
 - Increase timeout configuration
 - Optimize slow operations
 - Consider breaking into smaller functions
 
 **Permission errors:**
+
 - Enable required permissions in function config
 - Check environment variable availability
 
 **Memory errors:**
+
 - Increase memory allocation
 - Optimize data processing (stream large datasets)
 - Reduce in-memory caching
@@ -475,23 +588,23 @@ Supabase Edge Functions use `serve()`, Fluxbase uses `handler()`:
 
 ```typescript
 // Supabase
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 serve(async (req) => {
-  const data = await req.json()
+  const data = await req.json();
   return new Response(JSON.stringify(result), {
-    headers: { "Content-Type": "application/json" }
-  })
-})
+    headers: { "Content-Type": "application/json" },
+  });
+});
 
 // Fluxbase equivalent
 async function handler(req) {
-  const data = JSON.parse(req.body || '{}')
+  const data = JSON.parse(req.body || "{}");
   return {
     status: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(result)
-  }
+    body: JSON.stringify(result),
+  };
 }
 ```
 

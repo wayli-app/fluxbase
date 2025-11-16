@@ -3,12 +3,15 @@
 -- Edge functions and their executions
 --
 
--- Edge functions table (with allow_unauthenticated support)
+-- Edge functions table (with allow_unauthenticated support and bundling)
 CREATE TABLE IF NOT EXISTS functions.edge_functions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE NOT NULL,
     description TEXT,
     code TEXT NOT NULL,
+    original_code TEXT,
+    is_bundled BOOLEAN DEFAULT false NOT NULL,
+    bundle_error TEXT,
     enabled BOOLEAN DEFAULT true,
     timeout_seconds INTEGER DEFAULT 30,
     memory_limit_mb INTEGER DEFAULT 128,
@@ -29,6 +32,9 @@ CREATE INDEX IF NOT EXISTS idx_functions_edge_functions_enabled ON functions.edg
 CREATE INDEX IF NOT EXISTS idx_functions_edge_functions_cron_schedule ON functions.edge_functions(cron_schedule) WHERE cron_schedule IS NOT NULL;
 
 COMMENT ON COLUMN functions.edge_functions.allow_unauthenticated IS 'When true, allows this function to be invoked without authentication. Use with caution.';
+COMMENT ON COLUMN functions.edge_functions.original_code IS 'Original source code before bundling (for editing in UI)';
+COMMENT ON COLUMN functions.edge_functions.is_bundled IS 'Whether the code field contains bundled output with dependencies';
+COMMENT ON COLUMN functions.edge_functions.bundle_error IS 'Error message if bundling failed (function still works with unbundled code)';
 
 -- Edge function triggers table
 CREATE TABLE IF NOT EXISTS functions.edge_function_triggers (

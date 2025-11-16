@@ -714,6 +714,15 @@ func (s *Server) GetAuthService() *auth.Service {
 	return s.authHandler.authService
 }
 
+// LoadFunctionsFromFilesystem loads edge functions from the filesystem
+// This is called at boot time if auto_load_on_boot is enabled
+func (s *Server) LoadFunctionsFromFilesystem(ctx context.Context) error {
+	if s.functionsHandler == nil {
+		return fmt.Errorf("functions handler not initialized")
+	}
+	return s.functionsHandler.LoadFromFilesystem(ctx)
+}
+
 // customErrorHandler handles errors globally
 func customErrorHandler(c *fiber.Ctx, err error) error {
 	// Default to 500 status code

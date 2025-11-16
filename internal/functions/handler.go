@@ -111,11 +111,42 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		allowUnauthenticated = config.AllowUnauthenticated
 	}
 
+	// Bundle function code if it has imports
+	bundler, err := NewBundler()
+	bundledCode := req.Code
+	originalCode := &req.Code
+	isBundled := false
+	var bundleError *string
+
+	if err == nil {
+		// Bundler available - attempt to bundle
+		result, bundleErr := bundler.Bundle(c.Context(), req.Code)
+		if bundleErr != nil {
+			// Bundling failed - return error to user
+			errMsg := fmt.Sprintf("Failed to bundle function: %v", bundleErr)
+			return c.Status(400).JSON(fiber.Map{
+				"error":   "Bundle error",
+				"details": errMsg,
+			})
+		}
+
+		// Bundling succeeded
+		bundledCode = result.BundledCode
+		isBundled = result.IsBundled
+		if result.Error != "" {
+			bundleError = &result.Error
+		}
+	}
+	// If bundler not available (Deno not installed), use unbundled code
+
 	// Create function
 	fn := &EdgeFunction{
 		Name:                 req.Name,
 		Description:          req.Description,
-		Code:                 req.Code,
+		Code:                 bundledCode,
+		OriginalCode:         originalCode,
+		IsBundled:            isBundled,
+		BundleError:          bundleError,
 		Enabled:              req.Enabled != nil && *req.Enabled,
 		TimeoutSeconds:       valueOr(req.TimeoutSeconds, 30),
 		MemoryLimitMB:        valueOr(req.MemoryLimitMB, 128),
@@ -338,9 +369,24 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 		})
 	}
 
+	// Get all existing functions from database
+	allFunctions, err := h.storage.ListFunctions(ctx)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to list existing functions",
+		})
+	}
+
+	// Build set of function names on disk
+	diskFunctionNames := make(map[string]bool)
+	for _, fileInfo := range functionFiles {
+		diskFunctionNames[fileInfo.Name] = true
+	}
+
 	// Track results
 	var created []string
 	var updated []string
+	var deleted []string
 	var errors []string
 
 	// Process each function file
@@ -359,10 +405,37 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 			// Parse configuration from code comments
 			config := ParseFunctionConfig(code)
 
+			// Bundle function code if it has imports
+			bundler, bundlerErr := NewBundler()
+			bundledCode := code
+			originalCode := &code
+			isBundled := false
+			var bundleError *string
+
+			if bundlerErr == nil {
+				// Bundler available - attempt to bundle
+				result, bundleErr := bundler.Bundle(ctx, code)
+				if bundleErr != nil {
+					// Bundling failed - log error but continue with unbundled code
+					errMsg := fmt.Sprintf("bundle failed: %v", bundleErr)
+					bundleError = &errMsg
+				} else {
+					// Bundling succeeded
+					bundledCode = result.BundledCode
+					isBundled = result.IsBundled
+					if result.Error != "" {
+						bundleError = &result.Error
+					}
+				}
+			}
+
 			// Create new function with default settings
 			fn := &EdgeFunction{
 				Name:                 fileInfo.Name,
-				Code:                 code,
+				Code:                 bundledCode,
+				OriginalCode:         originalCode,
+				IsBundled:            isBundled,
+				BundleError:          bundleError,
 				Enabled:              true,
 				TimeoutSeconds:       30,
 				MemoryLimitMB:        128,
@@ -390,10 +463,43 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 			// Parse configuration from code comments
 			config := ParseFunctionConfig(code)
 
+			// Bundle function code if it has imports
+			bundler, bundlerErr := NewBundler()
+			bundledCode := code
+			originalCode := code
+			isBundled := false
+			var bundleError *string
+
+			if bundlerErr == nil {
+				// Bundler available - attempt to bundle
+				result, bundleErr := bundler.Bundle(ctx, code)
+				if bundleErr != nil {
+					// Bundling failed - log error but continue with unbundled code
+					errMsg := fmt.Sprintf("bundle failed: %v", bundleErr)
+					bundleError = &errMsg
+				} else {
+					// Bundling succeeded
+					bundledCode = result.BundledCode
+					isBundled = result.IsBundled
+					if result.Error != "" {
+						bundleError = &result.Error
+					}
+				}
+			}
+
 			// Update if code or config has changed
-			if existingFn.Code != code || existingFn.AllowUnauthenticated != config.AllowUnauthenticated {
+			// Compare with original_code if available, otherwise with code
+			compareCode := code
+			if existingFn.OriginalCode != nil {
+				compareCode = *existingFn.OriginalCode
+			}
+
+			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated {
 				updates := map[string]interface{}{
-					"code":                  code,
+					"code":                  bundledCode,
+					"original_code":         originalCode,
+					"is_bundled":            isBundled,
+					"bundle_error":          bundleError,
 					"allow_unauthenticated": config.AllowUnauthenticated,
 				}
 
@@ -407,13 +513,179 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 		}
 	}
 
+	// Delete functions that exist in database but not on disk
+	for _, dbFunc := range allFunctions {
+		if !diskFunctionNames[dbFunc.Name] {
+			// Function exists in DB but not on disk - delete it
+			if err := h.storage.DeleteFunction(ctx, dbFunc.Name); err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to delete: %v", dbFunc.Name, err))
+				continue
+			}
+			deleted = append(deleted, dbFunc.Name)
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"message": "Functions reloaded from filesystem",
 		"created": created,
 		"updated": updated,
+		"deleted": deleted,
 		"errors":  errors,
 		"total":   len(functionFiles),
 	})
+}
+
+// LoadFromFilesystem loads functions from filesystem at boot time
+// This is called from main.go if auto_load_on_boot is enabled
+func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
+	// Scan functions directory for all .ts files
+	functionFiles, err := ListFunctionFiles(h.functionsDir)
+	if err != nil {
+		return fmt.Errorf("failed to scan functions directory: %w", err)
+	}
+
+	// Track results
+	var created []string
+	var updated []string
+	var errors []string
+
+	// Process each function file
+	for _, fileInfo := range functionFiles {
+		// Check if function exists in database
+		existingFn, err := h.storage.GetFunction(ctx, fileInfo.Name)
+
+		if err != nil {
+			// Function doesn't exist in database - create it
+			code, err := LoadFunctionCode(h.functionsDir, fileInfo.Name)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to load code: %v", fileInfo.Name, err))
+				continue
+			}
+
+			// Parse configuration from code comments
+			config := ParseFunctionConfig(code)
+
+			// Bundle function code if it has imports
+			bundler, bundlerErr := NewBundler()
+			bundledCode := code
+			originalCode := &code
+			isBundled := false
+			var bundleError *string
+
+			if bundlerErr == nil {
+				// Bundler available - attempt to bundle
+				result, bundleErr := bundler.Bundle(ctx, code)
+				if bundleErr != nil {
+					// Bundling failed - log error but continue with unbundled code
+					errMsg := fmt.Sprintf("bundle failed: %v", bundleErr)
+					bundleError = &errMsg
+				} else {
+					// Bundling succeeded
+					bundledCode = result.BundledCode
+					isBundled = result.IsBundled
+					if result.Error != "" {
+						bundleError = &result.Error
+					}
+				}
+			}
+
+			// Create new function with default settings
+			fn := &EdgeFunction{
+				Name:                 fileInfo.Name,
+				Code:                 bundledCode,
+				OriginalCode:         originalCode,
+				IsBundled:            isBundled,
+				BundleError:          bundleError,
+				Enabled:              true,
+				TimeoutSeconds:       30,
+				MemoryLimitMB:        128,
+				AllowNet:             true,
+				AllowEnv:             true,
+				AllowRead:            false,
+				AllowWrite:           false,
+				AllowUnauthenticated: config.AllowUnauthenticated,
+			}
+
+			if err := h.storage.CreateFunction(ctx, fn); err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to create: %v", fileInfo.Name, err))
+				continue
+			}
+
+			created = append(created, fileInfo.Name)
+		} else {
+			// Function exists - update code from filesystem
+			code, err := LoadFunctionCode(h.functionsDir, fileInfo.Name)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: failed to load code: %v", fileInfo.Name, err))
+				continue
+			}
+
+			// Parse configuration from code comments
+			config := ParseFunctionConfig(code)
+
+			// Bundle function code if it has imports
+			bundler, bundlerErr := NewBundler()
+			bundledCode := code
+			originalCode := code
+			isBundled := false
+			var bundleError *string
+
+			if bundlerErr == nil {
+				// Bundler available - attempt to bundle
+				result, bundleErr := bundler.Bundle(ctx, code)
+				if bundleErr != nil {
+					// Bundling failed - log error but continue with unbundled code
+					errMsg := fmt.Sprintf("bundle failed: %v", bundleErr)
+					bundleError = &errMsg
+				} else {
+					// Bundling succeeded
+					bundledCode = result.BundledCode
+					isBundled = result.IsBundled
+					if result.Error != "" {
+						bundleError = &result.Error
+					}
+				}
+			}
+
+			// Update if code or config has changed
+			// Compare with original_code if available, otherwise with code
+			compareCode := code
+			if existingFn.OriginalCode != nil {
+				compareCode = *existingFn.OriginalCode
+			}
+
+			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated {
+				updates := map[string]interface{}{
+					"code":                  bundledCode,
+					"original_code":         originalCode,
+					"is_bundled":            isBundled,
+					"bundle_error":          bundleError,
+					"allow_unauthenticated": config.AllowUnauthenticated,
+				}
+
+				if err := h.storage.UpdateFunction(ctx, fileInfo.Name, updates); err != nil {
+					errors = append(errors, fmt.Sprintf("%s: failed to update: %v", fileInfo.Name, err))
+					continue
+				}
+
+				updated = append(updated, fileInfo.Name)
+			}
+		}
+	}
+
+	// Note: Auto-load does NOT delete functions missing from filesystem
+	// This prevents data loss when UI-created functions exist alongside file-based functions
+	// Use the manual reload endpoint to perform full sync including deletions
+
+	// Log results
+	if len(created) > 0 || len(updated) > 0 {
+		fmt.Printf("Functions loaded from filesystem: %d created, %d updated\n", len(created), len(updated))
+	}
+	if len(errors) > 0 {
+		fmt.Printf("Errors loading functions: %v\n", errors)
+	}
+
+	return nil
 }
 
 // Helper functions

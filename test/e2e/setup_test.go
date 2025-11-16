@@ -126,6 +126,13 @@ func setupTestTables() {
 		log.Debug().Err(err).Msg("Products trigger may already exist")
 	}
 
+	// Ensure uuid-ossp extension is available for uuid_generate_v4()
+	_, err = db.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create uuid-ossp extension")
+		return
+	}
+
 	// Create tasks table for RLS tests
 	_, err = db.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS public.tasks (

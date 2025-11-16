@@ -108,6 +108,19 @@ func main() {
 	}
 	log.Info().Str("provider", cfg.Storage.Provider).Msg("Storage provider validated successfully")
 
+	// Auto-load functions from filesystem if enabled
+	if cfg.Functions.Enabled && cfg.Functions.AutoLoadOnBoot {
+		log.Info().Msg("Auto-loading edge functions from filesystem...")
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		if err := server.LoadFunctionsFromFilesystem(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to auto-load functions - continuing startup")
+		} else {
+			log.Info().Msg("Functions auto-loaded successfully")
+		}
+	}
+
 	// Start server in a goroutine
 	go func() {
 		log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
