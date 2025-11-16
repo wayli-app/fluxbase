@@ -2,6 +2,7 @@ package realtime
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
@@ -26,14 +27,15 @@ const (
 
 // ClientMessage represents a message from the client
 type ClientMessage struct {
-	Type    MessageType            `json:"type"`
-	Channel string                 `json:"channel,omitempty"`
-	Event   string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
-	Schema  string                 `json:"schema,omitempty"`
-	Table   string                 `json:"table,omitempty"`
-	Filter  string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
-	Payload json.RawMessage        `json:"payload,omitempty"`
-	Config  *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
+	Type           MessageType            `json:"type"`
+	Channel        string                 `json:"channel,omitempty"`
+	Event          string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
+	Schema         string                 `json:"schema,omitempty"`
+	Table          string                 `json:"table,omitempty"`
+	Filter         string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Payload        json.RawMessage        `json:"payload,omitempty"`
+	Config         *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
+	SubscriptionID string                 `json:"subscription_id,omitempty"`
 }
 
 // PostgresChangesConfig represents the config object in postgres_changes subscriptions
@@ -267,11 +269,32 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		})
 
 	case MessageTypeUnsubscribe:
-		// Unsubscribe is handled automatically when connection closes
-		// We don't support manual unsubscribe for individual subscriptions yet
+		// Validate subscription ID is provided
+		if msg.SubscriptionID == "" {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "subscription_id is required for unsubscribe",
+			})
+			return
+		}
+
+		// Remove the subscription
+		err := h.subManager.RemoveSubscription(msg.SubscriptionID)
+		if err != nil {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: fmt.Sprintf("failed to unsubscribe: %s", err.Error()),
+			})
+			return
+		}
+
+		// Send acknowledgment
 		_ = conn.SendMessage(ServerMessage{
-			Type:  MessageTypeError,
-			Error: "unsubscribe not supported - subscriptions are removed on disconnect",
+			Type: MessageTypeAck,
+			Payload: map[string]interface{}{
+				"unsubscribed":    true,
+				"subscription_id": msg.SubscriptionID,
+			},
 		})
 
 	case MessageTypeHeartbeat:

@@ -19,6 +19,9 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   private singleRow: boolean = false
   private maybeSingleRow: boolean = false
   private groupByColumns?: string[]
+  private operationType: 'select' | 'insert' | 'update' | 'delete' = 'select'
+  private insertData?: Partial<T> | Array<Partial<T>>
+  private updateData?: Partial<T>
 
   constructor(fetch: FluxbaseFetch, table: string) {
     this.fetch = fetch
@@ -39,17 +42,10 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   /**
    * Insert a single row or multiple rows
    */
-  async insert(data: Partial<T> | Array<Partial<T>>): Promise<PostgrestResponse<T>> {
-    const body = Array.isArray(data) ? data : data
-    const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body)
-
-    return {
-      data: response,
-      error: null,
-      count: Array.isArray(data) ? data.length : 1,
-      status: 201,
-      statusText: 'Created',
-    }
+  insert(data: Partial<T> | Array<Partial<T>>): this {
+    this.operationType = 'insert'
+    this.insertData = data
+    return this
   }
 
   /**
@@ -97,35 +93,18 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   /**
    * Update rows matching the filters
    */
-  async update(data: Partial<T>): Promise<PostgrestResponse<T>> {
-    const queryString = this.buildQueryString()
-    const path = `/api/v1/tables/${this.table}${queryString}`
-    const response = await this.fetch.patch<T>(path, data)
-
-    return {
-      data: response,
-      error: null,
-      count: null,
-      status: 200,
-      statusText: 'OK',
-    }
+  update(data: Partial<T>): this {
+    this.operationType = 'update'
+    this.updateData = data
+    return this
   }
 
   /**
    * Delete rows matching the filters
    */
-  async delete(): Promise<PostgrestResponse<null>> {
-    const queryString = this.buildQueryString()
-    const path = `/api/v1/tables/${this.table}${queryString}`
-    await this.fetch.delete(path)
-
-    return {
-      data: null,
-      error: null,
-      count: null,
-      status: 204,
-      statusText: 'No Content',
-    }
+  delete(): this {
+    this.operationType = 'delete'
+    return this
   }
 
   /**
@@ -536,13 +515,13 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    *   { name: 'Alice', email: 'alice@example.com' },
    *   { name: 'Bob', email: 'bob@example.com' },
    *   { name: 'Charlie', email: 'charlie@example.com' }
-   * ]).execute()
+   * ])
    * ```
    *
    * @category Batch Operations
    */
   async insertMany(rows: Array<Partial<T>>): Promise<PostgrestResponse<T>> {
-    return this.insert(rows)
+    return this.insert(rows).execute()
   }
 
   /**
@@ -560,19 +539,17 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * const { data } = await client.from('products')
    *   .eq('category', 'electronics')
    *   .updateMany({ discount: 10, updated_at: new Date() })
-   *   .execute()
    *
    * // Mark all pending orders as processing
    * const { data } = await client.from('orders')
    *   .eq('status', 'pending')
    *   .updateMany({ status: 'processing' })
-   *   .execute()
    * ```
    *
    * @category Batch Operations
    */
   async updateMany(data: Partial<T>): Promise<PostgrestResponse<T>> {
-    return this.update(data)
+    return this.update(data).execute()
   }
 
   /**
@@ -589,29 +566,77 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * await client.from('users')
    *   .eq('active', false)
    *   .deleteMany()
-   *   .execute()
    *
    * // Delete old logs
    * await client.from('logs')
    *   .lt('created_at', '2024-01-01')
    *   .deleteMany()
-   *   .execute()
    * ```
    *
    * @category Batch Operations
    */
   async deleteMany(): Promise<PostgrestResponse<null>> {
-    return this.delete()
+    return this.delete().execute() as Promise<PostgrestResponse<null>>
   }
 
   /**
    * Execute the query and return results
    */
   async execute(): Promise<PostgrestResponse<T>> {
-    const queryString = this.buildQueryString()
-    const path = `/api/v1/tables/${this.table}${queryString}`
-
     try {
+      // Handle INSERT operation
+      if (this.operationType === 'insert') {
+        if (!this.insertData) {
+          throw new Error('Insert data is required for insert operation')
+        }
+        const body = Array.isArray(this.insertData) ? this.insertData : this.insertData
+        const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body)
+
+        return {
+          data: response,
+          error: null,
+          count: Array.isArray(this.insertData) ? this.insertData.length : 1,
+          status: 201,
+          statusText: 'Created',
+        }
+      }
+
+      // Handle UPDATE operation
+      if (this.operationType === 'update') {
+        if (!this.updateData) {
+          throw new Error('Update data is required for update operation')
+        }
+        const queryString = this.buildQueryString()
+        const path = `/api/v1/tables/${this.table}${queryString}`
+        const response = await this.fetch.patch<T>(path, this.updateData)
+
+        return {
+          data: response,
+          error: null,
+          count: null,
+          status: 200,
+          statusText: 'OK',
+        }
+      }
+
+      // Handle DELETE operation
+      if (this.operationType === 'delete') {
+        const queryString = this.buildQueryString()
+        const path = `/api/v1/tables/${this.table}${queryString}`
+        await this.fetch.delete(path)
+
+        return {
+          data: null,
+          error: null,
+          count: null,
+          status: 204,
+          statusText: 'No Content',
+        } as PostgrestResponse<T>
+      }
+
+      // Handle SELECT operation (default)
+      const queryString = this.buildQueryString()
+      const path = `/api/v1/tables/${this.table}${queryString}`
       const data = await this.fetch.get<T | T[]>(path)
 
       // Handle single row response
