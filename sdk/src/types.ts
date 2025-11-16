@@ -83,20 +83,60 @@ export interface AuthResponse {
   expires_in: number
 }
 
-export interface TwoFactorSetupResponse {
+/**
+ * MFA Factor (Supabase-compatible)
+ */
+export interface Factor {
+  id: string
+  type: 'totp' | 'phone'
+  status: 'verified' | 'unverified'
+  created_at: string
+  updated_at: string
+  friendly_name?: string
+}
+
+/**
+ * TOTP setup details (Supabase-compatible)
+ */
+export interface TOTPSetup {
+  qr_code: string
   secret: string
-  qr_code_url: string
-  message: string
+  uri: string
 }
 
+/**
+ * MFA enroll response (Supabase-compatible)
+ */
+export interface TwoFactorSetupResponse {
+  id: string
+  type: 'totp'
+  totp: TOTPSetup
+}
+
+/**
+ * MFA verify/enable response (Supabase-compatible)
+ */
 export interface TwoFactorEnableResponse {
-  success: boolean
-  backup_codes: string[]
-  message: string
+  access_token: string
+  refresh_token: string
+  user: User
+  token_type?: string
+  expires_in?: number
 }
 
+/**
+ * MFA status response (Supabase-compatible)
+ */
 export interface TwoFactorStatusResponse {
-  totp_enabled: boolean
+  all: Factor[]
+  totp: Factor[]
+}
+
+/**
+ * MFA unenroll response (Supabase-compatible)
+ */
+export interface TwoFactorDisableResponse {
+  id: string
 }
 
 export interface TwoFactorVerifyRequest {
@@ -379,14 +419,23 @@ export interface PasswordResetRequest {
   email: string
 }
 
+/**
+ * Password reset email sent response (Supabase-compatible)
+ * Returns OTP-style response similar to Supabase's AuthOtpResponse
+ */
 export interface PasswordResetResponse {
-  message: string
+  user: null
+  session: null
+  messageId?: string
 }
 
 export interface VerifyResetTokenRequest {
   token: string
 }
 
+/**
+ * Verify password reset token response (Fluxbase extension)
+ */
 export interface VerifyResetTokenResponse {
   valid: boolean
   message: string
@@ -397,9 +446,11 @@ export interface ResetPasswordRequest {
   new_password: string
 }
 
-export interface ResetPasswordResponse {
-  message: string
-}
+/**
+ * Reset password completion response (Supabase-compatible)
+ * Returns user and session after successful password reset
+ */
+export type ResetPasswordResponse = AuthResponseData
 
 // Magic Link Types
 export interface MagicLinkOptions {
@@ -411,8 +462,14 @@ export interface MagicLinkRequest {
   redirect_to?: string
 }
 
+/**
+ * Magic link sent response (Supabase-compatible)
+ * Returns OTP-style response similar to Supabase's AuthOtpResponse
+ */
 export interface MagicLinkResponse {
-  message: string
+  user: null
+  session: null
+  messageId?: string
 }
 
 export interface VerifyMagicLinkRequest {
@@ -1436,11 +1493,19 @@ export type FluxbaseResponse<T> =
 export type VoidResponse = { error: Error | null }
 
 /**
- * Auth response with user and session
+ * Weak password information (Supabase-compatible)
+ */
+export interface WeakPassword {
+  reasons: string[]
+}
+
+/**
+ * Auth response with user and session (Supabase-compatible)
  */
 export type AuthResponseData = {
   user: User
-  session: AuthSession
+  session: AuthSession | null
+  weakPassword?: WeakPassword
 }
 
 /**

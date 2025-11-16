@@ -246,37 +246,37 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email s
 }
 
 // ResetPassword resets a user's password using a valid reset token
-func (s *PasswordResetService) ResetPassword(ctx context.Context, token, newPassword string) error {
+func (s *PasswordResetService) ResetPassword(ctx context.Context, token, newPassword string) (string, error) {
 	// Validate the token
 	resetToken, err := s.repo.Validate(ctx, token)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Get the user
 	user, err := s.userRepo.GetByID(ctx, resetToken.UserID)
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return "", fmt.Errorf("failed to get user: %w", err)
 	}
 
 	// Hash the new password
 	hasher := NewPasswordHasher()
 	hashedPassword, err := hasher.HashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	// Update the user's password
 	if err := s.userRepo.UpdatePassword(ctx, user.ID, hashedPassword); err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
+		return "", fmt.Errorf("failed to update password: %w", err)
 	}
 
 	// Mark token as used
 	if err := s.repo.MarkAsUsed(ctx, resetToken.ID); err != nil {
-		return fmt.Errorf("failed to mark token as used: %w", err)
+		return "", fmt.Errorf("failed to mark token as used: %w", err)
 	}
 
-	return nil
+	return user.ID, nil
 }
 
 // VerifyPasswordResetToken verifies if a password reset token is valid

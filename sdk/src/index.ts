@@ -265,6 +265,8 @@ export type {
   // Fluxbase response wrapper types
   FluxbaseResponse,
   FluxbaseAuthResponse,
+  AuthResponseData,
+  WeakPassword,
   DataResponse,
   VoidResponse,
   UserResponse,

@@ -103,7 +103,7 @@ describe("FluxbaseAuth", () => {
 
       vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
 
-      const { data: session, error } = await auth.signIn({
+      const { data, error } = await auth.signIn({
         email: "user@example.com",
         password: "password123",
       });
@@ -113,9 +113,10 @@ describe("FluxbaseAuth", () => {
         password: "password123",
       });
       expect(error).toBeNull();
-      expect(session).toBeDefined();
-      expect(session!.access_token).toBe("new-access-token");
-      expect(session!.user.email).toBe("user@example.com");
+      expect(data).toBeDefined();
+      expect(data!.session.access_token).toBe("new-access-token");
+      expect(data!.user.email).toBe("user@example.com");
+      expect(data!.session.user.email).toBe("user@example.com");
       expect(mockFetch.setAuthToken).toHaveBeenCalledWith("new-access-token");
     });
 
@@ -365,12 +366,7 @@ describe("FluxbaseAuth", () => {
   describe("Password Reset Flow", () => {
     describe("sendPasswordReset()", () => {
       it("should send password reset email", async () => {
-        const response = {
-          message:
-            "If an account with that email exists, a password reset link has been sent",
-        };
-
-        vi.mocked(mockFetch.post).mockResolvedValue(response);
+        vi.mocked(mockFetch.post).mockResolvedValue({});
 
         const { data: result, error } =
           await auth.sendPasswordReset("user@example.com");
@@ -383,7 +379,8 @@ describe("FluxbaseAuth", () => {
         );
         expect(error).toBeNull();
         expect(result).toBeDefined();
-        expect(result!.message).toBe(response.message);
+        expect(result!.user).toBeNull();
+        expect(result!.session).toBeNull();
       });
     });
 
@@ -430,7 +427,15 @@ describe("FluxbaseAuth", () => {
     describe("resetPassword()", () => {
       it("should reset password with valid token", async () => {
         const response = {
-          message: "Password has been successfully reset",
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+          expires_in: 3600,
+          token_type: "Bearer",
+          user: {
+            id: "1",
+            email: "user@example.com",
+            created_at: new Date().toISOString(),
+          },
         };
 
         vi.mocked(mockFetch.post).mockResolvedValue(response);
@@ -449,7 +454,10 @@ describe("FluxbaseAuth", () => {
         );
         expect(error).toBeNull();
         expect(result).toBeDefined();
-        expect(result!.message).toBe(response.message);
+        expect(result!.user).toBeDefined();
+        expect(result!.session).toBeDefined();
+        expect(result!.session.access_token).toBe("new-access-token");
+        expect(mockFetch.setAuthToken).toHaveBeenCalledWith("new-access-token");
       });
     });
   });
@@ -457,11 +465,7 @@ describe("FluxbaseAuth", () => {
   describe("Magic Link Authentication", () => {
     describe("sendMagicLink()", () => {
       it("should send magic link without options", async () => {
-        const response = {
-          message: "Magic link sent to your email",
-        };
-
-        vi.mocked(mockFetch.post).mockResolvedValue(response);
+        vi.mocked(mockFetch.post).mockResolvedValue({});
 
         const { data: result, error } =
           await auth.sendMagicLink("user@example.com");
@@ -472,15 +476,12 @@ describe("FluxbaseAuth", () => {
         });
         expect(error).toBeNull();
         expect(result).toBeDefined();
-        expect(result!.message).toBe(response.message);
+        expect(result!.user).toBeNull();
+        expect(result!.session).toBeNull();
       });
 
       it("should send magic link with redirect URL", async () => {
-        const response = {
-          message: "Magic link sent to your email",
-        };
-
-        vi.mocked(mockFetch.post).mockResolvedValue(response);
+        vi.mocked(mockFetch.post).mockResolvedValue({});
 
         const { data: result, error } = await auth.sendMagicLink(
           "user@example.com",
@@ -495,7 +496,8 @@ describe("FluxbaseAuth", () => {
         });
         expect(error).toBeNull();
         expect(result).toBeDefined();
-        expect(result!.message).toBe(response.message);
+        expect(result!.user).toBeNull();
+        expect(result!.session).toBeNull();
       });
     });
 

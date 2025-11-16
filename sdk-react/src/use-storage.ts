@@ -135,7 +135,7 @@ export function useStorageUploadWithProgress(bucket: string) {
         .from(bucket)
         .upload(path, file, {
           ...options,
-          onUploadProgress: (p) => {
+          onUploadProgress: (p: import("@fluxbase/sdk").UploadProgress) => {
             setProgress(p);
           },
         });

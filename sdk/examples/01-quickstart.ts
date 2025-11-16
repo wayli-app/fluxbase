@@ -32,7 +32,7 @@ async function main() {
 
   try {
     // Sign up a new user
-    const { user, session } = await client.auth.signUp({
+    const { data, error } = await client.auth.signUp({
       email: 'demo@example.com',
       password: 'secure-password-123',
       metadata: {
@@ -41,17 +41,24 @@ async function main() {
       },
     })
 
-    console.log('✅ User signed up:', user.email)
-    console.log('✅ Access token:', session.access_token.substring(0, 20) + '...')
+    if (error) throw error
+
+    console.log('✅ User signed up:', data.user.email)
+    if (data.session) {
+      console.log('✅ Access token:', data.session.access_token.substring(0, 20) + '...')
+    } else {
+      console.log('📧 Email confirmation required - check your inbox')
+    }
   } catch (error: any) {
     // User might already exist, try signing in
     if (error.message.includes('already exists')) {
-      const { user, session } = await client.auth.signIn({
+      const { data, error: signInError } = await client.auth.signIn({
         email: 'demo@example.com',
         password: 'secure-password-123',
       })
-      console.log('✅ User signed in:', user.email)
-      console.log('✅ Access token:', session.access_token.substring(0, 20) + '...')
+      if (signInError) throw signInError
+      console.log('✅ User signed in:', data.user.email)
+      console.log('✅ Access token:', data.session.access_token.substring(0, 20) + '...')
     } else {
       throw error
     }
@@ -192,8 +199,9 @@ async function main() {
   // ========================================
   console.log('\n6️⃣  RPC Function Calls')
 
+  const { data: sessionData } = await client.auth.getSession()
   const { data: rpcResult, error: rpcError } = await client.rpc('get_user_stats', {
-    user_id: client.auth.getSession()?.user?.id,
+    user_id: sessionData.session?.user?.id,
   })
 
   if (rpcError) {

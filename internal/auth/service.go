@@ -427,7 +427,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 }
 
 // ResetPassword resets a user's password using a valid reset token
-func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) (string, error) {
 	return s.passwordResetService.ResetPassword(ctx, token, newPassword)
 }
 

@@ -5,6 +5,7 @@
 import type { FluxbaseFetch } from "./fetch";
 import type {
   AuthResponse,
+  AuthResponseData,
   AuthSession,
   SignInCredentials,
   SignUpCredentials,
@@ -12,6 +13,7 @@ import type {
   TwoFactorSetupResponse,
   TwoFactorEnableResponse,
   TwoFactorStatusResponse,
+  TwoFactorDisableResponse,
   TwoFactorVerifyRequest,
   SignInWith2FAResponse,
   PasswordResetResponse,
@@ -123,12 +125,12 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Sign in with email and password
-   * Returns AuthSession if successful, or SignInWith2FAResponse if 2FA is required
+   * Sign in with email and password (Supabase-compatible)
+   * Returns { user, session } if successful, or SignInWith2FAResponse if 2FA is required
    */
   async signIn(
     credentials: SignInCredentials,
-  ): Promise<FluxbaseResponse<AuthSession | SignInWith2FAResponse>> {
+  ): Promise<FluxbaseResponse<AuthResponseData | SignInWith2FAResponse>> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<
         AuthResponse | SignInWith2FAResponse
@@ -147,23 +149,25 @@ export class FluxbaseAuth {
       };
 
       this.setSessionInternal(session);
-      return session;
+      return { user: session.user, session };
     });
   }
 
   /**
-   * Sign in with email and password
+   * Sign in with email and password (Supabase-compatible)
    * Alias for signIn() to maintain compatibility with common authentication patterns
-   * Returns AuthSession if successful, or SignInWith2FAResponse if 2FA is required
+   * Returns { user, session } if successful, or SignInWith2FAResponse if 2FA is required
    */
   async signInWithPassword(
     credentials: SignInCredentials,
-  ): Promise<FluxbaseResponse<AuthSession | SignInWith2FAResponse>> {
+  ): Promise<FluxbaseResponse<AuthResponseData | SignInWith2FAResponse>> {
     return this.signIn(credentials);
   }
 
   /**
-   * Sign up with email and password
+   * Sign up with email and password (Supabase-compatible)
+   * Returns session when email confirmation is disabled
+   * Returns null session when email confirmation is required
    */
   async signUp(credentials: SignUpCredentials): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
@@ -172,13 +176,19 @@ export class FluxbaseAuth {
         credentials,
       );
 
-      const session: AuthSession = {
-        ...response,
-        expires_at: Date.now() + response.expires_in * 1000,
-      };
+      // Check if session tokens are provided (no email confirmation required)
+      if (response.access_token && response.refresh_token) {
+        const session: AuthSession = {
+          ...response,
+          expires_at: Date.now() + response.expires_in * 1000,
+        };
 
-      this.setSessionInternal(session);
-      return { user: session.user, session };
+        this.setSessionInternal(session);
+        return { user: response.user, session };
+      }
+
+      // Email confirmation required - return user without session
+      return { user: response.user, session: null };
     });
   }
 
@@ -200,7 +210,7 @@ export class FluxbaseAuth {
    * Returns a new session with refreshed tokens
    */
   async refreshSession(): Promise<
-    FluxbaseResponse<{ session: AuthSession; user: User }>
+    FluxbaseResponse<{ user: User; session: AuthSession }>
   > {
     return wrapAsync(async () => {
       if (!this.session?.refresh_token) {
@@ -220,7 +230,7 @@ export class FluxbaseAuth {
       };
 
       this.setSessionInternal(session, "TOKEN_REFRESHED");
-      return { session, user: session.user };
+      return { user: session.user, session };
     });
   }
 
@@ -297,8 +307,9 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Setup 2FA for the current user
-   * Returns TOTP secret and QR code URL
+   * Setup 2FA for the current user (Supabase-compatible)
+   * Enrolls a new MFA factor and returns TOTP details
+   * @returns Promise with factor id, type, and TOTP setup details
    */
   async setup2FA(): Promise<DataResponse<TwoFactorSetupResponse>> {
     return wrapAsync(async () => {
@@ -313,8 +324,10 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Enable 2FA after verifying the TOTP code
-   * Returns backup codes that should be saved by the user
+   * Enable 2FA after verifying the TOTP code (Supabase-compatible)
+   * Verifies the TOTP code and returns new tokens with MFA session
+   * @param code - TOTP code from authenticator app
+   * @returns Promise with access_token, refresh_token, and user
    */
   async enable2FA(
     code: string,
@@ -332,18 +345,20 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Disable 2FA for the current user
-   * Requires password confirmation
+   * Disable 2FA for the current user (Supabase-compatible)
+   * Unenrolls the MFA factor
+   * @param password - User password for confirmation
+   * @returns Promise with unenrolled factor id
    */
   async disable2FA(
     password: string,
-  ): Promise<DataResponse<{ success: boolean; message: string }>> {
+  ): Promise<DataResponse<TwoFactorDisableResponse>> {
     return wrapAsync(async () => {
       if (!this.session) {
         throw new Error("Not authenticated");
       }
 
-      return await this.fetch.post<{ success: boolean; message: string }>(
+      return await this.fetch.post<TwoFactorDisableResponse>(
         "/api/v1/auth/2fa/disable",
         { password },
       );
@@ -351,7 +366,9 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Check 2FA status for the current user
+   * Check 2FA status for the current user (Supabase-compatible)
+   * Lists all enrolled MFA factors
+   * @returns Promise with all factors and TOTP factors
    */
   async get2FAStatus(): Promise<DataResponse<TwoFactorStatusResponse>> {
     return wrapAsync(async () => {
@@ -366,41 +383,50 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Verify 2FA code during login
+   * Verify 2FA code during login (Supabase-compatible)
    * Call this after signIn returns requires_2fa: true
+   * @param request - User ID and TOTP code
+   * @returns Promise with access_token, refresh_token, and user
    */
   async verify2FA(
     request: TwoFactorVerifyRequest,
-  ): Promise<FluxbaseAuthResponse> {
+  ): Promise<DataResponse<TwoFactorEnableResponse>> {
     return wrapAsync(async () => {
-      const response = await this.fetch.post<AuthResponse>(
+      const response = await this.fetch.post<TwoFactorEnableResponse>(
         "/api/v1/auth/2fa/verify",
         request,
       );
 
-      const session: AuthSession = {
-        ...response,
-        expires_at: Date.now() + response.expires_in * 1000,
-      };
+      // Create session from the response tokens
+      if (response.access_token && response.refresh_token) {
+        const session: AuthSession = {
+          user: response.user,
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+          expires_in: response.expires_in || 3600,
+          expires_at: Date.now() + (response.expires_in || 3600) * 1000,
+        };
 
-      this.setSessionInternal(session, "MFA_CHALLENGE_VERIFIED");
-      return { user: session.user, session };
+        this.setSessionInternal(session, "MFA_CHALLENGE_VERIFIED");
+      }
+
+      return response;
     });
   }
 
   /**
-   * Send password reset email
+   * Send password reset email (Supabase-compatible)
    * Sends a password reset link to the provided email address
    * @param email - Email address to send reset link to
+   * @returns Promise with OTP-style response
    */
   async sendPasswordReset(
     email: string,
   ): Promise<DataResponse<PasswordResetResponse>> {
     return wrapAsync(async () => {
-      return await this.fetch.post<PasswordResetResponse>(
-        "/api/v1/auth/password/reset",
-        { email },
-      );
+      await this.fetch.post("/api/v1/auth/password/reset", { email });
+      // Return Supabase-compatible OTP response
+      return { user: null, session: null };
     });
   }
 
@@ -408,6 +434,7 @@ export class FluxbaseAuth {
    * Supabase-compatible alias for sendPasswordReset()
    * @param email - Email address to send reset link to
    * @param _options - Optional redirect configuration (currently not used)
+   * @returns Promise with OTP-style response
    */
   async resetPasswordForEmail(
     email: string,
@@ -435,43 +462,52 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Reset password with token
+   * Reset password with token (Supabase-compatible)
    * Complete the password reset process with a valid token
    * @param token - Password reset token
    * @param newPassword - New password to set
+   * @returns Promise with user and new session
    */
   async resetPassword(
     token: string,
     newPassword: string,
   ): Promise<DataResponse<ResetPasswordResponse>> {
     return wrapAsync(async () => {
-      return await this.fetch.post<ResetPasswordResponse>(
+      const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/password/reset/confirm",
         {
           token,
           new_password: newPassword,
         },
       );
+
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
+
+      this.setSessionInternal(session, "PASSWORD_RECOVERY");
+      return { user: session.user, session };
     });
   }
 
   /**
-   * Send magic link for passwordless authentication
+   * Send magic link for passwordless authentication (Supabase-compatible)
    * @param email - Email address to send magic link to
    * @param options - Optional configuration for magic link
+   * @returns Promise with OTP-style response
    */
   async sendMagicLink(
     email: string,
     options?: MagicLinkOptions,
   ): Promise<DataResponse<MagicLinkResponse>> {
     return wrapAsync(async () => {
-      return await this.fetch.post<MagicLinkResponse>(
-        "/api/v1/auth/magiclink",
-        {
-          email,
-          redirect_to: options?.redirect_to,
-        },
-      );
+      await this.fetch.post("/api/v1/auth/magiclink", {
+        email,
+        redirect_to: options?.redirect_to,
+      });
+      // Return Supabase-compatible OTP response
+      return { user: null, session: null };
     });
   }
 

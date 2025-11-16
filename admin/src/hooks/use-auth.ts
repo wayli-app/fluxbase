@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import type { SignInCredentials, SignUpCredentials } from '@fluxbase/sdk'
 import { useFluxbaseClient } from '@fluxbase/sdk-react'
-import type { SignInCredentials, SignUpCredentials, AuthSession } from '@fluxbase/sdk'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function useAuth() {
@@ -32,36 +32,49 @@ export function useAuth() {
     },
     onSuccess: (response) => {
       // Check if 2FA is required
-      if (response.data && 'requires_2fa' in response.data && response.data.requires_2fa) {
+      if (
+        response.data &&
+        'requires_2fa' in response.data &&
+        response.data.requires_2fa
+      ) {
         // Handle 2FA flow - don't store tokens yet
-        toast.info('message' in response.data ? response.data.message : 'Two-factor authentication required')
+        toast.info(
+          'message' in response.data
+            ? response.data.message
+            : 'Two-factor authentication required'
+        )
         return
       }
 
-      // Type guard: at this point we know it's an AuthSession
-      if (!response.data || !('access_token' in response.data)) {
+      // Type guard: at this point we know it's an AuthResponseData
+      if (!response.data || !('session' in response.data)) {
         toast.error('Invalid response from server')
         return
       }
 
-      const authSession = response.data as AuthSession
+      const { session, user } = response.data
+
+      if (!session) {
+        toast.error('No session returned from server')
+        return
+      }
 
       // Store tokens
-      auth.setAccessToken(authSession.access_token)
-      localStorage.setItem('refresh_token', authSession.refresh_token)
+      auth.setAccessToken(session.access_token)
+      localStorage.setItem('refresh_token', session.refresh_token)
 
       // Store user in Zustand
       auth.setUser({
-        accountNo: authSession.user.id,
-        email: authSession.user.email,
-        role: [authSession.user.role],
-        exp: Date.now() + authSession.expires_in * 1000,
+        accountNo: user.id,
+        email: user.email,
+        role: [user.role],
+        exp: Date.now() + session.expires_in * 1000,
       })
 
       // Invalidate and refetch user query
       queryClient.invalidateQueries({ queryKey: ['auth', 'user'] })
 
-      toast.success(`Welcome back, ${authSession.user.email}!`)
+      toast.success(`Welcome back, ${user.email}!`)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to sign in')
@@ -80,6 +93,11 @@ export function useAuth() {
       }
 
       const { session, user } = response.data
+
+      if (!session) {
+        toast.error('No session returned from server')
+        return
+      }
 
       // Store tokens
       auth.setAccessToken(session.access_token)

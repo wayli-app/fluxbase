@@ -254,8 +254,10 @@ func (h *AuthHandler) SendMagicLink(c *fiber.Ctx) error {
 		})
 	}
 
+	// Return Supabase-compatible OTP response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Magic link sent to your email",
+		"user":    nil,
+		"session": nil,
 	})
 }
 
@@ -318,8 +320,10 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 		// Don't reveal if user exists - always return success
 	}
 
+	// Return Supabase-compatible OTP response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "If an account with that email exists, a password reset link has been sent",
+		"user":    nil,
+		"session": nil,
 	})
 }
 
@@ -350,17 +354,25 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	// Reset password
-	if err := h.authService.ResetPassword(c.Context(), req.Token, req.NewPassword); err != nil {
+	// Reset password and get user ID
+	userID, err := h.authService.ResetPassword(c.Context(), req.Token, req.NewPassword)
+	if err != nil {
 		log.Error().Err(err).Msg("Failed to reset password")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Password has been successfully reset",
-	})
+	// Generate new tokens for the user (Supabase-compatible)
+	resp, err := h.authService.GenerateTokensForUser(c.Context(), userID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate tokens after password reset")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate authentication tokens",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
 // VerifyPasswordResetToken handles password reset token verification
