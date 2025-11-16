@@ -76,6 +76,34 @@ func (m *Manager) GetConnectionCount() int {
 	return len(m.connections)
 }
 
+// BroadcastToChannel sends a message to all connections subscribed to a channel
+func (m *Manager) BroadcastToChannel(channel string, message ServerMessage) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	sentCount := 0
+	for _, conn := range m.connections {
+		if conn.IsSubscribed(channel) {
+			if err := conn.SendMessage(message); err != nil {
+				log.Error().
+					Err(err).
+					Str("connection_id", conn.ID).
+					Str("channel", channel).
+					Msg("Failed to broadcast message to connection")
+			} else {
+				sentCount++
+			}
+		}
+	}
+
+	log.Debug().
+		Str("channel", channel).
+		Int("recipients", sentCount).
+		Msg("Broadcast message sent")
+
+	return sentCount
+}
+
 // ConnectionInfo represents detailed information about a connection
 type ConnectionInfo struct {
 	ID          string  `json:"id"`

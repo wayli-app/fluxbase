@@ -124,6 +124,13 @@ export type {
   RealtimeChangePayload, // Deprecated
   RealtimeCallback,
   PostgresChangesConfig,
+  RealtimeChannelConfig,
+  PresenceState,
+  RealtimePresencePayload,
+  PresenceCallback,
+  BroadcastMessage,
+  RealtimeBroadcastPayload,
+  BroadcastCallback,
 
   // Storage types
   FileObject,

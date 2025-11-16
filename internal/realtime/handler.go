@@ -18,6 +18,7 @@ const (
 	MessageTypeUnsubscribe MessageType = "unsubscribe"
 	MessageTypeHeartbeat   MessageType = "heartbeat"
 	MessageTypeBroadcast   MessageType = "broadcast"
+	MessageTypePresence    MessageType = "presence"
 	MessageTypeError       MessageType = "error"
 	MessageTypeAck         MessageType = "ack"
 	MessageTypeChange      MessageType = "change"
@@ -66,17 +67,19 @@ type TokenClaims struct {
 
 // RealtimeHandler handles WebSocket connections
 type RealtimeHandler struct {
-	manager     *Manager
-	authService AuthService
-	subManager  *SubscriptionManager
+	manager         *Manager
+	authService     AuthService
+	subManager      *SubscriptionManager
+	presenceManager *PresenceManager
 }
 
 // NewRealtimeHandler creates a new realtime handler
 func NewRealtimeHandler(manager *Manager, authService AuthService, subManager *SubscriptionManager) *RealtimeHandler {
 	return &RealtimeHandler{
-		manager:     manager,
-		authService: authService,
-		subManager:  subManager,
+		manager:         manager,
+		authService:     authService,
+		subManager:      subManager,
+		presenceManager: NewPresenceManager(),
 	}
 }
 
@@ -124,6 +127,14 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 	// Add connection to manager
 	connection := h.manager.AddConnection(connectionID, c, userID)
 	defer func() {
+		// Clean up presence for this connection
+		if h.presenceManager != nil {
+			removed := h.presenceManager.CleanupConnection(connectionID)
+			// Notify other clients about presence leaving
+			for channel, info := range removed {
+				h.notifyPresenceLeave(channel, info)
+			}
+		}
 		// Clean up RLS-aware subscriptions
 		if h.subManager != nil {
 			h.subManager.RemoveConnectionSubscriptions(connectionID)
@@ -269,6 +280,12 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			Type: MessageTypeHeartbeat,
 		})
 
+	case MessageTypeBroadcast:
+		h.handleBroadcast(conn, msg)
+
+	case MessageTypePresence:
+		h.handlePresence(conn, msg)
+
 	default:
 		_ = conn.SendMessage(ServerMessage{
 			Type:  MessageTypeError,
@@ -292,4 +309,176 @@ func (h *RealtimeHandler) GetDetailedStats() map[string]interface{} {
 // GetManager returns the realtime manager
 func (h *RealtimeHandler) GetManager() *Manager {
 	return h.manager
+}
+
+// handleBroadcast processes broadcast messages
+func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
+	if msg.Channel == "" {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "channel is required for broadcast",
+		})
+		return
+	}
+
+	// Subscribe connection to channel if not already subscribed
+	if !conn.IsSubscribed(msg.Channel) {
+		conn.Subscribe(msg.Channel)
+	}
+
+	// Build broadcast payload
+	broadcastPayload := map[string]interface{}{
+		"event":   msg.Event,
+		"payload": msg.Payload,
+	}
+
+	// Broadcast to all connections subscribed to this channel
+	h.manager.BroadcastToChannel(msg.Channel, ServerMessage{
+		Type:    MessageTypeBroadcast,
+		Channel: msg.Channel,
+		Payload: map[string]interface{}{
+			"broadcast": broadcastPayload,
+		},
+	})
+}
+
+// handlePresence processes presence messages
+func (h *RealtimeHandler) handlePresence(conn *Connection, msg ClientMessage) {
+	if msg.Channel == "" {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "channel is required for presence",
+		})
+		return
+	}
+
+	// Subscribe connection to channel if not already subscribed
+	if !conn.IsSubscribed(msg.Channel) {
+		conn.Subscribe(msg.Channel)
+	}
+
+	// Parse payload to get presence event and data
+	var presencePayload struct {
+		Event string                 `json:"event"`
+		Key   string                 `json:"key"`
+		State map[string]interface{} `json:"state"`
+	}
+
+	if msg.Payload != nil {
+		if err := json.Unmarshal(msg.Payload, &presencePayload); err != nil {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "invalid presence payload",
+			})
+			return
+		}
+	}
+
+	// Handle different presence events
+	switch presencePayload.Event {
+	case "track":
+		if presencePayload.Key == "" {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "key is required for presence track",
+			})
+			return
+		}
+
+		// Track presence
+		info, isNew := h.presenceManager.Track(
+			msg.Channel,
+			presencePayload.Key,
+			presencePayload.State,
+			conn.UserID,
+			conn.ID,
+		)
+
+		// Notify all clients in the channel about the new/updated presence
+		if isNew {
+			h.notifyPresenceJoin(msg.Channel, info)
+		} else {
+			// For updates, send sync event
+			h.notifyPresenceSync(msg.Channel)
+		}
+
+	case "untrack":
+		if presencePayload.Key == "" {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "key is required for presence untrack",
+			})
+			return
+		}
+
+		// Untrack presence
+		info := h.presenceManager.Untrack(msg.Channel, presencePayload.Key, conn.ID)
+		if info != nil {
+			h.notifyPresenceLeave(msg.Channel, info)
+		}
+
+	default:
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "unknown presence event",
+		})
+	}
+}
+
+// notifyPresenceJoin broadcasts a presence join event to all clients in the channel
+func (h *RealtimeHandler) notifyPresenceJoin(channel string, info *PresenceInfo) {
+	presenceState := h.presenceManager.GetPresenceState(channel)
+
+	payload := map[string]interface{}{
+		"event":            "join",
+		"key":              info.Key,
+		"newPresences":     []PresenceState{info.State},
+		"currentPresences": presenceState,
+	}
+
+	h.manager.BroadcastToChannel(channel, ServerMessage{
+		Type:    MessageTypePresence,
+		Channel: channel,
+		Payload: map[string]interface{}{
+			"presence": payload,
+		},
+	})
+}
+
+// notifyPresenceLeave broadcasts a presence leave event to all clients in the channel
+func (h *RealtimeHandler) notifyPresenceLeave(channel string, info *PresenceInfo) {
+	presenceState := h.presenceManager.GetPresenceState(channel)
+
+	payload := map[string]interface{}{
+		"event":            "leave",
+		"key":              info.Key,
+		"leftPresences":    []PresenceState{info.State},
+		"currentPresences": presenceState,
+	}
+
+	h.manager.BroadcastToChannel(channel, ServerMessage{
+		Type:    MessageTypePresence,
+		Channel: channel,
+		Payload: map[string]interface{}{
+			"presence": payload,
+		},
+	})
+}
+
+// notifyPresenceSync broadcasts a presence sync event to all clients in the channel
+func (h *RealtimeHandler) notifyPresenceSync(channel string) {
+	presenceState := h.presenceManager.GetPresenceState(channel)
+
+	payload := map[string]interface{}{
+		"event":            "sync",
+		"currentPresences": presenceState,
+	}
+
+	h.manager.BroadcastToChannel(channel, ServerMessage{
+		Type:    MessageTypePresence,
+		Channel: channel,
+		Payload: map[string]interface{}{
+			"presence": payload,
+		},
+	})
 }

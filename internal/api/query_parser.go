@@ -712,16 +712,11 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		return sql, f.Value
 
 	case OpIn:
-		if arr, ok := f.Value.([]string); ok {
-			placeholders := make([]string, len(arr))
-			for i := range arr {
-				placeholders[i] = fmt.Sprintf("$%d", *argCounter)
-				*argCounter++
-			}
-			sql := fmt.Sprintf("%s IN (%s)", f.Column, strings.Join(placeholders, ","))
-			return sql, arr
-		}
-		return fmt.Sprintf("%s IN ($%d)", f.Column, *argCounter), f.Value
+		// Use PostgreSQL's ANY() syntax to properly handle array parameters
+		// This avoids the bug where IN ($2,$3) expects multiple args but we pass a single array
+		sql := fmt.Sprintf("%s = ANY($%d)", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
 
 	case OpIs:
 		if f.Value == nil {

@@ -765,11 +765,28 @@ func (s *Server) handleRealtimeBroadcast(c *fiber.Ctx) error {
 		})
 	}
 
-	// TODO: Implement broadcast functionality
-	// s.realtimeHandler.Broadcast(req.Channel, req.Message)
+	// Get the realtime manager and broadcast to the channel
+	if s.realtimeHandler == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Realtime service not available",
+		})
+	}
 
-	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-		"error":   "Broadcast functionality not yet implemented",
-		"channel": req.Channel,
+	manager := s.realtimeHandler.GetManager()
+	recipientCount := manager.BroadcastToChannel(req.Channel, realtime.ServerMessage{
+		Type:    realtime.MessageTypeBroadcast,
+		Channel: req.Channel,
+		Payload: map[string]interface{}{
+			"broadcast": map[string]interface{}{
+				"event":   "broadcast",
+				"payload": req.Message,
+			},
+		},
+	})
+
+	return c.JSON(fiber.Map{
+		"success":    true,
+		"channel":    req.Channel,
+		"recipients": recipientCount,
 	})
 }

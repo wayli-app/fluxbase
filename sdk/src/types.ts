@@ -177,7 +177,7 @@ export interface OrderBy {
 }
 
 export interface RealtimeMessage {
-  type: 'subscribe' | 'unsubscribe' | 'heartbeat' | 'broadcast' | 'ack' | 'error'
+  type: 'subscribe' | 'unsubscribe' | 'heartbeat' | 'broadcast' | 'presence' | 'ack' | 'error'
   channel?: string
   event?: string // INSERT, UPDATE, DELETE, or *
   schema?: string
@@ -186,6 +186,8 @@ export interface RealtimeMessage {
   payload?: unknown
   error?: string
   config?: PostgresChangesConfig // Alternative format for postgres_changes
+  presence?: any // Presence state data
+  broadcast?: any // Broadcast message data
 }
 
 export interface PostgresChangesConfig {
@@ -233,6 +235,64 @@ export interface RealtimeChangePayload {
 }
 
 export type RealtimeCallback = (payload: RealtimePostgresChangesPayload) => void
+
+/**
+ * Realtime channel configuration options
+ */
+export interface RealtimeChannelConfig {
+  broadcast?: {
+    self?: boolean      // Receive own broadcasts (default: false)
+    ack?: boolean       // Request acknowledgment (default: false)
+  }
+  presence?: {
+    key?: string        // Custom presence key (default: auto-generated)
+  }
+}
+
+/**
+ * Presence state for a user
+ */
+export interface PresenceState {
+  [key: string]: any
+}
+
+/**
+ * Realtime presence payload structure
+ */
+export interface RealtimePresencePayload {
+  event: 'sync' | 'join' | 'leave'
+  key?: string
+  newPresences?: PresenceState[]
+  leftPresences?: PresenceState[]
+  currentPresences?: Record<string, PresenceState[]>
+}
+
+/**
+ * Presence callback type
+ */
+export type PresenceCallback = (payload: RealtimePresencePayload) => void
+
+/**
+ * Broadcast message structure
+ */
+export interface BroadcastMessage {
+  type: 'broadcast'
+  event: string
+  payload: any
+}
+
+/**
+ * Realtime broadcast payload structure
+ */
+export interface RealtimeBroadcastPayload {
+  event: string
+  payload: any
+}
+
+/**
+ * Broadcast callback type
+ */
+export type BroadcastCallback = (payload: RealtimeBroadcastPayload) => void
 
 /**
  * File object returned by storage operations

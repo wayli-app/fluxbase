@@ -226,7 +226,7 @@ export class FluxbaseClient<
     const originalSetAuthToken = this.fetch.setAuthToken.bind(this.fetch);
     this.fetch.setAuthToken = (token: string | null) => {
       originalSetAuthToken(token);
-      this.realtime.setToken(token);
+      this.realtime.setAuth(token);
     };
   }
 
@@ -252,38 +252,50 @@ export class FluxbaseClient<
    */
   setAuthToken(token: string | null) {
     this.fetch.setAuthToken(token);
-    this.realtime.setToken(token);
+    this.realtime.setAuth(token);
   }
 
   /**
-   * Create or get a realtime channel (Supabase-compatible alias)
-   *
-   * This is a convenience method that delegates to client.realtime.channel().
-   * Both patterns work identically:
-   * - client.channel('room-1') - Supabase-style
-   * - client.realtime.channel('room-1') - Fluxbase-style
+   * Create or get a realtime channel (Supabase-compatible)
    *
    * @param name - Channel name
+   * @param config - Optional channel configuration
    * @returns RealtimeChannel instance
    *
    * @example
    * ```typescript
-   * // Supabase-compatible usage
-   * const channel = client.channel('room-1')
-   *   .on('postgres_changes', {
-   *     event: '*',
-   *     schema: 'public',
-   *     table: 'messages'
-   *   }, (payload) => {
-   *     console.log('Change:', payload)
+   * const channel = client.channel('room-1', {
+   *   broadcast: { self: true },
+   *   presence: { key: 'user-123' }
+   * })
+   *   .on('broadcast', { event: 'message' }, (payload) => {
+   *     console.log('Message:', payload)
    *   })
    *   .subscribe()
    * ```
    *
    * @category Realtime
    */
-  channel(name: string) {
-    return this.realtime.channel(name);
+  channel(name: string, config?: import("./types").RealtimeChannelConfig) {
+    return this.realtime.channel(name, config);
+  }
+
+  /**
+   * Remove a realtime channel (Supabase-compatible)
+   *
+   * @param channel - The channel to remove
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * const channel = client.channel('room-1')
+   * await client.removeChannel(channel)
+   * ```
+   *
+   * @category Realtime
+   */
+  removeChannel(channel: import("./realtime").RealtimeChannel) {
+    return this.realtime.removeChannel(channel);
   }
 
   /**

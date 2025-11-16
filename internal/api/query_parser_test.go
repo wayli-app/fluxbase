@@ -81,6 +81,13 @@ func TestQueryParser_ParseFilters(t *testing.T) {
 			expectedOp:     OpIs,
 			expectedValue:  nil,
 		},
+		{
+			name:           "in filter with array",
+			query:          "status.in=queued,running",
+			expectedColumn: "status",
+			expectedOp:     OpIn,
+			expectedValue:  []string{"queued", "running"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -184,6 +191,37 @@ func TestQueryParams_ToSQL(t *testing.T) {
 			},
 			expectedSQL:  "WHERE name = $1 AND age > $2",
 			expectedArgs: []interface{}{"John", "18"},
+		},
+		{
+			name: "in filter with string array",
+			params: QueryParams{
+				Filters: []Filter{
+					{Column: "status", Operator: OpIn, Value: []string{"queued", "running"}},
+				},
+			},
+			expectedSQL:  "WHERE status = ANY($1)",
+			expectedArgs: []interface{}{[]string{"queued", "running"}},
+		},
+		{
+			name: "in filter with single element",
+			params: QueryParams{
+				Filters: []Filter{
+					{Column: "status", Operator: OpIn, Value: []string{"active"}},
+				},
+			},
+			expectedSQL:  "WHERE status = ANY($1)",
+			expectedArgs: []interface{}{[]string{"active"}},
+		},
+		{
+			name: "in filter with multiple filters",
+			params: QueryParams{
+				Filters: []Filter{
+					{Column: "user_id", Operator: OpEqual, Value: "123"},
+					{Column: "status", Operator: OpIn, Value: []string{"queued", "running"}},
+				},
+			},
+			expectedSQL:  "WHERE user_id = $1 AND status = ANY($2)",
+			expectedArgs: []interface{}{"123", []string{"queued", "running"}},
 		},
 		{
 			name: "with order and limit",

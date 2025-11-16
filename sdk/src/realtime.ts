@@ -7,6 +7,13 @@ import type {
   RealtimePostgresChangesPayload,
   RealtimeMessage,
   PostgresChangesConfig,
+  RealtimeChannelConfig,
+  PresenceState,
+  RealtimePresencePayload,
+  PresenceCallback,
+  BroadcastMessage,
+  RealtimeBroadcastPayload,
+  BroadcastCallback,
 } from "./types";
 
 export class RealtimeChannel {
@@ -15,16 +22,27 @@ export class RealtimeChannel {
   private token: string | null;
   private channelName: string;
   private callbacks: Map<string, Set<RealtimeCallback>> = new Map();
+  private presenceCallbacks: Map<string, Set<PresenceCallback>> = new Map();
+  private broadcastCallbacks: Map<string, Set<BroadcastCallback>> = new Map();
   private subscriptionConfig: PostgresChangesConfig | null = null;
+  private _presenceState: Record<string, PresenceState[]> = {};
+  private myPresenceKey: string | null = null;
+  private config: RealtimeChannelConfig;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(url: string, channelName: string, token: string | null = null) {
+  constructor(
+    url: string,
+    channelName: string,
+    token: string | null = null,
+    config: RealtimeChannelConfig = {}
+  ) {
     this.url = url;
     this.channelName = channelName;
     this.token = token;
+    this.config = config;
   }
 
   /**
@@ -72,29 +90,99 @@ export class RealtimeChannel {
     callback: RealtimeCallback,
   ): this;
 
+  /**
+   * Listen to broadcast messages
+   *
+   * @param event - 'broadcast'
+   * @param config - Configuration with event name
+   * @param callback - Function to call when broadcast received
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.on('broadcast', { event: 'cursor-pos' }, (payload) => {
+   *   console.log('Cursor moved:', payload)
+   * })
+   * ```
+   */
+  on(
+    event: "broadcast",
+    config: { event: string },
+    callback: BroadcastCallback,
+  ): this;
+
+  /**
+   * Listen to presence events
+   *
+   * @param event - 'presence'
+   * @param config - Configuration with event type (sync, join, leave)
+   * @param callback - Function to call when presence changes
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.on('presence', { event: 'sync' }, (payload) => {
+   *   console.log('Presence synced:', payload)
+   * })
+   * ```
+   */
+  on(
+    event: "presence",
+    config: { event: "sync" | "join" | "leave" },
+    callback: PresenceCallback,
+  ): this;
+
   // Implementation
   on(
-    event: "postgres_changes" | "INSERT" | "UPDATE" | "DELETE" | "*",
-    configOrCallback: PostgresChangesConfig | RealtimeCallback,
-    callback?: RealtimeCallback,
+    event:
+      | "postgres_changes"
+      | "INSERT"
+      | "UPDATE"
+      | "DELETE"
+      | "*"
+      | "broadcast"
+      | "presence",
+    configOrCallback:
+      | PostgresChangesConfig
+      | RealtimeCallback
+      | { event: string }
+      | { event: "sync" | "join" | "leave" },
+    callback?: RealtimeCallback | BroadcastCallback | PresenceCallback,
   ): this {
     if (
       event === "postgres_changes" &&
       typeof configOrCallback !== "function"
     ) {
-      // New API: on('postgres_changes', config, callback)
+      // on('postgres_changes', config, callback)
       const config = configOrCallback as PostgresChangesConfig;
       this.subscriptionConfig = config;
       const actualCallback = callback!;
 
-      // Store callback with event type
       const eventType = config.event;
       if (!this.callbacks.has(eventType)) {
         this.callbacks.set(eventType, new Set());
       }
-      this.callbacks.get(eventType)!.add(actualCallback);
+      this.callbacks.get(eventType)!.add(actualCallback as RealtimeCallback);
+    } else if (event === "broadcast" && typeof configOrCallback !== "function") {
+      // on('broadcast', { event }, callback)
+      const config = configOrCallback as { event: string };
+      const actualCallback = callback as BroadcastCallback;
+
+      if (!this.broadcastCallbacks.has(config.event)) {
+        this.broadcastCallbacks.set(config.event, new Set());
+      }
+      this.broadcastCallbacks.get(config.event)!.add(actualCallback);
+    } else if (event === "presence" && typeof configOrCallback !== "function") {
+      // on('presence', { event }, callback)
+      const config = configOrCallback as { event: "sync" | "join" | "leave" };
+      const actualCallback = callback as PresenceCallback;
+
+      if (!this.presenceCallbacks.has(config.event)) {
+        this.presenceCallbacks.set(config.event, new Set());
+      }
+      this.presenceCallbacks.get(config.event)!.add(actualCallback);
     } else {
-      // Old API: on('INSERT', callback)
+      // on('INSERT'|'UPDATE'|'DELETE'|'*', callback)
       const actualEvent = event as "INSERT" | "UPDATE" | "DELETE" | "*";
       const actualCallback = configOrCallback as RealtimeCallback;
 
@@ -161,7 +249,7 @@ export class RealtimeChannel {
   async unsubscribe(timeout?: number): Promise<"ok" | "timed out" | "error"> {
     return new Promise((resolve) => {
       if (this.ws) {
-        this.send({
+        this.sendMessage({
           type: "unsubscribe",
           channel: this.channelName,
         });
@@ -187,6 +275,148 @@ export class RealtimeChannel {
         resolve("ok");
       }
     });
+  }
+
+  /**
+   * Send a broadcast message to all subscribers on this channel
+   *
+   * @param message - Broadcast message with type, event, and payload
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * await channel.send({
+   *   type: 'broadcast',
+   *   event: 'cursor-pos',
+   *   payload: { x: 100, y: 200 }
+   * })
+   * ```
+   */
+  async send(message: BroadcastMessage): Promise<"ok" | "error"> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return "error";
+    }
+
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: "broadcast",
+          channel: this.channelName,
+          event: message.event,
+          payload: message.payload,
+        })
+      );
+
+      // Handle acknowledgment if configured
+      if (this.config.broadcast?.ack) {
+        // TODO: Wait for ack response
+        return "ok";
+      }
+
+      return "ok";
+    } catch (error) {
+      console.error("[Fluxbase Realtime] Failed to send broadcast:", error);
+      return "error";
+    }
+  }
+
+  /**
+   * Track user presence on this channel
+   *
+   * @param state - Presence state to track
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * await channel.track({
+   *   user_id: 123,
+   *   status: 'online'
+   * })
+   * ```
+   */
+  async track(state: PresenceState): Promise<"ok" | "error"> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return "error";
+    }
+
+    try {
+      // Generate presence key if not set
+      if (!this.myPresenceKey) {
+        this.myPresenceKey =
+          this.config.presence?.key || `presence-${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      this.ws.send(
+        JSON.stringify({
+          type: "presence",
+          channel: this.channelName,
+          event: "track",
+          payload: {
+            key: this.myPresenceKey,
+            state,
+          },
+        })
+      );
+
+      return "ok";
+    } catch (error) {
+      console.error("[Fluxbase Realtime] Failed to track presence:", error);
+      return "error";
+    }
+  }
+
+  /**
+   * Stop tracking presence on this channel
+   *
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * await channel.untrack()
+   * ```
+   */
+  async untrack(): Promise<"ok" | "error"> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return "error";
+    }
+
+    if (!this.myPresenceKey) {
+      return "ok"; // Already not tracking
+    }
+
+    try {
+      this.ws.send(
+        JSON.stringify({
+          type: "presence",
+          channel: this.channelName,
+          event: "untrack",
+          payload: {
+            key: this.myPresenceKey,
+          },
+        })
+      );
+
+      this.myPresenceKey = null;
+      return "ok";
+    } catch (error) {
+      console.error("[Fluxbase Realtime] Failed to untrack presence:", error);
+      return "error";
+    }
+  }
+
+  /**
+   * Get current presence state for all users on this channel
+   *
+   * @returns Current presence state
+   *
+   * @example
+   * ```typescript
+   * const state = channel.presenceState()
+   * console.log('Online users:', Object.keys(state).length)
+   * ```
+   */
+  presenceState(): Record<string, PresenceState[]> {
+    return { ...this._presenceState };
   }
 
   /**
@@ -223,7 +453,7 @@ export class RealtimeChannel {
         subscribeMessage.config = this.subscriptionConfig;
       }
 
-      this.send(subscribeMessage);
+      this.sendMessage(subscribeMessage);
 
       // Start heartbeat
       this.startHeartbeat();
@@ -264,7 +494,7 @@ export class RealtimeChannel {
   /**
    * Internal: Send a message
    */
-  private send(message: RealtimeMessage) {
+  private sendMessage(message: RealtimeMessage) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     }
@@ -277,12 +507,21 @@ export class RealtimeChannel {
     switch (message.type) {
       case "heartbeat":
         // Echo heartbeat back
-        this.send({ type: "heartbeat" });
+        this.ws?.send(JSON.stringify({ type: "heartbeat" }));
         break;
 
       case "broadcast":
-        if (message.payload) {
-          this.handleBroadcast(message.payload);
+        if (message.broadcast) {
+          this.handleBroadcastMessage(message.broadcast);
+        } else if (message.payload) {
+          // Legacy postgres_changes format
+          this.handlePostgresChanges(message.payload);
+        }
+        break;
+
+      case "presence":
+        if (message.presence) {
+          this.handlePresenceMessage(message.presence);
         }
         break;
 
@@ -299,7 +538,60 @@ export class RealtimeChannel {
   /**
    * Internal: Handle broadcast message
    */
-  private handleBroadcast(payload: any) {
+  private handleBroadcastMessage(message: any) {
+    const event = message.event;
+    const payload: RealtimeBroadcastPayload = {
+      event,
+      payload: message.payload,
+    };
+
+    // Filter self-messages if configured
+    if (!this.config.broadcast?.self && message.self) {
+      return;
+    }
+
+    // Call event-specific callbacks
+    const callbacks = this.broadcastCallbacks.get(event);
+    if (callbacks) {
+      callbacks.forEach((callback) => callback(payload));
+    }
+
+    // Call wildcard callbacks
+    const wildcardCallbacks = this.broadcastCallbacks.get("*");
+    if (wildcardCallbacks) {
+      wildcardCallbacks.forEach((callback) => callback(payload));
+    }
+  }
+
+  /**
+   * Internal: Handle presence message
+   */
+  private handlePresenceMessage(message: any) {
+    const event = message.event as "sync" | "join" | "leave";
+    const payload: RealtimePresencePayload = {
+      event,
+      key: message.key,
+      newPresences: message.newPresences,
+      leftPresences: message.leftPresences,
+      currentPresences: message.currentPresences || this._presenceState,
+    };
+
+    // Update local presence state
+    if (message.currentPresences) {
+      this._presenceState = message.currentPresences;
+    }
+
+    // Call event-specific callbacks
+    const callbacks = this.presenceCallbacks.get(event);
+    if (callbacks) {
+      callbacks.forEach((callback) => callback(payload));
+    }
+  }
+
+  /**
+   * Internal: Handle postgres_changes message
+   */
+  private handlePostgresChanges(payload: any) {
     // Convert to Supabase-compatible format
     const supabasePayload: RealtimePostgresChangesPayload = {
       eventType: payload.type || payload.eventType,
@@ -332,7 +624,7 @@ export class RealtimeChannel {
    */
   private startHeartbeat() {
     this.heartbeatInterval = setInterval(() => {
-      this.send({ type: "heartbeat" });
+      this.sendMessage({ type: "heartbeat" });
     }, 30000); // 30 seconds
   }
 
@@ -379,17 +671,69 @@ export class FluxbaseRealtime {
   }
 
   /**
-   * Create or get a channel
+   * Create or get a channel with optional configuration
+   *
    * @param channelName - Channel name (e.g., 'table:public.products')
+   * @param config - Optional channel configuration
+   * @returns RealtimeChannel instance
+   *
+   * @example
+   * ```typescript
+   * const channel = realtime.channel('room-1', {
+   *   broadcast: { self: true, ack: true },
+   *   presence: { key: 'user-123' }
+   * })
+   * ```
    */
-  channel(channelName: string): RealtimeChannel {
-    if (this.channels.has(channelName)) {
-      return this.channels.get(channelName)!;
+  channel(
+    channelName: string,
+    config?: RealtimeChannelConfig
+  ): RealtimeChannel {
+    // Create a unique key based on name and config
+    const configKey = config ? JSON.stringify(config) : "";
+    const key = `${channelName}:${configKey}`;
+
+    if (this.channels.has(key)) {
+      return this.channels.get(key)!;
     }
 
-    const channel = new RealtimeChannel(this.url, channelName, this.token);
-    this.channels.set(channelName, channel);
+    const channel = new RealtimeChannel(
+      this.url,
+      channelName,
+      this.token,
+      config
+    );
+    this.channels.set(key, channel);
     return channel;
+  }
+
+  /**
+   * Remove a specific channel
+   *
+   * @param channel - The channel to remove
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * const channel = realtime.channel('room-1')
+   * await realtime.removeChannel(channel)
+   * ```
+   */
+  async removeChannel(
+    channel: RealtimeChannel
+  ): Promise<"ok" | "error"> {
+    // Unsubscribe the channel
+    await channel.unsubscribe();
+
+    // Remove from channels map
+    for (const [key, ch] of this.channels.entries()) {
+      if (ch === channel) {
+        this.channels.delete(key);
+        return "ok";
+      }
+    }
+
+    return "error";
   }
 
   /**
@@ -402,8 +746,9 @@ export class FluxbaseRealtime {
 
   /**
    * Update auth token for all channels
+   * @param token - The new auth token
    */
-  setToken(token: string | null) {
+  setAuth(token: string | null) {
     this.token = token;
     // Note: Existing channels won't be updated, only new ones
     // For existing channels to update, they need to reconnect
