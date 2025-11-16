@@ -69,8 +69,21 @@ find docs/api -name "*.md" -type f | while read -r file; do
 
   # Fix JSX expressions that look like { data, error } tuple
   # These need to be wrapped in backticks to avoid being interpreted as JSX
+  # First, fix the most specific patterns
   $SED_INPLACE 's/to { data, error } tuple/to `{ data, error }` tuple/g' "$file"
   $SED_INPLACE 's/Promise { data, error }/Promise `{ data, error }`/g' "$file"
+
+  # Fix common response patterns (not already in backticks)
+  $SED_INPLACE 's/of { data, error } wrapper/of `{ data, error }` wrapper/g' "$file"
+  $SED_INPLACE 's/instead of { data, error } wrapper/instead of `{ data, error }` wrapper/g' "$file"
+  $SED_INPLACE 's/returning { data, error }/returning `{ data, error }`/g' "$file"
+  $SED_INPLACE 's/return { data, error }/return `{ data, error }`/g' "$file"
+  $SED_INPLACE 's/returns { data, error }/returns `{ data, error }`/g' "$file"
+
+  # Fix any remaining standalone { data, error } not in backticks (but not in code blocks)
+  # This pattern matches { data, error } that's not already wrapped in backticks
+  $SED_INPLACE 's/\([^`]\){ data, error }\([^`}\*]\)/\1`{ data, error }`\2/g' "$file"
+  $SED_INPLACE 's/^{ data, error }\([^`}\*]\)/`{ data, error }`\1/g' "$file"
 
   # Fix auth response patterns
   $SED_INPLACE 's/{ user, session }/`{ user, session }`/g' "$file"

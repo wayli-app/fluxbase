@@ -255,6 +255,11 @@ docs: ## Serve Docusaurus documentation at http://localhost:3000
 		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
 		cd docs && npm install; \
 	fi
+	@if [ ! -d "docs/docs/api/sdk" ] || [ -z "$$(ls -A docs/docs/api/sdk 2>/dev/null)" ]; then \
+		echo "${YELLOW}API documentation not found. Generating API docs...${NC}"; \
+		cd docs && npm run build > /dev/null 2>&1 || true; \
+		echo "${GREEN}✓ API documentation generated!${NC}"; \
+	fi
 	@echo ""
 	@echo "${GREEN}📚 Documentation will be available at:${NC}"
 	@echo "  ${GREEN}http://localhost:3000${NC}"
