@@ -72,6 +72,11 @@ find docs/api -name "*.md" -type f | while read -r file; do
   $SED_INPLACE 's/to { data, error } tuple/to `{ data, error }` tuple/g' "$file"
   $SED_INPLACE 's/Promise { data, error }/Promise `{ data, error }`/g' "$file"
 
+  # Fix auth response patterns
+  $SED_INPLACE 's/{ user, session }/`{ user, session }`/g' "$file"
+  $SED_INPLACE 's/Returns { user }/Returns `{ user }`/g' "$file"
+  $SED_INPLACE 's/Returns { session }/Returns `{ session }`/g' "$file"
+
   # Fix Supabase response format patterns
   $SED_INPLACE 's/{ data, error: null }/`{ data, error: null }`/g' "$file"
   $SED_INPLACE 's/{ data: null, error }/`{ data: null, error }`/g' "$file"

@@ -41,7 +41,7 @@ CREATE TRIGGER update_dashboard_oauth_providers_updated_at BEFORE UPDATE ON dash
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 -- Note: dashboard.auth_settings, dashboard.system_settings, and dashboard.custom_settings
--- have been migrated to app.settings. Triggers for app.settings are in migration 014_policies_app
+-- have been migrated to app.settings. Triggers for app.settings are in migration 015_policies_app
 
 CREATE TRIGGER update_dashboard_email_templates_updated_at BEFORE UPDATE ON dashboard.email_templates
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();

@@ -53,10 +53,10 @@ CREATE POLICY dashboard_sessions_all_policy ON dashboard.sessions
     );
 
 -- Note: dashboard.system_settings has been migrated to app.settings
--- RLS policies for app.settings are in migration 014_policies_app
+-- RLS policies for app.settings are in migration 015_policies_app
 
 -- Note: dashboard.custom_settings has been migrated to app.settings
--- RLS policies for app.settings are in migration 014_policies_app
+-- RLS policies for app.settings are in migration 015_policies_app
 
 -- Dashboard invitation tokens table
 ALTER TABLE dashboard.invitation_tokens ENABLE ROW LEVEL SECURITY;
@@ -141,4 +141,4 @@ CREATE POLICY oauth_providers_dashboard_admin_only ON dashboard.oauth_providers
 COMMENT ON POLICY oauth_providers_dashboard_admin_only ON dashboard.oauth_providers IS 'Only dashboard admins and service role can manage OAuth providers.';
 
 -- Note: dashboard.auth_settings has been migrated to app.settings
--- RLS policies for app.settings are in migration 014_policies_app
+-- RLS policies for app.settings are in migration 015_policies_app
