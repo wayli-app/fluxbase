@@ -58,6 +58,36 @@ CREATE TABLE IF NOT EXISTS auth.magic_links (
 CREATE INDEX IF NOT EXISTS idx_auth_magic_links_token ON auth.magic_links(token);
 CREATE INDEX IF NOT EXISTS idx_auth_magic_links_email ON auth.magic_links(email);
 
+-- OTP codes table (for email/SMS one-time password authentication)
+CREATE TABLE IF NOT EXISTS auth.otp_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT,
+    phone TEXT,
+    code VARCHAR(10) NOT NULL,
+    type TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN DEFAULT false,
+    used_at TIMESTAMPTZ,
+    attempts INTEGER DEFAULT 0,
+    max_attempts INTEGER DEFAULT 3,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT otp_email_or_phone CHECK (email IS NOT NULL OR phone IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_otp_codes_email ON auth.otp_codes(email) WHERE email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_auth_otp_codes_phone ON auth.otp_codes(phone) WHERE phone IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_auth_otp_codes_code ON auth.otp_codes(code);
+CREATE INDEX IF NOT EXISTS idx_auth_otp_codes_expires_at ON auth.otp_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_auth_otp_codes_type ON auth.otp_codes(type);
+
+COMMENT ON TABLE auth.otp_codes IS 'One-time password codes for email/SMS passwordless authentication. Entries expire after configured period and should be cleaned up periodically.';
+COMMENT ON COLUMN auth.otp_codes.type IS 'Type of OTP: email, sms';
+COMMENT ON COLUMN auth.otp_codes.purpose IS 'Purpose: signin, signup, recovery, email_change, phone_change';
+COMMENT ON COLUMN auth.otp_codes.attempts IS 'Number of failed verification attempts. Locked after max_attempts.';
+
 -- Password reset tokens table
 CREATE TABLE IF NOT EXISTS auth.password_reset_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -185,8 +215,11 @@ CREATE INDEX idx_oauth_tokens_provider ON auth.oauth_tokens(user_id, provider);
 CREATE TABLE IF NOT EXISTS auth.two_factor_setups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    factor_id UUID NOT NULL DEFAULT gen_random_uuid(),
     secret VARCHAR(32) NOT NULL,
-    qr_code_url TEXT NOT NULL,
+    qr_code_url TEXT, -- Legacy field, kept for backward compatibility
+    qr_code_data_uri TEXT, -- QR code as base64 data URI (data:image/png;base64,...)
+    otpauth_uri TEXT, -- TOTP otpauth:// URI for manual entry or app deeplinks
     verified BOOLEAN DEFAULT FALSE,
     expires_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '10 minutes',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -198,6 +231,9 @@ CREATE INDEX IF NOT EXISTS idx_2fa_setup_user ON auth.two_factor_setups(user_id)
 CREATE INDEX IF NOT EXISTS idx_2fa_setup_expires ON auth.two_factor_setups(expires_at);
 
 COMMENT ON TABLE auth.two_factor_setups IS 'Temporary storage for 2FA setup process. Entries expire after 10 minutes and should be cleaned up periodically.';
+COMMENT ON COLUMN auth.two_factor_setups.factor_id IS 'Unique identifier for this 2FA factor';
+COMMENT ON COLUMN auth.two_factor_setups.qr_code_data_uri IS 'QR code image as base64 data URI (data:image/png;base64,...)';
+COMMENT ON COLUMN auth.two_factor_setups.otpauth_uri IS 'TOTP otpauth:// URI for manual entry or app deeplinks';
 
 -- 2FA recovery/backup code usage tracking table
 CREATE TABLE IF NOT EXISTS auth.two_factor_recovery_attempts (
@@ -295,3 +331,49 @@ CREATE TABLE IF NOT EXISTS auth.impersonation_sessions (
 CREATE INDEX IF NOT EXISTS idx_auth_impersonation_admin_user_id ON auth.impersonation_sessions(admin_user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_impersonation_impersonated_user_id ON auth.impersonation_sessions(impersonated_user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_impersonation_is_active ON auth.impersonation_sessions(is_active);
+
+-- RLS audit log table for tracking access control violations and security events
+CREATE TABLE IF NOT EXISTS auth.rls_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- User context
+    user_id UUID, -- NULL for anonymous requests
+    role TEXT NOT NULL, -- anon, authenticated, admin, service_role, etc.
+
+    -- Operation details
+    operation TEXT NOT NULL, -- SELECT, INSERT, UPDATE, DELETE
+    table_schema TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+
+    -- RLS evaluation result
+    allowed BOOLEAN NOT NULL DEFAULT false, -- true if access granted, false if denied
+    row_count INTEGER DEFAULT 0, -- number of rows affected/returned
+
+    -- Request context
+    ip_address INET,
+    user_agent TEXT,
+    request_id TEXT, -- for correlating with HTTP request logs
+
+    -- Performance metrics
+    execution_time_ms INTEGER,
+
+    -- Additional metadata (flexible JSONB for extensibility)
+    details JSONB DEFAULT '{}'::jsonb,
+
+    -- Timestamp
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_rls_audit_user_id ON auth.rls_audit_log(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rls_audit_created_at ON auth.rls_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rls_audit_table ON auth.rls_audit_log(table_schema, table_name);
+CREATE INDEX IF NOT EXISTS idx_rls_audit_allowed ON auth.rls_audit_log(allowed) WHERE allowed = false; -- Focus on violations
+CREATE INDEX IF NOT EXISTS idx_rls_audit_role ON auth.rls_audit_log(role);
+CREATE INDEX IF NOT EXISTS idx_rls_audit_operation ON auth.rls_audit_log(operation);
+CREATE INDEX IF NOT EXISTS idx_rls_audit_request_id ON auth.rls_audit_log(request_id) WHERE request_id IS NOT NULL;
+
+-- Add comments for documentation
+COMMENT ON TABLE auth.rls_audit_log IS 'Audit log for Row Level Security policy evaluations, primarily tracking access denials and violations for security monitoring and compliance';
+COMMENT ON COLUMN auth.rls_audit_log.allowed IS 'false indicates RLS policy blocked the operation (violation), true indicates policy allowed it';
+COMMENT ON COLUMN auth.rls_audit_log.details IS 'Flexible JSONB field for storing additional context like error messages, query hints, or policy names';

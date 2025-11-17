@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -264,20 +263,26 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 	}
 	defer conn.Release()
 
-	// Set RLS session variables using parameterized set_config
-	batch := &pgx.Batch{}
-	batch.Queue("SELECT set_config('app.user_id', $1, true)", sub.UserID)
-	batch.Queue("SELECT set_config('app.role', $1, true)", sub.Role)
-
-	br := conn.SendBatch(ctx, batch)
-	for i := 0; i < batch.Len(); i++ {
-		if _, err := br.Exec(); err != nil {
-			br.Close()
-			log.Error().Err(err).Msg("Failed to set RLS session variables")
-			return false
-		}
+	// Set RLS session variables using Supabase-compatible request.jwt.claims format
+	// Build minimal JWT claims from subscription data
+	jwtClaims := map[string]interface{}{
+		"sub":  sub.UserID,
+		"role": sub.Role,
 	}
-	br.Close()
+
+	// Marshal to JSON
+	jwtClaimsJSON, err := json.Marshal(jwtClaims)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal JWT claims for realtime subscription")
+		return false
+	}
+
+	// Set request.jwt.claims session variable
+	_, err = conn.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to set request.jwt.claims for realtime subscription")
+		return false
+	}
 
 	// Check if record is visible with RLS
 	var count int

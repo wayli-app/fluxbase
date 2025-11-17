@@ -32,6 +32,11 @@ export class RealtimeChannel {
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private pendingAcks: Map<
+    string,
+    { resolve: (value: string) => void; reject: (reason: any) => void; timeout: ReturnType<typeof setTimeout> }
+  > = new Map();
+  private messageIdCounter = 0;
 
   constructor(
     url: string,
@@ -298,19 +303,48 @@ export class RealtimeChannel {
     }
 
     try {
+      // Generate message ID if acknowledgment is requested
+      const messageId = this.config.broadcast?.ack
+        ? `msg_${Date.now()}_${++this.messageIdCounter}`
+        : undefined;
+
       this.ws.send(
         JSON.stringify({
           type: "broadcast",
           channel: this.channelName,
           event: message.event,
           payload: message.payload,
+          ...(messageId && { messageId }),
         })
       );
 
       // Handle acknowledgment if configured
-      if (this.config.broadcast?.ack) {
-        // TODO: Wait for ack response
-        return "ok";
+      if (this.config.broadcast?.ack && messageId) {
+        // Wait for ack response with timeout (default 5 seconds)
+        const ackTimeout = this.config.broadcast.ackTimeout || 5000;
+        return await new Promise<"ok" | "error">((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            this.pendingAcks.delete(messageId);
+            reject(new Error("Acknowledgment timeout"));
+          }, ackTimeout);
+
+          this.pendingAcks.set(messageId, {
+            resolve: (value) => {
+              clearTimeout(timeout);
+              this.pendingAcks.delete(messageId);
+              resolve(value as "ok" | "error");
+            },
+            reject: (reason) => {
+              clearTimeout(timeout);
+              this.pendingAcks.delete(messageId);
+              reject(reason);
+            },
+            timeout,
+          });
+        }).catch((error) => {
+          console.error("[Fluxbase Realtime] Acknowledgment error:", error);
+          return "error" as const;
+        });
       }
 
       return "ok";
@@ -526,7 +560,16 @@ export class RealtimeChannel {
         break;
 
       case "ack":
-        console.log("[Fluxbase Realtime] Subscription acknowledged");
+        // Handle broadcast acknowledgment
+        if (message.messageId && this.pendingAcks.has(message.messageId)) {
+          const ackHandler = this.pendingAcks.get(message.messageId);
+          if (ackHandler) {
+            ackHandler.resolve(message.status || "ok");
+          }
+        } else {
+          // Log subscription acknowledgments or other acks
+          console.log("[Fluxbase Realtime] Acknowledged:", message);
+        }
         break;
 
       case "error":

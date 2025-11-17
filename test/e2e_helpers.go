@@ -911,13 +911,10 @@ func (tc *TestContext) QuerySQLAsRLSUser(sql string, userID string, args ...inte
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context variables (these affect RLS policy checks)
-	// Set app.user_id for the current user
-	_, err = tx.Exec(ctx, "SELECT set_config('app.user_id', $1, true)", userID)
-	require.NoError(tc.T, err, "Failed to set app.user_id")
-
-	// Set app.role to 'authenticated' (regular authenticated user)
-	_, err = tx.Exec(ctx, "SELECT set_config('app.role', 'authenticated', true)")
-	require.NoError(tc.T, err, "Failed to set app.role")
+	// Set request.jwt.claims with user ID and role (Supabase/Fluxbase format)
+	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"authenticated"}`, userID)
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims)
+	require.NoError(tc.T, err, "Failed to set request.jwt.claims")
 
 	// Execute the query with RLS context applied
 	rows, err := tx.Query(ctx, sql, args...)

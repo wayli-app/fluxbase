@@ -36,6 +36,7 @@ type ClientMessage struct {
 	Payload        json.RawMessage        `json:"payload,omitempty"`
 	Config         *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
 	SubscriptionID string                 `json:"subscription_id,omitempty"`
+	MessageID      string                 `json:"messageId,omitempty"` // Optional message ID for broadcast acknowledgements
 }
 
 // PostgresChangesConfig represents the config object in postgres_changes subscriptions
@@ -95,6 +96,7 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 	// Extract and validate JWT token from query parameter
 	token := c.Query("token")
 	var userID *string
+	var role string = "anon" // Default to anonymous role
 
 	if token != "" && h.authService != nil {
 		claims, err := h.authService.ValidateToken(token)
@@ -105,11 +107,19 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 			})
 		}
 		userID = &claims.UserID
-		log.Debug().Str("user_id", claims.UserID).Msg("WebSocket authenticated")
+		// Extract role from JWT claims for RLS policy enforcement
+		// Roles can be: "anon", "authenticated", "admin", "dashboard_admin", "service_role"
+		if claims.Role != "" {
+			role = claims.Role
+		} else {
+			role = "authenticated" // Default authenticated role if JWT doesn't specify one
+		}
+		log.Debug().Str("user_id", claims.UserID).Str("role", role).Msg("WebSocket authenticated")
 	}
 
-	// Store user ID in Fiber locals so handleConnection can access it
+	// Store user ID and role in Fiber locals so handleConnection can access them
 	c.Locals("user_id", userID)
+	c.Locals("role", role)
 
 	// Upgrade to WebSocket
 	return websocket.New(h.handleConnection)(c)
@@ -126,8 +136,14 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 		userID = uid.(*string)
 	}
 
+	// Get role from Fiber locals (set in HandleWebSocket)
+	role := "anon" // Default to anonymous
+	if r := c.Locals("role"); r != nil {
+		role = r.(string)
+	}
+
 	// Add connection to manager
-	connection := h.manager.AddConnection(connectionID, c, userID)
+	connection := h.manager.AddConnection(connectionID, c, userID, role)
 	defer func() {
 		// Clean up presence for this connection
 		if h.presenceManager != nil {
@@ -226,9 +242,8 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			event = "*"
 		}
 
-		// Get user's role from connection or default to "authenticated"
-		role := "authenticated"
-		// TODO: Fetch actual role from token claims or connection metadata
+		// Get user's role from connection
+		role := conn.Role
 
 		// Create RLS-aware subscription
 		subID := uuid.New().String()
@@ -363,6 +378,21 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 			"broadcast": broadcastPayload,
 		},
 	})
+
+	// Send acknowledgment if messageId is present (Supabase-compatible broadcast acks)
+	if msg.MessageID != "" {
+		_ = conn.SendMessage(ServerMessage{
+			Type: MessageTypeAck,
+			Payload: map[string]interface{}{
+				"messageId": msg.MessageID,
+				"status":    "ok",
+			},
+		})
+		log.Debug().
+			Str("channel", msg.Channel).
+			Str("messageId", msg.MessageID).
+			Msg("Sent broadcast acknowledgment")
+	}
 }
 
 // handlePresence processes presence messages

@@ -235,16 +235,18 @@ func (c *SettingsCache) GetJSON(ctx context.Context, key string, target interfac
 func (c *SettingsCache) GetMany(ctx context.Context, keys []string) (map[string]interface{}, error) {
 	result := make(map[string]interface{}, len(keys))
 
-	// For now, fetch each setting individually
-	// TODO: Optimize with batch query if SystemSettingsService supports it
-	for _, key := range keys {
-		setting, err := c.service.GetSetting(ctx, key)
-		if err != nil {
-			// Skip settings that don't exist or user can't access
-			continue
-		}
+	if len(keys) == 0 {
+		return result, nil
+	}
 
-		// Extract value from setting
+	// Use batch query to fetch all settings at once
+	settings, err := c.service.GetSettings(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract values from settings
+	for key, setting := range settings {
 		if val, ok := setting.Value["value"]; ok {
 			result[key] = val
 		}

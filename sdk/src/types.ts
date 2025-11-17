@@ -114,9 +114,18 @@ export interface TwoFactorSetupResponse {
 }
 
 /**
- * MFA verify/enable response (Supabase-compatible)
+ * MFA enable response - returned when activating 2FA after setup
  */
 export interface TwoFactorEnableResponse {
+  success: boolean
+  backup_codes: string[]
+  message: string
+}
+
+/**
+ * MFA login response - returned when verifying 2FA during login
+ */
+export interface TwoFactorLoginResponse {
   access_token: string
   refresh_token: string
   user: User
@@ -254,6 +263,8 @@ export interface RealtimeMessage {
   config?: PostgresChangesConfig // Alternative format for postgres_changes
   presence?: any // Presence state data
   broadcast?: any // Broadcast message data
+  messageId?: string // Message ID for acknowledgments
+  status?: string // Status for acknowledgment messages
 }
 
 export interface PostgresChangesConfig {
@@ -307,11 +318,12 @@ export type RealtimeCallback = (payload: RealtimePostgresChangesPayload) => void
  */
 export interface RealtimeChannelConfig {
   broadcast?: {
-    self?: boolean      // Receive own broadcasts (default: false)
-    ack?: boolean       // Request acknowledgment (default: false)
+    self?: boolean       // Receive own broadcasts (default: false)
+    ack?: boolean        // Request acknowledgment (default: false)
+    ackTimeout?: number  // Acknowledgment timeout in milliseconds (default: 5000)
   }
   presence?: {
-    key?: string        // Custom presence key (default: auto-generated)
+    key?: string         // Custom presence key (default: auto-generated)
   }
 }
 
@@ -527,6 +539,84 @@ export interface OAuthOptions {
 export interface OAuthUrlResponse {
   url: string
   provider: string
+}
+
+// OTP (One-Time Password) Types
+export type OTPType = 'signup' | 'invite' | 'magiclink' | 'recovery' | 'email_change' | 'sms' | 'phone_change' | 'email'
+
+export interface SignInWithOtpCredentials {
+  email?: string
+  phone?: string
+  options?: {
+    emailRedirectTo?: string
+    shouldCreateUser?: boolean
+    data?: Record<string, any>
+    captchaToken?: string
+  }
+}
+
+export interface VerifyOtpParams {
+  email?: string
+  phone?: string
+  token: string
+  type: OTPType
+  options?: {
+    redirectTo?: string
+    captchaToken?: string
+  }
+}
+
+export interface ResendOtpParams {
+  type: 'signup' | 'sms' | 'email'
+  email?: string
+  phone?: string
+  options?: {
+    emailRedirectTo?: string
+    captchaToken?: string
+  }
+}
+
+export interface OTPResponse {
+  user: null
+  session: null
+  messageId?: string
+}
+
+// Identity Linking Types
+export interface UserIdentity {
+  id: string
+  user_id: string
+  identity_data?: Record<string, any>
+  provider: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UserIdentitiesResponse {
+  identities: UserIdentity[]
+}
+
+export interface LinkIdentityCredentials {
+  provider: string
+}
+
+export interface UnlinkIdentityParams {
+  identity: UserIdentity
+}
+
+// Reauthenticate Types
+export interface ReauthenticateResponse {
+  nonce: string
+}
+
+// ID Token Types
+export interface SignInWithIdTokenCredentials {
+  provider: 'google' | 'apple'
+  token: string
+  nonce?: string
+  options?: {
+    captchaToken?: string
+  }
 }
 
 // Admin Authentication Types

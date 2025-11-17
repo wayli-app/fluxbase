@@ -243,7 +243,7 @@ func TestRLSCannotUpdateOtherUserData(t *testing.T) {
 		VALUES ($1, $2, 'User 1 Task', 'User 1 description', false)
 	`, taskID, user1ID)
 
-	// User 2 tries to update User 1's task - should fail or return 404
+	// User 2 tries to update User 1's task - should return 403 (RLS blocking)
 	resp := tc.NewRequest("PUT", "/api/v1/tables/tasks/"+taskID).
 		WithAuth(token2).
 		WithBody(map[string]interface{}{
@@ -253,9 +253,9 @@ func TestRLSCannotUpdateOtherUserData(t *testing.T) {
 		}).
 		Send()
 
-	// Should return 404 (RLS makes it invisible) or 403 (forbidden)
-	require.True(t, resp.Status() == fiber.StatusNotFound || resp.Status() == fiber.StatusForbidden,
-		"User 2 should not be able to update User 1's task")
+	// Should return 403 (forbidden) for authenticated users with RLS blocking
+	require.Equal(t, fiber.StatusForbidden, resp.Status(),
+		"User 2 should get 403 Forbidden when RLS blocks update")
 
 	// Verify the task was NOT updated (query as superuser to bypass RLS for verification)
 	tasks := tc.QuerySQLAsSuperuser("SELECT * FROM tasks WHERE id = $1", taskID)
@@ -320,9 +320,9 @@ func TestRLSCannotDeleteOtherUserData(t *testing.T) {
 		WithAuth(token2).
 		Send()
 
-	// Should return 404 (RLS makes it invisible) or 403 (forbidden)
-	require.True(t, resp.Status() == fiber.StatusNotFound || resp.Status() == fiber.StatusForbidden,
-		"User 2 should not be able to delete User 1's task")
+	// Should return 403 (forbidden) for authenticated users with RLS blocking
+	require.Equal(t, fiber.StatusForbidden, resp.Status(),
+		"User 2 should get 403 Forbidden when RLS blocks delete")
 
 	// Verify the task still exists (query as superuser to bypass RLS for verification)
 	tasks := tc.QuerySQLAsSuperuser("SELECT * FROM tasks WHERE id = $1", taskID)

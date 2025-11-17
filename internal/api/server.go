@@ -121,7 +121,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	invitationService := auth.NewInvitationService(db)
-	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService)
+	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, cfg.BaseURL)
 	ddlHandler := NewDDLHandler(db)
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
@@ -442,6 +442,7 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 		"refresh":        middleware.AuthRefreshLimiter(),
 		"magiclink":      middleware.AuthMagicLinkLimiter(),
 		"password_reset": middleware.AuthPasswordResetLimiter(),
+		"otp":            middleware.AuthMagicLinkLimiter(), // Use same rate limit as magic link
 	}
 
 	// Use the auth handler's RegisterRoutes method with rate limiters
@@ -500,6 +501,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// Admin panel routes (require admin or dashboard_admin role)
 	router.Get("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetTables)
+	router.Get("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetTableSchema)
 	router.Get("/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetSchemas)
 	router.Post("/query", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleExecuteQuery)
 
@@ -639,6 +641,28 @@ func (s *Server) handleGetTables(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(allTables)
+}
+
+func (s *Server) handleGetTableSchema(c *fiber.Ctx) error {
+	ctx := c.Context()
+	schema := c.Params("schema")
+	table := c.Params("table")
+
+	if schema == "" || table == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Schema and table parameters are required",
+		})
+	}
+
+	// Get table information including column details
+	tableInfo, err := s.db.Inspector().GetTableInfo(ctx, schema, table)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": fmt.Sprintf("Table not found: %s.%s", schema, table),
+		})
+	}
+
+	return c.JSON(tableInfo)
 }
 
 func (s *Server) handleGetSchemas(c *fiber.Ctx) error {

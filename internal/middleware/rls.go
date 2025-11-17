@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/wayli-app/fluxbase/internal/database"
 )
 
@@ -77,7 +79,8 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 
 // SetRLSContext sets PostgreSQL session variables for RLS enforcement
 // This should be called at the beginning of each database transaction
-func SetRLSContext(ctx context.Context, tx pgx.Tx, userID interface{}, role string) error {
+// Sets Supabase-compatible request.jwt.claims format
+func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, claims *auth.TokenClaims) error {
 	// Validate role to prevent injection
 	validRoles := map[string]bool{
 		"anon":            true,
@@ -92,65 +95,48 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID interface{}, role stri
 		return fmt.Errorf("invalid role: %s", role)
 	}
 
-	// Convert userID to string and validate if present
-	var userIDStr string
-	if userID != nil {
-		userIDStr = fmt.Sprintf("%v", userID)
+	// Build Supabase-compatible JWT claims JSON
+	jwtClaims := map[string]interface{}{
+		"sub":  userID, // Supabase uses 'sub' for user ID
+		"role": role,
+	}
 
-		// Validate UUID format if userID is provided
-		// This prevents SQL injection through the userID parameter
-		if userIDStr != "" {
-			// Check if it's a valid UUID (basic validation: 36 chars with hyphens in right places)
-			if len(userIDStr) != 36 || userIDStr[8] != '-' || userIDStr[13] != '-' ||
-				userIDStr[18] != '-' || userIDStr[23] != '-' {
-				log.Warn().Str("user_id", userIDStr).Msg("Invalid UUID format provided to SetRLSContext")
-				return fmt.Errorf("invalid user_id format: must be a valid UUID")
-			}
+	// Add optional fields if claims are provided
+	if claims != nil {
+		if claims.Email != "" {
+			jwtClaims["email"] = claims.Email
+		}
+		if claims.SessionID != "" {
+			jwtClaims["session_id"] = claims.SessionID
+		}
+		if claims.UserMetadata != nil {
+			jwtClaims["user_metadata"] = claims.UserMetadata
+		}
+		if claims.AppMetadata != nil {
+			jwtClaims["app_metadata"] = claims.AppMetadata
+		}
+		if claims.IsAnonymous {
+			jwtClaims["is_anonymous"] = claims.IsAnonymous
 		}
 	}
 
-	// Use parameterized set_config() function instead of string interpolation
-	// This is safe from SQL injection as PostgreSQL treats the values as data, not SQL
-	if userIDStr != "" {
-		_, err := tx.Exec(ctx, "SELECT set_config('app.user_id', $1, true)", userIDStr)
-		if err != nil {
-			log.Error().Err(err).Str("user_id", userIDStr).Msg("Failed to set RLS user_id")
-			return fmt.Errorf("failed to set RLS user_id: %w", err)
-		}
-		log.Debug().Str("user_id", userIDStr).Msg("Set RLS user_id using parameterized query")
-	} else {
-		_, err := tx.Exec(ctx, "SELECT set_config('app.user_id', '', true)")
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to set empty RLS user_id")
-			return fmt.Errorf("failed to set empty RLS user_id: %w", err)
-		}
-		log.Debug().Msg("Set empty RLS user_id")
-	}
-
-	// Set role using parameterized query (role is already validated above)
-	_, err := tx.Exec(ctx, "SELECT set_config('app.role', $1, true)", role)
+	// Marshal to JSON
+	jwtClaimsJSON, err := json.Marshal(jwtClaims)
 	if err != nil {
-		log.Error().Err(err).Str("role", role).Msg("Failed to set RLS role")
-		return fmt.Errorf("failed to set RLS role: %w", err)
+		log.Error().Err(err).Msg("Failed to marshal JWT claims")
+		return fmt.Errorf("failed to marshal JWT claims: %w", err)
 	}
-	log.Debug().Str("role", role).Msg("Set RLS role using parameterized query")
 
-	// Verify the RLS context was set by querying the session variables
-	var checkUserID string
-	var checkRole string
-	var currentUser string
-	if err := tx.QueryRow(ctx, "SELECT current_setting('app.user_id', TRUE), current_setting('app.role', TRUE), current_user").Scan(&checkUserID, &checkRole, &currentUser); err != nil {
-		log.Warn().Err(err).Msg("Failed to verify RLS session variables")
-	} else {
-		log.Debug().
-			Str("verified_user_id", checkUserID).
-			Str("verified_role", checkRole).
-			Str("current_pg_user", currentUser).
-			Msg("Verified RLS session variables and PostgreSQL user")
+	// Set request.jwt.claims session variable (Supabase format)
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to set request.jwt.claims")
+		return fmt.Errorf("failed to set request.jwt.claims: %w", err)
 	}
+	log.Debug().Str("jwt_claims", string(jwtClaimsJSON)).Msg("Set request.jwt.claims using parameterized query")
 
 	log.Debug().
-		Interface("user_id", userID).
+		Str("user_id", userID).
 		Str("role", role).
 		Msg("RLS context set for transaction")
 
@@ -174,13 +160,28 @@ func WrapWithRLS(ctx context.Context, conn *database.Connection, c *fiber.Ctx, f
 		role = "anon"
 	}
 
+	// Extract JWT claims if available
+	var claims *auth.TokenClaims
+	if jwtClaims := c.Locals("jwt_claims"); jwtClaims != nil {
+		if tc, ok := jwtClaims.(*auth.TokenClaims); ok {
+			claims = tc
+		}
+	}
+
+	// Convert userID to string
+	var userIDStr string
+	if userID != nil {
+		userIDStr = fmt.Sprintf("%v", userID)
+	}
+
 	log.Debug().
-		Interface("user_id_from_locals", userID).
-		Interface("role_from_locals", role).
+		Str("user_id", userIDStr).
+		Str("role", role.(string)).
+		Bool("has_jwt_claims", claims != nil).
 		Str("path", c.Path()).
 		Msg("WrapWithRLS: Retrieved RLS context from Fiber locals")
 
-	if err := SetRLSContext(ctx, tx, userID, role.(string)); err != nil {
+	if err := SetRLSContext(ctx, tx, userIDStr, role.(string), claims); err != nil {
 		return err
 	}
 
@@ -213,4 +214,113 @@ func GetRLSContext(c *fiber.Ctx) RLSContext {
 		UserID: c.Locals("rls_user_id"),
 		Role:   role.(string),
 	}
+}
+
+// LogRLSViolation logs an RLS policy violation to the audit log table
+// This should be called when an operation is blocked by RLS policies
+func LogRLSViolation(ctx context.Context, db *database.Connection, c *fiber.Ctx, operation string, tableName string) {
+	// Extract schema and table name if combined
+	schema := "public"
+	table := tableName
+	if len(tableName) > 0 && tableName[0] != '$' {
+		// Parse schema.table format
+		parts := splitTableName(tableName)
+		if len(parts) == 2 {
+			schema = parts[0]
+			table = parts[1]
+		}
+	}
+
+	// Get RLS context
+	rlsCtx := GetRLSContext(c)
+	role := rlsCtx.Role
+	if role == "" {
+		role = "anon"
+	}
+
+	// Get request context
+	ip := c.IP()
+	userAgent := c.Get("User-Agent")
+	requestID := c.Get("X-Request-ID")
+	if requestID == "" {
+		if reqID := c.Locals("request_id"); reqID != nil {
+			if reqIDStr, ok := reqID.(string); ok {
+				requestID = reqIDStr
+			}
+		}
+	}
+
+	// Convert user_id to string for logging
+	var userIDStr *string
+	if rlsCtx.UserID != nil {
+		userIDVal := fmt.Sprintf("%v", rlsCtx.UserID)
+		userIDStr = &userIDVal
+	}
+
+	// Build details JSONB
+	details := map[string]interface{}{
+		"path":   c.Path(),
+		"method": c.Method(),
+	}
+
+	detailsJSON, err := json.Marshal(details)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to marshal RLS audit details")
+		detailsJSON = []byte("{}")
+	}
+
+	// Insert audit log entry
+	// We use a separate connection without RLS context to avoid infinite loops
+	query := `
+		INSERT INTO auth.rls_audit_log (
+			user_id, role, operation, table_schema, table_name,
+			allowed, ip_address, user_agent, request_id, details
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+		)
+	`
+
+	_, err = db.Exec(ctx, query,
+		userIDStr,   // user_id
+		role,        // role
+		operation,   // operation (INSERT, UPDATE, DELETE, SELECT)
+		schema,      // table_schema
+		table,       // table_name
+		false,       // allowed (false = violation)
+		ip,          // ip_address
+		userAgent,   // user_agent
+		requestID,   // request_id
+		detailsJSON, // details
+	)
+
+	if err != nil {
+		// Log error but don't fail the request
+		log.Error().
+			Err(err).
+			Str("operation", operation).
+			Str("table", tableName).
+			Interface("user_id", rlsCtx.UserID).
+			Msg("Failed to log RLS violation to audit table")
+	}
+}
+
+// splitTableName splits a "schema.table" string into [schema, table]
+func splitTableName(fullName string) []string {
+	parts := make([]string, 0, 2)
+	dotIndex := -1
+	for i, char := range fullName {
+		if char == '.' {
+			dotIndex = i
+			break
+		}
+	}
+
+	if dotIndex > 0 {
+		parts = append(parts, fullName[:dotIndex])
+		parts = append(parts, fullName[dotIndex+1:])
+	} else {
+		parts = append(parts, fullName)
+	}
+
+	return parts
 }

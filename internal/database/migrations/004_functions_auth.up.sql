@@ -6,23 +6,30 @@
 --
 
 -- Get current user ID from session variable
+-- Uses Supabase-compatible request.jwt.claims format
 CREATE OR REPLACE FUNCTION auth.current_user_id()
 RETURNS UUID AS $$
 DECLARE
+    jwt_claims_var TEXT;
     user_id_var TEXT;
 BEGIN
-    user_id_var := current_setting('app.user_id', true);
-    IF user_id_var IS NULL OR user_id_var = '' THEN
-        RETURN NULL;
+    -- Get user ID from request.jwt.claims (Supabase format)
+    jwt_claims_var := current_setting('request.jwt.claims', true);
+    IF jwt_claims_var IS NOT NULL AND jwt_claims_var <> '' THEN
+        user_id_var := jwt_claims_var::json->>'sub';
+        IF user_id_var IS NOT NULL AND user_id_var <> '' THEN
+            RETURN user_id_var::UUID;
+        END IF;
     END IF;
-    RETURN user_id_var::UUID;
+
+    RETURN NULL;
 EXCEPTION
     WHEN OTHERS THEN
         RETURN NULL;
 END;
 $$ LANGUAGE plpgsql STABLE;
 
-COMMENT ON FUNCTION auth.current_user_id() IS 'Returns the current authenticated user ID from PostgreSQL session variable app.user_id. Returns NULL if not set or invalid.';
+COMMENT ON FUNCTION auth.current_user_id() IS 'Returns the current authenticated user ID from PostgreSQL session variable request.jwt.claims (Supabase format). Returns NULL if not set or invalid.';
 
 -- Supabase compatibility: auth.uid() is an alias for auth.current_user_id()
 CREATE OR REPLACE FUNCTION auth.uid()
@@ -38,43 +45,24 @@ COMMENT ON FUNCTION auth.uid() IS 'Supabase-compatible alias for auth.current_us
 CREATE OR REPLACE FUNCTION auth.jwt()
 RETURNS JSONB AS $$
 DECLARE
-    user_record RECORD;
-    jwt_claims JSONB;
+    jwt_claims_var TEXT;
 BEGIN
-    -- Get the current user ID
-    IF auth.current_user_id() IS NULL THEN
-        RETURN NULL;
+    -- Return request.jwt.claims (Supabase format)
+    jwt_claims_var := current_setting('request.jwt.claims', true);
+    IF jwt_claims_var IS NOT NULL AND jwt_claims_var <> '' THEN
+        BEGIN
+            RETURN jwt_claims_var::JSONB;
+        EXCEPTION
+            WHEN OTHERS THEN
+                RETURN NULL;
+        END;
     END IF;
 
-    -- Fetch user data including metadata
-    SELECT
-        id,
-        email,
-        role,
-        user_metadata,
-        app_metadata
-    INTO user_record
-    FROM auth.users
-    WHERE id = auth.current_user_id();
-
-    IF NOT FOUND THEN
-        RETURN NULL;
-    END IF;
-
-    -- Build JWT claims object compatible with Supabase
-    jwt_claims := jsonb_build_object(
-        'sub', user_record.id,
-        'email', user_record.email,
-        'role', COALESCE(user_record.role, auth.current_user_role()),
-        'user_metadata', COALESCE(user_record.user_metadata, '{}'::JSONB),
-        'app_metadata', COALESCE(user_record.app_metadata, '{}'::JSONB)
-    );
-
-    RETURN jwt_claims;
+    RETURN NULL;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
 
-COMMENT ON FUNCTION auth.jwt() IS 'Supabase-compatible function that returns JWT claims as JSONB, including user_metadata and app_metadata. Use ->> operator to extract text values or -> for JSONB.';
+COMMENT ON FUNCTION auth.jwt() IS 'Supabase-compatible function that returns JWT claims as JSONB from request.jwt.claims session variable. Use ->> operator to extract text values or -> for JSONB.';
 
 -- Supabase compatibility: auth.role() returns the current user's role
 CREATE OR REPLACE FUNCTION auth.role()
@@ -87,20 +75,28 @@ $$ LANGUAGE plpgsql STABLE;
 COMMENT ON FUNCTION auth.role() IS 'Supabase-compatible alias for auth.current_user_role(). Returns the current user role.';
 
 -- Get current user role from session variable
+-- Uses Supabase-compatible request.jwt.claims format
 CREATE OR REPLACE FUNCTION auth.current_user_role()
 RETURNS TEXT AS $$
 DECLARE
+    jwt_claims_var TEXT;
     role_var TEXT;
 BEGIN
-    role_var := current_setting('app.role', true);
-    IF role_var IS NULL OR role_var = '' THEN
-        RETURN 'anon';
+    -- Get role from request.jwt.claims (Supabase format)
+    jwt_claims_var := current_setting('request.jwt.claims', true);
+    IF jwt_claims_var IS NOT NULL AND jwt_claims_var <> '' THEN
+        role_var := jwt_claims_var::json->>'role';
+        IF role_var IS NOT NULL AND role_var <> '' THEN
+            RETURN role_var;
+        END IF;
     END IF;
-    RETURN role_var;
+
+    -- Default to 'anon' if not set
+    RETURN 'anon';
 END;
 $$ LANGUAGE plpgsql STABLE;
 
-COMMENT ON FUNCTION auth.current_user_role() IS 'Returns the current user role from PostgreSQL session variable app.role. Returns "anon" if not set.';
+COMMENT ON FUNCTION auth.current_user_role() IS 'Returns the current user role from PostgreSQL session variable request.jwt.claims (Supabase format). Returns "anon" if not set.';
 
 -- Check if user is authenticated
 CREATE OR REPLACE FUNCTION auth.is_authenticated()

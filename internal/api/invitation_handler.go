@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
@@ -15,16 +16,19 @@ import (
 type InvitationHandler struct {
 	invitationService *auth.InvitationService
 	dashboardAuth     *auth.DashboardAuthService
+	baseURL           string
 }
 
 // NewInvitationHandler creates a new invitation handler
 func NewInvitationHandler(
 	invitationService *auth.InvitationService,
 	dashboardAuth *auth.DashboardAuthService,
+	baseURL string,
 ) *InvitationHandler {
 	return &InvitationHandler{
 		invitationService: invitationService,
 		dashboardAuth:     dashboardAuth,
+		baseURL:           baseURL,
 	}
 }
 
@@ -113,10 +117,8 @@ func (h *InvitationHandler) CreateInvitation(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate invite link
-	// TODO: Get base URL from config or request
-	baseURL := c.Protocol() + "://" + c.Hostname()
-	inviteLink := fmt.Sprintf("%s/invite/%s", baseURL, invitation.Token)
+	// Generate invite link using base URL from config
+	inviteLink := fmt.Sprintf("%s/invite/%s", h.baseURL, invitation.Token)
 
 	// TODO: Send email notification
 	// For now, we'll just return the link
@@ -250,8 +252,11 @@ func (h *InvitationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	// Mark invitation as accepted
 	if err := h.invitationService.AcceptInvitation(ctx, token); err != nil {
 		// Log the error but don't fail the request - user was created successfully
-		// TODO: Add proper logging
-		fmt.Printf("Warning: Failed to mark invitation as accepted: %v\n", err)
+		log.Warn().
+			Err(err).
+			Str("token", token).
+			Str("email", invitation.Email).
+			Msg("Failed to mark invitation as accepted")
 	}
 
 	// Log in the user to get access token

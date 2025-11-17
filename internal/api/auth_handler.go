@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/auth"
@@ -427,6 +429,14 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	// 2FA verification (public - used during login)
 	router.Post("/2fa/verify", h.VerifyTOTP)
 
+	// OTP routes (public)
+	router.Post("/otp/signin", rateLimiters["otp"], h.SendOTP)
+	router.Post("/otp/verify", h.VerifyOTP)
+	router.Post("/otp/resend", rateLimiters["otp"], h.ResendOTP)
+
+	// ID token signin (public - for mobile OAuth)
+	router.Post("/signin/idtoken", h.SignInWithIDToken)
+
 	// Protected routes (authentication required) - lighter rate limits
 	// Apply auth middleware to all routes below
 	authMiddleware := AuthMiddleware(h.authService)
@@ -447,6 +457,14 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/2fa/enable", authMiddleware, h.EnableTOTP)
 	router.Post("/2fa/disable", authMiddleware, h.DisableTOTP)
 	router.Get("/2fa/status", authMiddleware, h.GetTOTPStatus)
+
+	// Identity linking routes (protected - authentication required)
+	router.Get("/user/identities", authMiddleware, h.GetUserIdentities)
+	router.Post("/user/identities", authMiddleware, h.LinkIdentity)
+	router.Delete("/user/identities/:id", authMiddleware, h.UnlinkIdentity)
+
+	// Reauthentication route (protected - authentication required)
+	router.Post("/reauthenticate", authMiddleware, h.Reauthenticate)
 }
 
 // SignInAnonymous creates JWT tokens for an anonymous user (no database record)
@@ -670,7 +688,7 @@ func (h *AuthHandler) SetupTOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	secret, qrCodeURL, err := h.authService.SetupTOTP(c.Context(), userID.(string))
+	response, err := h.authService.SetupTOTP(c.Context(), userID.(string))
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to setup TOTP")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -678,11 +696,7 @@ func (h *AuthHandler) SetupTOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"secret":      secret,
-		"qr_code_url": qrCodeURL,
-		"message":     "2FA setup initiated. Please verify the code to enable 2FA.",
-	})
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 // EnableTOTP enables 2FA after verifying the TOTP code
@@ -828,4 +842,334 @@ func (h *AuthHandler) GetTOTPStatus(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"totp_enabled": enabled,
 	})
+}
+
+// SendOTP sends an OTP code via email or SMS
+// POST /auth/otp/signin
+func (h *AuthHandler) SendOTP(c *fiber.Ctx) error {
+	var req struct {
+		Email   *string                 `json:"email,omitempty"`
+		Phone   *string                 `json:"phone,omitempty"`
+		Options *map[string]interface{} `json:"options,omitempty"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Validate that either email or phone is provided
+	if req.Email == nil && req.Phone == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Either email or phone must be provided",
+		})
+	}
+
+	// Send OTP
+	var err error
+	purpose := "signin" // Default purpose
+	if req.Options != nil {
+		if p, ok := (*req.Options)["purpose"].(string); ok {
+			purpose = p
+		}
+	}
+
+	if req.Email != nil {
+		err = h.authService.SendOTP(c.Context(), *req.Email, purpose)
+	} else if req.Phone != nil {
+		// SMS OTP not yet fully implemented
+		err = fmt.Errorf("SMS OTP not yet implemented")
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to send OTP")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to send OTP code",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"user":    nil,
+		"session": nil,
+	})
+}
+
+// VerifyOTP verifies an OTP code and creates a session
+// POST /auth/otp/verify
+func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
+	var req struct {
+		Email *string `json:"email,omitempty"`
+		Phone *string `json:"phone,omitempty"`
+		Token string  `json:"token"`
+		Type  string  `json:"type"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "OTP token is required",
+		})
+	}
+
+	// Verify OTP
+	var otpCode *auth.OTPCode
+	var err error
+
+	if req.Email != nil {
+		otpCode, err = h.authService.VerifyOTP(c.Context(), *req.Email, req.Token)
+	} else if req.Phone != nil {
+		// Phone OTP not yet fully implemented
+		return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+			"error": "Phone-based OTP authentication not yet implemented",
+		})
+	} else {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Either email or phone must be provided",
+		})
+	}
+
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to verify OTP")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid or expired OTP code",
+		})
+	}
+
+	// Get or create user
+	var user *auth.User
+	if req.Email != nil && otpCode.Email != nil {
+		user, err = h.authService.GetUserByEmail(c.Context(), *otpCode.Email)
+		if err != nil {
+			// Create user if doesn't exist (for signup flow)
+			user, err = h.authService.CreateUser(c.Context(), *otpCode.Email, "")
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to create user")
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to create user",
+				})
+			}
+		}
+	}
+
+	// Generate tokens
+	resp, err := h.authService.GenerateTokensForUser(c.Context(), user.ID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate tokens")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to complete authentication",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// ResendOTP resends an OTP code
+// POST /auth/otp/resend
+func (h *AuthHandler) ResendOTP(c *fiber.Ctx) error {
+	var req struct {
+		Type    string                  `json:"type"`
+		Email   *string                 `json:"email,omitempty"`
+		Phone   *string                 `json:"phone,omitempty"`
+		Options *map[string]interface{} `json:"options,omitempty"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Email == nil && req.Phone == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Either email or phone must be provided",
+		})
+	}
+
+	purpose := "signin" // Default purpose
+	if req.Options != nil {
+		if p, ok := (*req.Options)["purpose"].(string); ok {
+			purpose = p
+		}
+	}
+
+	// Resend OTP
+	var err error
+	if req.Email != nil {
+		err = h.authService.ResendOTP(c.Context(), *req.Email, purpose)
+	} else if req.Phone != nil {
+		// SMS OTP not yet fully implemented
+		err = fmt.Errorf("SMS OTP not yet implemented")
+	}
+
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to resend OTP")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to resend OTP code",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"user":    nil,
+		"session": nil,
+	})
+}
+
+// GetUserIdentities gets all OAuth identities linked to a user
+// GET /auth/user/identities
+func (h *AuthHandler) GetUserIdentities(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	identities, err := h.authService.GetUserIdentities(c.Context(), userID.(string))
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to get user identities")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve identities",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"identities": identities,
+	})
+}
+
+// LinkIdentity initiates OAuth flow to link a provider
+// POST /auth/user/identities
+func (h *AuthHandler) LinkIdentity(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	var req struct {
+		Provider string `json:"provider"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Provider == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Provider is required",
+		})
+	}
+
+	authURL, state, err := h.authService.LinkIdentity(c.Context(), userID.(string), req.Provider)
+	if err != nil {
+		log.Error().Err(err).Str("provider", req.Provider).Msg("Failed to initiate identity linking")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"url":      authURL,
+		"provider": req.Provider,
+		"state":    state,
+	})
+}
+
+// UnlinkIdentity removes an OAuth identity from a user
+// DELETE /auth/user/identities/:id
+func (h *AuthHandler) UnlinkIdentity(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	identityID := c.Params("id")
+	if identityID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Identity ID is required",
+		})
+	}
+
+	err := h.authService.UnlinkIdentity(c.Context(), userID.(string), identityID)
+	if err != nil {
+		log.Error().Err(err).Str("identity_id", identityID).Msg("Failed to unlink identity")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+	})
+}
+
+// Reauthenticate generates a security nonce
+// POST /auth/reauthenticate
+func (h *AuthHandler) Reauthenticate(c *fiber.Ctx) error {
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	nonce, err := h.authService.Reauthenticate(c.Context(), userID.(string))
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to reauthenticate")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to generate security nonce",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"nonce": nonce,
+	})
+}
+
+// SignInWithIDToken handles OAuth ID token authentication (Google, Apple)
+// POST /auth/signin/idtoken
+func (h *AuthHandler) SignInWithIDToken(c *fiber.Ctx) error {
+	var req struct {
+		Provider string  `json:"provider"`
+		Token    string  `json:"token"`
+		Nonce    *string `json:"nonce,omitempty"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Provider == "" || req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Provider and token are required",
+		})
+	}
+
+	nonce := ""
+	if req.Nonce != nil {
+		nonce = *req.Nonce
+	}
+
+	resp, err := h.authService.SignInWithIDToken(c.Context(), req.Provider, req.Token, nonce)
+	if err != nil {
+		log.Error().Err(err).Str("provider", req.Provider).Msg("Failed to sign in with ID token")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
 }

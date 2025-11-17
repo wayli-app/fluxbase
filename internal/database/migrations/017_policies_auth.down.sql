@@ -1,5 +1,8 @@
 -- Drop all auth schema RLS policies
 
+DROP POLICY IF EXISTS rls_audit_log_user_select ON auth.rls_audit_log;
+DROP POLICY IF EXISTS rls_audit_log_admin_select ON auth.rls_audit_log;
+DROP POLICY IF EXISTS rls_audit_log_service_insert ON auth.rls_audit_log;
 DROP POLICY IF EXISTS impersonation_sessions_dashboard_admin_only ON auth.impersonation_sessions;
 DROP POLICY IF EXISTS webhook_events_service ON auth.webhook_events;
 DROP POLICY IF EXISTS webhook_events_admin_select ON auth.webhook_events;
@@ -8,8 +11,10 @@ DROP POLICY IF EXISTS webhook_deliveries_admin_read ON auth.webhook_deliveries;
 DROP POLICY IF EXISTS webhook_deliveries_service_write ON auth.webhook_deliveries;
 DROP POLICY IF EXISTS webhooks_admin_only ON auth.webhooks;
 DROP POLICY IF EXISTS two_factor_recovery_admin_select ON auth.two_factor_recovery_attempts;
+DROP POLICY IF EXISTS two_factor_recovery_insert ON auth.two_factor_recovery_attempts;
 DROP POLICY IF EXISTS two_factor_recovery_select ON auth.two_factor_recovery_attempts;
 DROP POLICY IF EXISTS two_factor_setups_admin_select ON auth.two_factor_setups;
+DROP POLICY IF EXISTS two_factor_setups_update ON auth.two_factor_setups;
 DROP POLICY IF EXISTS two_factor_setups_delete ON auth.two_factor_setups;
 DROP POLICY IF EXISTS two_factor_setups_insert ON auth.two_factor_setups;
 DROP POLICY IF EXISTS two_factor_setups_select ON auth.two_factor_setups;

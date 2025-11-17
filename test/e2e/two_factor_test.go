@@ -40,11 +40,16 @@ func Test2FASetup(t *testing.T) {
 	var result map[string]interface{}
 	resp.JSON(&result)
 
-	require.Contains(t, result, "secret", "Should have secret")
-	require.Contains(t, result, "qr_code_url", "Should have QR code URL")
-	require.Contains(t, result, "message", "Should have message")
+	require.Contains(t, result, "id", "Should have factor ID")
+	require.Contains(t, result, "type", "Should have type")
+	require.Contains(t, result, "totp", "Should have totp object")
 
-	secret := result["secret"].(string)
+	totpData := result["totp"].(map[string]interface{})
+	require.Contains(t, totpData, "secret", "Should have secret in totp object")
+	require.Contains(t, totpData, "qr_code", "Should have qr_code in totp object")
+	require.Contains(t, totpData, "uri", "Should have uri in totp object")
+
+	secret := totpData["secret"].(string)
 	require.NotEmpty(t, secret, "Secret should not be empty")
 
 	t.Logf("2FA setup successful for user: %s, secret: %s", user["id"], secret)
@@ -69,7 +74,10 @@ func Test2FAEnable(t *testing.T) {
 
 	var setupResult map[string]interface{}
 	setupResp.JSON(&setupResult)
-	secret := setupResult["secret"].(string)
+
+	// Extract secret from nested totp object
+	totpData := setupResult["totp"].(map[string]interface{})
+	secret := totpData["secret"].(string)
 
 	// Generate a valid TOTP code
 	code, err := totp.GenerateCode(secret, time.Now())
@@ -397,7 +405,10 @@ func Test2FASetupExpiry(t *testing.T) {
 
 	var setupResult map[string]interface{}
 	setupResp.JSON(&setupResult)
-	secret := setupResult["secret"].(string)
+
+	// Extract secret from nested totp object
+	totpData := setupResult["totp"].(map[string]interface{})
+	secret := totpData["secret"].(string)
 
 	// Simulate expiry by deleting the setup record
 	_, err := tc.DB.Pool().Exec(context.Background(),
@@ -453,7 +464,10 @@ func enable2FAForUser(t *testing.T, tc *test.TestContext, token string) string {
 
 	var setupResult map[string]interface{}
 	setupResp.JSON(&setupResult)
-	secret := setupResult["secret"].(string)
+
+	// Extract secret from nested totp object
+	totpData := setupResult["totp"].(map[string]interface{})
+	secret := totpData["secret"].(string)
 
 	// Generate a valid TOTP code
 	code, err := totp.GenerateCode(secret, time.Now())
@@ -482,7 +496,10 @@ func enable2FAWithBackupCodes(t *testing.T, tc *test.TestContext, token string) 
 
 	var setupResult map[string]interface{}
 	setupResp.JSON(&setupResult)
-	secret := setupResult["secret"].(string)
+
+	// Extract secret from nested totp object
+	totpData := setupResult["totp"].(map[string]interface{})
+	secret := totpData["secret"].(string)
 
 	// Generate a valid TOTP code
 	code, err := totp.GenerateCode(secret, time.Now())

@@ -201,6 +201,11 @@ CREATE POLICY two_factor_setups_delete ON auth.two_factor_setups
     FOR DELETE
     USING (user_id = auth.current_user_id());
 
+CREATE POLICY two_factor_setups_update ON auth.two_factor_setups
+    FOR UPDATE
+    USING (user_id = auth.current_user_id())
+    WITH CHECK (user_id = auth.current_user_id());
+
 CREATE POLICY two_factor_setups_admin_select ON auth.two_factor_setups
     FOR SELECT
     USING (auth.is_admin() OR auth.current_user_role() = 'dashboard_admin');
@@ -212,6 +217,15 @@ ALTER TABLE auth.two_factor_recovery_attempts FORCE ROW LEVEL SECURITY;
 CREATE POLICY two_factor_recovery_select ON auth.two_factor_recovery_attempts
     FOR SELECT
     USING (user_id = auth.current_user_id());
+
+CREATE POLICY two_factor_recovery_insert ON auth.two_factor_recovery_attempts
+    FOR INSERT
+    WITH CHECK (
+        -- Allow service role to log all attempts (for backend logging)
+        auth.current_user_role() = 'service_role'
+        -- Allow users to log their own attempts (for client-side logging)
+        OR user_id = auth.current_user_id()
+    );
 
 CREATE POLICY two_factor_recovery_admin_select ON auth.two_factor_recovery_attempts
     FOR SELECT
@@ -282,3 +296,28 @@ CREATE POLICY impersonation_sessions_dashboard_admin_only ON auth.impersonation_
     );
 
 COMMENT ON POLICY impersonation_sessions_dashboard_admin_only ON auth.impersonation_sessions IS 'Only dashboard admins and service role can access impersonation session records.';
+
+-- RLS audit log policies
+ALTER TABLE auth.rls_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Service role can insert audit logs (for system logging)
+CREATE POLICY rls_audit_log_service_insert ON auth.rls_audit_log
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.current_user_role() = 'service_role');
+
+-- Policy: Admins can view all audit logs (for security monitoring)
+CREATE POLICY rls_audit_log_admin_select ON auth.rls_audit_log
+    FOR SELECT
+    TO authenticated
+    USING (auth.current_user_role() IN ('admin', 'dashboard_admin', 'service_role'));
+
+-- Policy: Users can view their own audit logs (for transparency)
+CREATE POLICY rls_audit_log_user_select ON auth.rls_audit_log
+    FOR SELECT
+    TO authenticated
+    USING (auth.current_user_id() = user_id);
+
+COMMENT ON POLICY rls_audit_log_service_insert ON auth.rls_audit_log IS 'Only service role can insert audit log entries to prevent users from tampering with logs.';
+COMMENT ON POLICY rls_audit_log_admin_select ON auth.rls_audit_log IS 'Admins can view all audit logs for security monitoring and compliance.';
+COMMENT ON POLICY rls_audit_log_user_select ON auth.rls_audit_log IS 'Users can view their own audit log entries for transparency.';

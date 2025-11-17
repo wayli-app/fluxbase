@@ -14,17 +14,19 @@ type Connection struct {
 	Conn          *websocket.Conn
 	Subscriptions map[string]bool // channel -> subscribed
 	UserID        *string         // Authenticated user ID (nil if anonymous)
+	Role          string          // User role (e.g., "authenticated", "anon", "dashboard_admin")
 	ConnectedAt   time.Time       // Connection timestamp
 	mu            sync.RWMutex
 }
 
 // NewConnection creates a new WebSocket connection
-func NewConnection(id string, conn *websocket.Conn, userID *string) *Connection {
+func NewConnection(id string, conn *websocket.Conn, userID *string, role string) *Connection {
 	return &Connection{
 		ID:            id,
 		Conn:          conn,
 		Subscriptions: make(map[string]bool),
 		UserID:        userID,
+		Role:          role,
 		ConnectedAt:   time.Now(),
 	}
 }

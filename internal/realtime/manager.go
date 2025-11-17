@@ -27,11 +27,11 @@ func NewManager(ctx context.Context) *Manager {
 }
 
 // AddConnection adds a new WebSocket connection
-func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string) *Connection {
+func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string) *Connection {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	connection := NewConnection(id, conn, userID)
+	connection := NewConnection(id, conn, userID, role)
 	m.connections[id] = connection
 
 	log.Info().

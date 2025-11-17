@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { useTable as useFluxbaseTable, useUpdate, useDelete } from '@fluxbase/sdk-react'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   type ColumnDef,
@@ -12,10 +11,18 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import {
+  useTable as useFluxbaseTable,
+  useUpdate,
+  useDelete,
+} from '@fluxbase/sdk-react'
 import { Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -24,13 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { DataTablePagination, DataTableColumnHeader } from '@/components/data-table'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Checkbox } from '@/components/ui/checkbox'
-import { toast } from 'sonner'
-import { TableRowActions } from './table-row-actions'
-import { RecordEditDialog } from './record-edit-dialog'
+import {
+  DataTablePagination,
+  DataTableColumnHeader,
+} from '@/components/data-table'
 import { EditableCell } from './editable-cell'
+import { RecordEditDialog } from './record-edit-dialog'
+import { TableRowActions } from './table-row-actions'
 
 const route = getRouteApi('/_authenticated/tables/')
 
@@ -50,7 +57,8 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const [isCreating, setIsCreating] = useState(false)
 
   // Get table metadata from React Query cache (already fetched by TableSelector)
-  const { data: tablesData } = useQuery<Array<{
+  // Fetch specific table schema to ensure columns are available even when table is empty
+  const { data: tableInfo } = useQuery<{
     schema: string
     name: string
     rest_path?: string
@@ -61,16 +69,31 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       default_value: string | null
       is_primary_key: boolean
     }>
-  }>>({
-    queryKey: ['tables', schema],
+  }>({
+    queryKey: ['table-schema', schema, tableName],
+    queryFn: async () => {
+      // Extract table name from the format "schema.table" or just use tableName
+      const tableNameOnly = tableName.includes('.')
+        ? tableName.split('.')[1]
+        : tableName
+      const response = await fetch(
+        `/api/v1/admin/tables/${schema}/${tableNameOnly}`,
+        {
+          credentials: 'include',
+        }
+      )
+      if (!response.ok) {
+        throw new Error('Failed to fetch table schema')
+      }
+      return response.json()
+    },
     staleTime: 60000, // Cache for 1 minute
   })
-
-  const tableInfo = tablesData?.find(t => `${t.schema}.${t.name}` === tableName)
   // Use schema/table format for REST API path to match backend expectations
-  const tableApiPath = schema === 'public'
-    ? (tableInfo?.name || tableName.split('.')[1])
-    : `${schema}/${tableInfo?.name || tableName.split('.')[1]}`
+  const tableApiPath =
+    schema === 'public'
+      ? tableInfo?.name || tableName.split('.')[1]
+      : `${schema}/${tableInfo?.name || tableName.split('.')[1]}`
 
   const {
     pagination,
@@ -89,7 +112,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const { data, isLoading } = useFluxbaseTable(
     tableApiPath,
     (query) => {
-      let q = query.select('*').limit(pagination.pageSize).offset(pagination.pageIndex * pagination.pageSize)
+      let q = query
+        .select('*')
+        .limit(pagination.pageSize)
+        .offset(pagination.pageIndex * pagination.pageSize)
 
       if (sorting[0]) {
         q = q.order(sorting[0].id, { ascending: !sorting[0].desc })
@@ -114,10 +140,11 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       id: string | number
       field: string
       value: unknown
-    }) => updateFluxbase.mutateAsync({
-      data: { [field]: value },
-      buildQuery: (q) => q.eq('id', id),
-    }),
+    }) =>
+      updateFluxbase.mutateAsync({
+        data: { [field]: value },
+        buildQuery: (q) => q.eq('id', id),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
       toast.success('Record updated successfully')
@@ -151,7 +178,9 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     },
     onSuccess: (_, ids) => {
       queryClient.invalidateQueries({ queryKey: ['table-data', tableName] })
-      toast.success(`${ids.length} record${ids.length !== 1 ? 's' : ''} deleted successfully`)
+      toast.success(
+        `${ids.length} record${ids.length !== 1 ? 's' : ''} deleted successfully`
+      )
       setRowSelection({})
     },
     onError: (error: Error) => {
@@ -159,12 +188,11 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     },
   })
 
-  // Fetch table schema to show columns even when empty
-  // TODO: This could be improved by fetching actual schema from /api/v1/admin/tables/:table
-  // For now, we'll only show columns if we have data
-
-  // Get column metadata from table info
-  const tableColumns = useMemo(() => tableInfo?.columns || [], [tableInfo?.columns])
+  // Get column metadata from table info (fetched directly from schema endpoint)
+  const tableColumns = useMemo(
+    () => tableInfo?.columns || [],
+    [tableInfo?.columns]
+  )
 
   // Destructure stable functions from mutations
   const updateMutateAsync = updateMutation.mutateAsync
@@ -177,8 +205,8 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     const columnTypes: Record<string, string> = {}
 
     if (tableColumns.length > 0) {
-      columnKeys = tableColumns.map(col => col.name)
-      tableColumns.forEach(col => {
+      columnKeys = tableColumns.map((col) => col.name)
+      tableColumns.forEach((col) => {
         columnTypes[col.name] = col.data_type
       })
     } else if (data && data.length > 0) {
@@ -196,15 +224,17 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
         header: ({ table }) => (
           <Checkbox
             checked={table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label="Select all"
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label='Select all'
           />
         ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
+            aria-label='Select row'
           />
         ),
         enableSorting: false,
@@ -216,10 +246,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       (key) => ({
         accessorKey: key,
         header: ({ column }) => (
-          <div className="flex flex-col gap-0.5">
+          <div className='flex flex-col gap-0.5'>
             <DataTableColumnHeader column={column} title={key} />
             {columnTypes[key] && (
-              <span className="text-xs text-muted-foreground font-normal">
+              <span className='text-muted-foreground text-xs font-normal'>
                 {columnTypes[key]}
               </span>
             )}
@@ -311,7 +341,11 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     const selectedIds = selectedRows.map((row) => String(row.original.id))
     if (selectedIds.length === 0) return
 
-    if (confirm(`Are you sure you want to delete ${selectedIds.length} record${selectedIds.length !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+    if (
+      confirm(
+        `Are you sure you want to delete ${selectedIds.length} record${selectedIds.length !== 1 ? 's' : ''}? This action cannot be undone.`
+      )
+    ) {
       bulkDeleteMutation.mutate(selectedIds)
     }
   }
@@ -323,7 +357,9 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
           <div>
             <h2 className='text-2xl font-bold'>{tableName}</h2>
             <p className='text-muted-foreground text-sm'>
-              {hasData ? `${data.length} record${data.length !== 1 ? 's' : ''}` : 'No records'}
+              {hasData
+                ? `${data.length} record${data.length !== 1 ? 's' : ''}`
+                : 'No records'}
               {selectedCount > 0 && ` (${selectedCount} selected)`}
             </p>
           </div>
@@ -335,7 +371,8 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                 disabled={bulkDeleteMutation.isPending}
               >
                 <Trash2 className='mr-2 size-4' />
-                Delete {selectedCount} {selectedCount === 1 ? 'record' : 'records'}
+                Delete {selectedCount}{' '}
+                {selectedCount === 1 ? 'record' : 'records'}
               </Button>
             )}
             <Button onClick={() => setIsCreating(true)}>
@@ -384,10 +421,17 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className='h-64 text-center'>
+                  <TableCell
+                    colSpan={columns.length}
+                    className='h-64 text-center'
+                  >
                     <div className='flex flex-col items-center justify-center gap-2'>
-                      <p className='text-muted-foreground'>No records in this table</p>
-                      <p className='text-xs text-muted-foreground'>Click "Add Record" to create the first entry</p>
+                      <p className='text-muted-foreground'>
+                        No records in this table
+                      </p>
+                      <p className='text-muted-foreground text-xs'>
+                        Click "Add Record" to create the first entry
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>

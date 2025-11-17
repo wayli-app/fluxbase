@@ -1415,20 +1415,17 @@ func (h *StorageHandler) setRLSContext(ctx context.Context, tx pgx.Tx, c *fiber.
 		userIDStr = fmt.Sprintf("%v", userID)
 	}
 
-	// Set user_id
+	// Set request.jwt.claims with user ID and role (Supabase/Fluxbase format)
+	// This is read by auth.current_user_id() and auth.current_user_role() functions
+	var jwtClaims string
 	if userIDStr != "" {
-		if _, err := tx.Exec(ctx, "SELECT set_config('app.user_id', $1, true)", userIDStr); err != nil {
-			return fmt.Errorf("failed to set RLS user_id: %w", err)
-		}
+		jwtClaims = fmt.Sprintf(`{"sub":"%s","role":"%s"}`, userIDStr, roleStr)
 	} else {
-		if _, err := tx.Exec(ctx, "SELECT set_config('app.user_id', '', true)"); err != nil {
-			return fmt.Errorf("failed to set empty RLS user_id: %w", err)
-		}
+		jwtClaims = fmt.Sprintf(`{"role":"%s"}`, roleStr)
 	}
 
-	// Set role
-	if _, err := tx.Exec(ctx, "SELECT set_config('app.role', $1, true)", roleStr); err != nil {
-		return fmt.Errorf("failed to set RLS role: %w", err)
+	if _, err := tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims); err != nil {
+		return fmt.Errorf("failed to set request.jwt.claims: %w", err)
 	}
 
 	log.Debug().Str("user_id", userIDStr).Str("role", roleStr).Msg("Set RLS context for storage operation")

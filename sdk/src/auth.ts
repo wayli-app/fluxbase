@@ -12,6 +12,7 @@ import type {
   User,
   TwoFactorSetupResponse,
   TwoFactorEnableResponse,
+  TwoFactorLoginResponse,
   TwoFactorStatusResponse,
   TwoFactorDisableResponse,
   TwoFactorVerifyRequest,
@@ -33,6 +34,15 @@ import type {
   UserResponse,
   DataResponse,
   VoidResponse,
+  SignInWithOtpCredentials,
+  VerifyOtpParams,
+  ResendOtpParams,
+  OTPResponse,
+  UserIdentitiesResponse,
+  LinkIdentityCredentials,
+  UnlinkIdentityParams,
+  ReauthenticateResponse,
+  SignInWithIdTokenCredentials,
 } from "./types";
 import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
@@ -235,6 +245,17 @@ export class FluxbaseAuth {
   }
 
   /**
+   * Refresh the session (Supabase-compatible alias)
+   * Alias for refreshSession() to maintain compatibility with Supabase naming
+   * Returns a new session with refreshed tokens
+   */
+  async refreshToken(): Promise<
+    FluxbaseResponse<{ user: User; session: AuthSession }>
+  > {
+    return this.refreshSession();
+  }
+
+  /**
    * Get the current user from the server
    */
   async getCurrentUser(): Promise<UserResponse> {
@@ -390,9 +411,9 @@ export class FluxbaseAuth {
    */
   async verify2FA(
     request: TwoFactorVerifyRequest,
-  ): Promise<DataResponse<TwoFactorEnableResponse>> {
+  ): Promise<DataResponse<TwoFactorLoginResponse>> {
     return wrapAsync(async () => {
-      const response = await this.fetch.post<TwoFactorEnableResponse>(
+      const response = await this.fetch.post<TwoFactorLoginResponse>(
         "/api/v1/auth/2fa/verify",
         request,
       );
@@ -643,6 +664,165 @@ export class FluxbaseAuth {
       }
 
       return { provider, url };
+    });
+  }
+
+  /**
+   * Sign in with OTP (One-Time Password) - Supabase-compatible
+   * Sends a one-time password via email or SMS for passwordless authentication
+   * @param credentials - Email or phone number and optional configuration
+   * @returns Promise with OTP-style response
+   */
+  async signInWithOtp(
+    credentials: SignInWithOtpCredentials,
+  ): Promise<DataResponse<OTPResponse>> {
+    return wrapAsync(async () => {
+      await this.fetch.post("/api/v1/auth/otp/signin", credentials);
+      // Return Supabase-compatible OTP response
+      return { user: null, session: null };
+    });
+  }
+
+  /**
+   * Verify OTP (One-Time Password) - Supabase-compatible
+   * Verify OTP tokens for various authentication flows
+   * @param params - OTP verification parameters including token and type
+   * @returns Promise with user and session if successful
+   */
+  async verifyOtp(params: VerifyOtpParams): Promise<FluxbaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/otp/verify",
+        params,
+      );
+
+      // Check if session tokens are provided
+      if (response.access_token && response.refresh_token) {
+        const session: AuthSession = {
+          ...response,
+          expires_at: Date.now() + response.expires_in * 1000,
+        };
+
+        this.setSessionInternal(session);
+        return { user: response.user, session };
+      }
+
+      // Email confirmation required - return user without session
+      return { user: response.user, session: null };
+    });
+  }
+
+  /**
+   * Resend OTP (One-Time Password) - Supabase-compatible
+   * Resend OTP code when user doesn't receive it
+   * @param params - Resend parameters including type and email/phone
+   * @returns Promise with OTP-style response
+   */
+  async resendOtp(
+    params: ResendOtpParams,
+  ): Promise<DataResponse<OTPResponse>> {
+    return wrapAsync(async () => {
+      await this.fetch.post("/api/v1/auth/otp/resend", params);
+      // Return Supabase-compatible OTP response
+      return { user: null, session: null };
+    });
+  }
+
+  /**
+   * Get user identities (linked OAuth providers) - Supabase-compatible
+   * Lists all OAuth identities linked to the current user
+   * @returns Promise with list of user identities
+   */
+  async getUserIdentities(): Promise<DataResponse<UserIdentitiesResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
+
+      return await this.fetch.get<UserIdentitiesResponse>(
+        "/api/v1/auth/user/identities",
+      );
+    });
+  }
+
+  /**
+   * Link an OAuth identity to current user - Supabase-compatible
+   * Links an additional OAuth provider to the existing account
+   * @param credentials - Provider to link
+   * @returns Promise with OAuth URL to complete linking
+   */
+  async linkIdentity(
+    credentials: LinkIdentityCredentials,
+  ): Promise<DataResponse<OAuthUrlResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
+
+      return await this.fetch.post<OAuthUrlResponse>(
+        "/api/v1/auth/user/identities",
+        credentials,
+      );
+    });
+  }
+
+  /**
+   * Unlink an OAuth identity from current user - Supabase-compatible
+   * Removes a linked OAuth provider from the account
+   * @param params - Identity to unlink
+   * @returns Promise with void response
+   */
+  async unlinkIdentity(params: UnlinkIdentityParams): Promise<VoidResponse> {
+    return wrapAsyncVoid(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
+
+      await this.fetch.delete(
+        `/api/v1/auth/user/identities/${params.identity.id}`,
+      );
+    });
+  }
+
+  /**
+   * Reauthenticate to get security nonce - Supabase-compatible
+   * Get a security nonce for sensitive operations (password change, etc.)
+   * @returns Promise with nonce for reauthentication
+   */
+  async reauthenticate(): Promise<DataResponse<ReauthenticateResponse>> {
+    return wrapAsync(async () => {
+      if (!this.session) {
+        throw new Error("Not authenticated");
+      }
+
+      return await this.fetch.post<ReauthenticateResponse>(
+        "/api/v1/auth/reauthenticate",
+      );
+    });
+  }
+
+  /**
+   * Sign in with ID token (for native mobile apps) - Supabase-compatible
+   * Authenticate using native mobile app ID tokens (Google, Apple)
+   * @param credentials - Provider, ID token, and optional nonce
+   * @returns Promise with user and session
+   */
+  async signInWithIdToken(
+    credentials: SignInWithIdTokenCredentials,
+  ): Promise<FluxbaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/signin/idtoken",
+        credentials,
+      );
+
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
+
+      this.setSessionInternal(session);
+      return { user: session.user, session };
     });
   }
 

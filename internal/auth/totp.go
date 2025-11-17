@@ -3,26 +3,38 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/pquerna/otp/totp"
+	qrcode "github.com/skip2/go-qrcode"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// GenerateTOTPSecret generates a new TOTP secret and QR code URL
-func GenerateTOTPSecret(issuer, accountName string) (string, string, error) {
+// GenerateTOTPSecret generates a new TOTP secret, QR code image, and otpauth URI
+// Returns: secret (base32), qrCodeDataURI (base64 PNG data URI), otpauthURI, error
+func GenerateTOTPSecret(issuer, accountName string) (string, string, string, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      issuer,
 		AccountName: accountName,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate TOTP key: %w", err)
+		return "", "", "", fmt.Errorf("failed to generate TOTP key: %w", err)
 	}
 
 	secret := key.Secret()
-	qrCodeURL := key.URL()
+	otpauthURI := key.URL()
 
-	return secret, qrCodeURL, nil
+	// Generate QR code as PNG image
+	qrCode, err := qrcode.Encode(otpauthURI, qrcode.Medium, 256)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate QR code: %w", err)
+	}
+
+	// Convert to base64 data URI
+	qrCodeDataURI := "data:image/png;base64," + base64.StdEncoding.EncodeToString(qrCode)
+
+	return secret, qrCodeDataURI, otpauthURI, nil
 }
 
 // VerifyTOTPCode verifies a TOTP code against a secret

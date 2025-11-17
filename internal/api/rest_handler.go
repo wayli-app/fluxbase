@@ -75,6 +75,67 @@ func handleDatabaseError(c *fiber.Ctx, err error, operation string) error {
 	})
 }
 
+// isUserAuthenticated checks if the user is authenticated based on RLS context
+func isUserAuthenticated(c *fiber.Ctx) bool {
+	role := c.Locals("rls_role")
+	if role == nil {
+		return false
+	}
+	roleStr, ok := role.(string)
+	if !ok {
+		return false
+	}
+	// User is authenticated if they have any role other than "anon"
+	return roleStr != "anon" && roleStr != ""
+}
+
+// handleRLSViolation returns appropriate error response for RLS policy violations.
+// For mutations (INSERT/UPDATE/DELETE), when a query succeeds but returns 0 rows,
+// it's likely an RLS policy blocking the operation rather than the record not existing.
+func (h *RESTHandler) handleRLSViolation(c *fiber.Ctx, operation string, tableName string) error {
+	ctx := c.Context()
+
+	// Check if user is authenticated
+	authenticated := isUserAuthenticated(c)
+
+	// Log the violation to the audit table
+	// Note: This is synchronous to avoid Fiber context issues with goroutines
+	// The DB insert is fast enough to not significantly impact response time
+	middleware.LogRLSViolation(ctx, h.db, c, operation, tableName)
+
+	if !authenticated {
+		// Anonymous users get 401 - need authentication
+		log.Warn().
+			Str("operation", operation).
+			Str("table", tableName).
+			Str("role", "anon").
+			Msg("RLS violation: Anonymous user attempted operation")
+
+		return c.Status(401).JSON(fiber.Map{
+			"error": "Authentication required",
+			"code":  "AUTHENTICATION_REQUIRED",
+		})
+	}
+
+	// Authenticated users get 403 - insufficient permissions
+	userID := c.Locals("rls_user_id")
+	role := c.Locals("rls_role")
+
+	log.Warn().
+		Interface("user_id", userID).
+		Interface("role", role).
+		Str("operation", operation).
+		Str("table", tableName).
+		Msg("RLS violation: Insufficient permissions")
+
+	return c.Status(403).JSON(fiber.Map{
+		"error":   "Insufficient permissions",
+		"code":    "RLS_POLICY_VIOLATION",
+		"message": "Row-level security policy blocks this operation",
+		"hint":    "Verify your authentication and table access policies",
+	})
+}
+
 // RegisterTableRoutes registers REST routes for a table
 func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.TableInfo) {
 	// Build the REST path for this table
@@ -361,9 +422,8 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		}
 
 		if len(results) == 0 {
-			return c.Status(500).JSON(fiber.Map{
-				"error": "Failed to create record",
-			})
+			// INSERT with RETURNING 0 rows typically indicates RLS policy blocked the operation
+			return h.handleRLSViolation(c, "INSERT", fmt.Sprintf("%s.%s", table.Schema, table.Name))
 		}
 
 		return c.Status(201).JSON(results[0])
@@ -587,9 +647,9 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 		}
 
 		if len(results) == 0 {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Record not found",
-			})
+			// UPDATE with RETURNING 0 rows could be either RLS blocking or record doesn't exist
+			// For authenticated users, assume RLS issue for better debugging (403 vs 404)
+			return h.handleRLSViolation(c, "UPDATE", fmt.Sprintf("%s.%s", table.Schema, table.Name))
 		}
 
 		return c.JSON(results[0])
@@ -638,9 +698,9 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 		}
 
 		if len(results) == 0 {
-			return c.Status(404).JSON(fiber.Map{
-				"error": "Record not found",
-			})
+			// DELETE with RETURNING 0 rows could be either RLS blocking or record doesn't exist
+			// For authenticated users, assume RLS issue for better debugging (403 vs 404)
+			return h.handleRLSViolation(c, "DELETE", fmt.Sprintf("%s.%s", table.Schema, table.Name))
 		}
 
 		return c.Status(204).Send(nil)

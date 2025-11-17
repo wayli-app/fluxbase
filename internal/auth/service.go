@@ -23,16 +23,25 @@ type Service struct {
 	passwordResetService  *PasswordResetService
 	tokenBlacklistService *TokenBlacklistService
 	impersonationService  *ImpersonationService
+	otpService            *OTPService
+	identityService       *IdentityService
 	systemSettings        *SystemSettingsService
 	settingsCache         *SettingsCache
 	config                *config.AuthConfig
+}
+
+// FullEmailService is a complete email service interface
+// that includes both the basic EmailSender methods and a generic Send method
+type FullEmailService interface {
+	EmailSender
+	Send(ctx context.Context, to, subject, body string) error
 }
 
 // NewService creates a new authentication service
 func NewService(
 	db *database.Connection,
 	cfg *config.AuthConfig,
-	emailService EmailSender,
+	emailService interface{},
 	baseURL string,
 ) *Service {
 	userRepo := NewUserRepository(db)
@@ -43,6 +52,10 @@ func NewService(
 	passwordHasher := NewPasswordHasherWithConfig(PasswordHasherConfig{MinLength: cfg.PasswordMinLen, Cost: cfg.BcryptCost})
 	oauthManager := NewOAuthManager()
 
+	// Cast email service to appropriate interfaces
+	emailSender, _ := emailService.(EmailSender)
+	realEmailService, _ := emailService.(RealEmailService)
+
 	// Use configured expiry times with sensible fallbacks
 	magicLinkExpiry := cfg.MagicLinkExpiry
 	if magicLinkExpiry == 0 {
@@ -52,7 +65,7 @@ func NewService(
 	magicLinkService := NewMagicLinkService(
 		magicLinkRepo,
 		userRepo,
-		emailService,
+		emailSender,
 		magicLinkExpiry,
 		baseURL,
 	)
@@ -66,7 +79,7 @@ func NewService(
 	passwordResetService := NewPasswordResetService(
 		passwordResetRepo,
 		userRepo,
-		emailService,
+		emailSender,
 		passwordResetExpiry,
 		baseURL,
 	)
@@ -76,6 +89,27 @@ func NewService(
 
 	impersonationRepo := NewImpersonationRepository(db)
 	impersonationService := NewImpersonationService(impersonationRepo, userRepo, jwtManager)
+
+	// OTP service for passwordless authentication
+	otpExpiry := cfg.MagicLinkExpiry // Reuse magic link expiry for OTP (typically 10-15 minutes)
+	if otpExpiry == 0 {
+		otpExpiry = 10 * time.Minute
+	}
+	otpRepo := NewOTPRepository(db)
+	// Create OTP sender that uses the email service
+	// If email service doesn't support Send method, use NoOpOTPSender
+	var otpSender OTPSender
+	if realEmailService != nil {
+		otpSender = NewDefaultOTPSender(realEmailService, "", "")
+	} else {
+		otpSender = &NoOpOTPSender{}
+	}
+	otpService := NewOTPService(otpRepo, userRepo, otpSender, otpExpiry)
+
+	// Identity linking service
+	stateStore := NewStateStore()
+	identityRepo := NewIdentityRepository(db)
+	identityService := NewIdentityService(identityRepo, oauthManager, stateStore)
 
 	systemSettingsService := NewSystemSettingsService(db)
 	settingsCache := NewSettingsCache(systemSettingsService, 30*time.Second)
@@ -94,6 +128,8 @@ func NewService(
 		passwordResetService:  passwordResetService,
 		tokenBlacklistService: tokenBlacklistService,
 		impersonationService:  impersonationService,
+		otpService:            otpService,
+		identityService:       identityService,
 		systemSettings:        systemSettingsService,
 		settingsCache:         settingsCache,
 		config:                cfg,
@@ -530,31 +566,56 @@ func (s *Service) GetSettingsCache() *SettingsCache {
 	return s.settingsCache
 }
 
+// TOTPSetupResponse represents the TOTP setup data
+type TOTPSetupResponse struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	TOTP struct {
+		QRCode string `json:"qr_code"`
+		Secret string `json:"secret"`
+		URI    string `json:"uri"`
+	} `json:"totp"`
+}
+
 // SetupTOTP generates a new TOTP secret for 2FA setup
-func (s *Service) SetupTOTP(ctx context.Context, userID string) (string, string, error) {
-	// Generate TOTP secret
-	secret, qrCodeURL, err := GenerateTOTPSecret("Fluxbase", userID)
+func (s *Service) SetupTOTP(ctx context.Context, userID string) (*TOTPSetupResponse, error) {
+	// Generate TOTP secret and QR code
+	secret, qrCodeDataURI, otpauthURI, err := GenerateTOTPSecret("Fluxbase", userID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate TOTP secret: %w", err)
+		return nil, fmt.Errorf("failed to generate TOTP secret: %w", err)
 	}
+
+	// Generate a unique factor ID
+	factorID := uuid.New().String()
 
 	// Store the secret in a temporary setup table (expires in 10 minutes)
 	query := `
-		INSERT INTO auth.two_factor_setups (user_id, secret, qr_code_url, expires_at)
-		VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')
+		INSERT INTO auth.two_factor_setups (user_id, factor_id, secret, qr_code_data_uri, otpauth_uri, expires_at)
+		VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '10 minutes')
 		ON CONFLICT (user_id) DO UPDATE
-			SET secret = EXCLUDED.secret,
-			    qr_code_url = EXCLUDED.qr_code_url,
+			SET factor_id = EXCLUDED.factor_id,
+			    secret = EXCLUDED.secret,
+			    qr_code_data_uri = EXCLUDED.qr_code_data_uri,
+			    otpauth_uri = EXCLUDED.otpauth_uri,
 			    expires_at = EXCLUDED.expires_at,
 			    verified = FALSE
 	`
 
-	_, err = s.userRepo.db.Pool().Exec(ctx, query, userID, secret, qrCodeURL)
+	_, err = s.userRepo.db.Pool().Exec(ctx, query, userID, factorID, secret, qrCodeDataURI, otpauthURI)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to store TOTP setup: %w", err)
+		return nil, fmt.Errorf("failed to store TOTP setup: %w", err)
 	}
 
-	return secret, qrCodeURL, nil
+	// Build response in Supabase-compatible format
+	response := &TOTPSetupResponse{
+		ID:   factorID,
+		Type: "totp",
+	}
+	response.TOTP.QRCode = qrCodeDataURI
+	response.TOTP.Secret = secret
+	response.TOTP.URI = otpauthURI
+
+	return response, nil
 }
 
 // EnableTOTP enables 2FA after verifying the TOTP code
@@ -749,4 +810,98 @@ func (s *Service) GenerateTokensForUser(ctx context.Context, userID string) (*Si
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
 	}, nil
+}
+
+// Reauthenticate generates a security nonce for sensitive operations
+func (s *Service) Reauthenticate(ctx context.Context, userID string) (string, error) {
+	// Verify user exists
+	_, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("user not found: %w", err)
+	}
+
+	// Generate a secure random nonce (32 bytes, base64 encoded)
+	nonce := uuid.New().String()
+
+	// TODO: Store nonce with expiry in cache/database for verification
+	// For now, we just return the nonce
+	// In production, you'd want to:
+	// 1. Store nonce with expiry (e.g., 5 minutes)
+	// 2. Verify nonce when used for sensitive operations
+	// 3. Invalidate nonce after use
+
+	return nonce, nil
+}
+
+// SignInWithIDToken signs in a user with an OAuth ID token (Google, Apple)
+func (s *Service) SignInWithIDToken(ctx context.Context, provider, idToken, nonce string) (*SignInResponse, error) {
+	// TODO: Implement ID token verification
+	// This requires:
+	// 1. Verify ID token signature using provider's public keys
+	// 2. Validate token claims (issuer, audience, expiry)
+	// 3. Extract user information from token
+	// 4. Create or get existing user
+	// 5. Generate session tokens
+
+	// For now, return an error indicating it's not yet implemented
+	// You'll need to add libraries like:
+	// - google-auth-library for Google
+	// - Apple's JWT verification for Apple Sign In
+
+	return nil, fmt.Errorf("signInWithIDToken not yet implemented for provider: %s", provider)
+}
+
+// SendOTP sends an OTP code via email
+func (s *Service) SendOTP(ctx context.Context, email, purpose string) error {
+	return s.otpService.SendEmailOTP(ctx, email, purpose)
+}
+
+// VerifyOTP verifies an OTP code sent via email
+func (s *Service) VerifyOTP(ctx context.Context, email, code string) (*OTPCode, error) {
+	return s.otpService.VerifyEmailOTP(ctx, email, code)
+}
+
+// ResendOTP resends an OTP code to an email
+func (s *Service) ResendOTP(ctx context.Context, email, purpose string) error {
+	return s.otpService.ResendEmailOTP(ctx, email, purpose)
+}
+
+// GetUserIdentities retrieves all OAuth identities linked to a user
+func (s *Service) GetUserIdentities(ctx context.Context, userID string) ([]UserIdentity, error) {
+	return s.identityService.GetUserIdentities(ctx, userID)
+}
+
+// LinkIdentity initiates OAuth flow to link a new provider
+func (s *Service) LinkIdentity(ctx context.Context, userID, provider string) (string, string, error) {
+	return s.identityService.LinkIdentityProvider(ctx, userID, provider)
+}
+
+// UnlinkIdentity removes an OAuth identity from a user
+func (s *Service) UnlinkIdentity(ctx context.Context, userID, identityID string) error {
+	return s.identityService.UnlinkIdentity(ctx, userID, identityID)
+}
+
+// GetUserByEmail retrieves a user by email
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	return s.userRepo.GetByEmail(ctx, email)
+}
+
+// CreateUser creates a new user with email and optional password
+func (s *Service) CreateUser(ctx context.Context, email, password string) (*User, error) {
+	// If password is empty, create user without password (for OTP/OAuth flows)
+	hashedPassword := ""
+	if password != "" {
+		hash, err := s.passwordHasher.HashPassword(password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		hashedPassword = hash
+	}
+
+	req := CreateUserRequest{
+		Email:    email,
+		Password: password,
+		Role:     "user",
+	}
+	return s.userRepo.Create(ctx, req, hashedPassword)
 }

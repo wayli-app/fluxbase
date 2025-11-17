@@ -156,6 +156,53 @@ func (s *SystemSettingsService) GetSetting(ctx context.Context, key string) (*Sy
 	return &setting, nil
 }
 
+// GetSettings retrieves multiple settings at once using a batch query
+// Returns a map of key -> setting for all found settings
+func (s *SystemSettingsService) GetSettings(ctx context.Context, keys []string) (map[string]*SystemSetting, error) {
+	if len(keys) == 0 {
+		return make(map[string]*SystemSetting), nil
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT id, key, value, description, created_at, updated_at
+		FROM app.settings
+		WHERE key = ANY($1)
+	`, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	settings := make(map[string]*SystemSetting, len(keys))
+	for rows.Next() {
+		var setting SystemSetting
+		var valueJSON []byte
+
+		if err := rows.Scan(
+			&setting.ID,
+			&setting.Key,
+			&valueJSON,
+			&setting.Description,
+			&setting.CreatedAt,
+			&setting.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
+			return nil, err
+		}
+
+		settings[setting.Key] = &setting
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return settings, nil
+}
+
 // SetSetting creates or updates a system setting
 func (s *SystemSettingsService) SetSetting(ctx context.Context, key string, value map[string]interface{}, description string) error {
 	valueJSON, err := json.Marshal(value)
