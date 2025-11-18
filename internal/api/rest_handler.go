@@ -229,7 +229,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 
 			// Convert rows to JSON
 			results, err = pgxRowsToJSON(rows)
-			log.Debug().Interface("results", results).Int("count", len(results)).Msg("Query results")
+			log.Debug().Int("count", len(results)).Msg("Query results")
 			return err
 		})
 		if err != nil {
