@@ -688,7 +688,14 @@ func (h *AuthHandler) SetupTOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	response, err := h.authService.SetupTOTP(c.Context(), userID.(string))
+	// Parse optional issuer from request body
+	var req struct {
+		Issuer string `json:"issuer"` // Optional: custom issuer name for the QR code
+	}
+	// Ignore parse errors - issuer is optional and will default to config value
+	_ = c.BodyParser(&req)
+
+	response, err := h.authService.SetupTOTP(c.Context(), userID.(string), req.Issuer)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID.(string)).Msg("Failed to setup TOTP")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

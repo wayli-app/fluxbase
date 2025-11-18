@@ -49,13 +49,15 @@ type DashboardSession struct {
 type DashboardAuthService struct {
 	db         *pgxpool.Pool
 	jwtManager *JWTManager
+	totpIssuer string // Default TOTP issuer for 2FA
 }
 
 // NewDashboardAuthService creates a new dashboard authentication service
-func NewDashboardAuthService(db *pgxpool.Pool, jwtManager *JWTManager) *DashboardAuthService {
+func NewDashboardAuthService(db *pgxpool.Pool, jwtManager *JWTManager, totpIssuer string) *DashboardAuthService {
 	return &DashboardAuthService{
 		db:         db,
 		jwtManager: jwtManager,
+		totpIssuer: totpIssuer,
 	}
 }
 
@@ -302,10 +304,16 @@ func (s *DashboardAuthService) DeleteAccount(ctx context.Context, userID uuid.UU
 }
 
 // SetupTOTP generates a new TOTP secret for 2FA
-func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, email string) (string, string, error) {
+// If issuer is empty, uses the configured default
+func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, email string, issuer string) (string, string, error) {
+	// Use provided issuer, or fall back to configured default
+	if issuer == "" {
+		issuer = s.totpIssuer
+	}
+
 	// Generate TOTP secret
 	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "Fluxbase",
+		Issuer:      issuer,
 		AccountName: email,
 	})
 	if err != nil {

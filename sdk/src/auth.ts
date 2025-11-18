@@ -330,9 +330,12 @@ export class FluxbaseAuth {
   /**
    * Setup 2FA for the current user (Supabase-compatible)
    * Enrolls a new MFA factor and returns TOTP details
+   * @param issuer - Optional custom issuer name for the QR code (e.g., "MyApp"). If not provided, uses server default.
    * @returns Promise with factor id, type, and TOTP setup details
    */
-  async setup2FA(): Promise<DataResponse<TwoFactorSetupResponse>> {
+  async setup2FA(
+    issuer?: string,
+  ): Promise<DataResponse<TwoFactorSetupResponse>> {
     return wrapAsync(async () => {
       if (!this.session) {
         throw new Error("Not authenticated");
@@ -340,6 +343,7 @@ export class FluxbaseAuth {
 
       return await this.fetch.post<TwoFactorSetupResponse>(
         "/api/v1/auth/2fa/setup",
+        issuer ? { issuer } : undefined,
       );
     });
   }
@@ -718,9 +722,7 @@ export class FluxbaseAuth {
    * @param params - Resend parameters including type and email/phone
    * @returns Promise with OTP-style response
    */
-  async resendOtp(
-    params: ResendOtpParams,
-  ): Promise<DataResponse<OTPResponse>> {
+  async resendOtp(params: ResendOtpParams): Promise<DataResponse<OTPResponse>> {
     return wrapAsync(async () => {
       await this.fetch.post("/api/v1/auth/otp/resend", params);
       // Return Supabase-compatible OTP response

@@ -112,7 +112,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	authHandler := NewAuthHandler(authService)
 	// Create dashboard JWT manager first (shared between auth service and handler)
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
-	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), dashboardJWTManager)
+	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), dashboardJWTManager, cfg.Auth.TOTPIssuer)
 	systemSettingsService := auth.NewSystemSettingsService(db)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
@@ -273,10 +273,9 @@ func (s *Server) setupRoutes() {
 	// API v1 routes - versioned for future compatibility
 	v1 := s.app.Group("/api/v1")
 
-	// Setup RLS middleware if enabled (before REST API routes)
+	// Setup RLS middleware (before REST API routes)
 	rlsConfig := middleware.RLSConfig{
-		DB:      s.db,
-		Enabled: s.config.Auth.EnableRLS,
+		DB: s.db,
 	}
 
 	// REST API routes (auto-generated from database schema)

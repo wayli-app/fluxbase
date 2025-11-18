@@ -66,7 +66,7 @@ type AuthConfig struct {
 	BcryptCost          int           `mapstructure:"bcrypt_cost"`
 	EnableSignup        bool          `mapstructure:"enable_signup"`
 	EnableMagicLink     bool          `mapstructure:"enable_magic_link"`
-	EnableRLS           bool          `mapstructure:"enable_rls"` // Row Level Security enforcement
+	TOTPIssuer          string        `mapstructure:"totp_issuer"` // Issuer name displayed in authenticator apps for 2FA (e.g., "MyApp")
 }
 
 // SecurityConfig contains security-related settings
@@ -283,7 +283,7 @@ func setDefaults() {
 	viper.SetDefault("auth.bcrypt_cost", 10)
 	viper.SetDefault("auth.enable_signup", true) // Default to enabled to allow user registration
 	viper.SetDefault("auth.enable_magic_link", true)
-	viper.SetDefault("auth.enable_rls", true) // Row Level Security enabled by default
+	viper.SetDefault("auth.totp_issuer", "Fluxbase") // Default issuer name for 2FA TOTP (shown in authenticator apps)
 
 	// Security defaults
 	viper.SetDefault("security.enable_global_rate_limit", false) // Disabled by default, enable in production if needed

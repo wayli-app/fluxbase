@@ -36,7 +36,6 @@ auth:
   bcrypt_cost: 10                       # FLUXBASE_AUTH_BCRYPT_COST (4-31, recommended 10-14)
   enable_signup: true                   # FLUXBASE_AUTH_ENABLE_SIGNUP
   enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK
-  enable_rls: true                      # FLUXBASE_AUTH_ENABLE_RLS (Row Level Security)
 
   # Service Keys (optional - for backend services only)
   # Service keys provide elevated privileges that bypass RLS

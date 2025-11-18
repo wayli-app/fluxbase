@@ -343,7 +343,7 @@ func GetTestConfig() *config.Config {
 			BcryptCost:      10,
 			EnableSignup:    true,
 			EnableMagicLink: true,
-			EnableRLS:       true, // Enable RLS for tests
+			TOTPIssuer:      "Fluxbase", // Default TOTP issuer for 2FA
 		},
 		Security: config.SecurityConfig{
 			SetupToken:            "test-setup-token-for-e2e-testing",

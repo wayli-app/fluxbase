@@ -12,18 +12,9 @@ Fluxbase supports PostgreSQL Row Level Security (RLS) to enforce fine-grained ac
 
 ## Configuration
 
-RLS is enabled by default. To disable it, set in your `fluxbase.yaml`:
+RLS is always enabled in Fluxbase as a core security feature and cannot be disabled. This ensures multi-tenant data isolation and defense-in-depth security.
 
-```yaml
-auth:
-  enable_rls: true # Set to false to disable
-```
-
-Or via environment variable:
-
-```bash
-FLUXBASE_AUTH_ENABLE_RLS=false
-```
+For operations that need to bypass RLS (such as administrative tasks), use service keys which have elevated privileges.
 
 ## Helper Functions
 

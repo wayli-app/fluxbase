@@ -17,9 +17,6 @@ type RLSConfig struct {
 	// DB is the database connection pool
 	DB *database.Connection
 
-	// Enabled controls whether RLS enforcement is active
-	Enabled bool
-
 	// SessionVarPrefix is the prefix for PostgreSQL session variables
 	// Default: "app"
 	SessionVarPrefix string
@@ -34,11 +31,6 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 	}
 
 	return func(c *fiber.Ctx) error {
-		// Skip if RLS is disabled
-		if !config.Enabled {
-			return c.Next()
-		}
-
 		// Get user ID from context (set by auth middleware)
 		userID := c.Locals("user_id")
 

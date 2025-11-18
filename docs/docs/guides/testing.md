@@ -362,7 +362,6 @@ func GetTestConfig() *config.Config {
             JWTExpiry:     15 * time.Minute,
             RefreshExpiry: 168 * time.Hour,
             EnableSignup:  true,
-            EnableRLS:     true,
         },
         Debug: true,
     }

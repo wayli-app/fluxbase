@@ -291,7 +291,14 @@ func (h *DashboardAuthHandler) SetupTOTP(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusNotFound, "User not found")
 	}
 
-	secret, qrURL, err := h.authService.SetupTOTP(c.Context(), userID, user.Email)
+	// Parse optional issuer from request body
+	var req struct {
+		Issuer string `json:"issuer"` // Optional: custom issuer name for the QR code
+	}
+	// Ignore parse errors - issuer is optional and will default to config value
+	_ = c.BodyParser(&req)
+
+	secret, qrURL, err := h.authService.SetupTOTP(c.Context(), userID, user.Email, req.Issuer)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to setup 2FA")
 	}

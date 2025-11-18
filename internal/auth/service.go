@@ -578,9 +578,15 @@ type TOTPSetupResponse struct {
 }
 
 // SetupTOTP generates a new TOTP secret for 2FA setup
-func (s *Service) SetupTOTP(ctx context.Context, userID string) (*TOTPSetupResponse, error) {
+// If issuer is empty, uses the configured default from AuthConfig.TOTPIssuer
+func (s *Service) SetupTOTP(ctx context.Context, userID string, issuer string) (*TOTPSetupResponse, error) {
+	// Use provided issuer, or fall back to configured default
+	if issuer == "" {
+		issuer = s.config.TOTPIssuer
+	}
+
 	// Generate TOTP secret and QR code
-	secret, qrCodeDataURI, otpauthURI, err := GenerateTOTPSecret("Fluxbase", userID)
+	secret, qrCodeDataURI, otpauthURI, err := GenerateTOTPSecret(issuer, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate TOTP secret: %w", err)
 	}
