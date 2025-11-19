@@ -69,28 +69,63 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 	}
 }
 
+// mapAppRoleToDatabaseRole maps application-level roles to database-level roles
+// This separates concerns: database roles (anon, authenticated, service_role) for
+// PostgreSQL-level security, and application roles (admin, user, etc.) for business logic
+func mapAppRoleToDatabaseRole(appRole string) string {
+	switch appRole {
+	case "service_role":
+		// Service role maps to itself - has BYPASSRLS privilege
+		return "service_role"
+	case "anon", "":
+		// Anonymous or empty role maps to anon
+		return "anon"
+	default:
+		// All other roles (admin, user, authenticated, dashboard_admin, moderator, etc.)
+		// map to the authenticated database role
+		return "authenticated"
+	}
+}
+
 // SetRLSContext sets PostgreSQL session variables for RLS enforcement
 // This should be called at the beginning of each database transaction
-// Sets Supabase-compatible request.jwt.claims format
+// Uses hybrid approach: SET ROLE for database-level security + request.jwt.claims for app-level authorization
 func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, claims *auth.TokenClaims) error {
-	// Validate role to prevent injection
-	validRoles := map[string]bool{
-		"anon":            true,
-		"authenticated":   true,
-		"admin":           true,
-		"dashboard_admin": true,
-		"service_role":    true,
+	// Map application role to database role for SET ROLE
+	dbRole := mapAppRoleToDatabaseRole(role)
+
+	// Validate database role (defense in depth - should always be one of these three)
+	validDBRoles := map[string]bool{
+		"anon":          true,
+		"authenticated": true,
+		"service_role":  true,
 	}
 
-	if !validRoles[role] {
-		log.Warn().Str("role", role).Msg("Invalid role provided to SetRLSContext")
-		return fmt.Errorf("invalid role: %s", role)
+	if !validDBRoles[dbRole] {
+		log.Error().Str("app_role", role).Str("db_role", dbRole).Msg("Invalid database role after mapping")
+		return fmt.Errorf("invalid database role: %s (mapped from app role: %s)", dbRole, role)
 	}
+
+	// SET LOCAL ROLE for database-level security
+	// This provides defense-in-depth: connection runs with minimal privileges
+	// IMPORTANT: Use identifier to prevent SQL injection (role names are identifiers, not strings)
+	setRoleQuery := fmt.Sprintf("SET LOCAL ROLE %s", dbRole)
+	_, err := tx.Exec(ctx, setRoleQuery)
+	if err != nil {
+		log.Error().Err(err).Str("db_role", dbRole).Msg("Failed to SET LOCAL ROLE")
+		return fmt.Errorf("failed to SET LOCAL ROLE %s: %w", dbRole, err)
+	}
+	log.Debug().
+		Str("app_role", role).
+		Str("db_role", dbRole).
+		Msg("SET LOCAL ROLE executed successfully")
 
 	// Build Supabase-compatible JWT claims JSON
+	// IMPORTANT: Store the ORIGINAL application role (not the mapped database role)
+	// This allows RLS policies to check fine-grained application roles like 'admin', 'moderator', etc.
 	jwtClaims := map[string]interface{}{
 		"sub":  userID, // Supabase uses 'sub' for user ID
-		"role": role,
+		"role": role,   // Original application role (admin, user, etc.) - NOT the database role
 	}
 
 	// Add optional fields if claims are provided
@@ -131,6 +166,40 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 		Str("user_id", userID).
 		Str("role", role).
 		Msg("RLS context set for transaction")
+
+	return nil
+}
+
+// WrapWithServiceRole wraps a database operation with service_role context
+// Used for privileged operations like auth, admin tasks, and webhooks
+// This is equivalent to how Supabase's auth service (GoTrue) uses supabase_auth_admin
+func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func(tx pgx.Tx) error) error {
+	// Start transaction
+	tx, err := conn.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// SET LOCAL ROLE service_role - bypasses RLS for privileged operations
+	// This provides the same security model as Supabase's separate admin connections
+	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to SET LOCAL ROLE service_role")
+		return fmt.Errorf("failed to SET LOCAL ROLE service_role: %w", err)
+	}
+
+	log.Debug().Msg("SET LOCAL ROLE service_role - running privileged operation")
+
+	// Execute the wrapped function
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
 	return nil
 }

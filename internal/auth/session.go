@@ -54,21 +54,23 @@ func (r *SessionRepository) Create(ctx context.Context, userID, accessToken, ref
 		RETURNING id, user_id, access_token, refresh_token, expires_at, created_at
 	`
 
-	err := r.db.QueryRow(ctx, query,
-		session.ID,
-		session.UserID,
-		session.AccessToken,
-		session.RefreshToken,
-		session.ExpiresAt,
-		session.CreatedAt,
-	).Scan(
-		&session.ID,
-		&session.UserID,
-		&session.AccessToken,
-		&session.RefreshToken,
-		&session.ExpiresAt,
-		&session.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			session.ID,
+			session.UserID,
+			session.AccessToken,
+			session.RefreshToken,
+			session.ExpiresAt,
+			session.CreatedAt,
+		).Scan(
+			&session.ID,
+			&session.UserID,
+			&session.AccessToken,
+			&session.RefreshToken,
+			&session.ExpiresAt,
+			&session.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -86,14 +88,16 @@ func (r *SessionRepository) GetByAccessToken(ctx context.Context, accessToken st
 	`
 
 	session := &Session{}
-	err := r.db.QueryRow(ctx, query, accessToken).Scan(
-		&session.ID,
-		&session.UserID,
-		&session.AccessToken,
-		&session.RefreshToken,
-		&session.ExpiresAt,
-		&session.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, accessToken).Scan(
+			&session.ID,
+			&session.UserID,
+			&session.AccessToken,
+			&session.RefreshToken,
+			&session.ExpiresAt,
+			&session.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -119,14 +123,16 @@ func (r *SessionRepository) GetByRefreshToken(ctx context.Context, refreshToken 
 	`
 
 	session := &Session{}
-	err := r.db.QueryRow(ctx, query, refreshToken).Scan(
-		&session.ID,
-		&session.UserID,
-		&session.AccessToken,
-		&session.RefreshToken,
-		&session.ExpiresAt,
-		&session.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, refreshToken).Scan(
+			&session.ID,
+			&session.UserID,
+			&session.AccessToken,
+			&session.RefreshToken,
+			&session.ExpiresAt,
+			&session.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -152,34 +158,38 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	sessions := []*Session{}
-	for rows.Next() {
-		session := &Session{}
-		err := rows.Scan(
-			&session.ID,
-			&session.UserID,
-			&session.AccessToken,
-			&session.RefreshToken,
-			&session.ExpiresAt,
-			&session.CreatedAt,
-		)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, userID)
 		if err != nil {
-			return nil, err
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			session := &Session{}
+			err := rows.Scan(
+				&session.ID,
+				&session.UserID,
+				&session.AccessToken,
+				&session.RefreshToken,
+				&session.ExpiresAt,
+				&session.CreatedAt,
+			)
+			if err != nil {
+				return err
+			}
+
+			// Skip expired sessions
+			if time.Now().Before(session.ExpiresAt) {
+				sessions = append(sessions, session)
+			}
 		}
 
-		// Skip expired sessions
-		if time.Now().Before(session.ExpiresAt) {
-			sessions = append(sessions, session)
-		}
-	}
+		return rows.Err()
+	})
 
-	return sessions, rows.Err()
+	return sessions, err
 }
 
 // UpdateTokens updates the tokens for a session
@@ -190,16 +200,18 @@ func (r *SessionRepository) UpdateTokens(ctx context.Context, id, accessToken, r
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id, accessToken, refreshToken, expiresAt)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, accessToken, refreshToken, expiresAt)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrSessionNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrSessionNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // UpdateAccessToken updates only the access token
@@ -210,68 +222,82 @@ func (r *SessionRepository) UpdateAccessToken(ctx context.Context, id, accessTok
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id, accessToken)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, accessToken)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrSessionNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrSessionNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // Delete deletes a session by ID
 func (r *SessionRepository) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM auth.sessions WHERE id = $1`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrSessionNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrSessionNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // DeleteByAccessToken deletes a session by access token
 func (r *SessionRepository) DeleteByAccessToken(ctx context.Context, accessToken string) error {
 	query := `DELETE FROM auth.sessions WHERE access_token = $1`
 
-	result, err := r.db.Exec(ctx, query, accessToken)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, accessToken)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrSessionNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrSessionNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // DeleteByUserID deletes all sessions for a user
 func (r *SessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
 	query := `DELETE FROM auth.sessions WHERE user_id = $1`
 
-	_, err := r.db.Exec(ctx, query, userID)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID)
+		return err
+	})
 }
 
 // DeleteExpired deletes all expired sessions
 func (r *SessionRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM auth.sessions WHERE expires_at < NOW()`
 
-	result, err := r.db.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
 
-	return result.RowsAffected(), nil
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
+
+	return rowsAffected, err
 }
 
 // Count returns the total number of active sessions
@@ -279,7 +305,9 @@ func (r *SessionRepository) Count(ctx context.Context) (int, error) {
 	query := `SELECT COUNT(*) FROM auth.sessions WHERE expires_at > NOW()`
 
 	var count int
-	err := r.db.QueryRow(ctx, query).Scan(&count)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query).Scan(&count)
+	})
 	return count, err
 }
 
@@ -288,6 +316,8 @@ func (r *SessionRepository) CountByUserID(ctx context.Context, userID string) (i
 	query := `SELECT COUNT(*) FROM auth.sessions WHERE user_id = $1 AND expires_at > NOW()`
 
 	var count int
-	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, userID).Scan(&count)
+	})
 	return count, err
 }

@@ -340,7 +340,7 @@ func GetTestConfig() *config.Config {
 			JWTExpiry:       15 * time.Minute,
 			RefreshExpiry:   7 * 24 * time.Hour,
 			PasswordMinLen:  8,
-			BcryptCost:      10,
+			BcryptCost:      4, // Reduced for test speed (4=~5ms vs 10=~100ms per hash, 20x faster)
 			EnableSignup:    true,
 			EnableMagicLink: true,
 			TOTPIssuer:      "Fluxbase", // Default TOTP issuer for 2FA
@@ -976,6 +976,45 @@ func (tc *TestContext) CreateTestUser(email, password string) (userID, token str
 
 	require.NotEmpty(tc.T, userID, "User ID not returned from signup")
 	require.NotEmpty(tc.T, token, "Access token not returned from signup")
+
+	return userID, token
+}
+
+// CreateTestUserWithRole creates a test user with a specific role, returns userID and JWT token
+func (tc *TestContext) CreateTestUserWithRole(email, password, role string) (userID, token string) {
+	// Create the user normally
+	userID, token = tc.CreateTestUser(email, password)
+
+	// Update the user's role in the database as superuser
+	tc.ExecuteSQLAsSuperuser(`
+		UPDATE auth.users
+		SET role = $1
+		WHERE id = $2
+	`, role, userID)
+
+	// Invalidate the old token and create a new session with the updated role
+	// This ensures the JWT contains the correct role
+	tc.ExecuteSQLAsSuperuser(`
+		DELETE FROM auth.sessions WHERE user_id = $1
+	`, userID)
+
+	// Login again to get a token with the updated role
+	loginResp := tc.NewRequest("POST", "/api/v1/auth/signin").
+		WithBody(map[string]interface{}{
+			"email":    email,
+			"password": password,
+		}).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	var loginResult map[string]interface{}
+	loginResp.JSON(&loginResult)
+
+	if accessToken, ok := loginResult["access_token"].(string); ok {
+		token = accessToken
+	}
+
+	require.NotEmpty(tc.T, token, "Access token not returned from signin")
 
 	return userID, token
 }

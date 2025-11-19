@@ -63,20 +63,22 @@ func (r *MagicLinkRepository) Create(ctx context.Context, email string, expiryDu
 		RETURNING id, email, token, expires_at, used_at, created_at
 	`
 
-	err = r.db.QueryRow(ctx, query,
-		magicLink.ID,
-		magicLink.Email,
-		magicLink.Token,
-		magicLink.ExpiresAt,
-		magicLink.CreatedAt,
-	).Scan(
-		&magicLink.ID,
-		&magicLink.Email,
-		&magicLink.Token,
-		&magicLink.ExpiresAt,
-		&magicLink.UsedAt,
-		&magicLink.CreatedAt,
-	)
+	err = database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			magicLink.ID,
+			magicLink.Email,
+			magicLink.Token,
+			magicLink.ExpiresAt,
+			magicLink.CreatedAt,
+		).Scan(
+			&magicLink.ID,
+			&magicLink.Email,
+			&magicLink.Token,
+			&magicLink.ExpiresAt,
+			&magicLink.UsedAt,
+			&magicLink.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -94,14 +96,16 @@ func (r *MagicLinkRepository) GetByToken(ctx context.Context, token string) (*Ma
 	`
 
 	magicLink := &MagicLink{}
-	err := r.db.QueryRow(ctx, query, token).Scan(
-		&magicLink.ID,
-		&magicLink.Email,
-		&magicLink.Token,
-		&magicLink.ExpiresAt,
-		&magicLink.UsedAt,
-		&magicLink.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, token).Scan(
+			&magicLink.ID,
+			&magicLink.Email,
+			&magicLink.Token,
+			&magicLink.ExpiresAt,
+			&magicLink.UsedAt,
+			&magicLink.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -121,16 +125,18 @@ func (r *MagicLinkRepository) MarkAsUsed(ctx context.Context, id string) error {
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrMagicLinkNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrMagicLinkNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // Validate validates a magic link token
@@ -157,20 +163,27 @@ func (r *MagicLinkRepository) Validate(ctx context.Context, token string) (*Magi
 func (r *MagicLinkRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM auth.magic_links WHERE expires_at < NOW()`
 
-	result, err := r.db.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
 
-	return result.RowsAffected(), nil
+	return rowsAffected, err
 }
 
 // DeleteByEmail deletes all magic links for an email
 func (r *MagicLinkRepository) DeleteByEmail(ctx context.Context, email string) error {
 	query := `DELETE FROM auth.magic_links WHERE email = $1`
 
-	_, err := r.db.Exec(ctx, query, email)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, email)
+		return err
+	})
 }
 
 // GenerateMagicLinkToken generates a secure random token for magic links

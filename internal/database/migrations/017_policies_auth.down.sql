@@ -1,5 +1,10 @@
 -- Drop all auth schema RLS policies
 
+DROP POLICY IF EXISTS mfa_factors_admin_all ON auth.mfa_factors;
+DROP POLICY IF EXISTS mfa_factors_delete_own ON auth.mfa_factors;
+DROP POLICY IF EXISTS mfa_factors_update_own ON auth.mfa_factors;
+DROP POLICY IF EXISTS mfa_factors_insert_own ON auth.mfa_factors;
+DROP POLICY IF EXISTS mfa_factors_select_own ON auth.mfa_factors;
 DROP POLICY IF EXISTS rls_audit_log_user_select ON auth.rls_audit_log;
 DROP POLICY IF EXISTS rls_audit_log_admin_select ON auth.rls_audit_log;
 DROP POLICY IF EXISTS rls_audit_log_service_insert ON auth.rls_audit_log;
@@ -28,11 +33,14 @@ DROP POLICY IF EXISTS magic_links_service_only ON auth.magic_links;
 DROP POLICY IF EXISTS api_key_usage_user_read ON auth.api_key_usage;
 DROP POLICY IF EXISTS api_key_usage_service_write ON auth.api_key_usage;
 DROP POLICY IF EXISTS auth_api_keys_policy ON auth.api_keys;
-DROP POLICY IF EXISTS auth_sessions_delete ON auth.sessions;
-DROP POLICY IF EXISTS auth_sessions_update ON auth.sessions;
-DROP POLICY IF EXISTS auth_sessions_insert ON auth.sessions;
-DROP POLICY IF EXISTS auth_sessions_select ON auth.sessions;
-DROP POLICY IF EXISTS auth_users_delete_policy ON auth.users;
-DROP POLICY IF EXISTS auth_users_update_policy ON auth.users;
+DROP POLICY IF EXISTS auth_sessions_delete_own ON auth.sessions;
+DROP POLICY IF EXISTS auth_sessions_update_own ON auth.sessions;
+DROP POLICY IF EXISTS auth_sessions_select_own ON auth.sessions;
+DROP POLICY IF EXISTS auth_sessions_service_role_all ON auth.sessions;
+DROP POLICY IF EXISTS auth_users_delete_admin ON auth.users;
+DROP POLICY IF EXISTS auth_users_update_own ON auth.users;
 DROP POLICY IF EXISTS auth_users_select_own ON auth.users;
-DROP POLICY IF EXISTS auth_users_insert_policy ON auth.users;
+DROP POLICY IF EXISTS auth_users_service_role_all ON auth.users;
+
+ALTER TABLE auth.sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.users DISABLE ROW LEVEL SECURITY;

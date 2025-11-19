@@ -63,20 +63,22 @@ func (r *PasswordResetRepository) Create(ctx context.Context, userID string, exp
 		RETURNING id, user_id, token, expires_at, used_at, created_at
 	`
 
-	err = r.db.QueryRow(ctx, query,
-		passwordResetToken.ID,
-		passwordResetToken.UserID,
-		passwordResetToken.Token,
-		passwordResetToken.ExpiresAt,
-		passwordResetToken.CreatedAt,
-	).Scan(
-		&passwordResetToken.ID,
-		&passwordResetToken.UserID,
-		&passwordResetToken.Token,
-		&passwordResetToken.ExpiresAt,
-		&passwordResetToken.UsedAt,
-		&passwordResetToken.CreatedAt,
-	)
+	err = database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			passwordResetToken.ID,
+			passwordResetToken.UserID,
+			passwordResetToken.Token,
+			passwordResetToken.ExpiresAt,
+			passwordResetToken.CreatedAt,
+		).Scan(
+			&passwordResetToken.ID,
+			&passwordResetToken.UserID,
+			&passwordResetToken.Token,
+			&passwordResetToken.ExpiresAt,
+			&passwordResetToken.UsedAt,
+			&passwordResetToken.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -94,14 +96,16 @@ func (r *PasswordResetRepository) GetByToken(ctx context.Context, token string) 
 	`
 
 	passwordResetToken := &PasswordResetToken{}
-	err := r.db.QueryRow(ctx, query, token).Scan(
-		&passwordResetToken.ID,
-		&passwordResetToken.UserID,
-		&passwordResetToken.Token,
-		&passwordResetToken.ExpiresAt,
-		&passwordResetToken.UsedAt,
-		&passwordResetToken.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, token).Scan(
+			&passwordResetToken.ID,
+			&passwordResetToken.UserID,
+			&passwordResetToken.Token,
+			&passwordResetToken.ExpiresAt,
+			&passwordResetToken.UsedAt,
+			&passwordResetToken.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -121,16 +125,18 @@ func (r *PasswordResetRepository) MarkAsUsed(ctx context.Context, id string) err
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrPasswordResetTokenNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrPasswordResetTokenNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // Validate validates a password reset token
@@ -157,20 +163,27 @@ func (r *PasswordResetRepository) Validate(ctx context.Context, token string) (*
 func (r *PasswordResetRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM auth.password_reset_tokens WHERE expires_at < NOW()`
 
-	result, err := r.db.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
 
-	return result.RowsAffected(), nil
+	return rowsAffected, err
 }
 
 // DeleteByUserID deletes all password reset tokens for a user
 func (r *PasswordResetRepository) DeleteByUserID(ctx context.Context, userID string) error {
 	query := `DELETE FROM auth.password_reset_tokens WHERE user_id = $1`
 
-	_, err := r.db.Exec(ctx, query, userID)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID)
+		return err
+	})
 }
 
 // GeneratePasswordResetToken generates a secure random token for password resets

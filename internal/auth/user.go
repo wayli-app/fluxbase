@@ -86,28 +86,30 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, query,
-		user.ID,
-		user.Email,
-		user.PasswordHash,
-		user.EmailVerified,
-		user.Role,
-		user.UserMetadata,
-		user.AppMetadata,
-		user.CreatedAt,
-		user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, query,
+			user.ID,
+			user.Email,
+			user.PasswordHash,
+			user.EmailVerified,
+			user.Role,
+			user.UserMetadata,
+			user.AppMetadata,
+			user.CreatedAt,
+			user.UpdatedAt,
+		)
 
-	err := row.Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+		return row.Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		// Check for unique constraint violation
@@ -129,17 +131,19 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 	`
 
 	user := &User{}
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID,
-		&user.Email,
-		&user.PasswordHash,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, id).Scan(
+			&user.ID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -160,17 +164,19 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 	`
 
 	user := &User{}
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID,
-		&user.Email,
-		&user.PasswordHash,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, email).Scan(
+			&user.ID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -235,16 +241,18 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 	`
 
 	user := &User{}
-	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, args...).Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -267,16 +275,18 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id string, newPassw
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id, newPasswordHash)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, newPasswordHash)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // VerifyEmail marks a user's email as verified
@@ -287,32 +297,36 @@ func (r *UserRepository) VerifyEmail(ctx context.Context, id string) error {
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // Delete deletes a user
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM auth.users WHERE id = $1`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // List retrieves users with pagination
@@ -324,32 +338,36 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*User, 
 		LIMIT $1 OFFSET $2
 	`
 
-	rows, err := r.db.Query(ctx, query, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	users := []*User{}
-	for rows.Next() {
-		user := &User{}
-		err := rows.Scan(
-			&user.ID,
-			&user.Email,
-			&user.EmailVerified,
-			&user.Role,
-			&user.UserMetadata,
-			&user.AppMetadata,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, limit, offset)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		users = append(users, user)
-	}
+		defer rows.Close()
 
-	return users, rows.Err()
+		for rows.Next() {
+			user := &User{}
+			err := rows.Scan(
+				&user.ID,
+				&user.Email,
+				&user.EmailVerified,
+				&user.Role,
+				&user.UserMetadata,
+				&user.AppMetadata,
+				&user.CreatedAt,
+				&user.UpdatedAt,
+			)
+			if err != nil {
+				return err
+			}
+			users = append(users, user)
+		}
+
+		return rows.Err()
+	})
+
+	return users, err
 }
 
 // Count returns the total number of users
@@ -357,7 +375,9 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 	query := `SELECT COUNT(*) FROM auth.users`
 
 	var count int
-	err := r.db.QueryRow(ctx, query).Scan(&count)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query).Scan(&count)
+	})
 	return count, err
 }
 
@@ -413,28 +433,30 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 	`, tableName)
 
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		user.ID,
-		user.Email,
-		user.PasswordHash,
-		user.EmailVerified,
-		user.Role,
-		user.UserMetadata,
-		user.AppMetadata,
-		user.CreatedAt,
-		user.UpdatedAt,
-	).Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(
+			ctx,
+			query,
+			user.ID,
+			user.Email,
+			user.PasswordHash,
+			user.EmailVerified,
+			user.Role,
+			user.UserMetadata,
+			user.AppMetadata,
+			user.CreatedAt,
+			user.UpdatedAt,
+		).Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -502,16 +524,18 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 	`, tableName, joinStrings(updates, ", "))
 
 	user := &User{}
-	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, args...).Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if err.Error() == "no rows in result set" {
@@ -533,16 +557,18 @@ func (r *UserRepository) DeleteFromTable(ctx context.Context, id string, userTyp
 
 	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, tableName)
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetByIDFromTable retrieves a user by ID from the specified table
@@ -560,16 +586,18 @@ func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userTy
 	`, tableName)
 
 	user := &User{}
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, id).Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if err.Error() == "no rows in result set" {

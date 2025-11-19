@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Webhook represents a webhook configuration
@@ -72,12 +72,12 @@ type WebhookPayload struct {
 
 // WebhookService manages webhooks
 type WebhookService struct {
-	db     *pgxpool.Pool
+	db     *database.Connection
 	client *http.Client
 }
 
 // NewWebhookService creates a new webhook service
-func NewWebhookService(db *pgxpool.Pool) *WebhookService {
+func NewWebhookService(db *database.Connection) *WebhookService {
 	return &WebhookService{
 		db: db,
 		client: &http.Client{
@@ -104,19 +104,21 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 		RETURNING id, created_at, updated_at
 	`
 
-	err = s.db.QueryRow(ctx, query,
-		webhook.Name,
-		webhook.Description,
-		webhook.URL,
-		webhook.Secret,
-		webhook.Enabled,
-		eventsJSON,
-		webhook.MaxRetries,
-		webhook.RetryBackoffSeconds,
-		webhook.TimeoutSeconds,
-		headersJSON,
-		webhook.CreatedBy,
-	).Scan(&webhook.ID, &webhook.CreatedAt, &webhook.UpdatedAt)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			webhook.Name,
+			webhook.Description,
+			webhook.URL,
+			webhook.Secret,
+			webhook.Enabled,
+			eventsJSON,
+			webhook.MaxRetries,
+			webhook.RetryBackoffSeconds,
+			webhook.TimeoutSeconds,
+			headersJSON,
+			webhook.CreatedBy,
+		).Scan(&webhook.ID, &webhook.CreatedAt, &webhook.UpdatedAt)
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to create webhook: %w", err)
@@ -133,46 +135,53 @@ func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.db.Query(ctx, query)
+	var webhooks []*Webhook
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var webhook Webhook
+			var eventsJSON, headersJSON []byte
+
+			err := rows.Scan(
+				&webhook.ID,
+				&webhook.Name,
+				&webhook.Description,
+				&webhook.URL,
+				&webhook.Secret,
+				&webhook.Enabled,
+				&eventsJSON,
+				&webhook.MaxRetries,
+				&webhook.RetryBackoffSeconds,
+				&webhook.TimeoutSeconds,
+				&headersJSON,
+				&webhook.CreatedBy,
+				&webhook.CreatedAt,
+				&webhook.UpdatedAt,
+			)
+			if err != nil {
+				return err
+			}
+
+			if err := json.Unmarshal(eventsJSON, &webhook.Events); err != nil {
+				return err
+			}
+
+			if err := json.Unmarshal(headersJSON, &webhook.Headers); err != nil {
+				return err
+			}
+
+			webhooks = append(webhooks, &webhook)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list webhooks: %w", err)
-	}
-	defer rows.Close()
-
-	var webhooks []*Webhook
-	for rows.Next() {
-		var webhook Webhook
-		var eventsJSON, headersJSON []byte
-
-		err := rows.Scan(
-			&webhook.ID,
-			&webhook.Name,
-			&webhook.Description,
-			&webhook.URL,
-			&webhook.Secret,
-			&webhook.Enabled,
-			&eventsJSON,
-			&webhook.MaxRetries,
-			&webhook.RetryBackoffSeconds,
-			&webhook.TimeoutSeconds,
-			&headersJSON,
-			&webhook.CreatedBy,
-			&webhook.CreatedAt,
-			&webhook.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan webhook: %w", err)
-		}
-
-		if err := json.Unmarshal(eventsJSON, &webhook.Events); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal events: %w", err)
-		}
-
-		if err := json.Unmarshal(headersJSON, &webhook.Headers); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal headers: %w", err)
-		}
-
-		webhooks = append(webhooks, &webhook)
 	}
 
 	return webhooks, nil
@@ -189,22 +198,24 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 	var webhook Webhook
 	var eventsJSON, headersJSON []byte
 
-	err := s.db.QueryRow(ctx, query, id).Scan(
-		&webhook.ID,
-		&webhook.Name,
-		&webhook.Description,
-		&webhook.URL,
-		&webhook.Secret,
-		&webhook.Enabled,
-		&eventsJSON,
-		&webhook.MaxRetries,
-		&webhook.RetryBackoffSeconds,
-		&webhook.TimeoutSeconds,
-		&headersJSON,
-		&webhook.CreatedBy,
-		&webhook.CreatedAt,
-		&webhook.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, id).Scan(
+			&webhook.ID,
+			&webhook.Name,
+			&webhook.Description,
+			&webhook.URL,
+			&webhook.Secret,
+			&webhook.Enabled,
+			&eventsJSON,
+			&webhook.MaxRetries,
+			&webhook.RetryBackoffSeconds,
+			&webhook.TimeoutSeconds,
+			&headersJSON,
+			&webhook.CreatedBy,
+			&webhook.CreatedAt,
+			&webhook.UpdatedAt,
+		)
+	})
 
 	if err == pgx.ErrNoRows {
 		return nil, fmt.Errorf("webhook not found")
@@ -243,26 +254,34 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 		WHERE id = $11
 	`
 
-	result, err := s.db.Exec(ctx, query,
-		webhook.Name,
-		webhook.Description,
-		webhook.URL,
-		webhook.Secret,
-		webhook.Enabled,
-		eventsJSON,
-		webhook.MaxRetries,
-		webhook.RetryBackoffSeconds,
-		webhook.TimeoutSeconds,
-		headersJSON,
-		id,
-	)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query,
+			webhook.Name,
+			webhook.Description,
+			webhook.URL,
+			webhook.Secret,
+			webhook.Enabled,
+			eventsJSON,
+			webhook.MaxRetries,
+			webhook.RetryBackoffSeconds,
+			webhook.TimeoutSeconds,
+			headersJSON,
+			id,
+		)
+
+		if err != nil {
+			return err
+		}
+
+		if result.RowsAffected() == 0 {
+			return fmt.Errorf("webhook not found")
+		}
+
+		return nil
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to update webhook: %w", err)
-	}
-
-	if result.RowsAffected() == 0 {
-		return fmt.Errorf("webhook not found")
 	}
 
 	return nil
@@ -272,13 +291,20 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 func (s *WebhookService) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM auth.webhooks WHERE id = $1`
 
-	result, err := s.db.Exec(ctx, query, id)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
+
+		if result.RowsAffected() == 0 {
+			return fmt.Errorf("webhook not found")
+		}
+
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to delete webhook: %w", err)
-	}
-
-	if result.RowsAffected() == 0 {
-		return fmt.Errorf("webhook not found")
 	}
 
 	return nil
@@ -402,7 +428,10 @@ func (s *WebhookService) markDeliverySuccess(ctx context.Context, deliveryID uui
 		WHERE id = $3
 	`
 
-	_, err := s.db.Exec(ctx, query, statusCode, responseBody, deliveryID)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, statusCode, responseBody, deliveryID)
+		return err
+	})
 	if err != nil {
 		log.Error().Err(err).Str("delivery_id", deliveryID.String()).Msg("Failed to mark delivery as success")
 	}
@@ -416,7 +445,10 @@ func (s *WebhookService) markDeliveryFailed(ctx context.Context, deliveryID uuid
 		WHERE id = $4
 	`
 
-	_, err := s.db.Exec(ctx, query, statusCode, responseBody, errorMsg, deliveryID)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, statusCode, responseBody, errorMsg, deliveryID)
+		return err
+	})
 	if err != nil {
 		log.Error().Err(err).Str("delivery_id", deliveryID.String()).Msg("Failed to mark delivery as failed")
 	}
@@ -433,37 +465,44 @@ func (s *WebhookService) ListDeliveries(ctx context.Context, webhookID uuid.UUID
 		LIMIT $2
 	`
 
-	rows, err := s.db.Query(ctx, query, webhookID, limit)
+	var deliveries []*WebhookDelivery
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, webhookID, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var delivery WebhookDelivery
+
+			err := rows.Scan(
+				&delivery.ID,
+				&delivery.WebhookID,
+				&delivery.EventType,
+				&delivery.TableName,
+				&delivery.RecordID,
+				&delivery.Payload,
+				&delivery.AttemptNumber,
+				&delivery.Status,
+				&delivery.HTTPStatusCode,
+				&delivery.ResponseBody,
+				&delivery.ErrorMessage,
+				&delivery.CreatedAt,
+				&delivery.DeliveredAt,
+				&delivery.NextRetryAt,
+			)
+			if err != nil {
+				return err
+			}
+
+			deliveries = append(deliveries, &delivery)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deliveries: %w", err)
-	}
-	defer rows.Close()
-
-	var deliveries []*WebhookDelivery
-	for rows.Next() {
-		var delivery WebhookDelivery
-
-		err := rows.Scan(
-			&delivery.ID,
-			&delivery.WebhookID,
-			&delivery.EventType,
-			&delivery.TableName,
-			&delivery.RecordID,
-			&delivery.Payload,
-			&delivery.AttemptNumber,
-			&delivery.Status,
-			&delivery.HTTPStatusCode,
-			&delivery.ResponseBody,
-			&delivery.ErrorMessage,
-			&delivery.CreatedAt,
-			&delivery.DeliveredAt,
-			&delivery.NextRetryAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan delivery: %w", err)
-		}
-
-		deliveries = append(deliveries, &delivery)
 	}
 
 	return deliveries, nil

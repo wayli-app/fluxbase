@@ -334,6 +334,20 @@ func grantRLSTestPermissions() {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant function execution permissions to test users")
 	}
+
+	// Grant permissions to anon and authenticated roles for test tables in public schema
+	// This is needed because our security changes restricted anon's broad schema access
+	_, err = db.Exec(ctx, `
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.products to both roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO anon, authenticated;
+		GRANT USAGE ON SEQUENCE products_id_seq TO anon, authenticated;
+
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.tasks to both roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.tasks TO anon, authenticated;
+	`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to grant permissions to anon/authenticated roles on test tables")
+	}
 }
 
 // teardownTestTables drops the test tables after all tests complete

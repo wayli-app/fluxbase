@@ -81,34 +81,36 @@ func (r *OTPRepository) Create(ctx context.Context, email *string, phone *string
 		RETURNING id, email, phone, code, type, purpose, expires_at, used, used_at, attempts, max_attempts, ip_address, user_agent, created_at
 	`
 
-	err = r.db.QueryRow(ctx, query,
-		otpCode.ID,
-		otpCode.Email,
-		otpCode.Phone,
-		otpCode.Code,
-		otpCode.Type,
-		otpCode.Purpose,
-		otpCode.ExpiresAt,
-		otpCode.Used,
-		otpCode.Attempts,
-		otpCode.MaxAttempts,
-		otpCode.CreatedAt,
-	).Scan(
-		&otpCode.ID,
-		&otpCode.Email,
-		&otpCode.Phone,
-		&otpCode.Code,
-		&otpCode.Type,
-		&otpCode.Purpose,
-		&otpCode.ExpiresAt,
-		&otpCode.Used,
-		&otpCode.UsedAt,
-		&otpCode.Attempts,
-		&otpCode.MaxAttempts,
-		&otpCode.IPAddress,
-		&otpCode.UserAgent,
-		&otpCode.CreatedAt,
-	)
+	err = database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			otpCode.ID,
+			otpCode.Email,
+			otpCode.Phone,
+			otpCode.Code,
+			otpCode.Type,
+			otpCode.Purpose,
+			otpCode.ExpiresAt,
+			otpCode.Used,
+			otpCode.Attempts,
+			otpCode.MaxAttempts,
+			otpCode.CreatedAt,
+		).Scan(
+			&otpCode.ID,
+			&otpCode.Email,
+			&otpCode.Phone,
+			&otpCode.Code,
+			&otpCode.Type,
+			&otpCode.Purpose,
+			&otpCode.ExpiresAt,
+			&otpCode.Used,
+			&otpCode.UsedAt,
+			&otpCode.Attempts,
+			&otpCode.MaxAttempts,
+			&otpCode.IPAddress,
+			&otpCode.UserAgent,
+			&otpCode.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -145,22 +147,24 @@ func (r *OTPRepository) GetByCode(ctx context.Context, email *string, phone *str
 	}
 
 	otpCode := &OTPCode{}
-	err := r.db.QueryRow(ctx, query, args...).Scan(
-		&otpCode.ID,
-		&otpCode.Email,
-		&otpCode.Phone,
-		&otpCode.Code,
-		&otpCode.Type,
-		&otpCode.Purpose,
-		&otpCode.ExpiresAt,
-		&otpCode.Used,
-		&otpCode.UsedAt,
-		&otpCode.Attempts,
-		&otpCode.MaxAttempts,
-		&otpCode.IPAddress,
-		&otpCode.UserAgent,
-		&otpCode.CreatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, args...).Scan(
+			&otpCode.ID,
+			&otpCode.Email,
+			&otpCode.Phone,
+			&otpCode.Code,
+			&otpCode.Type,
+			&otpCode.Purpose,
+			&otpCode.ExpiresAt,
+			&otpCode.Used,
+			&otpCode.UsedAt,
+			&otpCode.Attempts,
+			&otpCode.MaxAttempts,
+			&otpCode.IPAddress,
+			&otpCode.UserAgent,
+			&otpCode.CreatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -180,16 +184,18 @@ func (r *OTPRepository) IncrementAttempts(ctx context.Context, id string) error 
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrOTPNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrOTPNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // MarkAsUsed marks an OTP code as used
@@ -200,16 +206,18 @@ func (r *OTPRepository) MarkAsUsed(ctx context.Context, id string) error {
 		WHERE id = $1
 	`
 
-	result, err := r.db.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrOTPNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrOTPNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // Validate validates an OTP code
@@ -248,28 +256,37 @@ func (r *OTPRepository) Validate(ctx context.Context, email *string, phone *stri
 func (r *OTPRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM auth.otp_codes WHERE expires_at < NOW()`
 
-	result, err := r.db.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
 
-	return result.RowsAffected(), nil
+	return rowsAffected, err
 }
 
 // DeleteByEmail deletes all OTP codes for an email
 func (r *OTPRepository) DeleteByEmail(ctx context.Context, email string) error {
 	query := `DELETE FROM auth.otp_codes WHERE email = $1`
 
-	_, err := r.db.Exec(ctx, query, email)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, email)
+		return err
+	})
 }
 
 // DeleteByPhone deletes all OTP codes for a phone number
 func (r *OTPRepository) DeleteByPhone(ctx context.Context, phone string) error {
 	query := `DELETE FROM auth.otp_codes WHERE phone = $1`
 
-	_, err := r.db.Exec(ctx, query, phone)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, phone)
+		return err
+	})
 }
 
 // GenerateOTPCode generates a secure random numeric OTP code

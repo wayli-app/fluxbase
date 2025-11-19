@@ -238,9 +238,15 @@ func TestExampleDuplicateKeyError(t *testing.T) {
 
 	apiKey := tc.CreateAPIKey("Example API Key", nil)
 
-	// Add unique constraint for this test
+	// Add unique constraint for this test (drop first in case it exists from previous failed run)
+	// Drop both constraint and index since UNIQUE constraints create an underlying index
+	tc.ExecuteSQL("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_key")
+	tc.ExecuteSQL("DROP INDEX IF EXISTS products_name_key")
 	tc.ExecuteSQL("ALTER TABLE products ADD CONSTRAINT products_name_key UNIQUE (name)")
-	defer tc.ExecuteSQL("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_key")
+	defer func() {
+		tc.ExecuteSQL("ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_key")
+		tc.ExecuteSQL("DROP INDEX IF EXISTS products_name_key")
+	}()
 
 	// Create initial product
 	tc.NewRequest("POST", "/api/v1/tables/products").

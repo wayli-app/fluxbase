@@ -63,33 +63,33 @@ func (r *ImpersonationRepository) Create(ctx context.Context, session *Impersona
 		RETURNING id, admin_user_id, target_user_id, impersonation_type, target_role, reason, started_at, ended_at, ip_address, user_agent, is_active
 	`
 
-	row := r.db.QueryRow(ctx, query,
-		session.ID,
-		session.AdminUserID,
-		session.TargetUserID,
-		session.ImpersonationType,
-		session.TargetRole,
-		session.Reason,
-		session.StartedAt,
-		session.IPAddress,
-		session.UserAgent,
-		session.IsActive,
-	)
-
 	result := &ImpersonationSession{}
-	err := row.Scan(
-		&result.ID,
-		&result.AdminUserID,
-		&result.TargetUserID,
-		&result.ImpersonationType,
-		&result.TargetRole,
-		&result.Reason,
-		&result.StartedAt,
-		&result.EndedAt,
-		&result.IPAddress,
-		&result.UserAgent,
-		&result.IsActive,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			session.ID,
+			session.AdminUserID,
+			session.TargetUserID,
+			session.ImpersonationType,
+			session.TargetRole,
+			session.Reason,
+			session.StartedAt,
+			session.IPAddress,
+			session.UserAgent,
+			session.IsActive,
+		).Scan(
+			&result.ID,
+			&result.AdminUserID,
+			&result.TargetUserID,
+			&result.ImpersonationType,
+			&result.TargetRole,
+			&result.Reason,
+			&result.StartedAt,
+			&result.EndedAt,
+			&result.IPAddress,
+			&result.UserAgent,
+			&result.IsActive,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -106,16 +106,18 @@ func (r *ImpersonationRepository) EndSession(ctx context.Context, sessionID stri
 		WHERE id = $1 AND is_active = true
 	`
 
-	result, err := r.db.Exec(ctx, query, sessionID)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, sessionID)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrNoActiveImpersonation
-	}
+		if result.RowsAffected() == 0 {
+			return ErrNoActiveImpersonation
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // GetActiveByAdmin gets the active impersonation session for an admin
@@ -129,19 +131,21 @@ func (r *ImpersonationRepository) GetActiveByAdmin(ctx context.Context, adminUse
 	`
 
 	session := &ImpersonationSession{}
-	err := r.db.QueryRow(ctx, query, adminUserID).Scan(
-		&session.ID,
-		&session.AdminUserID,
-		&session.TargetUserID,
-		&session.ImpersonationType,
-		&session.TargetRole,
-		&session.Reason,
-		&session.StartedAt,
-		&session.EndedAt,
-		&session.IPAddress,
-		&session.UserAgent,
-		&session.IsActive,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, adminUserID).Scan(
+			&session.ID,
+			&session.AdminUserID,
+			&session.TargetUserID,
+			&session.ImpersonationType,
+			&session.TargetRole,
+			&session.Reason,
+			&session.StartedAt,
+			&session.EndedAt,
+			&session.IPAddress,
+			&session.UserAgent,
+			&session.IsActive,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -163,35 +167,39 @@ func (r *ImpersonationRepository) ListByAdmin(ctx context.Context, adminUserID s
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := r.db.Query(ctx, query, adminUserID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	sessions := []*ImpersonationSession{}
-	for rows.Next() {
-		session := &ImpersonationSession{}
-		err := rows.Scan(
-			&session.ID,
-			&session.AdminUserID,
-			&session.TargetUserID,
-			&session.ImpersonationType,
-			&session.TargetRole,
-			&session.Reason,
-			&session.StartedAt,
-			&session.EndedAt,
-			&session.IPAddress,
-			&session.UserAgent,
-			&session.IsActive,
-		)
+	var sessions []*ImpersonationSession
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, adminUserID, limit, offset)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		sessions = append(sessions, session)
-	}
+		defer rows.Close()
 
-	return sessions, rows.Err()
+		for rows.Next() {
+			session := &ImpersonationSession{}
+			err := rows.Scan(
+				&session.ID,
+				&session.AdminUserID,
+				&session.TargetUserID,
+				&session.ImpersonationType,
+				&session.TargetRole,
+				&session.Reason,
+				&session.StartedAt,
+				&session.EndedAt,
+				&session.IPAddress,
+				&session.UserAgent,
+				&session.IsActive,
+			)
+			if err != nil {
+				return err
+			}
+			sessions = append(sessions, session)
+		}
+
+		return rows.Err()
+	})
+
+	return sessions, err
 }
 
 // ImpersonationService provides business logic for admin impersonation

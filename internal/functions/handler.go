@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
@@ -21,7 +22,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *pgxpool.Pool, functionsDir string) *Handler {
+func NewHandler(db *database.Connection, functionsDir string) *Handler {
 	return &Handler{
 		storage:      NewStorage(db),
 		runtime:      NewDenoRuntime(),

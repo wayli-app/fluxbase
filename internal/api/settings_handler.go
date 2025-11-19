@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/database"
+	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // SettingsHandler handles public settings operations with RLS support
@@ -51,18 +52,46 @@ func (h *SettingsHandler) GetSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Determine database role based on authentication
-	role := h.getDatabaseRole(c)
+	var value interface{}
+	var queryErr error
 
-	// Execute query with appropriate role
-	value, err := h.getSettingWithRole(ctx, key, role)
+	// Use WrapWithRLS to properly set database role + JWT claims
+	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		// Query the setting (RLS policies will be applied)
+		var valueJSON []byte
+		queryErr = tx.QueryRow(ctx, `
+			SELECT value
+			FROM app.settings
+			WHERE key = $1
+		`, key).Scan(&valueJSON)
+
+		if queryErr != nil {
+			return queryErr
+		}
+
+		// Unmarshal the JSON value
+		var valueMap map[string]interface{}
+		if err := json.Unmarshal(valueJSON, &valueMap); err != nil {
+			return err
+		}
+
+		// Extract the actual value from the value map
+		if val, ok := valueMap["value"]; ok {
+			value = val
+		} else {
+			value = valueMap
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "Setting not found or access denied",
 			})
 		}
-		log.Error().Err(err).Str("key", key).Str("role", role).Msg("Failed to get setting")
+		log.Error().Err(err).Str("key", key).Msg("Failed to get setting")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve setting",
 		})
@@ -97,13 +126,49 @@ func (h *SettingsHandler) GetSettings(c *fiber.Ctx) error {
 		})
 	}
 
-	// Determine database role based on authentication
-	role := h.getDatabaseRole(c)
+	results := make(map[string]interface{})
 
-	// Execute query with appropriate role
-	results, err := h.getSettingsWithRole(ctx, req.Keys, role)
+	// Use WrapWithRLS to properly set database role + JWT claims
+	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		// Query the settings (RLS policies will be applied)
+		rows, err := tx.Query(ctx, `
+			SELECT key, value
+			FROM app.settings
+			WHERE key = ANY($1)
+		`, req.Keys)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		// Build results map
+		for rows.Next() {
+			var key string
+			var valueJSON []byte
+
+			if err := rows.Scan(&key, &valueJSON); err != nil {
+				return err
+			}
+
+			// Unmarshal the JSON value
+			var valueMap map[string]interface{}
+			if err := json.Unmarshal(valueJSON, &valueMap); err != nil {
+				return err
+			}
+
+			// Extract the actual value from the value map
+			if val, ok := valueMap["value"]; ok {
+				results[key] = val
+			} else {
+				results[key] = valueMap
+			}
+		}
+
+		return rows.Err()
+	})
+
 	if err != nil {
-		log.Error().Err(err).Str("role", role).Msg("Failed to get settings")
+		log.Error().Err(err).Msg("Failed to get settings")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to retrieve settings",
 		})
@@ -119,138 +184,4 @@ func (h *SettingsHandler) GetSettings(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(response)
-}
-
-// getDatabaseRole determines the PostgreSQL role based on authentication context
-func (h *SettingsHandler) getDatabaseRole(c *fiber.Ctx) string {
-	// Check if user is authenticated by looking for user_id in context
-	userID := c.Locals("user_id")
-
-	if userID != nil {
-		// User is authenticated
-		return "authenticated"
-	}
-
-	// User is not authenticated (anonymous)
-	return "anon"
-}
-
-// getSettingWithRole retrieves a single setting with the specified database role
-func (h *SettingsHandler) getSettingWithRole(ctx context.Context, key string, role string) (interface{}, error) {
-	conn, err := h.db.Pool().Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Release()
-
-	// Start a transaction to ensure role is scoped
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	// Set the database role for RLS
-	_, err = tx.Exec(ctx, "SET LOCAL ROLE "+role)
-	if err != nil {
-		return nil, err
-	}
-
-	// Query the setting (RLS policies will be applied)
-	var valueJSON []byte
-	err = tx.QueryRow(ctx, `
-		SELECT value
-		FROM app.settings
-		WHERE key = $1
-	`, key).Scan(&valueJSON)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the JSON value
-	var valueMap map[string]interface{}
-	if err := json.Unmarshal(valueJSON, &valueMap); err != nil {
-		return nil, err
-	}
-
-	// Commit transaction
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-
-	// Extract the actual value from the value map
-	if val, ok := valueMap["value"]; ok {
-		return val, nil
-	}
-
-	return valueMap, nil
-}
-
-// getSettingsWithRole retrieves multiple settings with the specified database role
-func (h *SettingsHandler) getSettingsWithRole(ctx context.Context, keys []string, role string) (map[string]interface{}, error) {
-	conn, err := h.db.Pool().Acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Release()
-
-	// Start a transaction to ensure role is scoped
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	// Set the database role for RLS
-	_, err = tx.Exec(ctx, "SET LOCAL ROLE "+role)
-	if err != nil {
-		return nil, err
-	}
-
-	// Query the settings (RLS policies will be applied)
-	rows, err := tx.Query(ctx, `
-		SELECT key, value
-		FROM app.settings
-		WHERE key = ANY($1)
-	`, keys)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Build results map
-	results := make(map[string]interface{})
-	for rows.Next() {
-		var key string
-		var valueJSON []byte
-
-		if err := rows.Scan(&key, &valueJSON); err != nil {
-			return nil, err
-		}
-
-		// Unmarshal the JSON value
-		var valueMap map[string]interface{}
-		if err := json.Unmarshal(valueJSON, &valueMap); err != nil {
-			return nil, err
-		}
-
-		// Extract the actual value from the value map
-		if val, ok := valueMap["value"]; ok {
-			results[key] = val
-		} else {
-			results[key] = valueMap
-		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// Commit transaction
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-
-	return results, nil
 }

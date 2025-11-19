@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Scheduler manages scheduled execution of edge functions via cron
@@ -26,7 +26,7 @@ type Scheduler struct {
 }
 
 // NewScheduler creates a new scheduler for edge functions
-func NewScheduler(db *pgxpool.Pool) *Scheduler {
+func NewScheduler(db *database.Connection) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Scheduler{

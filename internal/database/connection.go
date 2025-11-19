@@ -382,3 +382,37 @@ func truncateQuery(query string, maxLen int) string {
 	}
 	return query[:maxLen] + "... (truncated)"
 }
+
+// WrapWithServiceRole wraps a database operation with service_role context
+// Used for privileged operations like auth, admin tasks, and webhooks
+// This is equivalent to how Supabase's auth service (GoTrue) uses supabase_auth_admin
+func WrapWithServiceRole(ctx context.Context, conn *Connection, fn func(tx pgx.Tx) error) error {
+	// Start transaction
+	tx, err := conn.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// SET LOCAL ROLE service_role - bypasses RLS for privileged operations
+	// This provides the same security model as Supabase's separate admin connections
+	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to SET LOCAL ROLE service_role")
+		return fmt.Errorf("failed to SET LOCAL ROLE service_role: %w", err)
+	}
+
+	log.Debug().Msg("SET LOCAL ROLE service_role - running privileged operation")
+
+	// Execute the wrapped function
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}

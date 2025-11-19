@@ -43,15 +43,16 @@ func (r *TokenBlacklistRepository) Add(ctx context.Context, jti, userID, reason 
 		ON CONFLICT (token_jti) DO NOTHING
 	`
 
-	_, err := r.db.Exec(ctx, query,
-		uuid.New().String(),
-		jti,
-		userID,
-		reason,
-		expiresAt,
-	)
-
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query,
+			uuid.New().String(),
+			jti,
+			userID,
+			reason,
+			expiresAt,
+		)
+		return err
+	})
 }
 
 // IsBlacklisted checks if a token JTI is in the blacklist
@@ -64,7 +65,9 @@ func (r *TokenBlacklistRepository) IsBlacklisted(ctx context.Context, jti string
 	`
 
 	var exists bool
-	err := r.db.QueryRow(ctx, query, jti).Scan(&exists)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, jti).Scan(&exists)
+	})
 	if err != nil {
 		return false, err
 	}
@@ -81,14 +84,16 @@ func (r *TokenBlacklistRepository) GetByJTI(ctx context.Context, jti string) (*T
 	`
 
 	entry := &TokenBlacklistEntry{}
-	err := r.db.QueryRow(ctx, query, jti).Scan(
-		&entry.ID,
-		&entry.TokenJTI,
-		&entry.UserID,
-		&entry.Reason,
-		&entry.RevokedAt,
-		&entry.ExpiresAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, jti).Scan(
+			&entry.ID,
+			&entry.TokenJTI,
+			&entry.UserID,
+			&entry.Reason,
+			&entry.RevokedAt,
+			&entry.ExpiresAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -117,35 +122,43 @@ func (r *TokenBlacklistRepository) RevokeAllUserTokens(ctx context.Context, user
 	// Use a special JTI pattern for "all tokens" revocation
 	specialJTI := "user:" + userID + ":all:" + uuid.New().String()
 
-	_, err := r.db.Exec(ctx, query,
-		uuid.New().String(),
-		specialJTI,
-		userID,
-		reason,
-		time.Now().Add(24*time.Hour), // Revoke for 24 hours (longer than max token lifetime)
-	)
-
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query,
+			uuid.New().String(),
+			specialJTI,
+			userID,
+			reason,
+			time.Now().Add(24*time.Hour), // Revoke for 24 hours (longer than max token lifetime)
+		)
+		return err
+	})
 }
 
 // DeleteExpired removes expired tokens from the blacklist
 func (r *TokenBlacklistRepository) DeleteExpired(ctx context.Context) (int64, error) {
 	query := `DELETE FROM auth.token_blacklist WHERE expires_at < NOW()`
 
-	result, err := r.db.Exec(ctx, query)
-	if err != nil {
-		return 0, err
-	}
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
 
-	return result.RowsAffected(), nil
+	return rowsAffected, err
 }
 
 // DeleteByUser removes all blacklist entries for a user
 func (r *TokenBlacklistRepository) DeleteByUser(ctx context.Context, userID string) error {
 	query := `DELETE FROM auth.token_blacklist WHERE user_id = $1`
 
-	_, err := r.db.Exec(ctx, query, userID)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID)
+		return err
+	})
 }
 
 // TokenBlacklistService provides token blacklisting/revocation functionality

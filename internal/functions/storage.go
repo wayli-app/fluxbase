@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // EdgeFunction represents a stored edge function
@@ -52,11 +53,11 @@ type EdgeFunctionExecution struct {
 
 // Storage manages edge function persistence
 type Storage struct {
-	db *pgxpool.Pool
+	db *database.Connection
 }
 
 // NewStorage creates a new storage manager
-func NewStorage(db *pgxpool.Pool) *Storage {
+func NewStorage(db *database.Connection) *Storage {
 	return &Storage{db: db}
 }
 
@@ -71,11 +72,13 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 		RETURNING id, version, created_at, updated_at
 	`
 
-	err := s.db.QueryRow(ctx, query,
-		fn.Name, fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
-		fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
-		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.CronSchedule, fn.CreatedBy,
-	).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			fn.Name, fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
+			fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
+			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.CronSchedule, fn.CreatedBy,
+		).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to create function: %w", err)
@@ -95,12 +98,14 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 	`
 
 	fn := &EdgeFunction{}
-	err := s.db.QueryRow(ctx, query, name).Scan(
-		&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
-		&fn.Version, &fn.CronSchedule, &fn.Enabled,
-		&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
-		&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
-	)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, name).Scan(
+			&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+			&fn.Version, &fn.CronSchedule, &fn.Enabled,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
+			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+		)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get function: %w", err)
@@ -119,25 +124,32 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 		ORDER BY created_at DESC
 	`
 
-	rows, err := s.db.Query(ctx, query)
+	var functions []EdgeFunction
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			fn := EdgeFunction{}
+			err := rows.Scan(
+				&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+				&fn.Version, &fn.CronSchedule, &fn.Enabled,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+			)
+			if err != nil {
+				return err
+			}
+			functions = append(functions, fn)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list functions: %w", err)
-	}
-	defer rows.Close()
-
-	var functions []EdgeFunction
-	for rows.Next() {
-		fn := EdgeFunction{}
-		err := rows.Scan(
-			&fn.ID, &fn.Name, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
-			&fn.Version, &fn.CronSchedule, &fn.Enabled,
-			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated,
-			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan function: %w", err)
-		}
-		functions = append(functions, fn)
 	}
 
 	return functions, nil
@@ -162,7 +174,10 @@ func (s *Storage) UpdateFunction(ctx context.Context, name string, updates map[s
 	query += fmt.Sprintf(" WHERE name = $%d", argCount)
 	args = append(args, name)
 
-	_, err := s.db.Exec(ctx, query, args...)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, args...)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update function: %w", err)
 	}
@@ -173,7 +188,10 @@ func (s *Storage) UpdateFunction(ctx context.Context, name string, updates map[s
 // DeleteFunction deletes a function by name
 func (s *Storage) DeleteFunction(ctx context.Context, name string) error {
 	query := "DELETE FROM functions.edge_functions WHERE name = $1"
-	_, err := s.db.Exec(ctx, query, name)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, name)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to delete function: %w", err)
 	}
@@ -190,10 +208,12 @@ func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution)
 		RETURNING id, started_at
 	`
 
-	err := s.db.QueryRow(ctx, query,
-		exec.FunctionID, exec.TriggerType, exec.Status, exec.StatusCode,
-		exec.DurationMs, exec.Result, exec.Logs, exec.ErrorMessage, exec.CompletedAt,
-	).Scan(&exec.ID, &exec.ExecutedAt)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			exec.FunctionID, exec.TriggerType, exec.Status, exec.StatusCode,
+			exec.DurationMs, exec.Result, exec.Logs, exec.ErrorMessage, exec.CompletedAt,
+		).Scan(&exec.ID, &exec.ExecutedAt)
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to log execution: %w", err)
@@ -215,24 +235,31 @@ func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit 
 		LIMIT $2
 	`
 
-	rows, err := s.db.Query(ctx, query, functionName, limit)
+	var executions []EdgeFunctionExecution
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, functionName, limit)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			exec := EdgeFunctionExecution{}
+			err := rows.Scan(
+				&exec.ID, &exec.FunctionID, &exec.TriggerType, &exec.Status, &exec.StatusCode,
+				&exec.DurationMs, &exec.Result, &exec.Logs, &exec.ErrorMessage,
+				&exec.ExecutedAt, &exec.CompletedAt,
+			)
+			if err != nil {
+				return err
+			}
+			executions = append(executions, exec)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executions: %w", err)
-	}
-	defer rows.Close()
-
-	var executions []EdgeFunctionExecution
-	for rows.Next() {
-		exec := EdgeFunctionExecution{}
-		err := rows.Scan(
-			&exec.ID, &exec.FunctionID, &exec.TriggerType, &exec.Status, &exec.StatusCode,
-			&exec.DurationMs, &exec.Result, &exec.Logs, &exec.ErrorMessage,
-			&exec.ExecutedAt, &exec.CompletedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan execution: %w", err)
-		}
-		executions = append(executions, exec)
 	}
 
 	return executions, nil

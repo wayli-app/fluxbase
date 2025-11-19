@@ -6,8 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // WebhookEvent represents an event waiting to be delivered
@@ -30,7 +31,7 @@ type WebhookEvent struct {
 
 // TriggerService manages webhook event processing
 type TriggerService struct {
-	db              *pgxpool.Pool
+	db              *database.Connection
 	webhookSvc      *WebhookService
 	workers         int
 	backlogInterval time.Duration
@@ -42,7 +43,7 @@ type TriggerService struct {
 }
 
 // NewTriggerService creates a new webhook trigger service
-func NewTriggerService(db *pgxpool.Pool, webhookSvc *WebhookService, workers int) *TriggerService {
+func NewTriggerService(db *database.Connection, webhookSvc *WebhookService, workers int) *TriggerService {
 	if workers <= 0 {
 		workers = 4
 	}
@@ -114,7 +115,7 @@ func (s *TriggerService) Stop() {
 
 // listen listens for PostgreSQL notifications about new webhook events
 func (s *TriggerService) listen(ctx context.Context) {
-	conn, err := s.db.Acquire(ctx)
+	conn, err := s.db.Pool().Acquire(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to acquire connection for webhook listener")
 		return
@@ -208,37 +209,43 @@ func (s *TriggerService) processWebhookEvents(ctx context.Context, webhookID uui
 		LIMIT 10
 	`
 
-	rows, err := s.db.Query(ctx, query, webhookID)
+	var events []WebhookEvent
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, webhookID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var event WebhookEvent
+			err := rows.Scan(
+				&event.ID,
+				&event.WebhookID,
+				&event.EventType,
+				&event.TableSchema,
+				&event.TableName,
+				&event.RecordID,
+				&event.OldData,
+				&event.NewData,
+				&event.Processed,
+				&event.Attempts,
+				&event.LastAttemptAt,
+				&event.NextRetryAt,
+				&event.ErrorMessage,
+				&event.CreatedAt,
+			)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to scan webhook event")
+				continue
+			}
+			events = append(events, event)
+		}
+		return nil
+	})
 	if err != nil {
 		log.Error().Err(err).Str("webhook_id", webhookID.String()).Msg("Failed to query webhook events")
 		return
-	}
-	defer rows.Close()
-
-	var events []WebhookEvent
-	for rows.Next() {
-		var event WebhookEvent
-		err := rows.Scan(
-			&event.ID,
-			&event.WebhookID,
-			&event.EventType,
-			&event.TableSchema,
-			&event.TableName,
-			&event.RecordID,
-			&event.OldData,
-			&event.NewData,
-			&event.Processed,
-			&event.Attempts,
-			&event.LastAttemptAt,
-			&event.NextRetryAt,
-			&event.ErrorMessage,
-			&event.CreatedAt,
-		)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to scan webhook event")
-			continue
-		}
-		events = append(events, event)
 	}
 
 	if len(events) == 0 {
@@ -310,7 +317,10 @@ func (s *TriggerService) handleDeliveryFailure(ctx context.Context, event *Webho
 			    error_message = $2
 			WHERE id = $3
 		`
-		_, err := s.db.Exec(ctx, query, attempts, errorMsg, event.ID)
+		err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, query, attempts, errorMsg, event.ID)
+			return err
+		})
 		if err != nil {
 			log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to mark event as failed")
 		}
@@ -336,7 +346,10 @@ func (s *TriggerService) handleDeliveryFailure(ctx context.Context, event *Webho
 		    error_message = $3
 		WHERE id = $4
 	`
-	_, err := s.db.Exec(ctx, query, attempts, nextRetry, errorMsg, event.ID)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, attempts, nextRetry, errorMsg, event.ID)
+		return err
+	})
 	if err != nil {
 		log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to update event retry info")
 	}
@@ -350,7 +363,10 @@ func (s *TriggerService) markEventSuccess(ctx context.Context, eventID uuid.UUID
 		    last_attempt_at = NOW()
 		WHERE id = $1
 	`
-	_, err := s.db.Exec(ctx, query, eventID)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, eventID)
+		return err
+	})
 	if err != nil {
 		log.Error().Err(err).Str("event_id", eventID.String()).Msg("Failed to mark event as success")
 	}
@@ -387,28 +403,34 @@ func (s *TriggerService) checkForRetries(ctx context.Context) {
 		LIMIT 50
 	`
 
-	rows, err := s.db.Query(ctx, query)
+	var count int
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var webhookID uuid.UUID
+			if err := rows.Scan(&webhookID); err != nil {
+				log.Error().Err(err).Msg("Failed to scan webhook ID")
+				continue
+			}
+
+			// Queue webhook for processing
+			select {
+			case s.eventChan <- webhookID:
+				count++
+			default:
+				log.Warn().Str("webhook_id", webhookID.String()).Msg("Event channel full, will retry next cycle")
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to query webhooks needing retry")
 		return
-	}
-	defer rows.Close()
-
-	var count int
-	for rows.Next() {
-		var webhookID uuid.UUID
-		if err := rows.Scan(&webhookID); err != nil {
-			log.Error().Err(err).Msg("Failed to scan webhook ID")
-			continue
-		}
-
-		// Queue webhook for processing
-		select {
-		case s.eventChan <- webhookID:
-			count++
-		default:
-			log.Warn().Str("webhook_id", webhookID.String()).Msg("Event channel full, will retry next cycle")
-		}
 	}
 
 	if count > 0 {
@@ -438,13 +460,20 @@ func (s *TriggerService) cleanupOldEvents(ctx context.Context) {
 		  AND created_at < NOW() - INTERVAL '7 days'
 	`
 
-	result, err := s.db.Exec(ctx, query)
+	var rowsAffected int64
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+		rowsAffected = result.RowsAffected()
+		return nil
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to cleanup old webhook events")
 		return
 	}
 
-	rowsAffected := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Info().Int64("rows_deleted", rowsAffected).Msg("Cleaned up old webhook events")
 	}

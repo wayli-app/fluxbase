@@ -6,9 +6,45 @@ Fluxbase supports PostgreSQL Row Level Security (RLS) to enforce fine-grained ac
 
 ## How It Works
 
-1. **Session Variables**: When a request is authenticated, the RLS middleware sets PostgreSQL session variables (`app.user_id` and `app.role`)
-2. **RLS Policies**: PostgreSQL policies use these session variables to filter rows automatically
-3. **Transparent Enforcement**: The application code doesn't need to worry about access control - PostgreSQL handles it
+Fluxbase uses a **hybrid approach** that combines PostgreSQL role-based security with JWT claim-based authorization for defense-in-depth:
+
+1. **Database Role Mapping**: Application roles from JWT tokens are mapped to PostgreSQL database roles:
+   - `service_role` → `service_role` (bypasses RLS)
+   - `anon` (or empty) → `anon` (unauthenticated access)
+   - All other roles (`admin`, `user`, `moderator`, etc.) → `authenticated` (authenticated access)
+
+2. **SET ROLE (Layer 1)**: The connection executes `SET LOCAL ROLE <database_role>` to run with minimal privileges
+   - Provides database-level security (connection can only access tables granted to the role)
+   - Enforces role-based table permissions (GRANT/REVOKE)
+
+3. **JWT Claims (Layer 2)**: Full JWT claims (including original application role) are stored in `request.jwt.claims` session variable
+   - Allows fine-grained application-level authorization in RLS policies
+   - Policies can check `auth.role() = 'admin'` for specific application roles
+   - Custom metadata (`user_metadata`, `app_metadata`) available for complex authorization
+
+4. **RLS Policies**: PostgreSQL policies use both layers for defense-in-depth
+   - Can use PostgreSQL role syntax: `FOR ALL TO authenticated`
+   - Can check application roles: `USING (auth.role() = 'admin')`
+   - Transparent enforcement - application code doesn't need to worry about access control
+
+### Role Mapping Example
+
+| JWT Token Role    | Database Role   | Use Case                                                             |
+| ----------------- | --------------- | -------------------------------------------------------------------- |
+| `service_role`    | `service_role`  | Internal services, magic links, admin operations (bypasses RLS)      |
+| `anon`            | `anon`          | Unauthenticated users (public read-only access)                      |
+| `admin`           | `authenticated` | Application admins (checked in policies via `auth.role() = 'admin'`) |
+| `user`            | `authenticated` | Regular users (default authenticated access)                         |
+| `moderator`       | `authenticated` | Moderators (checked in policies via `auth.role() = 'moderator'`)     |
+| `dashboard_admin` | `authenticated` | Dashboard admins (checked in policies)                               |
+| `custom_role`     | `authenticated` | Any custom application role you define                               |
+
+This separation means:
+
+- ✅ You can use any application role value in your JWTs without creating PostgreSQL roles
+- ✅ Database runs with minimal privileges (defense-in-depth)
+- ✅ Policies can still check fine-grained application roles
+- ✅ No need to run `CREATE ROLE` for each application role
 
 ## Configuration
 
@@ -149,6 +185,119 @@ CREATE POLICY tasks_admin_all ON public.tasks
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.tasks TO authenticated;
 GRANT SELECT ON public.tasks TO anon;
 ```
+
+## Defense-in-Depth: Using Both Security Layers
+
+The hybrid approach allows you to write policies that leverage **both** database-level roles and application-level roles for maximum security.
+
+### Example: Admin-Only Table
+
+```sql
+CREATE TABLE public.admin_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key TEXT NOT NULL,
+    value JSONB NOT NULL
+);
+
+ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_settings FORCE ROW LEVEL SECURITY;
+
+-- Layer 1: Only authenticated role can access (blocks anon at database level)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.admin_settings TO authenticated;
+
+-- Layer 2: Within authenticated users, only check admin role from JWT claims
+CREATE POLICY admin_settings_policy ON public.admin_settings
+    FOR ALL TO authenticated  -- Database role requirement
+    USING (auth.role() = 'admin')  -- Application role requirement
+    WITH CHECK (auth.role() = 'admin');
+```
+
+**How this provides defense-in-depth:**
+
+1. Unauthenticated users (`anon` role) are blocked by GRANT - can't even query the table
+2. Authenticated users with non-admin roles (`user`, `moderator`, etc.) are blocked by the policy
+3. Only authenticated users with `admin` in their JWT can access the data
+
+### Example: Public Read, Admin Write
+
+```sql
+CREATE TABLE public.announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements FORCE ROW LEVEL SECURITY;
+
+-- Layer 1: Grant read to everyone, write only to authenticated
+GRANT SELECT ON public.announcements TO anon;
+GRANT ALL ON public.announcements TO authenticated;
+
+-- Layer 2: Anyone can read (public), only admins can write
+CREATE POLICY announcements_select_all ON public.announcements
+    FOR SELECT
+    USING (true);  -- Everyone can read
+
+CREATE POLICY announcements_write_admin ON public.announcements
+    FOR INSERT
+    TO authenticated  -- Must be authenticated (database role)
+    WITH CHECK (auth.role() = 'admin');  -- Must be admin (application role)
+
+CREATE POLICY announcements_update_admin ON public.announcements
+    FOR UPDATE
+    TO authenticated
+    USING (auth.role() = 'admin')
+    WITH CHECK (auth.role() = 'admin');
+
+CREATE POLICY announcements_delete_admin ON public.announcements
+    FOR DELETE
+    TO authenticated
+    USING (auth.role() = 'admin');
+```
+
+### Example: Custom Role with Metadata
+
+```sql
+CREATE TABLE public.projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    owner_id UUID NOT NULL REFERENCES auth.users(id)
+);
+
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projects FORCE ROW LEVEL SECURITY;
+
+GRANT ALL ON public.projects TO authenticated;
+
+-- Users can access projects if:
+-- 1. They own the project, OR
+-- 2. Their team_id (from app_metadata) matches the project's team_id
+CREATE POLICY projects_access ON public.projects
+    FOR ALL
+    TO authenticated
+    USING (
+        owner_id = auth.uid()
+        OR team_id::text = (auth.jwt() -> 'app_metadata' ->> 'team_id')
+    )
+    WITH CHECK (
+        owner_id = auth.uid()
+        OR team_id::text = (auth.jwt() -> 'app_metadata' ->> 'team_id')
+    );
+```
+
+### Why This Approach is Secure
+
+| Attack Vector           | Defense                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| SQL Injection in role   | Prevented: `SET ROLE` only accepts validated database roles (`anon`, `authenticated`, `service_role`)    |
+| Forged application role | Mitigated: JWT signature must be valid; only trusted auth service can issue tokens                       |
+| Privilege escalation    | Prevented: Can't gain database permissions beyond granted role; application role checked in every policy |
+| Bypassing RLS           | Prevented: `FORCE ROW LEVEL SECURITY` requires even table owners to follow policies                      |
+| Missing policy          | Protected: Without policy, default is DENY; must explicitly grant access                                 |
+| Lateral movement        | Limited: Connection runs as minimal privilege role; can't access tables not granted to role              |
 
 ## Testing RLS
 

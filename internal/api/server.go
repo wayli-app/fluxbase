@@ -94,10 +94,10 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	}
 
 	// Initialize webhook service
-	webhookService := webhook.NewWebhookService(db.Pool())
+	webhookService := webhook.NewWebhookService(db)
 
 	// Initialize webhook trigger service (4 workers)
-	webhookTriggerService := webhook.NewTriggerService(db.Pool(), webhookService, 4)
+	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)
 
 	// Initialize user management service
 	userMgmtService := auth.NewUserManagementService(
@@ -112,7 +112,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	authHandler := NewAuthHandler(authService)
 	// Create dashboard JWT manager first (shared between auth service and handler)
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
-	dashboardAuthService := auth.NewDashboardAuthService(db.Pool(), dashboardJWTManager, cfg.Auth.TOTPIssuer)
+	dashboardAuthService := auth.NewDashboardAuthService(db, dashboardJWTManager, cfg.Auth.TOTPIssuer)
 	systemSettingsService := auth.NewSystemSettingsService(db)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
 	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
@@ -134,8 +134,8 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
-	functionsHandler := functions.NewHandler(db.Pool(), cfg.Functions.FunctionsDir)
-	functionsScheduler := functions.NewScheduler(db.Pool())
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir)
+	functionsScheduler := functions.NewScheduler(db)
 	functionsHandler.SetScheduler(functionsScheduler)
 
 	// Create realtime components

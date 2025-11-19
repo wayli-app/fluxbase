@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp/totp"
+	"github.com/wayli-app/fluxbase/internal/database"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -47,13 +47,13 @@ type DashboardSession struct {
 
 // DashboardAuthService handles authentication for dashboard administrators
 type DashboardAuthService struct {
-	db         *pgxpool.Pool
+	db         *database.Connection
 	jwtManager *JWTManager
 	totpIssuer string // Default TOTP issuer for 2FA
 }
 
 // NewDashboardAuthService creates a new dashboard authentication service
-func NewDashboardAuthService(db *pgxpool.Pool, jwtManager *JWTManager, totpIssuer string) *DashboardAuthService {
+func NewDashboardAuthService(db *database.Connection, jwtManager *JWTManager, totpIssuer string) *DashboardAuthService {
 	return &DashboardAuthService{
 		db:         db,
 		jwtManager: jwtManager,
@@ -61,8 +61,8 @@ func NewDashboardAuthService(db *pgxpool.Pool, jwtManager *JWTManager, totpIssue
 	}
 }
 
-// GetDB returns the database connection pool
-func (s *DashboardAuthService) GetDB() *pgxpool.Pool {
+// GetDB returns the database connection
+func (s *DashboardAuthService) GetDB() *database.Connection {
 	return s.db
 }
 
@@ -76,16 +76,18 @@ func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, 
 
 	// Create user
 	user := &DashboardUser{}
-	err = s.db.QueryRow(ctx, `
-		INSERT INTO dashboard.users (email, password_hash, full_name, email_verified)
-		VALUES ($1, $2, $3, false)
-		RETURNING id, email, email_verified, full_name, avatar_url, totp_enabled,
-		          is_active, is_locked, last_login_at, created_at, updated_at
-	`, email, hashedPassword, fullName).Scan(
-		&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-		&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
-		&user.CreatedAt, &user.UpdatedAt,
-	)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			INSERT INTO dashboard.users (email, password_hash, full_name, email_verified)
+			VALUES ($1, $2, $3, false)
+			RETURNING id, email, email_verified, full_name, avatar_url, totp_enabled,
+			          is_active, is_locked, last_login_at, created_at, updated_at
+		`, email, hashedPassword, fullName).Scan(
+			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
+			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.CreatedAt, &user.UpdatedAt,
+		)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -96,7 +98,9 @@ func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, 
 // HasExistingUsers checks if any dashboard users exist
 func (s *DashboardAuthService) HasExistingUsers(ctx context.Context) (bool, error) {
 	var count int
-	err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM dashboard.users WHERE deleted_at IS NULL`).Scan(&count)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT COUNT(*) FROM dashboard.users WHERE deleted_at IS NULL`).Scan(&count)
+	})
 	if err != nil {
 		return false, fmt.Errorf("failed to check existing users: %w", err)
 	}
@@ -117,17 +121,19 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	var passwordHash string
 	var failedAttempts int
 
-	err := s.db.QueryRow(ctx, `
-		SELECT id, email, email_verified, password_hash, full_name, avatar_url,
-		       totp_enabled, is_active, is_locked, failed_login_attempts,
-		       last_login_at, created_at, updated_at
-		FROM dashboard.users
-		WHERE email = $1 AND deleted_at IS NULL
-	`, email).Scan(
-		&user.ID, &user.Email, &user.EmailVerified, &passwordHash, &user.FullName,
-		&user.AvatarURL, &user.TOTPEnabled, &user.IsActive, &user.IsLocked,
-		&failedAttempts, &user.LastLoginAt, &user.CreatedAt, &user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT id, email, email_verified, password_hash, full_name, avatar_url,
+			       totp_enabled, is_active, is_locked, failed_login_attempts,
+			       last_login_at, created_at, updated_at
+			FROM dashboard.users
+			WHERE email = $1 AND deleted_at IS NULL
+		`, email).Scan(
+			&user.ID, &user.Email, &user.EmailVerified, &passwordHash, &user.FullName,
+			&user.AvatarURL, &user.TOTPEnabled, &user.IsActive, &user.IsLocked,
+			&failedAttempts, &user.LastLoginAt, &user.CreatedAt, &user.UpdatedAt,
+		)
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, errors.New("invalid credentials")
@@ -149,22 +155,28 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
 		// Increment failed login attempts
-		_, _ = s.db.Exec(ctx, `
-			UPDATE dashboard.users
-			SET failed_login_attempts = failed_login_attempts + 1,
-			    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END
-			WHERE id = $1
-		`, user.ID)
+		_ = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `
+				UPDATE dashboard.users
+				SET failed_login_attempts = failed_login_attempts + 1,
+				    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END
+				WHERE id = $1
+			`, user.ID)
+			return err
+		})
 		return nil, nil, errors.New("invalid credentials")
 	}
 
 	// Reset failed attempts on successful login
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET failed_login_attempts = 0,
-		    last_login_at = NOW()
-		WHERE id = $1
-	`, user.ID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET failed_login_attempts = 0,
+			    last_login_at = NOW()
+			WHERE id = $1
+		`, user.ID)
+		return err
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to update login timestamp: %w", err)
 	}
@@ -186,18 +198,24 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	}
 
 	// Delete any existing sessions for this user (allow only one active session)
-	_, err = s.db.Exec(ctx, `
-		DELETE FROM dashboard.sessions WHERE user_id = $1
-	`, user.ID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			DELETE FROM dashboard.sessions WHERE user_id = $1
+		`, user.ID)
+		return err
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to clean up old sessions: %w", err)
 	}
 
 	// Create new session record with session ID from token
-	_, err = s.db.Exec(ctx, `
-		INSERT INTO dashboard.sessions (id, user_id, token, ip_address, user_agent, expires_at)
-		VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '24 hours')
-	`, sessionID, user.ID, tokenHash, ipAddressStr, userAgent)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO dashboard.sessions (id, user_id, token, ip_address, user_agent, expires_at)
+			VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '24 hours')
+		`, sessionID, user.ID, tokenHash, ipAddressStr, userAgent)
+		return err
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -217,9 +235,11 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string, ipAddress net.IP, userAgent string) error {
 	// Fetch current password hash
 	var currentHash string
-	err := s.db.QueryRow(ctx, `
-		SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(&currentHash)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
+		`, userID).Scan(&currentHash)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to fetch user: %w", err)
 	}
@@ -237,11 +257,14 @@ func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.U
 	}
 
 	// Update password
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET password_hash = $1, updated_at = NOW()
-		WHERE id = $2
-	`, newHash, userID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET password_hash = $1, updated_at = NOW()
+			WHERE id = $2
+		`, newHash, userID)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -254,11 +277,14 @@ func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.U
 
 // UpdateProfile updates a dashboard user's profile information
 func (s *DashboardAuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName string, avatarURL *string) error {
-	_, err := s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET full_name = $1, avatar_url = $2, updated_at = NOW()
-		WHERE id = $3 AND deleted_at IS NULL
-	`, fullName, avatarURL, userID)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET full_name = $1, avatar_url = $2, updated_at = NOW()
+			WHERE id = $3 AND deleted_at IS NULL
+		`, fullName, avatarURL, userID)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
 	}
@@ -270,9 +296,11 @@ func (s *DashboardAuthService) UpdateProfile(ctx context.Context, userID uuid.UU
 func (s *DashboardAuthService) DeleteAccount(ctx context.Context, userID uuid.UUID, password string, ipAddress net.IP, userAgent string) error {
 	// Verify password
 	var passwordHash string
-	err := s.db.QueryRow(ctx, `
-		SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(&passwordHash)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
+		`, userID).Scan(&passwordHash)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to fetch user: %w", err)
 	}
@@ -283,19 +311,25 @@ func (s *DashboardAuthService) DeleteAccount(ctx context.Context, userID uuid.UU
 	}
 
 	// Soft delete account
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET deleted_at = NOW(), updated_at = NOW()
-		WHERE id = $1
-	`, userID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET deleted_at = NOW(), updated_at = NOW()
+			WHERE id = $1
+		`, userID)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to delete account: %w", err)
 	}
 
 	// Delete all sessions
-	_, _ = s.db.Exec(ctx, `
-		DELETE FROM dashboard.sessions WHERE user_id = $1
-	`, userID)
+	_ = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			DELETE FROM dashboard.sessions WHERE user_id = $1
+		`, userID)
+		return err
+	})
 
 	// Log activity
 	s.logActivity(ctx, userID, "account_delete", "user", userID.String(), ipAddress, userAgent, nil)
@@ -323,11 +357,14 @@ func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, 
 	secret := key.Secret()
 
 	// Store secret (not yet enabled)
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET totp_secret = $1, totp_enabled = false, updated_at = NOW()
-		WHERE id = $2
-	`, secret, userID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET totp_secret = $1, totp_enabled = false, updated_at = NOW()
+			WHERE id = $2
+		`, secret, userID)
+		return err
+	})
 	if err != nil {
 		return "", "", fmt.Errorf("failed to store TOTP secret: %w", err)
 	}
@@ -340,9 +377,11 @@ func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, 
 func (s *DashboardAuthService) EnableTOTP(ctx context.Context, userID uuid.UUID, code string, ipAddress net.IP, userAgent string) ([]string, error) {
 	// Fetch TOTP secret
 	var secret string
-	err := s.db.QueryRow(ctx, `
-		SELECT totp_secret FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(&secret)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT totp_secret FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
+		`, userID).Scan(&secret)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch TOTP secret: %w", err)
 	}
@@ -376,11 +415,14 @@ func (s *DashboardAuthService) EnableTOTP(ctx context.Context, userID uuid.UUID,
 	}
 
 	// Enable TOTP and store backup codes
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET totp_enabled = true, backup_codes = $1, updated_at = NOW()
-		WHERE id = $2
-	`, hashedBackupCodes, userID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET totp_enabled = true, backup_codes = $1, updated_at = NOW()
+			WHERE id = $2
+		`, hashedBackupCodes, userID)
+		return err
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable TOTP: %w", err)
 	}
@@ -396,11 +438,13 @@ func (s *DashboardAuthService) VerifyTOTP(ctx context.Context, userID uuid.UUID,
 	// Fetch TOTP secret and backup codes
 	var secret string
 	var backupCodes []string
-	err := s.db.QueryRow(ctx, `
-		SELECT totp_secret, COALESCE(backup_codes, ARRAY[]::text[])
-		FROM dashboard.users
-		WHERE id = $1 AND deleted_at IS NULL AND totp_enabled = true
-	`, userID).Scan(&secret, &backupCodes)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT totp_secret, COALESCE(backup_codes, ARRAY[]::text[])
+			FROM dashboard.users
+			WHERE id = $1 AND deleted_at IS NULL AND totp_enabled = true
+		`, userID).Scan(&secret, &backupCodes)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to fetch TOTP data: %w", err)
 	}
@@ -417,11 +461,14 @@ func (s *DashboardAuthService) VerifyTOTP(ctx context.Context, userID uuid.UUID,
 		if err == nil {
 			// Remove used backup code
 			newBackupCodes := append(backupCodes[:i], backupCodes[i+1:]...)
-			_, err = s.db.Exec(ctx, `
-				UPDATE dashboard.users
-				SET backup_codes = $1, updated_at = NOW()
-				WHERE id = $2
-			`, newBackupCodes, userID)
+			err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+				_, err := tx.Exec(ctx, `
+					UPDATE dashboard.users
+					SET backup_codes = $1, updated_at = NOW()
+					WHERE id = $2
+				`, newBackupCodes, userID)
+				return err
+			})
 			if err != nil {
 				return fmt.Errorf("failed to update backup codes: %w", err)
 			}
@@ -436,9 +483,11 @@ func (s *DashboardAuthService) VerifyTOTP(ctx context.Context, userID uuid.UUID,
 func (s *DashboardAuthService) DisableTOTP(ctx context.Context, userID uuid.UUID, password string, ipAddress net.IP, userAgent string) error {
 	// Verify password
 	var passwordHash string
-	err := s.db.QueryRow(ctx, `
-		SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(&passwordHash)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT password_hash FROM dashboard.users WHERE id = $1 AND deleted_at IS NULL
+		`, userID).Scan(&passwordHash)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to fetch user: %w", err)
 	}
@@ -449,11 +498,14 @@ func (s *DashboardAuthService) DisableTOTP(ctx context.Context, userID uuid.UUID
 	}
 
 	// Disable TOTP
-	_, err = s.db.Exec(ctx, `
-		UPDATE dashboard.users
-		SET totp_enabled = false, totp_secret = NULL, backup_codes = NULL, updated_at = NOW()
-		WHERE id = $1
-	`, userID)
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE dashboard.users
+			SET totp_enabled = false, totp_secret = NULL, backup_codes = NULL, updated_at = NOW()
+			WHERE id = $1
+		`, userID)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to disable TOTP: %w", err)
 	}
@@ -467,16 +519,18 @@ func (s *DashboardAuthService) DisableTOTP(ctx context.Context, userID uuid.UUID
 // GetUserByID fetches a dashboard user by ID
 func (s *DashboardAuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*DashboardUser, error) {
 	user := &DashboardUser{}
-	err := s.db.QueryRow(ctx, `
-		SELECT id, email, email_verified, full_name, avatar_url, totp_enabled,
-		       is_active, is_locked, last_login_at, created_at, updated_at
-		FROM dashboard.users
-		WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(
-		&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-		&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
-		&user.CreatedAt, &user.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT id, email, email_verified, full_name, avatar_url, totp_enabled,
+			       is_active, is_locked, last_login_at, created_at, updated_at
+			FROM dashboard.users
+			WHERE id = $1 AND deleted_at IS NULL
+		`, userID).Scan(
+			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
+			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.CreatedAt, &user.UpdatedAt,
+		)
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errors.New("user not found")
@@ -513,10 +567,13 @@ func (s *DashboardAuthService) logActivity(ctx context.Context, userID uuid.UUID
 		userAgentPtr = &userAgent
 	}
 
-	_, _ = s.db.Exec(ctx, `
-		INSERT INTO dashboard.activity_log (user_id, action, resource_type, resource_id, ip_address, user_agent, details)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, userID, action, resourceTypePtr, resourceIDPtr, ipAddressStr, userAgentPtr, metadata)
+	_ = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO dashboard.activity_log (user_id, action, resource_type, resource_id, ip_address, user_agent, details)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, userID, action, resourceTypePtr, resourceIDPtr, ipAddressStr, userAgentPtr, metadata)
+		return err
+	})
 }
 
 // generateBackupCode generates a random 8-character backup code

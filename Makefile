@@ -96,6 +96,9 @@ test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minu
 test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
 	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=5m ./test/e2e/...
 
+test-e2e-fast: ## Run e2e tests without race detector (faster for dev iteration)
+	@./scripts/test-runner.sh go test -v -parallel=1 -timeout=3m ./test/e2e/...
+
 test-auth: ## Run authentication tests only
 	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
 
@@ -214,11 +217,14 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS _fluxbase CASCADE;" || true
 	@echo "${YELLOW}Creating _fluxbase schema for migration tracking...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;" || true
-	@echo "${YELLOW}Running migrations...${NC}"
-	@migrate -path internal/database/migrations -database 'postgresql://postgres:postgres@postgres:5432/fluxbase_dev?sslmode=disable&x-migrations-table="_fluxbase"."schema_migrations"&x-migrations-table-quoted=1' up
-	@echo "${YELLOW}Granting BYPASSRLS permission to postgres user (admin)...${NC}"
+	@echo "${YELLOW}Ensuring test users exist with correct permissions...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'fluxbase_app') THEN CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN CREATEDB BYPASSRLS; END IF; END \$$\$$;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'fluxbase_rls_test') THEN CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN; END IF; END \$$\$$;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER postgres WITH BYPASSRLS;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER postgres SET search_path TO public;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "ALTER USER fluxbase_app WITH BYPASSRLS;" || true
+	@echo "${YELLOW}Running migrations...${NC}"
+	@migrate -path internal/database/migrations -database 'postgresql://postgres:postgres@postgres:5432/fluxbase_dev?sslmode=disable&x-migrations-table="_fluxbase"."schema_migrations"&x-migrations-table-quoted=1' up
 	@echo "${YELLOW}Granting permissions to test users (fluxbase_app, fluxbase_rls_test)...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true

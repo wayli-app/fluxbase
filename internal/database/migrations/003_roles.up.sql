@@ -44,7 +44,26 @@ GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA functions TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA dashboard TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
--- Note: Specific table permissions will be managed through RLS policies
--- The dashboard and app schemas contain admin settings, access controlled via RLS
+-- Grant application users permission to SET ROLE to anon, authenticated, service_role
+-- This allows the RLS middleware to execute SET LOCAL ROLE for defense-in-depth security
+-- The actual application users are: fluxbase_app (production) and fluxbase_rls_test (testing)
+GRANT anon TO fluxbase_app;
+GRANT authenticated TO fluxbase_app;
+GRANT service_role TO fluxbase_app;
+
+-- Also grant to test user (may not exist in production, hence DO block)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'fluxbase_rls_test') THEN
+        GRANT anon TO fluxbase_rls_test;
+        GRANT authenticated TO fluxbase_rls_test;
+        GRANT service_role TO fluxbase_rls_test;
+    END IF;
+END
+$$;
+
+-- Note: Table-level permissions are granted in migration 022 (after all tables are created)
+-- This migration only creates roles and grants schema access

@@ -49,36 +49,36 @@ func (r *IdentityRepository) GetByUserID(ctx context.Context, userID string) ([]
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var identities []UserIdentity
-	for rows.Next() {
-		var identity UserIdentity
-		err := rows.Scan(
-			&identity.ID,
-			&identity.UserID,
-			&identity.Provider,
-			&identity.ProviderUserID,
-			&identity.Email,
-			&identity.IdentityData,
-			&identity.CreatedAt,
-			&identity.UpdatedAt,
-		)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, userID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		identities = append(identities, identity)
-	}
+		defer rows.Close()
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+		for rows.Next() {
+			var identity UserIdentity
+			err := rows.Scan(
+				&identity.ID,
+				&identity.UserID,
+				&identity.Provider,
+				&identity.ProviderUserID,
+				&identity.Email,
+				&identity.IdentityData,
+				&identity.CreatedAt,
+				&identity.UpdatedAt,
+			)
+			if err != nil {
+				return err
+			}
+			identities = append(identities, identity)
+		}
 
-	return identities, nil
+		return rows.Err()
+	})
+
+	return identities, err
 }
 
 // GetByID retrieves an identity by ID
@@ -90,16 +90,18 @@ func (r *IdentityRepository) GetByID(ctx context.Context, id string) (*UserIdent
 	`
 
 	var identity UserIdentity
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&identity.ID,
-		&identity.UserID,
-		&identity.Provider,
-		&identity.ProviderUserID,
-		&identity.Email,
-		&identity.IdentityData,
-		&identity.CreatedAt,
-		&identity.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, id).Scan(
+			&identity.ID,
+			&identity.UserID,
+			&identity.Provider,
+			&identity.ProviderUserID,
+			&identity.Email,
+			&identity.IdentityData,
+			&identity.CreatedAt,
+			&identity.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -120,16 +122,18 @@ func (r *IdentityRepository) GetByProviderAndUserID(ctx context.Context, provide
 	`
 
 	var identity UserIdentity
-	err := r.db.QueryRow(ctx, query, provider, providerUserID).Scan(
-		&identity.ID,
-		&identity.UserID,
-		&identity.Provider,
-		&identity.ProviderUserID,
-		&identity.Email,
-		&identity.IdentityData,
-		&identity.CreatedAt,
-		&identity.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, provider, providerUserID).Scan(
+			&identity.ID,
+			&identity.UserID,
+			&identity.Provider,
+			&identity.ProviderUserID,
+			&identity.Email,
+			&identity.IdentityData,
+			&identity.CreatedAt,
+			&identity.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -160,25 +164,27 @@ func (r *IdentityRepository) Create(ctx context.Context, userID, provider, provi
 		RETURNING id, user_id, provider, provider_user_id, email, metadata, created_at, updated_at
 	`
 
-	err := r.db.QueryRow(ctx, query,
-		identity.ID,
-		identity.UserID,
-		identity.Provider,
-		identity.ProviderUserID,
-		identity.Email,
-		identity.IdentityData,
-		identity.CreatedAt,
-		identity.UpdatedAt,
-	).Scan(
-		&identity.ID,
-		&identity.UserID,
-		&identity.Provider,
-		&identity.ProviderUserID,
-		&identity.Email,
-		&identity.IdentityData,
-		&identity.CreatedAt,
-		&identity.UpdatedAt,
-	)
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query,
+			identity.ID,
+			identity.UserID,
+			identity.Provider,
+			identity.ProviderUserID,
+			identity.Email,
+			identity.IdentityData,
+			identity.CreatedAt,
+			identity.UpdatedAt,
+		).Scan(
+			&identity.ID,
+			&identity.UserID,
+			&identity.Provider,
+			&identity.ProviderUserID,
+			&identity.Email,
+			&identity.IdentityData,
+			&identity.CreatedAt,
+			&identity.UpdatedAt,
+		)
+	})
 
 	if err != nil {
 		return nil, err
@@ -194,16 +200,18 @@ func (r *IdentityRepository) Delete(ctx context.Context, id, userID string) erro
 		WHERE id = $1 AND user_id = $2
 	`
 
-	result, err := r.db.Exec(ctx, query, id, userID)
-	if err != nil {
-		return err
-	}
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, userID)
+		if err != nil {
+			return err
+		}
 
-	if result.RowsAffected() == 0 {
-		return ErrIdentityNotFound
-	}
+		if result.RowsAffected() == 0 {
+			return ErrIdentityNotFound
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // DeleteByProvider deletes all identities for a user and provider
@@ -213,8 +221,10 @@ func (r *IdentityRepository) DeleteByProvider(ctx context.Context, userID, provi
 		WHERE user_id = $1 AND provider = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, userID, provider)
-	return err
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID, provider)
+		return err
+	})
 }
 
 // IdentityService provides identity management functionality

@@ -7,91 +7,104 @@
 -- ============================================================================
 
 -- Auth users table
+-- RLS is ENABLED with service_role policies (Supabase-aligned security model)
+-- Auth operations (signup, signin) use WrapWithServiceRole() which executes SET LOCAL ROLE service_role
+-- This is equivalent to how Supabase's GoTrue uses supabase_auth_admin for privileged access
 ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.users FORCE ROW LEVEL SECURITY;
 
-COMMENT ON TABLE auth.users IS 'Application users with FORCE RLS - even table owners must follow policies';
-
-CREATE POLICY auth_users_insert_policy ON auth.users
-    FOR INSERT
+-- Service role has full access (for auth operations: signup, signin, password reset, admin tasks)
+CREATE POLICY auth_users_service_role_all ON auth.users
+    FOR ALL
+    TO service_role
+    USING (true)
     WITH CHECK (true);
 
+COMMENT ON POLICY auth_users_service_role_all ON auth.users IS 'Service role has full access for auth operations (signup, signin, admin). Equivalent to Supabase supabase_auth_admin.';
+
+-- Authenticated users can see their own record, admins can see all
 CREATE POLICY auth_users_select_own ON auth.users
     FOR SELECT
+    TO authenticated
     USING (
         id = auth.current_user_id()
         OR auth.is_admin()
         OR auth.current_user_role() = 'dashboard_admin'
-        OR auth.current_user_role() = 'service_role'
-        OR auth.current_user_role() = 'anon'
     );
 
-COMMENT ON POLICY auth_users_select_own ON auth.users IS 'Users can only see their own record. Admins, dashboard admins, service role, and anon role (for signup RETURNING) can see all users.';
+COMMENT ON POLICY auth_users_select_own ON auth.users IS 'Users can only see their own record. Admins and dashboard admins can see all users.';
 
-CREATE POLICY auth_users_update_policy ON auth.users
+-- Authenticated users can update their own record, admins can update any
+CREATE POLICY auth_users_update_own ON auth.users
     FOR UPDATE
+    TO authenticated
     USING (
+        auth.is_admin()
+        OR auth.current_user_role() = 'dashboard_admin'
+        OR auth.current_user_id()::TEXT = id::TEXT
+    )
+    WITH CHECK (
         auth.is_admin()
         OR auth.current_user_role() = 'dashboard_admin'
         OR auth.current_user_id()::TEXT = id::TEXT
     );
 
-CREATE POLICY auth_users_delete_policy ON auth.users
+COMMENT ON POLICY auth_users_update_own ON auth.users IS 'Users can update their own record. Admins and dashboard admins can update any user.';
+
+-- Only admins can delete users
+CREATE POLICY auth_users_delete_admin ON auth.users
     FOR DELETE
+    TO authenticated
     USING (
         auth.is_admin()
         OR auth.current_user_role() = 'dashboard_admin'
     );
 
+COMMENT ON POLICY auth_users_delete_admin ON auth.users IS 'Only admins and dashboard admins can delete user records.';
+
 -- Auth sessions table
+-- RLS is ENABLED with service_role policies (Supabase-aligned security model)
+-- Session creation during signup/signin uses WrapWithServiceRole() with SET LOCAL ROLE service_role
 ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.sessions FORCE ROW LEVEL SECURITY;
 
-COMMENT ON TABLE auth.sessions IS 'User sessions with FORCE RLS for security';
+-- Service role has full access (for auth operations: session creation, cleanup, admin tasks)
+CREATE POLICY auth_sessions_service_role_all ON auth.sessions
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
-CREATE POLICY auth_sessions_select ON auth.sessions
+COMMENT ON POLICY auth_sessions_service_role_all ON auth.sessions IS 'Service role has full access for session management (creation during signin/signup, cleanup, admin tasks).';
+
+-- Authenticated users can view their own sessions, admins can view all
+CREATE POLICY auth_sessions_select_own ON auth.sessions
     FOR SELECT
+    TO authenticated
     USING (
         user_id = auth.current_user_id()
-        OR auth.current_user_role() = 'service_role'
         OR auth.current_user_role() = 'dashboard_admin'
-        OR auth.current_user_role() = 'anon'
     );
 
-COMMENT ON POLICY auth_sessions_select ON auth.sessions IS 'Users can view their own sessions. Service role, dashboard admins, and anon role (for signup RETURNING) can view all sessions.';
+COMMENT ON POLICY auth_sessions_select_own ON auth.sessions IS 'Users can view their own sessions. Dashboard admins can view all sessions.';
 
-CREATE POLICY auth_sessions_insert ON auth.sessions
-    FOR INSERT
-    WITH CHECK (
-        user_id = auth.current_user_id()
-        OR auth.current_user_role() = 'service_role'
-        OR auth.current_user_role() = 'anon'
-    );
-
-COMMENT ON POLICY auth_sessions_insert ON auth.sessions IS 'Users can create sessions for themselves. Service role can create sessions for any user. Anon users can create sessions (signup flow).';
-
-CREATE POLICY auth_sessions_update ON auth.sessions
+-- Authenticated users can update their own sessions (e.g., last_accessed_at)
+CREATE POLICY auth_sessions_update_own ON auth.sessions
     FOR UPDATE
-    USING (
-        user_id = auth.current_user_id()
-        OR auth.current_user_role() = 'service_role'
-    )
-    WITH CHECK (
-        user_id = auth.current_user_id()
-        OR auth.current_user_role() = 'service_role'
-    );
+    TO authenticated
+    USING (user_id = auth.current_user_id())
+    WITH CHECK (user_id = auth.current_user_id());
 
-COMMENT ON POLICY auth_sessions_update ON auth.sessions IS 'Users can update their own sessions. Service role can update any session.';
+COMMENT ON POLICY auth_sessions_update_own ON auth.sessions IS 'Users can update their own sessions (e.g., refresh token rotation).';
 
-CREATE POLICY auth_sessions_delete ON auth.sessions
+-- Authenticated users can delete their own sessions (logout), admins can delete any
+CREATE POLICY auth_sessions_delete_own ON auth.sessions
     FOR DELETE
+    TO authenticated
     USING (
         user_id = auth.current_user_id()
-        OR auth.current_user_role() = 'service_role'
         OR auth.current_user_role() = 'dashboard_admin'
     );
 
-COMMENT ON POLICY auth_sessions_delete ON auth.sessions IS 'Users can delete their own sessions. Service role and dashboard admins can delete any session.';
+COMMENT ON POLICY auth_sessions_delete_own ON auth.sessions IS 'Users can delete their own sessions (logout). Dashboard admins can delete any session.';
 
 -- Auth API keys table
 ALTER TABLE auth.api_keys ENABLE ROW LEVEL SECURITY;
@@ -299,6 +312,7 @@ COMMENT ON POLICY impersonation_sessions_dashboard_admin_only ON auth.impersonat
 
 -- RLS audit log policies
 ALTER TABLE auth.rls_audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.rls_audit_log FORCE ROW LEVEL SECURITY;
 
 -- Policy: Service role can insert audit logs (for system logging)
 CREATE POLICY rls_audit_log_service_insert ON auth.rls_audit_log
@@ -321,3 +335,38 @@ CREATE POLICY rls_audit_log_user_select ON auth.rls_audit_log
 COMMENT ON POLICY rls_audit_log_service_insert ON auth.rls_audit_log IS 'Only service role can insert audit log entries to prevent users from tampering with logs.';
 COMMENT ON POLICY rls_audit_log_admin_select ON auth.rls_audit_log IS 'Admins can view all audit logs for security monitoring and compliance.';
 COMMENT ON POLICY rls_audit_log_user_select ON auth.rls_audit_log IS 'Users can view their own audit log entries for transparency.';
+
+-- MFA factors
+ALTER TABLE auth.mfa_factors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.mfa_factors FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY mfa_factors_select_own ON auth.mfa_factors
+    FOR SELECT
+    USING (user_id = auth.current_user_id());
+
+CREATE POLICY mfa_factors_insert_own ON auth.mfa_factors
+    FOR INSERT
+    WITH CHECK (user_id = auth.current_user_id());
+
+CREATE POLICY mfa_factors_update_own ON auth.mfa_factors
+    FOR UPDATE
+    USING (user_id = auth.current_user_id())
+    WITH CHECK (user_id = auth.current_user_id());
+
+CREATE POLICY mfa_factors_delete_own ON auth.mfa_factors
+    FOR DELETE
+    USING (user_id = auth.current_user_id());
+
+CREATE POLICY mfa_factors_admin_all ON auth.mfa_factors
+    FOR ALL
+    USING (
+        auth.is_admin()
+        OR auth.current_user_role() = 'dashboard_admin'
+        OR auth.current_user_role() = 'service_role'
+    );
+
+COMMENT ON POLICY mfa_factors_select_own ON auth.mfa_factors IS 'Users can view their own MFA factors.';
+COMMENT ON POLICY mfa_factors_insert_own ON auth.mfa_factors IS 'Users can create their own MFA factors.';
+COMMENT ON POLICY mfa_factors_update_own ON auth.mfa_factors IS 'Users can update their own MFA factors.';
+COMMENT ON POLICY mfa_factors_delete_own ON auth.mfa_factors IS 'Users can delete their own MFA factors.';
+COMMENT ON POLICY mfa_factors_admin_all ON auth.mfa_factors IS 'Admins, dashboard admins, and service role can manage all MFA factors.';
