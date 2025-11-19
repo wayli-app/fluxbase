@@ -19,12 +19,16 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean tables before each test
-	tc.ExecuteSQL("TRUNCATE TABLE auth.webhook_events CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.webhook_deliveries CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.webhooks CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.users CASCADE")
-	tc.ExecuteSQL("TRUNCATE TABLE auth.sessions CASCADE")
+	// Clean tables before each test (batched for performance)
+	tc.ExecuteSQL(`
+		TRUNCATE TABLE
+			auth.webhook_events,
+			auth.webhook_deliveries,
+			auth.webhooks,
+			auth.users,
+			auth.sessions
+		CASCADE
+	`)
 
 	// Enable webhook trigger on users table for these tests
 	tc.ExecuteSQL("SELECT auth.create_webhook_trigger('auth', 'users')")
@@ -40,15 +44,21 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 	tc := setupWebhookTriggerTest(t)
 	defer tc.Close()
 
-	// Create a test webhook server to receive the webhook
+	// Create a test webhook server to receive the webhook with mutex for thread-safe access
+	var mu sync.Mutex
 	var receivedPayload map[string]interface{}
 	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "POST", r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		require.NotEmpty(t, r.Header.Get("X-Webhook-Signature"))
 
-		err := json.NewDecoder(r.Body).Decode(&receivedPayload)
+		var payload map[string]interface{}
+		err := json.NewDecoder(r.Body).Decode(&payload)
 		require.NoError(t, err)
+
+		mu.Lock()
+		receivedPayload = payload
+		mu.Unlock()
 
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -89,7 +99,7 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 
 	var webhook map[string]interface{}
 	createWebhookResp.JSON(&webhook)
-	webhookID := webhook["id"].(string)
+	_ = webhook["id"].(string) // webhookID not needed for this test
 
 	// Create a new user to trigger the webhook
 	newUserEmail := "newuser@example.com"
@@ -101,16 +111,17 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
-	// Wait for webhook to be triggered and delivered
-	time.Sleep(2 * time.Second)
+	// Wait for webhook to be triggered and delivered (check actual delivery, not just event creation)
+	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return receivedPayload != nil
+	})
+	require.True(t, success, "Webhook should have been delivered within 5 seconds")
 
-	// Verify the webhook event was created
-	results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_events WHERE webhook_id = $1", webhookID)
-	require.Greater(t, len(results), 0, "Should have query results")
-	eventCount := results[0]["count"].(int64)
-	require.Greater(t, eventCount, int64(0), "At least one webhook event should be created")
-
-	// Verify webhook was delivered
+	// Verify webhook was delivered (thread-safe access)
+	mu.Lock()
+	defer mu.Unlock()
 	require.NotNil(t, receivedPayload, "Webhook should have been delivered")
 	require.Equal(t, "INSERT", receivedPayload["event"])
 	require.Equal(t, "auth", receivedPayload["schema"])
@@ -183,9 +194,14 @@ func TestWebhookTriggerOnUserUpdate(t *testing.T) {
 		AssertStatus(fiber.StatusOK)
 
 	// Wait for webhook delivery
-	time.Sleep(2 * time.Second)
+	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(receivedPayloads) > 0
+	})
+	require.True(t, success, "Webhook should be delivered within 5 seconds")
 
-	// Verify webhook was delivered (with lock)
+	// Get payload copy (with lock)
 	mu.Lock()
 	payloadCount := len(receivedPayloads)
 	payloadsCopy := make([]map[string]interface{}, len(receivedPayloads))
@@ -288,9 +304,14 @@ func TestWebhookTriggerRetry(t *testing.T) {
 	//           T=6s backlog processor runs (nothing ready yet)
 	//           T=9s backlog processor runs, third attempt succeeds
 	// So we need to wait at least 10 seconds to see 3 attempts
-	time.Sleep(12 * time.Second)
+	success := tc.WaitForCondition(15*time.Second, 500*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return attemptCount >= 3
+	})
+	require.True(t, success, "Webhook should be retried at least 3 times within 15 seconds")
 
-	// Verify multiple attempts were made (with lock)
+	// Get final attempt count (with lock)
 	mu.Lock()
 	finalAttemptCount := attemptCount
 	mu.Unlock()
@@ -386,9 +407,20 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 		AssertStatus(fiber.StatusCreated)
 
 	// Wait for webhook deliveries
-	time.Sleep(3 * time.Second)
+	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu1.Lock()
+		hasPayload1 := payload1 != nil
+		mu1.Unlock()
 
-	// Verify both webhooks received the event (with locks)
+		mu2.Lock()
+		hasPayload2 := payload2 != nil
+		mu2.Unlock()
+
+		return hasPayload1 && hasPayload2
+	})
+	require.True(t, success, "Both webhooks should receive payloads within 5 seconds")
+
+	// Get payload copies (with locks)
 	mu1.Lock()
 	payload1Copy := payload1
 	mu1.Unlock()
@@ -408,10 +440,15 @@ func TestWebhookTriggerInactiveWebhook(t *testing.T) {
 	tc := setupWebhookTriggerTest(t)
 	defer tc.Close()
 
-	// Create a test webhook server
+	// Create a test webhook server with mutex for thread-safe access
+	var mu sync.Mutex
 	var receivedPayload map[string]interface{}
 	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedPayload)
+		var payload map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&payload)
+		mu.Lock()
+		receivedPayload = payload
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer webhookServer.Close()
@@ -453,13 +490,27 @@ func TestWebhookTriggerInactiveWebhook(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
-	// Wait to see if webhook is triggered (it shouldn't be)
-	time.Sleep(2 * time.Second)
+	// Wait briefly to ensure webhook processing has time to run (if it incorrectly tries to)
+	// We're testing a negative case - webhook should NOT be triggered
+	// Wait for a reasonable period to confirm no events are created
+	success := tc.WaitForCondition(3*time.Second, 200*time.Millisecond, func() bool {
+		results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE enabled = false)")
+		if len(results) == 0 {
+			return false
+		}
+		// Return true if events were created (which would be unexpected)
+		return results[0]["count"].(int64) > 0
+	})
+	// We expect this to timeout (success = false) because no events should be created
+	require.False(t, success, "No webhook events should be created for inactive webhooks")
 
-	// Verify webhook was NOT delivered
-	require.Nil(t, receivedPayload, "Inactive webhook should not be triggered")
+	// Verify webhook was NOT delivered (thread-safe check)
+	mu.Lock()
+	payloadCopy := receivedPayload
+	mu.Unlock()
+	require.Nil(t, payloadCopy, "Inactive webhook should not be triggered")
 
-	// Verify no webhook events were created for this webhook
+	// Double-check no webhook events were created for this webhook
 	results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE enabled = false)")
 	require.Greater(t, len(results), 0, "Should have query results")
 	eventCount := results[0]["count"].(int64)

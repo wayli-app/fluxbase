@@ -329,8 +329,8 @@ func GetTestConfig() *config.Config {
 			AdminPassword:   dbAdminPassword, // Admin password (configurable via env)
 			Database:        dbDatabase,
 			SSLMode:         "disable",
-			MaxConnections:  5,                // Balanced for CI: enough for queries but not too many with -parallel=1
-			MinConnections:  1,                // Reduced to minimize idle connections
+			MaxConnections:  20,               // Support parallel test execution (4-8 tests concurrent)
+			MinConnections:  4,                // Keep warm connections for parallel tests
 			MaxConnLifetime: 5 * time.Minute,  // Shorter lifetime to recycle connections
 			MaxConnIdleTime: 30 * time.Second, // Close idle connections faster
 			HealthCheck:     1 * time.Minute,

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,18 +17,24 @@ func TestWebhookTriggerDebug(t *testing.T) {
 	tc := setupWebhookTriggerTest(t)
 	defer tc.Close()
 
-	// Create a test webhook server
+	// Create a test webhook server with mutex for thread-safe access
+	var mu sync.Mutex
 	var receivedPayload map[string]interface{}
 	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("Webhook received: %s %s", r.Method, r.URL.Path)
 		t.Logf("Headers: %v", r.Header)
 
-		err := json.NewDecoder(r.Body).Decode(&receivedPayload)
+		var payload map[string]interface{}
+		err := json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
 			t.Logf("Error decoding payload: %v", err)
 		} else {
-			payloadJSON, _ := json.MarshalIndent(receivedPayload, "", "  ")
+			payloadJSON, _ := json.MarshalIndent(payload, "", "  ")
 			t.Logf("Payload: %s", string(payloadJSON))
+
+			mu.Lock()
+			receivedPayload = payload
+			mu.Unlock()
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -119,19 +126,35 @@ func TestWebhookTriggerDebug(t *testing.T) {
 	t.Logf("New user signup status: %d", signupResp.Status())
 	require.Equal(t, fiber.StatusCreated, signupResp.Status(), "New user signup should succeed")
 
-	// Check webhook_events table
-	time.Sleep(500 * time.Millisecond)
+	// Wait for webhook event to be created
+	success := tc.WaitForCondition(3*time.Second, 100*time.Millisecond, func() bool {
+		results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_events")
+		return len(results) > 0 && results[0]["count"].(int64) > 0
+	})
+	require.True(t, success, "Webhook event should be created within 3 seconds")
+
 	eventResults := tc.QuerySQL("SELECT id, webhook_id, event_type, table_name, processed FROM auth.webhook_events ORDER BY created_at DESC LIMIT 5")
 	t.Logf("Recent webhook events: %+v", eventResults)
 
-	// Wait for webhook delivery
-	t.Log("Waiting 3 seconds for webhook delivery...")
-	time.Sleep(3 * time.Second)
+	// Wait for webhook delivery (thread-safe check)
+	t.Log("Waiting for webhook delivery...")
+	success = tc.WaitForCondition(5*time.Second, 200*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return receivedPayload != nil
+	})
+	if !success {
+		t.Log("Webhook delivery timed out after 5 seconds")
+	}
 
-	// Check if webhook was delivered
-	if receivedPayload != nil {
+	// Check if webhook was delivered (thread-safe access)
+	mu.Lock()
+	payloadCopy := receivedPayload
+	mu.Unlock()
+
+	if payloadCopy != nil {
 		t.Log("✓ Webhook was delivered successfully!")
-		payloadJSON, _ := json.MarshalIndent(receivedPayload, "", "  ")
+		payloadJSON, _ := json.MarshalIndent(payloadCopy, "", "  ")
 		t.Logf("Final payload: %s", string(payloadJSON))
 	} else {
 		t.Error("✗ Webhook was NOT delivered")

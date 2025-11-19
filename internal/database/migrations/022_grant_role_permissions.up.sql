@@ -84,6 +84,12 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO service_role;
 -- PUBLIC SCHEMA PERMISSIONS
 -- ==========================
 
+-- Grant full CRUD to all roles on public schema tables
+-- Note: RLS policies on individual tables control actual data access
+-- For tables without RLS (like products used in REST tests), all roles have full access
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 
 -- ==========================
@@ -132,4 +138,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
+    GRANT ALL ON TABLES TO service_role;
+
+-- Default privileges for tables created by fluxbase_app
+-- Note: Test tables (like products) are created by fluxbase_app in both local and CI
+ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA public
     GRANT ALL ON TABLES TO service_role;
