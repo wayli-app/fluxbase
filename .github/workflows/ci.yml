@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:18-alpine
+        image: postgis/postgis:18-3.6-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -181,7 +181,7 @@ jobs:
 
           # Restart PostgreSQL to apply settings
           # Find the container ID for postgres service and restart it
-          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:18-alpine" --format "{{.ID}}")
+          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgis/postgis:18-3.6-alpine" --format "{{.ID}}")
           docker restart $POSTGRES_CONTAINER
 
           # Wait for postgres to be ready after restart

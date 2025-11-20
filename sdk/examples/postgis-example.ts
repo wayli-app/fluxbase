@@ -22,6 +22,10 @@ const client = createClient({
 async function main() {
   console.log('🗺️  Fluxbase PostGIS / Geospatial Example\n')
 
+  console.log('📋 Prerequisites:')
+  console.log('   PostGIS must be installed in your database. Run:')
+  console.log('   CREATE EXTENSION IF NOT EXISTS postgis;\n')
+
   // ========================================
   // 1. AUTHENTICATION
   // ========================================
@@ -230,10 +234,12 @@ async function main() {
 
   console.log('\n✨ PostGIS example complete!')
   console.log('\n💡 Usage Notes:')
-  console.log('   - Geometry data is stored in PostGIS format')
-  console.log('   - API returns/accepts GeoJSON format')
+  console.log('   - PostGIS is optional - install with: CREATE EXTENSION IF NOT EXISTS postgis;')
+  console.log('   - Geometry data is stored in PostGIS format in the database')
+  console.log('   - API automatically returns/accepts GeoJSON format')
   console.log('   - Spatial queries use PostGIS functions (ST_Intersects, etc.)')
   console.log('   - Coordinates are [longitude, latitude] per GeoJSON spec')
+  console.log('   - Works seamlessly alongside regular database operations')
 }
 
 // Run the example
