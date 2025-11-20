@@ -37,7 +37,9 @@ const client = createClient("http://localhost:8080", "your-anon-key");
 const { user, session } = await client.auth.signUp({
   email: "user@example.com",
   password: "SecurePass123",
-  metadata: { name: "John Doe" },
+  options: {
+    data: { name: "John Doe" },
+  },
 });
 ```
 

@@ -120,10 +120,10 @@ func (h *CustomSettingsHandler) ListSettings(c *fiber.Ctx) error {
 }
 
 // GetSetting returns a specific custom setting by key
-// GET /api/v1/admin/settings/custom/:key
+// GET /api/v1/admin/settings/custom/*
 func (h *CustomSettingsHandler) GetSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -148,10 +148,10 @@ func (h *CustomSettingsHandler) GetSetting(c *fiber.Ctx) error {
 }
 
 // UpdateSetting updates an existing custom setting
-// PUT /api/v1/admin/settings/custom/:key
+// PUT /api/v1/admin/settings/custom/*
 func (h *CustomSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -221,10 +221,10 @@ func (h *CustomSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 }
 
 // DeleteSetting deletes a custom setting
-// DELETE /api/v1/admin/settings/custom/:key
+// DELETE /api/v1/admin/settings/custom/*
 func (h *CustomSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

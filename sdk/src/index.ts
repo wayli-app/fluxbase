@@ -103,6 +103,7 @@ export type {
   User,
   SignInCredentials,
   SignUpCredentials,
+  UpdateUserAttributes,
   AuthResponse,
   TwoFactorSetupResponse,
   TwoFactorEnableResponse,

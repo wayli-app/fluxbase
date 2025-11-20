@@ -56,10 +56,16 @@ const client = new FluxbaseClient({
   url: "http://localhost:8080",
 });
 
-// Sign up
+// Sign up with user metadata
 const { user, session } = await client.auth.signUp({
   email: "user@example.com",
   password: "SecurePassword123",
+  options: {
+    data: {
+      name: "John Doe",
+      avatar_url: "https://...",
+    },
+  },
 });
 
 // Sign in
@@ -77,23 +83,29 @@ await client.auth.signOut();
 
 ## Core Authentication Methods
 
-| Method                   | Purpose                  | Parameters                       |
-| ------------------------ | ------------------------ | -------------------------------- |
-| `signUp()`               | Create new account       | `email`, `password`, `metadata?` |
-| `signIn()`               | Sign in with credentials | `email`, `password`              |
-| `signOut()`              | End current session      | None                             |
-| `getCurrentUser()`       | Get authenticated user   | None                             |
-| `getSession()`           | Get session details      | None                             |
-| `resetPassword()`        | Request password reset   | `email`                          |
-| `confirmPasswordReset()` | Confirm password reset   | `token`, `password`              |
+| Method                   | Purpose                  | Parameters                            |
+| ------------------------ | ------------------------ | ------------------------------------- |
+| `signUp()`               | Create new account       | `email`, `password`, `options.data?`  |
+| `signIn()`               | Sign in with credentials | `email`, `password`                   |
+| `signOut()`              | End current session      | None                                  |
+| `getCurrentUser()`       | Get authenticated user   | None                                  |
+| `getSession()`           | Get session details      | None                                  |
+| `resetPassword()`        | Request password reset   | `email`                               |
+| `confirmPasswordReset()` | Confirm password reset   | `token`, `password`                   |
 
 **Example:**
 
 ```typescript
-// Sign up
+// Sign up with metadata (Supabase-compatible)
 const { user, session } = await client.auth.signUp({
   email: "user@example.com",
   password: "SecurePassword123",
+  options: {
+    data: {
+      name: "John Doe",
+      role: "developer",
+    },
+  },
 });
 
 // Sign in
@@ -220,10 +232,25 @@ subscription.unsubscribe();
 
 ## User Metadata
 
+User metadata is stored during signup and can be updated at any time. Fluxbase uses a Supabase-compatible structure where metadata is passed via `options.data`.
+
 ```typescript
-// Update metadata
+// Sign up with metadata (stored in user_metadata column)
+const { user, session } = await client.auth.signUp({
+  email: "user@example.com",
+  password: "SecurePassword123",
+  options: {
+    data: {
+      name: "John Doe",
+      avatar_url: "https://...",
+      preferences: { theme: "dark" },
+    },
+  },
+});
+
+// Update metadata (Supabase-compatible)
 await client.auth.updateUser({
-  metadata: { name: "John Doe", avatar_url: "https://..." },
+  data: { name: "John Doe", avatar_url: "https://..." },
 });
 
 // Update email

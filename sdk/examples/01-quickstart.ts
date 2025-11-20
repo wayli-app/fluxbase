@@ -31,13 +31,15 @@ async function main() {
   console.log('1️⃣  Authentication')
 
   try {
-    // Sign up a new user
+    // Sign up a new user with metadata
     const { data, error } = await client.auth.signUp({
       email: 'demo@example.com',
       password: 'secure-password-123',
-      metadata: {
-        name: 'Demo User',
-        role: 'developer',
+      options: {
+        data: {
+          name: 'Demo User',
+          role: 'developer',
+        },
       },
     })
 

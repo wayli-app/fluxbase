@@ -49,10 +49,10 @@ func (h *SystemSettingsHandler) ListSettings(c *fiber.Ctx) error {
 }
 
 // GetSetting returns a specific setting by key
-// GET /api/v1/admin/system/settings/:key
+// GET /api/v1/admin/system/settings/*
 func (h *SystemSettingsHandler) GetSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -85,10 +85,10 @@ func (h *SystemSettingsHandler) GetSetting(c *fiber.Ctx) error {
 }
 
 // UpdateSetting updates a specific setting
-// PUT /api/v1/admin/system/settings/:key
+// PUT /api/v1/admin/system/settings/*
 func (h *SystemSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -149,10 +149,10 @@ func (h *SystemSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 }
 
 // DeleteSetting deletes a specific setting
-// DELETE /api/v1/admin/system/settings/:key
+// DELETE /api/v1/admin/system/settings/*
 func (h *SystemSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 	ctx := context.Background()
-	key := c.Params("key")
+	key := c.Params("*")
 
 	if key == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

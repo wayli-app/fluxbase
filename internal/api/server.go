@@ -522,16 +522,16 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// System settings routes (require admin or dashboard_admin role)
 	router.Get("/system/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.ListSettings)
-	router.Get("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.GetSetting)
-	router.Put("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
-	router.Delete("/system/settings/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
+	router.Get("/system/settings/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.GetSetting)
+	router.Put("/system/settings/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
+	router.Delete("/system/settings/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
 
 	// Custom settings routes (require admin or dashboard_admin role)
 	router.Post("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.CreateSetting)
 	router.Get("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.ListSettings)
-	router.Get("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.GetSetting)
-	router.Put("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.UpdateSetting)
-	router.Delete("/settings/custom/:key", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.DeleteSetting)
+	router.Get("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.GetSetting)
+	router.Put("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.UpdateSetting)
+	router.Delete("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.DeleteSetting)
 
 	// App settings routes (require admin or dashboard_admin role)
 	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)

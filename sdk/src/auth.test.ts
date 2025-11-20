@@ -166,6 +166,48 @@ describe("FluxbaseAuth", () => {
       expect(data!.user.email).toBe("newuser@example.com");
       expect(data!.session).toBeDefined();
     });
+
+    it("should sign up with user metadata (Supabase-compatible)", async () => {
+      const authResponse: AuthResponse = {
+        access_token: "new-token",
+        refresh_token: "refresh-token",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: {
+          id: "1",
+          email: "newuser@example.com",
+          created_at: "",
+          metadata: { first_name: "John", age: 27 },
+        },
+      };
+
+      vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+
+      const { data, error } = await auth.signUp({
+        email: "newuser@example.com",
+        password: "password123",
+        options: {
+          data: {
+            first_name: "John",
+            age: 27,
+          },
+        },
+      });
+
+      // Verify the SDK transforms options.data to user_metadata for the backend
+      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/signup", {
+        email: "newuser@example.com",
+        password: "password123",
+        user_metadata: {
+          first_name: "John",
+          age: 27,
+        },
+      });
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+      expect(data!.user.email).toBe("newuser@example.com");
+      expect(data!.session).toBeDefined();
+    });
   });
 
   describe("signOut()", () => {
@@ -329,6 +371,49 @@ describe("FluxbaseAuth", () => {
       expect(result!.user.email).toBe("new@example.com");
       const { data: userData } = await auth.getUser();
       expect(userData.user?.email).toBe("new@example.com");
+    });
+
+    it("should update user metadata (Supabase-compatible)", async () => {
+      // Set up session
+      const authResponse: AuthResponse = {
+        access_token: "token",
+        refresh_token: "refresh",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "user@example.com", created_at: "" },
+      };
+
+      vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+      await auth.signIn({ email: "user@example.com", password: "password" });
+
+      const updatedUser = {
+        id: "1",
+        email: "user@example.com",
+        created_at: "",
+        metadata: { name: "Updated Name", theme: "dark" },
+      };
+      vi.mocked(mockFetch.patch).mockResolvedValue(updatedUser);
+
+      const { data: result, error } = await auth.updateUser({
+        data: {
+          name: "Updated Name",
+          theme: "dark",
+        },
+      });
+
+      // Verify the SDK transforms 'data' to 'user_metadata' for the backend
+      expect(mockFetch.patch).toHaveBeenCalledWith("/api/v1/auth/user", {
+        user_metadata: {
+          name: "Updated Name",
+          theme: "dark",
+        },
+      });
+      expect(error).toBeNull();
+      expect(result).toBeDefined();
+      expect(result!.user.metadata).toEqual({
+        name: "Updated Name",
+        theme: "dark",
+      });
     });
 
     it("should return error when not authenticated", async () => {

@@ -9,6 +9,7 @@ import type {
   AuthSession,
   SignInCredentials,
   SignUpCredentials,
+  UpdateUserAttributes,
   User,
   TwoFactorSetupResponse,
   TwoFactorEnableResponse,
@@ -181,9 +182,20 @@ export class FluxbaseAuth {
    */
   async signUp(credentials: SignUpCredentials): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
+      // Transform Supabase-style options.data to backend's user_metadata format
+      const requestBody: any = {
+        email: credentials.email,
+        password: credentials.password,
+      };
+
+      // Map options.data to user_metadata for the backend
+      if (credentials.options?.data) {
+        requestBody.user_metadata = credentials.options.data;
+      }
+
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/signup",
-        credentials,
+        requestBody,
       );
 
       // Check if session tokens are provided (no email confirmation required)
@@ -270,17 +282,37 @@ export class FluxbaseAuth {
   }
 
   /**
-   * Update the current user
+   * Update the current user (Supabase-compatible)
+   * @param attributes - User attributes to update (email, password, data for metadata)
    */
   async updateUser(
-    data: Partial<Pick<User, "email" | "metadata">>,
+    attributes: UpdateUserAttributes,
   ): Promise<UserResponse> {
     return wrapAsync(async () => {
       if (!this.session) {
         throw new Error("Not authenticated");
       }
 
-      const user = await this.fetch.patch<User>("/api/v1/auth/user", data);
+      // Transform Supabase-style 'data' to backend's 'user_metadata' format
+      const requestBody: any = {};
+
+      if (attributes.email) {
+        requestBody.email = attributes.email;
+      }
+
+      if (attributes.password) {
+        requestBody.password = attributes.password;
+      }
+
+      if (attributes.data) {
+        requestBody.user_metadata = attributes.data;
+      }
+
+      if (attributes.nonce) {
+        requestBody.nonce = attributes.nonce;
+      }
+
+      const user = await this.fetch.patch<User>("/api/v1/auth/user", requestBody);
 
       // Update session with new user data
       if (this.session) {

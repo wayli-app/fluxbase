@@ -73,7 +73,24 @@ export interface SignInCredentials {
 export interface SignUpCredentials {
   email: string
   password: string
-  metadata?: Record<string, unknown>
+  options?: {
+    /** User metadata to store in raw_user_meta_data (Supabase-compatible) */
+    data?: Record<string, unknown>
+  }
+}
+
+/**
+ * User attributes for updateUser (Supabase-compatible)
+ */
+export interface UpdateUserAttributes {
+  /** New email address */
+  email?: string
+  /** New password */
+  password?: string
+  /** User metadata (Supabase-compatible) */
+  data?: Record<string, unknown>
+  /** Nonce for password update reauthentication */
+  nonce?: string
 }
 
 export interface AuthResponse {
