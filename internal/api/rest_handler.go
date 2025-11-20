@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
+	"github.com/twpayne/go-geom/encoding/geojson"
+	"github.com/twpayne/go-geom/encoding/wkb"
 	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/middleware"
 )
@@ -998,7 +1000,21 @@ func pgxRowsToJSON(rows pgx.Rows) ([]map[string]interface{}, error) {
 			// Handle special types
 			switch v := values[i].(type) {
 			case []byte:
-				// Try to parse as JSON
+				// First, try to decode as PostGIS geometry (WKB format)
+				geom, err := wkb.Unmarshal(v)
+				if err == nil {
+					// Successfully decoded as WKB, convert to GeoJSON
+					geoJSON, err := geojson.Marshal(geom)
+					if err == nil {
+						var geoJSONData interface{}
+						if err := json.Unmarshal(geoJSON, &geoJSONData); err == nil {
+							row[columnName] = geoJSONData
+							continue
+						}
+					}
+				}
+
+				// Not WKB geometry, try to parse as JSON
 				var jsonData interface{}
 				if err := json.Unmarshal(v, &jsonData); err == nil {
 					row[columnName] = jsonData

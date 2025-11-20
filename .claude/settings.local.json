@@ -36,7 +36,8 @@
       "Bash(timeout 60 npm test:*)",
       "Bash(timeout 60 go test:*)",
       "Bash(timeout 120 go test:*)",
-      "Bash(make test:*)"
+      "Bash(make test:*)",
+      "Bash(go list:*)"
     ],
     "deny": [],
     "ask": []

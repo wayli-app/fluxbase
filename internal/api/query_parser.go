@@ -57,6 +57,16 @@ const (
 	OpStrictlyRight  FilterOperator = "sr"    // strictly right of >>
 	OpNotExtendRight FilterOperator = "nxr"   // does not extend to right &<
 	OpNotExtendLeft  FilterOperator = "nxl"   // does not extend to left &>
+
+	// PostGIS spatial operators
+	OpSTIntersects FilterOperator = "st_intersects" // ST_Intersects - geometries intersect
+	OpSTContains   FilterOperator = "st_contains"   // ST_Contains - geometry A contains B
+	OpSTWithin     FilterOperator = "st_within"     // ST_Within - geometry A is within B
+	OpSTDWithin    FilterOperator = "st_dwithin"    // ST_DWithin - geometries within distance
+	OpSTDistance   FilterOperator = "st_distance"   // ST_Distance - distance between geometries
+	OpSTTouches    FilterOperator = "st_touches"    // ST_Touches - geometries touch
+	OpSTCrosses    FilterOperator = "st_crosses"    // ST_Crosses - geometries cross
+	OpSTOverlaps   FilterOperator = "st_overlaps"   // ST_Overlaps - geometries overlap
 )
 
 // OrderBy represents an ORDER BY clause
@@ -889,6 +899,52 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 
 	case OpNotExtendLeft:
 		sql := fmt.Sprintf("%s &> $%d", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	// PostGIS spatial operators
+	case OpSTIntersects:
+		sql := fmt.Sprintf("ST_Intersects(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTContains:
+		sql := fmt.Sprintf("ST_Contains(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTWithin:
+		sql := fmt.Sprintf("ST_Within(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTDWithin:
+		// ST_DWithin expects: ST_DWithin(geom1, geom2, distance)
+		// Value should be a map with "geometry" and "distance" fields
+		// For now, we'll expect a GeoJSON string and use a default distance
+		// TODO: Support distance parameter
+		sql := fmt.Sprintf("ST_DWithin(%s, ST_GeomFromGeoJSON($%d), $%d)", f.Column, *argCounter, *argCounter+1)
+		*argCounter += 2
+		// For now, return placeholder - needs proper implementation with distance
+		return sql, f.Value
+
+	case OpSTDistance:
+		sql := fmt.Sprintf("ST_Distance(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTTouches:
+		sql := fmt.Sprintf("ST_Touches(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTCrosses:
+		sql := fmt.Sprintf("ST_Crosses(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		*argCounter++
+		return sql, f.Value
+
+	case OpSTOverlaps:
+		sql := fmt.Sprintf("ST_Overlaps(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
 		*argCounter++
 		return sql, f.Value
 

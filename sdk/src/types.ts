@@ -229,6 +229,15 @@ export type FilterOperator =
   | 'fts'    // full text search
   | 'plfts'  // phrase full text search
   | 'wfts'   // web full text search
+  // PostGIS spatial operators
+  | 'st_intersects' // geometries intersect
+  | 'st_contains'   // geometry A contains B
+  | 'st_within'     // geometry A is within B
+  | 'st_dwithin'    // geometries within distance
+  | 'st_distance'   // distance between geometries
+  | 'st_touches'    // geometries touch
+  | 'st_crosses'    // geometries cross
+  | 'st_overlaps'   // geometries overlap
 
 export interface QueryFilter {
   column: string
@@ -1660,6 +1669,101 @@ export type SessionResponse = FluxbaseResponse<{ session: AuthSession }>
  * Generic data response
  */
 export type DataResponse<T> = FluxbaseResponse<T>
+
+// ============================================================================
+// PostGIS / GeoJSON Types
+// ============================================================================
+
+/**
+ * GeoJSON Position type (longitude, latitude, optional altitude)
+ */
+export type GeoJSONPosition = [number, number] | [number, number, number]
+
+/**
+ * GeoJSON Point geometry
+ */
+export interface GeoJSONPoint {
+  type: 'Point'
+  coordinates: GeoJSONPosition
+}
+
+/**
+ * GeoJSON LineString geometry
+ */
+export interface GeoJSONLineString {
+  type: 'LineString'
+  coordinates: GeoJSONPosition[]
+}
+
+/**
+ * GeoJSON Polygon geometry
+ */
+export interface GeoJSONPolygon {
+  type: 'Polygon'
+  coordinates: GeoJSONPosition[][]
+}
+
+/**
+ * GeoJSON MultiPoint geometry
+ */
+export interface GeoJSONMultiPoint {
+  type: 'MultiPoint'
+  coordinates: GeoJSONPosition[]
+}
+
+/**
+ * GeoJSON MultiLineString geometry
+ */
+export interface GeoJSONMultiLineString {
+  type: 'MultiLineString'
+  coordinates: GeoJSONPosition[][]
+}
+
+/**
+ * GeoJSON MultiPolygon geometry
+ */
+export interface GeoJSONMultiPolygon {
+  type: 'MultiPolygon'
+  coordinates: GeoJSONPosition[][][]
+}
+
+/**
+ * GeoJSON GeometryCollection
+ */
+export interface GeoJSONGeometryCollection {
+  type: 'GeometryCollection'
+  geometries: GeoJSONGeometry[]
+}
+
+/**
+ * Union of all GeoJSON geometry types
+ */
+export type GeoJSONGeometry =
+  | GeoJSONPoint
+  | GeoJSONLineString
+  | GeoJSONPolygon
+  | GeoJSONMultiPoint
+  | GeoJSONMultiLineString
+  | GeoJSONMultiPolygon
+  | GeoJSONGeometryCollection
+
+/**
+ * GeoJSON Feature with optional properties
+ */
+export interface GeoJSONFeature<P = Record<string, unknown>> {
+  type: 'Feature'
+  geometry: GeoJSONGeometry
+  properties: P | null
+  id?: string | number
+}
+
+/**
+ * GeoJSON FeatureCollection
+ */
+export interface GeoJSONFeatureCollection<P = Record<string, unknown>> {
+  type: 'FeatureCollection'
+  features: Array<GeoJSONFeature<P>>
+}
 
 // ============================================================================
 // Deprecated Supabase-compatible type aliases (for backward compatibility)

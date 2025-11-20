@@ -3,29 +3,40 @@
  * Inspired by Supabase's PostgREST client
  */
 
-import type { FluxbaseFetch } from './fetch'
-import type { FilterOperator, OrderBy, PostgrestResponse, UpsertOptions } from './types'
+import type { FluxbaseFetch } from "./fetch";
+import type {
+  FilterOperator,
+  OrderBy,
+  PostgrestResponse,
+  UpsertOptions,
+} from "./types";
 
-export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<T>> {
-  private fetch: FluxbaseFetch
-  private table: string
-  private selectQuery: string = '*'
-  private filters: Array<{ column: string; operator: FilterOperator; value: unknown }> = []
-  private orFilters: string[] = []
-  private andFilters: string[] = []
-  private orderBys: OrderBy[] = []
-  private limitValue?: number
-  private offsetValue?: number
-  private singleRow: boolean = false
-  private maybeSingleRow: boolean = false
-  private groupByColumns?: string[]
-  private operationType: 'select' | 'insert' | 'update' | 'delete' = 'select'
-  private insertData?: Partial<T> | Array<Partial<T>>
-  private updateData?: Partial<T>
+export class QueryBuilder<T = unknown>
+  implements PromiseLike<PostgrestResponse<T>>
+{
+  private fetch: FluxbaseFetch;
+  private table: string;
+  private selectQuery: string = "*";
+  private filters: Array<{
+    column: string;
+    operator: FilterOperator;
+    value: unknown;
+  }> = [];
+  private orFilters: string[] = [];
+  private andFilters: string[] = [];
+  private orderBys: OrderBy[] = [];
+  private limitValue?: number;
+  private offsetValue?: number;
+  private singleRow: boolean = false;
+  private maybeSingleRow: boolean = false;
+  private groupByColumns?: string[];
+  private operationType: "select" | "insert" | "update" | "delete" = "select";
+  private insertData?: Partial<T> | Array<Partial<T>>;
+  private updateData?: Partial<T>;
 
   constructor(fetch: FluxbaseFetch, table: string) {
-    this.fetch = fetch
-    this.table = table
+    this.fetch = fetch;
+    this.table = table;
   }
 
   /**
@@ -34,18 +45,18 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example select('id, name, email')
    * @example select('id, name, posts(title, content)')
    */
-  select(columns: string = '*'): this {
-    this.selectQuery = columns
-    return this
+  select(columns: string = "*"): this {
+    this.selectQuery = columns;
+    return this;
   }
 
   /**
    * Insert a single row or multiple rows
    */
   insert(data: Partial<T> | Array<Partial<T>>): this {
-    this.operationType = 'insert'
-    this.insertData = data
-    return this
+    this.operationType = "insert";
+    this.insertData = data;
+    return this;
   }
 
   /**
@@ -53,154 +64,157 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @param data - Row(s) to upsert
    * @param options - Upsert options (onConflict, ignoreDuplicates, defaultToNull)
    */
-  async upsert(data: Partial<T> | Array<Partial<T>>, options?: UpsertOptions): Promise<PostgrestResponse<T>> {
-    const body = Array.isArray(data) ? data : data
+  async upsert(
+    data: Partial<T> | Array<Partial<T>>,
+    options?: UpsertOptions,
+  ): Promise<PostgrestResponse<T>> {
+    const body = Array.isArray(data) ? data : data;
 
     // Build Prefer header based on options
-    const preferValues: string[] = []
+    const preferValues: string[] = [];
 
     if (options?.ignoreDuplicates) {
-      preferValues.push('resolution=ignore-duplicates')
+      preferValues.push("resolution=ignore-duplicates");
     } else {
-      preferValues.push('resolution=merge-duplicates')
+      preferValues.push("resolution=merge-duplicates");
     }
 
     if (options?.defaultToNull) {
-      preferValues.push('missing=default')
+      preferValues.push("missing=default");
     }
 
     const headers: Record<string, string> = {
-      Prefer: preferValues.join(','),
-    }
+      Prefer: preferValues.join(","),
+    };
 
     // Add onConflict as query parameter if specified
-    let path = `/api/v1/tables/${this.table}`
+    let path = `/api/v1/tables/${this.table}`;
     if (options?.onConflict) {
-      path += `?on_conflict=${encodeURIComponent(options.onConflict)}`
+      path += `?on_conflict=${encodeURIComponent(options.onConflict)}`;
     }
 
-    const response = await this.fetch.post<T>(path, body, { headers })
+    const response = await this.fetch.post<T>(path, body, { headers });
 
     return {
       data: response,
       error: null,
       count: Array.isArray(data) ? data.length : 1,
       status: 201,
-      statusText: 'Created',
-    }
+      statusText: "Created",
+    };
   }
 
   /**
    * Update rows matching the filters
    */
   update(data: Partial<T>): this {
-    this.operationType = 'update'
-    this.updateData = data
-    return this
+    this.operationType = "update";
+    this.updateData = data;
+    return this;
   }
 
   /**
    * Delete rows matching the filters
    */
   delete(): this {
-    this.operationType = 'delete'
-    return this
+    this.operationType = "delete";
+    return this;
   }
 
   /**
    * Equal to
    */
   eq(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'eq', value })
-    return this
+    this.filters.push({ column, operator: "eq", value });
+    return this;
   }
 
   /**
    * Not equal to
    */
   neq(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'neq', value })
-    return this
+    this.filters.push({ column, operator: "neq", value });
+    return this;
   }
 
   /**
    * Greater than
    */
   gt(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'gt', value })
-    return this
+    this.filters.push({ column, operator: "gt", value });
+    return this;
   }
 
   /**
    * Greater than or equal to
    */
   gte(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'gte', value })
-    return this
+    this.filters.push({ column, operator: "gte", value });
+    return this;
   }
 
   /**
    * Less than
    */
   lt(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'lt', value })
-    return this
+    this.filters.push({ column, operator: "lt", value });
+    return this;
   }
 
   /**
    * Less than or equal to
    */
   lte(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'lte', value })
-    return this
+    this.filters.push({ column, operator: "lte", value });
+    return this;
   }
 
   /**
    * Pattern matching (case-sensitive)
    */
   like(column: string, pattern: string): this {
-    this.filters.push({ column, operator: 'like', value: pattern })
-    return this
+    this.filters.push({ column, operator: "like", value: pattern });
+    return this;
   }
 
   /**
    * Pattern matching (case-insensitive)
    */
   ilike(column: string, pattern: string): this {
-    this.filters.push({ column, operator: 'ilike', value: pattern })
-    return this
+    this.filters.push({ column, operator: "ilike", value: pattern });
+    return this;
   }
 
   /**
    * Check if value is null or not null
    */
   is(column: string, value: null | boolean): this {
-    this.filters.push({ column, operator: 'is', value })
-    return this
+    this.filters.push({ column, operator: "is", value });
+    return this;
   }
 
   /**
    * Check if value is in array
    */
   in(column: string, values: unknown[]): this {
-    this.filters.push({ column, operator: 'in', value: values })
-    return this
+    this.filters.push({ column, operator: "in", value: values });
+    return this;
   }
 
   /**
    * Contains (for arrays and JSONB)
    */
   contains(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'cs', value })
-    return this
+    this.filters.push({ column, operator: "cs", value });
+    return this;
   }
 
   /**
    * Full-text search
    */
   textSearch(column: string, query: string): this {
-    this.filters.push({ column, operator: 'fts', value: query })
-    return this
+    this.filters.push({ column, operator: "fts", value: query });
+    return this;
   }
 
   /**
@@ -209,8 +223,12 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example not('completed_at', 'is', null)
    */
   not(column: string, operator: FilterOperator, value: unknown): this {
-    this.filters.push({ column, operator: 'not' as FilterOperator, value: `${operator}.${this.formatValue(value)}` })
-    return this
+    this.filters.push({
+      column,
+      operator: "not" as FilterOperator,
+      value: `${operator}.${this.formatValue(value)}`,
+    });
+    return this;
   }
 
   /**
@@ -219,8 +237,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example or('id.eq.2,name.eq.Han')
    */
   or(filters: string): this {
-    this.orFilters.push(filters)
-    return this
+    this.orFilters.push(filters);
+    return this;
   }
 
   /**
@@ -230,8 +248,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example and('age.gte.18,age.lte.65')
    */
   and(filters: string): this {
-    this.andFilters.push(filters)
-    return this
+    this.andFilters.push(filters);
+    return this;
   }
 
   /**
@@ -241,9 +259,9 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    */
   match(conditions: Record<string, unknown>): this {
     for (const [column, value] of Object.entries(conditions)) {
-      this.eq(column, value)
+      this.eq(column, value);
     }
-    return this
+    return this;
   }
 
   /**
@@ -252,8 +270,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example filter('age', 'gte', '18')
    */
   filter(column: string, operator: FilterOperator, value: unknown): this {
-    this.filters.push({ column, operator, value })
-    return this
+    this.filters.push({ column, operator, value });
+    return this;
   }
 
   /**
@@ -262,8 +280,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example containedBy('tags', '["news","update"]')
    */
   containedBy(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'cd', value })
-    return this
+    this.filters.push({ column, operator: "cd", value });
+    return this;
   }
 
   /**
@@ -271,36 +289,131 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @example overlaps('tags', '["news","sports"]')
    */
   overlaps(column: string, value: unknown): this {
-    this.filters.push({ column, operator: 'ov', value })
-    return this
+    this.filters.push({ column, operator: "ov", value });
+    return this;
+  }
+
+  // PostGIS Spatial Query Methods
+
+  /**
+   * Check if geometries intersect (PostGIS ST_Intersects)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test intersection with
+   * @example intersects('location', { type: 'Point', coordinates: [-122.4, 37.8] })
+   */
+  intersects(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_intersects" as FilterOperator,
+      value: geojson,
+    });
+    return this;
+  }
+
+  /**
+   * Check if geometry A contains geometry B (PostGIS ST_Contains)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test containment
+   * @example contains('region', { type: 'Point', coordinates: [-122.4, 37.8] })
+   */
+  stContains(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_contains" as FilterOperator,
+      value: geojson,
+    });
+    return this;
+  }
+
+  /**
+   * Check if geometry A is within geometry B (PostGIS ST_Within)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test containment within
+   * @example within('point', { type: 'Polygon', coordinates: [[...]] })
+   */
+  within(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_within" as FilterOperator,
+      value: geojson,
+    });
+    return this;
+  }
+
+  /**
+   * Check if geometries touch (PostGIS ST_Touches)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test touching
+   * @example touches('boundary', { type: 'LineString', coordinates: [[...]] })
+   */
+  touches(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_touches" as FilterOperator,
+      value: geojson,
+    });
+    return this;
+  }
+
+  /**
+   * Check if geometries cross (PostGIS ST_Crosses)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test crossing
+   * @example crosses('road', { type: 'LineString', coordinates: [[...]] })
+   */
+  crosses(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_crosses" as FilterOperator,
+      value: geojson,
+    });
+    return this;
+  }
+
+  /**
+   * Check if geometries spatially overlap (PostGIS ST_Overlaps)
+   * @param column - Column containing geometry/geography data
+   * @param geojson - GeoJSON object to test overlap
+   * @example stOverlaps('area', { type: 'Polygon', coordinates: [[...]] })
+   */
+  stOverlaps(column: string, geojson: unknown): this {
+    this.filters.push({
+      column,
+      operator: "st_overlaps" as FilterOperator,
+      value: geojson,
+    });
+    return this;
   }
 
   /**
    * Order results
    */
-  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this {
+  order(
+    column: string,
+    options?: { ascending?: boolean; nullsFirst?: boolean },
+  ): this {
     this.orderBys.push({
       column,
-      direction: options?.ascending === false ? 'desc' : 'asc',
-      nulls: options?.nullsFirst ? 'first' : 'last',
-    })
-    return this
+      direction: options?.ascending === false ? "desc" : "asc",
+      nulls: options?.nullsFirst ? "first" : "last",
+    });
+    return this;
   }
 
   /**
    * Limit number of rows returned
    */
   limit(count: number): this {
-    this.limitValue = count
-    return this
+    this.limitValue = count;
+    return this;
   }
 
   /**
    * Skip rows
    */
   offset(count: number): this {
-    this.offsetValue = count
-    return this
+    this.offsetValue = count;
+    return this;
   }
 
   /**
@@ -308,9 +421,9 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * Errors if no rows found
    */
   single(): this {
-    this.singleRow = true
-    this.limitValue = 1
-    return this
+    this.singleRow = true;
+    this.limitValue = 1;
+    return this;
   }
 
   /**
@@ -328,18 +441,18 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * ```
    */
   maybeSingle(): this {
-    this.maybeSingleRow = true
-    this.limitValue = 1
-    return this
+    this.maybeSingleRow = true;
+    this.limitValue = 1;
+    return this;
   }
 
   /**
    * Range selection (pagination)
    */
   range(from: number, to: number): this {
-    this.offsetValue = from
-    this.limitValue = to - from + 1
-    return this
+    this.offsetValue = from;
+    this.limitValue = to - from + 1;
+    return this;
   }
 
   /**
@@ -366,8 +479,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Aggregation
    */
   groupBy(columns: string | string[]): this {
-    this.groupByColumns = Array.isArray(columns) ? columns : [columns]
-    return this
+    this.groupByColumns = Array.isArray(columns) ? columns : [columns];
+    return this;
   }
 
   /**
@@ -395,9 +508,9 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    *
    * @category Aggregation
    */
-  count(column: string = '*'): this {
-    this.selectQuery = `count(${column})`
-    return this
+  count(column: string = "*"): this {
+    this.selectQuery = `count(${column})`;
+    return this;
   }
 
   /**
@@ -423,8 +536,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Aggregation
    */
   sum(column: string): this {
-    this.selectQuery = `sum(${column})`
-    return this
+    this.selectQuery = `sum(${column})`;
+    return this;
   }
 
   /**
@@ -449,8 +562,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Aggregation
    */
   avg(column: string): this {
-    this.selectQuery = `avg(${column})`
-    return this
+    this.selectQuery = `avg(${column})`;
+    return this;
   }
 
   /**
@@ -472,8 +585,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Aggregation
    */
   min(column: string): this {
-    this.selectQuery = `min(${column})`
-    return this
+    this.selectQuery = `min(${column})`;
+    return this;
   }
 
   /**
@@ -495,8 +608,8 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Aggregation
    */
   max(column: string): this {
-    this.selectQuery = `max(${column})`
-    return this
+    this.selectQuery = `max(${column})`;
+    return this;
   }
 
   /**
@@ -521,7 +634,7 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Batch Operations
    */
   async insertMany(rows: Array<Partial<T>>): Promise<PostgrestResponse<T>> {
-    return this.insert(rows).execute()
+    return this.insert(rows).execute();
   }
 
   /**
@@ -549,7 +662,7 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Batch Operations
    */
   async updateMany(data: Partial<T>): Promise<PostgrestResponse<T>> {
-    return this.update(data).execute()
+    return this.update(data).execute();
   }
 
   /**
@@ -576,7 +689,7 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * @category Batch Operations
    */
   async deleteMany(): Promise<PostgrestResponse<null>> {
-    return this.delete().execute() as Promise<PostgrestResponse<null>>
+    return this.delete().execute() as Promise<PostgrestResponse<null>>;
   }
 
   /**
@@ -585,79 +698,84 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
   async execute(): Promise<PostgrestResponse<T>> {
     try {
       // Handle INSERT operation
-      if (this.operationType === 'insert') {
+      if (this.operationType === "insert") {
         if (!this.insertData) {
-          throw new Error('Insert data is required for insert operation')
+          throw new Error("Insert data is required for insert operation");
         }
-        const body = Array.isArray(this.insertData) ? this.insertData : this.insertData
-        const response = await this.fetch.post<T>(`/api/v1/tables/${this.table}`, body)
+        const body = Array.isArray(this.insertData)
+          ? this.insertData
+          : this.insertData;
+        const response = await this.fetch.post<T>(
+          `/api/v1/tables/${this.table}`,
+          body,
+        );
 
         return {
           data: response,
           error: null,
           count: Array.isArray(this.insertData) ? this.insertData.length : 1,
           status: 201,
-          statusText: 'Created',
-        }
+          statusText: "Created",
+        };
       }
 
       // Handle UPDATE operation
-      if (this.operationType === 'update') {
+      if (this.operationType === "update") {
         if (!this.updateData) {
-          throw new Error('Update data is required for update operation')
+          throw new Error("Update data is required for update operation");
         }
-        const queryString = this.buildQueryString()
-        const path = `/api/v1/tables/${this.table}${queryString}`
-        const response = await this.fetch.patch<T>(path, this.updateData)
+        const queryString = this.buildQueryString();
+        const path = `/api/v1/tables/${this.table}${queryString}`;
+        const response = await this.fetch.patch<T>(path, this.updateData);
 
         return {
           data: response,
           error: null,
           count: null,
           status: 200,
-          statusText: 'OK',
-        }
+          statusText: "OK",
+        };
       }
 
       // Handle DELETE operation
-      if (this.operationType === 'delete') {
-        const queryString = this.buildQueryString()
-        const path = `/api/v1/tables/${this.table}${queryString}`
-        await this.fetch.delete(path)
+      if (this.operationType === "delete") {
+        const queryString = this.buildQueryString();
+        const path = `/api/v1/tables/${this.table}${queryString}`;
+        await this.fetch.delete(path);
 
         return {
           data: null,
           error: null,
           count: null,
           status: 204,
-          statusText: 'No Content',
-        } as PostgrestResponse<T>
+          statusText: "No Content",
+        } as PostgrestResponse<T>;
       }
 
       // Handle SELECT operation (default)
-      const queryString = this.buildQueryString()
-      const path = `/api/v1/tables/${this.table}${queryString}`
-      const data = await this.fetch.get<T | T[]>(path)
+      const queryString = this.buildQueryString();
+      const path = `/api/v1/tables/${this.table}${queryString}`;
+      const data = await this.fetch.get<T | T[]>(path);
 
       // Handle single row response
       if (this.singleRow) {
         if (Array.isArray(data) && data.length === 0) {
           return {
             data: null,
-            error: { message: 'No rows found', code: 'PGRST116' },
+            error: { message: "No rows found", code: "PGRST116" },
             count: 0,
             status: 404,
-            statusText: 'Not Found',
-          }
+            statusText: "Not Found",
+          };
         }
-        const singleData = Array.isArray(data) ? data[0] : data
+        const singleData = Array.isArray(data) ? data[0] : data;
         return {
           data: singleData as T,
           error: null,
           count: 1,
           status: 200,
-          statusText: 'OK',
-        }
+          statusText: "OK",
+        };
       }
 
       // Handle maybeSingle row response (returns null instead of error when no rows found)
@@ -668,17 +786,17 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
             error: null,
             count: 0,
             status: 200,
-            statusText: 'OK',
-          }
+            statusText: "OK",
+          };
         }
-        const singleData = Array.isArray(data) ? data[0] : data
+        const singleData = Array.isArray(data) ? data[0] : data;
         return {
           data: singleData as T,
           error: null,
           count: 1,
           status: 200,
-          statusText: 'OK',
-        }
+          statusText: "OK",
+        };
       }
 
       return {
@@ -686,20 +804,20 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
         error: null,
         count: Array.isArray(data) ? data.length : null,
         status: 200,
-        statusText: 'OK',
-      }
+        statusText: "OK",
+      };
     } catch (err) {
-      const error = err as Error
+      const error = err as Error;
       return {
         data: null,
         error: {
           message: error.message,
-          code: 'PGRST000',
+          code: "PGRST000",
         },
         count: null,
         status: 500,
-        statusText: 'Internal Server Error',
-      }
+        statusText: "Internal Server Error",
+      };
     }
   }
 
@@ -724,18 +842,18 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * ```
    */
   async throwOnError(): Promise<T> {
-    const response = await this.execute()
+    const response = await this.execute();
 
     if (response.error) {
-      const error = new Error(response.error.message)
+      const error = new Error(response.error.message);
       // Preserve error code if available
       if (response.error.code) {
-        (error as any).code = response.error.code
+        (error as any).code = response.error.code;
       }
-      throw error
+      throw error;
     }
 
-    return response.data as T
+    return response.data as T;
   }
 
   /**
@@ -752,63 +870,71 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    * ```
    */
   then<TResult1 = PostgrestResponse<T>, TResult2 = never>(
-    onfulfilled?: ((value: PostgrestResponse<T>) => TResult1 | PromiseLike<TResult1>) | null,
+    onfulfilled?:
+      | ((value: PostgrestResponse<T>) => TResult1 | PromiseLike<TResult1>)
+      | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return this.execute().then(onfulfilled, onrejected)
+    return this.execute().then(onfulfilled, onrejected);
   }
 
   /**
    * Build the query string from filters, ordering, etc.
    */
   private buildQueryString(): string {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams();
 
     // Select
-    if (this.selectQuery && this.selectQuery !== '*') {
-      params.append('select', this.selectQuery)
+    if (this.selectQuery && this.selectQuery !== "*") {
+      params.append("select", this.selectQuery);
     }
 
     // Filters
     for (const filter of this.filters) {
-      params.append(filter.column, `${filter.operator}.${this.formatValue(filter.value)}`)
+      params.append(
+        filter.column,
+        `${filter.operator}.${this.formatValue(filter.value)}`,
+      );
     }
 
     // OR Filters
     for (const orFilter of this.orFilters) {
-      params.append('or', `(${orFilter})`)
+      params.append("or", `(${orFilter})`);
     }
 
     // AND Filters
     for (const andFilter of this.andFilters) {
-      params.append('and', `(${andFilter})`)
+      params.append("and", `(${andFilter})`);
     }
 
     // Group By
     if (this.groupByColumns && this.groupByColumns.length > 0) {
-      params.append('group_by', this.groupByColumns.join(','))
+      params.append("group_by", this.groupByColumns.join(","));
     }
 
     // Order
     if (this.orderBys.length > 0) {
       const orderStr = this.orderBys
-        .map((o) => `${o.column}.${o.direction}${o.nulls ? `.nulls${o.nulls}` : ''}`)
-        .join(',')
-      params.append('order', orderStr)
+        .map(
+          (o) =>
+            `${o.column}.${o.direction}${o.nulls ? `.nulls${o.nulls}` : ""}`,
+        )
+        .join(",");
+      params.append("order", orderStr);
     }
 
     // Limit
     if (this.limitValue !== undefined) {
-      params.append('limit', String(this.limitValue))
+      params.append("limit", String(this.limitValue));
     }
 
     // Offset
     if (this.offsetValue !== undefined) {
-      params.append('offset', String(this.offsetValue))
+      params.append("offset", String(this.offsetValue));
     }
 
-    const queryString = params.toString()
-    return queryString ? `?${queryString}` : ''
+    const queryString = params.toString();
+    return queryString ? `?${queryString}` : "";
   }
 
   /**
@@ -816,17 +942,17 @@ export class QueryBuilder<T = unknown> implements PromiseLike<PostgrestResponse<
    */
   private formatValue(value: unknown): string {
     if (value === null) {
-      return 'null'
+      return "null";
     }
-    if (typeof value === 'boolean') {
-      return value ? 'true' : 'false'
+    if (typeof value === "boolean") {
+      return value ? "true" : "false";
     }
     if (Array.isArray(value)) {
-      return `(${value.map((v) => this.formatValue(v)).join(',')})`
+      return `(${value.map((v) => this.formatValue(v)).join(",")})`;
     }
-    if (typeof value === 'object') {
-      return JSON.stringify(value)
+    if (typeof value === "object") {
+      return JSON.stringify(value);
     }
-    return String(value)
+    return String(value);
   }
 }
