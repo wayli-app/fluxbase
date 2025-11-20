@@ -310,3 +310,213 @@ func validateSelectFields(fields []string) bool {
 	}
 	return true
 }
+
+// TestIsGeoJSON tests detection of GeoJSON objects for PostGIS support
+func TestIsGeoJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected bool
+	}{
+		{
+			name: "valid Point",
+			input: map[string]interface{}{
+				"type":        "Point",
+				"coordinates": []interface{}{-122.4783, 37.8199},
+			},
+			expected: true,
+		},
+		{
+			name: "valid LineString",
+			input: map[string]interface{}{
+				"type": "LineString",
+				"coordinates": []interface{}{
+					[]interface{}{-122.4783, 37.8199},
+					[]interface{}{-122.4230, 37.8267},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid Polygon",
+			input: map[string]interface{}{
+				"type": "Polygon",
+				"coordinates": []interface{}{
+					[]interface{}{
+						[]interface{}{-122.5, 37.7},
+						[]interface{}{-122.5, 37.85},
+						[]interface{}{-122.35, 37.85},
+						[]interface{}{-122.35, 37.7},
+						[]interface{}{-122.5, 37.7},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid MultiPoint",
+			input: map[string]interface{}{
+				"type": "MultiPoint",
+				"coordinates": []interface{}{
+					[]interface{}{-122.4783, 37.8199},
+					[]interface{}{-122.4230, 37.8267},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid MultiLineString",
+			input: map[string]interface{}{
+				"type": "MultiLineString",
+				"coordinates": []interface{}{
+					[]interface{}{
+						[]interface{}{-122.4783, 37.8199},
+						[]interface{}{-122.4230, 37.8267},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid MultiPolygon",
+			input: map[string]interface{}{
+				"type": "MultiPolygon",
+				"coordinates": []interface{}{
+					[]interface{}{
+						[]interface{}{
+							[]interface{}{-122.5, 37.7},
+							[]interface{}{-122.5, 37.85},
+							[]interface{}{-122.35, 37.85},
+							[]interface{}{-122.5, 37.7},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "valid GeometryCollection",
+			input: map[string]interface{}{
+				"type": "GeometryCollection",
+				"coordinates": []interface{}{
+					map[string]interface{}{
+						"type":        "Point",
+						"coordinates": []interface{}{-122.4783, 37.8199},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "missing type field",
+			input: map[string]interface{}{
+				"coordinates": []interface{}{-122.4783, 37.8199},
+			},
+			expected: false,
+		},
+		{
+			name: "missing coordinates field",
+			input: map[string]interface{}{
+				"type": "Point",
+			},
+			expected: false,
+		},
+		{
+			name: "invalid type - not a string",
+			input: map[string]interface{}{
+				"type":        123,
+				"coordinates": []interface{}{-122.4783, 37.8199},
+			},
+			expected: false,
+		},
+		{
+			name: "invalid type - unknown geometry type",
+			input: map[string]interface{}{
+				"type":        "Triangle",
+				"coordinates": []interface{}{-122.4783, 37.8199},
+			},
+			expected: false,
+		},
+		{
+			name:     "not a map - string",
+			input:    "not a map",
+			expected: false,
+		},
+		{
+			name:     "not a map - number",
+			input:    42,
+			expected: false,
+		},
+		{
+			name:     "not a map - array",
+			input:    []interface{}{-122.4783, 37.8199},
+			expected: false,
+		},
+		{
+			name:     "nil input",
+			input:    nil,
+			expected: false,
+		},
+		{
+			name:     "empty map",
+			input:    map[string]interface{}{},
+			expected: false,
+		},
+		{
+			name: "has type and coordinates but not GeoJSON structure",
+			input: map[string]interface{}{
+				"type":        "custom",
+				"coordinates": "some value",
+			},
+			expected: false,
+		},
+		{
+			name: "case sensitive type check",
+			input: map[string]interface{}{
+				"type":        "point", // lowercase should fail
+				"coordinates": []interface{}{-122.4783, 37.8199},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isGeoJSON(tt.input)
+			assert.Equal(t, tt.expected, result, "isGeoJSON(%v) should be %v", tt.input, tt.expected)
+		})
+	}
+}
+
+// isGeoJSON checks if a value is a valid GeoJSON object
+// This mirrors the implementation in internal/api/rest_handler.go
+func isGeoJSON(val interface{}) bool {
+	m, ok := val.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	geoType, hasType := m["type"]
+	_, hasCoords := m["coordinates"]
+
+	if !hasType || !hasCoords {
+		return false
+	}
+
+	typeStr, ok := geoType.(string)
+	if !ok {
+		return false
+	}
+
+	validTypes := map[string]bool{
+		"Point":              true,
+		"LineString":         true,
+		"Polygon":            true,
+		"MultiPoint":         true,
+		"MultiLineString":    true,
+		"MultiPolygon":       true,
+		"GeometryCollection": true,
+	}
+
+	return validTypes[typeStr]
+}

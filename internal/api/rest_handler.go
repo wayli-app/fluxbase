@@ -345,8 +345,22 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 			}
 
 			columns = append(columns, col)
-			values = append(values, val)
-			placeholders = append(placeholders, fmt.Sprintf("$%d", i))
+
+			// Check if value is GeoJSON and needs PostGIS conversion
+			if isGeoJSON(val) {
+				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
+				geoJSON, err := json.Marshal(val)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{
+						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
+					})
+				}
+				values = append(values, string(geoJSON))
+				placeholders = append(placeholders, fmt.Sprintf("ST_GeomFromGeoJSON($%d)", i))
+			} else {
+				values = append(values, val)
+				placeholders = append(placeholders, fmt.Sprintf("$%d", i))
+			}
 			i++
 		}
 
@@ -464,8 +478,22 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 			if !exists {
 				val = nil // Use NULL for missing columns
 			}
-			values = append(values, val)
-			placeholders[i] = fmt.Sprintf("$%d", argCounter)
+
+			// Check if value is GeoJSON and needs PostGIS conversion
+			if isGeoJSON(val) {
+				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
+				geoJSON, err := json.Marshal(val)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{
+						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
+					})
+				}
+				values = append(values, string(geoJSON))
+				placeholders[i] = fmt.Sprintf("ST_GeomFromGeoJSON($%d)", argCounter)
+			} else {
+				values = append(values, val)
+				placeholders[i] = fmt.Sprintf("$%d", argCounter)
+			}
 			argCounter++
 		}
 		valueClauses = append(valueClauses, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
@@ -616,8 +644,21 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 				})
 			}
 
-			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, i))
-			values = append(values, val)
+			// Check if value is GeoJSON and needs PostGIS conversion
+			if isGeoJSON(val) {
+				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
+				geoJSON, err := json.Marshal(val)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{
+						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
+					})
+				}
+				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", col, i))
+				values = append(values, string(geoJSON))
+			} else {
+				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, i))
+				values = append(values, val)
+			}
 			i++
 		}
 
@@ -753,8 +794,22 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 					"error": fmt.Sprintf("Unknown column: %s", col),
 				})
 			}
-			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, argCounter))
-			values = append(values, val)
+
+			// Check if value is GeoJSON and needs PostGIS conversion
+			if isGeoJSON(val) {
+				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
+				geoJSON, err := json.Marshal(val)
+				if err != nil {
+					return c.Status(400).JSON(fiber.Map{
+						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
+					})
+				}
+				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", col, argCounter))
+				values = append(values, string(geoJSON))
+			} else {
+				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, argCounter))
+				values = append(values, val)
+			}
 			argCounter++
 		}
 
@@ -969,6 +1024,35 @@ func (h *RESTHandler) HandleGetTables(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(response)
+}
+
+// isGeoJSON checks if a value looks like a GeoJSON object
+func isGeoJSON(val interface{}) bool {
+	m, ok := val.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	// Check for GeoJSON structure: must have "type" and "coordinates"
+	geoType, hasType := m["type"]
+	_, hasCoords := m["coordinates"]
+	if !hasType || !hasCoords {
+		return false
+	}
+	// Verify it's a valid GeoJSON geometry type
+	typeStr, ok := geoType.(string)
+	if !ok {
+		return false
+	}
+	validTypes := map[string]bool{
+		"Point":              true,
+		"LineString":         true,
+		"Polygon":            true,
+		"MultiPoint":         true,
+		"MultiLineString":    true,
+		"MultiPolygon":       true,
+		"GeometryCollection": true,
+	}
+	return validTypes[typeStr]
 }
 
 // pgxRowsToJSON converts pgx rows to JSON-serializable format
