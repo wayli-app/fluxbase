@@ -33,34 +33,14 @@ func setupPostGISTest(t *testing.T) *PostGISTestContext {
 		}
 	}
 
-	// Create locations table with geometry column (if PostGIS is available)
+	// Table names (tables are created in TestMain via setup_test.go)
 	locationsTable := "locations"
-	if postGISEnabled {
-		tc.ExecuteSQL("DROP TABLE IF EXISTS " + locationsTable + " CASCADE")
-		tc.ExecuteSQL(`
-			CREATE TABLE ` + locationsTable + ` (
-				id SERIAL PRIMARY KEY,
-				name TEXT NOT NULL,
-				location GEOMETRY(Point, 4326),
-				created_at TIMESTAMPTZ DEFAULT NOW(),
-				updated_at TIMESTAMPTZ DEFAULT NOW()
-			)
-		`)
-	}
-
-	// Create regions table with polygon geometry column (if PostGIS is available)
 	regionsTable := "regions"
+
+	// Clean tables if PostGIS is enabled
 	if postGISEnabled {
-		tc.ExecuteSQL("DROP TABLE IF EXISTS " + regionsTable + " CASCADE")
-		tc.ExecuteSQL(`
-			CREATE TABLE ` + regionsTable + ` (
-				id SERIAL PRIMARY KEY,
-				name TEXT NOT NULL,
-				boundary GEOMETRY(Polygon, 4326),
-				created_at TIMESTAMPTZ DEFAULT NOW(),
-				updated_at TIMESTAMPTZ DEFAULT NOW()
-			)
-		`)
+		tc.ExecuteSQL("TRUNCATE TABLE " + locationsTable + " CASCADE")
+		tc.ExecuteSQL("TRUNCATE TABLE " + regionsTable + " CASCADE")
 	}
 
 	// Create API key
