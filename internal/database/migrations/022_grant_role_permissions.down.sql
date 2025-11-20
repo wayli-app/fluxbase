@@ -13,7 +13,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA functions REVOKE ALL ON TABLES FROM anon, aut
 ALTER DEFAULT PRIVILEGES IN SCHEMA realtime REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
 
 -- Revoke table permissions
 REVOKE ALL ON ALL TABLES IN SCHEMA auth FROM anon, authenticated, service_role;

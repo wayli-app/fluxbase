@@ -140,10 +140,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
 ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
     GRANT ALL ON TABLES TO service_role;
 
--- Default privileges for tables created by fluxbase_app
--- Note: Test tables (like products) are created by fluxbase_app in both local and CI
-ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA public
+-- Default privileges for tables created by the application user
+-- CURRENT_USER refers to whoever runs the migration (typically the admin/owner of the database)
+-- This ensures tables created by the application user get proper permissions
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
 
-ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA public
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
     GRANT ALL ON TABLES TO service_role;

@@ -49,10 +49,10 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
 -- Grant application users permission to SET ROLE to anon, authenticated, service_role
 -- This allows the RLS middleware to execute SET LOCAL ROLE for defense-in-depth security
--- The actual application users are: fluxbase_app (production) and fluxbase_rls_test (testing)
-GRANT anon TO fluxbase_app;
-GRANT authenticated TO fluxbase_app;
-GRANT service_role TO fluxbase_app;
+-- CURRENT_USER grants to whoever runs the migration (typically the admin user or FLUXBASE_DATABASE_ADMIN_USER)
+GRANT anon TO CURRENT_USER;
+GRANT authenticated TO CURRENT_USER;
+GRANT service_role TO CURRENT_USER;
 
 -- Also grant to test user (may not exist in production, hence DO block)
 DO $$

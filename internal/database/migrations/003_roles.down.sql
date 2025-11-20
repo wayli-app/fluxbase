@@ -2,9 +2,9 @@
 -- Table-level revokes are in migration 022
 
 -- Revoke role grants from application users
-REVOKE anon FROM fluxbase_app;
-REVOKE authenticated FROM fluxbase_app;
-REVOKE service_role FROM fluxbase_app;
+REVOKE anon FROM CURRENT_USER;
+REVOKE authenticated FROM CURRENT_USER;
+REVOKE service_role FROM CURRENT_USER;
 
 DO $$
 BEGIN
