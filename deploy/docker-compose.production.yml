@@ -84,12 +84,12 @@ services:
 
   # Fluxbase Application (3 replicas for HA)
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.38}
+    image: ghcr.io/wayli-app/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.39}
     build:
       context: ..
       dockerfile: Dockerfile
       args:
-        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.38}
+        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.39}
         COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: fluxbase-app
