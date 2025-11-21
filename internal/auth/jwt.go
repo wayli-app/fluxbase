@@ -276,3 +276,85 @@ func (m *JWTManager) GenerateAnonymousRefreshToken(userID string) (string, error
 
 	return tokenString, nil
 }
+
+// ValidateServiceRoleToken validates a JWT that contains a role claim (anon, service_role, authenticated)
+// This is used for Supabase-compatible API keys which are JWTs with role claims.
+// Unlike user tokens, these don't require user lookup or revocation checks.
+// Accepts issuers: "fluxbase", "supabase-demo", "supabase"
+func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, ErrInvalidSignature
+		}
+		return m.secretKey, nil
+	})
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrExpiredToken
+		}
+		return nil, ErrInvalidToken
+	}
+
+	claims, ok := token.Claims.(*TokenClaims)
+	if !ok || !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	// Accept known issuers for service role tokens
+	issuer := claims.Issuer
+	if issuer != "" && issuer != "fluxbase" && issuer != "supabase-demo" && issuer != "supabase" {
+		return nil, ErrInvalidToken
+	}
+
+	// Validate role is one of the expected service roles
+	role := claims.Role
+	if role != "anon" && role != "service_role" && role != "authenticated" {
+		return nil, ErrInvalidToken
+	}
+
+	return claims, nil
+}
+
+// GenerateServiceRoleToken generates a JWT with service_role that bypasses RLS
+func (m *JWTManager) GenerateServiceRoleToken() (string, error) {
+	now := time.Now()
+
+	claims := &TokenClaims{
+		UserID:    "",             // No user for service role
+		Role:      "service_role", // Service role bypasses RLS
+		TokenType: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    m.issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)), // Long-lived
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(m.secretKey)
+}
+
+// GenerateAnonToken generates a JWT with anon role for anonymous access
+func (m *JWTManager) GenerateAnonToken() (string, error) {
+	now := time.Now()
+
+	claims := &TokenClaims{
+		UserID:    "",     // No user for anon
+		Role:      "anon", // Anonymous role
+		TokenType: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    m.issuer,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)), // Long-lived
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(m.secretKey)
+}

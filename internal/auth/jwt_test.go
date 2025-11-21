@@ -381,3 +381,199 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 		assert.Equal(t, "user123", claims.UserID)
 	}
 }
+
+// Tests for Supabase-compatible service role JWT support
+
+func TestGenerateServiceRoleToken(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	token, err := manager.GenerateServiceRoleToken()
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	// Validate the token
+	claims, err := manager.ValidateServiceRoleToken(token)
+	require.NoError(t, err)
+	assert.Equal(t, "service_role", claims.Role)
+	assert.Equal(t, "fluxbase", claims.Issuer)
+	assert.Empty(t, claims.UserID) // Service role tokens have no user
+}
+
+func TestGenerateAnonToken(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	token, err := manager.GenerateAnonToken()
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	// Validate the token
+	claims, err := manager.ValidateServiceRoleToken(token)
+	require.NoError(t, err)
+	assert.Equal(t, "anon", claims.Role)
+	assert.Equal(t, "fluxbase", claims.Issuer)
+	assert.Empty(t, claims.UserID)
+}
+
+func TestValidateServiceRoleToken_Success(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	tests := []struct {
+		name     string
+		role     string
+		generate func() (string, error)
+	}{
+		{
+			name: "service_role token",
+			role: "service_role",
+			generate: func() (string, error) {
+				return manager.GenerateServiceRoleToken()
+			},
+		},
+		{
+			name: "anon token",
+			role: "anon",
+			generate: func() (string, error) {
+				return manager.GenerateAnonToken()
+			},
+		},
+		{
+			name: "authenticated user token",
+			role: "authenticated",
+			generate: func() (string, error) {
+				token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "authenticated", nil, nil)
+				return token, err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := tt.generate()
+			require.NoError(t, err)
+
+			claims, err := manager.ValidateServiceRoleToken(token)
+			require.NoError(t, err)
+			assert.Equal(t, tt.role, claims.Role)
+		})
+	}
+}
+
+func TestValidateServiceRoleToken_InvalidRole(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	// Generate a token with an invalid role (e.g., "admin" is not in allowed list)
+	token, _, err := manager.GenerateAccessToken("user123", "test@example.com", "admin", nil, nil)
+	require.NoError(t, err)
+
+	claims, err := manager.ValidateServiceRoleToken(token)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	assert.Nil(t, claims)
+}
+
+func TestValidateServiceRoleToken_WrongSecret(t *testing.T) {
+	manager1 := NewJWTManager("secret1", 15*time.Minute, 7*24*time.Hour)
+	manager2 := NewJWTManager("secret2", 15*time.Minute, 7*24*time.Hour)
+
+	token, err := manager1.GenerateServiceRoleToken()
+	require.NoError(t, err)
+
+	// Try to validate with wrong secret
+	claims, err := manager2.ValidateServiceRoleToken(token)
+
+	assert.Error(t, err)
+	assert.Nil(t, claims)
+}
+
+func TestValidateServiceRoleToken_SupabaseFormat(t *testing.T) {
+	// Use a consistent secret for Supabase-style tokens
+	secret := "super-secret-jwt-token-with-at-least-32-characters-long"
+	manager := NewJWTManager(secret, 15*time.Minute, 7*24*time.Hour)
+
+	tests := []struct {
+		name   string
+		role   string
+		issuer string
+	}{
+		{"supabase-demo issuer with service_role", "service_role", "supabase-demo"},
+		{"supabase-demo issuer with anon", "anon", "supabase-demo"},
+		{"supabase issuer with service_role", "service_role", "supabase"},
+		{"fluxbase issuer with service_role", "service_role", "fluxbase"},
+		{"empty issuer with service_role", "service_role", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a Supabase-style JWT manually
+			now := time.Now()
+			claims := jwt.MapClaims{
+				"role": tt.role,
+				"iat":  now.Unix(),
+				"exp":  now.Add(time.Hour).Unix(),
+			}
+			if tt.issuer != "" {
+				claims["iss"] = tt.issuer
+			}
+
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+			tokenString, err := token.SignedString([]byte(secret))
+			require.NoError(t, err)
+
+			// Validate using our function
+			parsedClaims, err := manager.ValidateServiceRoleToken(tokenString)
+			require.NoError(t, err)
+			assert.Equal(t, tt.role, parsedClaims.Role)
+		})
+	}
+}
+
+func TestValidateServiceRoleToken_InvalidIssuer(t *testing.T) {
+	secret := "test-secret"
+	manager := NewJWTManager(secret, 15*time.Minute, 7*24*time.Hour)
+
+	// Create a token with an unknown issuer
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"role": "service_role",
+		"iss":  "unknown-issuer",
+		"iat":  now.Unix(),
+		"exp":  now.Add(time.Hour).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(secret))
+	require.NoError(t, err)
+
+	parsedClaims, err := manager.ValidateServiceRoleToken(tokenString)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidToken)
+	assert.Nil(t, parsedClaims)
+}
+
+func TestValidateServiceRoleToken_ExpiredToken(t *testing.T) {
+	secret := "test-secret"
+	manager := NewJWTManager(secret, 15*time.Minute, 7*24*time.Hour)
+
+	// Create an expired token
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"role": "service_role",
+		"iss":  "supabase-demo",
+		"iat":  now.Add(-2 * time.Hour).Unix(),
+		"exp":  now.Add(-1 * time.Hour).Unix(), // Expired 1 hour ago
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(secret))
+	require.NoError(t, err)
+
+	parsedClaims, err := manager.ValidateServiceRoleToken(tokenString)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrExpiredToken)
+	assert.Nil(t, parsedClaims)
+}

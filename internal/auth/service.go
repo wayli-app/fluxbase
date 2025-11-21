@@ -452,6 +452,13 @@ func (s *Service) ValidateToken(token string) (*TokenClaims, error) {
 	return s.jwtManager.ValidateToken(token)
 }
 
+// ValidateServiceRoleToken validates a JWT containing a role claim (anon, service_role, authenticated)
+// This is used for Supabase-compatible API keys which are JWTs with role claims.
+// Unlike user tokens, these don't require user lookup or revocation checks.
+func (s *Service) ValidateServiceRoleToken(token string) (*TokenClaims, error) {
+	return s.jwtManager.ValidateServiceRoleToken(token)
+}
+
 // GetOAuthManager returns the OAuth manager for configuring providers
 func (s *Service) GetOAuthManager() *OAuthManager {
 	return s.oauthManager

@@ -320,6 +320,11 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 // OptionalAuthOrServiceKey allows either JWT, API key, OR service key authentication
 // If no authentication is provided, the request continues (for anonymous access with RLS)
 // IMPORTANT: If invalid credentials are provided, returns 401 (does not fall back to anonymous)
+//
+// Supports Supabase-compatible authentication:
+// - apikey header containing a JWT with role claim (anon, service_role, authenticated)
+// - Authorization: Bearer <jwt> with role claim
+// - X-Service-Key header with hashed service key
 func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// First, try service key authentication (highest privilege)
@@ -341,11 +346,76 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			})
 		}
 
-		// Try JWT authentication
+		// Check for Supabase-style apikey header (lowercase)
+		// This header may contain a JWT with role claim (anon, service_role, authenticated)
+		fluxbaseAPIKey := c.Get("apikey")
+		if fluxbaseAPIKey != "" && strings.HasPrefix(fluxbaseAPIKey, "eyJ") {
+			// Looks like a JWT - validate it as a service role token
+			claims, err := authService.ValidateServiceRoleToken(fluxbaseAPIKey)
+			if err == nil {
+				// Valid service role JWT
+				c.Locals("user_role", claims.Role)
+				c.Locals("auth_type", "service_role_jwt")
+				c.Locals("jwt_claims", claims)
+
+				// Set RLS context based on role claim
+				c.Locals("rls_role", claims.Role)
+				if claims.UserID != "" {
+					c.Locals("user_id", claims.UserID)
+					c.Locals("rls_user_id", claims.UserID)
+				}
+
+				log.Debug().
+					Str("role", claims.Role).
+					Str("issuer", claims.Issuer).
+					Msg("Authenticated with service role JWT via apikey header")
+
+				return c.Next()
+			}
+			// If apikey JWT was provided but invalid, return 401
+			log.Debug().
+				Err(err).
+				Msg("apikey JWT validation failed")
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or expired apikey token",
+			})
+		}
+
+		// Try JWT authentication via Authorization Bearer header
 		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
-			// Validate JWT token
+			// First, try to validate as a service role JWT (anon/service_role/authenticated)
+			// This handles the Supabase pattern where the same JWT is sent as both apikey and Bearer
+			if strings.HasPrefix(token, "eyJ") {
+				claims, err := authService.ValidateServiceRoleToken(token)
+				if err == nil {
+					// Check if this is a service_role or anon token (not a user token)
+					if claims.Role == "service_role" || claims.Role == "anon" {
+						// Valid service role JWT - bypass user validation
+						c.Locals("user_role", claims.Role)
+						c.Locals("auth_type", "service_role_jwt")
+						c.Locals("jwt_claims", claims)
+						c.Locals("rls_role", claims.Role)
+
+						log.Debug().
+							Str("role", claims.Role).
+							Str("issuer", claims.Issuer).
+							Msg("Authenticated with service role JWT via Bearer header")
+
+						return c.Next()
+					}
+					// Role is "authenticated" - fall through to user JWT validation
+					// which includes revocation checks
+				} else {
+					// ValidateServiceRoleToken failed - log for debugging
+					log.Debug().
+						Err(err).
+						Msg("Service role JWT validation failed, trying user JWT validation")
+				}
+			}
+
+			// Try to validate as a user JWT token
 			claims, err := authService.ValidateToken(token)
 			if err == nil {
 				// Check if token has been revoked
@@ -373,10 +443,14 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			})
 		}
 
-		// Try API key authentication
+		// Try API key authentication (X-API-Key header or apikey query param)
 		apiKey := c.Get("X-API-Key")
 		if apiKey == "" {
 			apiKey = c.Query("apikey")
+		}
+		// Also check lowercase apikey header if it wasn't a JWT
+		if apiKey == "" && fluxbaseAPIKey != "" {
+			apiKey = fluxbaseAPIKey
 		}
 
 		if apiKey != "" {

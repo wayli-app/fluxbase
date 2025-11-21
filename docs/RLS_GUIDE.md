@@ -46,11 +46,54 @@ This separation means:
 - ✅ Policies can still check fine-grained application roles
 - ✅ No need to run `CREATE ROLE` for each application role
 
+## Authentication Headers
+
+Fluxbase supports multiple authentication methods for the REST API, with Supabase-compatible header support:
+
+### Supabase-Compatible JWTs (Recommended)
+
+Use the `apikey` header with a JWT containing a `role` claim:
+
+```bash
+# Anonymous access (applies RLS with anon role)
+curl -H "apikey: $ANON_KEY" \
+     -H "Authorization: Bearer $ANON_KEY" \
+     "http://localhost:8080/api/v1/tables/posts"
+
+# Service role access (bypasses RLS)
+curl -H "apikey: $SERVICE_ROLE_KEY" \
+     -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+     "http://localhost:8080/api/v1/tables/posts"
+```
+
+The JWT must contain:
+
+- `role`: One of `anon`, `service_role`, or `authenticated`
+- `iss` (optional): Accepted issuers are `fluxbase`, `supabase-demo`, `supabase`
+
+### User JWTs
+
+For authenticated users, use the access token from login:
+
+```bash
+curl -H "Authorization: Bearer $USER_ACCESS_TOKEN" \
+     "http://localhost:8080/api/v1/tables/posts"
+```
+
+### Service Keys (Database-stored)
+
+For backend services, you can use service keys stored in `auth.service_keys`:
+
+```bash
+curl -H "X-Service-Key: sk_..." \
+     "http://localhost:8080/api/v1/tables/posts"
+```
+
 ## Configuration
 
 RLS is always enabled in Fluxbase as a core security feature and cannot be disabled. This ensures multi-tenant data isolation and defense-in-depth security.
 
-For operations that need to bypass RLS (such as administrative tasks), use service keys which have elevated privileges.
+For operations that need to bypass RLS (such as administrative tasks), use service role JWTs or service keys which have elevated privileges.
 
 ## Helper Functions
 
