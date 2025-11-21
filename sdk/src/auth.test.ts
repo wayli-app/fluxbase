@@ -447,6 +447,156 @@ describe("FluxbaseAuth", () => {
 
       expect(localStorage.getItem("fluxbase.auth.session")).toBeNull();
     });
+
+    it("should use memory storage fallback when localStorage throws", async () => {
+      // Make localStorage throw to simulate blocked/unavailable storage
+      const originalSetItem = localStorageMock.setItem;
+      const originalGetItem = localStorageMock.getItem;
+
+      // Temporarily make localStorage throw (simulates private browsing mode)
+      localStorageMock.setItem = () => {
+        throw new Error("localStorage is not available");
+      };
+      localStorageMock.getItem = () => {
+        throw new Error("localStorage is not available");
+      };
+
+      const freshMockFetch = {
+        post: vi.fn(),
+        get: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+        setAuthToken: vi.fn(),
+      } as unknown as FluxbaseFetch;
+
+      // Create auth instance - should use MemoryStorage fallback due to localStorage throwing
+      const nodeAuth = new FluxbaseAuth(freshMockFetch, true, true);
+
+      const authResponse: AuthResponse = {
+        access_token: "node-token",
+        refresh_token: "node-refresh",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "node@example.com", created_at: "" },
+      };
+
+      vi.mocked(freshMockFetch.post).mockResolvedValue(authResponse);
+
+      // Sign in should work without throwing
+      const { data, error } = await nodeAuth.signIn({
+        email: "node@example.com",
+        password: "password",
+      });
+
+      expect(error).toBeNull();
+      expect(data).toBeDefined();
+      expect(data!.session.access_token).toBe("node-token");
+      expect(freshMockFetch.setAuthToken).toHaveBeenCalledWith("node-token");
+
+      // Session should be accessible
+      const { data: sessionData } = await nodeAuth.getSession();
+      expect(sessionData.session?.access_token).toBe("node-token");
+
+      // Restore localStorage functions
+      localStorageMock.setItem = originalSetItem;
+      localStorageMock.getItem = originalGetItem;
+    });
+
+    it("should maintain session in memory storage across operations", async () => {
+      // Make localStorage throw to simulate blocked/unavailable storage
+      const originalSetItem = localStorageMock.setItem;
+      const originalGetItem = localStorageMock.getItem;
+      const originalRemoveItem = localStorageMock.removeItem;
+
+      localStorageMock.setItem = () => {
+        throw new Error("localStorage is not available");
+      };
+      localStorageMock.getItem = () => {
+        throw new Error("localStorage is not available");
+      };
+      localStorageMock.removeItem = () => {
+        throw new Error("localStorage is not available");
+      };
+
+      const freshMockFetch = {
+        post: vi.fn(),
+        get: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+        setAuthToken: vi.fn(),
+      } as unknown as FluxbaseFetch;
+
+      const nodeAuth = new FluxbaseAuth(freshMockFetch, true, true);
+
+      // Sign in
+      const authResponse: AuthResponse = {
+        access_token: "memory-token",
+        refresh_token: "memory-refresh",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "memory@example.com", created_at: "" },
+      };
+
+      vi.mocked(freshMockFetch.post).mockResolvedValue(authResponse);
+      await nodeAuth.signIn({
+        email: "memory@example.com",
+        password: "password",
+      });
+
+      // Verify session exists
+      const { data: sessionData } = await nodeAuth.getSession();
+      expect(sessionData.session?.access_token).toBe("memory-token");
+
+      // Sign out
+      vi.mocked(freshMockFetch.post).mockResolvedValue(undefined);
+      await nodeAuth.signOut();
+
+      // Session should be cleared
+      const { data: clearedSession } = await nodeAuth.getSession();
+      expect(clearedSession.session).toBeNull();
+
+      // Restore localStorage functions
+      localStorageMock.setItem = originalSetItem;
+      localStorageMock.getItem = originalGetItem;
+      localStorageMock.removeItem = originalRemoveItem;
+    });
+
+    it("should completely disable persistence when persist is false", async () => {
+      const freshMockFetch = {
+        post: vi.fn(),
+        get: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+        setAuthToken: vi.fn(),
+      } as unknown as FluxbaseFetch;
+
+      // Clear localStorage before test
+      localStorageMock.clear();
+
+      // Create auth with persist=false
+      const noPersistAuth = new FluxbaseAuth(freshMockFetch, true, false);
+
+      const authResponse: AuthResponse = {
+        access_token: "no-persist-token",
+        refresh_token: "no-persist-refresh",
+        expires_in: 3600,
+        token_type: "Bearer",
+        user: { id: "1", email: "nopersist@example.com", created_at: "" },
+      };
+
+      vi.mocked(freshMockFetch.post).mockResolvedValue(authResponse);
+      await noPersistAuth.signIn({
+        email: "nopersist@example.com",
+        password: "password",
+      });
+
+      // Session should work in-memory
+      const { data: sessionData } = await noPersistAuth.getSession();
+      expect(sessionData.session?.access_token).toBe("no-persist-token");
+
+      // But nothing should be in localStorage
+      expect(localStorage.getItem("fluxbase.auth.session")).toBeNull();
+    });
   });
 
   describe("Password Reset Flow", () => {

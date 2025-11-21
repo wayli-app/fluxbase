@@ -49,6 +49,56 @@ import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
 const AUTH_STORAGE_KEY = "fluxbase.auth.session";
 
+/**
+ * In-memory storage adapter for Node.js/SSR environments
+ * where localStorage is not available
+ */
+class MemoryStorage implements Storage {
+  private store = new Map<string, string>();
+
+  get length(): number {
+    return this.store.size;
+  }
+
+  clear(): void {
+    this.store.clear();
+  }
+
+  getItem(key: string): string | null {
+    return this.store.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
+
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+
+  key(index: number): string | null {
+    return [...this.store.keys()][index] ?? null;
+  }
+}
+
+/**
+ * Check if localStorage is available and working
+ */
+function isLocalStorageAvailable(): boolean {
+  try {
+    if (typeof localStorage === "undefined") {
+      return false;
+    }
+    // Test that localStorage actually works (some browsers block it)
+    const testKey = "__fluxbase_storage_test__";
+    localStorage.setItem(testKey, "test");
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class FluxbaseAuth {
   private fetch: FluxbaseFetch;
   private session: AuthSession | null = null;
@@ -56,15 +106,26 @@ export class FluxbaseAuth {
   private autoRefresh: boolean;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private stateChangeListeners: Set<AuthStateChangeCallback> = new Set();
+  private storage: Storage | null = null;
 
   constructor(fetch: FluxbaseFetch, autoRefresh = true, persist = true) {
     this.fetch = fetch;
     this.persist = persist;
     this.autoRefresh = autoRefresh;
 
+    // Initialize storage based on persist option and environment
+    if (this.persist) {
+      if (isLocalStorageAvailable()) {
+        this.storage = localStorage;
+      } else {
+        // Node.js/SSR fallback - use in-memory storage
+        this.storage = new MemoryStorage();
+      }
+    }
+
     // Load session from storage if persisted
-    if (this.persist && typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (this.storage) {
+      const stored = this.storage.getItem(AUTH_STORAGE_KEY);
       if (stored) {
         try {
           this.session = JSON.parse(stored);
@@ -74,7 +135,7 @@ export class FluxbaseAuth {
           }
         } catch {
           // Invalid stored session, ignore
-          localStorage.removeItem(AUTH_STORAGE_KEY);
+          this.storage.removeItem(AUTH_STORAGE_KEY);
         }
       }
     }
@@ -881,8 +942,8 @@ export class FluxbaseAuth {
     this.session = null;
     this.fetch.setAuthToken(null);
 
-    if (this.persist && typeof localStorage !== "undefined") {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+    if (this.storage) {
+      this.storage.removeItem(AUTH_STORAGE_KEY);
     }
 
     if (this.refreshTimer) {
@@ -897,8 +958,8 @@ export class FluxbaseAuth {
    * Internal: Save session to storage
    */
   private saveSession() {
-    if (this.persist && typeof localStorage !== "undefined" && this.session) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(this.session));
+    if (this.storage && this.session) {
+      this.storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(this.session));
     }
   }
 
