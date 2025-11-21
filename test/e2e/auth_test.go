@@ -284,10 +284,11 @@ func TestAuthSignupToggle(t *testing.T) {
 		defer tc.Close()
 
 		// Disable signup via database settings (this is what the service checks)
+		// Note: is_public must be true so anon role can read this setting during signup check
 		tc.ExecuteSQL(`
-			INSERT INTO app.settings (key, value, category)
-			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb, 'system')
-			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb
+			INSERT INTO app.settings (key, value, category, is_public)
+			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb, 'system', true)
+			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database
@@ -317,10 +318,11 @@ func TestAuthSignupToggle(t *testing.T) {
 		defer tc.Close()
 
 		// Ensure signup is enabled via database settings
+		// Note: is_public must be true so anon role can read this setting during signup check
 		tc.ExecuteSQL(`
-			INSERT INTO app.settings (key, value, category)
-			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system')
-			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
+			INSERT INTO app.settings (key, value, category, is_public)
+			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system', true)
+			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database

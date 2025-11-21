@@ -627,7 +627,7 @@ docker run -d --name postgres \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=fluxbase \
   -p 5432:5432 \
-  postgres:18
+  postgres:18-alpine
 ```
 
 **Required users**:

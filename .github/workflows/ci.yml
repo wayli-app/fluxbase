@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:18-3.6-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -181,7 +181,7 @@ jobs:
 
           # Restart PostgreSQL to apply settings
           # Find the container ID for postgres service and restart it
-          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgis/postgis:18-3.6-alpine" --format "{{.ID}}")
+          POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres:18-alpine" --format "{{.ID}}")
           docker restart $POSTGRES_CONTAINER
 
           # Wait for postgres to be ready after restart
@@ -259,6 +259,9 @@ jobs:
             $PSQL_CMD -c "ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA $schema GRANT ALL ON SEQUENCES TO fluxbase_rls_test;"
             $PSQL_CMD -c "ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA $schema GRANT EXECUTE ON FUNCTIONS TO fluxbase_rls_test;"
           done
+
+          # Grant role memberships for SET ROLE support (required for RLS middleware)
+          $PSQL_CMD -c "GRANT anon, authenticated, service_role TO fluxbase_app, fluxbase_rls_test;"
 
       - name: Setup MinIO bucket
         run: |

@@ -72,6 +72,7 @@ func handleDatabaseError(c *fiber.Ctx, err error, operation string) error {
 	}
 
 	// Generic server error for other cases
+	log.Error().Err(err).Str("operation", operation).Msg("Database operation failed")
 	return c.Status(500).JSON(fiber.Map{
 		"error": fmt.Sprintf("Failed to %s", operation),
 	})
@@ -357,6 +358,11 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 				}
 				values = append(values, string(geoJSON))
 				placeholders = append(placeholders, fmt.Sprintf("ST_GeomFromGeoJSON($%d)", i))
+			} else if isPartialGeoJSON(val) {
+				// Value looks like GeoJSON but is incomplete - return validation error
+				return c.Status(400).JSON(fiber.Map{
+					"error": fmt.Sprintf("Invalid GeoJSON for column %s: missing required 'coordinates' field", col),
+				})
 			} else {
 				values = append(values, val)
 				placeholders = append(placeholders, fmt.Sprintf("$%d", i))
@@ -418,7 +424,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 			}
 		}
 
-		query += " RETURNING *"
+		query += buildReturningClause(table)
 
 		// Execute query with RLS context
 		var results []map[string]interface{}
@@ -582,7 +588,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 		}
 	}
 
-	query += " RETURNING *"
+	query += buildReturningClause(table)
 
 	// Execute query with RLS context
 	var results []map[string]interface{}
@@ -665,11 +671,11 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 		values = append(values, id)
 
 		query := fmt.Sprintf(
-			"UPDATE %s.%s SET %s WHERE %s = $%d RETURNING *",
+			"UPDATE %s.%s SET %s WHERE %s = $%d",
 			table.Schema, table.Name,
 			strings.Join(setClauses, ", "),
 			pkColumn, i,
-		)
+		) + buildReturningClause(table)
 
 		// Execute query with RLS context
 		var results []map[string]interface{}
@@ -719,9 +725,9 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 
 		// Build DELETE query
 		query := fmt.Sprintf(
-			"DELETE FROM %s.%s WHERE %s = $1 RETURNING *",
+			"DELETE FROM %s.%s WHERE %s = $1",
 			table.Schema, table.Name, pkColumn,
-		)
+		) + buildReturningClause(table)
 
 		// Execute query with RLS context
 		var results []map[string]interface{}
@@ -828,7 +834,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 			query += " WHERE " + whereSQL
 		}
 
-		query += " RETURNING *"
+		query += buildReturningClause(table)
 
 		// Execute query with RLS context
 		var results []map[string]interface{}
@@ -885,9 +891,9 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 
 		// Build DELETE query
 		query := fmt.Sprintf(
-			"DELETE FROM %s.%s WHERE %s RETURNING *",
+			"DELETE FROM %s.%s WHERE %s",
 			table.Schema, table.Name, whereSQL,
-		)
+		) + buildReturningClause(table)
 
 		// Execute query with RLS context
 		var results []map[string]interface{}
@@ -927,16 +933,26 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 		validColumns := []string{}
 		for _, col := range params.Select {
 			if h.columnExists(table, col) {
-				validColumns = append(validColumns, col)
+				// Check if this column needs geometry conversion
+				for _, tableCol := range table.Columns {
+					if tableCol.Name == col && isGeometryColumn(tableCol.DataType) {
+						validColumns = append(validColumns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col, col))
+						break
+					} else if tableCol.Name == col {
+						validColumns = append(validColumns, col)
+						break
+					}
+				}
 			}
 		}
 		if len(validColumns) > 0 {
 			selectClause = strings.Join(validColumns, ", ")
 		} else {
-			selectClause = "*"
+			selectClause = buildSelectColumns(table)
 		}
 	} else {
-		selectClause = "*"
+		// Use buildSelectColumns to handle geometry columns
+		selectClause = buildSelectColumns(table)
 	}
 
 	// Start building query
@@ -1053,6 +1069,44 @@ func isGeoJSON(val interface{}) bool {
 		"GeometryCollection": true,
 	}
 	return validTypes[typeStr]
+}
+
+// isPartialGeoJSON checks if a value looks like GeoJSON but is incomplete (has type but missing coordinates)
+func isPartialGeoJSON(val interface{}) bool {
+	m, ok := val.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	// Has "type" field but no "coordinates" - likely invalid GeoJSON
+	_, hasType := m["type"]
+	_, hasCoords := m["coordinates"]
+	return hasType && !hasCoords
+}
+
+// isGeometryColumn checks if a column type is a PostGIS geometry/geography type
+func isGeometryColumn(dataType string) bool {
+	dt := strings.ToLower(dataType)
+	return strings.Contains(dt, "geometry") || strings.Contains(dt, "geography")
+}
+
+// buildSelectColumns builds a column list that converts geometry columns to GeoJSON
+func buildSelectColumns(table database.TableInfo) string {
+	columns := make([]string, 0, len(table.Columns))
+	for _, col := range table.Columns {
+		if isGeometryColumn(col.DataType) {
+			// Convert geometry to GeoJSON
+			columns = append(columns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col.Name, col.Name))
+		} else {
+			columns = append(columns, col.Name)
+		}
+	}
+	return strings.Join(columns, ", ")
+}
+
+// buildReturningClause builds a RETURNING clause that handles geometry columns
+// by converting them to GeoJSON using ST_AsGeoJSON
+func buildReturningClause(table database.TableInfo) string {
+	return " RETURNING " + buildSelectColumns(table)
 }
 
 // pgxRowsToJSON converts pgx rows to JSON-serializable format

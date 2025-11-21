@@ -413,7 +413,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18-alpine
+        image: postgis/postgis:18-3.6
         env:
           POSTGRES_PASSWORD: postgres
         options: >-

@@ -853,7 +853,7 @@ spec:
         spec:
           containers:
             - name: backup
-              image: postgres:18
+              image: postgres:18-alpine
               env:
                 - name: PGHOST
                   value: postgresql
@@ -939,7 +939,7 @@ kubectl get events -n fluxbase --sort-by='.lastTimestamp'
 
 ```bash
 # Test database connectivity
-kubectl run -it --rm debug --image=postgres:18 --restart=Never -n fluxbase -- \
+kubectl run -it --rm debug --image=postgres:18-alpine --restart=Never -n fluxbase -- \
   psql -h postgresql -U fluxbase -d fluxbase
 
 # Check database service

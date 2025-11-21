@@ -31,7 +31,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgis/postgis:18-3.6
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres
@@ -122,7 +122,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgis/postgis:18-3.6
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres

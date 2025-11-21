@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 // SettingsCache provides a simple in-memory cache for settings with TTL
@@ -37,14 +37,13 @@ func NewSettingsCache(service *SystemSettingsService, ttl time.Duration) *Settin
 // GetBool retrieves a boolean setting with caching
 // Priority: Environment variables > Cache > Database > Default value
 func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bool) bool {
-	// Convert app.* key format to viper config format (e.g., app.auth.enable_signup -> auth.enable_signup)
-	viperKey := c.toViperKey(key)
 	envKey := c.GetEnvVarName(key)
 
-	// Check if environment variable override exists (not just a viper default)
-	// Only use environment override if it's actually set
-	if os.Getenv(envKey) != "" {
-		return viper.GetBool(viperKey)
+	// Check if environment variable override exists
+	// Parse directly from env var instead of viper to avoid viper initialization issues
+	if envVal := os.Getenv(envKey); envVal != "" {
+		envVal = strings.ToLower(envVal)
+		return envVal == "true" || envVal == "1" || envVal == "yes"
 	}
 
 	// Check cache
@@ -86,13 +85,14 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 // GetInt retrieves an integer setting with caching
 // Priority: Environment variables > Cache > Database > Default value
 func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int) int {
-	// Convert app.* key format to viper config format
-	viperKey := c.toViperKey(key)
 	envKey := c.GetEnvVarName(key)
 
-	// Check if environment variable override exists (not just a viper default)
-	if os.Getenv(envKey) != "" {
-		return viper.GetInt(viperKey)
+	// Check if environment variable override exists
+	// Parse directly from env var instead of viper
+	if envVal := os.Getenv(envKey); envVal != "" {
+		if intVal, err := strconv.Atoi(envVal); err == nil {
+			return intVal
+		}
 	}
 
 	// Check cache
@@ -137,13 +137,11 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 // GetString retrieves a string setting with caching
 // Priority: Environment variables > Cache > Database > Default value
 func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue string) string {
-	// Convert app.* key format to viper config format
-	viperKey := c.toViperKey(key)
 	envKey := c.GetEnvVarName(key)
 
 	// Check if environment variable override exists
-	if os.Getenv(envKey) != "" {
-		return viper.GetString(viperKey)
+	if envVal := os.Getenv(envKey); envVal != "" {
+		return envVal
 	}
 
 	// Check cache
@@ -185,13 +183,11 @@ func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue 
 // GetJSON retrieves a JSON setting and unmarshals it into the target
 // Priority: Environment variables > Cache > Database > Error
 func (c *SettingsCache) GetJSON(ctx context.Context, key string, target interface{}) error {
-	// Convert app.* key format to viper config format
-	viperKey := c.toViperKey(key)
 	envKey := c.GetEnvVarName(key)
 
 	// Check if environment variable override exists
-	if os.Getenv(envKey) != "" {
-		return viper.UnmarshalKey(viperKey, target)
+	if envVal := os.Getenv(envKey); envVal != "" {
+		return json.Unmarshal([]byte(envVal), target)
 	}
 
 	// Check cache
@@ -267,8 +263,8 @@ func (c *SettingsCache) toViperKey(key string) string {
 
 // IsOverriddenByEnv checks if a setting is overridden by an environment variable
 func (c *SettingsCache) IsOverriddenByEnv(key string) bool {
-	viperKey := c.toViperKey(key)
-	return viper.IsSet(viperKey)
+	envKey := c.GetEnvVarName(key)
+	return os.Getenv(envKey) != ""
 }
 
 // GetEnvVarName returns the environment variable name for a given setting key

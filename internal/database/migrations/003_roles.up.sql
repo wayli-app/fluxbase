@@ -50,20 +50,10 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 -- Grant application users permission to SET ROLE to anon, authenticated, service_role
 -- This allows the RLS middleware to execute SET LOCAL ROLE for defense-in-depth security
 -- CURRENT_USER grants to whoever runs the migration (typically the admin user or FLUXBASE_DATABASE_ADMIN_USER)
+-- Note: Additional test/app user grants should be handled in the deployment/CI setup (e.g., Makefile db-reset or CI workflow)
 GRANT anon TO CURRENT_USER;
 GRANT authenticated TO CURRENT_USER;
 GRANT service_role TO CURRENT_USER;
-
--- Also grant to test user (may not exist in production, hence DO block)
-DO $$
-BEGIN
-    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'fluxbase_rls_test') THEN
-        GRANT anon TO fluxbase_rls_test;
-        GRANT authenticated TO fluxbase_rls_test;
-        GRANT service_role TO fluxbase_rls_test;
-    END IF;
-END
-$$;
 
 -- Note: Table-level permissions are granted in migration 022 (after all tables are created)
 -- This migration only creates roles and grants schema access

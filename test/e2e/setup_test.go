@@ -81,12 +81,49 @@ func TestMain(m *testing.M) {
 //   - tasks_update_own: Users can UPDATE only their own tasks
 //   - tasks_delete_own: Users can DELETE only their own tasks
 //
+// enablePostGISExtension creates the PostGIS extension using the postgres superuser.
+// This must be done before test tables are created since fluxbase_app lacks permission.
+func enablePostGISExtension() {
+	ctx := context.Background()
+
+	cfg := test.GetTestConfig()
+	cfg.Database.User = "postgres"
+	cfg.Database.AdminUser = "postgres"
+	cfg.Database.Password = "postgres"
+
+	db, err := getDatabase(cfg)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to connect as postgres for PostGIS setup")
+		return
+	}
+	defer db.Close()
+
+	// Check if PostGIS is available in the system
+	var postgisAvailable bool
+	err = db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name = 'postgis')").Scan(&postgisAvailable)
+	if err != nil || !postgisAvailable {
+		log.Debug().Msg("PostGIS extension not available in this database image")
+		return
+	}
+
+	// Create PostGIS extension
+	_, err = db.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS postgis`)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to create PostGIS extension")
+	} else {
+		log.Info().Msg("PostGIS extension enabled for e2e tests")
+	}
+}
+
 // # Database Users
 //
 // This function uses fluxbase_app (with BYPASSRLS) to create tables,
 // then calls grantRLSTestPermissions() to grant permissions to fluxbase_rls_test user.
 func setupTestTables() {
 	ctx := context.Background()
+
+	// First, enable PostGIS extension using postgres superuser (if available)
+	enablePostGISExtension()
 
 	// Get database connection using fluxbase_app (has BYPASSRLS for setup)
 	cfg := test.GetTestConfig()
@@ -126,7 +163,7 @@ func setupTestTables() {
 		log.Debug().Err(err).Msg("Products trigger may already exist")
 	}
 
-	// Check if PostGIS is available
+	// Check if PostGIS extension is installed (created by enablePostGISExtension)
 	var postgisInstalled bool
 	err = db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'postgis')").Scan(&postgisInstalled)
 	if err != nil {
@@ -286,10 +323,11 @@ func setupTestTables() {
 	grantRLSTestPermissions()
 
 	// Enable signup for all tests (settings are checked from database first, then config)
+	// Note: is_public must be true so anon role can read this setting during signup
 	_, err = db.Exec(ctx, `
-		INSERT INTO app.settings (key, value, category)
-		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system')
-		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
+		INSERT INTO app.settings (key, value, category, is_public)
+		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system', true)
+		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to enable signup in database settings")

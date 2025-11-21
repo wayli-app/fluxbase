@@ -179,7 +179,10 @@ func (si *SchemaInspector) getColumns(ctx context.Context, schema, table string)
 	query := `
 		SELECT
 			column_name,
-			data_type,
+			CASE
+				WHEN data_type = 'USER-DEFINED' THEN udt_name
+				ELSE data_type
+			END as data_type,
 			is_nullable,
 			column_default,
 			character_maximum_length,

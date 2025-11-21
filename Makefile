@@ -93,11 +93,11 @@ test-fast: ## Run all tests without race detector (faster, excludes e2e)
 test-full: ## Run ALL tests including e2e with race detector (may take 5-10 minutes)
 	@./scripts/test-runner.sh go test -timeout 15m -v -race -cover ./...
 
-test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services)
-	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=5m ./test/e2e/...
+test-e2e: ## Run e2e tests only (requires postgres, mailhog, minio services). Use RUN= to filter tests.
+	@./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=5m ./test/e2e/... $(if $(RUN),-run $(RUN),)
 
-test-e2e-fast: ## Run e2e tests without race detector (faster for dev iteration)
-	@./scripts/test-runner.sh go test -v -parallel=1 -timeout=3m ./test/e2e/...
+test-e2e-fast: ## Run e2e tests without race detector (faster for dev iteration). Use RUN= to filter tests.
+	@./scripts/test-runner.sh go test -v -parallel=1 -timeout=3m ./test/e2e/... $(if $(RUN),-run $(RUN),)
 
 test-auth: ## Run authentication tests only
 	@./scripts/test-runner.sh go test -v -race -timeout=5m ./test/e2e/ -run TestAuth
@@ -251,6 +251,8 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;" || true
+	@echo "${YELLOW}Granting role memberships for SET ROLE support...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT anon, authenticated, service_role TO fluxbase_app, fluxbase_rls_test;" || true
 	@echo "${GREEN}Database reset complete!${NC}"
 	@echo "${BLUE}Note: Migrations granted all permissions to the user running them (postgres).${NC}"
 	@echo "${BLUE}Additional permissions granted to fluxbase_app and fluxbase_rls_test for testing.${NC}"

@@ -424,7 +424,7 @@ services:
       - ./fluxbase.yaml:/app/fluxbase.yaml
 
   postgres:
-    image: postgres:18-alpine
+    image: postgis/postgis:18-3.6
     environment:
       POSTGRES_DB: fluxbase
       POSTGRES_USER: fluxbase
