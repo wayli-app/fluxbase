@@ -277,6 +277,20 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		return false
 	}
 
+	// Map application role to database role and SET LOCAL ROLE
+	dbRole := "authenticated"
+	switch sub.Role {
+	case "service_role":
+		dbRole = "service_role"
+	case "anon", "":
+		dbRole = "anon"
+	}
+	_, err = conn.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
+	if err != nil {
+		log.Error().Err(err).Str("db_role", dbRole).Msg("Failed to SET LOCAL ROLE for realtime subscription")
+		return false
+	}
+
 	// Set request.jwt.claims session variable
 	_, err = conn.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
 	if err != nil {

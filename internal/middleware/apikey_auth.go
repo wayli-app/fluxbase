@@ -428,6 +428,7 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 					c.Locals("session_id", claims.SessionID)
 					c.Locals("auth_type", "jwt")
 					c.Locals("is_anonymous", claims.IsAnonymous)
+					c.Locals("jwt_claims", claims)
 
 					// Set RLS context
 					c.Locals("rls_user_id", claims.UserID)
