@@ -458,6 +458,7 @@ func (si *SchemaInspector) GetAllFunctions(ctx context.Context, schemas ...strin
 	var functions []FunctionInfo
 
 	// Query to get all functions from specified schemas
+	// Excludes extension functions (PostGIS, pg_trgm, etc.)
 	query := `
 		SELECT
 			n.nspname as schema_name,
@@ -474,9 +475,11 @@ func (si *SchemaInspector) GetAllFunctions(ctx context.Context, schemas ...strin
 		FROM pg_proc p
 		JOIN pg_namespace n ON n.oid = p.pronamespace
 		JOIN pg_language l ON l.oid = p.prolang
+		LEFT JOIN pg_depend d ON d.objid = p.oid AND d.deptype = 'e'
 		WHERE n.nspname = ANY($1)
 			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
 			AND p.prokind = 'f'  -- Only functions, not procedures
+			AND d.objid IS NULL  -- Exclude extension functions
 		ORDER BY n.nspname, p.proname
 	`
 

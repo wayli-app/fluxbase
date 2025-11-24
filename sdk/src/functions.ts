@@ -22,14 +22,13 @@ import type { FluxbaseFetch } from './fetch'
 import type {
   FunctionInvokeOptions,
   EdgeFunction,
-  CreateFunctionRequest,
-  UpdateFunctionRequest,
-  EdgeFunctionExecution,
 } from './types'
 
 /**
- * Edge Functions client for invoking and managing serverless functions
+ * Edge Functions client for invoking serverless functions
  * API-compatible with Supabase Functions
+ *
+ * For admin operations (create, update, delete, sync), use client.admin.functions
  *
  * @category Functions
  */
@@ -110,35 +109,9 @@ export class FluxbaseFunctions {
   }
 
   /**
-   * Create a new edge function
+   * List all public edge functions
    *
-   * @param request - Function configuration and code
-   * @returns Promise resolving to { data, error } tuple with created function metadata
-   *
-   * @example
-   * ```typescript
-   * const { data, error } = await client.functions.create({
-   *   name: 'my-function',
-   *   code: 'export default async function handler(req) { return { hello: "world" } }',
-   *   enabled: true
-   * })
-   * ```
-   */
-  async create(
-    request: CreateFunctionRequest
-  ): Promise<{ data: EdgeFunction | null; error: Error | null }> {
-    try {
-      const data = await this.fetch.post<EdgeFunction>('/api/v1/functions', request)
-      return { data, error: null }
-    } catch (error) {
-      return { data: null, error: error as Error }
-    }
-  }
-
-  /**
-   * List all edge functions
-   *
-   * @returns Promise resolving to { data, error } tuple with array of functions
+   * @returns Promise resolving to { data, error } tuple with array of public functions
    *
    * @example
    * ```typescript
@@ -174,85 +147,6 @@ export class FluxbaseFunctions {
   async get(name: string): Promise<{ data: EdgeFunction | null; error: Error | null }> {
     try {
       const data = await this.fetch.get<EdgeFunction>(`/api/v1/functions/${name}`)
-      return { data, error: null }
-    } catch (error) {
-      return { data: null, error: error as Error }
-    }
-  }
-
-  /**
-   * Update an existing edge function
-   *
-   * @param name - Function name
-   * @param updates - Fields to update
-   * @returns Promise resolving to { data, error } tuple with updated function metadata
-   *
-   * @example
-   * ```typescript
-   * const { data, error } = await client.functions.update('my-function', {
-   *   enabled: false,
-   *   description: 'Updated description'
-   * })
-   * ```
-   */
-  async update(
-    name: string,
-    updates: UpdateFunctionRequest
-  ): Promise<{ data: EdgeFunction | null; error: Error | null }> {
-    try {
-      const data = await this.fetch.put<EdgeFunction>(`/api/v1/functions/${name}`, updates)
-      return { data, error: null }
-    } catch (error) {
-      return { data: null, error: error as Error }
-    }
-  }
-
-  /**
-   * Delete an edge function
-   *
-   * @param name - Function name
-   * @returns Promise resolving to { data, error } tuple
-   *
-   * @example
-   * ```typescript
-   * const { data, error } = await client.functions.delete('my-function')
-   * ```
-   */
-  async delete(name: string): Promise<{ data: null; error: Error | null }> {
-    try {
-      await this.fetch.delete(`/api/v1/functions/${name}`)
-      return { data: null, error: null }
-    } catch (error) {
-      return { data: null, error: error as Error }
-    }
-  }
-
-  /**
-   * Get execution history for an edge function
-   *
-   * @param name - Function name
-   * @param limit - Maximum number of executions to return (optional)
-   * @returns Promise resolving to { data, error } tuple with execution records
-   *
-   * @example
-   * ```typescript
-   * const { data, error } = await client.functions.getExecutions('my-function', 10)
-   * if (data) {
-   *   data.forEach(exec => {
-   *     console.log(`${exec.executed_at}: ${exec.status} (${exec.duration_ms}ms)`)
-   *   })
-   * }
-   * ```
-   */
-  async getExecutions(
-    name: string,
-    limit?: number
-  ): Promise<{ data: EdgeFunctionExecution[] | null; error: Error | null }> {
-    try {
-      const params = limit ? `?limit=${limit}` : ''
-      const data = await this.fetch.get<EdgeFunctionExecution[]>(
-        `/api/v1/functions/${name}/executions${params}`
-      )
       return { data, error: null }
     } catch (error) {
       return { data: null, error: error as Error }

@@ -17,6 +17,10 @@ CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN N
 ALTER USER fluxbase_app SET search_path TO public;
 ALTER USER fluxbase_rls_test SET search_path TO public;
 
+-- Note: Fluxbase roles (anon, authenticated, service_role) are created by migration 003_roles.up.sql
+-- Role grants to fluxbase_app and fluxbase_rls_test are handled by the Makefile's db-reset target
+-- after migrations run, ensuring they're always granted when the database is reset.
+
 -- Grant all privileges
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_dev TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO postgres;
@@ -36,6 +40,8 @@ GRANT CREATE ON DATABASE fluxbase_test TO fluxbase_rls_test;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
+CREATE EXTENSION IF NOT EXISTS "postgis";
+CREATE EXTENSION IF NOT EXISTS "postgis_topology";
 
 -- Grant schema permissions to users (required for migrations)
 GRANT USAGE, CREATE ON SCHEMA public TO fluxbase_app;
@@ -120,6 +126,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE fluxbase_app IN SCHEMA _fluxbase GRANT ALL ON 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "btree_gin";
+CREATE EXTENSION IF NOT EXISTS "postgis";
+CREATE EXTENSION IF NOT EXISTS "postgis_topology";
 
 -- Grant schema permissions to users (required for migrations)
 GRANT USAGE, CREATE ON SCHEMA public TO fluxbase_app;

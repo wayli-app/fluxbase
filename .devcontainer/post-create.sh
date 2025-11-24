@@ -12,8 +12,8 @@ echo "✅ PostgreSQL is ready"
 
 # Create test database if it doesn't exist
 echo "📊 Creating test database..."
-psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'fluxbase_test'" | grep -q 1 || \
-  psql -h postgres -U postgres -c "CREATE DATABASE fluxbase_test;"
+PGPASSWORD=postgres psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'fluxbase_test'" | grep -q 1 || \
+  PGPASSWORD=postgres psql -h postgres -U postgres -c "CREATE DATABASE fluxbase_test;"
 echo "✅ Test database ready"
 
 # Install Go dependencies
@@ -41,6 +41,19 @@ fi
 echo "📁 Creating storage directory..."
 mkdir -p /workspace/storage
 echo "✅ Storage directory ready"
+
+# Create SDK symlinks for edge functions
+echo "🔗 Creating SDK symlinks for edge functions..."
+sudo ln -sfn /workspace/sdk /fluxbase-sdk
+sudo ln -sfn /workspace/sdk-react /fluxbase-sdk-react
+echo "✅ SDK symlinks created at /fluxbase-sdk and /fluxbase-sdk-react"
+
+# Verify Deno installation (should be installed in Dockerfile)
+if command -v deno &> /dev/null; then
+  echo "✅ Deno $(deno --version | head -n1) is available"
+else
+  echo "⚠️  Deno not found - edge functions bundling may fail"
+fi
 
 # Run migrations
 echo "🗄️  Running database migrations..."

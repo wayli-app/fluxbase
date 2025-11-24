@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // DenoRuntime manages execution of Deno-based edge functions
@@ -43,11 +46,15 @@ func NewDenoRuntime() *DenoRuntime {
 
 // ExecutionRequest represents a function invocation request
 type ExecutionRequest struct {
-	Method  string            `json:"method"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
-	Body    string            `json:"body"`
-	UserID  string            `json:"user_id,omitempty"`
+	Method    string            `json:"method"`
+	URL       string            `json:"url"`
+	Headers   map[string]string `json:"headers"`
+	Body      string            `json:"body"`
+	Params    map[string]string `json:"params"`
+	UserID    string            `json:"user_id,omitempty"`
+	UserEmail string            `json:"user_email,omitempty"`
+	UserRole  string            `json:"user_role,omitempty"`
+	SessionID string            `json:"session_id,omitempty"`
 }
 
 // ExecutionResult represents the output of a function execution
@@ -71,7 +78,22 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 	// Wrap the user code with our runtime bridge
 	wrappedCode := r.wrapCode(code, req)
 
-	// Build Deno command (using 'deno run -' to read from stdin)
+	// Write code to temporary file to allow Deno to properly handle TypeScript
+	// Using stdin doesn't work well with TypeScript type annotations
+	tmpFile, err := os.CreateTemp("", "function-exec-*.ts")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	//defer os.Remove(tmpPath) // Commented for debugging
+
+	if _, err := tmpFile.WriteString(wrappedCode); err != nil {
+		tmpFile.Close()
+		return nil, fmt.Errorf("failed to write code to temp file: %w", err)
+	}
+	tmpFile.Close()
+
+	// Build Deno command
 	args := []string{"run"}
 
 	// Apply permissions
@@ -88,14 +110,16 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 		args = append(args, "--allow-write")
 	}
 
-	// Add '-' to read from stdin
-	args = append(args, "-")
+	// Run from temp file instead of stdin
+	args = append(args, tmpPath)
 
 	// Create command
 	cmd := exec.CommandContext(execCtx, r.denoPath, args...)
 
-	// Pipe the code to stdin
-	cmd.Stdin = strings.NewReader(wrappedCode)
+	// Pass environment variables to the Deno subprocess
+	// This allows edge functions to access FLUXBASE_* environment variables
+	// (with sensitive credentials filtered out by buildEnvForFunction)
+	cmd.Env = buildEnvForFunction()
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
@@ -103,7 +127,7 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 	cmd.Stderr = &stderr
 
 	// Execute
-	err := cmd.Run()
+	err = cmd.Run()
 
 	duration := time.Since(start)
 
@@ -117,6 +141,12 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 	if execCtx.Err() == context.DeadlineExceeded {
 		result.Status = 504
 		result.Error = "Function execution timeout"
+		log.Warn().
+			Str("error_type", "execution_timeout").
+			Int64("timeout_ms", r.timeout.Milliseconds()).
+			Int64("duration_ms", duration.Milliseconds()).
+			Str("stderr", stderr.String()).
+			Msg("Edge function execution timeout")
 		return result, fmt.Errorf("execution timeout after %v", r.timeout)
 	}
 
@@ -125,6 +155,13 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 		result.Status = 500
 		result.Error = fmt.Sprintf("Function execution failed: %v", err)
 		result.Logs += "\n" + err.Error()
+		log.Error().
+			Err(err).
+			Str("error_type", "deno_execution_failure").
+			Str("stderr", stderr.String()).
+			Str("stdout", stdout.String()).
+			Int64("duration_ms", duration.Milliseconds()).
+			Msg("Deno runtime execution failed")
 		return result, err
 	}
 
@@ -161,20 +198,31 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 func (r *DenoRuntime) wrapCode(userCode string, req ExecutionRequest) string {
 	reqJSON, _ := json.Marshal(req)
 
+	// Extract import/export statements from user code
+	// These must be at top level for Deno modules
+	imports, codeWithoutImports := extractImports(userCode)
+
 	return fmt.Sprintf(`
 // Fluxbase Edge Function Runtime Bridge
+%s
+
+// User function code (imports extracted)
+%s
+
+// Execute handler
 (async () => {
   try {
+    // Redirect console.log to console.error so user logs go to stderr
+    // This keeps stdout clean for the JSON response only
+    const originalLog = console.log;
+    console.log = console.error;
+
     // Parse request from environment
     const request = %s;
 
     // Set up Fluxbase API URL (if needed by user code)
     const FLUXBASE_URL = Deno.env.get("FLUXBASE_BASE_URL") || "http://localhost:8080";
     const FLUXBASE_TOKEN = Deno.env.get("FLUXBASE_TOKEN") || "";
-
-    // User function code starts here
-    %s
-    // User function code ends here
 
     // If handler function exists, call it
     if (typeof handler === 'function') {
@@ -190,7 +238,8 @@ func (r *DenoRuntime) wrapCode(userCode string, req ExecutionRequest) string {
         };
       }
 
-      // Output response as JSON
+      // Restore console.log and output response as JSON to stdout
+      console.log = originalLog;
       console.log(JSON.stringify(response));
     } else {
       throw new Error("No 'handler' function exported");
@@ -205,7 +254,62 @@ func (r *DenoRuntime) wrapCode(userCode string, req ExecutionRequest) string {
     console.log(JSON.stringify(errorResponse));
   }
 })();
-`, string(reqJSON), userCode)
+`, imports, codeWithoutImports, string(reqJSON))
+}
+
+// extractImports separates import/export statements from the rest of the code
+// Import statements must be at the top level in ES modules
+func extractImports(code string) (imports string, remaining string) {
+	lines := strings.Split(code, "\n")
+	var importLines []string
+	var codeLines []string
+
+	inMultilineDeclaration := false
+	braceCount := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check if we're starting a multi-line type/interface declaration
+		if !inMultilineDeclaration &&
+			(strings.HasPrefix(trimmed, "export type ") ||
+				strings.HasPrefix(trimmed, "export interface ") ||
+				strings.HasPrefix(trimmed, "export enum ")) {
+			inMultilineDeclaration = true
+			braceCount = 0
+			importLines = append(importLines, line)
+			// Count braces in this line
+			braceCount += strings.Count(line, "{") - strings.Count(line, "}")
+			if braceCount == 0 {
+				// Single-line declaration
+				inMultilineDeclaration = false
+			}
+			continue
+		}
+
+		// If we're in a multi-line declaration, continue collecting lines
+		if inMultilineDeclaration {
+			importLines = append(importLines, line)
+			braceCount += strings.Count(line, "{") - strings.Count(line, "}")
+			if braceCount == 0 {
+				inMultilineDeclaration = false
+			}
+			continue
+		}
+
+		// Extract single-line import/export statements
+		if strings.HasPrefix(trimmed, "import ") ||
+			strings.HasPrefix(trimmed, "import{") ||
+			(strings.HasPrefix(trimmed, "export ") &&
+				(strings.HasPrefix(trimmed, "export {") ||
+					strings.HasPrefix(trimmed, "export * "))) {
+			importLines = append(importLines, line)
+		} else {
+			codeLines = append(codeLines, line)
+		}
+	}
+
+	return strings.Join(importLines, "\n"), strings.Join(codeLines, "\n")
 }
 
 // Permissions represents Deno security permissions
@@ -224,4 +328,47 @@ func DefaultPermissions() Permissions {
 		AllowRead:  false,
 		AllowWrite: false,
 	}
+}
+
+// buildEnvForFunction creates the environment variable list for edge functions
+// This includes all FLUXBASE_* variables except sensitive credentials
+func buildEnvForFunction() []string {
+	env := []string{}
+
+	// Secrets that should NEVER be passed to edge functions
+	// These could allow complete system compromise if exposed
+	blockedVars := map[string]bool{
+		"FLUXBASE_AUTH_JWT_SECRET":         true, // Master secret for JWT signing - would allow token forgery
+		"FLUXBASE_DATABASE_PASSWORD":       true, // Direct DB access bypasses all security
+		"FLUXBASE_DATABASE_ADMIN_PASSWORD": true, // Admin DB access
+		"FLUXBASE_STORAGE_S3_SECRET_KEY":   true, // S3 credentials
+		"FLUXBASE_STORAGE_S3_ACCESS_KEY":   true, // S3 credentials
+		"FLUXBASE_EMAIL_SMTP_PASSWORD":     true, // Email credentials
+		"FLUXBASE_SECURITY_SETUP_TOKEN":    true, // Initial setup token
+	}
+
+	// Pass all FLUXBASE_* environment variables except blocked ones
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "FLUXBASE_") {
+			// Extract the key name
+			parts := strings.SplitN(e, "=", 2)
+			if len(parts) == 2 {
+				key := parts[0]
+				// Only add if not blocked
+				if !blockedVars[key] {
+					env = append(env, e)
+				} else {
+					log.Debug().
+						Str("key", key).
+						Msg("Blocking sensitive environment variable from edge function")
+				}
+			}
+		}
+	}
+
+	log.Debug().
+		Int("env_var_count", len(env)).
+		Msg("Prepared environment variables for edge function")
+
+	return env
 }

@@ -57,6 +57,12 @@ export { FluxbaseStorage, StorageBucket } from "./storage";
 // Functions module
 export { FluxbaseFunctions } from "./functions";
 
+// Admin Functions module
+export { FluxbaseAdminFunctions } from "./admin-functions";
+
+// Admin Migrations module
+export { FluxbaseAdminMigrations } from "./admin-migrations";
+
 // Admin module
 export { FluxbaseAdmin } from "./admin";
 
@@ -148,6 +154,21 @@ export type {
   CreateFunctionRequest,
   UpdateFunctionRequest,
   EdgeFunctionExecution,
+  SyncFunctionsOptions,
+  SyncFunctionsResult,
+  FunctionSpec,
+  SyncError,
+
+  // Migrations types
+  Migration,
+  CreateMigrationRequest,
+  UpdateMigrationRequest,
+  MigrationExecution,
+  ApplyMigrationRequest,
+  RollbackMigrationRequest,
+  ApplyPendingRequest,
+  SyncMigrationsOptions,
+  SyncMigrationsResult,
 
   // Admin types
   AdminSetupStatusResponse,

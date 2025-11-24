@@ -284,33 +284,55 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		})
 
 	case MessageTypeUnsubscribe:
-		// Validate subscription ID is provided
-		if msg.SubscriptionID == "" {
-			_ = conn.SendMessage(ServerMessage{
-				Type:  MessageTypeError,
-				Error: "subscription_id is required for unsubscribe",
-			})
-			return
-		}
+		// Handle unsubscribe with subscription_id
+		if msg.SubscriptionID != "" {
+			// Remove the specific subscription
+			err := h.subManager.RemoveSubscription(msg.SubscriptionID)
+			if err != nil {
+				// If subscription not found, it's already unsubscribed - treat as success
+				// This handles race conditions during cleanup gracefully
+				if err.Error() == "subscription not found" {
+					_ = conn.SendMessage(ServerMessage{
+						Type: MessageTypeAck,
+						Payload: map[string]interface{}{
+							"unsubscribed":    true,
+							"subscription_id": msg.SubscriptionID,
+						},
+					})
+					return
+				}
 
-		// Remove the subscription
-		err := h.subManager.RemoveSubscription(msg.SubscriptionID)
-		if err != nil {
-			_ = conn.SendMessage(ServerMessage{
-				Type:  MessageTypeError,
-				Error: fmt.Sprintf("failed to unsubscribe: %s", err.Error()),
-			})
-			return
-		}
+				// For other errors, still report them
+				_ = conn.SendMessage(ServerMessage{
+					Type:  MessageTypeError,
+					Error: fmt.Sprintf("failed to unsubscribe: %s", err.Error()),
+				})
+				return
+			}
 
-		// Send acknowledgment
-		_ = conn.SendMessage(ServerMessage{
-			Type: MessageTypeAck,
-			Payload: map[string]interface{}{
-				"unsubscribed":    true,
-				"subscription_id": msg.SubscriptionID,
-			},
-		})
+			// Send acknowledgment
+			_ = conn.SendMessage(ServerMessage{
+				Type: MessageTypeAck,
+				Payload: map[string]interface{}{
+					"unsubscribed":    true,
+					"subscription_id": msg.SubscriptionID,
+				},
+			})
+		} else {
+			// Fallback: Remove all subscriptions for this connection
+			// This provides graceful cleanup similar to connection close
+			if h.subManager != nil {
+				h.subManager.RemoveConnectionSubscriptions(conn.ID)
+			}
+
+			// Send acknowledgment
+			_ = conn.SendMessage(ServerMessage{
+				Type: MessageTypeAck,
+				Payload: map[string]interface{}{
+					"unsubscribed": true,
+				},
+			})
+		}
 
 	case MessageTypeHeartbeat:
 		// Respond to heartbeat

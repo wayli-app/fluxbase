@@ -1,0 +1,29 @@
+{
+  "name": "fluxbase-edge-functions-example",
+  "version": "1.0.0",
+  "description": "Comprehensive examples for Fluxbase Edge Functions",
+  "type": "module",
+  "scripts": {
+    "invoke": "tsx src/invoke-function.ts",
+    "manage": "tsx src/manage-functions.ts",
+    "create": "tsx src/create-function.ts",
+    "dev": "tsx watch src/invoke-function.ts"
+  },
+  "keywords": [
+    "fluxbase",
+    "edge-functions",
+    "serverless",
+    "deno"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@fluxbase/sdk": "workspace:*",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

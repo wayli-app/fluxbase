@@ -105,6 +105,12 @@ func (c *Connection) Migrate() error {
 		log.Debug().Msg("No user migrations path configured, skipping user migrations")
 	}
 
+	// Step 3: Grant Fluxbase roles to runtime user
+	// This allows the application to SET ROLE for RLS and service operations
+	if err := c.grantRolesToRuntimeUser(); err != nil {
+		return fmt.Errorf("failed to grant roles to runtime user: %w", err)
+	}
+
 	return nil
 }
 
@@ -285,6 +291,68 @@ func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 	return nil
 }
 
+// grantRolesToRuntimeUser grants Fluxbase roles to the runtime database user
+// This allows the application to SET ROLE for RLS and service operations
+// Only runs if runtime user is different from admin user
+func (c *Connection) grantRolesToRuntimeUser() error {
+	// Skip if runtime user is the same as admin user
+	if c.config.User == c.config.AdminUser {
+		log.Debug().Str("user", c.config.User).Msg("Runtime user is same as admin user, skipping role grants")
+		return nil
+	}
+
+	ctx := context.Background()
+
+	// Use admin connection to grant roles
+	adminPassword := c.config.AdminPassword
+	if adminPassword == "" {
+		adminPassword = c.config.Password
+	}
+
+	adminConnStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.config.AdminUser,
+		adminPassword,
+		c.config.Host,
+		c.config.Port,
+		c.config.Database,
+		c.config.SSLMode,
+	)
+
+	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	if err != nil {
+		return fmt.Errorf("failed to connect as admin user: %w", err)
+	}
+	defer adminConn.Close(ctx)
+
+	// Grant roles to runtime user
+	roles := []string{"anon", "authenticated", "service_role"}
+	for _, role := range roles {
+		// Check if role exists before granting
+		var exists bool
+		err := adminConn.QueryRow(ctx,
+			"SELECT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname = $1)",
+			role,
+		).Scan(&exists)
+
+		if err != nil {
+			log.Warn().Err(err).Str("role", role).Msg("Failed to check if role exists")
+			continue
+		}
+
+		if exists {
+			query := fmt.Sprintf("GRANT %s TO %s", role, c.config.User)
+			_, err = adminConn.Exec(ctx, query)
+			if err != nil {
+				log.Warn().Err(err).Str("role", role).Str("user", c.config.User).Msg("Failed to grant role")
+			} else {
+				log.Debug().Str("role", role).Str("user", c.config.User).Msg("Granted role to runtime user")
+			}
+		}
+	}
+
+	return nil
+}
+
 // BeginTx starts a new transaction
 func (c *Connection) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return c.pool.Begin(ctx)
@@ -402,8 +470,6 @@ func WrapWithServiceRole(ctx context.Context, conn *Connection, fn func(tx pgx.T
 		return fmt.Errorf("failed to SET LOCAL ROLE service_role: %w", err)
 	}
 
-	log.Debug().Msg("SET LOCAL ROLE service_role - running privileged operation")
-
 	// Execute the wrapped function
 	if err := fn(tx); err != nil {
 		return err
@@ -414,5 +480,65 @@ func WrapWithServiceRole(ctx context.Context, conn *Connection, fn func(tx pgx.T
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	return nil
+}
+
+// ExecuteWithAdminRole executes a database operation using admin credentials
+// Used for migrations that require DDL privileges (CREATE TABLE, ALTER, etc.)
+// Creates a temporary admin connection that is closed after execution
+func (c *Connection) ExecuteWithAdminRole(ctx context.Context, fn func(conn *pgx.Conn) error) error {
+	// Get admin connection string
+	adminConnStr := c.config.AdminConnectionString()
+
+	adminUser := c.config.AdminUser
+	if adminUser == "" {
+		adminUser = c.config.User
+	}
+
+	log.Info().
+		Str("admin_user", adminUser).
+		Str("database", c.config.Database).
+		Str("host", c.config.Host).
+		Msg("Connecting as admin user for migration")
+
+	// Create admin connection
+	adminConn, err := pgx.Connect(ctx, adminConnStr)
+	if err != nil {
+		log.Error().Err(err).Str("admin_user", adminUser).Msg("Failed to connect as admin user for migration")
+		return fmt.Errorf("failed to connect as admin: %w", err)
+	}
+	defer adminConn.Close(ctx)
+
+	// Verify we're connected as the expected user
+	var currentUser string
+	var sessionUser string
+	err = adminConn.QueryRow(ctx, "SELECT CURRENT_USER, SESSION_USER").Scan(&currentUser, &sessionUser)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to verify current user")
+	} else {
+		log.Info().
+			Str("current_user", currentUser).
+			Str("session_user", sessionUser).
+			Msg("Executing migration with user")
+	}
+
+	// Start transaction
+	tx, err := adminConn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Execute the wrapped function with the connection
+	if err := fn(adminConn); err != nil {
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	log.Debug().Msg("Migration executed successfully with admin privileges")
 	return nil
 }

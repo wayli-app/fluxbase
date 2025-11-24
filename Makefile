@@ -40,7 +40,7 @@ help: ## Show available commands
 dev: ## Build and run backend + frontend dev server (all-in-one)
 	@echo "${YELLOW}Starting Fluxbase development environment...${NC}"
 	@lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
-	@lsof -ti:5173 | xargs -r kill -9 2>/dev/null || true
+	@lsof -ti:5050 | xargs -r kill -9 2>/dev/null || true
 	@if [ ! -d "admin/node_modules" ]; then \
 		echo "${YELLOW}Installing admin UI dependencies...${NC}"; \
 		cd admin && npm install; \
@@ -50,8 +50,8 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 	@rm -rf internal/adminui/dist
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${GREEN}Backend:${NC}     http://localhost:8080"
-	@echo "${GREEN}Frontend:${NC}    http://localhost:5173/admin/"
-	@echo "${GREEN}Admin Login:${NC} http://localhost:5173/admin/login"
+	@echo "${GREEN}Frontend:${NC}    http://localhost:5050/admin/"
+	@echo "${GREEN}Admin Login:${NC} http://localhost:5050/admin/login"
 	@echo ""
 	@echo "${YELLOW}Press Ctrl+C to stop both servers${NC}"
 	@echo ""
@@ -205,16 +205,28 @@ migrate-create: ## Create new migration (usage: make migrate-create name=add_use
 	@migrate create -ext sql -dir internal/database/migrations -seq $(name)
 	@echo "${GREEN}Migration files created!${NC}"
 
-db-reset: ## Reset database (drop all schemas and run migrations)
+db-reset: ## Reset database (drop all schemas and run migrations). Use DROP_PUBLIC=1 to also drop public schema.
 	@echo "${YELLOW}Resetting database...${NC}"
-	@echo "${YELLOW}Dropping all schemas except public...${NC}"
+ifdef DROP_PUBLIC
+	@echo "${YELLOW}Dropping all schemas including public...${NC}"
+else
+	@echo "${YELLOW}Dropping all Fluxbase schemas (keeping public schema)...${NC}"
+endif
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS app CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS auth CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS dashboard CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS storage CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS functions CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS migrations CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS _fluxbase CASCADE;" || true
+ifdef DROP_PUBLIC
+	@echo "${YELLOW}Dropping and recreating public schema...${NC}"
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS public CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS public;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON SCHEMA public TO postgres;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON SCHEMA public TO public;" || true
+endif
 	@echo "${YELLOW}Creating _fluxbase schema for migration tracking...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;" || true
 	@echo "${YELLOW}Ensuring test users exist with correct permissions...${NC}"
@@ -233,6 +245,7 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA functions TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
@@ -246,13 +259,15 @@ db-reset: ## Reset database (drop all schemas and run migrations)
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;" || true
 	@echo "${YELLOW}Granting role memberships for SET ROLE support...${NC}"
-	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT anon, authenticated, service_role TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT anon TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT authenticated TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT service_role TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT anon TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT authenticated TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT service_role TO fluxbase_rls_test; END IF; END \$$\$$;" || true
 	@echo "${GREEN}Database reset complete!${NC}"
 	@echo "${BLUE}Note: Migrations granted all permissions to the user running them (postgres).${NC}"
 	@echo "${BLUE}Additional permissions granted to fluxbase_app and fluxbase_rls_test for testing.${NC}"

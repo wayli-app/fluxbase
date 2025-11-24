@@ -93,6 +93,8 @@ services:
         COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: fluxbase-app
+    # Restart policy: "unless-stopped" ensures container restarts automatically
+    # including after graceful shutdowns (e.g., schema refresh after migrations)
     restart: unless-stopped
     depends_on:
       postgres:

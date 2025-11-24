@@ -70,10 +70,10 @@ func (h *RPCHandler) RegisterRoutes(router fiber.Router) error {
 		return fmt.Errorf("failed to get functions: %w", err)
 	}
 
-	// Filter out internal functions before registering
+	// Filter out internal and non-public functions before registering
 	userFunctions := make([]database.FunctionInfo, 0)
 	for _, fn := range functions {
-		if !h.isInternalFunction(fn) {
+		if !h.isInternalFunction(fn) && h.isFunctionPublic(ctx, fn) {
 			userFunctions = append(userFunctions, fn)
 		}
 	}
@@ -105,10 +105,10 @@ func (h *RPCHandler) ListFunctions(c *fiber.Ctx) error {
 		})
 	}
 
-	// Filter out internal functions
+	// Filter out internal and non-public functions
 	filteredFunctions := make([]database.FunctionInfo, 0)
 	for _, fn := range functions {
-		if !h.isInternalFunction(fn) {
+		if !h.isInternalFunction(fn) && h.isFunctionPublic(ctx, fn) {
 			filteredFunctions = append(filteredFunctions, fn)
 		}
 	}
@@ -148,6 +148,40 @@ func (h *RPCHandler) isInternalFunction(fn database.FunctionInfo) bool {
 
 	// Keep user-facing utility functions
 	return false
+}
+
+// isFunctionPublic checks if a function should be exposed as a public RPC endpoint
+// Returns true if:
+//   - Function NOT in config table (user-created, public by default)
+//   - Function in config table with is_public=true
+//
+// Returns false if:
+//   - Function in config table with is_public=false (system function)
+func (h *RPCHandler) isFunctionPublic(ctx context.Context, fn database.FunctionInfo) bool {
+	var isPublic bool
+
+	query := `
+		SELECT is_public
+		FROM functions.rpc_function_config
+		WHERE schema_name = $1 AND function_name = $2
+	`
+
+	err := h.db.QueryRow(ctx, query, fn.Schema, fn.Name).Scan(&isPublic)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			// Function not in config table -> user-created -> public by default
+			return true
+		}
+		// Database error -> log and default to public
+		log.Warn().Err(err).
+			Str("schema", fn.Schema).
+			Str("function", fn.Name).
+			Msg("Failed to check function config, defaulting to public")
+		return true
+	}
+
+	// Function found in config table, use its is_public value
+	return isPublic
 }
 
 // RegisterFunctionRoute registers a single function as an RPC endpoint

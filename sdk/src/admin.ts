@@ -23,6 +23,8 @@ import { DDLManager } from "./ddl";
 import { FluxbaseOAuth } from "./oauth";
 import { ImpersonationManager } from "./impersonation";
 import { FluxbaseManagement } from "./management";
+import { FluxbaseAdminFunctions } from "./admin-functions";
+import { FluxbaseAdminMigrations } from "./admin-migrations";
 
 /**
  * Admin client for managing Fluxbase instance
@@ -61,6 +63,16 @@ export class FluxbaseAdmin {
    */
   public emailTemplates: EmailTemplateManager;
 
+  /**
+   * Functions manager for edge function management (create, update, delete, sync)
+   */
+  public functions: FluxbaseAdminFunctions;
+
+  /**
+   * Migrations manager for database migration operations (create, apply, rollback, sync)
+   */
+  public migrations: FluxbaseAdminMigrations;
+
   constructor(fetch: FluxbaseFetch) {
     this.fetch = fetch;
     this.settings = new FluxbaseSettings(fetch);
@@ -69,6 +81,8 @@ export class FluxbaseAdmin {
     this.impersonation = new ImpersonationManager(fetch);
     this.management = new FluxbaseManagement(fetch);
     this.emailTemplates = new EmailTemplateManager(fetch);
+    this.functions = new FluxbaseAdminFunctions(fetch);
+    this.migrations = new FluxbaseAdminMigrations(fetch);
   }
 
   /**

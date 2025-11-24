@@ -108,7 +108,7 @@ func (h *SystemSettingsHandler) UpdateSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate setting key is in whitelist
+	// Validate setting key is in allowlist
 	if !h.isValidSettingKey(key) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid setting key",
@@ -177,7 +177,7 @@ func (h *SystemSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// isValidSettingKey checks if a setting key is in the whitelist
+// isValidSettingKey checks if a setting key is in the allowlist
 func (h *SystemSettingsHandler) isValidSettingKey(key string) bool {
 	validKeys := map[string]bool{
 		"app.auth.enable_signup":                true,

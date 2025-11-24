@@ -57,6 +57,14 @@ CREATE TRIGGER update_functions_edge_functions_updated_at BEFORE UPDATE ON funct
 CREATE TRIGGER update_functions_edge_function_triggers_updated_at BEFORE UPDATE ON functions.edge_function_triggers
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+CREATE TRIGGER update_function_dependencies_updated_at BEFORE UPDATE ON functions.function_dependencies
+    FOR EACH ROW EXECUTE FUNCTION functions.update_function_dependencies_updated_at();
+
+CREATE TRIGGER trigger_mark_functions_on_shared_module_update AFTER UPDATE ON functions.shared_modules
+    FOR EACH ROW
+    WHEN (OLD.content IS DISTINCT FROM NEW.content OR OLD.version IS DISTINCT FROM NEW.version)
+    EXECUTE FUNCTION functions.mark_dependent_functions_for_rebundle();
+
 -- Storage schema triggers
 CREATE TRIGGER update_storage_buckets_updated_at BEFORE UPDATE ON storage.buckets
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();

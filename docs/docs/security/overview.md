@@ -160,7 +160,7 @@ Fluxbase implements multiple layers of security to protect your data and applica
 
 - No shell command execution with user input
 - Validation of file paths
-- Whitelist-based validation
+- Allowlist-based validation
 - Secure file upload handling
 
 ---

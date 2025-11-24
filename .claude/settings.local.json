@@ -37,7 +37,11 @@
       "Bash(timeout 60 go test:*)",
       "Bash(timeout 120 go test:*)",
       "Bash(make test:*)",
-      "Bash(go list:*)"
+      "Bash(go list:*)",
+      "Bash(timeout 15:*)",
+      "Bash(docker network inspect:*)",
+      "Bash(export FLUXBASE_DEBUG=true)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

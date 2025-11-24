@@ -14,6 +14,7 @@ import {
   Edit,
   Trash2,
   Clock,
+  HardDrive,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -666,6 +667,60 @@ else console.log(data)`
   )
 }
 
+// Headers Editor Component
+interface HeadersEditorProps {
+  headers: Array<{ key: string; value: string }>
+  onChange: (headers: Array<{ key: string; value: string }>) => void
+}
+
+function HeadersEditor({ headers, onChange }: HeadersEditorProps) {
+  const addHeader = () => {
+    onChange([...headers, { key: '', value: '' }])
+  }
+
+  const updateHeader = (index: number, field: 'key' | 'value', value: string) => {
+    const updated = [...headers]
+    updated[index][field] = value
+    onChange(updated)
+  }
+
+  const removeHeader = (index: number) => {
+    onChange(headers.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className='space-y-2'>
+      {headers.map((header, index) => (
+        <div key={index} className='flex gap-2'>
+          <Input
+            placeholder='Header name'
+            value={header.key}
+            onChange={(e) => updateHeader(index, 'key', e.target.value)}
+            className='flex-1'
+          />
+          <Input
+            placeholder='Header value'
+            value={header.value}
+            onChange={(e) => updateHeader(index, 'value', e.target.value)}
+            className='flex-1'
+          />
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => removeHeader(index)}
+          >
+            <Trash2 className='h-4 w-4' />
+          </Button>
+        </div>
+      ))}
+      <Button variant='outline' size='sm' onClick={addHeader}>
+        <Plus className='mr-2 h-4 w-4' />
+        Add Header
+      </Button>
+    </div>
+  )
+}
+
 // Edge Functions Component
 function EdgeFunctionsTab() {
   const [edgeFunctions, setEdgeFunctions] = useState<EdgeFunction[]>([])
@@ -687,6 +742,7 @@ function EdgeFunctionsTab() {
   } | null>(null)
   const [wordWrap, setWordWrap] = useState(false)
   const [logsWordWrap, setLogsWordWrap] = useState(false)
+  const [reloading, setReloading] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -719,18 +775,51 @@ async function handler(req: Request) {
   })
 
   const [invokeBody, setInvokeBody] = useState('{}')
+  const [invokeMethod, setInvokeMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>('POST')
+  const [invokeHeaders, setInvokeHeaders] = useState<Array<{ key: string; value: string }>>([
+    { key: '', value: '' }
+  ])
 
-  const reloadFunctionsFromDisk = async () => {
+  const reloadFunctionsFromDisk = async (showToast = false) => {
     try {
       const result = await functionsApi.reload()
-      if ((result.created?.length ?? 0) > 0 || (result.updated?.length ?? 0) > 0) {
-        toast.success(
-          `Reloaded functions from disk: ${result.created?.length ?? 0} created, ${result.updated?.length ?? 0} updated`
-        )
+      if (showToast) {
+        const created = result.created?.length ?? 0
+        const updated = result.updated?.length ?? 0
+        const deleted = result.deleted?.length ?? 0
+        const errors = result.errors?.length ?? 0
+
+        if (created > 0 || updated > 0 || deleted > 0) {
+          const messages = []
+          if (created > 0) messages.push(`${created} created`)
+          if (updated > 0) messages.push(`${updated} updated`)
+          if (deleted > 0) messages.push(`${deleted} deleted`)
+
+          toast.success(`Functions reloaded: ${messages.join(', ')}`)
+        } else if (errors > 0) {
+          toast.error(`Failed to reload functions: ${errors} errors`)
+        } else {
+          toast.info('No changes detected')
+        }
       }
+      return result
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error reloading functions:', error)
+      if (showToast) {
+        toast.error('Failed to reload functions from filesystem')
+      }
+      throw error
+    }
+  }
+
+  const handleReloadClick = async () => {
+    setReloading(true)
+    try {
+      await reloadFunctionsFromDisk(true)
+      await fetchEdgeFunctions(false) // Refresh the list without reloading again
+    } finally {
+      setReloading(false)
     }
   }
 
@@ -841,7 +930,16 @@ async function handler(req: Request) {
 
     setInvoking(true)
     try {
-      const result = await functionsApi.invoke(selectedFunction.name, invokeBody)
+      // Convert headers array to object, filtering empty ones
+      const headersObj = invokeHeaders
+        .filter((h) => h.key.trim() !== '')
+        .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {})
+
+      const result = await functionsApi.invoke(selectedFunction.name, {
+        method: invokeMethod,
+        headers: headersObj,
+        body: invokeBody,
+      })
       toast.success('Function invoked successfully')
       setInvokeResult({ success: true, data: result })
       setShowInvokeDialog(false)
@@ -944,6 +1042,24 @@ async function handler(req: Request) {
           </p>
         </div>
         <div className='flex gap-2'>
+          <Button
+            onClick={handleReloadClick}
+            variant='outline'
+            size='sm'
+            disabled={reloading}
+          >
+            {reloading ? (
+              <>
+                <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                Reloading...
+              </>
+            ) : (
+              <>
+                <HardDrive className='mr-2 h-4 w-4' />
+                Reload from Filesystem
+              </>
+            )}
+          </Button>
           <Button
             onClick={() => fetchEdgeFunctions()}
             variant='outline'
@@ -1372,24 +1488,63 @@ async function handler(req: Request) {
 
       {/* Invoke Function Dialog */}
       <Dialog open={showInvokeDialog} onOpenChange={setShowInvokeDialog}>
-        <DialogContent className='w-[90vw] max-w-5xl'>
+        <DialogContent className='w-[90vw] max-w-5xl max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Invoke Edge Function</DialogTitle>
             <DialogDescription>
-              Test {selectedFunction?.name} with custom input
+              Test {selectedFunction?.name} with custom HTTP request
             </DialogDescription>
           </DialogHeader>
 
           <div className='space-y-4'>
-            <div>
-              <Label htmlFor='invoke-body'>Request Body (JSON)</Label>
-              <Textarea
-                id='invoke-body'
-                className='min-h-[200px] font-mono text-sm'
-                value={invokeBody}
-                onChange={(e) => setInvokeBody(e.target.value)}
-              />
+            {/* Method selector */}
+            <div className='flex items-center gap-4'>
+              <Label htmlFor='method'>HTTP Method</Label>
+              <Select
+                value={invokeMethod}
+                onValueChange={(value) => setInvokeMethod(value as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')}
+              >
+                <SelectTrigger className='w-[180px]' id='method'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='GET'>GET</SelectItem>
+                  <SelectItem value='POST'>POST</SelectItem>
+                  <SelectItem value='PUT'>PUT</SelectItem>
+                  <SelectItem value='DELETE'>DELETE</SelectItem>
+                  <SelectItem value='PATCH'>PATCH</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Tabbed interface for Body/Headers */}
+            <Tabs defaultValue='body' className='space-y-4'>
+              <TabsList className='grid w-full grid-cols-2'>
+                <TabsTrigger value='body'>Body</TabsTrigger>
+                <TabsTrigger value='headers'>Headers</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value='body' className='space-y-2'>
+                <Label htmlFor='invoke-body'>Request Body (JSON)</Label>
+                <Textarea
+                  id='invoke-body'
+                  className='min-h-[300px] font-mono text-sm'
+                  value={invokeBody}
+                  onChange={(e) => setInvokeBody(e.target.value)}
+                  placeholder='{"key": "value"}'
+                />
+              </TabsContent>
+
+              <TabsContent value='headers' className='space-y-2'>
+                <Label>Custom Headers</Label>
+                <ScrollArea className='max-h-[350px]'>
+                  <HeadersEditor
+                    headers={invokeHeaders}
+                    onChange={setInvokeHeaders}
+                  />
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <DialogFooter>

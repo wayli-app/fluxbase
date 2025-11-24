@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/api"
+	"github.com/wayli-app/fluxbase/internal/auth"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
 )
@@ -100,6 +102,38 @@ func main() {
 
 	// Initialize API server
 	server := api.NewServer(cfg, db)
+
+	// Generate and set service role and anon keys for edge functions
+	// These are JWT tokens that edge functions can use to call the Fluxbase API
+	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
+
+	// Generate service role token (full admin access, bypasses RLS)
+	serviceRoleKey, err := jwtManager.GenerateServiceRoleToken()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to generate service role key")
+	} else {
+		os.Setenv("FLUXBASE_SERVICE_ROLE_KEY", serviceRoleKey)
+		log.Debug().Msg("Service role key generated for edge functions")
+	}
+
+	// Generate anon token (public access)
+	anonKey, err := jwtManager.GenerateAnonToken()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to generate anon key")
+	} else {
+		os.Setenv("FLUXBASE_ANON_KEY", anonKey)
+		log.Debug().Msg("Anon key generated for edge functions")
+	}
+
+	// Ensure BASE_URL is set for edge functions
+	if os.Getenv("FLUXBASE_BASE_URL") == "" {
+		baseURL := fmt.Sprintf("http://%s", strings.TrimPrefix(cfg.Server.Address, ":"))
+		if strings.HasPrefix(cfg.Server.Address, ":") {
+			baseURL = fmt.Sprintf("http://localhost%s", cfg.Server.Address)
+		}
+		os.Setenv("FLUXBASE_BASE_URL", baseURL)
+		log.Debug().Str("url", baseURL).Msg("Base URL set for edge functions")
+	}
 
 	// Validate storage provider health
 	log.Info().Msg("Validating storage provider...")

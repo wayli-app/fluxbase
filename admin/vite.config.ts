@@ -30,7 +30,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0', // Listen on all interfaces (required for devcontainer port forwarding)
-    port: 5173,
+    port: 5050,
     strictPort: true, // Fail if port is already in use
     proxy: {
       // Proxy v1 storage API with special handling for file uploads

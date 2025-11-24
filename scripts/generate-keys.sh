@@ -228,12 +228,13 @@ EOF
         echo -e "${BLUE}Run this SQL command:${NC}"
         echo ""
         cat <<SQL
-INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, enabled, expires_at)
+INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, scopes, enabled, expires_at)
 VALUES (
     '${KEY_NAME}',
     '${KEY_DESCRIPTION}',
     crypt('${SERVICE_KEY}', gen_salt('bf', 12)),
     '${KEY_PREFIX}',
+    ARRAY['*'],
     true,
     ${EXPIRY_SQL}
 );

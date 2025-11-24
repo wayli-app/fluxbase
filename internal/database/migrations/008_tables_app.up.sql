@@ -36,3 +36,38 @@ COMMENT ON COLUMN app.settings.is_public IS 'Whether this setting can be read by
 COMMENT ON COLUMN app.settings.is_secret IS 'Whether this setting contains sensitive data (e.g., API keys, secrets)';
 COMMENT ON COLUMN app.settings.editable_by IS 'Array of roles that can edit this setting';
 COMMENT ON COLUMN app.settings.metadata IS 'Additional metadata about the setting (validation rules, UI hints, etc.)';
+
+-- Insert default feature flag settings
+INSERT INTO app.settings (key, value, value_type, category, description, is_public, is_secret, editable_by)
+VALUES
+    (
+        'app.features.enable_realtime',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable or disable realtime functionality (WebSocket connections, subscriptions)',
+        false,
+        false,
+        ARRAY['dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.features.enable_storage',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable or disable storage functionality (file uploads, downloads, management)',
+        false,
+        false,
+        ARRAY['dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.features.enable_functions',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable or disable edge functions (serverless function execution)',
+        false,
+        false,
+        ARRAY['dashboard_admin']::TEXT[]
+    )
+ON CONFLICT (key) DO NOTHING;

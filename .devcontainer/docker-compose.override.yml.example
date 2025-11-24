@@ -1,0 +1,14 @@
+# Copy this file to docker-compose.override.yml and customize for your local setup.
+# docker-compose.override.yml is gitignored, so your local paths won't be committed.
+#
+# Docker Compose automatically merges this with docker-compose.yml when present.
+
+version: "3.8"
+
+services:
+  app:
+    volumes:
+      # Mount your local functions folder
+      - /Users/yourname/path/to/functions:/functions
+      # Mount your local migrations folder
+      - /Users/yourname/path/to/migrations:/migrations/user

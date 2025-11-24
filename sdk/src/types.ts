@@ -291,6 +291,7 @@ export interface RealtimeMessage {
   broadcast?: any // Broadcast message data
   messageId?: string // Message ID for acknowledgments
   status?: string // Status for acknowledgment messages
+  subscription_id?: string // Subscription ID for unsubscribe
 }
 
 export interface PostgresChangesConfig {
@@ -1548,6 +1549,7 @@ export interface FunctionInvokeOptions {
 export interface EdgeFunction {
   id: string
   name: string
+  namespace: string
   description?: string
   code: string
   version: number
@@ -1615,6 +1617,207 @@ export interface EdgeFunctionExecution {
   error_message?: string
   executed_at: string
   completed_at?: string
+}
+
+/**
+ * Function specification for bulk sync operations
+ */
+export interface FunctionSpec {
+  name: string
+  description?: string
+  code: string
+  enabled?: boolean
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  allow_unauthenticated?: boolean
+  is_public?: boolean
+  cron_schedule?: string
+}
+
+/**
+ * Options for syncing functions
+ */
+export interface SyncFunctionsOptions {
+  /** Namespace to sync functions to (defaults to "default") */
+  namespace?: string
+  /** Functions to sync */
+  functions: FunctionSpec[]
+  /** Options for sync operation */
+  options?: {
+    /** Delete functions in namespace that are not in the sync payload */
+    delete_missing?: boolean
+    /** Preview changes without applying them */
+    dry_run?: boolean
+  }
+}
+
+/**
+ * Sync operation error details
+ */
+export interface SyncError {
+  /** Name of the function that failed */
+  function: string
+  /** Error message */
+  error: string
+  /** Operation that failed */
+  action: 'create' | 'update' | 'delete' | 'bundle'
+}
+
+/**
+ * Result of a function sync operation
+ */
+export interface SyncFunctionsResult {
+  /** Status message */
+  message: string
+  /** Namespace that was synced */
+  namespace: string
+  /** Summary counts */
+  summary: {
+    created: number
+    updated: number
+    deleted: number
+    unchanged: number
+    errors: number
+  }
+  /** Detailed results */
+  details: {
+    created: string[]
+    updated: string[]
+    deleted: string[]
+    unchanged: string[]
+  }
+  /** Errors encountered */
+  errors: SyncError[]
+  /** Whether this was a dry run */
+  dry_run: boolean
+}
+
+// ============================================================================
+// Database Migrations Types
+// ============================================================================
+
+/**
+ * Database migration metadata
+ */
+export interface Migration {
+  id: string
+  namespace: string
+  name: string
+  description?: string
+  up_sql: string
+  down_sql?: string
+  version: number
+  status: 'pending' | 'applied' | 'failed' | 'rolled_back'
+  created_by?: string
+  applied_by?: string
+  created_at: string
+  updated_at: string
+  applied_at?: string
+  rolled_back_at?: string
+}
+
+/**
+ * Request to create a new migration
+ */
+export interface CreateMigrationRequest {
+  namespace?: string
+  name: string
+  description?: string
+  up_sql: string
+  down_sql?: string
+}
+
+/**
+ * Request to update a migration (only if pending)
+ */
+export interface UpdateMigrationRequest {
+  description?: string
+  up_sql?: string
+  down_sql?: string
+}
+
+/**
+ * Migration execution record (audit log)
+ */
+export interface MigrationExecution {
+  id: string
+  migration_id: string
+  action: 'apply' | 'rollback'
+  status: 'success' | 'failed'
+  duration_ms?: number
+  error_message?: string
+  logs?: string
+  executed_at: string
+  executed_by?: string
+}
+
+/**
+ * Request to apply a migration
+ */
+export interface ApplyMigrationRequest {
+  namespace?: string
+}
+
+/**
+ * Request to rollback a migration
+ */
+export interface RollbackMigrationRequest {
+  namespace?: string
+}
+
+/**
+ * Request to apply pending migrations
+ */
+export interface ApplyPendingRequest {
+  namespace?: string
+}
+
+/**
+ * Options for syncing migrations
+ */
+export interface SyncMigrationsOptions {
+  /** Update pending migrations if SQL content changed */
+  update_if_changed?: boolean
+  /** Automatically apply new migrations after sync */
+  auto_apply?: boolean
+  /** Preview changes without applying them */
+  dry_run?: boolean
+}
+
+/**
+ * Result of a migration sync operation
+ */
+export interface SyncMigrationsResult {
+  /** Status message */
+  message: string
+  /** Namespace that was synced */
+  namespace: string
+  /** Summary counts */
+  summary: {
+    created: number
+    updated: number
+    unchanged: number
+    skipped: number
+    applied: number
+    errors: number
+  }
+  /** Detailed results */
+  details: {
+    created: string[]
+    updated: string[]
+    unchanged: string[]
+    skipped: string[]
+    applied: string[]
+    errors: string[]
+  }
+  /** Whether this was a dry run */
+  dry_run: boolean
+  /** Warning messages */
+  warnings?: string[]
 }
 
 // ============================================================================

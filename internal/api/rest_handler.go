@@ -216,7 +216,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 			})
 		}
 
-		// Build SELECT query
+		// Build SELECT query using fresh metadata
 		query, args := h.buildSelectQuery(table, params)
 
 		// Execute query with RLS context

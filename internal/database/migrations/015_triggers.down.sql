@@ -8,6 +8,8 @@ DROP TRIGGER IF EXISTS update_storage_objects_updated_at ON storage.objects;
 DROP TRIGGER IF EXISTS update_storage_buckets_updated_at ON storage.buckets;
 
 -- Functions schema triggers
+DROP TRIGGER IF EXISTS trigger_mark_functions_on_shared_module_update ON functions.shared_modules;
+DROP TRIGGER IF EXISTS update_function_dependencies_updated_at ON functions.function_dependencies;
 DROP TRIGGER IF EXISTS update_functions_edge_function_triggers_updated_at ON functions.edge_function_triggers;
 DROP TRIGGER IF EXISTS update_functions_edge_functions_updated_at ON functions.edge_functions;
 

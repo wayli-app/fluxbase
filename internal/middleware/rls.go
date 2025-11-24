@@ -34,19 +34,32 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 		// Get user ID from context (set by auth middleware)
 		userID := c.Locals("user_id")
 
+		// Check if role is already set (e.g., by service key authentication)
+		existingRole := c.Locals("rls_role")
+
 		// Debug logging
 		log.Debug().
 			Interface("user_id", userID).
+			Interface("existing_rls_role", existingRole).
 			Str("path", c.Path()).
 			Msg("RLSMiddleware: checking user_id from context")
 
-		// If no user is authenticated, set empty session variables
-		// This allows RLS policies to restrict access appropriately
-		if userID == nil {
+		// If no user is authenticated AND no role is already set, treat as anonymous
+		// This allows service key auth to set service_role even without a user_id
+		if userID == nil && existingRole == nil {
 			// Store in context that this is an anonymous request
 			c.Locals("rls_user_id", nil)
 			c.Locals("rls_role", "anon")
-			log.Debug().Str("path", c.Path()).Msg("RLSMiddleware: No user_id, setting anonymous")
+			log.Debug().Str("path", c.Path()).Msg("RLSMiddleware: No user_id and no existing role, setting anonymous")
+			return c.Next()
+		}
+
+		// If role is already set (e.g., service_role from service key auth), preserve it
+		if existingRole != nil {
+			log.Debug().
+				Interface("existing_rls_role", existingRole).
+				Str("path", c.Path()).
+				Msg("RLSMiddleware: Preserving existing RLS role")
 			return c.Next()
 		}
 

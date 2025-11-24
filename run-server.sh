@@ -20,6 +20,9 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
+# Add Deno to PATH (required for edge functions)
+export PATH="/home/vscode/.deno/bin:$PATH"
+
 echo -e "${YELLOW}Starting fluxbase...${NC}"
 echo -e "${GREEN}Server will be available at:${NC}"
 echo -e "  ${GREEN}API:${NC}  http://localhost:8080/api/v1/"

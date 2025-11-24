@@ -12,6 +12,7 @@ services:
       - vscode-extensions:/home/vscode/.vscode-server/extensions
       # Docker-in-Docker: Mount Docker socket from host
       - /var/run/docker.sock:/var/run/docker.sock
+      - storage:/storage
     privileged: true
     command: sleep infinity
     environment:
@@ -40,7 +41,7 @@ services:
       COLORTERM: truecolor
       TERM: xterm-256color
     networks:
-      - fluxbase-network
+      - fluxbase-dev-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,47 +51,27 @@ services:
     container_name: fluxbase-postgres-dev
     restart: unless-stopped
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
       - ../examples/sql-scripts/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql:ro
       - ./init-db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fluxbase_dev
-      POSTGRES_HOST_AUTH_METHOD: trust
     networks:
-      - fluxbase-network
+      - fluxbase-dev-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: fluxbase-pgadmin-dev
-    restart: unless-stopped
-    ports:
-      - "5050:5050"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@fluxbase.eu
-      PGADMIN_DEFAULT_PASSWORD: dev
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      PGADMIN_LISTEN_PORT: 5050
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-    networks:
-      - fluxbase-network
-    depends_on:
-      - postgres
-
   mailhog:
     image: mailhog/mailhog:latest
     container_name: fluxbase-mailhog-dev
     restart: unless-stopped
     networks:
-      - fluxbase-network
+      - fluxbase-dev-network
 
   minio:
     image: minio/minio:latest
@@ -103,7 +84,7 @@ services:
     volumes:
       - minio-data:/data
     networks:
-      - fluxbase-network
+      - fluxbase-dev-network
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -114,9 +95,10 @@ volumes:
   go-modules:
   vscode-extensions:
   postgres-data:
-  pgadmin-data:
   minio-data:
+  storage:
 
 networks:
-  fluxbase-network:
+  fluxbase-dev-network:
+    name: fluxbase-dev-network
     driver: bridge

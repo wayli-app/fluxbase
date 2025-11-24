@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/wayli-app/fluxbase/internal/email"
 	"github.com/wayli-app/fluxbase/internal/functions"
 	"github.com/wayli-app/fluxbase/internal/middleware"
+	"github.com/wayli-app/fluxbase/internal/migrations"
 	"github.com/wayli-app/fluxbase/internal/realtime"
 	"github.com/wayli-app/fluxbase/internal/settings"
 	"github.com/wayli-app/fluxbase/internal/storage"
@@ -53,6 +55,7 @@ type Server struct {
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
+	migrationsHandler     *migrations.Handler
 	realtimeManager       *realtime.Manager
 	realtimeHandler       *realtime.RealtimeHandler
 	realtimeListener      *realtime.Listener
@@ -134,9 +137,10 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir)
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS)
 	functionsScheduler := functions.NewScheduler(db)
 	functionsHandler.SetScheduler(functionsScheduler)
+	migrationsHandler := migrations.NewHandler(db)
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
@@ -175,6 +179,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
+		migrationsHandler:     migrationsHandler,
 		realtimeManager:       realtimeManager,
 		realtimeHandler:       realtimeHandler,
 		realtimeListener:      realtimeListener,
@@ -241,15 +246,26 @@ func (s *Server) setupMiddlewares() {
 	}))
 
 	// CORS middleware
-	log.Debug().Msg("Adding CORS middleware")
+	// Note: AllowCredentials cannot be used with AllowOrigins="*" per CORS spec
+	// If AllowOrigins is "*", we must disable credentials
+	corsCredentials := s.config.CORS.AllowCredentials
+	if s.config.CORS.AllowedOrigins == "*" && corsCredentials {
+		log.Warn().Msg("CORS: AllowCredentials disabled because AllowOrigins is '*' (not allowed per CORS spec)")
+		corsCredentials = false
+	}
+	log.Debug().
+		Str("origins", s.config.CORS.AllowedOrigins).
+		Bool("credentials", corsCredentials).
+		Msg("Adding CORS middleware")
 	s.app.Use(cors.New(cors.Config{
 		AllowOrigins:     s.config.CORS.AllowedOrigins,
 		AllowMethods:     s.config.CORS.AllowedMethods,
 		AllowHeaders:     s.config.CORS.AllowedHeaders,
 		ExposeHeaders:    s.config.CORS.ExposedHeaders,
-		AllowCredentials: s.config.CORS.AllowCredentials,
+		AllowCredentials: corsCredentials,
 		MaxAge:           s.config.CORS.MaxAge,
 	}))
+	log.Debug().Msg("CORS middleware added")
 
 	// Global rate limiting - 100 requests per minute per IP
 	// Note: Global rate limiting is disabled by default. Enable via config if needed.
@@ -319,26 +335,37 @@ func (s *Server) setupRoutes() {
 	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Edge functions routes - require authentication by default, but per-function config can override
+	// Protected by feature flag middleware
 	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
+	// Protected by feature flag middleware
 	storage := v1.Group("/storage",
+		middleware.RequireStorageEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
 	)
 	s.setupStorageRoutes(storage)
 
 	// Realtime WebSocket endpoint (not versioned as it's WebSocket)
 	// WebSocket validates auth internally, but make it required
-	s.app.Get("/realtime", s.realtimeHandler.HandleWebSocket)
+	// Protected by feature flag middleware
+	s.app.Get("/realtime",
+		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
+		s.realtimeHandler.HandleWebSocket,
+	)
 
 	// Realtime stats endpoint - require authentication
+	// Protected by feature flag middleware
 	s.app.Get("/api/v1/realtime/stats",
+		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		s.handleRealtimeStats,
 	)
 
 	// Realtime broadcast endpoint - require authentication
+	// Protected by feature flag middleware
 	s.app.Post("/api/v1/realtime/broadcast",
+		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		s.handleRealtimeBroadcast,
 	)
@@ -419,6 +446,7 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 
 	// Metadata endpoint
 	router.Get("/", s.rest.HandleGetTables)
+
 }
 
 // setupRPCRoutes sets up auto-generated RPC routes for database functions
@@ -559,8 +587,42 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// SQL Editor route (require dashboard_admin role only)
 	router.Post("/sql/execute", unifiedAuth, RequireRole("dashboard_admin"), s.sqlHandler.ExecuteSQL)
 
-	// Functions management routes (require admin or dashboard_admin role)
-	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.functionsHandler.ReloadFunctions)
+	// Functions management routes (require admin, dashboard_admin, or service_role)
+	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ReloadFunctions)
+	router.Post("/functions/sync", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.SyncFunctions)
+
+	// Migrations routes (require service key authentication with enhanced security)
+	// Only registered if migrations API is enabled in config
+	if s.config.Migrations.Enabled {
+		// Build secure middleware stack for migrations API
+		// Layer 1: Feature flag check
+		// Layer 2: IP allowlist (only allow app container)
+		// Layer 3: Service key authentication (no JWT/API keys)
+		// Layer 4: Scope validation (migrations:execute)
+		// Layer 5: Rate limiting (10 req/hour)
+		// Layer 6: Audit logging
+		migrationsAuth := []fiber.Handler{
+			middleware.RequireMigrationsEnabled(&s.config.Migrations),
+			middleware.RequireMigrationsIPAllowlist(&s.config.Migrations),
+			middleware.RequireServiceKeyOnly(s.db.Pool(), s.authHandler.authService),
+			middleware.RequireMigrationScope(),
+			middleware.MigrationAPILimiter(),
+			middleware.MigrationsAuditLog(),
+		}
+
+		s.migrationsHandler.RegisterRoutes(s.app, migrationsAuth...)
+
+		log.Info().
+			Bool("enabled", s.config.Migrations.Enabled).
+			Strs("allowed_ips", s.config.Migrations.AllowedIPRanges).
+			Bool("require_service_key", s.config.Migrations.RequireServiceKey).
+			Msg("Migrations API registered with enhanced security controls")
+	} else {
+		log.Info().Msg("Migrations API disabled")
+	}
+
+	// Schema refresh endpoint (require admin, dashboard_admin, or service_role)
+	router.Post("/schema/refresh", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.handleRefreshSchema)
 }
 
 // setupPublicInvitationRoutes sets up public invitation routes (no auth required)
@@ -684,6 +746,41 @@ func (s *Server) handleGetSchemas(c *fiber.Ctx) error {
 
 func (s *Server) handleExecuteQuery(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Execute query endpoint - to be implemented"})
+}
+
+// handleRefreshSchema refreshes the REST API schema cache by re-registering all table routes
+func (s *Server) handleRefreshSchema(c *fiber.Ctx) error {
+	log.Info().Msg("Schema refresh requested - triggering graceful server restart")
+
+	// Send response before shutting down
+	// Client should retry after a few seconds
+	c.Status(202).JSON(fiber.Map{
+		"message": "Server restart initiated to refresh schema cache. Reconnect in 3-5 seconds.",
+	})
+
+	// Trigger graceful shutdown in a goroutine to allow response to be sent
+	go func() {
+		// Wait a moment to ensure the response is sent
+		time.Sleep(500 * time.Millisecond)
+
+		log.Info().Msg("Starting graceful server shutdown for restart")
+
+		// Graceful shutdown with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := s.Shutdown(ctx); err != nil {
+			log.Error().Err(err).Msg("Error during graceful shutdown")
+			// Force exit if graceful shutdown fails
+			os.Exit(1)
+		}
+
+		log.Info().Msg("Graceful shutdown complete - process will now exit for restart")
+		// Exit with code 0 to signal process manager to restart
+		os.Exit(0)
+	}()
+
+	return nil
 }
 
 // Start starts the HTTP server

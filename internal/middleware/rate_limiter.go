@@ -256,3 +256,25 @@ func AdminLoginLimiter() fiber.Handler {
 		Message: "Too many admin login attempts. Please try again in 1 minute.",
 	})
 }
+
+// MigrationAPILimiter limits migrations API requests per service key
+// Very strict rate limiting due to powerful DDL operations
+// Should be applied AFTER service key authentication middleware
+func MigrationAPILimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        10,            // 10 requests
+		Expiration: 1 * time.Hour, // per hour
+		KeyFunc: func(c *fiber.Ctx) string {
+			// Rate limit by service key ID (set by auth middleware)
+			keyID := c.Locals("service_key_id")
+			if keyID != nil {
+				if kid, ok := keyID.(string); ok && kid != "" {
+					return "migration_key:" + kid
+				}
+			}
+			// Fallback to IP if no service key (shouldn't happen if auth middleware ran)
+			return "migration_ip:" + c.IP()
+		},
+		Message: "Migrations API rate limit exceeded. Maximum 10 requests per hour allowed.",
+	})
+}

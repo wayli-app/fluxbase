@@ -101,8 +101,52 @@ interface Request {
   headers: Record<string, string>;
   body: string; // Raw body (use JSON.parse for JSON)
   params: Record<string, string>; // Query parameters
+
+  // Authentication context (if user is authenticated)
+  user_id?: string; // Authenticated user's ID
+  user_email?: string; // User's email from JWT claims
+  user_role?: string; // User's role from JWT claims
+  session_id?: string; // Current session ID
 }
 ```
+
+### Using the Fluxbase SDK
+
+Edge functions can import and use the Fluxbase SDK for database operations, authentication, and more:
+
+```typescript
+import { createClient } from '@fluxbase/sdk'
+
+async function handler(req) {
+  // Create a service client with elevated permissions
+  const client = createClient(
+    Deno.env.get('FLUXBASE_BASE_URL')!,
+    Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY')!
+  )
+
+  // Query the database
+  const { data, error } = await client
+    .from('users')
+    .select('*')
+    .eq('id', req.user_id)
+    .execute()
+
+  if (error) {
+    return {
+      status: 500,
+      body: JSON.stringify({ error: error.message })
+    }
+  }
+
+  return {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }
+}
+```
+
+**Note:** The SDK is available via import maps configured in `/functions/deno.json`. For local development with live SDK changes, use `/functions/deno.dev.json` which points to your local SDK mount.
 
 ### Response Object
 
@@ -327,6 +371,270 @@ Common bundling errors:
 - **Bundle too large** - Limit is 5MB after bundling
 - **Blocked package** - Using a restricted security package
 
+## Shared Modules
+
+Shared modules allow you to reuse code across multiple edge functions, similar to Supabase's `_shared` directory pattern. Modules are stored with a `_shared/` prefix and can be imported by any function.
+
+### Creating Shared Modules
+
+**Via SDK:**
+
+```typescript
+await client.functions.createSharedModule({
+  module_path: "_shared/cors.ts",
+  description: "CORS headers helper",
+  content: `
+    export function corsHeaders(origin?: string) {
+      return {
+        'Access-Control-Allow-Origin': origin || '*',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
+      }
+    }
+  `
+});
+```
+
+**Via File System:**
+
+Create a `_shared/` directory in your functions folder:
+
+```
+functions/
+├── _shared/
+│   ├── cors.ts         ← Shared CORS utilities
+│   ├── database.ts     ← Database helpers
+│   └── validation.ts   ← Input validation
+└── my-function.ts
+```
+
+```typescript
+// functions/_shared/cors.ts
+export function corsHeaders(origin?: string) {
+  return {
+    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
+  }
+}
+
+export function handleCors(req: Request) {
+  if (req.method === 'OPTIONS') {
+    return {
+      status: 200,
+      headers: corsHeaders()
+    }
+  }
+  return null
+}
+```
+
+### Using Shared Modules
+
+Import shared modules using the `_shared/` prefix:
+
+```typescript
+// functions/my-api.ts
+import { corsHeaders, handleCors } from '_shared/cors.ts';
+import { validateEmail } from '_shared/validation.ts';
+
+async function handler(req) {
+  // Handle preflight requests
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
+  const data = JSON.parse(req.body || '{}');
+
+  // Use shared validation
+  if (!validateEmail(data.email)) {
+    return {
+      status: 400,
+      headers: corsHeaders(),
+      body: JSON.stringify({ error: 'Invalid email' })
+    };
+  }
+
+  return {
+    status: 200,
+    headers: corsHeaders(),
+    body: JSON.stringify({ success: true })
+  };
+}
+```
+
+### Nested Shared Modules
+
+Organize shared code in subdirectories:
+
+```
+functions/
+├── _shared/
+│   ├── utils/
+│   │   ├── date.ts
+│   │   └── string.ts
+│   ├── database/
+│   │   ├── connection.ts
+│   │   └── queries.ts
+│   └── cors.ts
+└── my-function/
+    └── index.ts
+```
+
+```typescript
+// functions/my-function/index.ts
+import { corsHeaders } from '_shared/cors.ts';
+import { formatDate } from '_shared/utils/date.ts';
+import { query } from '_shared/database/queries.ts';
+
+async function handler(req) {
+  const users = await query('SELECT * FROM users');
+  const timestamp = formatDate(new Date());
+
+  return {
+    status: 200,
+    headers: corsHeaders(),
+    body: JSON.stringify({ users, timestamp })
+  };
+}
+```
+
+### Common Shared Module Patterns
+
+**CORS Helper:**
+
+```typescript
+// _shared/cors.ts
+export function corsHeaders(origin?: string) {
+  return {
+    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
+  }
+}
+
+export function handleCors(req: Request) {
+  if (req.method === 'OPTIONS') {
+    return {
+      status: 200,
+      headers: corsHeaders()
+    }
+  }
+  return null
+}
+```
+
+**Input Validation:**
+
+```typescript
+// _shared/validation.ts
+export function validateEmail(email: string): boolean {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
+export function validateRequired(data: any, fields: string[]): string[] {
+  const missing = [];
+  for (const field of fields) {
+    if (!data[field]) {
+      missing.push(field);
+    }
+  }
+  return missing;
+}
+
+export function sanitizeString(str: string): string {
+  return str.trim().replace(/[<>]/g, '');
+}
+```
+
+**Error Responses:**
+
+```typescript
+// _shared/errors.ts
+export function errorResponse(message: string, status = 400) {
+  return {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ error: message })
+  };
+}
+
+export function successResponse(data: any, status = 200) {
+  return {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  };
+}
+```
+
+### Managing Shared Modules
+
+**List all shared modules:**
+
+```typescript
+const modules = await client.functions.listSharedModules();
+console.log(modules);
+// [
+//   { module_path: '_shared/cors.ts', version: 1, ... },
+//   { module_path: '_shared/validation.ts', version: 2, ... }
+// ]
+```
+
+**Get a specific module:**
+
+```typescript
+const module = await client.functions.getSharedModule('_shared/cors.ts');
+console.log(module.content);
+```
+
+**Update a shared module:**
+
+```typescript
+await client.functions.updateSharedModule('_shared/cors.ts', {
+  content: `
+    export function corsHeaders() {
+      // Updated implementation
+    }
+  `,
+  description: 'Updated CORS helper'
+});
+```
+
+**Delete a shared module:**
+
+```typescript
+await client.functions.deleteSharedModule('_shared/cors.ts');
+```
+
+### How Bundling Works with Shared Modules
+
+1. **Detection** - Fluxbase detects imports from `_shared/` in function code
+2. **Loading** - All shared modules are loaded from database or filesystem
+3. **Bundling** - Deno bundles the function with all dependencies and shared modules
+4. **Storage** - Bundled code is stored for fast execution
+5. **Execution** - Runtime uses the pre-bundled code
+
+**Important:** When you update a shared module, you must re-save or reload any functions that use it to trigger re-bundling.
+
+### File-Based vs Database Shared Modules
+
+**File-Based** (`functions/_shared/*.ts`):
+
+- ✅ Version controlled with your code
+- ✅ Easy local development
+- ✅ Syncs on reload/boot
+- ❌ Requires filesystem access
+
+**Database** (created via SDK/API):
+
+- ✅ Dynamically updatable
+- ✅ No filesystem required
+- ✅ Versioning built-in
+- ❌ Not version controlled with code
+
+**Best Practice:** Use file-based shared modules for production deployments and database modules for dynamic/temporary utilities.
+
 ## Deployment Methods
 
 ### 1. SDK Deployment
@@ -506,6 +814,178 @@ async function handler(req) {
   // Use apiKey...
 }
 ```
+
+## Function Annotations
+
+Fluxbase supports special `@fluxbase:` directives in function code comments to configure function behavior. These annotations provide a convenient way to set function-level configuration without API calls.
+
+### Authentication Annotations
+
+**`@fluxbase:allow-unauthenticated`** - Allow function invocation without authentication:
+
+```typescript
+/**
+ * Public webhook handler
+ *
+ * @fluxbase:allow-unauthenticated
+ */
+async function handler(req) {
+  // This function can be called without auth
+  return {
+    status: 200,
+    body: JSON.stringify({ message: "OK" }),
+  };
+}
+```
+
+**`@fluxbase:public`** - Control whether function is publicly listed (default: true):
+
+```typescript
+/**
+ * Internal helper function
+ *
+ * @fluxbase:public false
+ */
+async function handler(req) {
+  // This function won't appear in public function listings
+  return { status: 200, body: "OK" };
+}
+```
+
+### CORS Annotations
+
+Configure Cross-Origin Resource Sharing (CORS) per function. If not specified, functions use the global `FLUXBASE_CORS_*` environment variables.
+
+**`@fluxbase:cors-origins`** - Allowed origins (comma-separated):
+
+```typescript
+/**
+ * API function with restricted origins
+ *
+ * @fluxbase:cors-origins https://app.example.com,https://admin.example.com
+ */
+async function handler(req) {
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data: "result" }),
+  };
+}
+```
+
+**`@fluxbase:cors-methods`** - Allowed HTTP methods (comma-separated):
+
+```typescript
+/**
+ * Read-only API endpoint
+ *
+ * @fluxbase:cors-methods GET,OPTIONS
+ */
+async function handler(req) {
+  // Only GET and OPTIONS methods allowed
+  return { status: 200, body: JSON.stringify({ data }) };
+}
+```
+
+**`@fluxbase:cors-headers`** - Allowed request headers (comma-separated):
+
+```typescript
+/**
+ * Custom header requirements
+ *
+ * @fluxbase:cors-headers Content-Type,Authorization,X-API-Key
+ */
+async function handler(req) {
+  const apiKey = req.headers["x-api-key"];
+  // Process request...
+}
+```
+
+**`@fluxbase:cors-credentials`** - Allow credentials (cookies, auth headers):
+
+```typescript
+/**
+ * Function that requires cookies
+ *
+ * @fluxbase:cors-origins https://app.example.com
+ * @fluxbase:cors-credentials true
+ */
+async function handler(req) {
+  // Can receive cookies from app.example.com
+  return { status: 200, body: "OK" };
+}
+```
+
+**`@fluxbase:cors-max-age`** - Preflight cache duration in seconds:
+
+```typescript
+/**
+ * Long-lived preflight cache
+ *
+ * @fluxbase:cors-max-age 3600
+ */
+async function handler(req) {
+  // Preflight results cached for 1 hour
+  return { status: 200, body: "OK" };
+}
+```
+
+### Complete CORS Example
+
+```typescript
+/**
+ * Webhook handler with custom CORS
+ *
+ * @fluxbase:allow-unauthenticated
+ * @fluxbase:cors-origins https://api.stripe.com,https://api.github.com
+ * @fluxbase:cors-methods POST,OPTIONS
+ * @fluxbase:cors-headers Content-Type,X-Stripe-Signature,X-Hub-Signature
+ * @fluxbase:cors-max-age 300
+ */
+async function handler(req) {
+  if (req.method === "POST") {
+    // Process webhook
+    const payload = JSON.parse(req.body);
+    // ... handle webhook ...
+
+    return {
+      status: 200,
+      body: JSON.stringify({ received: true }),
+    };
+  }
+
+  return { status: 405, body: "Method not allowed" };
+}
+```
+
+### Annotation Priority
+
+Configuration sources are applied in this order (highest to lowest priority):
+
+1. **API Request** - Explicit values in `functions.create()` or `functions.update()`
+2. **Code Annotations** - `@fluxbase:` directives in function comments
+3. **Global Defaults** - `FLUXBASE_CORS_*` environment variables
+
+Example:
+
+```typescript
+// Function with partial CORS config
+/**
+ * @fluxbase:cors-origins https://app.example.com
+ */
+async function handler(req) { ... }
+
+// Result:
+// - origins: https://app.example.com (from annotation)
+// - methods: FLUXBASE_CORS_ALLOWED_METHODS (from env)
+// - headers: FLUXBASE_CORS_ALLOWED_HEADERS (from env)
+// - credentials: FLUXBASE_CORS_ALLOW_CREDENTIALS (from env)
+// - max_age: FLUXBASE_CORS_MAX_AGE (from env)
+```
+
+### Automatic Preflight Handling
+
+When CORS is configured (via annotations, API, or global settings), Fluxbase automatically handles OPTIONS preflight requests. Your function code doesn't need to handle OPTIONS methods - the server manages this automatically.
 
 ## Debugging
 

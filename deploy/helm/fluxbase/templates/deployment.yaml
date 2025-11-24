@@ -35,6 +35,8 @@ spec:
         {{- toYaml .Values.commonLabels | nindent 8 }}
         {{- end }}
     spec:
+      # Note: restartPolicy defaults to "Always" which ensures pods restart
+      # automatically when they exit (including graceful restarts for schema refresh)
       {{- include "fluxbase.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.schedulerName }}
       schedulerName: {{ .Values.schedulerName | quote }}

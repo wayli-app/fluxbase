@@ -25,6 +25,7 @@ export class RealtimeChannel {
   private presenceCallbacks: Map<string, Set<PresenceCallback>> = new Map();
   private broadcastCallbacks: Map<string, Set<BroadcastCallback>> = new Map();
   private subscriptionConfig: PostgresChangesConfig | null = null;
+  private subscriptionId: string | null = null;
   private _presenceState: Record<string, PresenceState[]> = {};
   private myPresenceKey: string | null = null;
   private config: RealtimeChannelConfig;
@@ -257,6 +258,7 @@ export class RealtimeChannel {
         this.sendMessage({
           type: "unsubscribe",
           channel: this.channelName,
+          subscription_id: this.subscriptionId || undefined,
         });
 
         // Wait for disconnect
@@ -567,8 +569,14 @@ export class RealtimeChannel {
             ackHandler.resolve(message.status || "ok");
           }
         } else {
-          // Log subscription acknowledgments or other acks
-          console.log("[Fluxbase Realtime] Acknowledged:", message);
+          // Store subscription_id from subscription acknowledgment
+          if (message.payload && typeof message.payload === 'object' && 'subscription_id' in message.payload) {
+            this.subscriptionId = (message.payload as { subscription_id: string }).subscription_id;
+            console.log("[Fluxbase Realtime] Subscription ID received:", this.subscriptionId);
+          } else {
+            // Log other acknowledgments
+            console.log("[Fluxbase Realtime] Acknowledged:", message);
+          }
         }
         break;
 

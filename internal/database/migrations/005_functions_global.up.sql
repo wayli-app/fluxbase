@@ -318,3 +318,34 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 COMMENT ON FUNCTION storage.foldername(TEXT) IS 'Supabase-compatible function that extracts folder path components from an object name/path. Returns array of folder names. Use [1] to get first folder, [2] for second, etc.';
+
+-- Functions schema helper functions for dependency tracking
+
+-- Update function for function_dependencies updated_at
+CREATE OR REPLACE FUNCTION functions.update_function_dependencies_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION functions.update_function_dependencies_updated_at() IS 'Updates the updated_at timestamp for function_dependencies table';
+
+-- Function to mark dependent functions for rebundling when a shared module is updated
+CREATE OR REPLACE FUNCTION functions.mark_dependent_functions_for_rebundle()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- When a shared module is updated, mark all dependent functions for rebundling
+    UPDATE functions.edge_functions
+    SET needs_rebundle = TRUE
+    WHERE id IN (
+        SELECT function_id
+        FROM functions.function_dependencies
+        WHERE shared_module_id = NEW.id
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION functions.mark_dependent_functions_for_rebundle() IS 'Marks all functions that depend on a shared module for rebundling when the module is updated';

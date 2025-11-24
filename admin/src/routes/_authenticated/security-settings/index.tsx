@@ -127,7 +127,7 @@ function SecuritySettingsPage() {
               <div className="text-sm space-y-1">
                 <p className="font-medium">Coming Soon</p>
                 <p className="text-muted-foreground">
-                  Additional security features like IP whitelisting, CORS configuration, and advanced authentication options will be available in future releases.
+                  Additional security features like IP allowlisting, CORS configuration, and advanced authentication options will be available in future releases.
                 </p>
               </div>
             </div>

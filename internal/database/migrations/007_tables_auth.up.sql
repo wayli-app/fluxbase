@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS auth.service_keys (
     description TEXT,
     key_hash TEXT NOT NULL,
     key_prefix TEXT NOT NULL,
-    scopes TEXT[] DEFAULT ARRAY[]::TEXT[],
+    scopes TEXT[] DEFAULT ARRAY['*']::TEXT[],
     enabled BOOLEAN DEFAULT true,
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -175,7 +175,7 @@ CREATE INDEX IF NOT EXISTS idx_service_keys_enabled ON auth.service_keys(enabled
 COMMENT ON TABLE auth.service_keys IS 'Service role keys with elevated privileges that bypass RLS. Use for backend services only.';
 COMMENT ON COLUMN auth.service_keys.key_hash IS 'Bcrypt hash of the full service key. Never store keys in plaintext.';
 COMMENT ON COLUMN auth.service_keys.key_prefix IS 'First 16 characters of the key for identification in logs (e.g., "sk_test_Ab3xY...").';
-COMMENT ON COLUMN auth.service_keys.scopes IS 'Optional array of scope restrictions. Empty array means full service role access.';
+COMMENT ON COLUMN auth.service_keys.scopes IS 'Optional array of scope restrictions. Defaults to [''*''] for full service role access.';
 
 -- OAuth user linking table
 CREATE TABLE IF NOT EXISTS auth.oauth_links (

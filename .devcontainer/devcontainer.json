@@ -20,14 +20,22 @@
         "go.gopath": "/go",
         "go.goroot": "/usr/local/go",
         "go.lintTool": "golangci-lint",
-        "go.lintFlags": ["--fast"],
+        "go.lintFlags": [
+          "--fast"
+        ],
         "go.formatTool": "gofmt",
-        "go.testFlags": ["-v", "-race"],
+        "go.testFlags": [
+          "-v",
+          "-race"
+        ],
         "go.coverOnSave": false,
         "go.coverOnTestPackage": true,
         "editor.formatOnSave": true,
         "editor.formatOnPaste": false,
-        "editor.rulers": [80, 120],
+        "editor.rulers": [
+          80,
+          120
+        ],
         "editor.bracketPairColorization.enabled": true,
         "editor.guides.bracketPairs": true,
         "editor.inlineSuggest.enabled": true,
@@ -92,22 +100,30 @@
       ]
     }
   },
-  "forwardPorts": [8080, 5173, 5050, 3000, 6379, 8025, 1025, 9000, 9001],
+  "forwardPorts": [
+    8080,
+    5050,
+    3000,
+    6379,
+    8025,
+    1025,
+    9000,
+    9001
+  ],
   "portsAttributes": {
+    "4000": {
+      "label": "External Service",
+      "onAutoForward": "ignore"
+    },
     "8080": {
       "label": "Fluxbase API",
       "onAutoForward": "notify",
       "requireLocalPort": false
     },
-    "5173": {
+    "5050": {
       "label": "Admin UI (Dev)",
       "onAutoForward": "notify",
       "requireLocalPort": false
-    },
-    "5050": {
-      "label": "pgAdmin",
-      "onAutoForward": "notify",
-      "protocol": "http"
     },
     "3000": {
       "label": "Documentation",
@@ -141,9 +157,19 @@
     "source=${localWorkspaceFolderBasename}-go-modules,target=/go/pkg,type=volume",
     "source=${localWorkspaceFolderBasename}-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
   ],
-  "hostRequirements": {
-    "cpus": 2,
-    "memory": "4gb",
-    "storage": "32gb"
+  "containerEnv": {
+    "FLUXBASE_CORS_ALLOWED_ORIGINS": "http://localhost:4000,http://localhost:5050",
+    "FLUXBASE_CORS_ALLOWED_HEADERS": "authorization,x-client-info,apikey,content-type,x-requested-with,accept",
+    "FLUXBASE_CORS_ALLOWED_METHODS": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "FLUXBASE_CORS_MAX_AGE": "86400",
+    "FLUXBASE_DATABASE_USER_MIGRATIONS_PATH": "/migrations/user",
+    "FLUXBASE_STORAGE_PROVIDER": "local",
+    "FLUXBASE_FUNCTIONS_ENABLED": "true",
+    "FLUXBASE_FUNCTIONS_FUNCTIONS_DIR": "/functions",
+    "FLUXBASE_STORAGE_LOCAL_PATH": "/workspace/storage",
+    "FLUXBASE_STORAGE_S3_ENDPOINT": "http://minio:9000",
+    "FLUXBASE_STORAGE_S3_ACCESS_KEY": "minioadmin",
+    "FLUXBASE_STORAGE_S3_SECRET_KEY": "minioadmin",
+    "FLUXBASE_STORAGE_S3_REGION": "us-east-1",
   }
 }

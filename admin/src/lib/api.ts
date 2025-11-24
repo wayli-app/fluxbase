@@ -1,5 +1,11 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios'
-import { getAccessToken, getRefreshToken, setTokens, clearTokens, type AdminUser } from './auth'
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+  type AdminUser,
+} from './auth'
 
 // Base URL for the API - can be overridden with environment variable
 // Use empty string (relative URLs) to work with both dev server proxy and production
@@ -97,11 +103,19 @@ api.interceptors.response.use(
 
       try {
         // Attempt to refresh the token
-        const response = await axios.post(`${API_BASE_URL}/api/v1/admin/refresh`, {
-          refresh_token: refreshToken,
-        })
+        const response = await axios.post(
+          `${API_BASE_URL}/api/v1/admin/refresh`,
+          {
+            refresh_token: refreshToken,
+          }
+        )
 
-        const { access_token, refresh_token: newRefreshToken, user, expires_in } = response.data
+        const {
+          access_token,
+          refresh_token: newRefreshToken,
+          user,
+          expires_in,
+        } = response.data
 
         // Update tokens
         setTokens(
@@ -199,21 +213,35 @@ export const authApi = {
   },
 
   requestPasswordReset: async (email: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>('/api/v1/auth/password/reset', { email })
+    const response = await api.post<{ message: string }>(
+      '/api/v1/auth/password/reset',
+      { email }
+    )
     return response.data
   },
 
-  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>('/api/v1/auth/password/reset/confirm', {
-      token,
-      new_password: newPassword,
-    })
+  resetPassword: async (
+    token: string,
+    newPassword: string
+  ): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(
+      '/api/v1/auth/password/reset/confirm',
+      {
+        token,
+        new_password: newPassword,
+      }
+    )
     return response.data
   },
 
-  verifyResetToken: async (token: string): Promise<{ valid: boolean; message?: string }> => {
+  verifyResetToken: async (
+    token: string
+  ): Promise<{ valid: boolean; message?: string }> => {
     try {
-      const response = await api.post<{ message: string }>('/api/v1/auth/password/reset/verify', { token })
+      const response = await api.post<{ message: string }>(
+        '/api/v1/auth/password/reset/verify',
+        { token }
+      )
       return { valid: true, message: response.data.message }
     } catch {
       return { valid: false, message: 'Invalid or expired token' }
@@ -257,7 +285,9 @@ export const databaseApi = {
     return response.data
   },
 
-  createSchema: async (name: string): Promise<{ success: boolean; schema: string; message: string }> => {
+  createSchema: async (
+    name: string
+  ): Promise<{ success: boolean; schema: string; message: string }> => {
     const response = await api.post('/api/v1/admin/schemas', { name })
     return response.data
   },
@@ -272,12 +302,20 @@ export const databaseApi = {
       primaryKey: boolean
       defaultValue: string
     }>
-  }): Promise<{ success: boolean; schema: string; table: string; message: string }> => {
+  }): Promise<{
+    success: boolean
+    schema: string
+    table: string
+    message: string
+  }> => {
     const response = await api.post('/api/v1/admin/tables', data)
     return response.data
   },
 
-  deleteTable: async (schema: string, table: string): Promise<{ success: boolean; message: string }> => {
+  deleteTable: async (
+    schema: string,
+    table: string
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/api/v1/admin/tables/${schema}/${table}`)
     return response.data
   },
@@ -374,14 +412,22 @@ export interface InviteUserResponse {
 
 // User Management API methods (admin only)
 export const userManagementApi = {
-  listUsers: async (userType: 'app' | 'dashboard' = 'app'): Promise<{ users: EnrichedUser[]; total: number }> => {
-    const response = await api.get<{ users: EnrichedUser[]; total: number }>('/api/v1/admin/users', {
-      params: { type: userType }
-    })
+  listUsers: async (
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<{ users: EnrichedUser[]; total: number }> => {
+    const response = await api.get<{ users: EnrichedUser[]; total: number }>(
+      '/api/v1/admin/users',
+      {
+        params: { type: userType },
+      }
+    )
     return response.data
   },
 
-  inviteUser: async (data: InviteUserRequest, userType: 'app' | 'dashboard' = 'app'): Promise<InviteUserResponse> => {
+  inviteUser: async (
+    data: InviteUserRequest,
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<InviteUserResponse> => {
     const response = await api.post<InviteUserResponse>(
       '/api/v1/admin/users/invite',
       data,
@@ -390,7 +436,10 @@ export const userManagementApi = {
     return response.data
   },
 
-  deleteUser: async (userId: string, userType: 'app' | 'dashboard' = 'app'): Promise<{ message: string }> => {
+  deleteUser: async (
+    userId: string,
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<{ message: string }> => {
     const response = await api.delete<{ message: string }>(
       `/api/v1/admin/users/${userId}`,
       { params: { type: userType } }
@@ -398,16 +447,27 @@ export const userManagementApi = {
     return response.data
   },
 
-  updateUserRole: async (userId: string, role: string, userType: 'app' | 'dashboard' = 'app'): Promise<User> => {
-    const response = await api.patch<User>(`/api/v1/admin/users/${userId}/role`, {
-      role,
-    }, {
-      params: { type: userType }
-    })
+  updateUserRole: async (
+    userId: string,
+    role: string,
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<User> => {
+    const response = await api.patch<User>(
+      `/api/v1/admin/users/${userId}/role`,
+      {
+        role,
+      },
+      {
+        params: { type: userType },
+      }
+    )
     return response.data
   },
 
-  resetUserPassword: async (userId: string, userType: 'app' | 'dashboard' = 'app'): Promise<{ message: string }> => {
+  resetUserPassword: async (
+    userId: string,
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<{ message: string }> => {
     const response = await api.post<{ message: string }>(
       `/api/v1/admin/users/${userId}/reset-password`,
       {},
@@ -475,8 +535,69 @@ export interface EdgeFunctionExecution {
 }
 
 export interface FunctionReloadResult {
+  message?: string
   created?: string[]
   updated?: string[]
+  deleted?: string[]
+  errors?: string[]
+  total?: number
+}
+
+export interface FunctionSyncSpec {
+  name: string
+  description?: string
+  code: string
+  enabled?: boolean
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  allow_unauthenticated?: boolean
+  is_public?: boolean
+  cron_schedule?: string
+}
+
+export interface FunctionSyncOptions {
+  namespace?: string
+  functions: FunctionSyncSpec[]
+  options?: {
+    delete_missing?: boolean
+    dry_run?: boolean
+  }
+}
+
+export interface FunctionSyncError {
+  function: string
+  error: string
+  action: 'create' | 'update' | 'delete' | 'bundle'
+}
+
+export interface FunctionSyncResult {
+  message: string
+  namespace: string
+  summary: {
+    created: number
+    updated: number
+    deleted: number
+    unchanged: number
+    errors: number
+  }
+  details: {
+    created: string[]
+    updated: string[]
+    deleted: string[]
+    unchanged: string[]
+  }
+  errors: FunctionSyncError[]
+  dry_run: boolean
+}
+
+export interface EdgeFunctionInvokeOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+  headers?: Record<string, string>
+  body?: string
 }
 
 // RPC Functions API Types
@@ -514,8 +635,14 @@ export const functionsApi = {
   },
 
   // Update edge function
-  update: async (name: string, data: UpdateEdgeFunctionRequest): Promise<EdgeFunction> => {
-    const response = await api.put<EdgeFunction>(`/api/v1/functions/${name}`, data)
+  update: async (
+    name: string,
+    data: UpdateEdgeFunctionRequest
+  ): Promise<EdgeFunction> => {
+    const response = await api.put<EdgeFunction>(
+      `/api/v1/functions/${name}`,
+      data
+    )
     return response.data
   },
 
@@ -525,10 +652,19 @@ export const functionsApi = {
   },
 
   // Invoke edge function
-  invoke: async (name: string, body: string): Promise<string> => {
-    const response = await api.post(`/api/v1/functions/${name}/invoke`, body, {
+  invoke: async (
+    name: string,
+    options: EdgeFunctionInvokeOptions = {}
+  ): Promise<string> => {
+    const { method = 'POST', headers = {}, body = '' } = options
+
+    const response = await api.request({
+      url: `/api/v1/functions/${name}/invoke`,
+      method,
+      data: body,
       headers: {
         'Content-Type': 'application/json',
+        ...headers,
       },
       transformResponse: [(data) => data], // Don't parse response, return as string
     })
@@ -536,7 +672,10 @@ export const functionsApi = {
   },
 
   // Get execution logs
-  getExecutions: async (name: string, limit = 20): Promise<EdgeFunctionExecution[]> => {
+  getExecutions: async (
+    name: string,
+    limit = 20
+  ): Promise<EdgeFunctionExecution[]> => {
     const response = await api.get<EdgeFunctionExecution[]>(
       `/api/v1/functions/${name}/executions`,
       { params: { limit } }
@@ -546,7 +685,18 @@ export const functionsApi = {
 
   // Reload functions from disk (admin only)
   reload: async (): Promise<FunctionReloadResult> => {
-    const response = await api.post<FunctionReloadResult>('/api/v1/admin/functions/reload')
+    const response = await api.post<FunctionReloadResult>(
+      '/api/v1/admin/functions/reload'
+    )
+    return response.data
+  },
+
+  // Sync functions to a namespace (admin only)
+  sync: async (options: FunctionSyncOptions): Promise<FunctionSyncResult> => {
+    const response = await api.post<FunctionSyncResult>(
+      '/api/v1/admin/functions/sync',
+      options
+    )
     return response.data
   },
 }
@@ -560,10 +710,15 @@ export const rpcApi = {
   },
 
   // Execute RPC function
-  execute: async (schema: string, name: string, params: Record<string, unknown>): Promise<unknown> => {
-    const path = schema === 'public'
-      ? `/api/v1/rpc/${name}`
-      : `/api/v1/rpc/${schema}/${name}`
+  execute: async (
+    schema: string,
+    name: string,
+    params: Record<string, unknown>
+  ): Promise<unknown> => {
+    const path =
+      schema === 'public'
+        ? `/api/v1/rpc/${name}`
+        : `/api/v1/rpc/${schema}/${name}`
     const response = await api.post(path, params)
     return response.data
   },
@@ -607,12 +762,18 @@ export interface ObjectListResponse {
 export const storageApi = {
   // List all buckets
   listBuckets: async (): Promise<BucketListResponse> => {
-    const response = await api.get<BucketListResponse>('/api/v1/storage/buckets')
+    const response = await api.get<BucketListResponse>(
+      '/api/v1/storage/buckets'
+    )
     return response.data
   },
 
   // List objects in a bucket
-  listObjects: async (bucket: string, prefix?: string, delimiter?: string): Promise<ObjectListResponse> => {
+  listObjects: async (
+    bucket: string,
+    prefix?: string,
+    delimiter?: string
+  ): Promise<ObjectListResponse> => {
     const params = new URLSearchParams()
     if (prefix) params.append('prefix', prefix)
     if (delimiter) params.append('delimiter', delimiter)
@@ -625,13 +786,17 @@ export const storageApi = {
 
   // Create a bucket
   createBucket: async (bucketName: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(`/api/v1/storage/buckets/${bucketName}`)
+    const response = await api.post<{ message: string }>(
+      `/api/v1/storage/buckets/${bucketName}`
+    )
     return response.data
   },
 
   // Delete a bucket
   deleteBucket: async (bucketName: string): Promise<{ message: string }> => {
-    const response = await api.delete<{ message: string }>(`/api/v1/storage/buckets/${bucketName}`)
+    const response = await api.delete<{ message: string }>(
+      `/api/v1/storage/buckets/${bucketName}`
+    )
     return response.data
   },
 
@@ -650,22 +815,35 @@ export const storageApi = {
 
   // Upload an object (create folder)
   createFolder: async (bucket: string, folderPath: string): Promise<void> => {
-    const encodedPath = folderPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    const encodedPath = folderPath
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/')
     await api.post(`/api/v1/storage/${bucket}/${encodedPath}`, null, {
       headers: { 'Content-Type': 'application/x-directory' },
     })
   },
 
   // Get object metadata
-  getObjectMetadata: async (bucket: string, key: string): Promise<StorageObject> => {
-    const response = await api.get<StorageObject>(`/api/v1/storage/${bucket}/${key}`, {
-      headers: { 'X-Metadata-Only': 'true' },
-    })
+  getObjectMetadata: async (
+    bucket: string,
+    key: string
+  ): Promise<StorageObject> => {
+    const response = await api.get<StorageObject>(
+      `/api/v1/storage/${bucket}/${key}`,
+      {
+        headers: { 'X-Metadata-Only': 'true' },
+      }
+    )
     return response.data
   },
 
   // Generate signed URL
-  generateSignedUrl: async (bucket: string, key: string, expiresIn: number): Promise<{ url: string; expires_in: number }> => {
+  generateSignedUrl: async (
+    bucket: string,
+    key: string,
+    expiresIn: number
+  ): Promise<{ url: string; expires_in: number }> => {
     const response = await api.post<{ url: string; expires_in: number }>(
       `/api/v1/storage/${bucket}/${encodeURIComponent(key)}/signed-url`,
       { expires_in: expiresIn }
@@ -721,7 +899,10 @@ export const webhooksApi = {
   },
 
   // Get webhook deliveries
-  getDeliveries: async (webhookId: string, limit = 50): Promise<WebhookDelivery[]> => {
+  getDeliveries: async (
+    webhookId: string,
+    limit = 50
+  ): Promise<WebhookDelivery[]> => {
     const response = await api.get<WebhookDelivery[]>(
       `/api/v1/webhooks/${webhookId}/deliveries?limit=${limit}`
     )
@@ -735,8 +916,14 @@ export const webhooksApi = {
   },
 
   // Update webhook
-  update: async (id: string, updates: Partial<WebhookType>): Promise<WebhookType> => {
-    const response = await api.patch<WebhookType>(`/api/v1/webhooks/${id}`, updates)
+  update: async (
+    id: string,
+    updates: Partial<WebhookType>
+  ): Promise<WebhookType> => {
+    const response = await api.patch<WebhookType>(
+      `/api/v1/webhooks/${id}`,
+      updates
+    )
     return response.data
   },
 
@@ -747,7 +934,9 @@ export const webhooksApi = {
 
   // Test webhook
   test: async (id: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(`/api/v1/webhooks/${id}/test`)
+    const response = await api.post<{ message: string }>(
+      `/api/v1/webhooks/${id}/test`
+    )
     return response.data
   },
 }
@@ -789,20 +978,29 @@ export const apiKeysApi = {
   },
 
   // Create API key
-  create: async (request: CreateAPIKeyRequest): Promise<CreateAPIKeyResponse> => {
-    const response = await api.post<CreateAPIKeyResponse>('/api/v1/api-keys', request)
+  create: async (
+    request: CreateAPIKeyRequest
+  ): Promise<CreateAPIKeyResponse> => {
+    const response = await api.post<CreateAPIKeyResponse>(
+      '/api/v1/api-keys',
+      request
+    )
     return response.data
   },
 
   // Revoke API key
   revoke: async (id: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(`/api/v1/api-keys/${id}/revoke`)
+    const response = await api.post<{ message: string }>(
+      `/api/v1/api-keys/${id}/revoke`
+    )
     return response.data
   },
 
   // Delete API key
   delete: async (id: string): Promise<{ message: string }> => {
-    const response = await api.delete<{ message: string }>(`/api/v1/api-keys/${id}`)
+    const response = await api.delete<{ message: string }>(
+      `/api/v1/api-keys/${id}`
+    )
     return response.data
   },
 }
@@ -875,8 +1073,13 @@ export { api as apiClient }
 // Admin Authentication API
 export const adminAuthAPI = {
   // Check if initial setup is needed
-  getSetupStatus: async (): Promise<{ needs_setup: boolean; has_admin: boolean }> => {
-    const response = await axios.get(`${API_BASE_URL}/api/v1/admin/setup/status`)
+  getSetupStatus: async (): Promise<{
+    needs_setup: boolean
+    has_admin: boolean
+  }> => {
+    const response = await axios.get(
+      `${API_BASE_URL}/api/v1/admin/setup/status`
+    )
     return response.data
   },
 
@@ -886,8 +1089,16 @@ export const adminAuthAPI = {
     password: string
     name: string
     setup_token?: string
-  }): Promise<{ user: AdminUser; access_token: string; refresh_token: string; expires_in: number }> => {
-    const response = await axios.post(`${API_BASE_URL}/api/v1/admin/setup`, data)
+  }): Promise<{
+    user: AdminUser
+    access_token: string
+    refresh_token: string
+    expires_in: number
+  }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/api/v1/admin/setup`,
+      data
+    )
     return response.data
   },
 
@@ -895,8 +1106,16 @@ export const adminAuthAPI = {
   login: async (credentials: {
     email: string
     password: string
-  }): Promise<{ user: AdminUser; access_token: string; refresh_token: string; expires_in: number }> => {
-    const response = await axios.post(`${API_BASE_URL}/api/v1/admin/login`, credentials)
+  }): Promise<{
+    user: AdminUser
+    access_token: string
+    refresh_token: string
+    expires_in: number
+  }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/api/v1/admin/login`,
+      credentials
+    )
     return response.data
   },
 
@@ -988,14 +1207,24 @@ export interface Disable2FARequest {
 // Dashboard Auth API methods
 export const dashboardAuthAPI = {
   // Signup for dashboard
-  signup: async (data: DashboardSignupRequest): Promise<{ user: DashboardUser; message: string }> => {
-    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/signup`, data)
+  signup: async (
+    data: DashboardSignupRequest
+  ): Promise<{ user: DashboardUser; message: string }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/dashboard/auth/signup`,
+      data
+    )
     return response.data
   },
 
   // Login to dashboard
-  login: async (credentials: DashboardLoginRequest): Promise<DashboardLoginResponse> => {
-    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/login`, credentials)
+  login: async (
+    credentials: DashboardLoginRequest
+  ): Promise<DashboardLoginResponse> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/dashboard/auth/login`,
+      credentials
+    )
     return response.data
   },
 
@@ -1012,13 +1241,17 @@ export const dashboardAuthAPI = {
   },
 
   // Change password
-  changePassword: async (data: ChangePasswordRequest): Promise<{ message: string }> => {
+  changePassword: async (
+    data: ChangePasswordRequest
+  ): Promise<{ message: string }> => {
     const response = await api.post('/dashboard/auth/password/change', data)
     return response.data
   },
 
   // Delete account
-  deleteAccount: async (data: DeleteAccountRequest): Promise<{ message: string }> => {
+  deleteAccount: async (
+    data: DeleteAccountRequest
+  ): Promise<{ message: string }> => {
     const response = await api.delete('/dashboard/auth/account', { data })
     return response.data
   },
@@ -1036,8 +1269,13 @@ export const dashboardAuthAPI = {
   },
 
   // Verify 2FA code during login
-  verify2FA: async (data: Verify2FARequest): Promise<DashboardLoginResponse> => {
-    const response = await axios.post(`${API_BASE_URL}/dashboard/auth/2fa/verify`, data)
+  verify2FA: async (
+    data: Verify2FARequest
+  ): Promise<DashboardLoginResponse> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/dashboard/auth/2fa/verify`,
+      data
+    )
     return response.data
   },
 
@@ -1109,30 +1347,46 @@ export interface AuthSettings {
 export const oauthProviderApi = {
   // List all OAuth providers
   list: async (): Promise<OAuthProviderConfig[]> => {
-    const response = await api.get<OAuthProviderConfig[]>('/api/v1/admin/oauth/providers')
+    const response = await api.get<OAuthProviderConfig[]>(
+      '/api/v1/admin/oauth/providers'
+    )
     return response.data
   },
 
   // Get single OAuth provider
   get: async (id: string): Promise<OAuthProviderConfig> => {
-    const response = await api.get<OAuthProviderConfig>(`/api/v1/admin/oauth/providers/${id}`)
+    const response = await api.get<OAuthProviderConfig>(
+      `/api/v1/admin/oauth/providers/${id}`
+    )
     return response.data
   },
 
   // Create OAuth provider
-  create: async (data: CreateOAuthProviderRequest): Promise<{ success: boolean; id: string; provider: string; message: string }> => {
+  create: async (
+    data: CreateOAuthProviderRequest
+  ): Promise<{
+    success: boolean
+    id: string
+    provider: string
+    message: string
+  }> => {
     const response = await api.post('/api/v1/admin/oauth/providers', data)
     return response.data
   },
 
   // Update OAuth provider
-  update: async (id: string, data: UpdateOAuthProviderRequest): Promise<{ success: boolean; message: string }> => {
+  update: async (
+    id: string,
+    data: UpdateOAuthProviderRequest
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.put(`/api/v1/admin/oauth/providers/${id}`, data)
     return response.data
   },
 
   // Delete OAuth provider
-  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+  delete: async (
+    id: string
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/api/v1/admin/oauth/providers/${id}`)
     return response.data
   },
@@ -1147,7 +1401,9 @@ export const authSettingsApi = {
   },
 
   // Update auth settings
-  update: async (data: AuthSettings): Promise<{ success: boolean; message: string }> => {
+  update: async (
+    data: AuthSettings
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.put('/api/v1/admin/auth/settings', data)
     return response.data
   },

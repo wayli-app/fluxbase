@@ -372,13 +372,11 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 
 				return c.Next()
 			}
-			// If apikey JWT was provided but invalid, return 401
+			// If apikey JWT was provided but invalid, log and fall through to try other auth methods
+			// Don't return 401 immediately - the user might have a valid Bearer token
 			log.Debug().
 				Err(err).
-				Msg("apikey JWT validation failed")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired apikey token",
-			})
+				Msg("apikey JWT validation failed, trying other authentication methods")
 		}
 
 		// Try JWT authentication via Authorization Bearer header

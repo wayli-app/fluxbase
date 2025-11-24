@@ -14,18 +14,19 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Security  SecurityConfig  `mapstructure:"security"`
-	CORS      CORSConfig      `mapstructure:"cors"`
-	Storage   StorageConfig   `mapstructure:"storage"`
-	Realtime  RealtimeConfig  `mapstructure:"realtime"`
-	Email     EmailConfig     `mapstructure:"email"`
-	Functions FunctionsConfig `mapstructure:"functions"`
-	API       APIConfig       `mapstructure:"api"`
-	BaseURL   string          `mapstructure:"base_url"`
-	Debug     bool            `mapstructure:"debug"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Auth       AuthConfig       `mapstructure:"auth"`
+	Security   SecurityConfig   `mapstructure:"security"`
+	CORS       CORSConfig       `mapstructure:"cors"`
+	Storage    StorageConfig    `mapstructure:"storage"`
+	Realtime   RealtimeConfig   `mapstructure:"realtime"`
+	Email      EmailConfig      `mapstructure:"email"`
+	Functions  FunctionsConfig  `mapstructure:"functions"`
+	API        APIConfig        `mapstructure:"api"`
+	Migrations MigrationsConfig `mapstructure:"migrations"`
+	BaseURL    string           `mapstructure:"base_url"`
+	Debug      bool             `mapstructure:"debug"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -170,6 +171,13 @@ type APIConfig struct {
 	DefaultPageSize int `mapstructure:"default_page_size"` // Auto-applied when no limit specified (-1 = no default)
 }
 
+// MigrationsConfig contains migrations API security settings
+type MigrationsConfig struct {
+	Enabled           bool     `mapstructure:"enabled"`             // Enable migrations API (enabled by default)
+	AllowedIPRanges   []string `mapstructure:"allowed_ip_ranges"`   // IP CIDR ranges allowed to access migrations API
+	RequireServiceKey bool     `mapstructure:"require_service_key"` // Require service key authentication (always true for security)
+}
+
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
 	// Load .env file if it exists (for local development)
@@ -264,6 +272,7 @@ func setDefaults() {
 	viper.SetDefault("database.user", "postgres") // Default runtime user
 	viper.SetDefault("database.admin_user", "")   // Empty means use user
 	viper.SetDefault("database.password", "postgres")
+	viper.SetDefault("database.admin_password", "") // Empty means use password
 	viper.SetDefault("database.database", "fluxbase")
 	viper.SetDefault("database.ssl_mode", "disable")
 	viper.SetDefault("database.max_connections", 25)
@@ -344,6 +353,16 @@ func setDefaults() {
 	viper.SetDefault("api.max_page_size", 1000)      // Max 1000 rows per request
 	viper.SetDefault("api.max_total_results", 10000) // Max 10k total rows retrievable
 	viper.SetDefault("api.default_page_size", 1000)  // Default to 1000 rows if not specified
+
+	// Migrations defaults
+	viper.SetDefault("migrations.enabled", true) // Enabled by default for better DX (security still enforced via service key + IP allowlist)
+	viper.SetDefault("migrations.allowed_ip_ranges", []string{
+		"172.16.0.0/12",  // Docker default bridge networks
+		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)
+		"192.168.0.0/16", // Private networks
+		"127.0.0.0/8",    // Loopback (localhost)
+	})
+	viper.SetDefault("migrations.require_service_key", true) // Always require service key for security
 
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
@@ -593,8 +612,12 @@ func (dc *DatabaseConfig) AdminConnectionString() string {
 	if user == "" {
 		user = dc.User
 	}
+	password := dc.AdminPassword
+	if password == "" {
+		password = dc.Password
+	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		user, dc.Password, dc.Host, dc.Port, dc.Database, dc.SSLMode)
+		user, password, dc.Host, dc.Port, dc.Database, dc.SSLMode)
 }
 
 // Validate validates email configuration
