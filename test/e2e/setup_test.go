@@ -50,7 +50,10 @@ func getDatabase(cfg *config.Config) (*database.Connection, error) {
 // Note: Individual tests should truncate tables for test isolation.
 func TestMain(m *testing.M) {
 	// Setup: Create test tables before running tests
-	setupTestTables()
+	if !setupTestTables() {
+		log.Fatal().Msg("Failed to setup test tables - cannot run tests")
+		os.Exit(1)
+	}
 
 	// Run all tests
 	code := m.Run()
@@ -119,7 +122,8 @@ func enablePostGISExtension() {
 //
 // This function uses fluxbase_app (with BYPASSRLS) to create tables,
 // then calls grantRLSTestPermissions() to grant permissions to fluxbase_rls_test user.
-func setupTestTables() {
+// Returns true if setup succeeded, false otherwise.
+func setupTestTables() bool {
 	ctx := context.Background()
 
 	// First, enable PostGIS extension using postgres superuser (if available)
@@ -130,7 +134,7 @@ func setupTestTables() {
 	db, err := getDatabase(cfg)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to connect to database for test setup")
-		return
+		return false
 	}
 	defer db.Close()
 
@@ -148,7 +152,7 @@ func setupTestTables() {
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create products table")
-		return
+		return false
 	}
 
 	// Create trigger for products updated_at
@@ -231,7 +235,7 @@ func setupTestTables() {
 	_, err = db.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create uuid-ossp extension")
-		return
+		return false
 	}
 
 	// Create tasks table for RLS tests
@@ -249,7 +253,7 @@ func setupTestTables() {
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create tasks table")
-		return
+		return false
 	}
 
 	// Create trigger for tasks updated_at
@@ -334,6 +338,7 @@ func setupTestTables() {
 	}
 
 	log.Info().Msg("E2E test tables setup complete")
+	return true
 }
 
 // grantRLSTestPermissions grants necessary permissions to the fluxbase_rls_test and fluxbase_app database users.
