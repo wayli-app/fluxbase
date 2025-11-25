@@ -317,8 +317,8 @@ jobs:
         run: |
           # Run e2e tests with fluxbase_app user for proper RLS testing
           # Use -parallel=1 within each package to run test functions sequentially (avoid DB connection exhaustion)
-          # The test-runner.sh script provides real-time progress and cleaner output
-          ./scripts/test-runner.sh go test -v -race -parallel=1 -timeout=10m ./test/e2e/...
+          # Run directly to see raw output and identify where tests hang
+          go test -v -race -parallel=1 -timeout=10m ./test/e2e/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
