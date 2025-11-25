@@ -102,6 +102,7 @@ JavaScript/TypeScript function execution:
 | **Realtime**       | ✅ WebSocket      | ✅ WebSocket             | ✅ WebSocket       |
 | **Storage**        | ✅ Local/S3       | ✅ S3                    | ✅ Cloud Storage   |
 | **Functions**      | ✅ Deno           | ✅ Deno                  | ✅ Cloud Functions |
+| **Background Jobs**| ✅ Built-in       | ✅ pg_cron (ext)         | ❌ No              |
 | **Open Source**    | ✅ MIT            | ✅ Apache 2.0            | ❌ Proprietary     |
 
 ## Getting Started

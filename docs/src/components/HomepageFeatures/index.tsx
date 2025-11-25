@@ -54,6 +54,15 @@ const FeatureList: FeatureItem[] = [
     ),
   },
   {
+    title: 'Background Jobs',
+    description: (
+      <>
+        Run long-running tasks asynchronously with progress tracking, retry logic,
+        and real-time updates. Perfect for imports, exports, and batch processing.
+      </>
+    ),
+  },
+  {
     title: 'Single Binary',
     description: (
       <>

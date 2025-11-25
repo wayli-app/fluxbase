@@ -11,6 +11,7 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 - **Realtime Subscriptions**: WebSocket-based live data updates using PostgreSQL LISTEN/NOTIFY
 - **Storage**: File upload/download with access policies (local filesystem or S3)
 - **Edge Functions**: JavaScript/TypeScript function execution with Deno runtime
+- **Background Jobs**: Long-running tasks with progress tracking, retry logic, and real-time updates
 - **Schema Introspection**: Automatic API generation from database tables
 
 ### Key Highlights

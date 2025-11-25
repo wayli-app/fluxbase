@@ -69,6 +69,11 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "doc",
+      id: "guides/jobs",
+      label: "⚙️ Background Jobs",
+    },
+    {
+      type: "doc",
       id: "guides/email-services",
       label: "📧 Email Services",
     },

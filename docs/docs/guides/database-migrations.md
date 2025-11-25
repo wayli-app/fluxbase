@@ -19,7 +19,29 @@ Migrations are powered by [golang-migrate](https://github.com/golang-migrate/mig
 
 This separation ensures that system and user migrations don't conflict with each other.
 
-## System Migrations
+## Dual Migration System
+
+Fluxbase maintains two independent migration tracks to separate platform updates from application changes:
+
+```mermaid
+graph LR
+    subgraph "System Migrations"
+        S1[Embedded in Binary] --> S2[_fluxbase.schema_migrations]
+        S2 --> S3[Platform Tables & RLS]
+    end
+
+    subgraph "User Migrations"
+        U1[Filesystem Directory] --> U2[_fluxbase.user_migrations]
+        U2 --> U3[Application Schema]
+    end
+
+    S3 -.-> DB[(PostgreSQL)]
+    U3 -.-> DB
+```
+
+### System Migrations
+
+**Purpose:** Platform infrastructure managed by Fluxbase
 
 System migrations are embedded into the Fluxbase binary at compile time and include:
 
@@ -28,13 +50,58 @@ System migrations are embedded into the Fluxbase binary at compile time and incl
 - Row-level security policies
 - Webhook configuration
 - Storage metadata tables
-- And more...
+- Jobs and functions infrastructure
 
-These migrations run automatically on every Fluxbase startup and are idempotent - only new migrations are applied.
+**Tracking:** `_fluxbase.schema_migrations` table
 
-## User Migrations
+**Execution:** Automatically run on every startup (idempotent - only new migrations applied)
+
+**Management:** Controlled by Fluxbase releases, not user-modifiable
+
+### User Migrations
+
+**Purpose:** Application-specific schema managed by developers
 
 User migrations allow you to add your own custom database schema and data migrations without modifying Fluxbase source code.
+
+**Tracking:** `_fluxbase.user_migrations` table
+
+**Execution:** Run after system migrations if `DB_USER_MIGRATIONS_PATH` is configured
+
+**Management:** You create and maintain these files
+
+### When to Use Each
+
+| Use System Migrations | Use User Migrations |
+|----------------------|---------------------|
+| Never (managed by Fluxbase) | Application tables |
+| | Custom indexes |
+| | Data transformations |
+| | Business logic triggers |
+| | Application-specific RLS policies |
+
+### Migration State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Migration file created
+    Pending --> Running: Execution starts
+    Running --> Applied: Success
+    Running --> Failed: Error
+    Failed --> Pending: Fix and retry
+    Applied --> RolledBack: Rollback executed
+    RolledBack --> Pending: Can reapply
+    Applied --> [*]
+
+    note right of Failed: Migration marked as "dirty"<br/>Must be manually fixed
+```
+
+**Migration States:**
+- **Pending**: Not yet executed
+- **Running**: Currently executing (rare to see)
+- **Applied**: Successfully completed
+- **Failed**: Error occurred (database in "dirty" state)
+- **RolledBack**: Reverted via down migration
 
 ### Migration File Format
 
@@ -186,6 +253,53 @@ You can configure user migrations via environment variables:
 | `DB_USER_MIGRATIONS_PATH` | Path to user migrations directory | `""` (disabled) |
 
 When `DB_USER_MIGRATIONS_PATH` is empty or not set, user migrations are skipped.
+
+## CLI Commands
+
+For local development, Fluxbase provides Make commands for migration management:
+
+```bash
+# Run all pending migrations
+make migrate-up
+
+# Rollback the last migration
+make migrate-down
+
+# Create a new migration file pair
+make migrate-create NAME=add_users_table
+# Creates: migrations/XXX_add_users_table.up.sql and .down.sql
+
+# Check current migration version
+make migrate-version
+
+# Force set migration version (use with caution)
+make migrate-force VERSION=5
+```
+
+**Common workflow:**
+
+```bash
+# 1. Create new migration
+make migrate-create NAME=add_products
+
+# 2. Edit the generated files
+#    migrations/001_add_products.up.sql
+#    migrations/001_add_products.down.sql
+
+# 3. Apply migration
+make migrate-up
+
+# 4. Test rollback
+make migrate-down
+
+# 5. Reapply
+make migrate-up
+```
+
+**Prerequisites:** These commands require:
+- Local PostgreSQL running
+- Database connection configured in `.env` or `fluxbase.yaml`
+- `migrate` CLI installed (automatically available in DevContainer)
 
 ## Migration Execution
 

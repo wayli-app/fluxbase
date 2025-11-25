@@ -249,8 +249,9 @@ Functions automatically receive the authenticated user context:
 ```typescript
 async function handler(req) {
   // User info from JWT token (if authenticated)
-  const userId = req.headers["x-user-id"];
-  const userEmail = req.headers["x-user-email"];
+  const userId = req.user_id;     // UUID string
+  const userEmail = req.user_email; // Email string
+  const userRole = req.user_role;  // Role string (e.g., "authenticated", "admin")
 
   if (!userId) {
     return {
@@ -259,9 +260,10 @@ async function handler(req) {
     };
   }
 
+  // Use user context for authorization
   return {
     status: 200,
-    body: JSON.stringify({ userId, userEmail }),
+    body: JSON.stringify({ userId, userEmail, userRole }),
   };
 }
 ```
@@ -270,7 +272,7 @@ async function handler(req) {
 
 1. Fluxbase validates the JWT token in the `Authorization` header
 2. User context (id, email, role) is extracted from the token
-3. User info is injected into request headers (`x-user-id`, `x-user-email`)
+3. User info is added to the request object (`user_id`, `user_email`, `user_role`)
 4. Function handler receives the request with user context
 5. Handler can use user info for authorization and data filtering
 
@@ -758,6 +760,58 @@ Manual reload performs **full synchronization**:
 - Write code in browser editor
 - Save (stores in database and syncs to filesystem)
 
+## Namespaces
+
+Namespaces provide multi-tenant function isolation. Use namespaces to organize functions by team, environment, or service:
+
+```typescript
+// Create function in specific namespace
+await client.admin.functions.create({
+  name: "process-payment",
+  namespace: "payment-service",
+  code: `async function handler(req) { ... }`
+});
+
+// Invoke with namespace
+const result = await client.functions.invoke("payment-service/process-payment", {
+  body: JSON.stringify({ amount: 100 })
+});
+
+// List functions by namespace
+const functions = await client.admin.functions.list("payment-service");
+```
+
+**Default namespace:** Functions without an explicit namespace use `"default"`.
+
+**Namespace use cases:**
+- **Multi-tenancy**: Isolate functions per customer
+- **Environments**: Separate dev, staging, production functions
+- **Services**: Organize by microservice boundaries
+
+## Sync API
+
+For bulk function deployment, use the sync API:
+
+```typescript
+// Sync functions from filesystem or API
+const result = await client.admin.functions.sync({
+  namespace: "default",
+  functions: [
+    { name: "fn1", code: "..." },
+    { name: "fn2", code: "..." }
+  ],
+  delete_missing: false, // Don't delete existing functions
+  dry_run: false        // Apply changes
+});
+
+console.log(result.summary);
+// { created: 2, updated: 0, deleted: 0, unchanged: 5 }
+```
+
+**Options:**
+- `delete_missing: true` - Remove functions not in sync list
+- `dry_run: true` - Preview changes without applying
+
 ## Best Practices
 
 **Performance:**
@@ -1064,6 +1118,27 @@ async function handler(req) {
   // Continue processing...
 }
 ```
+
+**Environment Variable Security:**
+Only `FLUXBASE_*` prefixed variables are accessible in functions. Sensitive secrets are automatically blocked for security:
+
+```typescript
+// ✅ Allowed
+const apiUrl = Deno.env.get("FLUXBASE_API_URL");
+const customConfig = Deno.env.get("FLUXBASE_MY_CONFIG");
+
+// ❌ Blocked (returns undefined)
+const jwtSecret = Deno.env.get("FLUXBASE_AUTH_JWT_SECRET");
+const dbPassword = Deno.env.get("FLUXBASE_DATABASE_PASSWORD");
+const s3Secret = Deno.env.get("FLUXBASE_STORAGE_S3_SECRET_KEY");
+```
+
+**Blocked variables:**
+- `FLUXBASE_AUTH_JWT_SECRET`
+- `FLUXBASE_DATABASE_PASSWORD` / `FLUXBASE_DATABASE_ADMIN_PASSWORD`
+- `FLUXBASE_STORAGE_S3_SECRET_KEY` / `FLUXBASE_STORAGE_S3_ACCESS_KEY`
+- `FLUXBASE_EMAIL_SMTP_PASSWORD`
+- `FLUXBASE_SECURITY_SETUP_TOKEN`
 
 ## REST API
 
