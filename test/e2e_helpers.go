@@ -387,6 +387,17 @@ func GetTestConfig() *config.Config {
 			DefaultMemoryLimit: 128,
 			MaxMemoryLimit:     1024,
 		},
+		Jobs: config.JobsConfig{
+			Enabled:               false, // Disabled for tests by default
+			JobsDir:               "",
+			AutoLoadOnBoot:        false,
+			EmbeddedWorkerCount:   0, // No workers in tests
+			DefaultMaxDuration:    5 * time.Minute,
+			MaxMaxDuration:        1 * time.Hour,
+			DefaultProgressTimeout: 60 * time.Second,
+			PollInterval:          1 * time.Second,
+			WorkerHeartbeatInterval: 10 * time.Second,
+		},
 		API: config.APIConfig{
 			MaxPageSize:     1000,
 			MaxTotalResults: 10000,
