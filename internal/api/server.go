@@ -143,11 +143,19 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS)
 	functionsScheduler := functions.NewScheduler(db)
 	functionsHandler.SetScheduler(functionsScheduler)
-	jobsManager := jobs.NewManager(&cfg.Jobs, db)
-	jobsHandler, err := jobs.NewHandler(db, &cfg.Jobs, jobsManager)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
+
+	// Only create jobs components if jobs are enabled
+	var jobsManager *jobs.Manager
+	var jobsHandler *jobs.Handler
+	if cfg.Jobs.Enabled {
+		jobsManager = jobs.NewManager(&cfg.Jobs, db)
+		var err error
+		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
+		}
 	}
+
 	migrationsHandler := migrations.NewHandler(db)
 
 	// Create realtime components
@@ -207,7 +215,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	}
 
 	// Start jobs manager
-	if cfg.Jobs.Enabled {
+	if cfg.Jobs.Enabled && jobsManager != nil {
 		workerCount := cfg.Jobs.EmbeddedWorkerCount
 		if workerCount <= 0 {
 			workerCount = 4 // Default to 4 workers if not configured
@@ -363,7 +371,9 @@ func (s *Server) setupRoutes() {
 
 	// Jobs routes - require authentication
 	// Protected by feature flag middleware
-	s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	if s.jobsHandler != nil {
+		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
 	// Protected by feature flag middleware
@@ -626,21 +636,24 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	)
 
 	// Jobs management routes (require admin, dashboard_admin, or service_role)
-	// Jobs sync - with IP allowlist protection (similar to migrations)
-	router.Post("/jobs/sync",
-		middleware.RequireSyncIPAllowlist(s.config.Jobs.SyncAllowedIPRanges, "jobs"),
-		unifiedAuth,
-		RequireRole("admin", "dashboard_admin", "service_role"),
-		s.jobsHandler.SyncJobs,
-	)
-	router.Get("/jobs/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListNamespaces)
-	router.Get("/jobs/functions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListJobFunctions)
-	router.Get("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobFunction)
-	router.Delete("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.DeleteJobFunction)
-	router.Get("/jobs/stats", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobStats)
-	router.Get("/jobs/workers", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListWorkers)
-	router.Post("/jobs/:id/terminate", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.TerminateJob)
-	router.Get("/jobs/queue", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListAllJobs)
+	// Only register if jobs are enabled
+	if s.jobsHandler != nil {
+		// Jobs sync - with IP allowlist protection (similar to migrations)
+		router.Post("/jobs/sync",
+			middleware.RequireSyncIPAllowlist(s.config.Jobs.SyncAllowedIPRanges, "jobs"),
+			unifiedAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.jobsHandler.SyncJobs,
+		)
+		router.Get("/jobs/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListNamespaces)
+		router.Get("/jobs/functions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListJobFunctions)
+		router.Get("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobFunction)
+		router.Delete("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.DeleteJobFunction)
+		router.Get("/jobs/stats", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobStats)
+		router.Get("/jobs/workers", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListWorkers)
+		router.Post("/jobs/:id/terminate", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.TerminateJob)
+		router.Get("/jobs/queue", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListAllJobs)
+	}
 
 	// Migrations routes (require service key authentication with enhanced security)
 	// Only registered if migrations API is enabled in config
