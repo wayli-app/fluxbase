@@ -26,6 +26,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -377,8 +378,10 @@ func grantRLSTestPermissions() {
 	defer db.Close()
 
 	// Grant database and schema permissions to both test users
-	_, err = db.Exec(ctx, `
-		GRANT CREATE ON DATABASE fluxbase_dev TO fluxbase_rls_test, fluxbase_app;
+	// Note: Database name must match the actual database being used
+	dbName := cfg.Database.Database
+	_, err = db.Exec(ctx, fmt.Sprintf(`
+		GRANT CREATE ON DATABASE %s TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA app TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA auth TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA dashboard TO fluxbase_rls_test, fluxbase_app;
@@ -386,7 +389,7 @@ func grantRLSTestPermissions() {
 		GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
-	`)
+	`, dbName))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant schema permissions to test users")
 		return
