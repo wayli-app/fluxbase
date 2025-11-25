@@ -152,7 +152,7 @@ jobs:
         ports:
           - 9000:9000
         options: >-
-          --health-cmd "curl --silent --fail http://localhost:9000/minio/health/live || exit 1"
+          --health-cmd "curl --silent --fail http://127.0.0.1:9000/minio/health/live || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -176,8 +176,8 @@ jobs:
         run: |
           # Increase max_connections significantly for parallel test execution
           # ALTER SYSTEM requires a restart, so we'll apply settings and restart the container
-          psql -h localhost -U postgres -d fluxbase_test -c "ALTER SYSTEM SET max_connections = 200;"
-          psql -h localhost -U postgres -d fluxbase_test -c "ALTER SYSTEM SET superuser_reserved_connections = 1;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "ALTER SYSTEM SET max_connections = 200;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "ALTER SYSTEM SET superuser_reserved_connections = 1;"
 
           # Restart PostgreSQL to apply settings
           # Find the container ID for postgres service and restart it
@@ -186,7 +186,7 @@ jobs:
 
           # Wait for postgres to be ready after restart
           sleep 5
-          until pg_isready -h localhost -p 5432 -U postgres; do
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do
             echo "Waiting for postgres to be ready..."
             sleep 2
           done
@@ -195,33 +195,33 @@ jobs:
           # This user can bypass RLS policies to manage data freely (like in production)
           # Note: No CONNECTION LIMIT to allow tests to create many concurrent connections
           # CREATEROLE is needed for migrations that create database roles (anon, authenticated, service_role)
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "CREATE USER fluxbase_app WITH PASSWORD 'fluxbase_app_password' LOGIN BYPASSRLS CREATEDB CREATEROLE;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_app;"
 
           # Grant schema permissions to fluxbase_app for migrations
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA public TO fluxbase_app;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA public TO fluxbase_app;"
 
           # Create _fluxbase schema if it doesn't exist and grant permissions
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA _fluxbase TO fluxbase_app;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "GRANT ALL ON SCHEMA _fluxbase TO fluxbase_app;"
 
           # Create fluxbase_rls_test user specifically for RLS policy testing (without BYPASSRLS)
           # This user is ONLY used in RLS-specific tests to verify policies work correctly
-          psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
-          psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
+          psql -h 127.0.0.1 -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;"
 
       - name: Run database migrations
         env:
           # Run migrations as fluxbase_app user (same user tests will use)
           # This ensures consistent ownership and permissions
-          DATABASE_URL: "postgres://fluxbase_app:fluxbase_app_password@localhost:5432/fluxbase_test?sslmode=disable"
+          DATABASE_URL: "postgres://fluxbase_app:fluxbase_app_password@127.0.0.1:5432/fluxbase_test?sslmode=disable"
           PGPASSWORD: postgres
         run: |
           go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
           migrate -path internal/database/migrations -database "$DATABASE_URL" up
 
           # Workaround: Create custom_settings table if it doesn't exist (migration issue to be fixed)
-          PSQL_CMD="psql -h localhost -U postgres -d fluxbase_test"
+          PSQL_CMD="psql -h 127.0.0.1 -U postgres -d fluxbase_test"
           $PSQL_CMD << 'EOF'
             CREATE TABLE IF NOT EXISTS dashboard.custom_settings (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -266,14 +266,14 @@ jobs:
       - name: Setup MinIO bucket
         run: |
           # Wait for MinIO to be ready
-          timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 1; done'
+          timeout 30 bash -c 'until curl -f http://127.0.0.1:9000/minio/health/live; do sleep 1; done'
 
           # Install mc (MinIO client)
           wget https://dl.min.io/client/mc/release/linux-amd64/mc
           chmod +x mc
 
           # Configure mc
-          ./mc alias set minio http://localhost:9000 minioadmin minioadmin
+          ./mc alias set minio http://127.0.0.1:9000 minioadmin minioadmin
 
           # Create test bucket
           ./mc mb minio/fluxbase-test || true
@@ -287,7 +287,7 @@ jobs:
       - name: Run unit tests with coverage
         timeout-minutes: 5
         env:
-          FLUXBASE_DATABASE_HOST: localhost
+          FLUXBASE_DATABASE_HOST: 127.0.0.1
           FLUXBASE_DATABASE_PORT: 5432
           FLUXBASE_DATABASE_USER: postgres
           FLUXBASE_DATABASE_PASSWORD: postgres
@@ -302,14 +302,14 @@ jobs:
       - name: Run e2e tests
         timeout-minutes: 15
         env:
-          FLUXBASE_DATABASE_HOST: localhost
+          FLUXBASE_DATABASE_HOST: 127.0.0.1
           FLUXBASE_DATABASE_PORT: 5432
           FLUXBASE_DATABASE_USER: fluxbase_app
           FLUXBASE_DATABASE_PASSWORD: fluxbase_app_password
           FLUXBASE_DATABASE_DATABASE: fluxbase_test
-          FLUXBASE_EMAIL_SMTP_HOST: localhost
+          FLUXBASE_EMAIL_SMTP_HOST: 127.0.0.1
           FLUXBASE_EMAIL_SMTP_PORT: 1025
-          FLUXBASE_STORAGE_S3_ENDPOINT: localhost:9000
+          FLUXBASE_STORAGE_S3_ENDPOINT: 127.0.0.1:9000
           FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
           FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
           FLUXBASE_STORAGE_S3_BUCKET: fluxbase-test
