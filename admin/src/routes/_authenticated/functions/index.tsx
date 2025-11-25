@@ -743,6 +743,8 @@ function EdgeFunctionsTab() {
   const [wordWrap, setWordWrap] = useState(false)
   const [logsWordWrap, setLogsWordWrap] = useState(false)
   const [reloading, setReloading] = useState(false)
+  const [namespaces, setNamespaces] = useState<string[]>(['default'])
+  const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
   // Form state
   const [formData, setFormData] = useState({
@@ -823,7 +825,7 @@ async function handler(req: Request) {
     }
   }
 
-  const fetchEdgeFunctions = useCallback(async (shouldReload = true) => {
+  const fetchEdgeFunctions = useCallback(async (shouldReload = true, namespace?: string) => {
     setLoading(true)
     try {
       // First, reload functions from disk (only on initial load or manual refresh)
@@ -831,7 +833,8 @@ async function handler(req: Request) {
         await reloadFunctionsFromDisk()
       }
 
-      const data = await functionsApi.list()
+      const ns = namespace ?? selectedNamespace
+      const data = await functionsApi.list(ns)
       setEdgeFunctions(data || [])
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -840,11 +843,28 @@ async function handler(req: Request) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedNamespace])
+
+  // Fetch namespaces on mount
+  useEffect(() => {
+    const fetchNamespaces = async () => {
+      try {
+        const data = await functionsApi.listNamespaces()
+        setNamespaces(data.length > 0 ? data : ['default'])
+        // If current namespace not in list, reset to first available
+        if (!data.includes(selectedNamespace)) {
+          setSelectedNamespace(data[0] || 'default')
+        }
+      } catch {
+        setNamespaces(['default'])
+      }
+    }
+    fetchNamespaces()
+  }, [selectedNamespace])
 
   useEffect(() => {
     fetchEdgeFunctions()
-  }, [fetchEdgeFunctions])
+  }, [fetchEdgeFunctions, selectedNamespace])
 
   const createFunction = async () => {
     try {
@@ -1041,7 +1061,24 @@ async function handler(req: Request) {
             Deploy and run TypeScript/JavaScript functions with Deno runtime
           </p>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex items-center gap-2'>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='edge-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
+              Namespace:
+            </Label>
+            <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
+              <SelectTrigger id='edge-namespace-select' className='w-[180px]'>
+                <SelectValue placeholder='Select namespace' />
+              </SelectTrigger>
+              <SelectContent>
+                {namespaces.map((ns) => (
+                  <SelectItem key={ns} value={ns}>
+                    {ns}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             onClick={handleReloadClick}
             variant='outline'

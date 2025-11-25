@@ -57,9 +57,18 @@
   "dependencies": {
     "cross-fetch": "^4.0.0"
   },
+  "peerDependencies": {
+    "esbuild": ">=0.17.0"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^20.11.5",
     "docusaurus-plugin-typedoc": "^1.4.2",
+    "esbuild": "^0.24.0",
     "tsup": "^8.0.1",
     "typedoc": "^0.28.14",
     "typedoc-plugin-markdown": "^4.9.0",

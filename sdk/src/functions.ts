@@ -45,14 +45,20 @@ export class FluxbaseFunctions {
    * This method is fully compatible with Supabase's functions.invoke() API.
    *
    * @param functionName - The name of the function to invoke
-   * @param options - Invocation options including body, headers, and HTTP method
+   * @param options - Invocation options including body, headers, HTTP method, and namespace
    * @returns Promise resolving to { data, error } tuple
    *
    * @example
    * ```typescript
-   * // Simple invocation
+   * // Simple invocation (uses first matching function by namespace alphabetically)
    * const { data, error } = await client.functions.invoke('hello', {
    *   body: { name: 'World' }
+   * })
+   *
+   * // Invoke a specific namespace's function
+   * const { data, error } = await client.functions.invoke('hello', {
+   *   body: { name: 'World' },
+   *   namespace: 'my-app'
    * })
    *
    * // With GET method
@@ -76,9 +82,13 @@ export class FluxbaseFunctions {
       const method = options?.method || 'POST'
       const headers = options?.headers || {}
       const body = options?.body
+      const namespace = options?.namespace
 
       // Use the Fluxbase backend endpoint
-      const endpoint = `/api/v1/functions/${functionName}/invoke`
+      // If namespace is provided, add it as a query parameter
+      const endpoint = namespace
+        ? `/api/v1/functions/${functionName}/invoke?namespace=${encodeURIComponent(namespace)}`
+        : `/api/v1/functions/${functionName}/invoke`
 
       let response: T
 

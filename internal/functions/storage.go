@@ -121,9 +121,36 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 	return nil
 }
 
-// GetFunction retrieves a function by name (searches default namespace for backwards compatibility)
+// GetFunction retrieves the first function matching the name (any namespace)
+// Results are ordered alphabetically by namespace, so "default" is preferred if it exists
 func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, error) {
-	return s.GetFunctionByNamespace(ctx, name, "default")
+	query := `
+		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
+		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
+		       created_at, updated_at, created_by
+		FROM functions.edge_functions
+		WHERE name = $1
+		ORDER BY namespace
+		LIMIT 1
+	`
+
+	fn := &EdgeFunction{}
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, name).Scan(
+			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+			&fn.Version, &fn.CronSchedule, &fn.Enabled,
+			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
+			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
+			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+		)
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get function: %w", err)
+	}
+
+	return fn, nil
 }
 
 // GetFunctionByNamespace retrieves a function by name and namespace
@@ -197,6 +224,35 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 	}
 
 	return functions, nil
+}
+
+// ListFunctionNamespaces returns all unique namespaces that have edge functions
+func (s *Storage) ListFunctionNamespaces(ctx context.Context) ([]string, error) {
+	query := `SELECT DISTINCT namespace FROM functions.edge_functions ORDER BY namespace`
+
+	var namespaces []string
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var ns string
+			if err := rows.Scan(&ns); err != nil {
+				return err
+			}
+			namespaces = append(namespaces, ns)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list function namespaces: %w", err)
+	}
+
+	return namespaces, nil
 }
 
 // ListFunctionsByNamespace returns all functions in a specific namespace

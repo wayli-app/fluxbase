@@ -39,3 +39,8 @@ func RequireStorageEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
 func RequireFunctionsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
 	return RequireFeatureEnabled(settingsCache, "app.features.enable_functions")
 }
+
+// RequireJobsEnabled returns a middleware that ensures jobs feature is enabled
+func RequireJobsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
+	return RequireFeatureEnabled(settingsCache, "app.features.enable_jobs")
+}

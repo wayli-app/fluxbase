@@ -437,29 +437,29 @@ func grantRLSTestPermissions() {
 		log.Error().Err(err).Msg("Failed to grant function execution permissions to test users")
 	}
 
-	// Grant permissions to anon and authenticated roles for test tables in public schema
+	// Grant permissions to anon, authenticated, and service_role for test tables in public schema
 	// This is needed because our security changes restricted anon's broad schema access
 	_, err = db.Exec(ctx, `
-		-- Grant SELECT, INSERT, UPDATE, DELETE on public.products to both roles
-		GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO anon, authenticated;
-		GRANT USAGE ON SEQUENCE products_id_seq TO anon, authenticated;
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.products to all roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO anon, authenticated, service_role;
+		GRANT USAGE ON SEQUENCE products_id_seq TO anon, authenticated, service_role;
 
-		-- Grant SELECT, INSERT, UPDATE, DELETE on public.tasks to both roles
-		GRANT SELECT, INSERT, UPDATE, DELETE ON public.tasks TO anon, authenticated;
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.tasks to all roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.tasks TO anon, authenticated, service_role;
 	`)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to grant permissions to anon/authenticated roles on test tables")
+		log.Error().Err(err).Msg("Failed to grant permissions to anon/authenticated/service_role roles on test tables")
 	}
 
 	// Grant permissions for PostGIS test tables (if they exist)
 	_, err = db.Exec(ctx, `
-		-- Grant SELECT, INSERT, UPDATE, DELETE on public.locations to both roles
-		GRANT SELECT, INSERT, UPDATE, DELETE ON public.locations TO anon, authenticated;
-		GRANT USAGE ON SEQUENCE locations_id_seq TO anon, authenticated;
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.locations to all roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.locations TO anon, authenticated, service_role;
+		GRANT USAGE ON SEQUENCE locations_id_seq TO anon, authenticated, service_role;
 
-		-- Grant SELECT, INSERT, UPDATE, DELETE on public.regions to both roles
-		GRANT SELECT, INSERT, UPDATE, DELETE ON public.regions TO anon, authenticated;
-		GRANT USAGE ON SEQUENCE regions_id_seq TO anon, authenticated;
+		-- Grant SELECT, INSERT, UPDATE, DELETE on public.regions to all roles
+		GRANT SELECT, INSERT, UPDATE, DELETE ON public.regions TO anon, authenticated, service_role;
+		GRANT USAGE ON SEQUENCE regions_id_seq TO anon, authenticated, service_role;
 	`)
 	if err != nil {
 		// Tables might not exist if PostGIS is not available, log but continue

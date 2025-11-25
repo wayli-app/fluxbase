@@ -43,6 +43,7 @@ import { FluxbaseAuth } from "./auth";
 import { FluxbaseRealtime } from "./realtime";
 import { FluxbaseStorage } from "./storage";
 import { FluxbaseFunctions } from "./functions";
+import { FluxbaseJobs } from "./jobs";
 import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
@@ -71,6 +72,9 @@ export class FluxbaseClient<
 
   /** Functions module for invoking and managing edge functions */
   public functions: FluxbaseFunctions;
+
+  /** Jobs module for submitting and monitoring background jobs */
+  public jobs: FluxbaseJobs;
 
   /** Admin module for instance management (requires admin authentication) */
   public admin: FluxbaseAdmin;
@@ -139,6 +143,9 @@ export class FluxbaseClient<
 
     // Initialize functions module
     this.functions = new FluxbaseFunctions(this.fetch);
+
+    // Initialize jobs module
+    this.jobs = new FluxbaseJobs(this.fetch);
 
     // Initialize admin module
     this.admin = new FluxbaseAdmin(this.fetch);

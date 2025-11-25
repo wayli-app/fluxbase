@@ -17,6 +17,7 @@ import {
   Code,
   Mail,
   ShieldCheck,
+  ListTodo,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -86,6 +87,11 @@ export const sidebarData: SidebarData = {
           title: 'Functions',
           url: '/functions',
           icon: FileCode,
+        },
+        {
+          title: 'Jobs',
+          url: '/jobs',
+          icon: ListTodo,
         },
       ],
     },

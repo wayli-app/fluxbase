@@ -57,8 +57,15 @@ export { FluxbaseStorage, StorageBucket } from "./storage";
 // Functions module
 export { FluxbaseFunctions } from "./functions";
 
+// Jobs module
+export { FluxbaseJobs } from "./jobs";
+
 // Admin Functions module
 export { FluxbaseAdminFunctions } from "./admin-functions";
+
+// Admin Jobs module
+export { FluxbaseAdminJobs } from "./admin-jobs";
+export type { BundleOptions, BundleResult } from "./admin-jobs";
 
 // Admin Migrations module
 export { FluxbaseAdminMigrations } from "./admin-migrations";

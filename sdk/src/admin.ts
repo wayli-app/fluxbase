@@ -25,6 +25,7 @@ import { ImpersonationManager } from "./impersonation";
 import { FluxbaseManagement } from "./management";
 import { FluxbaseAdminFunctions } from "./admin-functions";
 import { FluxbaseAdminMigrations } from "./admin-migrations";
+import { FluxbaseAdminJobs } from "./admin-jobs";
 
 /**
  * Admin client for managing Fluxbase instance
@@ -69,6 +70,11 @@ export class FluxbaseAdmin {
   public functions: FluxbaseAdminFunctions;
 
   /**
+   * Jobs manager for background job management (create, update, delete, sync, monitoring)
+   */
+  public jobs: FluxbaseAdminJobs;
+
+  /**
    * Migrations manager for database migration operations (create, apply, rollback, sync)
    */
   public migrations: FluxbaseAdminMigrations;
@@ -82,6 +88,7 @@ export class FluxbaseAdmin {
     this.management = new FluxbaseManagement(fetch);
     this.emailTemplates = new EmailTemplateManager(fetch);
     this.functions = new FluxbaseAdminFunctions(fetch);
+    this.jobs = new FluxbaseAdminJobs(fetch);
     this.migrations = new FluxbaseAdminMigrations(fetch);
   }
 

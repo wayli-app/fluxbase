@@ -1541,6 +1541,12 @@ export interface FunctionInvokeOptions {
    * @default 'POST'
    */
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+
+  /**
+   * Namespace of the function to invoke
+   * If not provided, the first function with the given name is used (alphabetically by namespace)
+   */
+  namespace?: string
 }
 
 /**
@@ -1693,6 +1699,222 @@ export interface SyncFunctionsResult {
   /** Errors encountered */
   errors: SyncError[]
   /** Whether this was a dry run */
+  dry_run: boolean
+}
+
+// ============================================================================
+// Background Jobs Types
+// ============================================================================
+
+/**
+ * Job function metadata
+ */
+export interface JobFunction {
+  id: string
+  name: string
+  namespace: string
+  description?: string
+  code?: string
+  original_code?: string
+  is_bundled: boolean
+  bundle_error?: string
+  enabled: boolean
+  schedule?: string
+  timeout_seconds: number
+  memory_limit_mb: number
+  max_retries: number
+  progress_timeout_seconds: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  require_role?: string
+  version: number
+  created_by?: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to create a new job function
+ */
+export interface CreateJobFunctionRequest {
+  name: string
+  namespace?: string
+  description?: string
+  code: string
+  enabled?: boolean
+  schedule?: string
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  max_retries?: number
+  progress_timeout_seconds?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  require_role?: string
+}
+
+/**
+ * Request to update an existing job function
+ */
+export interface UpdateJobFunctionRequest {
+  description?: string
+  code?: string
+  enabled?: boolean
+  schedule?: string
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  max_retries?: number
+  progress_timeout_seconds?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  require_role?: string
+}
+
+/**
+ * Job execution status
+ */
+export type JobStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
+
+/**
+ * Job execution record
+ */
+export interface Job {
+  id: string
+  namespace: string
+  job_function_id?: string
+  job_name: string
+  status: JobStatus
+  payload?: any
+  result?: any
+  error?: string
+  logs?: string
+  priority: number
+  max_duration_seconds?: number
+  progress_timeout_seconds?: number
+  progress_percent?: number
+  progress_message?: string
+  progress_data?: any
+  max_retries: number
+  retry_count: number
+  worker_id?: string
+  created_by?: string
+  user_role?: string
+  user_email?: string
+  created_at: string
+  started_at?: string
+  completed_at?: string
+  scheduled_at?: string
+  last_progress_at?: string
+  /** Estimated completion time (computed, only for running jobs with progress > 0) */
+  estimated_completion_at?: string
+  /** Estimated seconds remaining (computed, only for running jobs with progress > 0) */
+  estimated_seconds_left?: number
+}
+
+/**
+ * Request to submit a new job
+ */
+export interface SubmitJobRequest {
+  job_name: string
+  namespace?: string
+  payload?: any
+  priority?: number
+  scheduled?: string
+}
+
+/**
+ * Job statistics
+ */
+export interface JobStats {
+  namespace?: string
+  pending: number
+  running: number
+  completed: number
+  failed: number
+  cancelled: number
+  total: number
+}
+
+/**
+ * Job worker information
+ */
+export interface JobWorker {
+  id: string
+  hostname: string
+  status: 'active' | 'idle' | 'dead'
+  current_jobs: number
+  total_completed: number
+  started_at: string
+  last_heartbeat_at: string
+}
+
+/**
+ * Job function specification for sync operations
+ */
+export interface JobFunctionSpec {
+  name: string
+  description?: string
+  code: string
+  /** If true, code is already bundled and server will skip bundling */
+  is_pre_bundled?: boolean
+  /** Original source code (for debugging when pre-bundled) */
+  original_code?: string
+  enabled?: boolean
+  schedule?: string
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  max_retries?: number
+  progress_timeout_seconds?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  require_role?: string
+}
+
+/**
+ * Options for syncing job functions
+ */
+export interface SyncJobsOptions {
+  namespace: string
+  functions?: JobFunctionSpec[]
+  options?: {
+    delete_missing?: boolean
+    dry_run?: boolean
+  }
+}
+
+/**
+ * Result of a job sync operation
+ */
+export interface SyncJobsResult {
+  message: string
+  namespace: string
+  summary: {
+    created: number
+    updated: number
+    deleted: number
+    unchanged: number
+    errors: number
+  }
+  details: {
+    created: string[]
+    updated: string[]
+    deleted: string[]
+    unchanged: string[]
+  }
+  errors: SyncError[]
   dry_run: boolean
 }
 

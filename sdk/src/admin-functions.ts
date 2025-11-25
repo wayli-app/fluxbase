@@ -56,21 +56,58 @@ export class FluxbaseAdminFunctions {
   }
 
   /**
+   * List all namespaces that have edge functions
+   *
+   * @returns Promise resolving to { data, error } tuple with array of namespace strings
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.functions.listNamespaces()
+   * if (data) {
+   *   console.log('Available namespaces:', data)
+   * }
+   * ```
+   */
+  async listNamespaces(): Promise<{
+    data: string[] | null;
+    error: Error | null;
+  }> {
+    try {
+      const response = await this.fetch.get<{ namespaces: string[] }>(
+        "/api/v1/admin/functions/namespaces",
+      );
+      return { data: response.namespaces || ["default"], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
    * List all edge functions (admin view)
    *
+   * @param namespace - Optional namespace filter (if not provided, lists all public functions)
    * @returns Promise resolving to { data, error } tuple with array of functions
    *
    * @example
    * ```typescript
+   * // List all public functions
    * const { data, error } = await client.admin.functions.list()
+   *
+   * // List functions in a specific namespace
+   * const { data, error } = await client.admin.functions.list('my-namespace')
    * if (data) {
    *   console.log('Functions:', data.map(f => f.name))
    * }
    * ```
    */
-  async list(): Promise<{ data: EdgeFunction[] | null; error: Error | null }> {
+  async list(
+    namespace?: string,
+  ): Promise<{ data: EdgeFunction[] | null; error: Error | null }> {
     try {
-      const data = await this.fetch.get<EdgeFunction[]>("/api/v1/functions");
+      const params = namespace ? `?namespace=${namespace}` : "";
+      const data = await this.fetch.get<EdgeFunction[]>(
+        `/api/v1/functions${params}`,
+      );
       return { data, error: null };
     } catch (error) {
       return { data: null, error: error as Error };

@@ -326,10 +326,10 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 
 // isTableAllowedUnsafe checks if a table is allowed for realtime (must be called with lock held)
 func (sm *SubscriptionManager) isTableAllowedUnsafe(schema, table string) bool {
-	// For now, allow all tables in auth and public schemas
+	// Allow tables in auth, public, and jobs schemas
 	// In production, this should check a configuration table
 	switch schema {
-	case "auth", "public":
+	case "auth", "public", "jobs":
 		return true
 	default:
 		return false

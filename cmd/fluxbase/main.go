@@ -155,6 +155,19 @@ func main() {
 		}
 	}
 
+	// Auto-load jobs from filesystem if enabled
+	if cfg.Jobs.Enabled && cfg.Jobs.AutoLoadOnBoot {
+		log.Info().Msg("Auto-loading job functions from filesystem...")
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		if err := server.LoadJobsFromFilesystem(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to auto-load jobs - continuing startup")
+		} else {
+			log.Info().Msg("Job functions auto-loaded successfully")
+		}
+	}
+
 	// Start server in a goroutine
 	go func() {
 		log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
@@ -279,6 +292,12 @@ func printConfigSummary(cfg *config.Config) {
 		Str("functions_dir", cfg.Functions.FunctionsDir).
 		Bool("auto_load_on_boot", cfg.Functions.AutoLoadOnBoot).
 		Msg("  Functions")
+	log.Info().
+		Bool("jobs_enabled", cfg.Jobs.Enabled).
+		Str("jobs_dir", cfg.Jobs.JobsDir).
+		Bool("auto_load_on_boot", cfg.Jobs.AutoLoadOnBoot).
+		Int("embedded_workers", cfg.Jobs.EmbeddedWorkerCount).
+		Msg("  Jobs")
 	log.Info().Bool("debug_mode", cfg.Debug).Msg("  Debug Mode")
 }
 

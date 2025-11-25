@@ -34,6 +34,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes/_authenticated/security-settings/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
+import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
 import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_authenticated/email-settings/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
@@ -175,6 +176,11 @@ const AuthenticatedMonitoringIndexRoute =
     path: '/monitoring/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedJobsIndexRoute = AuthenticatedJobsIndexRouteImport.update({
+  id: '/jobs/',
+  path: '/jobs/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedFunctionsIndexRoute =
   AuthenticatedFunctionsIndexRouteImport.update({
     id: '/functions/',
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
+  '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
@@ -272,6 +279,7 @@ export interface FileRoutesByTo {
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
+  '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/email-settings/': typeof AuthenticatedEmailSettingsIndexRoute
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
+  '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
   '/_authenticated/security-settings/': typeof AuthenticatedSecuritySettingsIndexRoute
@@ -342,6 +351,7 @@ export interface FileRouteTypes {
     | '/authentication'
     | '/email-settings'
     | '/functions'
+    | '/jobs'
     | '/monitoring'
     | '/realtime'
     | '/security-settings'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/authentication'
     | '/email-settings'
     | '/functions'
+    | '/jobs'
     | '/monitoring'
     | '/realtime'
     | '/security-settings'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/authentication/'
     | '/_authenticated/email-settings/'
     | '/_authenticated/functions/'
+    | '/_authenticated/jobs/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
     | '/_authenticated/security-settings/'
@@ -615,6 +627,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMonitoringIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/jobs/': {
+      id: '/_authenticated/jobs/'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AuthenticatedJobsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/functions/': {
       id: '/_authenticated/functions/'
       path: '/functions'
@@ -676,6 +695,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
   AuthenticatedEmailSettingsIndexRoute: typeof AuthenticatedEmailSettingsIndexRoute
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
+  AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
   AuthenticatedSecuritySettingsIndexRoute: typeof AuthenticatedSecuritySettingsIndexRoute
@@ -697,6 +717,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
   AuthenticatedEmailSettingsIndexRoute: AuthenticatedEmailSettingsIndexRoute,
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
+  AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
   AuthenticatedSecuritySettingsIndexRoute:

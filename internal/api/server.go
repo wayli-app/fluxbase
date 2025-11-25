@@ -20,6 +20,7 @@ import (
 	"github.com/wayli-app/fluxbase/internal/database"
 	"github.com/wayli-app/fluxbase/internal/email"
 	"github.com/wayli-app/fluxbase/internal/functions"
+	"github.com/wayli-app/fluxbase/internal/jobs"
 	"github.com/wayli-app/fluxbase/internal/middleware"
 	"github.com/wayli-app/fluxbase/internal/migrations"
 	"github.com/wayli-app/fluxbase/internal/realtime"
@@ -55,6 +56,8 @@ type Server struct {
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
+	jobsHandler           *jobs.Handler
+	jobsManager           *jobs.Manager
 	migrationsHandler     *migrations.Handler
 	realtimeManager       *realtime.Manager
 	realtimeHandler       *realtime.RealtimeHandler
@@ -140,6 +143,11 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS)
 	functionsScheduler := functions.NewScheduler(db)
 	functionsHandler.SetScheduler(functionsScheduler)
+	jobsManager := jobs.NewManager(&cfg.Jobs, db)
+	jobsHandler, err := jobs.NewHandler(db, &cfg.Jobs, jobsManager)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
+	}
 	migrationsHandler := migrations.NewHandler(db)
 
 	// Create realtime components
@@ -179,6 +187,8 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
+		jobsHandler:           jobsHandler,
+		jobsManager:           jobsManager,
 		migrationsHandler:     migrationsHandler,
 		realtimeManager:       realtimeManager,
 		realtimeHandler:       realtimeHandler,
@@ -194,6 +204,19 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Start edge functions scheduler
 	if err := functionsScheduler.Start(); err != nil {
 		log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+	}
+
+	// Start jobs manager
+	if cfg.Jobs.Enabled {
+		workerCount := cfg.Jobs.EmbeddedWorkerCount
+		if workerCount <= 0 {
+			workerCount = 4 // Default to 4 workers if not configured
+		}
+		if err := jobsManager.Start(context.Background(), workerCount); err != nil {
+			log.Error().Err(err).Msg("Failed to start jobs manager")
+		} else {
+			log.Info().Int("workers", workerCount).Msg("Jobs manager started successfully")
+		}
 	}
 
 	// Start webhook trigger service
@@ -337,6 +360,10 @@ func (s *Server) setupRoutes() {
 	// Edge functions routes - require authentication by default, but per-function config can override
 	// Protected by feature flag middleware
 	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+
+	// Jobs routes - require authentication
+	// Protected by feature flag middleware
+	s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
 	// Protected by feature flag middleware
@@ -589,7 +616,31 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// Functions management routes (require admin, dashboard_admin, or service_role)
 	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ReloadFunctions)
-	router.Post("/functions/sync", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.SyncFunctions)
+	router.Get("/functions/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ListNamespaces)
+	// Functions sync - with IP allowlist protection (similar to migrations)
+	router.Post("/functions/sync",
+		middleware.RequireSyncIPAllowlist(s.config.Functions.SyncAllowedIPRanges, "functions"),
+		unifiedAuth,
+		RequireRole("admin", "dashboard_admin", "service_role"),
+		s.functionsHandler.SyncFunctions,
+	)
+
+	// Jobs management routes (require admin, dashboard_admin, or service_role)
+	// Jobs sync - with IP allowlist protection (similar to migrations)
+	router.Post("/jobs/sync",
+		middleware.RequireSyncIPAllowlist(s.config.Jobs.SyncAllowedIPRanges, "jobs"),
+		unifiedAuth,
+		RequireRole("admin", "dashboard_admin", "service_role"),
+		s.jobsHandler.SyncJobs,
+	)
+	router.Get("/jobs/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListNamespaces)
+	router.Get("/jobs/functions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListJobFunctions)
+	router.Get("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobFunction)
+	router.Delete("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.DeleteJobFunction)
+	router.Get("/jobs/stats", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobStats)
+	router.Get("/jobs/workers", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListWorkers)
+	router.Post("/jobs/:id/terminate", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.TerminateJob)
+	router.Get("/jobs/queue", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListAllJobs)
 
 	// Migrations routes (require service key authentication with enhanced security)
 	// Only registered if migrations API is enabled in config
@@ -800,6 +851,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.functionsScheduler.Stop()
 	}
 
+	// Stop jobs manager
+	if s.jobsManager != nil {
+		s.jobsManager.Stop()
+	}
+
 	// Stop webhook trigger service
 	if s.webhookTriggerService != nil {
 		s.webhookTriggerService.Stop()
@@ -841,6 +897,16 @@ func (s *Server) LoadFunctionsFromFilesystem(ctx context.Context) error {
 		return fmt.Errorf("functions handler not initialized")
 	}
 	return s.functionsHandler.LoadFromFilesystem(ctx)
+}
+
+// LoadJobsFromFilesystem loads job functions from the filesystem
+// This is called at boot time if auto_load_on_boot is enabled
+func (s *Server) LoadJobsFromFilesystem(ctx context.Context) error {
+	if s.jobsHandler == nil {
+		return fmt.Errorf("jobs handler not initialized")
+	}
+	// Use "default" as the namespace for jobs loaded at boot
+	return s.jobsHandler.LoadFromFilesystem(ctx, "default")
 }
 
 // customErrorHandler handles errors globally

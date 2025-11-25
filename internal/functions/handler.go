@@ -333,7 +333,20 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 
 // ListFunctions lists all edge functions
 func (h *Handler) ListFunctions(c *fiber.Ctx) error {
-	functions, err := h.storage.ListFunctions(c.Context())
+	// Check if namespace filter is provided
+	namespace := c.Query("namespace")
+
+	var functions []EdgeFunction
+	var err error
+
+	if namespace != "" {
+		// If namespace is specified, list functions in that namespace
+		functions, err = h.storage.ListFunctionsByNamespace(c.Context(), namespace)
+	} else {
+		// Otherwise, list all public functions
+		functions, err = h.storage.ListFunctions(c.Context())
+	}
+
 	if err != nil {
 		reqID := getRequestID(c)
 		log.Error().
@@ -349,6 +362,30 @@ func (h *Handler) ListFunctions(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(functions)
+}
+
+// ListNamespaces lists all unique namespaces with edge functions
+func (h *Handler) ListNamespaces(c *fiber.Ctx) error {
+	namespaces, err := h.storage.ListFunctionNamespaces(c.Context())
+	if err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("request_id", reqID).
+			Msg("Failed to list function namespaces")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to list function namespaces",
+			"request_id": reqID,
+		})
+	}
+
+	// Ensure we always return at least "default"
+	if len(namespaces) == 0 {
+		namespaces = []string{"default"}
+	}
+
+	return c.JSON(fiber.Map{"namespaces": namespaces})
 }
 
 // GetFunction gets a single function by name
@@ -491,9 +528,16 @@ func (h *Handler) DeleteFunction(c *fiber.Ctx) error {
 // InvokeFunction invokes an edge function
 func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	name := c.Params("name")
+	namespace := c.Query("namespace")
 
-	// Get function
-	fn, err := h.storage.GetFunction(c.Context(), name)
+	// Get function - if namespace is provided, look up by namespace+name; otherwise find first match by name
+	var fn *EdgeFunction
+	var err error
+	if namespace != "" {
+		fn, err = h.storage.GetFunctionByNamespace(c.Context(), name, namespace)
+	} else {
+		fn, err = h.storage.GetFunction(c.Context(), name)
+	}
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Function not found"})
 	}

@@ -236,6 +236,7 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 			return err
 		})
 		if err != nil {
+			log.Error().Err(err).Str("table", fmt.Sprintf("%s.%s", table.Schema, table.Name)).Msg("Failed to fetch records")
 			return c.Status(500).JSON(fiber.Map{
 				"error": "Failed to fetch records",
 			})
