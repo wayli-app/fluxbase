@@ -244,11 +244,12 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 
 	// Queue operations - admin can see and manage all jobs across users
 	admin.Get("/queue", h.ListAllJobs)
-	admin.Get("/queue/:id", h.GetJobAdmin)
+	admin.Get("/queue/:id/logs", h.GetJobLogs) // More specific routes must come first
 	admin.Post("/queue/:id/terminate", h.TerminateJob)
 	admin.Post("/queue/:id/cancel", h.CancelJobAdmin)
 	admin.Post("/queue/:id/retry", h.RetryJobAdmin)
 	admin.Post("/queue/:id/resubmit", h.ResubmitJobAdmin)
+	admin.Get("/queue/:id", h.GetJobAdmin) // Less specific route comes last
 }
 
 // SubmitJob submits a new job to the queue
@@ -278,7 +279,15 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 		if uidStr, ok := uid.(string); ok {
 			parsed, err := uuid.Parse(uidStr)
 			if err == nil {
-				userID = &parsed
+				// Verify user exists in auth.users before setting created_by
+				// Dashboard admins are in dashboard.users, not auth.users
+				var exists bool
+				checkQuery := "SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1)"
+				if err := h.storage.conn.Pool().QueryRow(c.Context(), checkQuery, parsed).Scan(&exists); err == nil && exists {
+					userID = &parsed
+				}
+				// If user doesn't exist in auth.users, leave userID as nil
+				// Job will be created without created_by (allowed by nullable FK)
 			}
 		}
 	}
@@ -422,6 +431,48 @@ func (h *Handler) GetJobAdmin(c *fiber.Ctx) error {
 	job.CalculateETA()
 
 	return c.JSON(job)
+}
+
+// GetJobLogs gets execution logs for a job (admin access)
+func (h *Handler) GetJobLogs(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	log.Debug().
+		Str("job_id", jobID.String()).
+		Msg("GetJobLogs called")
+
+	// Parse optional after parameter for pagination
+	var afterLine *int
+	if after := c.QueryInt("after", -1); after >= 0 {
+		afterLine = &after
+	}
+
+	logs, err := h.storage.GetExecutionLogs(c.Context(), jobID, afterLine)
+	if err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("job_id", jobID.String()).
+			Str("request_id", reqID).
+			Msg("Failed to get job logs")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to get job logs",
+			"request_id": reqID,
+		})
+	}
+
+	log.Debug().
+		Str("job_id", jobID.String()).
+		Int("log_count", len(logs)).
+		Msg("Returning execution logs")
+
+	return c.JSON(fiber.Map{
+		"logs": logs,
+	})
 }
 
 // ListJobs lists jobs for the authenticated user (RLS enforced)

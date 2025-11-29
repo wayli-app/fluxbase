@@ -337,7 +337,7 @@ func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, e
 		)
 		RETURNING id, namespace, job_function_id, job_name, status, payload, result, progress,
 		          priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		          retry_count, error_message, logs, worker_id, created_by, user_role, user_email, created_at,
+		          retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
 		          scheduled_at, started_at, last_progress_at, completed_at
 	`
 
@@ -346,7 +346,7 @@ func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, e
 		&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 		&job.Payload, &job.Result, &job.Progress, &job.Priority,
 		&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+		&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 		&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 	)
 	if err != nil {
@@ -379,19 +379,59 @@ func (s *Storage) UpdateJobProgress(ctx context.Context, jobID uuid.UUID, progre
 	return nil
 }
 
-// AppendJobLog appends a log message to a job
-func (s *Storage) AppendJobLog(ctx context.Context, jobID uuid.UUID, logMessage string) error {
+// InsertExecutionLog inserts a single log line for a job
+func (s *Storage) InsertExecutionLog(ctx context.Context, jobID uuid.UUID, lineNumber int, message string) error {
 	query := `
-		UPDATE jobs.job_queue
-		SET logs = CASE
-			WHEN logs IS NULL THEN $1
-			ELSE logs || E'\n' || $1
-		END
-		WHERE id = $2
+		INSERT INTO jobs.execution_logs (job_id, line_number, message)
+		VALUES ($1, $2, $3)
 	`
 
-	_, err := s.conn.Pool().Exec(ctx, query, logMessage, jobID)
+	_, err := s.conn.Pool().Exec(ctx, query, jobID, lineNumber, message)
 	return err
+}
+
+// GetExecutionLogs retrieves execution logs for a job, optionally starting after a line number
+func (s *Storage) GetExecutionLogs(ctx context.Context, jobID uuid.UUID, afterLine *int) ([]*ExecutionLog, error) {
+	query := `
+		SELECT id, job_id, line_number, message, created_at
+		FROM jobs.execution_logs
+		WHERE job_id = $1
+	`
+	args := []interface{}{jobID}
+
+	if afterLine != nil {
+		query += " AND line_number > $2"
+		args = append(args, *afterLine)
+	}
+
+	query += " ORDER BY line_number ASC"
+
+	var logs []*ExecutionLog
+
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var log ExecutionLog
+			if err := rows.Scan(&log.ID, &log.JobID, &log.LineNumber, &log.Message, &log.CreatedAt); err != nil {
+				return err
+			}
+			logs = append(logs, &log)
+		}
+
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return logs, nil
 }
 
 // CompleteJob marks a job as completed
@@ -529,7 +569,7 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 	query := `
 		SELECT id, namespace, job_function_id, job_name, status, payload, result, progress,
 		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, logs, worker_id, created_by, user_role, user_email, created_at,
+		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
 		       scheduled_at, started_at, last_progress_at, completed_at
 		FROM jobs.job_queue
 		WHERE id = $1
@@ -540,7 +580,7 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 		&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 		&job.Payload, &job.Result, &job.Progress, &job.Priority,
 		&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+		&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 		&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 	)
 	if err != nil {
@@ -554,10 +594,10 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 }
 
 // ListJobs lists jobs with optional filters
-// Note: This query excludes large fields (logs, result, payload) for performance.
-// Use GetJob to fetch full job details including logs.
+// Note: This query excludes large fields (result, payload) for performance.
+// Use GetJob to fetch full job details. Logs are in separate execution_logs table.
 func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, error) {
-	// Exclude logs, result, payload for list performance - these can be very large
+	// Exclude result, payload for list performance - these can be very large
 	query := `
 		SELECT id, namespace, job_function_id, job_name, status, progress,
 		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
@@ -620,7 +660,7 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
-		// Note: payload, result, logs are nil in list view for performance
+		// Note: payload, result are nil in list view for performance
 		err := rows.Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Progress, &job.Priority,
@@ -648,10 +688,10 @@ func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, e
 }
 
 // ListJobsAdmin lists jobs with optional filters (admin access, bypasses RLS)
-// Note: This query excludes large fields (logs, result, payload) for performance.
-// Use GetJobByIDAdmin to fetch full job details including logs.
+// Note: This query excludes large fields (result, payload) for performance.
+// Use GetJobByIDAdmin to fetch full job details. Logs are in separate execution_logs table.
 func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Job, error) {
-	// Exclude logs, result, payload for list performance - these can be very large
+	// Exclude result, payload for list performance - these can be very large
 	query := `
 		SELECT id, namespace, job_function_id, job_name, status, progress,
 		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
@@ -714,7 +754,7 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
-		// Note: payload, result, logs are nil in list view for performance
+		// Note: payload, result are nil in list view for performance
 		err := rows.Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Progress, &job.Priority,

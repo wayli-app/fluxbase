@@ -745,8 +745,7 @@ export interface Job {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   payload?: unknown
   result?: unknown
-  error?: string
-  logs?: string
+  error_message?: string
   priority: number
   max_duration_seconds?: number
   progress_timeout_seconds?: number
@@ -768,6 +767,14 @@ export interface Job {
   estimated_completion_at?: string
   /** Estimated seconds remaining (computed, only for running jobs with progress > 0) */
   estimated_seconds_left?: number
+}
+
+export interface ExecutionLog {
+  id: number
+  job_id: string
+  line_number: number
+  message: string
+  created_at: string
 }
 
 export interface JobStats {
@@ -932,6 +939,15 @@ export const jobsApi = {
   getJob: async (jobId: string): Promise<Job> => {
     const response = await api.get<Job>(`/api/v1/admin/jobs/queue/${jobId}`)
     return response.data
+  },
+
+  // Get job execution logs
+  getJobLogs: async (jobId: string, afterLine?: number): Promise<ExecutionLog[]> => {
+    const params = afterLine !== undefined ? `?after=${afterLine}` : ''
+    const response = await api.get<{ logs: ExecutionLog[] }>(
+      `/api/v1/admin/jobs/queue/${jobId}/logs${params}`
+    )
+    return response.data.logs || []
   },
 
   // Cancel job

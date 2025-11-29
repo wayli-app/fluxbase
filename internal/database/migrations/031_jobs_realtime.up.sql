@@ -7,19 +7,71 @@ ALTER TABLE jobs.workers REPLICA IDENTITY FULL;
 ALTER TABLE jobs.job_function_files REPLICA IDENTITY FULL;
 
 -- ============================================
+-- Execution logs table (separate from job_queue for efficient Realtime streaming)
+-- ============================================
+CREATE TABLE jobs.execution_logs (
+    id BIGSERIAL PRIMARY KEY,
+    job_id UUID NOT NULL REFERENCES jobs.job_queue(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_execution_logs_job_id ON jobs.execution_logs(job_id);
+CREATE INDEX idx_execution_logs_job_id_line ON jobs.execution_logs(job_id, line_number);
+
+-- Enable Realtime for execution_logs
+ALTER TABLE jobs.execution_logs REPLICA IDENTITY FULL;
+
+COMMENT ON TABLE jobs.execution_logs IS 'Individual log lines for job execution (streamed via Realtime)';
+
+-- Enable RLS on execution_logs
+ALTER TABLE jobs.execution_logs ENABLE ROW LEVEL SECURITY;
+
+-- Execution Logs: Users can read logs for their own jobs
+CREATE POLICY "Users can read their own job logs"
+    ON jobs.execution_logs FOR SELECT
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM jobs.job_queue
+            WHERE job_queue.id = execution_logs.job_id
+            AND job_queue.created_by = auth.uid()
+        )
+    );
+
+CREATE POLICY "Service role can manage execution logs"
+    ON jobs.execution_logs FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- ============================================
 -- Generic notify function for jobs schema
+-- Excludes large fields (result, payload) from notifications
 -- ============================================
 CREATE OR REPLACE FUNCTION jobs.notify_realtime_change()
 RETURNS TRIGGER AS $$
+DECLARE
+  notification_record JSONB;
+  old_notification_record JSONB;
 BEGIN
+  -- Build record without large fields for notification efficiency
+  IF TG_OP != 'DELETE' THEN
+    notification_record := to_jsonb(NEW) - 'result' - 'payload';
+  END IF;
+  IF TG_OP != 'INSERT' THEN
+    old_notification_record := to_jsonb(OLD) - 'result' - 'payload';
+  END IF;
+
   PERFORM pg_notify(
     'fluxbase_changes',
     json_build_object(
       'schema', TG_TABLE_SCHEMA,
       'table', TG_TABLE_NAME,
       'type', TG_OP,
-      'record', CASE WHEN TG_OP != 'DELETE' THEN row_to_json(NEW) END,
-      'old_record', CASE WHEN TG_OP != 'INSERT' THEN row_to_json(OLD) END
+      'record', notification_record,
+      'old_record', old_notification_record
     )::text
   );
   RETURN COALESCE(NEW, OLD);
@@ -51,19 +103,26 @@ CREATE TRIGGER job_function_files_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.job_function_files
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
+-- execution_logs only needs INSERT notifications (logs are append-only)
+CREATE TRIGGER execution_logs_realtime_notify
+AFTER INSERT ON jobs.execution_logs
+FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
+
 -- ============================================
 -- Register tables for realtime in schema registry
 -- ============================================
 -- Note: job_functions is excluded because code fields exceed pg_notify's 8KB limit
+-- Note: execution_logs only sends INSERT events (logs are append-only)
 INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
 VALUES
     ('jobs', 'job_queue', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
     -- ('jobs', 'job_functions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']), -- Excluded: large code fields
     ('jobs', 'workers', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('jobs', 'job_function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE'])
+    ('jobs', 'job_function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
+    ('jobs', 'execution_logs', true, ARRAY['INSERT'])
 ON CONFLICT (schema_name, table_name) DO UPDATE
 SET realtime_enabled = true,
-    events = ARRAY['INSERT', 'UPDATE', 'DELETE'];
+    events = EXCLUDED.events;
 
 -- ============================================
 -- RLS Policy: dashboard_admin can read all jobs
@@ -85,5 +144,10 @@ CREATE POLICY "Dashboard admins can read all workers"
 
 CREATE POLICY "Dashboard admins can read all job function files"
     ON jobs.job_function_files FOR SELECT
+    TO authenticated
+    USING (auth.role() = 'dashboard_admin');
+
+CREATE POLICY "Dashboard admins can read all execution logs"
+    ON jobs.execution_logs FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');

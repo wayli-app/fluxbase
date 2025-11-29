@@ -9,6 +9,7 @@ import type {
   UploadProgress,
   ListOptions,
   SignedUrlOptions,
+  DownloadOptions,
   ShareFileOptions,
   FileShare,
   BucketSettings,
@@ -163,10 +164,35 @@ export class StorageBucket {
   /**
    * Download a file from the bucket
    * @param path - The path/key of the file
+   * @param options - Download options (use { stream: true } for streaming)
+   *
+   * @example
+   * ```typescript
+   * // Default: returns Blob
+   * const { data: blob } = await storage.from('bucket').download('file.pdf');
+   *
+   * // Streaming: returns ReadableStream
+   * const { data: stream } = await storage.from('bucket').download('large.json', { stream: true });
+   * ```
    */
   async download(
     path: string,
-  ): Promise<{ data: Blob | null; error: Error | null }> {
+  ): Promise<{ data: Blob | null; error: Error | null }>;
+  async download(
+    path: string,
+    options: { stream: true },
+  ): Promise<{ data: ReadableStream<Uint8Array> | null; error: Error | null }>;
+  async download(
+    path: string,
+    options: { stream?: false },
+  ): Promise<{ data: Blob | null; error: Error | null }>;
+  async download(
+    path: string,
+    options?: DownloadOptions,
+  ): Promise<{
+    data: Blob | ReadableStream<Uint8Array> | null;
+    error: Error | null;
+  }> {
     try {
       const response = await fetch(
         `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`,
@@ -179,6 +205,15 @@ export class StorageBucket {
         throw new Error(`Failed to download file: ${response.statusText}`);
       }
 
+      // Return stream if requested
+      if (options?.stream) {
+        if (!response.body) {
+          throw new Error("Response body is not available for streaming");
+        }
+        return { data: response.body, error: null };
+      }
+
+      // Default: return Blob
       const blob = await response.blob();
       return { data: blob, error: null };
     } catch (error) {

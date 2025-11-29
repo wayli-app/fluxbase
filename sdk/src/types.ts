@@ -450,6 +450,11 @@ export interface SignedUrlOptions {
   expiresIn?: number // seconds
 }
 
+export interface DownloadOptions {
+  /** If true, returns a ReadableStream instead of Blob */
+  stream?: boolean
+}
+
 // File Sharing Types (RLS)
 export interface ShareFileOptions {
   userId: string

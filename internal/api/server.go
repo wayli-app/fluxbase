@@ -383,6 +383,7 @@ func (s *Server) setupRoutes() {
 	// Protected by feature flag middleware
 	if s.jobsHandler != nil {
 		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+		s.jobsHandler.RegisterAdminRoutes(s.app) // Admin routes for job management
 	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)

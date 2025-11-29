@@ -52,10 +52,16 @@ interface JobUtils {
   reportProgress(percent: number, message?: string, data?: any): void;
 
   /**
-   * Check if the job was cancelled by user
+   * Check if the job was cancelled by user (sync version)
    * Call this periodically in long-running jobs to allow graceful cancellation
    */
   checkCancellation(): boolean;
+
+  /**
+   * Check if the job was cancelled by user (async version)
+   * Alias for checkCancellation that returns a Promise
+   */
+  isCancelled(): Promise<boolean>;
 
   /**
    * Get the current job execution context

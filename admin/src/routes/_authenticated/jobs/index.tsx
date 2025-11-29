@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Play,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -58,7 +59,9 @@ import {
   type JobFunction,
   type Job,
   type JobWorker,
+  type ExecutionLog,
 } from '@/lib/api'
+import { fluxbaseClient } from '@/lib/fluxbase-client'
 import {
   PieChart,
   Pie,
@@ -106,6 +109,10 @@ function JobsPage() {
   const [jobPayload, setJobPayload] = useState('')
   const [submittingJob, setSubmittingJob] = useState(false)
   const [togglingJob, setTogglingJob] = useState<string | null>(null)
+
+  // Execution logs state (fetched from separate table)
+  const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
 
   // Ref for auto-scrolling logs
   const logsContainerRef = useRef<HTMLDivElement>(null)
@@ -175,6 +182,68 @@ function JobsPage() {
     }
   }, [fetchJobs])
 
+  // Fetch execution logs and subscribe to Realtime when modal is open
+  useEffect(() => {
+    if (!showJobDetails || !selectedJob) return
+
+    const jobId = selectedJob.id
+    const isActiveJob = selectedJob.status === 'running' || selectedJob.status === 'pending'
+
+    // Fetch initial logs
+    const fetchLogs = async () => {
+      setLoadingLogs(true)
+      try {
+        const logs = await jobsApi.getJobLogs(jobId)
+        setExecutionLogs(logs)
+        // Scroll to bottom after loading
+        setTimeout(() => {
+          if (logsContainerRef.current) {
+            logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+          }
+        }, 50)
+      } catch {
+        // Silently fail
+      } finally {
+        setLoadingLogs(false)
+      }
+    }
+    fetchLogs()
+
+    // Subscribe to Realtime for new logs if job is active
+    let channel: ReturnType<typeof fluxbaseClient.channel> | null = null
+    if (isActiveJob) {
+      channel = fluxbaseClient
+        .channel(`job-logs-${jobId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'jobs',
+            table: 'execution_logs',
+            filter: `job_id=eq.${jobId}`,
+          },
+          (payload) => {
+            const newLog = payload.new as ExecutionLog
+            setExecutionLogs((prev) => [...prev, newLog])
+            // Auto-scroll on new log
+            setTimeout(() => {
+              if (logsContainerRef.current) {
+                logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+              }
+            }, 50)
+          }
+        )
+        .subscribe()
+    }
+
+    return () => {
+      if (channel) {
+        channel.unsubscribe()
+      }
+      setExecutionLogs([])
+    }
+  }, [showJobDetails, selectedJob?.id, selectedJob?.status])
+
   // Poll for job updates when modal is open and job is running/pending
   useEffect(() => {
     if (!showJobDetails || !selectedJob) return
@@ -187,20 +256,6 @@ function JobsPage() {
       try {
         const updatedJob = await jobsApi.getJob(selectedJob.id)
         setSelectedJob(updatedJob)
-
-        // Auto-scroll logs if new content was added
-        if (updatedJob.logs && logsContainerRef.current) {
-          const newLogsLength = updatedJob.logs.length
-          if (newLogsLength > prevLogsLengthRef.current) {
-            prevLogsLengthRef.current = newLogsLength
-            // Scroll to bottom
-            setTimeout(() => {
-              if (logsContainerRef.current) {
-                logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
-              }
-            }, 50)
-          }
-        }
 
         // Stop polling if job is no longer active
         if (updatedJob.status !== 'running' && updatedJob.status !== 'pending') {
@@ -219,7 +274,7 @@ function JobsPage() {
   // Reset logs scroll ref when opening a new job
   useEffect(() => {
     if (showJobDetails && selectedJob) {
-      prevLogsLengthRef.current = selectedJob.logs?.length || 0
+      prevLogsLengthRef.current = executionLogs.length
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on job ID change, not every selectedJob update
   }, [showJobDetails, selectedJob?.id])
@@ -269,10 +324,10 @@ function JobsPage() {
             const oldJob = firstPagePrev[i]
             const newJob = newJobs[i]
             if (!oldJob || oldJob.id !== newJob.id ||
-                oldJob.status !== newJob.status ||
-                oldJob.progress_percent !== newJob.progress_percent ||
-                oldJob.progress_message !== newJob.progress_message ||
-                oldJob.error !== newJob.error) {
+              oldJob.status !== newJob.status ||
+              oldJob.progress_percent !== newJob.progress_percent ||
+              oldJob.progress_message !== newJob.progress_message ||
+              oldJob.error_message !== newJob.error_message) {
               hasChanges = true
               break
             }
@@ -527,6 +582,61 @@ function JobsPage() {
     }
     // Already an object, stringify it
     return JSON.stringify(value, null, 2)
+  }
+
+  // Copy text to clipboard with toast feedback
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied to clipboard`)
+    } catch {
+      toast.error('Failed to copy to clipboard')
+    }
+  }
+
+  // Copy all job details to clipboard
+  const copyAllJobDetails = () => {
+    if (!selectedJob) return
+
+    const parts: string[] = []
+
+    parts.push(`=== Job Details ===`)
+    parts.push(`Job: ${selectedJob.job_name}`)
+    parts.push(`ID: ${selectedJob.id}`)
+    parts.push(`Status: ${selectedJob.status}`)
+    parts.push(`Created: ${new Date(selectedJob.created_at).toLocaleString()}`)
+    if (selectedJob.started_at) {
+      parts.push(`Started: ${new Date(selectedJob.started_at).toLocaleString()}`)
+    }
+    if (selectedJob.completed_at) {
+      parts.push(`Completed: ${new Date(selectedJob.completed_at).toLocaleString()}`)
+    }
+    parts.push('')
+
+    if (selectedJob.payload !== undefined && selectedJob.payload !== null) {
+      parts.push(`=== Payload ===`)
+      parts.push(formatJsonValue(selectedJob.payload))
+      parts.push('')
+    }
+
+    if (executionLogs.length > 0) {
+      parts.push(`=== Logs ===`)
+      parts.push(executionLogs.map((l) => l.message).join('\n'))
+      parts.push('')
+    }
+
+    if (selectedJob.result !== undefined && selectedJob.result !== null) {
+      parts.push(`=== Result ===`)
+      parts.push(formatJsonValue(selectedJob.result))
+      parts.push('')
+    }
+
+    if (selectedJob.error_message) {
+      parts.push(`=== Error ===`)
+      parts.push(selectedJob.error_message)
+    }
+
+    copyToClipboard(parts.join('\n'), 'All job details')
   }
 
   // Parse time range to milliseconds
@@ -1000,11 +1110,10 @@ function JobsPage() {
                             </div>
                             <div className='h-2 w-full overflow-hidden rounded-full bg-secondary'>
                               <div
-                                className={`h-full transition-all duration-300 ${
-                                  job.status === 'running' ? 'bg-blue-500' :
-                                  job.status === 'completed' ? 'bg-green-500' :
-                                  job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
-                                }`}
+                                className={`h-full transition-all duration-300 ${job.status === 'running' ? 'bg-blue-500' :
+                                    job.status === 'completed' ? 'bg-green-500' :
+                                      job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                                  }`}
                                 style={{ width: `${job.progress_percent}%` }}
                               />
                             </div>
@@ -1210,15 +1319,26 @@ function JobsPage() {
 
       {/* Job Details Dialog */}
       <Dialog open={showJobDetails} onOpenChange={setShowJobDetails}>
-        <DialogContent className='max-h-[90vh] max-w-5xl overflow-y-auto'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2'>
-              {selectedJob && getStatusIcon(selectedJob.status)}
-              Job Details
-            </DialogTitle>
-            <DialogDescription>
-              {selectedJob?.job_name} - {selectedJob?.id}
-            </DialogDescription>
+        <DialogContent className='max-h-[90vh] w-[90vw] sm:max-w-none max-w-[1600px] overflow-y-auto'>
+          <DialogHeader className='flex flex-row items-start justify-between'>
+            <div>
+              <DialogTitle className='flex items-center gap-2'>
+                {selectedJob && getStatusIcon(selectedJob.status)}
+                Job Details
+              </DialogTitle>
+              <DialogDescription>
+                {selectedJob?.job_name} - {selectedJob?.id}
+              </DialogDescription>
+            </div>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={copyAllJobDetails}
+              className='shrink-0'
+            >
+              <Copy className='mr-2 h-4 w-4' />
+              Copy All
+            </Button>
           </DialogHeader>
 
           {selectedJob && (
@@ -1272,11 +1392,10 @@ function JobsPage() {
                       </div>
                       <div className='h-3 w-full overflow-hidden rounded-full bg-secondary'>
                         <div
-                          className={`h-full transition-all duration-300 ${
-                            selectedJob.status === 'running' ? 'bg-blue-500' :
-                            selectedJob.status === 'completed' ? 'bg-green-500' :
-                            selectedJob.status === 'failed' ? 'bg-red-500' : 'bg-primary'
-                          }`}
+                          className={`h-full transition-all duration-300 ${selectedJob.status === 'running' ? 'bg-blue-500' :
+                              selectedJob.status === 'completed' ? 'bg-green-500' :
+                                selectedJob.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                            }`}
                           style={{ width: `${selectedJob.progress_percent}%` }}
                         />
                       </div>
@@ -1297,8 +1416,18 @@ function JobsPage() {
 
               {selectedJob.payload !== undefined && selectedJob.payload !== null && (
                 <div>
-                  <Label>Payload</Label>
-                  <div className='bg-muted mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
+                  <div className='flex items-center justify-between mb-2'>
+                    <Label>Payload</Label>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 px-2'
+                      onClick={() => copyToClipboard(formatJsonValue(selectedJob.payload), 'Payload')}
+                    >
+                      <Copy className='h-3 w-3' />
+                    </Button>
+                  </div>
+                  <div className='bg-muted max-h-48 overflow-auto rounded-lg border p-4'>
                     <pre className='text-xs whitespace-pre-wrap break-all'>
                       {formatJsonValue(selectedJob.payload)}
                     </pre>
@@ -1306,55 +1435,98 @@ function JobsPage() {
                 </div>
               )}
 
-              {selectedJob.result !== undefined && selectedJob.result !== null && (
-                <div>
-                  <Label>Result</Label>
-                  <div className='bg-muted mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
-                    <pre className='text-xs whitespace-pre-wrap break-all'>
-                      {formatJsonValue(selectedJob.result)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {selectedJob.error && (
-                <div>
-                  <Label className='text-destructive'>Error</Label>
-                  <div className='bg-destructive/10 border-destructive/20 mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
-                    <pre className='text-xs text-destructive whitespace-pre-wrap break-all'>
-                      {selectedJob.error}
-                    </pre>
-                  </div>
-                </div>
-              )}
-
-              {(selectedJob.logs || selectedJob.status === 'running' || selectedJob.status === 'pending') && (
-                <div>
+              {/* Logs and Result/Error side by side */}
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                {/* Logs Column - Always show for consistent layout */}
+                <div className='flex flex-col'>
                   <div className='flex items-center justify-between mb-2'>
                     <Label>Logs</Label>
-                    {(selectedJob.status === 'running' || selectedJob.status === 'pending') && (
-                      <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                        <Loader2 className='h-3 w-3 animate-spin' />
-                        <span>Live updating...</span>
-                      </div>
-                    )}
+                    <div className='flex items-center gap-2'>
+                      {(selectedJob.status === 'running' || selectedJob.status === 'pending') && (
+                        <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                          <Loader2 className='h-3 w-3 animate-spin' />
+                          <span>Live updating...</span>
+                        </div>
+                      )}
+                      {executionLogs.length > 0 && (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 px-2'
+                          onClick={() => copyToClipboard(executionLogs.map((l) => l.message).join('\n'), 'Logs')}
+                        >
+                          <Copy className='h-3 w-3' />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div
                     ref={logsContainerRef}
-                    className='bg-black/90 mt-2 min-h-[100px] max-h-[400px] overflow-y-auto rounded-lg border p-4 font-mono'
+                    className='bg-black/90 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto rounded-lg border p-4 font-mono'
                   >
-                    {selectedJob.logs ? (
+                    {loadingLogs ? (
+                      <span className='text-xs text-muted-foreground italic'>
+                        Loading logs...
+                      </span>
+                    ) : executionLogs.length > 0 ? (
                       <pre className='text-xs text-green-400 whitespace-pre-wrap break-words'>
-                        {selectedJob.logs}
+                        {executionLogs.map((l) => l.message).join('\n')}
                       </pre>
                     ) : (
                       <span className='text-xs text-muted-foreground italic'>
-                        Waiting for logs...
+                        No logs available
                       </span>
                     )}
                   </div>
                 </div>
-              )}
+
+                {/* Result/Error Column */}
+                {(selectedJob.result !== undefined && selectedJob.result !== null) || selectedJob.error_message ? (
+                  <div className='flex flex-col gap-4'>
+                    {selectedJob.result !== undefined && selectedJob.result !== null && (
+                      <div className='flex flex-col flex-1'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <Label>Result</Label>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 px-2'
+                            onClick={() => copyToClipboard(formatJsonValue(selectedJob.result), 'Result')}
+                          >
+                            <Copy className='h-3 w-3' />
+                          </Button>
+                        </div>
+                        <div className='bg-muted flex-1 min-h-[100px] max-h-[200px] overflow-auto rounded-lg border p-4'>
+                          <pre className='text-xs whitespace-pre-wrap break-all'>
+                            {formatJsonValue(selectedJob.result)}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedJob.error_message && (
+                      <div className='flex flex-col flex-1'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <Label className='text-destructive'>Error</Label>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 px-2'
+                            onClick={() => copyToClipboard(selectedJob.error_message || '', 'Error')}
+                          >
+                            <Copy className='h-3 w-3' />
+                          </Button>
+                        </div>
+                        <div className='bg-destructive/10 border-destructive/20 flex-1 min-h-[100px] max-h-[200px] overflow-auto rounded-lg border p-4'>
+                          <pre className='text-xs text-destructive whitespace-pre-wrap break-all'>
+                            {selectedJob.error_message}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
 

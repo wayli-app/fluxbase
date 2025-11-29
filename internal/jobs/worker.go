@@ -22,6 +22,7 @@ type Worker struct {
 	Runtime               *JobRuntime
 	MaxConcurrent         int
 	currentJobs           sync.Map // jobID -> *CancelSignal
+	jobLogCounters        sync.Map // jobID -> *int (line counter)
 	currentJobCount       int
 	currentJobCountMutex  sync.RWMutex
 	shutdownChan          chan struct{}
@@ -300,6 +301,11 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	w.currentJobs.Store(job.ID, cancelSignal)
 	defer w.currentJobs.Delete(job.ID)
 
+	// Initialize log line counter
+	lineCounter := 0
+	w.jobLogCounters.Store(job.ID, &lineCounter)
+	defer w.jobLogCounters.Delete(job.ID)
+
 	// Get job function
 	var jobFunction *JobFunction
 	var err error
@@ -431,10 +437,19 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, message string) {
 		Str("message", message).
 		Msg("Job log")
 
-	// Append to job logs
+	// Get and increment the line counter for this job
+	counterPtr, ok := w.jobLogCounters.Load(jobID)
+	if !ok {
+		log.Warn().Str("job_id", jobID.String()).Msg("Log counter not found for job")
+		return
+	}
+	lineNumber := *counterPtr.(*int)
+	*counterPtr.(*int) = lineNumber + 1
+
+	// Insert log line
 	ctx := context.Background()
-	if err := w.Storage.AppendJobLog(ctx, jobID, message); err != nil {
-		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to append job log")
+	if err := w.Storage.InsertExecutionLog(ctx, jobID, lineNumber, message); err != nil {
+		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to insert execution log")
 	}
 }
 

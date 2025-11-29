@@ -3,6 +3,19 @@ set -e
 
 echo "🚀 Setting up Fluxbase development environment..."
 
+# Fix Docker socket permissions (for docker-outside-of-docker)
+if [ -S /var/run/docker.sock ]; then
+  echo "🐳 Fixing Docker socket permissions..."
+  DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+  if ! getent group docker > /dev/null 2>&1; then
+    sudo groupadd -g "$DOCKER_GID" docker 2>/dev/null || sudo groupmod -g "$DOCKER_GID" docker 2>/dev/null || true
+  fi
+  sudo usermod -aG docker vscode 2>/dev/null || true
+  # Also ensure socket is accessible (some hosts have restrictive permissions)
+  sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+  echo "✅ Docker socket permissions fixed"
+fi
+
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL..."
 until pg_isready -h postgres -U postgres; do

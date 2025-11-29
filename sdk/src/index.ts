@@ -154,6 +154,7 @@ export type {
   UploadProgress,
   ListOptions,
   SignedUrlOptions,
+  DownloadOptions,
 
   // Functions types
   FunctionInvokeOptions,

@@ -70,7 +70,6 @@ type Job struct {
 	MaxRetries             int        `db:"max_retries" json:"max_retries"`
 	RetryCount             int        `db:"retry_count" json:"retry_count"`
 	ErrorMessage           *string    `db:"error_message" json:"error_message,omitempty"`
-	Logs                   *string    `db:"logs" json:"logs,omitempty"`
 	WorkerID               *uuid.UUID `db:"worker_id" json:"worker_id,omitempty"`
 	CreatedBy              *uuid.UUID `db:"created_by" json:"created_by,omitempty"`
 	UserRole               *string    `db:"user_role" json:"user_role,omitempty"`   // Role of user who submitted job
@@ -113,6 +112,15 @@ type Progress struct {
 	Percent int                    `json:"percent"`
 	Message string                 `json:"message,omitempty"`
 	Data    map[string]interface{} `json:"data,omitempty"`
+}
+
+// ExecutionLog represents a single log line from job execution
+type ExecutionLog struct {
+	ID         int64     `db:"id" json:"id"`
+	JobID      uuid.UUID `db:"job_id" json:"job_id"`
+	LineNumber int       `db:"line_number" json:"line_number"`
+	Message    string    `db:"message" json:"message"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
 // CalculateETA computes the estimated completion time for a running job

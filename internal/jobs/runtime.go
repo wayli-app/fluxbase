@@ -333,6 +333,11 @@ func (r *JobRuntime) Execute(
 						r.onProgress(job.ID, &progress)
 					}
 				}
+			} else {
+				// Regular console.log output - send to log callback
+				if r.onLog != nil {
+					r.onLog(job.ID, line)
+				}
 			}
 		}
 	}()
@@ -440,21 +445,15 @@ func (r *JobRuntime) Execute(
 
 	// Parse result from stdout
 	stdout := strings.TrimSpace(stdoutBuilder.String())
+	stderr := strings.TrimSpace(stderrBuilder.String())
 
-	// Remove progress lines from stdout to get final result
+	// Look for result line with __RESULT__:: prefix (most reliable)
 	lines := strings.Split(stdout, "\n")
-	var resultLines []string
+	var resultLine string
 	for _, line := range lines {
-		if !strings.HasPrefix(line, "__PROGRESS__::") {
-			resultLines = append(resultLines, line)
+		if strings.HasPrefix(line, "__RESULT__::") {
+			resultLine = strings.TrimPrefix(line, "__RESULT__::")
 		}
-	}
-	resultOutput := strings.TrimSpace(strings.Join(resultLines, "\n"))
-
-	if resultOutput == "" {
-		// No output means success with no result
-		result.Success = true
-		return result, nil
 	}
 
 	// Try to parse as JSON result
@@ -464,8 +463,53 @@ func (r *JobRuntime) Execute(
 		Error   string                 `json:"error,omitempty"`
 	}
 
+	if resultLine != "" {
+		// Found a result line with prefix - parse it
+		if err := json.Unmarshal([]byte(resultLine), &jobResult); err != nil {
+			// Result line exists but couldn't be parsed - treat as error
+			result.Success = false
+			result.Error = fmt.Sprintf("Failed to parse job result: %v", err)
+			return result, nil
+		}
+		result.Success = jobResult.Success
+		result.Result = jobResult.Result
+		if !jobResult.Success {
+			result.Error = jobResult.Error
+		}
+		return result, nil
+	}
+
+	// No __RESULT__:: prefix found - fallback to legacy parsing
+	// Remove progress lines from stdout
+	var resultLines []string
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "__PROGRESS__::") {
+			resultLines = append(resultLines, line)
+		}
+	}
+	resultOutput := strings.TrimSpace(strings.Join(resultLines, "\n"))
+
+	if resultOutput == "" {
+		// No output - check stderr for errors
+		if stderr != "" && (strings.Contains(stderr, "error") || strings.Contains(stderr, "Error")) {
+			result.Success = false
+			result.Error = stderr
+			return result, nil
+		}
+		// No output and no errors - assume success
+		result.Success = true
+		return result, nil
+	}
+
+	// Try to parse the entire output as JSON (legacy format)
 	if err := json.Unmarshal([]byte(resultOutput), &jobResult); err != nil {
-		// Not valid JSON, treat as plain text success result
+		// Not valid JSON - check stderr for error indicators
+		if stderr != "" && (strings.Contains(stderr, "error") || strings.Contains(stderr, "Error")) {
+			result.Success = false
+			result.Error = stderr
+			return result, nil
+		}
+		// No stderr errors, treat as plain text success result
 		result.Success = true
 		result.Result = map[string]interface{}{
 			"output": resultOutput,
@@ -685,7 +729,7 @@ class _StorageBucket {
     return { data: { path }, error: null };
   }
 
-  async download(path) {
+  async download(path, options) {
     const response = await fetch(
       this.client.url + this._storagePath(path),
       { headers: { 'Authorization': 'Bearer ' + this.client.token, 'apikey': this.client.token } }
@@ -693,6 +737,13 @@ class _StorageBucket {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({ message: response.statusText }));
       return { data: null, error: { message: errData?.error || errData?.message || response.statusText } };
+    }
+    // Return stream if requested, otherwise return Blob
+    if (options?.stream) {
+      if (!response.body) {
+        return { data: null, error: { message: 'Response body is not available for streaming' } };
+      }
+      return { data: response.body, error: null };
     }
     return { data: await response.blob(), error: null };
   }
@@ -812,21 +863,26 @@ const _fluxbase = _createFluxbaseClient(_fluxbaseUrl, _jobToken, 'UserClient');
 // Service client - bypasses RLS for system-level operations
 const _fluxbaseService = _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient');
 
-// Job utilities object
+// Job utilities object - using arrow functions for consistent behavior
 const _jobUtils = {
   // Report progress (0-100)
-  reportProgress(percent, message, data) {
+  reportProgress: (percent, message, data) => {
     const progress = { percent, message, data };
     console.log('__PROGRESS__::' + JSON.stringify(progress));
   },
 
   // Check if job was cancelled
-  checkCancellation() {
+  checkCancellation: () => {
+    return Deno.env.get('FLUXBASE_JOB_CANCELLED') === 'true';
+  },
+
+  // Alias for checkCancellation (matches types.d.ts)
+  isCancelled: async () => {
     return Deno.env.get('FLUXBASE_JOB_CANCELLED') === 'true';
   },
 
   // Get job context
-  getJobContext() {
+  getJobContext: () => {
     const jobContext = %s;
     return {
       job_id: jobContext.job_id,
@@ -843,7 +899,7 @@ const _jobUtils = {
   },
 
   // Get job payload (convenience method)
-  getJobPayload() {
+  getJobPayload: () => {
     const jobContext = %s;
     return jobContext.payload || {};
   }
@@ -895,16 +951,16 @@ const _jobUtils = {
       }
     }
 
-    // Output final result as JSON
-    console.log(JSON.stringify({
+    // Output final result as JSON with prefix for reliable parsing
+    console.log('__RESULT__::' + JSON.stringify({
       success: true,
       result: finalResult
     }));
 
   } catch (error) {
-    // Output error
+    // Output error with prefix for reliable parsing
     console.error('Job execution error:', error.message);
-    console.log(JSON.stringify({
+    console.log('__RESULT__::' + JSON.stringify({
       success: false,
       error: error.message,
       stack: error.stack

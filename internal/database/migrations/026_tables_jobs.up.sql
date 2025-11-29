@@ -49,7 +49,6 @@ CREATE TABLE jobs.job_queue (
     max_retries INTEGER DEFAULT 0,
     retry_count INTEGER DEFAULT 0,
     error_message TEXT,
-    logs TEXT,
     worker_id UUID,                    -- Will reference jobs.workers after it's created
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
