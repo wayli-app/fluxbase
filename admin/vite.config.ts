@@ -28,6 +28,15 @@ export default defineConfig({
       '@tanstack/react-query': path.resolve(__dirname, './node_modules/@tanstack/react-query'),
     },
   },
+  optimizeDeps: {
+    exclude: ['esbuild'],
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      external: ['esbuild'],
+    },
+  },
   server: {
     host: '0.0.0.0', // Listen on all interfaces (required for devcontainer port forwarding)
     port: 5050,

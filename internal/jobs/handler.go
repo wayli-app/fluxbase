@@ -168,6 +168,33 @@ type Handler struct {
 	config  *config.JobsConfig
 }
 
+// roleSatisfiesRequirement checks if the user's role satisfies the required role
+// using a hierarchy where: admin > authenticated > anon
+func roleSatisfiesRequirement(userRole, requiredRole string) bool {
+	// Define role hierarchy levels (higher number = more privileged)
+	roleLevel := map[string]int{
+		"anon":          0,
+		"authenticated": 1,
+		"admin":         2,
+	}
+
+	userLevel, userOk := roleLevel[userRole]
+	requiredLevel, requiredOk := roleLevel[requiredRole]
+
+	// If the required role is not in the hierarchy, require exact match
+	if !requiredOk {
+		return userRole == requiredRole
+	}
+
+	// If user role is not in hierarchy, it's treated as authenticated level
+	// (e.g., custom roles like "moderator", "editor" are at authenticated level)
+	if !userOk {
+		userLevel = roleLevel["authenticated"]
+	}
+
+	return userLevel >= requiredLevel
+}
+
 // NewHandler creates a new jobs handler
 func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manager) (*Handler, error) {
 	storage := NewStorage(db)
@@ -214,8 +241,14 @@ func (h *Handler) RegisterAdminRoutes(app *fiber.App) {
 	admin.Delete("/functions/:namespace/:name", h.DeleteJobFunction)
 	admin.Get("/stats", h.GetJobStats)
 	admin.Get("/workers", h.ListWorkers)
-	admin.Post("/:id/terminate", h.TerminateJob)
-	admin.Get("/queue", h.ListAllJobs) // Admin can see all jobs across users
+
+	// Queue operations - admin can see and manage all jobs across users
+	admin.Get("/queue", h.ListAllJobs)
+	admin.Get("/queue/:id", h.GetJobAdmin)
+	admin.Post("/queue/:id/terminate", h.TerminateJob)
+	admin.Post("/queue/:id/cancel", h.CancelJobAdmin)
+	admin.Post("/queue/:id/retry", h.RetryJobAdmin)
+	admin.Post("/queue/:id/resubmit", h.ResubmitJobAdmin)
 }
 
 // SubmitJob submits a new job to the queue
@@ -291,8 +324,9 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 			})
 		}
 
-		// Check if user's role matches required role
-		if *userRole != *jobFunction.RequireRole {
+		// Check if user's role satisfies the required role using hierarchy
+		// (admin > authenticated > anon)
+		if !roleSatisfiesRequirement(*userRole, *jobFunction.RequireRole) {
 			return c.Status(403).JSON(fiber.Map{
 				"error":         "Insufficient permissions",
 				"required_role": *jobFunction.RequireRole,
@@ -362,6 +396,24 @@ func (h *Handler) GetJob(c *fiber.Ctx) error {
 	}
 
 	job, err := h.storage.GetJob(c.Context(), jobID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
+	}
+
+	// Calculate ETA for running jobs
+	job.CalculateETA()
+
+	return c.JSON(job)
+}
+
+// GetJobAdmin gets a job by ID (admin access, bypasses RLS)
+func (h *Handler) GetJobAdmin(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	job, err := h.storage.GetJobByIDAdmin(c.Context(), jobID)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
 	}
@@ -500,6 +552,118 @@ func (h *Handler) RetryJob(c *fiber.Ctx) error {
 	log.Info().Str("job_id", jobID.String()).Msg("Job requeued for retry")
 
 	return c.JSON(fiber.Map{"message": "Job requeued for retry"})
+}
+
+// CancelJobAdmin cancels a pending or running job (admin access, bypasses RLS)
+func (h *Handler) CancelJobAdmin(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	// Get job to check status (admin access)
+	job, err := h.storage.GetJobByIDAdmin(c.Context(), jobID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
+	}
+
+	// Can only cancel pending or running jobs
+	if job.Status != JobStatusPending && job.Status != JobStatusRunning {
+		return c.Status(400).JSON(fiber.Map{
+			"error":  "Job cannot be cancelled",
+			"status": job.Status,
+		})
+	}
+
+	if err := h.storage.CancelJob(c.Context(), jobID); err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("job_id", jobID.String()).
+			Str("request_id", reqID).
+			Msg("Failed to cancel job")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to cancel job",
+			"request_id": reqID,
+		})
+	}
+
+	log.Info().Str("job_id", jobID.String()).Msg("Job cancelled by admin")
+
+	return c.JSON(fiber.Map{"message": "Job cancelled"})
+}
+
+// RetryJobAdmin retries a failed job (admin access, bypasses RLS)
+func (h *Handler) RetryJobAdmin(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	// Get job to check status (admin access)
+	job, err := h.storage.GetJobByIDAdmin(c.Context(), jobID)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
+	}
+
+	// Can only retry failed jobs
+	if job.Status != JobStatusFailed {
+		return c.Status(400).JSON(fiber.Map{
+			"error":  "Only failed jobs can be retried",
+			"status": job.Status,
+		})
+	}
+
+	if err := h.storage.RequeueJob(c.Context(), jobID); err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("job_id", jobID.String()).
+			Str("request_id", reqID).
+			Msg("Failed to retry job")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to retry job",
+			"request_id": reqID,
+		})
+	}
+
+	log.Info().Str("job_id", jobID.String()).Msg("Job requeued for retry by admin")
+
+	return c.JSON(fiber.Map{"message": "Job requeued for retry"})
+}
+
+// ResubmitJobAdmin creates a new job based on an existing job (admin access)
+// Unlike retry, this works for any job status and creates a fresh job
+func (h *Handler) ResubmitJobAdmin(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	// Create new job based on the original
+	newJob, err := h.storage.ResubmitJob(c.Context(), jobID)
+	if err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("job_id", jobID.String()).
+			Str("request_id", reqID).
+			Msg("Failed to resubmit job")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to resubmit job",
+			"request_id": reqID,
+		})
+	}
+
+	log.Info().
+		Str("original_job_id", jobID.String()).
+		Str("new_job_id", newJob.ID.String()).
+		Msg("Job resubmitted by admin")
+
+	return c.Status(201).JSON(newJob)
 }
 
 // SyncJobs syncs job functions to a namespace

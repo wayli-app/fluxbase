@@ -346,7 +346,7 @@ func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, e
 		&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 		&job.Payload, &job.Result, &job.Progress, &job.Priority,
 		&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 		&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 	)
 	if err != nil {
@@ -476,6 +476,54 @@ func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	return nil
 }
 
+// ResubmitJob creates a new job based on an existing job (works for any status)
+func (s *Storage) ResubmitJob(ctx context.Context, originalJobID uuid.UUID) (*Job, error) {
+	// First get the original job
+	originalJob, err := s.GetJobByIDAdmin(ctx, originalJobID)
+	if err != nil {
+		return nil, fmt.Errorf("original job not found: %w", err)
+	}
+
+	// Create a new job with the same parameters
+	newJob := &Job{
+		ID:                     uuid.New(),
+		Namespace:              originalJob.Namespace,
+		JobFunctionID:          originalJob.JobFunctionID,
+		JobName:                originalJob.JobName,
+		Status:                 JobStatusPending,
+		Payload:                originalJob.Payload,
+		Priority:               originalJob.Priority,
+		MaxDurationSeconds:     originalJob.MaxDurationSeconds,
+		ProgressTimeoutSeconds: originalJob.ProgressTimeoutSeconds,
+		MaxRetries:             originalJob.MaxRetries,
+		RetryCount:             0,
+		CreatedBy:              originalJob.CreatedBy,
+		UserRole:               originalJob.UserRole,
+		UserEmail:              originalJob.UserEmail,
+	}
+
+	// Insert the new job
+	query := `
+		INSERT INTO jobs.job_queue (
+			id, namespace, job_function_id, job_name, status, payload, priority,
+			max_duration_seconds, progress_timeout_seconds, max_retries, created_by, user_role, user_email
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING created_at
+	`
+
+	err = s.conn.Pool().QueryRow(ctx, query,
+		newJob.ID, newJob.Namespace, newJob.JobFunctionID, newJob.JobName, newJob.Status,
+		newJob.Payload, newJob.Priority, newJob.MaxDurationSeconds, newJob.ProgressTimeoutSeconds,
+		newJob.MaxRetries, newJob.CreatedBy, newJob.UserRole, newJob.UserEmail,
+	).Scan(&newJob.CreatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new job: %w", err)
+	}
+
+	return newJob, nil
+}
+
 // GetJob retrieves a job by ID
 func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 	query := `
@@ -492,7 +540,7 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 		&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 		&job.Payload, &job.Result, &job.Progress, &job.Priority,
 		&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+		&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 		&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 	)
 	if err != nil {
@@ -506,11 +554,14 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 }
 
 // ListJobs lists jobs with optional filters
+// Note: This query excludes large fields (logs, result, payload) for performance.
+// Use GetJob to fetch full job details including logs.
 func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, error) {
+	// Exclude logs, result, payload for list performance - these can be very large
 	query := `
-		SELECT id, namespace, job_function_id, job_name, status, payload, result, progress,
+		SELECT id, namespace, job_function_id, job_name, status, progress,
 		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, logs, worker_id, created_by, user_role, user_email, created_at,
+		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
 		       scheduled_at, started_at, last_progress_at, completed_at
 		FROM jobs.job_queue
 		WHERE 1=1
@@ -569,11 +620,12 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
+		// Note: payload, result, logs are nil in list view for performance
 		err := rows.Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-			&job.Payload, &job.Result, &job.Progress, &job.Priority,
+			&job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 		)
 		if err != nil {
@@ -596,11 +648,14 @@ func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, e
 }
 
 // ListJobsAdmin lists jobs with optional filters (admin access, bypasses RLS)
+// Note: This query excludes large fields (logs, result, payload) for performance.
+// Use GetJobByIDAdmin to fetch full job details including logs.
 func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Job, error) {
+	// Exclude logs, result, payload for list performance - these can be very large
 	query := `
-		SELECT id, namespace, job_function_id, job_name, status, payload, result, progress,
+		SELECT id, namespace, job_function_id, job_name, status, progress,
 		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, logs, worker_id, created_by, user_role, user_email, created_at,
+		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
 		       scheduled_at, started_at, last_progress_at, completed_at
 		FROM jobs.job_queue
 		WHERE 1=1
@@ -659,11 +714,12 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
+		// Note: payload, result, logs are nil in list view for performance
 		err := rows.Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-			&job.Payload, &job.Result, &job.Progress, &job.Priority,
+			&job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.Logs, &job.WorkerID, &job.CreatedBy, job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
 			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 		)
 		if err != nil {

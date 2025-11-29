@@ -224,9 +224,9 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	result.BundledCode = string(bundled)
 	result.IsBundled = true
 
-	// Validate bundled size (5MB limit)
-	if len(result.BundledCode) > 5*1024*1024 {
-		result.Error = fmt.Sprintf("Bundled code exceeds 5MB limit (got %d bytes)", len(result.BundledCode))
+	// Validate bundled size (20MB limit)
+	if len(result.BundledCode) > 20*1024*1024 {
+		result.Error = fmt.Sprintf("Bundled code exceeds 20MB limit (got %d bytes)", len(result.BundledCode))
 		return nil, fmt.Errorf("%s", result.Error)
 	}
 
@@ -309,27 +309,37 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	// we need to inline them manually because deno bundle doesn't work with import maps in Deno 2.x
 	// Do this BEFORE writing any files so we write the fully inlined code
 	if functionDenoJSON != "" {
-		// Try to inline deno.json imports and shared modules together
-		inlinedCode, err := inlineAllImports(mainCode, sharedModules, functionDenoJSON)
-		if err != nil {
-			// If inlining fails, fall back to original approach
-			log.Warn().Err(err).Msg("Failed to inline imports, falling back to original code")
-		} else {
-			// Successfully inlined, use the inlined code
-			log.Info().Str("function", "unknown").Msg("Successfully inlined all imports, skipping deno bundle")
-			mainCode = inlinedCode
-			// Clear shared modules since they're now inlined
-			sharedModules = make(map[string]string)
-			// Remove deno.json from supporting files since imports are resolved
-			delete(supportingFiles, "deno.json")
-			delete(supportingFiles, "deno.jsonc")
-			functionDenoJSON = ""
+		// Check if deno.json has npm: or URL imports that require deno bundle
+		hasNpmOrUrlImports := strings.Contains(functionDenoJSON, "npm:") ||
+			strings.Contains(functionDenoJSON, "https://") ||
+			strings.Contains(functionDenoJSON, "http://")
 
-			// Return the inlined code directly without bundling
-			// (deno bundle doesn't work well with inlined code anyway in Deno 2.x)
-			result.BundledCode = mainCode
-			result.IsBundled = true
-			return result, nil
+		if hasNpmOrUrlImports {
+			// Has npm/URL imports - must use deno bundle with config, can't inline these
+			log.Debug().Msg("deno.json has npm/URL imports, will use deno bundle with config")
+		} else {
+			// Try to inline deno.json imports and shared modules together
+			inlinedCode, err := inlineAllImports(mainCode, sharedModules, functionDenoJSON)
+			if err != nil {
+				// If inlining fails, fall back to original approach
+				log.Warn().Err(err).Msg("Failed to inline imports, falling back to deno bundle")
+			} else {
+				// Successfully inlined, use the inlined code
+				log.Info().Str("function", "unknown").Msg("Successfully inlined all imports, skipping deno bundle")
+				mainCode = inlinedCode
+				// Clear shared modules since they're now inlined
+				sharedModules = make(map[string]string)
+				// Remove deno.json from supporting files since imports are resolved
+				delete(supportingFiles, "deno.json")
+				delete(supportingFiles, "deno.jsonc")
+				functionDenoJSON = ""
+
+				// Return the inlined code directly without bundling
+				// (deno bundle doesn't work well with inlined code anyway in Deno 2.x)
+				result.BundledCode = mainCode
+				result.IsBundled = true
+				return result, nil
+			}
 		}
 	}
 
@@ -400,6 +410,9 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		if err := os.WriteFile(denoConfigPath, []byte(functionDenoJSON), 0644); err != nil {
 			return nil, fmt.Errorf("failed to write deno.json: %w", err)
 		}
+		log.Debug().Str("path", denoConfigPath).Msg("Wrote function deno.json to temp directory")
+	} else {
+		log.Debug().Msg("No deno.json found for function")
 	}
 
 	// Create temporary output file
@@ -477,9 +490,9 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	result.BundledCode = string(bundled)
 	result.IsBundled = true
 
-	// Validate bundled size (5MB limit)
-	if len(result.BundledCode) > 5*1024*1024 {
-		result.Error = fmt.Sprintf("Bundled code exceeds 5MB limit (got %d bytes)", len(result.BundledCode))
+	// Validate bundled size (20MB limit)
+	if len(result.BundledCode) > 20*1024*1024 {
+		result.Error = fmt.Sprintf("Bundled code exceeds 20MB limit (got %d bytes)", len(result.BundledCode))
 		return nil, fmt.Errorf("%s", result.Error)
 	}
 

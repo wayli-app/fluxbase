@@ -1398,6 +1398,15 @@ func (tc *TestContext) CleanupStorageFiles() {
 	ctx := context.Background()
 	_, _ = tc.DB.Exec(ctx, "TRUNCATE TABLE storage.objects CASCADE")
 	_, _ = tc.DB.Exec(ctx, "TRUNCATE TABLE storage.buckets CASCADE")
+
+	// Restore default buckets after cleanup
+	_, _ = tc.DB.Exec(ctx, `
+		INSERT INTO storage.buckets (id, name, public) VALUES
+			('public', 'public', true),
+			('temp-files', 'temp-files', false),
+			('user-uploads', 'user-uploads', false)
+		ON CONFLICT (id) DO NOTHING
+	`)
 }
 
 // WaitForEmail waits for an email to arrive in MailHog matching a filter

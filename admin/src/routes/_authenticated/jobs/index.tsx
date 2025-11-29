@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   ListTodo,
@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Clock,
   XCircle,
-  RotateCcw,
   Activity,
   CheckCircle,
   AlertCircle,
@@ -78,6 +77,8 @@ export const Route = createFileRoute('/_authenticated/jobs/')({
   component: JobsPage,
 })
 
+const JOBS_PAGE_SIZE = 25
+
 function JobsPage() {
   const [activeTab, setActiveTab] = useState<'functions' | 'queue'>('queue')
   const [jobFunctions, setJobFunctions] = useState<JobFunction[]>([])
@@ -94,12 +95,21 @@ function JobsPage() {
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
+  // Pagination state
+  const [jobsOffset, setJobsOffset] = useState(0)
+  const [hasMoreJobs, setHasMoreJobs] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+
   // Run job dialog state
   const [showRunDialog, setShowRunDialog] = useState(false)
   const [selectedFunction, setSelectedFunction] = useState<JobFunction | null>(null)
   const [jobPayload, setJobPayload] = useState('')
   const [submittingJob, setSubmittingJob] = useState(false)
   const [togglingJob, setTogglingJob] = useState<string | null>(null)
+
+  // Ref for auto-scrolling logs
+  const logsContainerRef = useRef<HTMLDivElement>(null)
+  const prevLogsLengthRef = useRef<number>(0)
 
   // Fetch namespaces on mount
   useEffect(() => {
@@ -127,21 +137,163 @@ function JobsPage() {
     }
   }, [selectedNamespace])
 
-  const fetchJobs = useCallback(async () => {
+  const fetchJobs = useCallback(async (reset = true) => {
     try {
-      const filters: { status?: string; namespace?: string; limit: number } = {
-        limit: 50,
+      const offset = reset ? 0 : jobsOffset
+      const filters: { status?: string; namespace?: string; limit: number; offset: number } = {
+        limit: JOBS_PAGE_SIZE,
+        offset,
         namespace: selectedNamespace,
       }
       if (statusFilter !== 'all') {
         filters.status = statusFilter
       }
       const data = await jobsApi.listJobs(filters)
-      setJobs(data || [])
+      const newJobs = data || []
+
+      if (reset) {
+        setJobs(newJobs)
+        setJobsOffset(JOBS_PAGE_SIZE)
+      } else {
+        setJobs(prev => [...prev, ...newJobs])
+        setJobsOffset(prev => prev + JOBS_PAGE_SIZE)
+      }
+
+      // If we got fewer jobs than requested, there are no more
+      setHasMoreJobs(newJobs.length >= JOBS_PAGE_SIZE)
     } catch {
       toast.error('Failed to fetch jobs')
     }
-  }, [selectedNamespace, statusFilter])
+  }, [selectedNamespace, statusFilter, jobsOffset])
+
+  const loadMoreJobs = useCallback(async () => {
+    setLoadingMore(true)
+    try {
+      await fetchJobs(false)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [fetchJobs])
+
+  // Poll for job updates when modal is open and job is running/pending
+  useEffect(() => {
+    if (!showJobDetails || !selectedJob) return
+
+    // Only poll for active jobs
+    const isActiveJob = selectedJob.status === 'running' || selectedJob.status === 'pending'
+    if (!isActiveJob) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const updatedJob = await jobsApi.getJob(selectedJob.id)
+        setSelectedJob(updatedJob)
+
+        // Auto-scroll logs if new content was added
+        if (updatedJob.logs && logsContainerRef.current) {
+          const newLogsLength = updatedJob.logs.length
+          if (newLogsLength > prevLogsLengthRef.current) {
+            prevLogsLengthRef.current = newLogsLength
+            // Scroll to bottom
+            setTimeout(() => {
+              if (logsContainerRef.current) {
+                logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+              }
+            }, 50)
+          }
+        }
+
+        // Stop polling if job is no longer active
+        if (updatedJob.status !== 'running' && updatedJob.status !== 'pending') {
+          // Refresh the jobs list to update statuses
+          fetchJobs(true)
+        }
+      } catch {
+        // Silently fail - modal may have been closed
+      }
+    }, 1000) // Poll every second
+
+    return () => clearInterval(pollInterval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- We only want to restart polling when job ID or status changes, not on every selectedJob object change
+  }, [showJobDetails, selectedJob?.id, selectedJob?.status, fetchJobs])
+
+  // Reset logs scroll ref when opening a new job
+  useEffect(() => {
+    if (showJobDetails && selectedJob) {
+      prevLogsLengthRef.current = selectedJob.logs?.length || 0
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on job ID change, not every selectedJob update
+  }, [showJobDetails, selectedJob?.id])
+
+  // Track if we have active jobs (state to trigger effect when it changes)
+  const [hasActiveJobs, setHasActiveJobs] = useState(false)
+  useEffect(() => {
+    const active = jobs.some(j => j.status === 'running' || j.status === 'pending')
+    setHasActiveJobs(active)
+  }, [jobs])
+
+  // Auto-refresh jobs list when there are running/pending jobs (only when modal is closed)
+  // Only create interval when we actually have active jobs
+  useEffect(() => {
+    // Don't poll if modal is open or no active jobs
+    if (showJobDetails || !hasActiveJobs) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Fetch just the first page to update visible jobs
+        const filters: { status?: string; namespace?: string; limit: number; offset: number } = {
+          limit: JOBS_PAGE_SIZE,
+          offset: 0,
+          namespace: selectedNamespace,
+        }
+        if (statusFilter !== 'all') {
+          filters.status = statusFilter
+        }
+        const data = await jobsApi.listJobs(filters)
+        const newJobs = data || []
+
+        // Only update if data has changed (compare by serializing relevant fields)
+        setJobs(prev => {
+          // Quick check: if lengths differ, definitely update
+          const firstPagePrev = prev.slice(0, JOBS_PAGE_SIZE)
+          if (firstPagePrev.length !== newJobs.length) {
+            if (prev.length <= JOBS_PAGE_SIZE) {
+              return newJobs
+            }
+            const additionalJobs = prev.slice(JOBS_PAGE_SIZE)
+            return [...newJobs, ...additionalJobs]
+          }
+
+          // Check if any job has changed (status, progress, etc.)
+          let hasChanges = false
+          for (let i = 0; i < newJobs.length; i++) {
+            const oldJob = firstPagePrev[i]
+            const newJob = newJobs[i]
+            if (!oldJob || oldJob.id !== newJob.id ||
+                oldJob.status !== newJob.status ||
+                oldJob.progress_percent !== newJob.progress_percent ||
+                oldJob.progress_message !== newJob.progress_message ||
+                oldJob.error !== newJob.error) {
+              hasChanges = true
+              break
+            }
+          }
+
+          // No changes, return previous state to avoid re-render
+          if (!hasChanges) return prev
+
+          if (prev.length <= JOBS_PAGE_SIZE) {
+            return newJobs
+          }
+          const additionalJobs = prev.slice(JOBS_PAGE_SIZE)
+          return [...newJobs, ...additionalJobs]
+        })
+      } catch {
+        // Silently fail
+      }
+    }, 3000) // Poll every 3 seconds for the list
+
+    return () => clearInterval(pollInterval)
+  }, [showJobDetails, hasActiveJobs, selectedNamespace, statusFilter])
 
   const fetchWorkers = useCallback(async () => {
     try {
@@ -152,12 +304,15 @@ function JobsPage() {
     }
   }, [])
 
-  const fetchAllData = useCallback(async () => {
+  // Function to refresh all data (for manual refresh button)
+  const refreshAllData = useCallback(async () => {
     setLoading(true)
+    setJobsOffset(0)
+    setHasMoreJobs(true)
     try {
       await Promise.all([
         fetchJobFunctions(),
-        fetchJobs(),
+        fetchJobs(true),
         fetchWorkers(),
       ])
     } finally {
@@ -165,9 +320,39 @@ function JobsPage() {
     }
   }, [fetchJobFunctions, fetchJobs, fetchWorkers])
 
+  // Initial data fetch - runs once on mount
   useEffect(() => {
-    fetchAllData()
-  }, [fetchAllData])
+    const loadInitialData = async () => {
+      setLoading(true)
+      try {
+        // Fetch namespaces first
+        const nsData = await jobsApi.listNamespaces()
+        const availableNamespaces = nsData.length > 0 ? nsData : ['default']
+        setNamespaces(availableNamespaces)
+
+        // Use 'default' namespace or first available
+        const ns = availableNamespaces.includes('default') ? 'default' : availableNamespaces[0]
+
+        // Fetch functions, jobs, and workers in parallel
+        const [functionsData, jobsData, workersData] = await Promise.all([
+          jobsApi.listFunctions(ns),
+          jobsApi.listJobs({ namespace: ns, limit: JOBS_PAGE_SIZE, offset: 0 }),
+          jobsApi.listWorkers(),
+        ])
+
+        setJobFunctions(functionsData || [])
+        setJobs(jobsData || [])
+        setJobsOffset(JOBS_PAGE_SIZE)
+        setHasMoreJobs((jobsData || []).length >= JOBS_PAGE_SIZE)
+        setWorkers(workersData || [])
+      } catch {
+        toast.error('Failed to load jobs data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadInitialData()
+  }, []) // Empty deps - only run once on mount
 
   const handleSync = async () => {
     setSyncing(true)
@@ -219,13 +404,18 @@ function JobsPage() {
     }
   }
 
-  const retryJob = async (jobId: string) => {
+  const resubmitJob = async (jobId: string) => {
     try {
-      const newJob = await jobsApi.retryJob(jobId)
-      toast.success(`Job retried (new ID: ${newJob.id})`)
+      const newJob = await jobsApi.resubmitJob(jobId)
+      toast.success(`Job resubmitted (new ID: ${newJob.id.slice(0, 8)}...)`)
       fetchJobs()
+      // Close the job details dialog if open
+      if (showJobDetails) {
+        setShowJobDetails(false)
+        setSelectedJob(null)
+      }
     } catch {
-      toast.error('Failed to retry job')
+      toast.error('Failed to resubmit job')
     }
   }
 
@@ -320,6 +510,25 @@ function JobsPage() {
     }
   }
 
+  // Format payload/result for display, handling both object and stringified JSON
+  const formatJsonValue = (value: unknown): string => {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    // If it's a string, try to parse it as JSON for pretty-printing
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        return JSON.stringify(parsed, null, 2)
+      } catch {
+        // Not valid JSON, return as-is
+        return value
+      }
+    }
+    // Already an object, stringify it
+    return JSON.stringify(value, null, 2)
+  }
+
   // Parse time range to milliseconds
   const getTimeRangeMs = (range: string): number => {
     const value = parseInt(range.slice(0, -1))
@@ -380,7 +589,7 @@ function JobsPage() {
         </div>
         <div className='flex items-center gap-2'>
           <ImpersonationSelector />
-          <Button onClick={fetchAllData} variant='outline' size='sm'>
+          <Button onClick={refreshAllData} variant='outline' size='sm'>
             <RefreshCw className='mr-2 h-4 w-4' />
             Refresh
           </Button>
@@ -663,7 +872,9 @@ function JobsPage() {
             </div>
             <Select value={statusFilter} onValueChange={(v) => {
               setStatusFilter(v)
-              setTimeout(fetchJobs, 100)
+              setJobsOffset(0)
+              setHasMoreJobs(true)
+              setTimeout(() => fetchJobs(true), 100)
             }}>
               <SelectTrigger className='w-[180px]'>
                 <Filter className='mr-2 h-4 w-4' />
@@ -750,38 +961,82 @@ function JobsPage() {
                               <XCircle className='h-4 w-4' />
                             </Button>
                           )}
-                          {job.status === 'failed' && (
+                          {(job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') && (
                             <Button
-                              onClick={() => retryJob(job.id)}
+                              onClick={() => resubmitJob(job.id)}
                               size='sm'
                               variant='outline'
+                              title='Re-submit as new job'
                             >
-                              <RotateCcw className='h-4 w-4' />
+                              <RefreshCw className='h-4 w-4' />
                             </Button>
                           )}
                         </div>
                       </div>
                     </CardHeader>
-                    {job.progress_message && (
-                      <CardContent>
-                        <div className='flex items-center gap-2 text-sm'>
-                          <Activity className='h-3 w-3' />
-                          <span className='text-muted-foreground'>
-                            {job.progress_message}
-                          </span>
-                        </div>
+                    {(job.status === 'running' && job.progress_percent !== undefined) || job.progress_message ? (
+                      <CardContent className='pt-0 pb-4'>
+                        {job.progress_message && (
+                          <div className='flex items-center gap-2 text-sm mb-2'>
+                            <Activity className='h-3 w-3' />
+                            <span className='text-muted-foreground'>
+                              {job.progress_message}
+                            </span>
+                          </div>
+                        )}
                         {job.progress_percent !== undefined && (
-                          <div className='mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary'>
-                            <div
-                              className='h-full bg-primary transition-all'
-                              style={{ width: `${job.progress_percent}%` }}
-                            />
+                          <div className='space-y-1'>
+                            <div className='flex items-center justify-between text-xs text-muted-foreground'>
+                              <span>{job.progress_percent}%</span>
+                              {job.estimated_seconds_left !== undefined && job.estimated_seconds_left > 0 && (
+                                <span>
+                                  ~{job.estimated_seconds_left < 60
+                                    ? `${job.estimated_seconds_left}s`
+                                    : job.estimated_seconds_left < 3600
+                                      ? `${Math.round(job.estimated_seconds_left / 60)}m`
+                                      : `${Math.round(job.estimated_seconds_left / 3600)}h`} remaining
+                                </span>
+                              )}
+                            </div>
+                            <div className='h-2 w-full overflow-hidden rounded-full bg-secondary'>
+                              <div
+                                className={`h-full transition-all duration-300 ${
+                                  job.status === 'running' ? 'bg-blue-500' :
+                                  job.status === 'completed' ? 'bg-green-500' :
+                                  job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                                }`}
+                                style={{ width: `${job.progress_percent}%` }}
+                              />
+                            </div>
                           </div>
                         )}
                       </CardContent>
-                    )}
+                    ) : null}
                   </Card>
                 ))
+              )}
+
+              {/* Load More Button */}
+              {hasMoreJobs && filteredJobs.length > 0 && (
+                <div className='flex justify-center py-4'>
+                  <Button
+                    onClick={loadMoreJobs}
+                    variant='outline'
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className='mr-2 h-4 w-4' />
+                        Load More Jobs
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </ScrollArea>
@@ -955,7 +1210,7 @@ function JobsPage() {
 
       {/* Job Details Dialog */}
       <Dialog open={showJobDetails} onOpenChange={setShowJobDetails}>
-        <DialogContent className='max-h-[90vh] max-w-3xl overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-5xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               {selectedJob && getStatusIcon(selectedJob.status)}
@@ -1000,12 +1255,40 @@ function JobsPage() {
                   </div>
                 )}
                 {selectedJob.progress_percent !== undefined && (
-                  <div>
+                  <div className='space-y-2'>
                     <Label className='text-xs text-muted-foreground'>Progress</Label>
-                    <p className='text-sm'>{selectedJob.progress_percent}%</p>
-                    {selectedJob.progress_message && (
-                      <p className='text-xs text-muted-foreground mt-1'>{selectedJob.progress_message}</p>
-                    )}
+                    <div className='space-y-1'>
+                      <div className='flex items-center justify-between text-sm'>
+                        <span className='font-medium'>{selectedJob.progress_percent}%</span>
+                        {selectedJob.estimated_seconds_left !== undefined && selectedJob.estimated_seconds_left > 0 && (
+                          <span className='text-muted-foreground'>
+                            ~{selectedJob.estimated_seconds_left < 60
+                              ? `${selectedJob.estimated_seconds_left}s`
+                              : selectedJob.estimated_seconds_left < 3600
+                                ? `${Math.round(selectedJob.estimated_seconds_left / 60)}m`
+                                : `${Math.round(selectedJob.estimated_seconds_left / 3600)}h`} remaining
+                          </span>
+                        )}
+                      </div>
+                      <div className='h-3 w-full overflow-hidden rounded-full bg-secondary'>
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            selectedJob.status === 'running' ? 'bg-blue-500' :
+                            selectedJob.status === 'completed' ? 'bg-green-500' :
+                            selectedJob.status === 'failed' ? 'bg-red-500' : 'bg-primary'
+                          }`}
+                          style={{ width: `${selectedJob.progress_percent}%` }}
+                        />
+                      </div>
+                      {selectedJob.progress_message && (
+                        <p className='text-sm text-muted-foreground'>{selectedJob.progress_message}</p>
+                      )}
+                      {selectedJob.last_progress_at && (
+                        <p className='text-xs text-muted-foreground'>
+                          Last updated: {new Date(selectedJob.last_progress_at).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1015,9 +1298,9 @@ function JobsPage() {
               {selectedJob.payload !== undefined && selectedJob.payload !== null && (
                 <div>
                   <Label>Payload</Label>
-                  <div className='bg-muted mt-2 rounded-lg border p-4'>
-                    <pre className='overflow-x-auto text-xs'>
-                      {JSON.stringify(selectedJob.payload, null, 2)}
+                  <div className='bg-muted mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
+                    <pre className='text-xs whitespace-pre-wrap break-all'>
+                      {formatJsonValue(selectedJob.payload)}
                     </pre>
                   </div>
                 </div>
@@ -1026,9 +1309,9 @@ function JobsPage() {
               {selectedJob.result !== undefined && selectedJob.result !== null && (
                 <div>
                   <Label>Result</Label>
-                  <div className='bg-muted mt-2 rounded-lg border p-4'>
-                    <pre className='overflow-x-auto text-xs'>
-                      {JSON.stringify(selectedJob.result, null, 2)}
+                  <div className='bg-muted mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
+                    <pre className='text-xs whitespace-pre-wrap break-all'>
+                      {formatJsonValue(selectedJob.result)}
                     </pre>
                   </div>
                 </div>
@@ -1037,28 +1320,54 @@ function JobsPage() {
               {selectedJob.error && (
                 <div>
                   <Label className='text-destructive'>Error</Label>
-                  <div className='bg-destructive/10 border-destructive/20 mt-2 rounded-lg border p-4'>
-                    <pre className='overflow-x-auto text-xs text-destructive'>
+                  <div className='bg-destructive/10 border-destructive/20 mt-2 max-h-48 overflow-auto rounded-lg border p-4'>
+                    <pre className='text-xs text-destructive whitespace-pre-wrap break-all'>
                       {selectedJob.error}
                     </pre>
                   </div>
                 </div>
               )}
 
-              {selectedJob.logs && (
+              {(selectedJob.logs || selectedJob.status === 'running' || selectedJob.status === 'pending') && (
                 <div>
-                  <Label>Logs</Label>
-                  <div className='bg-muted mt-2 rounded-lg border p-4'>
-                    <pre className='overflow-x-auto text-xs'>
-                      {selectedJob.logs}
-                    </pre>
+                  <div className='flex items-center justify-between mb-2'>
+                    <Label>Logs</Label>
+                    {(selectedJob.status === 'running' || selectedJob.status === 'pending') && (
+                      <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                        <Loader2 className='h-3 w-3 animate-spin' />
+                        <span>Live updating...</span>
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    ref={logsContainerRef}
+                    className='bg-black/90 mt-2 min-h-[100px] max-h-[400px] overflow-y-auto rounded-lg border p-4 font-mono'
+                  >
+                    {selectedJob.logs ? (
+                      <pre className='text-xs text-green-400 whitespace-pre-wrap break-words'>
+                        {selectedJob.logs}
+                      </pre>
+                    ) : (
+                      <span className='text-xs text-muted-foreground italic'>
+                        Waiting for logs...
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className='flex gap-2'>
+            {selectedJob && (selectedJob.status === 'completed' || selectedJob.status === 'cancelled' || selectedJob.status === 'failed') && (
+              <Button
+                variant='secondary'
+                onClick={() => resubmitJob(selectedJob.id)}
+              >
+                <RefreshCw className='mr-2 h-4 w-4' />
+                Re-submit
+              </Button>
+            )}
             <Button variant='outline' onClick={() => setShowJobDetails(false)}>
               Close
             </Button>

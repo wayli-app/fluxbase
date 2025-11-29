@@ -204,8 +204,9 @@ type JobFunctionCount struct {
 
 // Permissions represents execution permissions for a job
 type Permissions struct {
-	AllowNet   bool
-	AllowEnv   bool
-	AllowRead  bool
-	AllowWrite bool
+	AllowNet      bool
+	AllowEnv      bool
+	AllowRead     bool
+	AllowWrite    bool
+	MemoryLimitMB int // V8 heap memory limit in MB (0 = use default)
 }

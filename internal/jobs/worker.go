@@ -30,14 +30,16 @@ type Worker struct {
 }
 
 // NewWorker creates a new worker
-func NewWorker(cfg *config.JobsConfig, storage *Storage) *Worker {
+func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL string) *Worker {
 	workerID := uuid.New()
 	hostname, _ := os.Hostname()
 
-	// Create runtime
+	// Create runtime with SDK credentials
 	runtime := NewJobRuntime(
 		cfg.DefaultMaxDuration,
 		128, // Default memory limit
+		jwtSecret,
+		publicURL,
 	)
 
 	worker := &Worker{
@@ -157,8 +159,21 @@ func (w *Worker) pollLoop(ctx context.Context) {
 				}
 
 				if job != nil {
-					// Execute job in goroutine
-					go w.executeJob(ctx, job)
+					// Execute job in goroutine with panic recovery
+					go func(j *Job) {
+						defer func() {
+							if rec := recover(); rec != nil {
+								log.Error().
+									Interface("panic", rec).
+									Str("job_id", j.ID.String()).
+									Str("job_name", j.JobName).
+									Msg("Panic in job execution - recovered, marking job as failed")
+								// Mark job as failed (defers in executeJob will have already cleaned up job count)
+								w.Storage.FailJob(context.Background(), j.ID, fmt.Sprintf("Internal error: job execution panic: %v", rec))
+							}
+						}()
+						w.executeJob(ctx, j)
+					}(job)
 				}
 			}
 		case <-w.shutdownChan:
@@ -322,10 +337,11 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 
 	// Build permissions
 	permissions := Permissions{
-		AllowNet:   jobFunction.AllowNet,
-		AllowEnv:   jobFunction.AllowEnv,
-		AllowRead:  jobFunction.AllowRead,
-		AllowWrite: jobFunction.AllowWrite,
+		AllowNet:      jobFunction.AllowNet,
+		AllowEnv:      jobFunction.AllowEnv,
+		AllowRead:     jobFunction.AllowRead,
+		AllowWrite:    jobFunction.AllowWrite,
+		MemoryLimitMB: jobFunction.MemoryLimitMB,
 	}
 
 	// Execute job in runtime

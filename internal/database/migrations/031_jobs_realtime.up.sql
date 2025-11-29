@@ -29,13 +29,19 @@ $$ LANGUAGE plpgsql;
 -- ============================================
 -- Attach triggers to all jobs tables
 -- ============================================
+-- Note: job_queue is the only table that needs realtime notifications
+-- (for tracking actual job execution and progress).
+-- job_functions contains large code fields (20MB+) that would exceed
+-- pg_notify's 8KB limit, so we skip the trigger for that table.
+-- ============================================
 CREATE TRIGGER job_queue_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.job_queue
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
-CREATE TRIGGER job_functions_realtime_notify
-AFTER INSERT OR UPDATE OR DELETE ON jobs.job_functions
-FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
+-- Skipping job_functions - code fields are too large for pg_notify (8KB limit)
+-- CREATE TRIGGER job_functions_realtime_notify
+-- AFTER INSERT OR UPDATE OR DELETE ON jobs.job_functions
+-- FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
 CREATE TRIGGER workers_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.workers
@@ -48,10 +54,11 @@ FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 -- ============================================
 -- Register tables for realtime in schema registry
 -- ============================================
+-- Note: job_functions is excluded because code fields exceed pg_notify's 8KB limit
 INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
 VALUES
     ('jobs', 'job_queue', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('jobs', 'job_functions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
+    -- ('jobs', 'job_functions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']), -- Excluded: large code fields
     ('jobs', 'workers', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
     ('jobs', 'job_function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE'])
 ON CONFLICT (schema_name, table_name) DO UPDATE

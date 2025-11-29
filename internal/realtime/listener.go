@@ -112,16 +112,20 @@ func (l *Listener) listen() {
 
 // processNotification handles a PostgreSQL notification
 func (l *Listener) processNotification(notification *pgconn.Notification) {
-	log.Debug().
-		Str("channel", notification.Channel).
-		Str("payload", notification.Payload).
-		Msg("Received notification")
-
 	// Parse the notification payload
 	var event ChangeEvent
 	if err := json.Unmarshal([]byte(notification.Payload), &event); err != nil {
 		log.Error().Err(err).Str("payload", notification.Payload).Msg("Failed to parse notification")
 		return
+	}
+
+	// Skip debug logging for noisy events (e.g., worker heartbeats)
+	isWorkerHeartbeat := event.Schema == "jobs" && event.Table == "workers" && event.Type == "UPDATE"
+	if !isWorkerHeartbeat {
+		log.Debug().
+			Str("channel", notification.Channel).
+			Str("payload", notification.Payload).
+			Msg("Received notification")
 	}
 
 	// Do RLS-aware filtering for table subscriptions
@@ -144,16 +148,20 @@ func (l *Listener) processNotification(notification *pgconn.Notification) {
 			}
 		}
 
-		log.Debug().
-			Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
-			Str("type", event.Type).
-			Int("subscribers", len(filteredEvents)).
-			Msg("Filtered and sent RLS-aware change event")
+		if !isWorkerHeartbeat {
+			log.Debug().
+				Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
+				Str("type", event.Type).
+				Int("subscribers", len(filteredEvents)).
+				Msg("Filtered and sent RLS-aware change event")
+		}
 	} else {
-		log.Debug().
-			Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
-			Str("type", event.Type).
-			Msg("No subscription manager - change event not processed")
+		if !isWorkerHeartbeat {
+			log.Debug().
+				Str("table", fmt.Sprintf("%s.%s", event.Schema, event.Table)).
+				Str("type", event.Type).
+				Msg("No subscription manager - change event not processed")
+		}
 	}
 }
 

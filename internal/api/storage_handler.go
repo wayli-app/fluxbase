@@ -520,6 +520,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 
 	// Parse query parameters
 	prefix := c.Query("prefix", "")
+	delimiter := c.Query("delimiter", "")
 	limit := c.QueryInt("limit", 1000)
 	offset := c.QueryInt("offset", 0)
 
@@ -543,45 +544,6 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 		})
 	}
 
-	// Build query
-	query := `
-		SELECT id, bucket_id, path, mime_type, size, metadata, owner_id, created_at, updated_at
-		FROM storage.objects
-		WHERE bucket_id = $1
-	`
-	args := []interface{}{bucket}
-	argCount := 1
-
-	if prefix != "" {
-		argCount++
-		query += fmt.Sprintf(" AND path LIKE $%d", argCount)
-		args = append(args, prefix+"%")
-	}
-
-	query += " ORDER BY path ASC"
-
-	if limit > 0 {
-		argCount++
-		query += fmt.Sprintf(" LIMIT $%d", argCount)
-		args = append(args, limit)
-	}
-
-	if offset > 0 {
-		argCount++
-		query += fmt.Sprintf(" OFFSET $%d", argCount)
-		args = append(args, offset)
-	}
-
-	// Query objects from database (RLS will filter based on permissions)
-	rows, err := tx.Query(ctx, query, args...)
-	if err != nil {
-		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query files from database")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to list files",
-		})
-	}
-	defer rows.Close()
-
 	// Parse results
 	type StorageObject struct {
 		ID        string                 `json:"id"`
@@ -596,20 +558,133 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 	}
 
 	var objects []StorageObject
-	for rows.Next() {
-		var obj StorageObject
-		if err := rows.Scan(&obj.ID, &obj.Bucket, &obj.Path, &obj.MimeType, &obj.Size, &obj.Metadata, &obj.OwnerID, &obj.CreatedAt, &obj.UpdatedAt); err != nil {
-			log.Error().Err(err).Msg("Failed to scan object row")
-			continue
-		}
-		objects = append(objects, obj)
-	}
+	var prefixes []string
 
-	if err := rows.Err(); err != nil {
-		log.Error().Err(err).Msg("Error iterating object rows")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to list files",
-		})
+	if delimiter != "" {
+		// Efficient SQL-based delimiter logic for folder simulation
+		// Query 1: Get objects at current level (paths without delimiter after prefix)
+		objectsQuery := `
+			SELECT id, bucket_id, path, mime_type, size, metadata, owner_id, created_at, updated_at
+			FROM storage.objects
+			WHERE bucket_id = $1
+			  AND path LIKE $2 || '%'
+			  AND position($3 in substring(path from length($2)+1)) = 0
+			ORDER BY path ASC
+			LIMIT $4 OFFSET $5
+		`
+		rows, err := tx.Query(ctx, objectsQuery, bucket, prefix, delimiter, limit, offset)
+		if err != nil {
+			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query files from database")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
+
+		for rows.Next() {
+			var obj StorageObject
+			if err := rows.Scan(&obj.ID, &obj.Bucket, &obj.Path, &obj.MimeType, &obj.Size, &obj.Metadata, &obj.OwnerID, &obj.CreatedAt, &obj.UpdatedAt); err != nil {
+				log.Error().Err(err).Msg("Failed to scan object row")
+				continue
+			}
+			objects = append(objects, obj)
+		}
+		rows.Close()
+
+		if err := rows.Err(); err != nil {
+			log.Error().Err(err).Msg("Error iterating object rows")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
+
+		// Query 2: Get distinct folder prefixes (common prefixes)
+		prefixesQuery := `
+			SELECT DISTINCT
+			  $2 || split_part(substring(path from length($2)+1), $3, 1) || $3 as prefix
+			FROM storage.objects
+			WHERE bucket_id = $1
+			  AND path LIKE $2 || '%'
+			  AND position($3 in substring(path from length($2)+1)) > 0
+			ORDER BY prefix ASC
+		`
+		prefixRows, err := tx.Query(ctx, prefixesQuery, bucket, prefix, delimiter)
+		if err != nil {
+			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query prefixes from database")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
+
+		for prefixRows.Next() {
+			var p string
+			if err := prefixRows.Scan(&p); err != nil {
+				log.Error().Err(err).Msg("Failed to scan prefix row")
+				continue
+			}
+			prefixes = append(prefixes, p)
+		}
+		prefixRows.Close()
+
+		if err := prefixRows.Err(); err != nil {
+			log.Error().Err(err).Msg("Error iterating prefix rows")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
+	} else {
+		// Original query without delimiter (flat list)
+		query := `
+			SELECT id, bucket_id, path, mime_type, size, metadata, owner_id, created_at, updated_at
+			FROM storage.objects
+			WHERE bucket_id = $1
+		`
+		args := []interface{}{bucket}
+		argCount := 1
+
+		if prefix != "" {
+			argCount++
+			query += fmt.Sprintf(" AND path LIKE $%d", argCount)
+			args = append(args, prefix+"%")
+		}
+
+		query += " ORDER BY path ASC"
+
+		if limit > 0 {
+			argCount++
+			query += fmt.Sprintf(" LIMIT $%d", argCount)
+			args = append(args, limit)
+		}
+
+		if offset > 0 {
+			argCount++
+			query += fmt.Sprintf(" OFFSET $%d", argCount)
+			args = append(args, offset)
+		}
+
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query files from database")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var obj StorageObject
+			if err := rows.Scan(&obj.ID, &obj.Bucket, &obj.Path, &obj.MimeType, &obj.Size, &obj.Metadata, &obj.OwnerID, &obj.CreatedAt, &obj.UpdatedAt); err != nil {
+				log.Error().Err(err).Msg("Failed to scan object row")
+				continue
+			}
+			objects = append(objects, obj)
+		}
+
+		if err := rows.Err(); err != nil {
+			log.Error().Err(err).Msg("Error iterating object rows")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to list files",
+			})
+		}
 	}
 
 	// Commit transaction
@@ -620,11 +695,19 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
+	// Build response
+	response := fiber.Map{
 		"bucket":  bucket,
 		"objects": objects,
 		"count":   len(objects),
-	})
+	}
+
+	if delimiter != "" {
+		response["prefix"] = prefix
+		response["prefixes"] = prefixes
+	}
+
+	return c.JSON(response)
 }
 
 // CreateBucket handles bucket creation

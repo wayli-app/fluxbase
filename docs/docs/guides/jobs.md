@@ -406,7 +406,7 @@ sequenceDiagram
     Client->>Server: Subscribe to channel<br/>'table:jobs.job_queue'
     Server-->>Client: Subscription confirmed
 
-    Job->>Job: Fluxbase.reportProgress(50, "Processing...")
+    Job->>Job: job.reportProgress(50, "Processing...")
     Job->>Worker: Return progress update
     Worker->>DB: UPDATE jobs.job_queue<br/>SET progress = {...}
 
@@ -447,7 +447,14 @@ stateDiagram-v2
 
 ## Creating Job Functions
 
-Job functions are TypeScript/JavaScript files with a `handler` export and optional annotations.
+Job functions are TypeScript/JavaScript files with a `handler` export and optional annotations. The handler receives four parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `req` | `Request` | HTTP Request object (for compatibility) |
+| `fluxbase` | `FluxbaseClient \| null` | SDK client with user's RLS context - can only access data the user can access |
+| `fluxbaseService` | `FluxbaseClient \| null` | SDK client with service role - bypasses RLS for system-wide access |
+| `job` | `JobUtils` | Job utilities for progress reporting, context access, and cancellation checking |
 
 ### Basic Job Function
 
@@ -457,8 +464,13 @@ Job functions are TypeScript/JavaScript files with a `handler` export and option
  * @fluxbase:timeout 300
  * @fluxbase:description Processes user-specific data items
  */
-export async function handler(req: any) {
-  const context = Fluxbase.getJobContext()
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
   const { items } = context.payload
 
   // User context is automatically available
@@ -470,11 +482,11 @@ export async function handler(req: any) {
 
     // Report progress
     const percent = Math.floor(((i + 1) / items.length) * 100)
-    await Fluxbase.reportProgress(percent, `Processed ${i + 1}/${items.length}`)
+    job.reportProgress(percent, `Processed ${i + 1}/${items.length}`)
   }
 
   // Query user's own data (RLS applies)
-  const { data } = await Fluxbase.database()
+  const { data } = await fluxbase
     .from('app.my_table')
     .select('*')
     .eq('user_id', context.user.id)
@@ -501,24 +513,37 @@ Control job behavior with JSDoc-style annotations:
  * @fluxbase:require-role admin
  * @fluxbase:timeout 600
  */
-export async function handler(req: any) {
-  const context = Fluxbase.getJobContext()
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
 
   // Only admins can submit this job
   console.log('Admin:', context.user?.email)
 
-  await Fluxbase.reportProgress(25, 'Fetching data...')
-  const data = await fetchSystemData()
+  job.reportProgress(25, 'Fetching data...')
 
-  await Fluxbase.reportProgress(50, 'Generating report...')
+  // Use service client to access all data (bypasses RLS)
+  const { data } = await fluxbaseService
+    .from('app.system_data')
+    .select('*')
+
+  job.reportProgress(50, 'Generating report...')
   const report = await generateReport(data)
 
-  await Fluxbase.reportProgress(75, 'Saving results...')
-  await saveReport(report)
+  job.reportProgress(75, 'Saving results...')
 
-  await Fluxbase.reportProgress(100, 'Complete')
+  // Save report using service role
+  await fluxbaseService
+    .from('app.reports')
+    .insert({ data: report, generated_at: new Date().toISOString() })
 
-  return { report, recordCount: data.length }
+  job.reportProgress(100, 'Complete')
+
+  return { report, recordCount: data?.length }
 }
 ```
 
@@ -531,48 +556,136 @@ export async function handler(req: any) {
  * @fluxbase:require-role admin
  * @fluxbase:timeout 1800
  */
-export async function handler(req: any) {
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
   const { retention_days = 30 } = context.payload
 
-  await Fluxbase.reportProgress(10, 'Starting cleanup...')
+  job.reportProgress(10, 'Starting cleanup...')
 
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - retention_days)
 
-  const { data: deleted } = await Fluxbase.database()
+  // Use service role to access all records across users
+  const { data: deleted } = await fluxbaseService
     .from('app.old_records')
     .delete()
     .lt('created_at', cutoffDate.toISOString())
+    .select()
 
-  await Fluxbase.reportProgress(100, 'Cleanup complete')
+  job.reportProgress(100, 'Cleanup complete')
 
-  return { deleted: deleted.length }
+  return { deleted: deleted?.length ?? 0 }
 }
 ```
 
 ### Available APIs in Job Context
 
-Inside job functions, use the global `Fluxbase` API:
+Job handlers receive the Fluxbase SDK clients and job utilities as parameters:
+
+#### Job Utilities (`job` parameter)
 
 ```typescript
 // Get job context
-const context = Fluxbase.getJobContext()
+const context = job.getJobContext()
 // Returns: { job_id, job_name, namespace, retry_count, payload, user }
 
-// Report progress
-await Fluxbase.reportProgress(percent, message, data?)
+// Report progress (0-100)
+job.reportProgress(percent, message, data?)
 
-// Access database with RLS
-const db = Fluxbase.database()
-await db.from('app.table').select('*')
+// Check if job was cancelled (call periodically in long-running jobs)
+if (job.checkCancellation()) {
+  return { cancelled: true }
+}
 
-// Read environment variables (FLUXBASE_* only)
-const apiUrl = Deno.env.get('FLUXBASE_API_URL')
+// Get payload directly (convenience method)
+const payload = job.getJobPayload()
+```
+
+#### Fluxbase SDK Client (`fluxbase` parameter)
+
+The `fluxbase` client has the user's RLS context - it can only access data the user has permission for:
+
+```typescript
+// Query database with RLS applied
+const { data } = await fluxbase
+  .from('app.my_table')
+  .select('*')
+
+// Access storage (user's permissions apply)
+const { data: files } = await fluxbase.storage
+  .from('user-uploads')
+  .list()
+
+// Submit follow-up jobs
+await fluxbase.jobs.submit('process-next', { batch: 2 })
+```
+
+#### Service Role Client (`fluxbaseService` parameter)
+
+The `fluxbaseService` client bypasses RLS for system-wide access:
+
+```typescript
+// Access all data across users
+const { data: allRecords } = await fluxbaseService
+  .from('app.all_data')
+  .select('count')
+
+// System-level storage operations
+await fluxbaseService.storage
+  .from('system-bucket')
+  .upload('report.json', blob)
+```
+
+#### When to Use Each Client
+
+| Use Case | Client | Reason |
+|----------|--------|--------|
+| Query user's own data | `fluxbase` | Respects RLS, user can only see their data |
+| Read user-uploaded files | `fluxbase` | User has permission to access their uploads |
+| Generate user-specific exports | `fluxbase` | Ensures data isolation |
+| System cleanup jobs | `fluxbaseService` | Needs access to all records |
+| Admin reports across all users | `fluxbaseService` | Aggregates data system-wide |
+| Write to system tables | `fluxbaseService` | May need elevated permissions |
+
+#### Environment Variables
+
+The following environment variables are automatically available in jobs:
+
+| Variable | Description |
+|----------|-------------|
+| `FLUXBASE_URL` | Server URL for SDK client (set automatically) |
+| `FLUXBASE_JOB_ID` | Current job UUID |
+| `FLUXBASE_JOB_NAME` | Job function name |
+| `FLUXBASE_JOB_NAMESPACE` | Job namespace |
+| `FLUXBASE_JOB_CANCELLED` | `"true"` if job was cancelled |
+
+Custom `FLUXBASE_*` variables from your server environment are also available (except secrets).
+
+```typescript
+// Read job-specific environment variables
+const jobId = Deno.env.get('FLUXBASE_JOB_ID')
+
+// Read custom environment variables (must be prefixed with FLUXBASE_)
+const apiKey = Deno.env.get('FLUXBASE_EXTERNAL_API_KEY')
 
 // Log output (captured in job.logs)
 console.log('Info message')
 console.error('Error message')
 ```
+
+:::note SDK Configuration
+The SDK clients are automatically configured using `FLUXBASE_URL`. If your `fluxbase` or `fluxbaseService` parameters are `null`, check that:
+
+1. `FLUXBASE_BASE_URL` is set in your server configuration
+2. `FLUXBASE_AUTH_JWT_SECRET` is configured
+3. Check server logs for "Initializing jobs manager" message
+
+:::
 
 ## Security & Permissions
 
@@ -820,12 +933,17 @@ console.log(`Deleted: ${data.summary.deleted}`)
 ### Long-Running Import
 
 ```typescript
-export async function handler(req: any) {
-  const context = Fluxbase.getJobContext()
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
   const { file_url } = context.payload
 
   // Download file
-  await Fluxbase.reportProgress(10, "Downloading file...")
+  job.reportProgress(10, "Downloading file...")
   const response = await fetch(file_url)
   const data = await response.json()
 
@@ -834,19 +952,24 @@ export async function handler(req: any) {
   let processed = 0
 
   for (let i = 0; i < data.length; i += batchSize) {
+    // Check for cancellation
+    if (job.checkCancellation()) {
+      return { cancelled: true, processed }
+    }
+
     const batch = data.slice(i, i + batchSize)
 
-    // Insert batch with user context
-    await Fluxbase.database()
+    // Insert batch - RLS ensures user can only insert to their tables
+    await fluxbase
       .from('app.imports')
       .insert(batch.map(item => ({
         ...item,
-        user_id: context.user.id
+        user_id: context.user?.id
       })))
 
     processed += batch.length
     const progress = 10 + Math.floor((processed / data.length) * 90)
-    await Fluxbase.reportProgress(
+    job.reportProgress(
       progress,
       `Imported ${processed}/${data.length} records`
     )
@@ -859,17 +982,22 @@ export async function handler(req: any) {
 ### Parallel Processing
 
 ```typescript
-export async function handler(req: any) {
-  const { items } = Fluxbase.getJobContext().payload
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const { items } = job.getJobPayload()
 
   // Process items in parallel
   const results = await Promise.all(
-    items.map(async (item, index) => {
+    items.map(async (item: any, index: number) => {
       const result = await processItem(item)
 
       // Update progress
       const progress = Math.floor(((index + 1) / items.length) * 100)
-      await Fluxbase.reportProgress(
+      job.reportProgress(
         progress,
         `Processed ${index + 1}/${items.length}`
       )
@@ -885,11 +1013,16 @@ export async function handler(req: any) {
 ### External API Integration
 
 ```typescript
-export async function handler(req: any) {
-  const context = Fluxbase.getJobContext()
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
   const apiKey = Deno.env.get('FLUXBASE_EXTERNAL_API_KEY')
 
-  await Fluxbase.reportProgress(25, "Calling external API...")
+  job.reportProgress(25, "Calling external API...")
 
   const response = await fetch('https://api.example.com/data', {
     headers: {
@@ -900,20 +1033,91 @@ export async function handler(req: any) {
 
   const data = await response.json()
 
-  await Fluxbase.reportProgress(50, "Storing results...")
+  job.reportProgress(50, "Storing results...")
 
-  // Store with user context for RLS
-  await Fluxbase.database()
+  // Store with user's RLS context
+  await fluxbase
     .from('app.api_results')
     .insert({
       data,
-      user_id: context.user.id,
+      user_id: context.user?.id,
       fetched_at: new Date().toISOString()
     })
 
-  await Fluxbase.reportProgress(100, "Complete")
+  job.reportProgress(100, "Complete")
 
   return { success: true, records: data.length }
+}
+```
+
+### Storage Operations
+
+```typescript
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
+  const { source_file } = context.payload
+
+  job.reportProgress(10, "Downloading source file...")
+
+  // Download file from user's storage (RLS applies)
+  const { data: fileData, error } = await fluxbase.storage
+    .from('temp-files')
+    .download(source_file)
+
+  if (error) {
+    throw new Error(`Failed to download: ${error.message}`)
+  }
+
+  job.reportProgress(50, "Processing file...")
+  const processed = await processFile(fileData)
+
+  job.reportProgress(80, "Uploading result...")
+
+  // Upload result to user's storage
+  const resultBlob = new Blob([JSON.stringify(processed)], { type: 'application/json' })
+  await fluxbase.storage
+    .from('exports')
+    .upload(`results/${context.job_id}.json`, resultBlob)
+
+  job.reportProgress(100, "Complete")
+
+  return { success: true, output_file: `results/${context.job_id}.json` }
+}
+```
+
+### Submitting Follow-up Jobs
+
+```typescript
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const context = job.getJobContext()
+  const { total_batches, current_batch = 0 } = context.payload
+
+  job.reportProgress(0, `Processing batch ${current_batch + 1}/${total_batches}`)
+
+  // Process current batch
+  await processBatch(current_batch, fluxbase)
+
+  job.reportProgress(100, `Batch ${current_batch + 1} complete`)
+
+  // Submit next batch job if not done
+  if (current_batch + 1 < total_batches) {
+    await fluxbase.jobs.submit('process-batch', {
+      total_batches,
+      current_batch: current_batch + 1
+    })
+  }
+
+  return { batch: current_batch, remaining: total_batches - current_batch - 1 }
 }
 ```
 

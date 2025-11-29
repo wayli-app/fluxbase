@@ -10,7 +10,7 @@ WHERE schema_name = 'jobs';
 
 -- Drop triggers
 DROP TRIGGER IF EXISTS job_queue_realtime_notify ON jobs.job_queue;
-DROP TRIGGER IF EXISTS job_functions_realtime_notify ON jobs.job_functions;
+-- DROP TRIGGER IF EXISTS job_functions_realtime_notify ON jobs.job_functions; -- Never created
 DROP TRIGGER IF EXISTS workers_realtime_notify ON jobs.workers;
 DROP TRIGGER IF EXISTS job_function_files_realtime_notify ON jobs.job_function_files;
 

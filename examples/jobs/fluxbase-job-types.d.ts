@@ -4,15 +4,43 @@
  */
 
 /**
- * Global Fluxbase API available in job runtime
+ * Fluxbase SDK Client (imported from @fluxbase/sdk)
+ * This is the same client used in frontend/backend applications
  */
-declare const Fluxbase: {
+interface FluxbaseClient {
   /**
-   * Get the current job execution context
-   * Includes job metadata, user information, and payload
+   * Query builder for database operations
+   * @param table - Table name (e.g., "app.my_table")
    */
-  getJobContext(): JobContext;
+  from(table: string): FluxbaseQueryBuilder;
 
+  /**
+   * Call a PostgreSQL function
+   * @param fn - Function name
+   * @param params - Function parameters
+   */
+  rpc(fn: string, params?: Record<string, any>): Promise<DatabaseResponse<any>>;
+
+  /**
+   * Access the storage API
+   */
+  storage: FluxbaseStorage;
+
+  /**
+   * Access the jobs API
+   */
+  jobs: FluxbaseJobsClient;
+
+  /**
+   * Access the auth API (limited in job context)
+   */
+  auth: FluxbaseAuth;
+}
+
+/**
+ * Job utilities object passed to handler
+ */
+interface JobUtils {
   /**
    * Report job progress (0-100)
    * Updates are stored in the database and can be monitored by clients
@@ -21,24 +49,25 @@ declare const Fluxbase: {
    * @param message - Optional progress message
    * @param data - Optional progress data (any JSON-serializable object)
    */
-  reportProgress(
-    percent: number,
-    message?: string,
-    data?: any
-  ): Promise<void>;
+  reportProgress(percent: number, message?: string, data?: any): void;
 
   /**
-   * Access the Fluxbase database with Supabase-compatible API
-   * All queries automatically use the job's user context for RLS
+   * Check if the job was cancelled by user
+   * Call this periodically in long-running jobs to allow graceful cancellation
    */
-  database(): FluxbaseDatabase;
+  checkCancellation(): boolean;
 
   /**
-   * Access the Fluxbase storage API
-   * Supabase-compatible storage client
+   * Get the current job execution context
+   * Includes job metadata, user information, and payload
    */
-  storage(): FluxbaseStorage;
-};
+  getJobContext(): JobContext;
+
+  /**
+   * Get the job payload (convenience method)
+   */
+  getJobPayload(): any;
+}
 
 /**
  * Job execution context
@@ -74,23 +103,12 @@ interface UserContext {
   /** User email address */
   email: string;
 
-  /** User role (e.g., "user", "admin", "dashboard_admin") */
+  /** User role (e.g., "authenticated", "admin") */
   role: string;
 }
 
 /**
- * Fluxbase database client (Supabase-compatible)
- */
-interface FluxbaseDatabase {
-  /**
-   * Query builder for database operations
-   * @param table - Table name (e.g., "app.my_table")
-   */
-  from(table: string): FluxbaseQueryBuilder;
-}
-
-/**
- * Database query builder
+ * Fluxbase database query builder (Supabase-compatible)
  */
 interface FluxbaseQueryBuilder {
   /** Select columns */
@@ -100,7 +118,10 @@ interface FluxbaseQueryBuilder {
   ): this;
 
   /** Insert rows */
-  insert(data: any | any[]): this;
+  insert(data: any | any[], options?: { onConflict?: string }): this;
+
+  /** Upsert rows */
+  upsert(data: any | any[], options?: { onConflict?: string }): this;
 
   /** Update rows */
   update(data: any): this;
@@ -136,10 +157,16 @@ interface FluxbaseQueryBuilder {
   in(column: string, values: any[]): this;
 
   /** Filter by null */
-  is(column: string, value: null): this;
+  is(column: string, value: null | boolean): this;
+
+  /** Filter by not null */
+  not(column: string, operator: string, value: any): this;
+
+  /** Filter with OR */
+  or(filters: string): this;
 
   /** Order results */
-  order(column: string, options?: { ascending?: boolean }): this;
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): this;
 
   /** Limit results */
   limit(count: number): this;
@@ -206,29 +233,19 @@ interface FluxbaseStorage {
 
   /**
    * Create a new bucket (admin only)
-   * @param bucket - Bucket name
-   * @param options - Bucket options
    */
   createBucket(
     bucket: string,
     options?: { public?: boolean; fileSizeLimit?: number }
   ): Promise<StorageResponse<{ name: string }>>;
 
-  /**
-   * List all buckets
-   */
+  /** List all buckets */
   listBuckets(): Promise<StorageResponse<StorageBucket[]>>;
 
-  /**
-   * Get bucket metadata
-   * @param bucket - Bucket name
-   */
+  /** Get bucket metadata */
   getBucket(bucket: string): Promise<StorageResponse<StorageBucket>>;
 
-  /**
-   * Delete a bucket
-   * @param bucket - Bucket name
-   */
+  /** Delete a bucket */
   deleteBucket(bucket: string): Promise<StorageResponse<{ message: string }>>;
 }
 
@@ -236,76 +253,35 @@ interface FluxbaseStorage {
  * Storage bucket operations
  */
 interface FluxbaseStorageBucket {
-  /**
-   * Upload a file
-   * @param path - File path in bucket
-   * @param data - File data (Uint8Array, ArrayBuffer, File, or Blob)
-   * @param options - Upload options
-   */
+  /** Upload a file */
   upload(
     path: string,
     data: Uint8Array | ArrayBuffer | File | Blob,
-    options?: {
-      contentType?: string;
-      cacheControl?: string;
-      upsert?: boolean;
-    }
+    options?: { contentType?: string; cacheControl?: string; upsert?: boolean }
   ): Promise<StorageResponse<{ path: string }>>;
 
-  /**
-   * Download a file
-   * @param path - File path in bucket
-   */
+  /** Download a file */
   download(path: string): Promise<StorageResponse<Blob>>;
 
-  /**
-   * List files in bucket
-   * @param path - Directory path (optional)
-   * @param options - List options
-   */
+  /** List files in bucket */
   list(
     path?: string,
-    options?: {
-      limit?: number;
-      offset?: number;
-      sortBy?: { column: string; order: "asc" | "desc" };
-    }
+    options?: { limit?: number; offset?: number; sortBy?: { column: string; order: "asc" | "desc" } }
   ): Promise<StorageResponse<StorageFile[]>>;
 
-  /**
-   * Delete files
-   * @param paths - Array of file paths to delete
-   */
+  /** Delete files */
   remove(paths: string[]): Promise<StorageResponse<{ message: string }>>;
 
-  /**
-   * Move a file
-   * @param fromPath - Source path
-   * @param toPath - Destination path
-   */
+  /** Move a file */
   move(fromPath: string, toPath: string): Promise<StorageResponse<{ message: string }>>;
 
-  /**
-   * Copy a file
-   * @param fromPath - Source path
-   * @param toPath - Destination path
-   */
+  /** Copy a file */
   copy(fromPath: string, toPath: string): Promise<StorageResponse<{ message: string }>>;
 
-  /**
-   * Create signed URL for file access
-   * @param path - File path
-   * @param expiresIn - Expiration time in seconds
-   */
-  createSignedUrl(
-    path: string,
-    expiresIn: number
-  ): Promise<StorageResponse<{ signedUrl: string }>>;
+  /** Create signed URL for file access */
+  createSignedUrl(path: string, expiresIn: number): Promise<StorageResponse<{ signedUrl: string }>>;
 
-  /**
-   * Get public URL for a file (bucket must be public)
-   * @param path - File path
-   */
+  /** Get public URL for a file (bucket must be public) */
   getPublicUrl(path: string): { data: { publicUrl: string } };
 }
 
@@ -313,10 +289,7 @@ interface FluxbaseStorageBucket {
  * Storage response wrapper
  */
 interface StorageResponse<T> {
-  /** Response data */
   data: T | null;
-
-  /** Error if operation failed */
   error: StorageError | null;
 }
 
@@ -324,10 +297,7 @@ interface StorageResponse<T> {
  * Storage error
  */
 interface StorageError {
-  /** Error message */
   message: string;
-
-  /** Error code */
   code?: string;
 }
 
@@ -335,22 +305,11 @@ interface StorageError {
  * Storage bucket metadata
  */
 interface StorageBucket {
-  /** Bucket ID */
   id: string;
-
-  /** Bucket name */
   name: string;
-
-  /** Is bucket public */
   public: boolean;
-
-  /** File size limit in bytes */
   file_size_limit?: number;
-
-  /** Created timestamp */
   created_at: string;
-
-  /** Updated timestamp */
   updated_at: string;
 }
 
@@ -358,55 +317,114 @@ interface StorageBucket {
  * Storage file metadata
  */
 interface StorageFile {
-  /** File name */
   name: string;
-
-  /** File ID */
   id: string;
-
-  /** File size in bytes */
   size: number;
-
-  /** MIME type */
   mimetype: string;
-
-  /** Last modified timestamp */
   last_modified: string;
-
-  /** Created timestamp */
   created_at: string;
-
-  /** Updated timestamp */
   updated_at: string;
 }
 
 /**
- * Job handler function signature
- * Export a function named "handler" as the job entry point
+ * Jobs client for submitting follow-up jobs
  */
-export type JobHandler = (req: any) => Promise<any> | any;
+interface FluxbaseJobsClient {
+  /** Submit a new job */
+  submit(
+    jobName: string,
+    payload?: Record<string, any>,
+    options?: { namespace?: string; priority?: number; scheduledAt?: Date }
+  ): Promise<{ data: { id: string } | null; error: any }>;
+
+  /** Get job status */
+  get(jobId: string): Promise<{ data: JobRecord | null; error: any }>;
+
+  /** List jobs */
+  list(options?: {
+    status?: "pending" | "running" | "completed" | "failed" | "cancelled";
+    jobName?: string;
+    limit?: number;
+  }): Promise<{ data: JobRecord[] | null; error: any }>;
+
+  /** Cancel a job */
+  cancel(jobId: string): Promise<{ data: any; error: any }>;
+}
+
+/**
+ * Job record from database
+ */
+interface JobRecord {
+  id: string;
+  job_name: string;
+  namespace: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  payload: any;
+  result: any;
+  progress: { percent: number; message?: string; data?: any } | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/**
+ * Auth client (limited in job context)
+ */
+interface FluxbaseAuth {
+  /** Get current session (from job token) */
+  getSession(): Promise<{ data: { session: any } | null; error: any }>;
+
+  /** Get current user */
+  getUser(): Promise<{ data: { user: any } | null; error: any }>;
+}
+
+/**
+ * Job handler function signature
+ *
+ * @param req - HTTP Request object (for compatibility)
+ * @param fluxbase - SDK client with user's RLS context (can only access what user can access)
+ * @param fluxbaseService - SDK client with service role (bypasses RLS, full access)
+ * @param job - Job utilities (reportProgress, getJobContext, checkCancellation)
+ */
+export type JobHandler = (
+  req: Request,
+  fluxbase: FluxbaseClient | null,
+  fluxbaseService: FluxbaseClient | null,
+  job: JobUtils
+) => Promise<any> | any;
 
 /**
  * Example job function:
  *
  * ```typescript
- * export async function handler(req: any) {
- *   const context = Fluxbase.getJobContext()
+ * export async function handler(
+ *   req: Request,
+ *   fluxbase: FluxbaseClient,
+ *   fluxbaseService: FluxbaseClient,
+ *   job: JobUtils
+ * ) {
+ *   const context = job.getJobContext();
+ *   console.log('User:', context.user?.email);
  *
- *   console.log('User:', context.user?.email)
- *   console.log('Payload:', context.payload)
+ *   // Report progress
+ *   job.reportProgress(10, 'Starting...');
  *
- *   await Fluxbase.reportProgress(50, 'Processing...')
+ *   // Access user's data (RLS enforced)
+ *   const { data: myData } = await fluxbase.from('tracker_data').select('*');
  *
- *   const { data, error } = await Fluxbase.database()
- *     .from('app.my_table')
- *     .select('*')
+ *   // Access all data (service role, bypasses RLS)
+ *   const { data: allData } = await fluxbaseService.from('tracker_data').select('count');
  *
- *   if (error) throw new Error(error.message)
+ *   // Upload file to storage
+ *   const blob = new Blob(['result'], { type: 'text/plain' });
+ *   await fluxbase.storage.from('exports').upload('result.txt', blob);
  *
- *   await Fluxbase.reportProgress(100, 'Complete')
+ *   // Submit follow-up job
+ *   await fluxbase.jobs.submit('process-next', { batch: 2 });
  *
- *   return { success: true, count: data?.length }
+ *   job.reportProgress(100, 'Complete');
+ *
+ *   return { success: true, count: myData?.length };
  * }
  * ```
  */
@@ -415,9 +433,7 @@ export type JobHandler = (req: any) => Promise<any> | any;
  * Deno global APIs available in job runtime
  */
 declare const Deno: {
-  /**
-   * Environment variables (FLUXBASE_* only)
-   */
+  /** Environment variables (FLUXBASE_* only) */
   env: {
     get(key: string): string | undefined;
     set(key: string, value: string): void;
@@ -425,28 +441,18 @@ declare const Deno: {
     has(key: string): boolean;
   };
 
-  /**
-   * Read a file (if allow_read is enabled)
-   */
+  /** Read a file (if allow_read is enabled) */
   readFile(path: string): Promise<Uint8Array>;
 
-  /**
-   * Read a text file (if allow_read is enabled)
-   */
+  /** Read a text file (if allow_read is enabled) */
   readTextFile(path: string): Promise<string>;
 
-  /**
-   * Write a file (if allow_write is enabled)
-   */
+  /** Write a file (if allow_write is enabled) */
   writeFile(path: string, data: Uint8Array): Promise<void>;
 
-  /**
-   * Write a text file (if allow_write is enabled)
-   */
+  /** Write a text file (if allow_write is enabled) */
   writeTextFile(path: string, data: string): Promise<void>;
 
-  /**
-   * Make HTTP requests (if allow_net is enabled)
-   */
+  /** Make HTTP requests (if allow_net is enabled) */
   fetch: typeof fetch;
 };

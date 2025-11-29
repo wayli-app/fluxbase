@@ -1870,6 +1870,10 @@ export interface JobFunctionSpec {
   is_pre_bundled?: boolean
   /** Original source code (for debugging when pre-bundled) */
   original_code?: string
+  /** Source directory for resolving relative imports during bundling (used by syncWithBundling) */
+  sourceDir?: string
+  /** Additional paths to search for node_modules during bundling (used by syncWithBundling) */
+  nodePaths?: string[]
   enabled?: boolean
   schedule?: string
   timeout_seconds?: number

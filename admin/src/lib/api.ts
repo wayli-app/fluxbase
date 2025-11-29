@@ -953,6 +953,15 @@ export const jobsApi = {
     return response.data
   },
 
+  // Resubmit job (create new job based on existing one, works for any status)
+  resubmitJob: async (jobId: string): Promise<Job> => {
+    const response = await api.post<Job>(
+      `/api/v1/admin/jobs/queue/${jobId}/resubmit`,
+      {}
+    )
+    return response.data
+  },
+
   // Get job statistics
   getStats: async (namespace?: string): Promise<JobStats> => {
     const params = namespace ? `?namespace=${namespace}` : ''

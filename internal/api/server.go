@@ -148,7 +148,17 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	var jobsManager *jobs.Manager
 	var jobsHandler *jobs.Handler
 	if cfg.Jobs.Enabled {
-		jobsManager = jobs.NewManager(&cfg.Jobs, db)
+		// Determine public URL for jobs SDK client
+		jobsPublicURL := cfg.BaseURL
+		if jobsPublicURL == "" {
+			// Fallback to server address
+			jobsPublicURL = "http://localhost" + cfg.Server.Address
+		}
+		log.Info().
+			Str("jobs_public_url", jobsPublicURL).
+			Bool("jwt_secret_set", cfg.Auth.JWTSecret != "").
+			Msg("Initializing jobs manager with SDK credentials")
+		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsPublicURL)
 		var err error
 		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager)
 		if err != nil {
@@ -651,8 +661,14 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Delete("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.DeleteJobFunction)
 		router.Get("/jobs/stats", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobStats)
 		router.Get("/jobs/workers", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListWorkers)
-		router.Post("/jobs/:id/terminate", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.TerminateJob)
+
+		// Queue operations - list and individual job management
 		router.Get("/jobs/queue", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListAllJobs)
+		router.Get("/jobs/queue/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobAdmin)
+		router.Post("/jobs/queue/:id/terminate", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.TerminateJob)
+		router.Post("/jobs/queue/:id/cancel", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.CancelJobAdmin)
+		router.Post("/jobs/queue/:id/retry", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.RetryJobAdmin)
+		router.Post("/jobs/queue/:id/resubmit", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ResubmitJobAdmin)
 	}
 
 	// Migrations routes (require service key authentication with enhanced security)

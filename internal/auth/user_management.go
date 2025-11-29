@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // EnrichedUser represents a user with additional metadata for admin view
@@ -88,35 +91,43 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 		ORDER BY u.created_at DESC
 	`, usersTable, sessionsTable)
 
-	rows, err := s.userRepo.db.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query enriched users: %w", err)
-	}
-	defer rows.Close()
-
 	var users []*EnrichedUser
-	for rows.Next() {
-		user := &EnrichedUser{}
-		err := rows.Scan(
-			&user.ID,
-			&user.Email,
-			&user.EmailVerified,
-			&user.Role,
-			&user.UserMetadata,
-			&user.AppMetadata,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-			&user.ActiveSessions,
-			&user.LastSignIn,
-			&user.Provider,
-		)
+	err := database.WrapWithServiceRole(ctx, s.userRepo.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan enriched user: %w", err)
+			return fmt.Errorf("failed to query enriched users: %w", err)
 		}
-		users = append(users, user)
+		defer rows.Close()
+
+		for rows.Next() {
+			user := &EnrichedUser{}
+			err := rows.Scan(
+				&user.ID,
+				&user.Email,
+				&user.EmailVerified,
+				&user.Role,
+				&user.UserMetadata,
+				&user.AppMetadata,
+				&user.CreatedAt,
+				&user.UpdatedAt,
+				&user.ActiveSessions,
+				&user.LastSignIn,
+				&user.Provider,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to scan enriched user: %w", err)
+			}
+			users = append(users, user)
+		}
+
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	return users, rows.Err()
+	return users, nil
 }
 
 // GetEnrichedUserByID returns a single user with enriched metadata
@@ -159,19 +170,22 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 	`, usersTable, sessionsTable)
 
 	user := &EnrichedUser{}
-	err := s.userRepo.db.QueryRow(ctx, query, userID).Scan(
-		&user.ID,
-		&user.Email,
-		&user.EmailVerified,
-		&user.Role,
-		&user.UserMetadata,
-		&user.AppMetadata,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&user.ActiveSessions,
-		&user.LastSignIn,
-		&user.Provider,
-	)
+	err := database.WrapWithServiceRole(ctx, s.userRepo.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, userID).Scan(
+			&user.ID,
+			&user.Email,
+			&user.EmailVerified,
+			&user.Role,
+			&user.UserMetadata,
+			&user.AppMetadata,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&user.ActiveSessions,
+			&user.LastSignIn,
+			&user.Provider,
+		)
+	})
+
 	if err != nil {
 		if err.Error() == "no rows in result set" {
 			return nil, ErrUserNotFound

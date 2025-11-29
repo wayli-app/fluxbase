@@ -94,6 +94,22 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 		sharedModules = make(map[string]string)
 	}
 
+	// Load global deno.json from jobs directory if it exists
+	// This provides shared import mappings for all jobs
+	var globalJobsDenoJSON string
+	globalDenoPath := filepath.Join(jobsDir, "deno.json")
+	if content, err := os.ReadFile(globalDenoPath); err == nil {
+		globalJobsDenoJSON = string(content)
+		log.Info().Str("path", globalDenoPath).Msg("Loaded global deno.json for jobs")
+	} else {
+		// Try deno.jsonc
+		globalDenoPath = filepath.Join(jobsDir, "deno.jsonc")
+		if content, err := os.ReadFile(globalDenoPath); err == nil {
+			globalJobsDenoJSON = string(content)
+			log.Info().Str("path", globalDenoPath).Msg("Loaded global deno.jsonc for jobs")
+		}
+	}
+
 	// Scan jobs directory
 	entries, err := os.ReadDir(jobsDir)
 	if err != nil {
@@ -131,6 +147,27 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 
 		// Parse annotations from code
 		annotations := parseAnnotations(code)
+
+		// If job doesn't have its own deno.json but we have a global one, use it
+		if _, hasLocalDenoJSON := supportingFiles["deno.json"]; !hasLocalDenoJSON {
+			if _, hasLocalDenoJSONC := supportingFiles["deno.jsonc"]; !hasLocalDenoJSONC {
+				if globalJobsDenoJSON != "" {
+					supportingFiles["deno.json"] = globalJobsDenoJSON
+					log.Debug().Str("job", jobName).Msg("Using global deno.json for job")
+				}
+			}
+		} else {
+			log.Debug().Str("job", jobName).Msg("Job has its own deno.json")
+		}
+
+		// Log supporting files for debugging
+		if len(supportingFiles) > 0 {
+			fileNames := make([]string, 0, len(supportingFiles))
+			for name := range supportingFiles {
+				fileNames = append(fileNames, name)
+			}
+			log.Debug().Str("job", jobName).Strs("files", fileNames).Msg("Supporting files for job")
+		}
 
 		// Bundle if needed
 		bundledCode, bundleErr := l.bundleJob(ctx, code, supportingFiles, sharedModules)
@@ -302,9 +339,10 @@ func (l *Loader) loadJobCode(jobsDir, entryName string) (string, map[string]stri
 			continue
 		}
 
-		// Process TypeScript/JavaScript files
+		// Process TypeScript/JavaScript files and deno.json config
 		if strings.HasSuffix(fileName, ".ts") || strings.HasSuffix(fileName, ".js") ||
-			strings.HasSuffix(fileName, ".mts") || strings.HasSuffix(fileName, ".mjs") {
+			strings.HasSuffix(fileName, ".mts") || strings.HasSuffix(fileName, ".mjs") ||
+			fileName == "deno.json" || fileName == "deno.jsonc" {
 
 			filePath := filepath.Join(jobDir, fileName)
 			content, err := os.ReadFile(filePath)
