@@ -722,7 +722,7 @@ groups:
   "level": "info",
   "message": "Request completed",
   "method": "GET",
-  "path": "/api/v1/rest/posts",
+  "path": "/api/v1/tables/posts",
   "status": 200,
   "duration_ms": 45,
   "user_id": "uuid",

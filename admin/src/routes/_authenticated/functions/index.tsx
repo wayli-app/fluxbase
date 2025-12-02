@@ -1167,93 +1167,63 @@ async function handler(req: Request) {
             </Card>
           ) : (
             edgeFunctions.map((fn) => (
-              <Card
+              <div
                 key={fn.id}
-                className='hover:border-primary/50 transition-colors'
+                className='flex items-center justify-between gap-2 px-3 py-1.5 rounded-md border hover:border-primary/50 transition-colors bg-card'
               >
-                <CardHeader>
-                  <div className='flex items-start justify-between'>
-                    <div className='flex-1'>
-                      <div className='mb-2 flex items-center gap-2'>
-                        <CardTitle className='text-lg'>{fn.name}</CardTitle>
-                        <div className='flex items-center gap-2'>
-                          <Switch
-                            checked={fn.enabled}
-                            onCheckedChange={() => toggleFunction(fn)}
-                          />
-                          <span className='text-muted-foreground text-sm'>
-                            {fn.enabled ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                        <Badge variant='outline'>v{fn.version}</Badge>
-                        {fn.cron_schedule && (
-                          <Badge variant='outline'>
-                            <Clock className='mr-1 h-3 w-3' />
-                            scheduled
-                          </Badge>
-                        )}
-                      </div>
-                      <CardDescription>
-                        {fn.description || 'No description'}
-                      </CardDescription>
-                    </div>
-                    <div className='flex gap-2'>
-                      <Button
-                        onClick={() => openInvokeDialog(fn)}
-                        size='sm'
-                        variant='outline'
-                        disabled={!fn.enabled}
-                      >
-                        <Play className='mr-2 h-4 w-4' />
-                        Invoke
-                      </Button>
-                      <Button
-                        onClick={() => openEditDialog(fn)}
-                        size='sm'
-                        variant='outline'
-                      >
-                        <Edit className='h-4 w-4' />
-                      </Button>
-                      <Button
-                        onClick={() => deleteFunction(fn.name)}
-                        size='sm'
-                        variant='outline'
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className='space-y-2 text-sm'>
-                    <div className='flex items-center gap-4'>
-                      <span className='text-muted-foreground'>Timeout:</span>
-                      <span>{fn.timeout_seconds}s</span>
-                      <span className='text-muted-foreground'>Memory:</span>
-                      <span>{fn.memory_limit_mb}MB</span>
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-muted-foreground'>
-                        Permissions:
-                      </span>
-                      {fn.allow_net && <Badge variant='outline'>net</Badge>}
-                      {fn.allow_env && <Badge variant='outline'>env</Badge>}
-                      {fn.allow_read && <Badge variant='outline'>read</Badge>}
-                      {fn.allow_write && <Badge variant='outline'>write</Badge>}
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <Button
-                        onClick={() => fetchExecutions(fn.name)}
-                        variant='ghost'
-                        size='sm'
-                      >
-                        <History className='mr-2 h-4 w-4' />
-                        View Logs
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className='flex items-center gap-2 min-w-0 flex-1'>
+                  <span className='text-sm font-medium truncate'>{fn.name}</span>
+                  <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>v{fn.version}</Badge>
+                  {fn.cron_schedule && (
+                    <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>
+                      <Clock className='mr-0.5 h-2.5 w-2.5' />
+                      cron
+                    </Badge>
+                  )}
+                  <Switch
+                    checked={fn.enabled}
+                    onCheckedChange={() => toggleFunction(fn)}
+                    className='scale-75'
+                  />
+                </div>
+                <div className='flex items-center gap-1 shrink-0'>
+                  <span className='text-[10px] text-muted-foreground'>{fn.timeout_seconds}s</span>
+                  <Button
+                    onClick={() => fetchExecutions(fn.name)}
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 w-6 p-0'
+                    title='View Logs'
+                  >
+                    <History className='h-3 w-3' />
+                  </Button>
+                  <Button
+                    onClick={() => openInvokeDialog(fn)}
+                    size='sm'
+                    variant='ghost'
+                    className='h-6 px-1.5 text-xs'
+                    disabled={!fn.enabled}
+                  >
+                    <Play className='h-3 w-3' />
+                  </Button>
+                  <Button
+                    onClick={() => openEditDialog(fn)}
+                    size='sm'
+                    variant='ghost'
+                    className='h-6 w-6 p-0'
+                  >
+                    <Edit className='h-3 w-3' />
+                  </Button>
+                  <Button
+                    onClick={() => deleteFunction(fn.name)}
+                    size='sm'
+                    variant='ghost'
+                    className='h-6 w-6 p-0'
+                  >
+                    <Trash2 className='h-3 w-3' />
+                  </Button>
+                </div>
+              </div>
             ))
           )}
         </div>

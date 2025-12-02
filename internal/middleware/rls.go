@@ -87,14 +87,15 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 // PostgreSQL-level security, and application roles (admin, user, etc.) for business logic
 func mapAppRoleToDatabaseRole(appRole string) string {
 	switch appRole {
-	case "service_role":
-		// Service role maps to itself - has BYPASSRLS privilege
+	case "service_role", "dashboard_admin":
+		// Service role and dashboard_admin map to service_role - has BYPASSRLS privilege
+		// Dashboard admins are Fluxbase platform admins and need full data access
 		return "service_role"
 	case "anon", "":
 		// Anonymous or empty role maps to anon
 		return "anon"
 	default:
-		// All other roles (admin, user, authenticated, dashboard_admin, moderator, etc.)
+		// All other roles (admin, user, authenticated, moderator, etc.)
 		// map to the authenticated database role
 		return "authenticated"
 	}

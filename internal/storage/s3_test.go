@@ -31,7 +31,7 @@ func setupS3Storage(t *testing.T) *S3Storage {
 
 	// Try to connect to local MinIO instance
 	// docker run -p 9000:9000 -p 9001:9001 -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin" minio/minio server /data --console-address ":9001"
-	s3, err := NewS3Storage("minio:9000", "minioadmin", "minioadmin", "us-east-1", false)
+	s3, err := NewS3Storage("minio:9000", "minioadmin", "minioadmin", "us-east-1", false, true)
 	if err != nil {
 		t.Skipf("Skipping S3 tests: cannot connect to MinIO at minio:9000: %v", err)
 	}

@@ -1,18 +1,19 @@
 -- ============================================
 -- REPLICA IDENTITY for UPDATE/DELETE payloads
 -- ============================================
-ALTER TABLE jobs.job_queue REPLICA IDENTITY FULL;
-ALTER TABLE jobs.job_functions REPLICA IDENTITY FULL;
+ALTER TABLE jobs.queue REPLICA IDENTITY FULL;
+ALTER TABLE jobs.functions REPLICA IDENTITY FULL;
 ALTER TABLE jobs.workers REPLICA IDENTITY FULL;
-ALTER TABLE jobs.job_function_files REPLICA IDENTITY FULL;
+ALTER TABLE jobs.function_files REPLICA IDENTITY FULL;
 
 -- ============================================
--- Execution logs table (separate from job_queue for efficient Realtime streaming)
+-- Execution logs table (separate from queue for efficient Realtime streaming)
 -- ============================================
 CREATE TABLE jobs.execution_logs (
     id BIGSERIAL PRIMARY KEY,
-    job_id UUID NOT NULL REFERENCES jobs.job_queue(id) ON DELETE CASCADE,
+    job_id UUID NOT NULL REFERENCES jobs.queue(id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL,
+    level TEXT NOT NULL DEFAULT 'info',
     message TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -34,9 +35,9 @@ CREATE POLICY "Users can read their own job logs"
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM jobs.job_queue
-            WHERE job_queue.id = execution_logs.job_id
-            AND job_queue.created_by = auth.uid()
+            SELECT 1 FROM jobs.queue
+            WHERE queue.id = execution_logs.job_id
+            AND queue.created_by = auth.uid()
         )
     );
 
@@ -81,26 +82,26 @@ $$ LANGUAGE plpgsql;
 -- ============================================
 -- Attach triggers to all jobs tables
 -- ============================================
--- Note: job_queue is the only table that needs realtime notifications
+-- Note: queue is the only table that needs realtime notifications
 -- (for tracking actual job execution and progress).
--- job_functions contains large code fields (20MB+) that would exceed
+-- functions contains large code fields (20MB+) that would exceed
 -- pg_notify's 8KB limit, so we skip the trigger for that table.
 -- ============================================
-CREATE TRIGGER job_queue_realtime_notify
-AFTER INSERT OR UPDATE OR DELETE ON jobs.job_queue
+CREATE TRIGGER queue_realtime_notify
+AFTER INSERT OR UPDATE OR DELETE ON jobs.queue
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
--- Skipping job_functions - code fields are too large for pg_notify (8KB limit)
--- CREATE TRIGGER job_functions_realtime_notify
--- AFTER INSERT OR UPDATE OR DELETE ON jobs.job_functions
+-- Skipping functions - code fields are too large for pg_notify (8KB limit)
+-- CREATE TRIGGER functions_realtime_notify
+-- AFTER INSERT OR UPDATE OR DELETE ON jobs.functions
 -- FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
 CREATE TRIGGER workers_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.workers
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
-CREATE TRIGGER job_function_files_realtime_notify
-AFTER INSERT OR UPDATE OR DELETE ON jobs.job_function_files
+CREATE TRIGGER function_files_realtime_notify
+AFTER INSERT OR UPDATE OR DELETE ON jobs.function_files
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
 -- execution_logs only needs INSERT notifications (logs are append-only)
@@ -111,14 +112,14 @@ FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 -- ============================================
 -- Register tables for realtime in schema registry
 -- ============================================
--- Note: job_functions is excluded because code fields exceed pg_notify's 8KB limit
+-- Note: functions is excluded because code fields exceed pg_notify's 8KB limit
 -- Note: execution_logs only sends INSERT events (logs are append-only)
 INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
 VALUES
-    ('jobs', 'job_queue', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    -- ('jobs', 'job_functions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']), -- Excluded: large code fields
+    ('jobs', 'queue', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
+    -- ('jobs', 'functions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']), -- Excluded: large code fields
     ('jobs', 'workers', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('jobs', 'job_function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
+    ('jobs', 'function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
     ('jobs', 'execution_logs', true, ARRAY['INSERT'])
 ON CONFLICT (schema_name, table_name) DO UPDATE
 SET realtime_enabled = true,
@@ -128,12 +129,12 @@ SET realtime_enabled = true,
 -- RLS Policy: dashboard_admin can read all jobs
 -- ============================================
 CREATE POLICY "Dashboard admins can read all jobs"
-    ON jobs.job_queue FOR SELECT
+    ON jobs.queue FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
-CREATE POLICY "Dashboard admins can read all job functions"
-    ON jobs.job_functions FOR SELECT
+CREATE POLICY "Dashboard admins can read all functions"
+    ON jobs.functions FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
@@ -142,8 +143,8 @@ CREATE POLICY "Dashboard admins can read all workers"
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
-CREATE POLICY "Dashboard admins can read all job function files"
-    ON jobs.job_function_files FOR SELECT
+CREATE POLICY "Dashboard admins can read all function files"
+    ON jobs.function_files FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 

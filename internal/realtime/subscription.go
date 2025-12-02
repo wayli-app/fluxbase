@@ -363,6 +363,23 @@ func (sm *SubscriptionManager) GetStats() map[string]interface{} {
 	}
 }
 
+// UpdateConnectionRole updates the role for all subscriptions belonging to a connection
+func (sm *SubscriptionManager) UpdateConnectionRole(connID string, newRole string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	for _, sub := range sm.subscriptions {
+		if sub.ConnID == connID {
+			sub.Role = newRole
+		}
+	}
+
+	log.Info().
+		Str("connection_id", connID).
+		Str("new_role", newRole).
+		Msg("Updated role for connection subscriptions")
+}
+
 // ParseChangeEvent parses a JSON payload into a ChangeEvent
 func ParseChangeEvent(payload string) (*ChangeEvent, error) {
 	var event ChangeEvent

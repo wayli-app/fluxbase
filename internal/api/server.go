@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -97,6 +98,11 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	storageService, err := storage.NewService(&cfg.Storage)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize storage service")
+	}
+
+	// Ensure default buckets exist
+	if err := storageService.EnsureDefaultBuckets(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("Failed to ensure default buckets")
 	}
 
 	// Initialize webhook service
@@ -555,8 +561,8 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	// File operations (generic wildcard routes - must come LAST)
 	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file
 	router.Get("/:bucket/*", s.storageHandler.DownloadFile)  // Download file
+	router.Head("/:bucket/*", s.storageHandler.DownloadFile) // HEAD delegates to GetFileInfo for Content-Length
 	router.Delete("/:bucket/*", s.storageHandler.DeleteFile) // Delete file
-	router.Head("/:bucket/*", s.storageHandler.GetFileInfo)  // Get file metadata
 }
 
 // setupAdminRoutes sets up admin routes
@@ -844,21 +850,14 @@ func (s *Server) handleRefreshSchema(c *fiber.Ctx) error {
 		// Wait a moment to ensure the response is sent
 		time.Sleep(500 * time.Millisecond)
 
-		log.Info().Msg("Starting graceful server shutdown for restart")
+		log.Info().Msg("Triggering graceful server shutdown for restart")
 
-		// Graceful shutdown with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := s.Shutdown(ctx); err != nil {
-			log.Error().Err(err).Msg("Error during graceful shutdown")
-			// Force exit if graceful shutdown fails
+		// Send SIGTERM to trigger graceful shutdown via main's signal handler
+		// This ensures proper cleanup through the main goroutine's shutdown path
+		if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
+			log.Error().Err(err).Msg("Failed to send shutdown signal, forcing exit")
 			os.Exit(1)
 		}
-
-		log.Info().Msg("Graceful shutdown complete - process will now exit for restart")
-		// Exit with code 0 to signal process manager to restart
-		os.Exit(0)
 	}()
 
 	return nil
@@ -871,9 +870,16 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
-	// Stop realtime listener
+	// Stop realtime listener (PostgreSQL LISTEN/NOTIFY)
 	if s.realtimeListener != nil {
+		log.Info().Msg("Stopping realtime listener")
 		s.realtimeListener.Stop()
+	}
+
+	// Shutdown realtime manager (close all WebSocket connections)
+	if s.realtimeManager != nil {
+		log.Info().Msg("Closing WebSocket connections")
+		s.realtimeManager.Shutdown()
 	}
 
 	// Stop edge functions scheduler
@@ -891,6 +897,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.webhookTriggerService.Stop()
 	}
 
+	log.Info().Msg("Shutting down HTTP server")
 	return s.app.ShutdownWithContext(ctx)
 }
 

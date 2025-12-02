@@ -28,7 +28,7 @@ This cookbook provides copy-paste ready examples for all major Fluxbase features
 npm install @fluxbase/client
 
 # Or use the REST API directly (no SDK needed)
-curl https://your-project.fluxbase.io/api/v1/rest/users
+curl https://your-project.fluxbase.io/api/v1/tables/users
 ```
 
 ### Initialize Client
@@ -612,7 +612,7 @@ async function handler(request) {
   }
 
   // Query database (automatically filtered by RLS)
-  const response = await fetch('http://localhost:8080/api/v1/rest/posts', {
+  const response = await fetch('http://localhost:8080/api/v1/tables/posts', {
     headers: {
       'Authorization': request.headers.authorization
     }
@@ -670,7 +670,7 @@ await fluxbase.functions.create({
   code: `
     async function handler(request) {
       // Delete old records
-      const response = await fetch('http://localhost:8080/api/v1/rest/logs', {
+      const response = await fetch('http://localhost:8080/api/v1/tables/logs', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

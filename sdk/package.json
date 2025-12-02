@@ -32,7 +32,8 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "docs": "typedoc",
-    "docs:watch": "typedoc --watch"
+    "docs:watch": "typedoc --watch",
+    "generate:embedded-sdk": "node scripts/generate-embedded-sdk.js"
   },
   "keywords": [
     "fluxbase",
@@ -69,6 +70,7 @@
     "@types/node": "^20.11.5",
     "docusaurus-plugin-typedoc": "^1.4.2",
     "esbuild": "^0.24.0",
+    "ts-node": "^10.9.2",
     "tsup": "^8.0.1",
     "typedoc": "^0.28.14",
     "typedoc-plugin-markdown": "^4.9.0",

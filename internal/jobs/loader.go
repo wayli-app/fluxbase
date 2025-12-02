@@ -52,10 +52,10 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 		existingFunctions = nil
 	}
 
-	// Build set of existing function names
-	existingNames := make(map[string]bool)
+	// Build map of existing functions by name (to access Source field for deletion filtering)
+	existingByName := make(map[string]*JobFunctionSummary)
 	for _, fn := range existingFunctions {
-		existingNames[fn.Name] = true
+		existingByName[fn.Name] = fn
 	}
 
 	// Track which job names we find on the filesystem
@@ -64,19 +64,22 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 	// Check if jobs directory exists
 	if _, err := os.Stat(jobsDir); os.IsNotExist(err) {
 		log.Info().Str("dir", jobsDir).Msg("Jobs directory does not exist, skipping auto-load")
-		// If directory doesn't exist but we have existing functions, delete them all
+		// If directory doesn't exist but we have existing filesystem-sourced functions, delete them
+		// Preserve API-created functions
 		if len(existingFunctions) > 0 {
 			deleteCount := 0
 			for _, fn := range existingFunctions {
-				if err := l.storage.DeleteJobFunction(ctx, namespace, fn.Name); err != nil {
-					log.Error().Err(err).Str("job", fn.Name).Msg("Failed to delete missing job function")
-				} else {
-					log.Info().Str("job", fn.Name).Msg("Deleted job function (no longer on filesystem)")
-					deleteCount++
+				if fn.Source == "filesystem" {
+					if err := l.storage.DeleteJobFunction(ctx, namespace, fn.Name); err != nil {
+						log.Error().Err(err).Str("job", fn.Name).Msg("Failed to delete missing job function")
+					} else {
+						log.Info().Str("job", fn.Name).Msg("Deleted job function (no longer on filesystem)")
+						deleteCount++
+					}
 				}
 			}
 			if deleteCount > 0 {
-				log.Info().Int("deleted", deleteCount).Msg("Deleted job functions that no longer exist on filesystem")
+				log.Info().Int("deleted", deleteCount).Msg("Deleted filesystem-sourced job functions that no longer exist")
 			}
 		}
 		return nil
@@ -189,6 +192,7 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 			RequireRole:            annotations.RequireRole,
 			Schedule:               annotations.Schedule,
 			Version:                1,
+			Source:                 "filesystem",
 		}
 
 		if bundleErr != nil {
@@ -246,9 +250,10 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 	}
 
 	// Delete job functions that no longer exist on the filesystem
+	// Only delete filesystem-sourced functions, preserve API-created ones
 	deleteCount := 0
-	for name := range existingNames {
-		if !foundNames[name] {
+	for name, fn := range existingByName {
+		if !foundNames[name] && fn.Source == "filesystem" {
 			if err := l.storage.DeleteJobFunction(ctx, namespace, name); err != nil {
 				log.Error().
 					Err(err).

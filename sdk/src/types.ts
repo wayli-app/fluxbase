@@ -206,6 +206,30 @@ export interface PostgrestResponse<T> {
   statusText: string
 }
 
+/**
+ * Count type for select queries (Supabase-compatible)
+ * - 'exact': Returns the exact count of rows (SELECT COUNT(*))
+ * - 'planned': Uses PostgreSQL's query planner estimate (faster, less accurate)
+ * - 'estimated': Uses statistics-based estimate (fastest, least accurate)
+ */
+export type CountType = 'exact' | 'planned' | 'estimated'
+
+/**
+ * Options for select queries (Supabase-compatible)
+ */
+export interface SelectOptions {
+  /**
+   * Count type to use for the query
+   * When specified, the count will be returned in the response
+   */
+  count?: CountType
+  /**
+   * If true, only returns count without fetching data (HEAD request)
+   * Useful for getting total count without transferring row data
+   */
+  head?: boolean
+}
+
 export type FilterOperator =
   | 'eq'     // equals
   | 'neq'    // not equals
@@ -278,7 +302,7 @@ export interface UpsertOptions {
 }
 
 export interface RealtimeMessage {
-  type: 'subscribe' | 'unsubscribe' | 'heartbeat' | 'broadcast' | 'presence' | 'ack' | 'error'
+  type: 'subscribe' | 'unsubscribe' | 'heartbeat' | 'broadcast' | 'presence' | 'ack' | 'error' | 'postgres_changes' | 'access_token'
   channel?: string
   event?: string // INSERT, UPDATE, DELETE, or *
   schema?: string
@@ -292,6 +316,7 @@ export interface RealtimeMessage {
   messageId?: string // Message ID for acknowledgments
   status?: string // Status for acknowledgment messages
   subscription_id?: string // Subscription ID for unsubscribe
+  token?: string // JWT token for access_token message type
 }
 
 export interface PostgresChangesConfig {
@@ -453,6 +478,75 @@ export interface SignedUrlOptions {
 export interface DownloadOptions {
   /** If true, returns a ReadableStream instead of Blob */
   stream?: boolean
+  /**
+   * Timeout in milliseconds for the download request.
+   * For streaming downloads, this applies to the initial response.
+   * Set to 0 or undefined for no timeout (recommended for large files).
+   * @default undefined (no timeout for streaming, 30000 for non-streaming)
+   */
+  timeout?: number
+  /** AbortSignal to cancel the download */
+  signal?: AbortSignal
+}
+
+/** Response type for stream downloads, includes file size from Content-Length header */
+export interface StreamDownloadData {
+  /** The readable stream for the file content */
+  stream: ReadableStream<Uint8Array>
+  /** File size in bytes from Content-Length header, or null if unknown */
+  size: number | null
+}
+
+/** Options for resumable chunked downloads */
+export interface ResumableDownloadOptions {
+  /**
+   * Chunk size in bytes for each download request.
+   * @default 5242880 (5MB)
+   */
+  chunkSize?: number
+  /**
+   * Number of retry attempts per chunk on failure.
+   * @default 3
+   */
+  maxRetries?: number
+  /**
+   * Base delay in milliseconds for exponential backoff.
+   * @default 1000
+   */
+  retryDelayMs?: number
+  /**
+   * Timeout in milliseconds per chunk request.
+   * @default 30000
+   */
+  chunkTimeout?: number
+  /** AbortSignal to cancel the download */
+  signal?: AbortSignal
+  /** Callback for download progress */
+  onProgress?: (progress: DownloadProgress) => void
+}
+
+/** Download progress information */
+export interface DownloadProgress {
+  /** Number of bytes downloaded so far */
+  loaded: number
+  /** Total file size in bytes, or null if unknown */
+  total: number | null
+  /** Download percentage (0-100), or null if total is unknown */
+  percentage: number | null
+  /** Current chunk being downloaded (1-indexed) */
+  currentChunk: number
+  /** Total number of chunks, or null if total size unknown */
+  totalChunks: number | null
+  /** Transfer rate in bytes per second */
+  bytesPerSecond: number
+}
+
+/** Response type for resumable downloads - stream abstracts chunking */
+export interface ResumableDownloadData {
+  /** The readable stream for the file content (abstracts chunking internally) */
+  stream: ReadableStream<Uint8Array>
+  /** File size in bytes from HEAD request, or null if unknown */
+  size: number | null
 }
 
 // File Sharing Types (RLS)

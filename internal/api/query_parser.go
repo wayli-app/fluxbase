@@ -185,9 +185,13 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 			// Check if it's a filter parameter
 			// PostgREST format: column=operator.value (dot in value)
 			// Old format: column.operator=value (dot in key)
-			if strings.Contains(key, ".") || strings.Contains(vals[0], ".") || key == "or" || key == "and" {
-				if err := qp.parseFilter(key, vals[0], params); err != nil {
-					return nil, fmt.Errorf("invalid filter parameter %s: %w", key, err)
+			// Process ALL values for the same key to support range queries like:
+			// ?recorded_at=gte.2025-01-01&recorded_at=lte.2025-12-31
+			for _, val := range vals {
+				if strings.Contains(key, ".") || strings.Contains(val, ".") || key == "or" || key == "and" {
+					if err := qp.parseFilter(key, val, params); err != nil {
+						return nil, fmt.Errorf("invalid filter parameter %s: %w", key, err)
+					}
 				}
 			}
 		}
@@ -735,91 +739,219 @@ func (params *QueryParams) buildOrderClause() string {
 	return strings.Join(orderParts, ", ")
 }
 
+// parseJSONBPath parses a column name that may contain JSONB path operators
+// and returns the properly formatted SQL expression.
+// Examples:
+//   - "name" -> "name" (simple column)
+//   - "data->key" -> "data"->'key' (JSON access)
+//   - "data->>key" -> "data"->>'key' (text access)
+//   - "data->nested->>value" -> "data"->'nested'->>'value' (chained)
+//   - "data->0->name" -> "data"->0->'name' (array index)
+func parseJSONBPath(column string) string {
+	// Check if column contains JSONB path operators
+	if !strings.Contains(column, "->") {
+		// Simple column name - quote it
+		return fmt.Sprintf(`"%s"`, column)
+	}
+
+	// Split the path into segments, preserving ->> vs ->
+	// We need to handle both -> (JSON) and ->> (text) operators
+	var result strings.Builder
+	remaining := column
+
+	isFirst := true
+	for len(remaining) > 0 {
+		// Find the next operator (->> or ->)
+		textOpIdx := strings.Index(remaining, "->>")
+		jsonOpIdx := strings.Index(remaining, "->")
+
+		// Determine which operator comes first
+		var opIdx int
+		var opLen int
+		var op string
+
+		if textOpIdx >= 0 && (jsonOpIdx < 0 || textOpIdx <= jsonOpIdx) {
+			opIdx = textOpIdx
+			opLen = 3
+			op = "->>"
+		} else if jsonOpIdx >= 0 {
+			opIdx = jsonOpIdx
+			opLen = 2
+			op = "->"
+		} else {
+			// No more operators - this is the last key
+			key := remaining
+			if isFirst {
+				result.WriteString(fmt.Sprintf(`"%s"`, key))
+			} else {
+				result.WriteString(formatJSONKey(key))
+			}
+			break
+		}
+
+		// Extract the part before the operator
+		part := remaining[:opIdx]
+		if isFirst {
+			// First part is the column name - quote it as identifier
+			result.WriteString(fmt.Sprintf(`"%s"`, part))
+			isFirst = false
+		} else {
+			// Subsequent parts are JSON keys
+			result.WriteString(formatJSONKey(part))
+		}
+
+		// Add the operator
+		result.WriteString(op)
+
+		// Move past the operator
+		remaining = remaining[opIdx+opLen:]
+	}
+
+	return result.String()
+}
+
+// formatJSONKey formats a JSON key for use in a JSONB path expression.
+// Numeric keys are left unquoted (for array access), string keys are quoted.
+func formatJSONKey(key string) string {
+	// Check if it's a numeric key (array index)
+	if _, err := strconv.Atoi(key); err == nil {
+		return key
+	}
+	// String key - wrap in single quotes
+	return fmt.Sprintf("'%s'", key)
+}
+
+// needsNumericCast checks if a JSONB path expression needs numeric casting
+// for comparison operations. This is needed when:
+// 1. The path ends with ->> (returns text)
+// 2. The value is numeric
+func needsNumericCast(column string, value interface{}) bool {
+	// Check if path uses text extraction (->>)
+	if !strings.Contains(column, "->>") {
+		return false
+	}
+
+	// Check if value is numeric
+	switch value.(type) {
+	case int, int8, int16, int32, int64:
+		return true
+	case uint, uint8, uint16, uint32, uint64:
+		return true
+	case float32, float64:
+		return true
+	case string:
+		// Try to parse as number
+		if _, err := strconv.ParseFloat(value.(string), 64); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // toSQL converts a filter to SQL condition
 func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
+	// Parse JSONB path for proper SQL formatting
+	colExpr := parseJSONBPath(f.Column)
+
 	switch f.Operator {
 	case OpEqual:
-		sql := fmt.Sprintf("%s = $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s = $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpNotEqual:
-		sql := fmt.Sprintf("%s != $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s != $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpGreaterThan:
-		sql := fmt.Sprintf("%s > $%d", f.Column, *argCounter)
+		expr := colExpr
+		if needsNumericCast(f.Column, f.Value) {
+			expr = fmt.Sprintf("(%s)::numeric", colExpr)
+		}
+		sql := fmt.Sprintf("%s > $%d", expr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpGreaterOrEqual:
-		sql := fmt.Sprintf("%s >= $%d", f.Column, *argCounter)
+		expr := colExpr
+		if needsNumericCast(f.Column, f.Value) {
+			expr = fmt.Sprintf("(%s)::numeric", colExpr)
+		}
+		sql := fmt.Sprintf("%s >= $%d", expr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpLessThan:
-		sql := fmt.Sprintf("%s < $%d", f.Column, *argCounter)
+		expr := colExpr
+		if needsNumericCast(f.Column, f.Value) {
+			expr = fmt.Sprintf("(%s)::numeric", colExpr)
+		}
+		sql := fmt.Sprintf("%s < $%d", expr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpLessOrEqual:
-		sql := fmt.Sprintf("%s <= $%d", f.Column, *argCounter)
+		expr := colExpr
+		if needsNumericCast(f.Column, f.Value) {
+			expr = fmt.Sprintf("(%s)::numeric", colExpr)
+		}
+		sql := fmt.Sprintf("%s <= $%d", expr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpLike:
-		sql := fmt.Sprintf("%s LIKE $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s LIKE $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpILike:
-		sql := fmt.Sprintf("%s ILIKE $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s ILIKE $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpIn:
 		// Use PostgreSQL's ANY() syntax to properly handle array parameters
 		// This avoids the bug where IN ($2,$3) expects multiple args but we pass a single array
-		sql := fmt.Sprintf("%s = ANY($%d)", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s = ANY($%d)", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpIs:
 		if f.Value == nil {
-			return fmt.Sprintf("%s IS NULL", f.Column), nil
+			return fmt.Sprintf("%s IS NULL", colExpr), nil
 		}
-		sql := fmt.Sprintf("%s IS $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s IS $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpContains:
-		sql := fmt.Sprintf("%s @> $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s @> $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpContained:
-		sql := fmt.Sprintf("%s <@ $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s <@ $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpOverlap:
-		sql := fmt.Sprintf("%s && $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s && $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpTextSearch:
-		sql := fmt.Sprintf("%s @@ plainto_tsquery($%d)", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s @@ plainto_tsquery($%d)", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpPhraseSearch:
-		sql := fmt.Sprintf("%s @@ phraseto_tsquery($%d)", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s @@ phraseto_tsquery($%d)", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpWebSearch:
-		sql := fmt.Sprintf("%s @@ websearch_to_tsquery($%d)", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s @@ websearch_to_tsquery($%d)", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
@@ -878,43 +1010,43 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		return sql, nestedArg
 
 	case OpAdjacent:
-		sql := fmt.Sprintf("%s << $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s << $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpStrictlyLeft:
-		sql := fmt.Sprintf("%s << $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s << $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpStrictlyRight:
-		sql := fmt.Sprintf("%s >> $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s >> $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpNotExtendRight:
-		sql := fmt.Sprintf("%s &< $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s &< $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpNotExtendLeft:
-		sql := fmt.Sprintf("%s &> $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s &> $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	// PostGIS spatial operators
 	case OpSTIntersects:
-		sql := fmt.Sprintf("ST_Intersects(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Intersects(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpSTContains:
-		sql := fmt.Sprintf("ST_Contains(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Contains(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpSTWithin:
-		sql := fmt.Sprintf("ST_Within(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Within(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
@@ -923,33 +1055,33 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		// Value should be a map with "geometry" and "distance" fields
 		// For now, we'll expect a GeoJSON string and use a default distance
 		// TODO: Support distance parameter
-		sql := fmt.Sprintf("ST_DWithin(%s, ST_GeomFromGeoJSON($%d), $%d)", f.Column, *argCounter, *argCounter+1)
+		sql := fmt.Sprintf("ST_DWithin(%s, ST_GeomFromGeoJSON($%d), $%d)", colExpr, *argCounter, *argCounter+1)
 		*argCounter += 2
 		// For now, return placeholder - needs proper implementation with distance
 		return sql, f.Value
 
 	case OpSTDistance:
-		sql := fmt.Sprintf("ST_Distance(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Distance(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpSTTouches:
-		sql := fmt.Sprintf("ST_Touches(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Touches(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpSTCrosses:
-		sql := fmt.Sprintf("ST_Crosses(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Crosses(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	case OpSTOverlaps:
-		sql := fmt.Sprintf("ST_Overlaps(%s, ST_GeomFromGeoJSON($%d))", f.Column, *argCounter)
+		sql := fmt.Sprintf("ST_Overlaps(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 
 	default:
-		sql := fmt.Sprintf("%s = $%d", f.Column, *argCounter)
+		sql := fmt.Sprintf("%s = $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
 	}

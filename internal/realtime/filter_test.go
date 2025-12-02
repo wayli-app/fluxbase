@@ -493,3 +493,322 @@ func BenchmarkParseFilter(b *testing.B) {
 		_, _ = ParseFilter(filterStr)
 	}
 }
+
+func TestParseFilter_JSONBPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		want      *Filter
+		wantError bool
+	}{
+		{
+			name:  "json access single key",
+			input: "data->key=eq.value",
+			want: &Filter{
+				Column:   "data->key",
+				Operator: "eq",
+				Value:    "value",
+			},
+		},
+		{
+			name:  "text access single key",
+			input: "data->>key=eq.value",
+			want: &Filter{
+				Column:   "data->>key",
+				Operator: "eq",
+				Value:    "value",
+			},
+		},
+		{
+			name:  "nested json path",
+			input: "data->nested->value=eq.test",
+			want: &Filter{
+				Column:   "data->nested->value",
+				Operator: "eq",
+				Value:    "test",
+			},
+		},
+		{
+			name:  "mixed operators with text extraction",
+			input: "geocode->properties->>country=is.null",
+			want: &Filter{
+				Column:   "geocode->properties->>country",
+				Operator: "is",
+				Value:    "null",
+			},
+		},
+		{
+			name:  "jsonb greater than",
+			input: "metadata->stats->>count=gt.10",
+			want: &Filter{
+				Column:   "metadata->stats->>count",
+				Operator: "gt",
+				Value:    "10",
+			},
+		},
+		{
+			name:  "array index access",
+			input: "items->0->>name=eq.first",
+			want: &Filter{
+				Column:   "items->0->>name",
+				Operator: "eq",
+				Value:    "first",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseFilter(tt.input)
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("ParseFilter() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("ParseFilter() unexpected error: %v", err)
+				return
+			}
+
+			if got.Column != tt.want.Column {
+				t.Errorf("ParseFilter().Column = %v, want %v", got.Column, tt.want.Column)
+			}
+			if got.Operator != tt.want.Operator {
+				t.Errorf("ParseFilter().Operator = %v, want %v", got.Operator, tt.want.Operator)
+			}
+			if got.Value != tt.want.Value {
+				t.Errorf("ParseFilter().Value = %v, want %v", got.Value, tt.want.Value)
+			}
+		})
+	}
+}
+
+func TestFilter_Matches_JSONBPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter *Filter
+		record map[string]interface{}
+		want   bool
+	}{
+		{
+			name: "simple nested access - match",
+			filter: &Filter{
+				Column:   "data->key",
+				Operator: "eq",
+				Value:    "value",
+			},
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"key": "value",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "simple nested access - no match",
+			filter: &Filter{
+				Column:   "data->key",
+				Operator: "eq",
+				Value:    "value",
+			},
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"key": "other",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "text extraction - returns string",
+			filter: &Filter{
+				Column:   "data->>count",
+				Operator: "eq",
+				Value:    "42",
+			},
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"count": 42, // Numeric value, but ->> converts to string
+				},
+			},
+			want: true,
+		},
+		{
+			name: "deep nesting - match",
+			filter: &Filter{
+				Column:   "geocode->properties->>country",
+				Operator: "eq",
+				Value:    "USA",
+			},
+			record: map[string]interface{}{
+				"geocode": map[string]interface{}{
+					"properties": map[string]interface{}{
+						"country": "USA",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "nested IS NULL - match",
+			filter: &Filter{
+				Column:   "data->nested->>optional",
+				Operator: "is",
+				Value:    "null",
+			},
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"nested": map[string]interface{}{
+						"optional": nil,
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "nested greater than - match",
+			filter: &Filter{
+				Column:   "stats->>total",
+				Operator: "gt",
+				Value:    "10",
+			},
+			record: map[string]interface{}{
+				"stats": map[string]interface{}{
+					"total": 25,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "missing nested key",
+			filter: &Filter{
+				Column:   "data->missing",
+				Operator: "eq",
+				Value:    "value",
+			},
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"other": "value",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "IN operator with nested path",
+			filter: &Filter{
+				Column:   "config->>status",
+				Operator: "in",
+				Value:    "(active,pending)",
+			},
+			record: map[string]interface{}{
+				"config": map[string]interface{}{
+					"status": "active",
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.filter.Matches(tt.record)
+			if got != tt.want {
+				t.Errorf("Filter.Matches() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetNestedValue(t *testing.T) {
+	tests := []struct {
+		name       string
+		column     string
+		record     map[string]interface{}
+		wantValue  interface{}
+		wantExists bool
+	}{
+		{
+			name:   "simple column",
+			column: "name",
+			record: map[string]interface{}{
+				"name": "John",
+			},
+			wantValue:  "John",
+			wantExists: true,
+		},
+		{
+			name:   "json access",
+			column: "data->key",
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"key": "value",
+				},
+			},
+			wantValue:  "value",
+			wantExists: true,
+		},
+		{
+			name:   "text extraction converts to string",
+			column: "data->>count",
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"count": 42,
+				},
+			},
+			wantValue:  "42",
+			wantExists: true,
+		},
+		{
+			name:   "deep nesting",
+			column: "a->b->c",
+			record: map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": map[string]interface{}{
+						"c": "deep",
+					},
+				},
+			},
+			wantValue:  "deep",
+			wantExists: true,
+		},
+		{
+			name:   "missing key returns false",
+			column: "data->missing",
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"other": "value",
+				},
+			},
+			wantValue:  nil,
+			wantExists: false,
+		},
+		{
+			name:   "non-map value in path returns false",
+			column: "data->nested->key",
+			record: map[string]interface{}{
+				"data": map[string]interface{}{
+					"nested": "not a map",
+				},
+			},
+			wantValue:  nil,
+			wantExists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := &Filter{Column: tt.column}
+			gotValue, gotExists := filter.getNestedValue(tt.record)
+
+			if gotExists != tt.wantExists {
+				t.Errorf("getNestedValue() exists = %v, want %v", gotExists, tt.wantExists)
+			}
+
+			if gotValue != tt.wantValue {
+				t.Errorf("getNestedValue() value = %v, want %v", gotValue, tt.wantValue)
+			}
+		})
+	}
+}

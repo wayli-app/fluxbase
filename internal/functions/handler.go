@@ -310,6 +310,7 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		CorsMaxAge:           corsMaxAge,
 		CronSchedule:         req.CronSchedule,
 		CreatedBy:            createdBy,
+		Source:               "api",
 	}
 
 	if err := h.storage.CreateFunction(c.Context(), fn); err != nil {
@@ -336,7 +337,7 @@ func (h *Handler) ListFunctions(c *fiber.Ctx) error {
 	// Check if namespace filter is provided
 	namespace := c.Query("namespace")
 
-	var functions []EdgeFunction
+	var functions []EdgeFunctionSummary
 	var err error
 
 	if namespace != "" {
@@ -855,6 +856,7 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 				AllowWrite:           false,
 				AllowUnauthenticated: config.AllowUnauthenticated,
 				IsPublic:             config.IsPublic,
+				Source:               "filesystem",
 			}
 
 			if err := h.storage.CreateFunction(ctx, fn); err != nil {
@@ -902,8 +904,9 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 	}
 
 	// Delete functions that exist in database but not on disk
+	// Only delete filesystem-sourced functions, preserve API-created ones
 	for _, dbFunc := range allFunctions {
-		if !diskFunctionNames[dbFunc.Name] {
+		if !diskFunctionNames[dbFunc.Name] && dbFunc.Source == "filesystem" {
 			// Function exists in DB but not on disk - delete it
 			if err := h.storage.DeleteFunction(ctx, dbFunc.Name); err != nil {
 				errors = append(errors, fmt.Sprintf("%s: failed to delete: %v", dbFunc.Name, err))
@@ -981,7 +984,7 @@ func (h *Handler) SyncFunctions(c *fiber.Ctx) error {
 	}
 
 	// Build set of existing function names
-	existingNames := make(map[string]*EdgeFunction)
+	existingNames := make(map[string]*EdgeFunctionSummary)
 	for i := range existingFunctions {
 		existingNames[existingFunctions[i].Name] = &existingFunctions[i]
 	}
@@ -1169,64 +1172,55 @@ func (h *Handler) SyncFunctions(c *fiber.Ctx) error {
 			isPublic = *spec.IsPublic
 		}
 
-		if existing, exists := existingNames[spec.Name]; exists {
+		if _, exists := existingNames[spec.Name]; exists {
 			// Update existing function
-			// Check if anything changed
-			if existing.Code != result.BundledCode ||
-				(existing.OriginalCode != nil && *existing.OriginalCode != result.OriginalCode) ||
-				existing.AllowUnauthenticated != allowUnauthenticated ||
-				existing.IsPublic != isPublic {
-
-				updates := map[string]interface{}{
-					"code":                  result.BundledCode,
-					"original_code":         result.OriginalCode,
-					"is_bundled":            result.IsBundled,
-					"bundle_error":          result.BundleError,
-					"allow_unauthenticated": allowUnauthenticated,
-					"is_public":             isPublic,
-				}
-
-				if spec.Description != nil {
-					updates["description"] = spec.Description
-				}
-				if spec.Enabled != nil {
-					updates["enabled"] = *spec.Enabled
-				}
-				if spec.TimeoutSeconds != nil {
-					updates["timeout_seconds"] = *spec.TimeoutSeconds
-				}
-				if spec.MemoryLimitMB != nil {
-					updates["memory_limit_mb"] = *spec.MemoryLimitMB
-				}
-				if spec.AllowNet != nil {
-					updates["allow_net"] = *spec.AllowNet
-				}
-				if spec.AllowEnv != nil {
-					updates["allow_env"] = *spec.AllowEnv
-				}
-				if spec.AllowRead != nil {
-					updates["allow_read"] = *spec.AllowRead
-				}
-				if spec.AllowWrite != nil {
-					updates["allow_write"] = *spec.AllowWrite
-				}
-				if spec.CronSchedule != nil {
-					updates["cron_schedule"] = *spec.CronSchedule
-				}
-
-				if err := h.storage.UpdateFunctionByNamespace(ctx, spec.Name, namespace, updates); err != nil {
-					errorList = append(errorList, fiber.Map{
-						"function": spec.Name,
-						"error":    err.Error(),
-						"action":   "update",
-					})
-					continue
-				}
-
-				updated = append(updated, spec.Name)
-			} else {
-				unchanged = append(unchanged, spec.Name)
+			updates := map[string]interface{}{
+				"code":                  result.BundledCode,
+				"original_code":         result.OriginalCode,
+				"is_bundled":            result.IsBundled,
+				"bundle_error":          result.BundleError,
+				"allow_unauthenticated": allowUnauthenticated,
+				"is_public":             isPublic,
 			}
+
+			if spec.Description != nil {
+				updates["description"] = spec.Description
+			}
+			if spec.Enabled != nil {
+				updates["enabled"] = *spec.Enabled
+			}
+			if spec.TimeoutSeconds != nil {
+				updates["timeout_seconds"] = *spec.TimeoutSeconds
+			}
+			if spec.MemoryLimitMB != nil {
+				updates["memory_limit_mb"] = *spec.MemoryLimitMB
+			}
+			if spec.AllowNet != nil {
+				updates["allow_net"] = *spec.AllowNet
+			}
+			if spec.AllowEnv != nil {
+				updates["allow_env"] = *spec.AllowEnv
+			}
+			if spec.AllowRead != nil {
+				updates["allow_read"] = *spec.AllowRead
+			}
+			if spec.AllowWrite != nil {
+				updates["allow_write"] = *spec.AllowWrite
+			}
+			if spec.CronSchedule != nil {
+				updates["cron_schedule"] = *spec.CronSchedule
+			}
+
+			if err := h.storage.UpdateFunctionByNamespace(ctx, spec.Name, namespace, updates); err != nil {
+				errorList = append(errorList, fiber.Map{
+					"function": spec.Name,
+					"error":    err.Error(),
+					"action":   "update",
+				})
+				continue
+			}
+
+			updated = append(updated, spec.Name)
 		} else {
 			// Create new function
 			fn := &EdgeFunction{
@@ -1345,6 +1339,7 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 				AllowWrite:           false,
 				AllowUnauthenticated: config.AllowUnauthenticated,
 				IsPublic:             config.IsPublic,
+				Source:               "filesystem",
 			}
 
 			if err := h.storage.CreateFunction(ctx, fn); err != nil {

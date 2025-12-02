@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS functions.edge_functions (
     cron_schedule TEXT,
     version INTEGER DEFAULT 1,
     created_by UUID,
+    source TEXT NOT NULL DEFAULT 'filesystem',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_function_name_namespace UNIQUE (name, namespace)
@@ -42,9 +43,10 @@ COMMENT ON COLUMN functions.edge_functions.is_public IS 'Whether the function is
 COMMENT ON COLUMN functions.edge_functions.original_code IS 'Original source code before bundling (for editing in UI)';
 COMMENT ON COLUMN functions.edge_functions.is_bundled IS 'Whether the code field contains bundled output with dependencies';
 COMMENT ON COLUMN functions.edge_functions.bundle_error IS 'Error message if bundling failed (function still works with unbundled code)';
+COMMENT ON COLUMN functions.edge_functions.source IS 'Source of function: filesystem or api';
 
--- Edge function triggers table
-CREATE TABLE IF NOT EXISTS functions.edge_function_triggers (
+-- Edge triggers table
+CREATE TABLE IF NOT EXISTS functions.edge_triggers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     function_id UUID REFERENCES functions.edge_functions(id) ON DELETE CASCADE NOT NULL,
     trigger_type TEXT NOT NULL,
@@ -56,12 +58,12 @@ CREATE TABLE IF NOT EXISTS functions.edge_function_triggers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_triggers_function_id ON functions.edge_function_triggers(function_id);
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_triggers_enabled ON functions.edge_function_triggers(enabled);
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_triggers_table ON functions.edge_function_triggers(schema_name, table_name);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_triggers_function_id ON functions.edge_triggers(function_id);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_triggers_enabled ON functions.edge_triggers(enabled);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_triggers_table ON functions.edge_triggers(schema_name, table_name);
 
--- Edge function executions table
-CREATE TABLE IF NOT EXISTS functions.edge_function_executions (
+-- Edge executions table
+CREATE TABLE IF NOT EXISTS functions.edge_executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     function_id UUID REFERENCES functions.edge_functions(id) ON DELETE CASCADE NOT NULL,
     trigger_type TEXT NOT NULL,
@@ -75,19 +77,19 @@ CREATE TABLE IF NOT EXISTS functions.edge_function_executions (
     completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_executions_function_id ON functions.edge_function_executions(function_id);
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_executions_started_at ON functions.edge_function_executions(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_functions_edge_function_executions_status ON functions.edge_function_executions(status);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_executions_function_id ON functions.edge_executions(function_id);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_executions_started_at ON functions.edge_executions(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_functions_edge_executions_status ON functions.edge_executions(status);
 
--- Edge function files table (for multi-file functions)
-CREATE TABLE IF NOT EXISTS functions.edge_function_files (
+-- Edge files table (for multi-file functions)
+CREATE TABLE IF NOT EXISTS functions.edge_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     function_id UUID NOT NULL REFERENCES functions.edge_functions(id) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_function_file_path UNIQUE (function_id, file_path),
+    CONSTRAINT unique_edge_file_path UNIQUE (function_id, file_path),
     CONSTRAINT valid_file_path CHECK (
         file_path ~ '^[a-zA-Z0-9_/-]+\.(ts|js|mts|mjs)$' AND
         file_path NOT LIKE '../%' AND
@@ -95,9 +97,9 @@ CREATE TABLE IF NOT EXISTS functions.edge_function_files (
     )
 );
 
-CREATE INDEX IF NOT EXISTS idx_edge_function_files_function_id ON functions.edge_function_files(function_id);
+CREATE INDEX IF NOT EXISTS idx_edge_files_function_id ON functions.edge_files(function_id);
 
-COMMENT ON TABLE functions.edge_function_files IS 'Supporting files for edge functions (utils, helpers, types)';
+COMMENT ON TABLE functions.edge_files IS 'Supporting files for edge functions (utils, helpers, types)';
 
 -- Shared modules table (for _shared/* modules accessible by all functions)
 CREATE TABLE IF NOT EXISTS functions.shared_modules (

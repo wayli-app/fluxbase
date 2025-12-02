@@ -1,6 +1,10 @@
 package jobs
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestRoleSatisfiesRequirement(t *testing.T) {
 	tests := []struct {
@@ -42,5 +46,53 @@ func TestRoleSatisfiesRequirement(t *testing.T) {
 					tt.userRole, tt.requiredRole, result, tt.expected)
 			}
 		})
+	}
+}
+
+// TestEmbeddedSDKEndpoint verifies that the embedded SDK uses the correct API endpoint
+// for database operations. This prevents regressions where the endpoint path might
+// be accidentally changed back to an incorrect value.
+func TestEmbeddedSDKEndpoint(t *testing.T) {
+	// Read the embedded SDK file (now separate from runtime.go)
+	embeddedSDKCode, err := os.ReadFile("embedded_sdk.js")
+	if err != nil {
+		t.Fatalf("Failed to read embedded_sdk.js: %v", err)
+	}
+
+	code := string(embeddedSDKCode)
+
+	// Verify the QueryBuilder uses the correct endpoint path
+	correctEndpoint := "/api/v1/tables/"
+	incorrectEndpoint := "/api/v1/rest/"
+
+	// The embedded SDK should contain the correct endpoint
+	if !strings.Contains(code, correctEndpoint) {
+		t.Errorf("Embedded SDK does not contain the correct endpoint %q", correctEndpoint)
+	}
+
+	// The embedded SDK should NOT contain the old incorrect endpoint
+	if strings.Contains(code, incorrectEndpoint) {
+		t.Errorf("Embedded SDK contains the incorrect endpoint %q. "+
+			"Database operations in job handlers must use %q for proper routing.",
+			incorrectEndpoint, correctEndpoint)
+	}
+
+	// Additional validation: ensure QueryBuilder uses buildTablePath which returns the correct path
+	// Look for the buildTablePath method that constructs the /api/v1/tables/ path
+	buildTablePathIndex := strings.Index(code, "buildTablePath()")
+	if buildTablePathIndex == -1 {
+		t.Fatal("Could not find buildTablePath() method in embedded SDK")
+	}
+
+	// Extract a reasonable section of code after buildTablePath() to check the path construction
+	endIndex := buildTablePathIndex + 200
+	if endIndex > len(code) {
+		endIndex = len(code)
+	}
+	codeSection := code[buildTablePathIndex:endIndex]
+
+	// Check that buildTablePath returns the correct API endpoint
+	if !strings.Contains(codeSection, "/api/v1/tables/") {
+		t.Error("buildTablePath() does not construct path with '/api/v1/tables/'")
 	}
 }

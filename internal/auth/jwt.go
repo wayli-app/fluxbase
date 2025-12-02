@@ -21,6 +21,7 @@ var (
 type TokenClaims struct {
 	UserID       string `json:"user_id"`
 	Email        string `json:"email,omitempty"` // Empty for anonymous users
+	Name         string `json:"name,omitempty"`  // Display name of the user
 	Role         string `json:"role,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`    // Empty for anonymous users (no session)
 	TokenType    string `json:"token_type"`              // "access" or "refresh"

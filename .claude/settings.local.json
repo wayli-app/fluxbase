@@ -41,7 +41,10 @@
       "Bash(timeout 15:*)",
       "Bash(docker network inspect:*)",
       "Bash(export FLUXBASE_DEBUG=true)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(npm run generate:embedded-sdk:*)",
+      "Bash(npm install:*)",
+      "Bash(/workspace --include=*.go --include=*.ts --include=*.sql)"
     ],
     "deny": [],
     "ask": []

@@ -63,6 +63,17 @@ func (h *SystemSettingsHandler) GetSetting(c *fiber.Ctx) error {
 	setting, err := h.settingsService.GetSetting(ctx, key)
 	if err != nil {
 		if err == auth.ErrSettingNotFound {
+			// Return default value for known settings instead of 404
+			if defaultSetting := h.getDefaultSetting(key); defaultSetting != nil {
+				// Populate override information for defaults too
+				if h.settingsCache != nil {
+					defaultSetting.IsOverridden = h.settingsCache.IsOverriddenByEnv(key)
+					if defaultSetting.IsOverridden {
+						defaultSetting.OverrideSource = h.settingsCache.GetEnvVarName(key)
+					}
+				}
+				return c.JSON(defaultSetting)
+			}
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error": "Setting not found",
 			})
@@ -177,20 +188,34 @@ func (h *SystemSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// settingDefaults defines default values for known settings
+var settingDefaults = map[string]map[string]interface{}{
+	"app.auth.enable_signup":                {"value": true},
+	"app.auth.enable_magic_link":            {"value": false},
+	"app.auth.password_min_length":          {"value": 12},
+	"app.auth.require_email_verification":   {"value": false},
+	"app.features.enable_realtime":          {"value": true},
+	"app.features.enable_storage":           {"value": true},
+	"app.features.enable_functions":         {"value": true},
+	"app.email.enabled":                     {"value": false},
+	"app.email.provider":                    {"value": ""},
+	"app.security.enable_global_rate_limit": {"value": false},
+}
+
 // isValidSettingKey checks if a setting key is in the allowlist
 func (h *SystemSettingsHandler) isValidSettingKey(key string) bool {
-	validKeys := map[string]bool{
-		"app.auth.enable_signup":                true,
-		"app.auth.enable_magic_link":            true,
-		"app.auth.password_min_length":          true,
-		"app.auth.require_email_verification":   true,
-		"app.features.enable_realtime":          true,
-		"app.features.enable_storage":           true,
-		"app.features.enable_functions":         true,
-		"app.email.enabled":                     true,
-		"app.email.provider":                    true,
-		"app.security.enable_global_rate_limit": true,
-	}
+	_, exists := settingDefaults[key]
+	return exists
+}
 
-	return validKeys[key]
+// getDefaultSetting returns a default setting for a known key
+func (h *SystemSettingsHandler) getDefaultSetting(key string) *auth.SystemSetting {
+	defaultValue, exists := settingDefaults[key]
+	if !exists {
+		return nil
+	}
+	return &auth.SystemSetting{
+		Key:   key,
+		Value: defaultValue,
+	}
 }

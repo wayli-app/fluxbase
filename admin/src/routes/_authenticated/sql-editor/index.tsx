@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
-import type { editor } from 'monaco-editor'
+import type { editor, IDisposable } from 'monaco-editor'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { useSchemaMetadata } from '@/features/sql-editor/hooks/use-schema-metadata'
+import { createSqlCompletionProvider } from '@/features/sql-editor/utils/sql-completion-provider'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -74,6 +76,33 @@ function SQLEditorPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [currentPages, setCurrentPages] = useState<Record<string, number>>({})
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
+  const completionProviderRef = useRef<IDisposable | null>(null)
+
+  // Fetch schema metadata for autocompletion
+  const { schemas, tables, functions } = useSchemaMetadata()
+
+  // Update completion provider when metadata changes
+  useEffect(() => {
+    if (monacoRef.current && (schemas.length > 0 || tables.length > 0)) {
+      // Dispose old provider
+      if (completionProviderRef.current) {
+        completionProviderRef.current.dispose()
+      }
+
+      // Register new provider with updated metadata
+      completionProviderRef.current = monacoRef.current.languages.registerCompletionItemProvider(
+        'sql',
+        createSqlCompletionProvider(monacoRef.current, { schemas, tables, functions })
+      )
+    }
+
+    return () => {
+      if (completionProviderRef.current) {
+        completionProviderRef.current.dispose()
+      }
+    }
+  }, [schemas, tables, functions])
 
   // Get current history item (most recent or selected)
   const currentHistory = selectedHistoryId
@@ -201,12 +230,21 @@ function SQLEditorPage() {
     toast.success('Exported as JSON')
   }
 
-  // Handle editor mount - register keyboard shortcut
+  // Handle editor mount - register keyboard shortcut and completion provider
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
     monaco: typeof import('monaco-editor')
   ) => {
     editorRef.current = editor
+    monacoRef.current = monaco
+
+    // Register initial completion provider if metadata is already loaded
+    if (schemas.length > 0 || tables.length > 0) {
+      completionProviderRef.current = monaco.languages.registerCompletionItemProvider(
+        'sql',
+        createSqlCompletionProvider(monaco, { schemas, tables, functions })
+      )
+    }
 
     // Define custom theme that matches dashboard
     monaco.editor.defineTheme('fluxbase-dark', {
@@ -334,6 +372,11 @@ function SQLEditorPage() {
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                   tabSize: 2,
+                  // Enable autocomplete on trigger characters
+                  quickSuggestions: true,
+                  suggestOnTriggerCharacters: true,
+                  acceptSuggestionOnCommitCharacter: true,
+                  wordBasedSuggestions: 'off',
                 }}
               />
             </Card>

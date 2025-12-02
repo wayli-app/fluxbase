@@ -94,6 +94,12 @@ find docs/api -name "*.md" -type f | while read -r file; do
   $SED_INPLACE 's/{ data, error: null }/`{ data, error: null }`/g' "$file"
   $SED_INPLACE 's/{ data: null, error }/`{ data: null, error }`/g' "$file"
 
+  # Fix streaming options pattern
+  $SED_INPLACE "s/{ stream: true }/\`{ stream: true }\`/g" "$file"
+
+  # Fix esbuild define values example pattern
+  $SED_INPLACE "s/{ 'process.env.NODE_ENV': '\"production\"' }/\`{ 'process.env.NODE_ENV': '\"production\"' }\`/g" "$file"
+
   # Skip warning output - angle brackets in code blocks are safe and expected
   # The MDX compiler properly handles them during build
 done

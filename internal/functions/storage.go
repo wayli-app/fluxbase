@@ -40,6 +40,37 @@ type EdgeFunction struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 	CreatedBy       *uuid.UUID `json:"created_by"`
+	Source          string     `json:"source"` // "filesystem" or "api"
+}
+
+// EdgeFunctionSummary is a lightweight version of EdgeFunction for list responses (excludes code fields)
+type EdgeFunctionSummary struct {
+	ID                   uuid.UUID  `json:"id"`
+	Name                 string     `json:"name"`
+	Namespace            string     `json:"namespace"`
+	Description          *string    `json:"description"`
+	IsBundled            bool       `json:"is_bundled"`
+	BundleError          *string    `json:"bundle_error"`
+	Version              int        `json:"version"`
+	CronSchedule         *string    `json:"cron_schedule"`
+	Enabled              bool       `json:"enabled"`
+	TimeoutSeconds       int        `json:"timeout_seconds"`
+	MemoryLimitMB        int        `json:"memory_limit_mb"`
+	AllowNet             bool       `json:"allow_net"`
+	AllowEnv             bool       `json:"allow_env"`
+	AllowRead            bool       `json:"allow_read"`
+	AllowWrite           bool       `json:"allow_write"`
+	AllowUnauthenticated bool       `json:"allow_unauthenticated"`
+	IsPublic             bool       `json:"is_public"`
+	CorsOrigins          *string    `json:"cors_origins"`
+	CorsMethods          *string    `json:"cors_methods"`
+	CorsHeaders          *string    `json:"cors_headers"`
+	CorsCredentials      *bool      `json:"cors_credentials"`
+	CorsMaxAge           *int       `json:"cors_max_age"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	CreatedBy            *uuid.UUID `json:"created_by"`
+	Source               string     `json:"source"` // "filesystem" or "api"
 }
 
 // EdgeFunctionExecution represents a function execution log
@@ -99,8 +130,8 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 			enabled, timeout_seconds, memory_limit_mb,
 			allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
 			cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
-			cron_schedule, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+			cron_schedule, created_by, source
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 		RETURNING id, version, created_at, updated_at
 	`
 
@@ -110,7 +141,7 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 			fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
 			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.IsPublic,
 			fn.CorsOrigins, fn.CorsMethods, fn.CorsHeaders, fn.CorsCredentials, fn.CorsMaxAge,
-			fn.CronSchedule, fn.CreatedBy,
+			fn.CronSchedule, fn.CreatedBy, fn.Source,
 		).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 	})
 
@@ -128,7 +159,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
-		       created_at, updated_at, created_by
+		       created_at, updated_at, created_by, source
 		FROM functions.edge_functions
 		WHERE name = $1
 		ORDER BY namespace
@@ -142,7 +173,7 @@ func (s *Storage) GetFunction(ctx context.Context, name string) (*EdgeFunction, 
 			&fn.Version, &fn.CronSchedule, &fn.Enabled,
 			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
 			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
-			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
 		)
 	})
 
@@ -159,7 +190,7 @@ func (s *Storage) GetFunctionByNamespace(ctx context.Context, name string, names
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
-		       created_at, updated_at, created_by
+		       created_at, updated_at, created_by, source
 		FROM functions.edge_functions
 		WHERE name = $1 AND namespace = $2
 	`
@@ -171,7 +202,7 @@ func (s *Storage) GetFunctionByNamespace(ctx context.Context, name string, names
 			&fn.Version, &fn.CronSchedule, &fn.Enabled,
 			&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
 			&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
-			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+			&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
 		)
 	})
 
@@ -182,19 +213,19 @@ func (s *Storage) GetFunctionByNamespace(ctx context.Context, name string, names
 	return fn, nil
 }
 
-// ListFunctions returns all public functions (is_public=true)
-func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
+// ListFunctions returns all public functions (is_public=true), excludes code for performance
+func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, error) {
 	query := `
-		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
+		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
-		       created_at, updated_at, created_by
+		       created_at, updated_at, created_by, source
 		FROM functions.edge_functions
 		WHERE is_public = true
 		ORDER BY created_at DESC
 	`
 
-	var functions []EdgeFunction
+	var functions []EdgeFunctionSummary
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query)
 		if err != nil {
@@ -203,13 +234,13 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunction, error) {
 		defer rows.Close()
 
 		for rows.Next() {
-			fn := EdgeFunction{}
+			fn := EdgeFunctionSummary{}
 			err := rows.Scan(
-				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
 			)
 			if err != nil {
 				return err
@@ -255,19 +286,19 @@ func (s *Storage) ListFunctionNamespaces(ctx context.Context) ([]string, error) 
 	return namespaces, nil
 }
 
-// ListFunctionsByNamespace returns all functions in a specific namespace
-func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string) ([]EdgeFunction, error) {
+// ListFunctionsByNamespace returns all functions in a specific namespace, excludes code for performance
+func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string) ([]EdgeFunctionSummary, error) {
 	query := `
-		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error, version, cron_schedule, enabled,
+		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
-		       created_at, updated_at, created_by
+		       created_at, updated_at, created_by, source
 		FROM functions.edge_functions
 		WHERE namespace = $1
 		ORDER BY created_at DESC
 	`
 
-	var functions []EdgeFunction
+	var functions []EdgeFunctionSummary
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, namespace)
 		if err != nil {
@@ -276,13 +307,13 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 		defer rows.Close()
 
 		for rows.Next() {
-			fn := EdgeFunction{}
+			fn := EdgeFunctionSummary{}
 			err := rows.Scan(
-				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode, &fn.IsBundled, &fn.BundleError,
+				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
 				&fn.Version, &fn.CronSchedule, &fn.Enabled,
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
 			)
 			if err != nil {
 				return err
@@ -355,7 +386,7 @@ func (s *Storage) DeleteFunctionByNamespace(ctx context.Context, name string, na
 // LogExecution logs a function execution
 func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution) error {
 	query := `
-		INSERT INTO functions.edge_function_executions (
+		INSERT INTO functions.edge_executions (
 			function_id, trigger_type, status, status_code,
 			duration_ms, result, logs, error_message, completed_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -382,7 +413,7 @@ func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit 
 		SELECT e.id, e.function_id, e.trigger_type, e.status, e.status_code,
 		       e.duration_ms, e.result, e.logs, e.error_message,
 		       e.started_at, e.completed_at
-		FROM functions.edge_function_executions e
+		FROM functions.edge_executions e
 		JOIN functions.edge_functions f ON e.function_id = f.id
 		WHERE f.name = $1
 		ORDER BY e.started_at DESC
@@ -540,7 +571,7 @@ func (s *Storage) DeleteSharedModule(ctx context.Context, modulePath string) err
 // SaveFunctionFiles stores supporting files for a function
 func (s *Storage) SaveFunctionFiles(ctx context.Context, functionID uuid.UUID, files []FunctionFile) error {
 	// First, delete existing files for this function
-	deleteQuery := "DELETE FROM functions.edge_function_files WHERE function_id = $1"
+	deleteQuery := "DELETE FROM functions.edge_files WHERE function_id = $1"
 
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, deleteQuery, functionID)
@@ -550,7 +581,7 @@ func (s *Storage) SaveFunctionFiles(ctx context.Context, functionID uuid.UUID, f
 
 		// Insert new files
 		insertQuery := `
-			INSERT INTO functions.edge_function_files (
+			INSERT INTO functions.edge_files (
 				function_id, file_path, content
 			) VALUES ($1, $2, $3)
 		`
@@ -576,7 +607,7 @@ func (s *Storage) SaveFunctionFiles(ctx context.Context, functionID uuid.UUID, f
 func (s *Storage) GetFunctionFiles(ctx context.Context, functionID uuid.UUID) ([]FunctionFile, error) {
 	query := `
 		SELECT id, function_id, file_path, content, created_at, updated_at
-		FROM functions.edge_function_files
+		FROM functions.edge_files
 		WHERE function_id = $1
 		ORDER BY file_path
 	`

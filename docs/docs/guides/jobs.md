@@ -167,7 +167,7 @@ If your use case requires separate worker processes (e.g., different resource li
 | `poll_interval` | `1s` | How often workers check for new jobs |
 | `worker_heartbeat_interval` | `10s` | Heartbeat frequency |
 | `worker_timeout` | `30s` | Time before worker is considered dead |
-| `default_progress_timeout` | `60s` | Kill job if no progress reported |
+| `default_progress_timeout` | `300s` | Kill job if no progress reported |
 
 ### Monitoring Workers
 
@@ -264,7 +264,7 @@ const { data: job } = await client.jobs.submit('process-data', {
 })
 
 // Subscribe to realtime updates
-const channel = client.realtime.channel('table:jobs.job_queue')
+const channel = client.realtime.channel('table:jobs.queue')
 
 channel.on('UPDATE', (payload) => {
   const updatedJob = payload.new
@@ -297,7 +297,7 @@ When a job updates, subscribers receive the **complete job record** (respecting 
 interface RealtimeJobUpdate {
   eventType: 'UPDATE'
   schema: 'jobs'
-  table: 'job_queue'
+  table: 'queue'
   commit_timestamp: string
 
   // New state after the update
@@ -354,7 +354,7 @@ Realtime subscriptions respect Row-Level Security policies:
 
 ```typescript
 // User A subscribes to job updates
-const channel = client.realtime.channel('table:jobs.job_queue')
+const channel = client.realtime.channel('table:jobs.queue')
 
 channel.on('UPDATE', (payload) => {
   // Only receives updates for jobs where created_by = userA_uuid
@@ -367,7 +367,7 @@ channel.on('UPDATE', (payload) => {
 
 ```typescript
 // Admin or dashboard_admin role can see all jobs
-const channel = adminClient.realtime.channel('table:jobs.job_queue')
+const channel = adminClient.realtime.channel('table:jobs.queue')
 
 channel.on('UPDATE', (payload) => {
   // Receives updates for ALL jobs across all users
@@ -386,7 +386,7 @@ const channel = client.realtime.channel('jobs:running')
 channel.on('postgres_changes', {
   event: 'UPDATE',
   schema: 'jobs',
-  table: 'job_queue',
+  table: 'queue',
   filter: 'status=eq.running'  // Only running jobs
 }, (payload) => {
   console.log('Running job progress:', payload.new.progress)
@@ -403,12 +403,12 @@ sequenceDiagram
     participant Server as Fluxbase Server
     participant Client as Browser/Client
 
-    Client->>Server: Subscribe to channel<br/>'table:jobs.job_queue'
+    Client->>Server: Subscribe to channel<br/>'table:jobs.queue'
     Server-->>Client: Subscription confirmed
 
     Job->>Job: job.reportProgress(50, "Processing...")
     Job->>Worker: Return progress update
-    Worker->>DB: UPDATE jobs.job_queue<br/>SET progress = {...}
+    Worker->>DB: UPDATE jobs.queue<br/>SET progress = {...}
 
     Note over DB: Trigger fires after UPDATE
     DB->>DB: jobs.notify_realtime_change()
@@ -717,13 +717,13 @@ graph TB
 
 ### RLS Policies
 
-Four policies control access to the `jobs.job_queue` table:
+Four policies control access to the `jobs.queue` table:
 
 **1. Users can read their own jobs:**
 
 ```sql
 CREATE POLICY "Users can read their own jobs"
-    ON jobs.job_queue FOR SELECT
+    ON jobs.queue FOR SELECT
     TO authenticated
     USING (created_by = auth.uid());
 ```
@@ -732,7 +732,7 @@ CREATE POLICY "Users can read their own jobs"
 
 ```sql
 CREATE POLICY "Users can submit jobs"
-    ON jobs.job_queue FOR INSERT
+    ON jobs.queue FOR INSERT
     TO authenticated
     WITH CHECK (created_by = auth.uid());
 ```
@@ -741,7 +741,7 @@ CREATE POLICY "Users can submit jobs"
 
 ```sql
 CREATE POLICY "Users can cancel their own pending/running jobs"
-    ON jobs.job_queue FOR UPDATE
+    ON jobs.queue FOR UPDATE
     TO authenticated
     USING (created_by = auth.uid() AND status IN ('pending', 'running'))
     WITH CHECK (status = 'cancelled');
@@ -751,7 +751,7 @@ CREATE POLICY "Users can cancel their own pending/running jobs"
 
 ```sql
 CREATE POLICY "Service role can manage all jobs"
-    ON jobs.job_queue FOR ALL
+    ON jobs.queue FOR ALL
     TO service_role
     USING (true)
     WITH CHECK (true);
@@ -785,7 +785,7 @@ sequenceDiagram
     API->>Auth: Validate JWT token
     Auth-->>API: user_id, role, email
     API->>API: Check job function permissions<br/>(require_role if set)
-    API->>DB: INSERT INTO job_queue<br/>created_by = user_id
+    API->>DB: INSERT INTO queue<br/>created_by = user_id
     Note over DB: RLS checks:<br/>created_by = auth.uid()
     DB-->>API: Job created (pending)
     API-->>User: {id, status: "pending"}
@@ -1142,7 +1142,7 @@ export async function handler(
 - Regular users cannot submit jobs with `@fluxbase:require-role admin`
 - Verify user's role matches the required role
 - Use service key or admin token for admin-only jobs
-- Check RLS policies on job_queue table
+- Check RLS policies on jobs.queue table
 
 ### Job fails immediately
 

@@ -85,6 +85,7 @@ func OptionalAPIKeyAuth(authService *auth.Service, apiKeyService *auth.APIKeySer
 					// Valid JWT token
 					c.Locals("user_id", claims.UserID)
 					c.Locals("user_email", claims.Email)
+					c.Locals("user_name", claims.Name)
 					c.Locals("user_role", claims.Role)
 					c.Locals("session_id", claims.SessionID)
 					c.Locals("auth_type", "jwt")
@@ -139,6 +140,7 @@ func RequireEitherAuth(authService *auth.Service, apiKeyService *auth.APIKeyServ
 					// Valid JWT token
 					c.Locals("user_id", claims.UserID)
 					c.Locals("user_email", claims.Email)
+					c.Locals("user_name", claims.Name)
 					c.Locals("user_role", claims.Role)
 					c.Locals("session_id", claims.SessionID)
 					c.Locals("auth_type", "jwt")
@@ -272,6 +274,7 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 					// Successfully validated as dashboard.users token
 					c.Locals("user_id", dashboardClaims.Subject)
 					c.Locals("user_email", dashboardClaims.Email)
+					c.Locals("user_name", dashboardClaims.Name)
 					c.Locals("user_role", dashboardClaims.Role)
 					c.Locals("auth_type", "jwt")
 					c.Locals("is_anonymous", false)
@@ -346,74 +349,12 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			})
 		}
 
-		// Check for Supabase-style apikey header (lowercase)
-		// This header may contain a JWT with role claim (anon, service_role, authenticated)
-		fluxbaseAPIKey := c.Get("apikey")
-		if fluxbaseAPIKey != "" && strings.HasPrefix(fluxbaseAPIKey, "eyJ") {
-			// Looks like a JWT - validate it as a service role token
-			claims, err := authService.ValidateServiceRoleToken(fluxbaseAPIKey)
-			if err == nil {
-				// Valid service role JWT
-				c.Locals("user_role", claims.Role)
-				c.Locals("auth_type", "service_role_jwt")
-				c.Locals("jwt_claims", claims)
-
-				// Set RLS context based on role claim
-				c.Locals("rls_role", claims.Role)
-				if claims.UserID != "" {
-					c.Locals("user_id", claims.UserID)
-					c.Locals("rls_user_id", claims.UserID)
-				}
-
-				log.Debug().
-					Str("role", claims.Role).
-					Str("issuer", claims.Issuer).
-					Msg("Authenticated with service role JWT via apikey header")
-
-				return c.Next()
-			}
-			// If apikey JWT was provided but invalid, log and fall through to try other auth methods
-			// Don't return 401 immediately - the user might have a valid Bearer token
-			log.Debug().
-				Err(err).
-				Msg("apikey JWT validation failed, trying other authentication methods")
-		}
-
 		// Try JWT authentication via Authorization Bearer header
+		// Check user JWT first (most common case), then service role JWT
 		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
-			// First, try to validate as a service role JWT (anon/service_role/authenticated)
-			// This handles the Supabase pattern where the same JWT is sent as both apikey and Bearer
-			if strings.HasPrefix(token, "eyJ") {
-				claims, err := authService.ValidateServiceRoleToken(token)
-				if err == nil {
-					// Check if this is a service_role or anon token (not a user token)
-					if claims.Role == "service_role" || claims.Role == "anon" {
-						// Valid service role JWT - bypass user validation
-						c.Locals("user_role", claims.Role)
-						c.Locals("auth_type", "service_role_jwt")
-						c.Locals("jwt_claims", claims)
-						c.Locals("rls_role", claims.Role)
-
-						log.Debug().
-							Str("role", claims.Role).
-							Str("issuer", claims.Issuer).
-							Msg("Authenticated with service role JWT via Bearer header")
-
-						return c.Next()
-					}
-					// Role is "authenticated" - fall through to user JWT validation
-					// which includes revocation checks
-				} else {
-					// ValidateServiceRoleToken failed - log for debugging
-					log.Debug().
-						Err(err).
-						Msg("Service role JWT validation failed, trying user JWT validation")
-				}
-			}
-
-			// Try to validate as a user JWT token
+			// First, try to validate as a user JWT token (most common case)
 			claims, err := authService.ValidateToken(token)
 			if err == nil {
 				// Check if token has been revoked
@@ -435,11 +376,95 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 					return c.Next()
 				}
 			}
+
+			// User JWT validation failed, try service role JWT (anon/service_role)
+			// This handles the Supabase pattern where the same JWT is sent as both apikey and Bearer
+			if strings.HasPrefix(token, "eyJ") {
+				claims, err := authService.ValidateServiceRoleToken(token)
+				if err == nil {
+					// Check if this is a service_role or anon token (not a user token)
+					if claims.Role == "service_role" || claims.Role == "anon" {
+						// Valid service role JWT - bypass user validation
+						c.Locals("user_role", claims.Role)
+						c.Locals("auth_type", "service_role_jwt")
+						c.Locals("jwt_claims", claims)
+						c.Locals("rls_role", claims.Role)
+
+						log.Debug().
+							Str("role", claims.Role).
+							Str("issuer", claims.Issuer).
+							Msg("Authenticated with service role JWT via Bearer header")
+
+						return c.Next()
+					}
+				} else {
+					// Both user JWT and service role JWT validation failed
+					log.Debug().
+						Err(err).
+						Msg("Bearer token validation failed (tried user JWT then service role JWT)")
+				}
+			}
+
 			// If Bearer token was provided but invalid, return 401
 			// Don't fall back to anonymous access when invalid credentials are provided
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid or expired Bearer token",
 			})
+		}
+
+		// Check for Supabase-style apikey header (lowercase)
+		// This header may contain a JWT with role claim (anon, service_role, authenticated)
+		fluxbaseAPIKey := c.Get("apikey")
+		if fluxbaseAPIKey != "" && strings.HasPrefix(fluxbaseAPIKey, "eyJ") {
+			// Looks like a JWT - first try user JWT (most common), then service role
+			claims, err := authService.ValidateToken(fluxbaseAPIKey)
+			if err == nil {
+				// Check if token has been revoked
+				isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
+				if err == nil && !isRevoked {
+					// Valid user JWT token via apikey header
+					c.Locals("user_id", claims.UserID)
+					c.Locals("user_email", claims.Email)
+					c.Locals("user_role", claims.Role)
+					c.Locals("session_id", claims.SessionID)
+					c.Locals("auth_type", "jwt")
+					c.Locals("is_anonymous", claims.IsAnonymous)
+					c.Locals("jwt_claims", claims)
+
+					// Set RLS context
+					c.Locals("rls_user_id", claims.UserID)
+					c.Locals("rls_role", claims.Role)
+
+					return c.Next()
+				}
+			}
+
+			// User JWT failed, try service role JWT
+			srClaims, err := authService.ValidateServiceRoleToken(fluxbaseAPIKey)
+			if err == nil {
+				// Valid service role JWT
+				c.Locals("user_role", srClaims.Role)
+				c.Locals("auth_type", "service_role_jwt")
+				c.Locals("jwt_claims", srClaims)
+
+				// Set RLS context based on role claim
+				c.Locals("rls_role", srClaims.Role)
+				if srClaims.UserID != "" {
+					c.Locals("user_id", srClaims.UserID)
+					c.Locals("rls_user_id", srClaims.UserID)
+				}
+
+				log.Debug().
+					Str("role", srClaims.Role).
+					Str("issuer", srClaims.Issuer).
+					Msg("Authenticated with service role JWT via apikey header")
+
+				return c.Next()
+			}
+			// If apikey JWT was provided but invalid, log and fall through to try API key auth
+			log.Debug().
+				Err(err).
+				Msg("apikey header JWT validation failed (tried user JWT then service role JWT)")
 		}
 
 		// Try API key authentication (X-API-Key header or apikey query param)

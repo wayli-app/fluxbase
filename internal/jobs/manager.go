@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/config"
 	"github.com/wayli-app/fluxbase/internal/database"
@@ -86,4 +87,12 @@ func (m *Manager) Stop() {
 // GetWorkerCount returns the number of active workers
 func (m *Manager) GetWorkerCount() int {
 	return len(m.Workers)
+}
+
+// CancelJob cancels a running job by signaling all workers
+// This immediately kills the Deno process if the job is running on any worker
+func (m *Manager) CancelJob(jobID uuid.UUID) {
+	for _, worker := range m.Workers {
+		worker.cancelJob(jobID)
+	}
 }

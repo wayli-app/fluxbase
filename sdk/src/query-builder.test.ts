@@ -6,6 +6,17 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { QueryBuilder } from "./query-builder";
 import type { FluxbaseFetch } from "./fetch";
 
+// Helper to create mock Headers
+function createMockHeaders(headersInit?: Record<string, string>): Headers {
+  const headers = new Headers();
+  if (headersInit) {
+    for (const [key, value] of Object.entries(headersInit)) {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+
 // Mock FluxbaseFetch
 class MockFetch implements FluxbaseFetch {
   public lastUrl: string = "";
@@ -14,6 +25,7 @@ class MockFetch implements FluxbaseFetch {
   public lastHeaders: Record<string, string> = {};
   public mockResponse: unknown = [];
   public mockError: Error | null = null;
+  public mockContentRangeHeader: string | null = null;
 
   constructor(
     public baseUrl: string = "http://localhost:8080",
@@ -27,6 +39,22 @@ class MockFetch implements FluxbaseFetch {
       throw this.mockError;
     }
     return this.mockResponse as T;
+  }
+
+  async getWithHeaders<T>(path: string): Promise<{ data: T; headers: Headers; status: number }> {
+    this.lastUrl = path;
+    this.lastMethod = "GET";
+    if (this.mockError) {
+      throw this.mockError;
+    }
+    const responseHeaders = createMockHeaders(
+      this.mockContentRangeHeader ? { "Content-Range": this.mockContentRangeHeader } : undefined
+    );
+    return {
+      data: this.mockResponse as T,
+      headers: responseHeaders,
+      status: 200,
+    };
   }
 
   async post<T>(
@@ -844,6 +872,209 @@ describe("QueryBuilder - Method Chaining (New)", () => {
 
       expect(fetch.lastMethod).toBe("DELETE");
       expect(fetch.lastUrl).toContain("spam=eq.true");
+    });
+  });
+});
+
+describe("QueryBuilder - Count Queries (Supabase-compatible)", () => {
+  let fetch: MockFetch;
+  let builder: QueryBuilder;
+
+  beforeEach(() => {
+    fetch = new MockFetch();
+    builder = new QueryBuilder(fetch, "tracker_data");
+  });
+
+  describe("select() with count option", () => {
+    it("should add count=exact parameter when count option is set", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = [{ id: 1 }, { id: 2 }];
+
+      await builder.select("*", { count: "exact" }).execute();
+
+      expect(fetch.lastUrl).toContain("count=exact");
+    });
+
+    it("should add count=planned parameter when count option is planned", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = [{ id: 1 }];
+
+      await builder.select("*", { count: "planned" }).execute();
+
+      expect(fetch.lastUrl).toContain("count=planned");
+    });
+
+    it("should add count=estimated parameter when count option is estimated", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = [{ id: 1 }];
+
+      await builder.select("*", { count: "estimated" }).execute();
+
+      expect(fetch.lastUrl).toContain("count=estimated");
+    });
+
+    it("should not add count parameter when count option is not set", async () => {
+      fetch.mockResponse = [{ id: 1 }];
+
+      await builder.select("*").execute();
+
+      expect(fetch.lastUrl).not.toContain("count=");
+    });
+  });
+
+  describe("Content-Range header parsing", () => {
+    it("should return count from Content-Range header", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = [{ id: 1 }, { id: 2 }];
+
+      const { count, data } = await builder
+        .select("*", { count: "exact" })
+        .execute();
+
+      expect(count).toBe(50000);
+      expect(data).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+
+    it("should return count even when data array has fewer rows", async () => {
+      // This is the key test: server returns 1000 rows due to limit, but count is 50000
+      fetch.mockContentRangeHeader = "0-999/50000";
+      const mockData = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+      fetch.mockResponse = mockData;
+
+      const { count, data } = await builder
+        .select("*", { count: "exact" })
+        .eq("user_id", "abc-123")
+        .execute();
+
+      expect(count).toBe(50000);
+      expect((data as any[]).length).toBe(1000);
+    });
+
+    it("should handle Content-Range with different formats", async () => {
+      fetch.mockContentRangeHeader = "0-49/100";
+      fetch.mockResponse = Array.from({ length: 50 }, (_, i) => ({ id: i }));
+
+      const { count } = await builder.select("*", { count: "exact" }).execute();
+
+      expect(count).toBe(100);
+    });
+
+    it("should return null count when Content-Range header is missing", async () => {
+      fetch.mockContentRangeHeader = null;
+      fetch.mockResponse = [{ id: 1 }, { id: 2 }];
+
+      const { count, data } = await builder
+        .select("*", { count: "exact" })
+        .execute();
+
+      // Falls back to array length when header missing
+      expect(count).toBe(2);
+      expect(data).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+  });
+
+  describe("head option (count only, no data)", () => {
+    it("should return count with null data when head is true", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = [{ id: 1 }];
+
+      const { count, data } = await builder
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", "abc-123")
+        .execute();
+
+      expect(count).toBe(50000);
+      expect(data).toBeNull();
+    });
+
+    it("should still include count parameter in URL with head option", async () => {
+      fetch.mockContentRangeHeader = "0-0/12345";
+      fetch.mockResponse = [];
+
+      await builder.select("*", { count: "exact", head: true }).execute();
+
+      expect(fetch.lastUrl).toContain("count=exact");
+    });
+  });
+
+  describe("count with filters", () => {
+    it("should work with eq filter", async () => {
+      fetch.mockContentRangeHeader = "0-99/500";
+      fetch.mockResponse = Array.from({ length: 100 }, (_, i) => ({ id: i }));
+
+      const { count } = await builder
+        .select("*", { count: "exact" })
+        .eq("status", "active")
+        .execute();
+
+      expect(fetch.lastUrl).toContain("status=eq.active");
+      expect(fetch.lastUrl).toContain("count=exact");
+      expect(count).toBe(500);
+    });
+
+    it("should work with not.is.null filter (original bug scenario)", async () => {
+      fetch.mockContentRangeHeader = "0-999/50000";
+      fetch.mockResponse = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+
+      const { count } = await builder
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", "target-user-id")
+        .not("location", "is", null)
+        .execute();
+
+      expect(fetch.lastUrl).toContain("user_id=eq.target-user-id");
+      expect(fetch.lastUrl).toContain("location=not.is.null");
+      expect(fetch.lastUrl).toContain("count=exact");
+      expect(count).toBe(50000);
+    });
+
+    it("should work with limit and offset", async () => {
+      fetch.mockContentRangeHeader = "100-199/5000";
+      fetch.mockResponse = Array.from({ length: 100 }, (_, i) => ({ id: i + 100 }));
+
+      const { count, data } = await builder
+        .select("*", { count: "exact" })
+        .limit(100)
+        .offset(100)
+        .execute();
+
+      expect(fetch.lastUrl).toContain("limit=100");
+      expect(fetch.lastUrl).toContain("offset=100");
+      expect(fetch.lastUrl).toContain("count=exact");
+      expect(count).toBe(5000);
+      expect((data as any[]).length).toBe(100);
+    });
+  });
+
+  describe("count with single/maybeSingle", () => {
+    it("should return server count with single() modifier", async () => {
+      fetch.mockContentRangeHeader = "0-0/1";
+      fetch.mockResponse = [{ id: 1, name: "Test" }];
+
+      const { count, data } = await builder
+        .select("*", { count: "exact" })
+        .eq("id", 1)
+        .single()
+        .execute();
+
+      expect(count).toBe(1);
+      expect(data).toEqual({ id: 1, name: "Test" });
+    });
+
+    it("should return server count with maybeSingle() for no results", async () => {
+      fetch.mockContentRangeHeader = "*/0";
+      fetch.mockResponse = [];
+
+      const { count, data, error } = await builder
+        .select("*", { count: "exact" })
+        .eq("id", 999)
+        .maybeSingle()
+        .execute();
+
+      // When no rows found, count should be 0
+      expect(count).toBe(0);
+      expect(data).toBeNull();
+      expect(error).toBeNull();
     });
   });
 });

@@ -136,6 +136,20 @@ func (ls *LocalStorage) Upload(ctx context.Context, bucket, key string, data io.
 	}, nil
 }
 
+// limitedReadCloser wraps a Reader with a Closer
+type limitedReadCloser struct {
+	reader io.Reader
+	closer io.Closer
+}
+
+func (l *limitedReadCloser) Read(p []byte) (n int, err error) {
+	return l.reader.Read(p)
+}
+
+func (l *limitedReadCloser) Close() error {
+	return l.closer.Close()
+}
+
 // Download downloads a file from local storage
 func (ls *LocalStorage) Download(ctx context.Context, bucket, key string, opts *DownloadOptions) (io.ReadCloser, *Object, error) {
 	filePath := ls.getPath(bucket, key)
@@ -176,16 +190,51 @@ func (ls *LocalStorage) Download(ctx context.Context, bucket, key string, opts *
 		}
 	}
 
+	totalSize := info.Size()
+	var reader io.ReadCloser = file
+
+	// Handle Range header for partial content requests
+	if opts != nil && opts.Range != "" {
+		var start, end int64
+		if _, err := fmt.Sscanf(opts.Range, "bytes=%d-%d", &start, &end); err == nil {
+			// Validate range
+			if start < 0 {
+				start = 0
+			}
+			if end >= totalSize {
+				end = totalSize - 1
+			}
+			if start > end || start >= totalSize {
+				file.Close()
+				return nil, nil, fmt.Errorf("invalid range: requested range not satisfiable")
+			}
+
+			// Seek to start position
+			if _, err := file.Seek(start, io.SeekStart); err != nil {
+				file.Close()
+				return nil, nil, fmt.Errorf("failed to seek: %w", err)
+			}
+
+			// Create limited reader for the range
+			length := end - start + 1
+			reader = &limitedReadCloser{
+				reader: io.LimitReader(file, length),
+				closer: file,
+			}
+			totalSize = length
+		}
+	}
+
 	object := &Object{
 		Key:          key,
 		Bucket:       bucket,
-		Size:         info.Size(),
+		Size:         totalSize,
 		ContentType:  contentType,
 		LastModified: info.ModTime(),
 		Metadata:     metadata,
 	}
 
-	return file, object, nil
+	return reader, object, nil
 }
 
 // Delete deletes a file from local storage

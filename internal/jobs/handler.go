@@ -409,8 +409,9 @@ func (h *Handler) GetJob(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
 	}
 
-	// Calculate ETA for running jobs
+	// Calculate ETA and flatten progress for running jobs
 	job.CalculateETA()
+	job.FlattenProgress()
 
 	return c.JSON(job)
 }
@@ -427,8 +428,9 @@ func (h *Handler) GetJobAdmin(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Job not found"})
 	}
 
-	// Calculate ETA for running jobs
+	// Calculate ETA and flatten progress for running jobs
 	job.CalculateETA()
+	job.FlattenProgress()
 
 	return c.JSON(job)
 }
@@ -560,6 +562,11 @@ func (h *Handler) CancelJob(c *fiber.Ctx) error {
 		})
 	}
 
+	// Signal the worker to kill the job process immediately
+	if h.manager != nil {
+		h.manager.CancelJob(jobID)
+	}
+
 	log.Info().Str("job_id", jobID.String()).Msg("Job cancelled by user")
 
 	return c.JSON(fiber.Map{"message": "Job cancelled"})
@@ -638,6 +645,11 @@ func (h *Handler) CancelJobAdmin(c *fiber.Ctx) error {
 			"error":      "Failed to cancel job",
 			"request_id": reqID,
 		})
+	}
+
+	// Signal the worker to kill the job process immediately
+	if h.manager != nil {
+		h.manager.CancelJob(jobID)
 	}
 
 	log.Info().Str("job_id", jobID.String()).Msg("Job cancelled by admin")
@@ -817,7 +829,7 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 	}
 
 	// Build set of existing function names
-	existingNames := make(map[string]*JobFunction)
+	existingNames := make(map[string]*JobFunctionSummary)
 	for i := range existingFunctions {
 		existingNames[existingFunctions[i].Name] = existingFunctions[i]
 	}
@@ -911,75 +923,85 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 
 		// Create or update job function
 		if existing, exists := existingNames[spec.Name]; exists {
-			// Check if anything changed
-			codeChanged := (existing.Code == nil || *existing.Code != code) ||
-				(existing.OriginalCode == nil || *existing.OriginalCode != originalCode)
-
-			if codeChanged {
-				// Update existing function
-				existing.Code = &code
-				existing.OriginalCode = &originalCode
-				existing.IsBundled = isBundled
-				existing.BundleError = bundleError
-
-				// Apply request values (take precedence over annotations)
-				if spec.Description != nil {
-					existing.Description = spec.Description
-				}
-				if spec.Enabled != nil {
-					existing.Enabled = *spec.Enabled
-				}
-				if spec.Schedule != nil {
-					existing.Schedule = spec.Schedule
-				}
-				if spec.TimeoutSeconds != nil {
-					existing.TimeoutSeconds = *spec.TimeoutSeconds
-				} else if annotations.TimeoutSeconds > 0 {
-					existing.TimeoutSeconds = annotations.TimeoutSeconds
-				}
-				if spec.MemoryLimitMB != nil {
-					existing.MemoryLimitMB = *spec.MemoryLimitMB
-				} else if annotations.MemoryLimitMB > 0 {
-					existing.MemoryLimitMB = annotations.MemoryLimitMB
-				}
-				if spec.MaxRetries != nil {
-					existing.MaxRetries = *spec.MaxRetries
-				} else if annotations.MaxRetries > 0 {
-					existing.MaxRetries = annotations.MaxRetries
-				}
-				if spec.ProgressTimeoutSeconds != nil {
-					existing.ProgressTimeoutSeconds = *spec.ProgressTimeoutSeconds
-				} else if annotations.ProgressTimeoutSeconds > 0 {
-					existing.ProgressTimeoutSeconds = annotations.ProgressTimeoutSeconds
-				}
-				if spec.AllowNet != nil {
-					existing.AllowNet = *spec.AllowNet
-				}
-				if spec.AllowEnv != nil {
-					existing.AllowEnv = *spec.AllowEnv
-				}
-				if spec.AllowRead != nil {
-					existing.AllowRead = *spec.AllowRead
-				}
-				if spec.AllowWrite != nil {
-					existing.AllowWrite = *spec.AllowWrite
-				}
-				if spec.RequireRole != nil {
-					existing.RequireRole = spec.RequireRole
-				}
-
-				if err := h.storage.UpdateJobFunction(ctx, existing); err != nil {
-					errorList = append(errorList, fiber.Map{
-						"job":    spec.Name,
-						"error":  err.Error(),
-						"action": "update",
-					})
-					continue
-				}
-				updated = append(updated, spec.Name)
-			} else {
-				unchanged = append(unchanged, spec.Name)
+			// Update existing function - build JobFunction with updated values
+			updatedFn := &JobFunction{
+				ID:                     existing.ID,
+				Name:                   existing.Name,
+				Namespace:              existing.Namespace,
+				Code:                   &code,
+				OriginalCode:           &originalCode,
+				IsBundled:              isBundled,
+				BundleError:            bundleError,
+				Description:            existing.Description,
+				Enabled:                existing.Enabled,
+				Schedule:               existing.Schedule,
+				TimeoutSeconds:         existing.TimeoutSeconds,
+				MemoryLimitMB:          existing.MemoryLimitMB,
+				MaxRetries:             existing.MaxRetries,
+				ProgressTimeoutSeconds: existing.ProgressTimeoutSeconds,
+				AllowNet:               existing.AllowNet,
+				AllowEnv:               existing.AllowEnv,
+				AllowRead:              existing.AllowRead,
+				AllowWrite:             existing.AllowWrite,
+				RequireRole:            existing.RequireRole,
+				Source:                 existing.Source, // Preserve original source
 			}
+
+			// Apply request values (take precedence over annotations)
+			if spec.Description != nil {
+				updatedFn.Description = spec.Description
+			}
+			if spec.Enabled != nil {
+				updatedFn.Enabled = *spec.Enabled
+			}
+			if spec.Schedule != nil {
+				updatedFn.Schedule = spec.Schedule
+			}
+			if spec.TimeoutSeconds != nil {
+				updatedFn.TimeoutSeconds = *spec.TimeoutSeconds
+			} else if annotations.TimeoutSeconds > 0 {
+				updatedFn.TimeoutSeconds = annotations.TimeoutSeconds
+			}
+			if spec.MemoryLimitMB != nil {
+				updatedFn.MemoryLimitMB = *spec.MemoryLimitMB
+			} else if annotations.MemoryLimitMB > 0 {
+				updatedFn.MemoryLimitMB = annotations.MemoryLimitMB
+			}
+			if spec.MaxRetries != nil {
+				updatedFn.MaxRetries = *spec.MaxRetries
+			} else if annotations.MaxRetries > 0 {
+				updatedFn.MaxRetries = annotations.MaxRetries
+			}
+			if spec.ProgressTimeoutSeconds != nil {
+				updatedFn.ProgressTimeoutSeconds = *spec.ProgressTimeoutSeconds
+			} else if annotations.ProgressTimeoutSeconds > 0 {
+				updatedFn.ProgressTimeoutSeconds = annotations.ProgressTimeoutSeconds
+			}
+			if spec.AllowNet != nil {
+				updatedFn.AllowNet = *spec.AllowNet
+			}
+			if spec.AllowEnv != nil {
+				updatedFn.AllowEnv = *spec.AllowEnv
+			}
+			if spec.AllowRead != nil {
+				updatedFn.AllowRead = *spec.AllowRead
+			}
+			if spec.AllowWrite != nil {
+				updatedFn.AllowWrite = *spec.AllowWrite
+			}
+			if spec.RequireRole != nil {
+				updatedFn.RequireRole = spec.RequireRole
+			}
+
+			if err := h.storage.UpdateJobFunction(ctx, updatedFn); err != nil {
+				errorList = append(errorList, fiber.Map{
+					"job":    spec.Name,
+					"error":  err.Error(),
+					"action": "update",
+				})
+				continue
+			}
+			updated = append(updated, spec.Name)
 		} else {
 			// Create new function
 			fn := &JobFunction{
@@ -1004,6 +1026,7 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 				RequireRole:            spec.RequireRole,
 				Version:                1,
 				CreatedBy:              createdBy,
+				Source:                 "api",
 			}
 
 			if err := h.storage.CreateJobFunction(ctx, fn); err != nil {
@@ -1262,7 +1285,7 @@ func (h *Handler) TerminateJob(c *fiber.Ctx) error {
 		})
 	}
 
-	// Cancel the job
+	// Cancel the job in database
 	if err := h.storage.CancelJob(c.Context(), jobID); err != nil {
 		reqID := getRequestID(c)
 		log.Error().
@@ -1275,6 +1298,11 @@ func (h *Handler) TerminateJob(c *fiber.Ctx) error {
 			"error":      "Failed to terminate job",
 			"request_id": reqID,
 		})
+	}
+
+	// Signal the worker to kill the job process immediately
+	if h.manager != nil {
+		h.manager.CancelJob(jobID)
 	}
 
 	log.Warn().

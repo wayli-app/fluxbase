@@ -193,11 +193,17 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
-// DownloadFile handles file download
+// DownloadFile handles file download and HEAD requests for file info
 // GET /api/v1/storage/:bucket/:key
+// HEAD /api/v1/storage/:bucket/:key (for downloadResumable to get Content-Length)
 func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 	bucket := c.Params("bucket")
 	key := c.Params("*")
+
+	// For HEAD requests, delegate to GetFileInfo which returns proper headers
+	if c.Method() == "HEAD" {
+		return h.GetFileInfo(c)
+	}
 
 	// If key is empty, this might be a list files request
 	// Forward to ListFiles handler
@@ -289,6 +295,19 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 	c.Set("Content-Length", strconv.FormatInt(object.Size, 10))
 	c.Set("Last-Modified", object.LastModified.Format(time.RFC1123))
 	c.Set("ETag", object.ETag)
+	c.Set("Accept-Ranges", "bytes")
+
+	// Handle range request response
+	if rangeHeader := c.Get("Range"); rangeHeader != "" {
+		// Parse range to set Content-Range header
+		var start, end int64
+		if _, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end); err == nil {
+			// Note: object.Size now contains the chunk size, not total file size
+			// We set Content-Range with the actual bytes returned
+			c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/*", start, start+object.Size-1))
+			c.Status(fiber.StatusPartialContent)
+		}
+	}
 
 	// Set content disposition (for downloads)
 	if c.Query("download") == "true" {
@@ -484,7 +503,38 @@ func (h *StorageHandler) GetFileInfo(c *fiber.Ctx) error {
 		})
 	}
 
-	// Return metadata
+	// Set HTTP headers (needed for HEAD requests and resumable downloads)
+	contentType := "application/octet-stream"
+	if mimeType != nil {
+		contentType = *mimeType
+	}
+
+	// For HEAD requests, set headers directly on the response to prevent Fiber from overwriting
+	// This is critical for downloadResumable which needs accurate Content-Length header
+	if c.Method() == "HEAD" {
+		log.Debug().
+			Str("bucket", bucket).
+			Str("key", key).
+			Int64("size", size).
+			Str("content_type", contentType).
+			Msg("HEAD request - returning file info headers")
+
+		c.Response().Header.SetContentType(contentType)
+		c.Response().Header.SetContentLength(int(size))
+		c.Response().Header.Set("Accept-Ranges", "bytes")
+		c.Response().Header.Set("Last-Modified", updatedAt.Format(time.RFC1123))
+		c.Status(fiber.StatusOK)
+		return nil
+	}
+
+	// For non-HEAD requests, use Fiber's c.Set which is fine for JSON responses
+	c.Set("Content-Type", contentType)
+	c.Set("Content-Length", strconv.FormatInt(size, 10))
+	c.Set("Accept-Ranges", "bytes")
+	c.Set("Last-Modified", updatedAt.Format(time.RFC1123))
+
+	// For other methods (e.g., if this handler is called via GET for metadata),
+	// return full metadata as JSON
 	response := map[string]interface{}{
 		"id":         id,
 		"bucket":     bucket,

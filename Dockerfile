@@ -19,6 +19,10 @@ COPY sdk-react/ ./sdk-react/
 WORKDIR /build/sdk
 RUN npm ci && npm run build
 
+# Generate embedded SDK for job runtime
+# Create the output directory first since it doesn't exist in this stage
+RUN mkdir -p /build/internal/jobs && npm run generate:embedded-sdk
+
 WORKDIR /build/sdk-react
 RUN npm ci && npm run build
 
@@ -54,6 +58,9 @@ COPY . .
 
 # Copy built admin UI from previous stage to the embed location
 COPY --from=admin-builder /build/admin/dist ./internal/adminui/dist
+
+# Copy generated embedded SDK for job runtime
+COPY --from=admin-builder /build/internal/jobs/embedded_sdk.js ./internal/jobs/embedded_sdk.js
 
 # Build arguments for versioning
 ARG VERSION=dev

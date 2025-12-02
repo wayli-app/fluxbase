@@ -49,6 +49,11 @@ import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
 const AUTH_STORAGE_KEY = "fluxbase.auth.session";
 
+// Auto-refresh configuration constants
+const AUTO_REFRESH_TICK_THRESHOLD = 10; // seconds before expiry to trigger refresh
+const AUTO_REFRESH_TICK_MINIMUM = 1000; // minimum delay in ms (1 second)
+const MAX_REFRESH_RETRIES = 3; // number of retry attempts before signing out
+
 /**
  * In-memory storage adapter for Node.js/SSR environments
  * where localStorage is not available
@@ -113,6 +118,12 @@ export class FluxbaseAuth {
     this.persist = persist;
     this.autoRefresh = autoRefresh;
 
+    // Register refresh callback for automatic 401 handling
+    this.fetch.setRefreshTokenCallback(async () => {
+      const result = await this.refreshSession();
+      return !result.error;
+    });
+
     // Initialize storage based on persist option and environment
     if (this.persist) {
       if (isLocalStorageAvailable()) {
@@ -131,6 +142,7 @@ export class FluxbaseAuth {
           this.session = JSON.parse(stored);
           if (this.session) {
             this.fetch.setAuthToken(this.session.access_token);
+            // Schedule auto-refresh if enabled (only runs in browser environments)
             this.scheduleTokenRefresh();
           }
         } catch {
@@ -194,6 +206,26 @@ export class FluxbaseAuth {
     };
 
     return { data: { subscription } };
+  }
+
+  /**
+   * Start the automatic token refresh timer
+   * This is called automatically when autoRefresh is enabled and a session exists
+   * Only works in browser environments
+   */
+  startAutoRefresh(): void {
+    this.scheduleTokenRefresh();
+  }
+
+  /**
+   * Stop the automatic token refresh timer
+   * Call this when you want to disable auto-refresh without signing out
+   */
+  stopAutoRefresh(): void {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   /**
@@ -305,10 +337,12 @@ export class FluxbaseAuth {
         {
           refresh_token: this.session.refresh_token,
         },
+        { skipAutoRefresh: true }, // Prevent infinite loop on 401
       );
 
       const session: AuthSession = {
         ...response,
+        user: response.user ?? this.session.user,
         expires_at: Date.now() + response.expires_in * 1000,
       };
 
@@ -346,9 +380,7 @@ export class FluxbaseAuth {
    * Update the current user (Supabase-compatible)
    * @param attributes - User attributes to update (email, password, data for metadata)
    */
-  async updateUser(
-    attributes: UpdateUserAttributes,
-  ): Promise<UserResponse> {
+  async updateUser(attributes: UpdateUserAttributes): Promise<UserResponse> {
     return wrapAsync(async () => {
       if (!this.session) {
         throw new Error("Not authenticated");
@@ -373,7 +405,10 @@ export class FluxbaseAuth {
         requestBody.nonce = attributes.nonce;
       }
 
-      const user = await this.fetch.patch<User>("/api/v1/auth/user", requestBody);
+      const user = await this.fetch.patch<User>(
+        "/api/v1/auth/user",
+        requestBody,
+      );
 
       // Update session with new user data
       if (this.session) {
@@ -965,29 +1000,71 @@ export class FluxbaseAuth {
 
   /**
    * Internal: Schedule automatic token refresh
+   * Only runs in browser environments when autoRefresh is enabled
    */
   private scheduleTokenRefresh() {
-    if (!this.autoRefresh || !this.session?.expires_at) {
+    // Only auto-refresh in browser environments
+    if (!this.autoRefresh || typeof window === "undefined") {
+      return;
+    }
+
+    if (!this.session?.expires_at) {
       return;
     }
 
     // Clear existing timer
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
     }
 
-    // Refresh 1 minute before expiry
-    const refreshAt = this.session.expires_at - 60 * 1000;
-    const delay = refreshAt - Date.now();
+    // Calculate time until expiry (expires_at is in ms)
+    const expiresAt = this.session.expires_at;
+    const now = Date.now();
+    const timeUntilExpiry = expiresAt - now;
 
-    if (delay > 0) {
-      this.refreshTimer = setTimeout(async () => {
-        const result = await this.refreshSession();
-        if (result.error) {
-          console.error("Failed to refresh token:", result.error);
-          this.clearSession();
-        }
-      }, delay);
+    // Refresh 10 seconds before expiry, minimum 1 second delay
+    const refreshIn = Math.max(
+      timeUntilExpiry - AUTO_REFRESH_TICK_THRESHOLD * 1000,
+      AUTO_REFRESH_TICK_MINIMUM,
+    );
+
+    this.refreshTimer = setTimeout(() => {
+      this.attemptRefresh();
+    }, refreshIn);
+  }
+
+  /**
+   * Internal: Attempt to refresh the token with retry logic
+   * Uses exponential backoff: 1s, 2s, 4s delays between retries
+   */
+  private async attemptRefresh(retries = MAX_REFRESH_RETRIES): Promise<void> {
+    try {
+      const result = await this.refreshSession();
+      if (result.error) {
+        throw result.error;
+      }
+      // Success - scheduleTokenRefresh is called within setSessionInternal
+      // via refreshSession -> setSessionInternal -> scheduleTokenRefresh
+    } catch (error) {
+      if (retries > 0) {
+        // Exponential backoff: 1s, 2s, 4s (Math.pow(2, MAX_REFRESH_RETRIES - retries) * 1000)
+        const delay = Math.pow(2, MAX_REFRESH_RETRIES - retries) * 1000;
+        console.warn(
+          `Token refresh failed, retrying in ${delay / 1000}s (${retries} attempts remaining)`,
+          error,
+        );
+        this.refreshTimer = setTimeout(() => {
+          this.attemptRefresh(retries - 1);
+        }, delay);
+      } else {
+        // All retries exhausted - sign out
+        console.error(
+          "Token refresh failed after all retries, signing out",
+          error,
+        );
+        this.clearSession();
+      }
     }
   }
 

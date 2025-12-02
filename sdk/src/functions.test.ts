@@ -116,6 +116,30 @@ describe('FluxbaseFunctions', () => {
         expect(mockFetch.lastMethod).toBe(method)
       }
     })
+
+    it('should handle errors', async () => {
+      mockFetch.post = async () => {
+        throw new Error('Function not found')
+      }
+
+      const { data, error } = await functions.invoke('non-existent')
+
+      expect(data).toBeNull()
+      expect(error).toBeDefined()
+      expect(error?.message).toBe('Function not found')
+    })
+
+    it('should support namespace parameter', async () => {
+      mockFetch.mockResponse = { result: 'namespaced' }
+
+      const { data, error } = await functions.invoke('test-function', {
+        body: { key: 'value' },
+        namespace: 'my-app'
+      })
+
+      expect(mockFetch.lastUrl).toContain('namespace=my-app')
+      expect(error).toBeNull()
+    })
   })
 
   describe('list', () => {
@@ -133,6 +157,18 @@ describe('FluxbaseFunctions', () => {
       expect(data).toEqual(mockFunctions)
       expect(error).toBeNull()
     })
+
+    it('should handle list errors', async () => {
+      mockFetch.get = async () => {
+        throw new Error('Permission denied')
+      }
+
+      const { data, error } = await functions.list()
+
+      expect(data).toBeNull()
+      expect(error).toBeDefined()
+      expect(error?.message).toBe('Permission denied')
+    })
   })
 
   describe('get', () => {
@@ -147,77 +183,17 @@ describe('FluxbaseFunctions', () => {
       expect(data).toEqual(mockFunction)
       expect(error).toBeNull()
     })
-  })
 
-  describe('create', () => {
-    it('should create a new function', async () => {
-      const request = {
-        name: 'new-function',
-        code: 'export default async function handler() { return { ok: true } }',
-        enabled: true
+    it('should handle get errors', async () => {
+      mockFetch.get = async () => {
+        throw new Error('Function not found')
       }
-      mockFetch.mockResponse = { ...request, id: '123', version: 1 }
 
-      const { data, error } = await functions.create(request)
+      const { data, error } = await functions.get('non-existent')
 
-      expect(mockFetch.lastUrl).toBe('/api/v1/functions')
-      expect(mockFetch.lastMethod).toBe('POST')
-      expect(mockFetch.lastBody).toEqual(request)
-      expect(data).toHaveProperty('id', '123')
-      expect(error).toBeNull()
-    })
-  })
-
-  describe('update', () => {
-    it('should update an existing function', async () => {
-      const updates = {
-        enabled: false,
-        description: 'Updated'
-      }
-      mockFetch.mockResponse = { id: '1', name: 'test', ...updates, version: 2 }
-
-      const { data, error } = await functions.update('test', updates)
-
-      expect(mockFetch.lastUrl).toBe('/api/v1/functions/test')
-      expect(mockFetch.lastMethod).toBe('PUT')
-      expect(mockFetch.lastBody).toEqual(updates)
-      expect(error).toBeNull()
-    })
-  })
-
-  describe('delete', () => {
-    it('should delete a function', async () => {
-      mockFetch.mockResponse = null
-
-      const { data, error } = await functions.delete('test-function')
-
-      expect(mockFetch.lastUrl).toBe('/api/v1/functions/test-function')
-      expect(mockFetch.lastMethod).toBe('DELETE')
       expect(data).toBeNull()
-      expect(error).toBeNull()
-    })
-  })
-
-  describe('getExecutions', () => {
-    it('should get function executions', async () => {
-      const mockExecutions = [
-        { id: '1', function_id: 'func1', status: 'success', duration_ms: 100 }
-      ]
-      mockFetch.mockResponse = mockExecutions
-
-      const { data, error } = await functions.getExecutions('test-function')
-
-      expect(mockFetch.lastUrl).toBe('/api/v1/functions/test-function/executions')
-      expect(data).toEqual(mockExecutions)
-      expect(error).toBeNull()
-    })
-
-    it('should support limit parameter', async () => {
-      mockFetch.mockResponse = []
-
-      await functions.getExecutions('test-function', 10)
-
-      expect(mockFetch.lastUrl).toBe('/api/v1/functions/test-function/executions?limit=10')
+      expect(error).toBeDefined()
+      expect(error?.message).toBe('Function not found')
     })
   })
 })

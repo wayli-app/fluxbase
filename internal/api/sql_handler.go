@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -181,7 +182,7 @@ func (h *SQLHandler) executeStatement(ctx context.Context, statement string) SQL
 
 			row := make(map[string]any)
 			for i, col := range columns {
-				row[col] = values[i]
+				row[col] = convertValue(values[i])
 			}
 			resultRows = append(resultRows, row)
 			rowCount++
@@ -240,4 +241,45 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// convertValue converts database values to JSON-friendly formats
+// Specifically handles UUID byte arrays which pgx returns as [16]byte
+func convertValue(v any) any {
+	if v == nil {
+		return nil
+	}
+
+	// Handle UUID: pgx returns UUIDs as [16]byte arrays
+	if b, ok := v.([16]byte); ok {
+		return formatUUID(b[:])
+	}
+
+	// Handle byte slices that might be UUIDs (some drivers return []byte)
+	if b, ok := v.([]byte); ok && len(b) == 16 {
+		// Check if it looks like a UUID (not printable ASCII)
+		isPrintable := true
+		for _, c := range b {
+			if c < 32 || c > 126 {
+				isPrintable = false
+				break
+			}
+		}
+		if !isPrintable {
+			return formatUUID(b)
+		}
+	}
+
+	return v
+}
+
+// formatUUID formats a 16-byte slice as a UUID string
+func formatUUID(b []byte) string {
+	return fmt.Sprintf("%s-%s-%s-%s-%s",
+		hex.EncodeToString(b[0:4]),
+		hex.EncodeToString(b[4:6]),
+		hex.EncodeToString(b[6:8]),
+		hex.EncodeToString(b[8:10]),
+		hex.EncodeToString(b[10:16]),
+	)
 }

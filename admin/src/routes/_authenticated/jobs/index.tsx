@@ -20,48 +20,6 @@ import {
   Play,
   Copy,
 } from 'lucide-react'
-import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ImpersonationBanner } from '@/components/impersonation-banner'
-import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
-import {
-  jobsApi,
-  type JobFunction,
-  type Job,
-  type JobWorker,
-  type ExecutionLog,
-} from '@/lib/api'
-import { fluxbaseClient } from '@/lib/fluxbase-client'
 import {
   PieChart,
   Pie,
@@ -75,6 +33,42 @@ import {
   YAxis,
   CartesianGrid,
 } from 'recharts'
+import { toast } from 'sonner'
+import {
+  jobsApi,
+  type JobFunction,
+  type Job,
+  type JobWorker,
+  type ExecutionLog,
+} from '@/lib/api'
+import { fluxbaseClient } from '@/lib/fluxbase-client'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
 
 export const Route = createFileRoute('/_authenticated/jobs/')({
   component: JobsPage,
@@ -105,7 +99,9 @@ function JobsPage() {
 
   // Run job dialog state
   const [showRunDialog, setShowRunDialog] = useState(false)
-  const [selectedFunction, setSelectedFunction] = useState<JobFunction | null>(null)
+  const [selectedFunction, setSelectedFunction] = useState<JobFunction | null>(
+    null
+  )
   const [jobPayload, setJobPayload] = useState('')
   const [submittingJob, setSubmittingJob] = useState(false)
   const [togglingJob, setTogglingJob] = useState<string | null>(null)
@@ -117,6 +113,21 @@ function JobsPage() {
   // Ref for auto-scrolling logs
   const logsContainerRef = useRef<HTMLDivElement>(null)
   const prevLogsLengthRef = useRef<number>(0)
+  const isAtBottomRef = useRef<boolean>(true)
+
+  // Helper to check if scrolled to bottom (with small threshold for rounding)
+  const checkIfAtBottom = () => {
+    if (!logsContainerRef.current) return true
+    const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current
+    return scrollHeight - scrollTop - clientHeight < 20
+  }
+
+  // Helper to scroll to bottom only if user was already at bottom
+  const scrollToBottomIfNeeded = () => {
+    if (isAtBottomRef.current && logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+    }
+  }
 
   // Fetch namespaces on mount
   useEffect(() => {
@@ -144,34 +155,42 @@ function JobsPage() {
     }
   }, [selectedNamespace])
 
-  const fetchJobs = useCallback(async (reset = true) => {
-    try {
-      const offset = reset ? 0 : jobsOffset
-      const filters: { status?: string; namespace?: string; limit: number; offset: number } = {
-        limit: JOBS_PAGE_SIZE,
-        offset,
-        namespace: selectedNamespace,
-      }
-      if (statusFilter !== 'all') {
-        filters.status = statusFilter
-      }
-      const data = await jobsApi.listJobs(filters)
-      const newJobs = data || []
+  const fetchJobs = useCallback(
+    async (reset = true) => {
+      try {
+        const offset = reset ? 0 : jobsOffset
+        const filters: {
+          status?: string
+          namespace?: string
+          limit: number
+          offset: number
+        } = {
+          limit: JOBS_PAGE_SIZE,
+          offset,
+          namespace: selectedNamespace,
+        }
+        if (statusFilter !== 'all') {
+          filters.status = statusFilter
+        }
+        const data = await jobsApi.listJobs(filters)
+        const newJobs = data || []
 
-      if (reset) {
-        setJobs(newJobs)
-        setJobsOffset(JOBS_PAGE_SIZE)
-      } else {
-        setJobs(prev => [...prev, ...newJobs])
-        setJobsOffset(prev => prev + JOBS_PAGE_SIZE)
-      }
+        if (reset) {
+          setJobs(newJobs)
+          setJobsOffset(JOBS_PAGE_SIZE)
+        } else {
+          setJobs((prev) => [...prev, ...newJobs])
+          setJobsOffset((prev) => prev + JOBS_PAGE_SIZE)
+        }
 
-      // If we got fewer jobs than requested, there are no more
-      setHasMoreJobs(newJobs.length >= JOBS_PAGE_SIZE)
-    } catch {
-      toast.error('Failed to fetch jobs')
-    }
-  }, [selectedNamespace, statusFilter, jobsOffset])
+        // If we got fewer jobs than requested, there are no more
+        setHasMoreJobs(newJobs.length >= JOBS_PAGE_SIZE)
+      } catch {
+        toast.error('Failed to fetch jobs')
+      }
+    },
+    [selectedNamespace, statusFilter, jobsOffset]
+  )
 
   const loadMoreJobs = useCallback(async () => {
     setLoadingMore(true)
@@ -187,7 +206,8 @@ function JobsPage() {
     if (!showJobDetails || !selectedJob) return
 
     const jobId = selectedJob.id
-    const isActiveJob = selectedJob.status === 'running' || selectedJob.status === 'pending'
+    const isActiveJob =
+      selectedJob.status === 'running' || selectedJob.status === 'pending'
 
     // Fetch initial logs
     const fetchLogs = async () => {
@@ -198,7 +218,8 @@ function JobsPage() {
         // Scroll to bottom after loading
         setTimeout(() => {
           if (logsContainerRef.current) {
-            logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+            logsContainerRef.current.scrollTop =
+              logsContainerRef.current.scrollHeight
           }
         }, 50)
       } catch {
@@ -224,12 +245,12 @@ function JobsPage() {
           },
           (payload) => {
             const newLog = payload.new as ExecutionLog
+            // Check if at bottom BEFORE adding new log
+            isAtBottomRef.current = checkIfAtBottom()
             setExecutionLogs((prev) => [...prev, newLog])
-            // Auto-scroll on new log
+            // Auto-scroll only if user was at bottom
             setTimeout(() => {
-              if (logsContainerRef.current) {
-                logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
-              }
+              scrollToBottomIfNeeded()
             }, 50)
           }
         )
@@ -242,33 +263,46 @@ function JobsPage() {
       }
       setExecutionLogs([])
     }
-  }, [showJobDetails, selectedJob?.id, selectedJob?.status])
+  }, [showJobDetails, selectedJob])
 
-  // Poll for job updates when modal is open and job is running/pending
+  // Subscribe to job updates via Realtime when modal is open and job is running/pending
   useEffect(() => {
     if (!showJobDetails || !selectedJob) return
 
-    // Only poll for active jobs
-    const isActiveJob = selectedJob.status === 'running' || selectedJob.status === 'pending'
+    // Only subscribe for active jobs
+    const isActiveJob =
+      selectedJob.status === 'running' || selectedJob.status === 'pending'
     if (!isActiveJob) return
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const updatedJob = await jobsApi.getJob(selectedJob.id)
-        setSelectedJob(updatedJob)
+    const channel = fluxbaseClient
+      .channel(`job-details-${selectedJob.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'jobs',
+          table: 'queue',
+          filter: `id=eq.${selectedJob.id}`,
+        },
+        (payload) => {
+          const updatedJob = payload.new as Job
+          setSelectedJob(updatedJob)
 
-        // Stop polling if job is no longer active
-        if (updatedJob.status !== 'running' && updatedJob.status !== 'pending') {
-          // Refresh the jobs list to update statuses
-          fetchJobs(true)
+          // Refresh the jobs list when job completes
+          if (
+            updatedJob.status !== 'running' &&
+            updatedJob.status !== 'pending'
+          ) {
+            fetchJobs(true)
+          }
         }
-      } catch {
-        // Silently fail - modal may have been closed
-      }
-    }, 1000) // Poll every second
+      )
+      .subscribe()
 
-    return () => clearInterval(pollInterval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- We only want to restart polling when job ID or status changes, not on every selectedJob object change
+    return () => {
+      channel.unsubscribe()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- We only want to restart subscription when job ID or status changes
   }, [showJobDetails, selectedJob?.id, selectedJob?.status, fetchJobs])
 
   // Reset logs scroll ref when opening a new job
@@ -279,76 +313,77 @@ function JobsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on job ID change, not every selectedJob update
   }, [showJobDetails, selectedJob?.id])
 
-  // Track if we have active jobs (state to trigger effect when it changes)
-  const [hasActiveJobs, setHasActiveJobs] = useState(false)
+  // Subscribe to jobs.queue changes via Realtime for live updates
   useEffect(() => {
-    const active = jobs.some(j => j.status === 'running' || j.status === 'pending')
-    setHasActiveJobs(active)
-  }, [jobs])
+    const channel = fluxbaseClient
+      .channel('jobs-queue-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'jobs',
+          table: 'queue',
+        },
+        (payload) => {
+          const eventType = payload.eventType
+          const newJob = payload.new as Job | undefined
+          const oldJob = payload.old as { id: string } | undefined
 
-  // Auto-refresh jobs list when there are running/pending jobs (only when modal is closed)
-  // Only create interval when we actually have active jobs
-  useEffect(() => {
-    // Don't poll if modal is open or no active jobs
-    if (showJobDetails || !hasActiveJobs) return
-
-    const pollInterval = setInterval(async () => {
-      try {
-        // Fetch just the first page to update visible jobs
-        const filters: { status?: string; namespace?: string; limit: number; offset: number } = {
-          limit: JOBS_PAGE_SIZE,
-          offset: 0,
-          namespace: selectedNamespace,
-        }
-        if (statusFilter !== 'all') {
-          filters.status = statusFilter
-        }
-        const data = await jobsApi.listJobs(filters)
-        const newJobs = data || []
-
-        // Only update if data has changed (compare by serializing relevant fields)
-        setJobs(prev => {
-          // Quick check: if lengths differ, definitely update
-          const firstPagePrev = prev.slice(0, JOBS_PAGE_SIZE)
-          if (firstPagePrev.length !== newJobs.length) {
-            if (prev.length <= JOBS_PAGE_SIZE) {
-              return newJobs
+          setJobs((prev) => {
+            if (eventType === 'INSERT' && newJob) {
+              // Check if job matches current filters
+              if (selectedNamespace && newJob.namespace !== selectedNamespace) {
+                return prev
+              }
+              if (statusFilter !== 'all' && newJob.status !== statusFilter) {
+                return prev
+              }
+              // Add to beginning of list if not already present
+              if (prev.some((j) => j.id === newJob.id)) {
+                return prev
+              }
+              return [newJob, ...prev]
             }
-            const additionalJobs = prev.slice(JOBS_PAGE_SIZE)
-            return [...newJobs, ...additionalJobs]
-          }
 
-          // Check if any job has changed (status, progress, etc.)
-          let hasChanges = false
-          for (let i = 0; i < newJobs.length; i++) {
-            const oldJob = firstPagePrev[i]
-            const newJob = newJobs[i]
-            if (!oldJob || oldJob.id !== newJob.id ||
-              oldJob.status !== newJob.status ||
-              oldJob.progress_percent !== newJob.progress_percent ||
-              oldJob.progress_message !== newJob.progress_message ||
-              oldJob.error_message !== newJob.error_message) {
-              hasChanges = true
-              break
+            if (eventType === 'UPDATE' && newJob) {
+              // Update existing job in list
+              const idx = prev.findIndex((j) => j.id === newJob.id)
+              if (idx === -1) {
+                // Job not in current list - might match filters now
+                if (
+                  selectedNamespace &&
+                  newJob.namespace !== selectedNamespace
+                ) {
+                  return prev
+                }
+                if (statusFilter !== 'all' && newJob.status !== statusFilter) {
+                  return prev
+                }
+                return [newJob, ...prev]
+              }
+              // Check if job should be removed due to filter change
+              if (statusFilter !== 'all' && newJob.status !== statusFilter) {
+                return prev.filter((j) => j.id !== newJob.id)
+              }
+              const updated = [...prev]
+              updated[idx] = newJob
+              return updated
             }
-          }
 
-          // No changes, return previous state to avoid re-render
-          if (!hasChanges) return prev
+            if (eventType === 'DELETE' && oldJob) {
+              return prev.filter((j) => j.id !== oldJob.id)
+            }
 
-          if (prev.length <= JOBS_PAGE_SIZE) {
-            return newJobs
-          }
-          const additionalJobs = prev.slice(JOBS_PAGE_SIZE)
-          return [...newJobs, ...additionalJobs]
-        })
-      } catch {
-        // Silently fail
-      }
-    }, 3000) // Poll every 3 seconds for the list
+            return prev
+          })
+        }
+      )
+      .subscribe()
 
-    return () => clearInterval(pollInterval)
-  }, [showJobDetails, hasActiveJobs, selectedNamespace, statusFilter])
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [selectedNamespace, statusFilter])
 
   const fetchWorkers = useCallback(async () => {
     try {
@@ -365,11 +400,7 @@ function JobsPage() {
     setJobsOffset(0)
     setHasMoreJobs(true)
     try {
-      await Promise.all([
-        fetchJobFunctions(),
-        fetchJobs(true),
-        fetchWorkers(),
-      ])
+      await Promise.all([fetchJobFunctions(), fetchJobs(true), fetchWorkers()])
     } finally {
       setLoading(false)
     }
@@ -386,7 +417,9 @@ function JobsPage() {
         setNamespaces(availableNamespaces)
 
         // Use 'default' namespace or first available
-        const ns = availableNamespaces.includes('default') ? 'default' : availableNamespaces[0]
+        const ns = availableNamespaces.includes('default')
+          ? 'default'
+          : availableNamespaces[0]
 
         // Fetch functions, jobs, and workers in parallel
         const [functionsData, jobsData, workersData] = await Promise.all([
@@ -422,7 +455,9 @@ function JobsPage() {
         if (created > 0) messages.push(`${created} created`)
         if (updated > 0) messages.push(`${updated} updated`)
         if (deleted > 0) messages.push(`${deleted} deleted`)
-        toast.success(`Jobs synced to "${selectedNamespace}": ${messages.join(', ')}`)
+        toast.success(
+          `Jobs synced to "${selectedNamespace}": ${messages.join(', ')}`
+        )
       } else {
         toast.info('No changes detected')
       }
@@ -584,6 +619,31 @@ function JobsPage() {
     return JSON.stringify(value, null, 2)
   }
 
+  // Collapse consecutive duplicate log messages with count prefix
+  const collapseConsecutiveLogs = (logs: ExecutionLog[]): string[] => {
+    if (logs.length === 0) return []
+
+    const result: string[] = []
+    let currentMessage = logs[0].message
+    let count = 1
+
+    for (let i = 1; i < logs.length; i++) {
+      if (logs[i].message === currentMessage) {
+        count++
+      } else {
+        result.push(
+          count > 1 ? `(${count}x) ${currentMessage}` : currentMessage
+        )
+        currentMessage = logs[i].message
+        count = 1
+      }
+    }
+    // Push the last group
+    result.push(count > 1 ? `(${count}x) ${currentMessage}` : currentMessage)
+
+    return result
+  }
+
   // Copy text to clipboard with toast feedback
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -606,10 +666,14 @@ function JobsPage() {
     parts.push(`Status: ${selectedJob.status}`)
     parts.push(`Created: ${new Date(selectedJob.created_at).toLocaleString()}`)
     if (selectedJob.started_at) {
-      parts.push(`Started: ${new Date(selectedJob.started_at).toLocaleString()}`)
+      parts.push(
+        `Started: ${new Date(selectedJob.started_at).toLocaleString()}`
+      )
     }
     if (selectedJob.completed_at) {
-      parts.push(`Completed: ${new Date(selectedJob.completed_at).toLocaleString()}`)
+      parts.push(
+        `Completed: ${new Date(selectedJob.completed_at).toLocaleString()}`
+      )
     }
     parts.push('')
 
@@ -621,7 +685,7 @@ function JobsPage() {
 
     if (executionLogs.length > 0) {
       parts.push(`=== Logs ===`)
-      parts.push(executionLogs.map((l) => l.message).join('\n'))
+      parts.push(collapseConsecutiveLogs(executionLogs).join('\n'))
       parts.push('')
     }
 
@@ -663,16 +727,21 @@ function JobsPage() {
 
   // Recalculate stats based on time-filtered jobs
   const filteredStats = {
-    pending: filteredByTimeJobs.filter(j => j.status === 'pending').length,
-    running: filteredByTimeJobs.filter(j => j.status === 'running').length,
-    completed: filteredByTimeJobs.filter(j => j.status === 'completed').length,
-    failed: filteredByTimeJobs.filter(j => j.status === 'failed').length,
-    cancelled: filteredByTimeJobs.filter(j => j.status === 'cancelled').length,
+    pending: filteredByTimeJobs.filter((j) => j.status === 'pending').length,
+    running: filteredByTimeJobs.filter((j) => j.status === 'running').length,
+    completed: filteredByTimeJobs.filter((j) => j.status === 'completed')
+      .length,
+    failed: filteredByTimeJobs.filter((j) => j.status === 'failed').length,
+    cancelled: filteredByTimeJobs.filter((j) => j.status === 'cancelled')
+      .length,
     total: filteredByTimeJobs.length,
   }
 
   const filteredJobs = filteredByTimeJobs.filter((job) => {
-    if (searchQuery && !job.job_name.toLowerCase().includes(searchQuery.toLowerCase())) {
+    if (
+      searchQuery &&
+      !job.job_name.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
       return false
     }
     return true
@@ -708,7 +777,7 @@ function JobsPage() {
 
       {/* Time Range Selector */}
       <div className='flex items-center gap-2'>
-        <span className='text-sm text-muted-foreground'>Time range:</span>
+        <span className='text-muted-foreground text-sm'>Time range:</span>
         {['1m', '5m', '30m', '1h', '6h', '12h', '24h'].map((range) => (
           <Button
             key={range}
@@ -724,61 +793,84 @@ function JobsPage() {
 
       {/* Collapsible Metrics */}
       <Card className='!gap-0 !py-0'>
-        <CardContent className='py-2 px-4'>
+        <CardContent className='px-4 py-2'>
           {/* Collapsed View - Single Line with Key Figures */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-4'>
               <div className='flex items-center gap-1'>
-                <span className='text-xs text-muted-foreground'>Pending:</span>
-                <span className='text-sm font-semibold'>{filteredStats.pending}</span>
+                <span className='text-muted-foreground text-xs'>Pending:</span>
+                <span className='text-sm font-semibold'>
+                  {filteredStats.pending}
+                </span>
               </div>
               <div className='flex items-center gap-1'>
-                <span className='text-xs text-muted-foreground'>Running:</span>
-                <span className='text-sm font-semibold'>{filteredStats.running}</span>
+                <span className='text-muted-foreground text-xs'>Running:</span>
+                <span className='text-sm font-semibold'>
+                  {filteredStats.running}
+                </span>
               </div>
               <div className='flex items-center gap-1'>
-                <span className='text-xs text-muted-foreground'>Completed:</span>
-                <span className='text-sm font-semibold'>{filteredStats.completed}</span>
+                <span className='text-muted-foreground text-xs'>
+                  Completed:
+                </span>
+                <span className='text-sm font-semibold'>
+                  {filteredStats.completed}
+                </span>
               </div>
               <div className='flex items-center gap-1'>
-                <span className='text-xs text-muted-foreground'>Failed:</span>
-                <span className='text-sm font-semibold'>{filteredStats.failed}</span>
+                <span className='text-muted-foreground text-xs'>Failed:</span>
+                <span className='text-sm font-semibold'>
+                  {filteredStats.failed}
+                </span>
               </div>
               <div className='flex items-center gap-1'>
-                <span className='text-xs text-muted-foreground'>Workers:</span>
+                <span className='text-muted-foreground text-xs'>Workers:</span>
                 <span className='text-sm font-semibold'>
                   {workers.filter((w) => w.status === 'active').length}
                 </span>
               </div>
               <div className='flex items-center gap-1'>
-                <Target className='h-3 w-3 text-muted-foreground' />
-                <span className='text-xs text-muted-foreground'>Success:</span>
+                <Target className='text-muted-foreground h-3 w-3' />
+                <span className='text-muted-foreground text-xs'>Success:</span>
                 {(() => {
                   const total = filteredStats.completed + filteredStats.failed
-                  const successRate = total > 0
-                    ? ((filteredStats.completed / total) * 100).toFixed(0)
-                    : '0'
-                  return <span className='text-sm font-semibold'>{successRate}%</span>
+                  const successRate =
+                    total > 0
+                      ? ((filteredStats.completed / total) * 100).toFixed(0)
+                      : '0'
+                  return (
+                    <span className='text-sm font-semibold'>
+                      {successRate}%
+                    </span>
+                  )
                 })()}
               </div>
               <div className='flex items-center gap-1'>
-                <Timer className='h-3 w-3 text-muted-foreground' />
-                <span className='text-xs text-muted-foreground'>Avg. Wait:</span>
+                <Timer className='text-muted-foreground h-3 w-3' />
+                <span className='text-muted-foreground text-xs'>
+                  Avg. Wait:
+                </span>
                 {(() => {
-                  const pendingJobs = filteredByTimeJobs.filter(j => j.status === 'pending')
-                  const waitTimes = pendingJobs.map(j =>
-                    Date.now() - new Date(j.created_at).getTime()
+                  const pendingJobs = filteredByTimeJobs.filter(
+                    (j) => j.status === 'pending'
                   )
-                  const avgWaitMs = waitTimes.length > 0
-                    ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length
-                    : 0
+                  const waitTimes = pendingJobs.map(
+                    (j) => Date.now() - new Date(j.created_at).getTime()
+                  )
+                  const avgWaitMs =
+                    waitTimes.length > 0
+                      ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length
+                      : 0
                   const avgWaitSec = Math.round(avgWaitMs / 1000)
-                  const displayTime = avgWaitSec < 60
-                    ? `${avgWaitSec}s`
-                    : avgWaitSec < 3600
-                      ? `${Math.round(avgWaitSec / 60)}m`
-                      : `${Math.round(avgWaitSec / 3600)}h`
-                  return <span className='text-sm font-semibold'>{displayTime}</span>
+                  const displayTime =
+                    avgWaitSec < 60
+                      ? `${avgWaitSec}s`
+                      : avgWaitSec < 3600
+                        ? `${Math.round(avgWaitSec / 60)}m`
+                        : `${Math.round(avgWaitSec / 3600)}h`
+                  return (
+                    <span className='text-sm font-semibold'>{displayTime}</span>
+                  )
                 })()}
               </div>
             </div>
@@ -804,18 +896,39 @@ function JobsPage() {
               {/* Distribution Chart */}
               <div>
                 <div className='mb-2 flex items-center gap-2'>
-                  <TrendingUp className='h-4 w-4 text-muted-foreground' />
-                  <span className='text-sm font-medium'>Status Distribution</span>
+                  <TrendingUp className='text-muted-foreground h-4 w-4' />
+                  <span className='text-sm font-medium'>
+                    Status Distribution
+                  </span>
                 </div>
                 {(() => {
                   const chartData = [
-                    { name: 'Completed', value: filteredStats.completed, color: '#22c55e' },
-                    { name: 'Running', value: filteredStats.running, color: '#3b82f6' },
-                    { name: 'Pending', value: filteredStats.pending, color: '#eab308' },
-                    { name: 'Failed', value: filteredStats.failed, color: '#ef4444' },
-                  ].filter(item => item.value > 0)
+                    {
+                      name: 'Completed',
+                      value: filteredStats.completed,
+                      color: '#22c55e',
+                    },
+                    {
+                      name: 'Running',
+                      value: filteredStats.running,
+                      color: '#3b82f6',
+                    },
+                    {
+                      name: 'Pending',
+                      value: filteredStats.pending,
+                      color: '#eab308',
+                    },
+                    {
+                      name: 'Failed',
+                      value: filteredStats.failed,
+                      color: '#ef4444',
+                    },
+                  ].filter((item) => item.value > 0)
 
-                  const total = chartData.reduce((sum, item) => sum + item.value, 0)
+                  const total = chartData.reduce(
+                    (sum, item) => sum + item.value,
+                    0
+                  )
 
                   if (total === 0) {
                     return (
@@ -848,14 +961,19 @@ function JobsPage() {
                             borderRadius: '6px',
                             fontSize: '11px',
                           }}
-                          formatter={(value: number, name: string) => [`${value}`, name]}
+                          formatter={(value: number, name: string) => [
+                            `${value}`,
+                            name,
+                          ]}
                         />
                         <Legend
                           verticalAlign='bottom'
                           height={36}
                           iconType='circle'
                           formatter={(value) => (
-                            <span className='text-xs text-muted-foreground'>{value}</span>
+                            <span className='text-muted-foreground text-xs'>
+                              {value}
+                            </span>
                           )}
                         />
                       </PieChart>
@@ -868,10 +986,12 @@ function JobsPage() {
               <div>
                 <div className='mb-2 flex items-center justify-between'>
                   <div className='flex items-center gap-2'>
-                    <Activity className='h-4 w-4 text-muted-foreground' />
+                    <Activity className='text-muted-foreground h-4 w-4' />
                     <span className='text-sm font-medium'>Worker Activity</span>
                   </div>
-                  <Badge variant='outline' className='text-xs'>{workers.length} workers</Badge>
+                  <Badge variant='outline' className='text-xs'>
+                    {workers.length} workers
+                  </Badge>
                 </div>
                 {(() => {
                   if (workers.length === 0) {
@@ -892,13 +1012,22 @@ function JobsPage() {
                   return (
                     <ResponsiveContainer width='100%' height={120}>
                       <BarChart data={workerData}>
-                        <CartesianGrid strokeDasharray='3 3' stroke='hsl(var(--border))' />
+                        <CartesianGrid
+                          strokeDasharray='3 3'
+                          stroke='hsl(var(--border))'
+                        />
                         <XAxis
                           dataKey='id'
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          tick={{
+                            fill: 'hsl(var(--muted-foreground))',
+                            fontSize: 10,
+                          }}
                         />
                         <YAxis
-                          tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                          tick={{
+                            fill: 'hsl(var(--muted-foreground))',
+                            fontSize: 10,
+                          }}
                         />
                         <Tooltip
                           contentStyle={{
@@ -955,11 +1084,20 @@ function JobsPage() {
           {/* Filters */}
           <div className='flex items-center gap-3'>
             <div className='flex items-center gap-2'>
-              <Label htmlFor='queue-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
+              <Label
+                htmlFor='queue-namespace-select'
+                className='text-muted-foreground text-sm whitespace-nowrap'
+              >
                 Namespace:
               </Label>
-              <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
-                <SelectTrigger id='queue-namespace-select' className='w-[180px]'>
+              <Select
+                value={selectedNamespace}
+                onValueChange={setSelectedNamespace}
+              >
+                <SelectTrigger
+                  id='queue-namespace-select'
+                  className='w-[180px]'
+                >
                   <SelectValue placeholder='Select namespace' />
                 </SelectTrigger>
                 <SelectContent>
@@ -980,12 +1118,15 @@ function JobsPage() {
                 className='pl-9'
               />
             </div>
-            <Select value={statusFilter} onValueChange={(v) => {
-              setStatusFilter(v)
-              setJobsOffset(0)
-              setHasMoreJobs(true)
-              setTimeout(() => fetchJobs(true), 100)
-            }}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v)
+                setJobsOffset(0)
+                setHasMoreJobs(true)
+                setTimeout(() => fetchJobs(true), 100)
+              }}
+            >
               <SelectTrigger className='w-[180px]'>
                 <Filter className='mr-2 h-4 w-4' />
                 <SelectValue />
@@ -1008,9 +1149,7 @@ function JobsPage() {
                 <Card>
                   <CardContent className='p-12 text-center'>
                     <ListTodo className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
-                    <p className='mb-2 text-lg font-medium'>
-                      No jobs found
-                    </p>
+                    <p className='mb-2 text-lg font-medium'>No jobs found</p>
                     <p className='text-muted-foreground text-sm'>
                       {searchQuery || statusFilter !== 'all'
                         ? 'Try adjusting your filters'
@@ -1020,108 +1159,99 @@ function JobsPage() {
                 </Card>
               ) : (
                 filteredJobs.map((job) => (
-                  <Card
+                  <div
                     key={job.id}
-                    className='hover:border-primary/50 transition-colors'
+                    className='hover:border-primary/50 bg-card flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 transition-colors'
                   >
-                    <CardHeader>
-                      <div className='flex items-start justify-between'>
-                        <div className='flex-1'>
-                          <div className='mb-2 flex items-center gap-2'>
-                            {getStatusIcon(job.status)}
-                            <CardTitle className='text-lg'>
-                              {job.job_name}
-                            </CardTitle>
-                            <Badge variant={getStatusBadgeVariant(job.status)}>
-                              {job.status}
-                            </Badge>
-                            {job.user_email && (
-                              <Badge variant='outline' className='text-xs'>
-                                {job.user_email}
-                              </Badge>
-                            )}
-                          </div>
-                          <CardDescription className='flex items-center gap-4 text-xs'>
-                            <span>ID: {job.id.substring(0, 8)}...</span>
-                            {job.progress_percent !== undefined && (
-                              <span>Progress: {job.progress_percent}%</span>
-                            )}
-                            {job.retry_count > 0 && (
-                              <span>Retry: {job.retry_count}/{job.max_retries}</span>
-                            )}
-                            <span>
-                              {new Date(job.created_at).toLocaleString()}
-                            </span>
-                          </CardDescription>
-                        </div>
-                        <div className='flex gap-2'>
-                          <Button
-                            onClick={() => viewJobDetails(job)}
-                            size='sm'
-                            variant='outline'
-                          >
-                            View
-                          </Button>
-                          {(job.status === 'running' || job.status === 'pending') && (
-                            <Button
-                              onClick={() => cancelJob(job.id)}
-                              size='sm'
-                              variant='outline'
-                            >
-                              <XCircle className='h-4 w-4' />
-                            </Button>
-                          )}
-                          {(job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') && (
-                            <Button
-                              onClick={() => resubmitJob(job.id)}
-                              size='sm'
-                              variant='outline'
-                              title='Re-submit as new job'
-                            >
-                              <RefreshCw className='h-4 w-4' />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    {(job.status === 'running' && job.progress_percent !== undefined) || job.progress_message ? (
-                      <CardContent className='pt-0 pb-4'>
-                        {job.progress_message && (
-                          <div className='flex items-center gap-2 text-sm mb-2'>
-                            <Activity className='h-3 w-3' />
-                            <span className='text-muted-foreground'>
-                              {job.progress_message}
-                            </span>
-                          </div>
-                        )}
-                        {job.progress_percent !== undefined && (
-                          <div className='space-y-1'>
-                            <div className='flex items-center justify-between text-xs text-muted-foreground'>
-                              <span>{job.progress_percent}%</span>
-                              {job.estimated_seconds_left !== undefined && job.estimated_seconds_left > 0 && (
-                                <span>
-                                  ~{job.estimated_seconds_left < 60
-                                    ? `${job.estimated_seconds_left}s`
-                                    : job.estimated_seconds_left < 3600
-                                      ? `${Math.round(job.estimated_seconds_left / 60)}m`
-                                      : `${Math.round(job.estimated_seconds_left / 3600)}h`} remaining
-                                </span>
-                              )}
-                            </div>
-                            <div className='h-2 w-full overflow-hidden rounded-full bg-secondary'>
+                    <div className='flex min-w-0 flex-1 items-center gap-2'>
+                      {getStatusIcon(job.status)}
+                      <span className='truncate text-sm font-medium'>
+                        {job.job_name}
+                      </span>
+                      <Badge
+                        variant={getStatusBadgeVariant(job.status)}
+                        className='h-4 shrink-0 px-1 py-0 text-[10px]'
+                      >
+                        {job.status}
+                      </Badge>
+                      {(job.user_name || job.user_email) && (
+                        <span
+                          className='text-muted-foreground max-w-[120px] shrink-0 truncate text-[10px]'
+                          title={job.user_email}
+                        >
+                          {job.user_name || job.user_email}
+                        </span>
+                      )}
+                      {job.retry_count > 0 && (
+                        <span className='text-muted-foreground shrink-0 text-[10px]'>
+                          #{job.retry_count}
+                        </span>
+                      )}
+                      {(job.status === 'running' || job.status === 'pending') &&
+                        job.progress_percent !== undefined && (
+                          <div className='flex shrink-0 items-center gap-1'>
+                            <div className='bg-secondary h-1 w-16 overflow-hidden rounded-full'>
                               <div
-                                className={`h-full transition-all duration-300 ${job.status === 'running' ? 'bg-blue-500' :
-                                    job.status === 'completed' ? 'bg-green-500' :
-                                      job.status === 'failed' ? 'bg-red-500' : 'bg-primary'
-                                  }`}
+                                className='h-full bg-blue-500 transition-all duration-300'
                                 style={{ width: `${job.progress_percent}%` }}
                               />
                             </div>
+                            <span className='text-muted-foreground text-[10px]'>
+                              {job.progress_percent}%
+                            </span>
+                            {job.estimated_seconds_left !== undefined &&
+                              job.estimated_seconds_left > 0 && (
+                                <span className='text-muted-foreground text-[10px]'>
+                                  (ETA:{' '}
+                                  {job.estimated_seconds_left < 60
+                                    ? `${job.estimated_seconds_left}s`
+                                    : job.estimated_seconds_left < 3600
+                                      ? `${Math.round(job.estimated_seconds_left / 60)}m`
+                                      : `${Math.round(job.estimated_seconds_left / 3600)}h`}
+                                  )
+                                </span>
+                              )}
                           </div>
                         )}
-                      </CardContent>
-                    ) : null}
-                  </Card>
+                    </div>
+                    <div className='flex shrink-0 items-center gap-1'>
+                      <span className='text-muted-foreground text-[10px]'>
+                        {new Date(job.created_at).toLocaleTimeString()}
+                      </span>
+                      <Button
+                        onClick={() => viewJobDetails(job)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 px-1.5 text-xs'
+                      >
+                        View
+                      </Button>
+                      {(job.status === 'running' ||
+                        job.status === 'pending') && (
+                        <Button
+                          onClick={() => cancelJob(job.id)}
+                          size='sm'
+                          variant='ghost'
+                          className='h-6 w-6 p-0'
+                        >
+                          <XCircle className='h-3 w-3' />
+                        </Button>
+                      )}
+                      {(job.status === 'completed' ||
+                        job.status === 'cancelled' ||
+                        job.status === 'failed') && (
+                        <Button
+                          onClick={() => resubmitJob(job.id)}
+                          size='sm'
+                          variant='ghost'
+                          className='h-6 w-6 p-0'
+                          title='Re-submit as new job'
+                        >
+                          <RefreshCw className='h-3 w-3' />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 ))
               )}
 
@@ -1155,10 +1285,16 @@ function JobsPage() {
           {/* Namespace Selector and Sync */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <Label htmlFor='namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
+              <Label
+                htmlFor='namespace-select'
+                className='text-muted-foreground text-sm whitespace-nowrap'
+              >
                 Namespace:
               </Label>
-              <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
+              <Select
+                value={selectedNamespace}
+                onValueChange={setSelectedNamespace}
+              >
                 <SelectTrigger id='namespace-select' className='w-[180px]'>
                   <SelectValue placeholder='Select namespace' />
                 </SelectTrigger>
@@ -1193,22 +1329,28 @@ function JobsPage() {
 
           <div className='grid gap-4 md:grid-cols-3'>
             <Card className='!gap-0'>
-              <CardContent className='py-4 px-4'>
-                <div className='text-xs text-muted-foreground mb-1'>Total Functions</div>
+              <CardContent className='px-4 py-4'>
+                <div className='text-muted-foreground mb-1 text-xs'>
+                  Total Functions
+                </div>
                 <div className='text-2xl font-bold'>{jobFunctions.length}</div>
               </CardContent>
             </Card>
             <Card className='!gap-0'>
-              <CardContent className='py-4 px-4'>
-                <div className='text-xs text-muted-foreground mb-1'>Enabled</div>
+              <CardContent className='px-4 py-4'>
+                <div className='text-muted-foreground mb-1 text-xs'>
+                  Enabled
+                </div>
                 <div className='text-2xl font-bold'>
                   {jobFunctions.filter((f) => f.enabled).length}
                 </div>
               </CardContent>
             </Card>
             <Card className='!gap-0'>
-              <CardContent className='py-4 px-4'>
-                <div className='text-xs text-muted-foreground mb-1'>Scheduled</div>
+              <CardContent className='px-4 py-4'>
+                <div className='text-muted-foreground mb-1 text-xs'>
+                  Scheduled
+                </div>
                 <div className='text-2xl font-bold'>
                   {jobFunctions.filter((f) => f.schedule).length}
                 </div>
@@ -1232,84 +1374,52 @@ function JobsPage() {
                 </Card>
               ) : (
                 jobFunctions.map((fn) => (
-                  <Card
+                  <div
                     key={fn.id}
-                    className='hover:border-primary/50 transition-colors'
+                    className='hover:border-primary/50 bg-card flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 transition-colors'
                   >
-                    <CardHeader className='pt-4 pb-3'>
-                      <div className='flex items-start justify-between'>
-                        <div className='flex-1'>
-                          <div className='mb-2 flex items-center gap-2'>
-                            <CardTitle className='text-lg'>{fn.name}</CardTitle>
-                            <Badge variant='outline'>v{fn.version}</Badge>
-                            {fn.schedule && (
-                              <Badge variant='outline'>
-                                <Clock className='mr-1 h-3 w-3' />
-                                {fn.schedule}
-                              </Badge>
-                            )}
-                            {fn.require_role && (
-                              <Badge variant='outline'>
-                                requires: {fn.require_role}
-                              </Badge>
-                            )}
-                          </div>
-                          <CardDescription>
-                            {fn.description || 'No description'}
-                          </CardDescription>
-                        </div>
-                        <div className='flex items-center gap-3'>
-                          <div className='flex items-center gap-2'>
-                            <Label
-                              htmlFor={`enable-${fn.id}`}
-                              className='text-xs text-muted-foreground'
-                            >
-                              {fn.enabled ? 'Enabled' : 'Disabled'}
-                            </Label>
-                            <Switch
-                              id={`enable-${fn.id}`}
-                              checked={fn.enabled}
-                              disabled={togglingJob === fn.id}
-                              onCheckedChange={() => toggleJobEnabled(fn)}
-                            />
-                          </div>
-                          <Button
-                            size='sm'
-                            variant='default'
-                            onClick={() => openRunDialog(fn)}
-                            disabled={!fn.enabled}
-                          >
-                            <Play className='mr-1 h-3 w-3' />
-                            Run
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className='pt-0 pb-4'>
-                      <div className='space-y-2 text-sm'>
-                        <div className='flex items-center gap-4'>
-                          <span className='text-muted-foreground'>Timeout:</span>
-                          <span>{fn.timeout_seconds}s</span>
-                          <span className='text-muted-foreground'>Memory:</span>
-                          <span>{fn.memory_limit_mb}MB</span>
-                          <span className='text-muted-foreground'>Retries:</span>
-                          <span>{fn.max_retries}</span>
-                        </div>
-                        <div className='flex items-center gap-2'>
-                          <span className='text-muted-foreground'>
-                            Permissions:
-                          </span>
-                          {fn.allow_net && <Badge variant='outline'>net</Badge>}
-                          {fn.allow_env && <Badge variant='outline'>env</Badge>}
-                          {fn.allow_read && <Badge variant='outline'>read</Badge>}
-                          {fn.allow_write && <Badge variant='outline'>write</Badge>}
-                          {!fn.allow_net && !fn.allow_env && !fn.allow_read && !fn.allow_write && (
-                            <span className='text-muted-foreground italic'>none</span>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    <div className='flex min-w-0 flex-1 items-center gap-2'>
+                      <span className='truncate text-sm font-medium'>
+                        {fn.name}
+                      </span>
+                      <Badge
+                        variant='outline'
+                        className='h-4 shrink-0 px-1 py-0 text-[10px]'
+                      >
+                        v{fn.version}
+                      </Badge>
+                      {fn.schedule && (
+                        <Badge
+                          variant='outline'
+                          className='h-4 shrink-0 px-1 py-0 text-[10px]'
+                        >
+                          <Clock className='mr-0.5 h-2.5 w-2.5' />
+                          {fn.schedule}
+                        </Badge>
+                      )}
+                      <Switch
+                        id={`enable-${fn.id}`}
+                        checked={fn.enabled}
+                        disabled={togglingJob === fn.id}
+                        onCheckedChange={() => toggleJobEnabled(fn)}
+                        className='scale-75'
+                      />
+                    </div>
+                    <div className='flex shrink-0 items-center gap-1'>
+                      <span className='text-muted-foreground text-[10px]'>
+                        {fn.timeout_seconds}s / {fn.max_retries}r
+                      </span>
+                      <Button
+                        size='sm'
+                        variant='default'
+                        onClick={() => openRunDialog(fn)}
+                        disabled={!fn.enabled}
+                        className='h-6 px-2 text-xs'
+                      >
+                        <Play className='h-3 w-3' />
+                      </Button>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -1319,7 +1429,7 @@ function JobsPage() {
 
       {/* Job Details Dialog */}
       <Dialog open={showJobDetails} onOpenChange={setShowJobDetails}>
-        <DialogContent className='max-h-[90vh] w-[90vw] sm:max-w-none max-w-[1600px] overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] w-[90vw] max-w-[1600px] overflow-y-auto sm:max-w-none'>
           <DialogHeader className='flex flex-row items-start justify-between'>
             <div>
               <DialogTitle className='flex items-center gap-2'>
@@ -1347,8 +1457,10 @@ function JobsPage() {
                 <Badge variant={getStatusBadgeVariant(selectedJob.status)}>
                   {selectedJob.status}
                 </Badge>
-                {selectedJob.user_email && (
-                  <Badge variant='outline'>{selectedJob.user_email}</Badge>
+                {(selectedJob.user_name || selectedJob.user_email) && (
+                  <Badge variant='outline' title={selectedJob.user_email}>
+                    {selectedJob.user_name || selectedJob.user_email}
+                  </Badge>
                 )}
                 {selectedJob.user_role && (
                   <Badge variant='outline'>role: {selectedJob.user_role}</Badge>
@@ -1359,52 +1471,81 @@ function JobsPage() {
 
               <div className='grid gap-3'>
                 <div>
-                  <Label className='text-xs text-muted-foreground'>Created</Label>
-                  <p className='text-sm'>{new Date(selectedJob.created_at).toLocaleString()}</p>
+                  <Label className='text-muted-foreground text-xs'>
+                    Created
+                  </Label>
+                  <p className='text-sm'>
+                    {new Date(selectedJob.created_at).toLocaleString()}
+                  </p>
                 </div>
                 {selectedJob.started_at && (
                   <div>
-                    <Label className='text-xs text-muted-foreground'>Started</Label>
-                    <p className='text-sm'>{new Date(selectedJob.started_at).toLocaleString()}</p>
+                    <Label className='text-muted-foreground text-xs'>
+                      Started
+                    </Label>
+                    <p className='text-sm'>
+                      {new Date(selectedJob.started_at).toLocaleString()}
+                    </p>
                   </div>
                 )}
                 {selectedJob.completed_at && (
                   <div>
-                    <Label className='text-xs text-muted-foreground'>Completed</Label>
-                    <p className='text-sm'>{new Date(selectedJob.completed_at).toLocaleString()}</p>
+                    <Label className='text-muted-foreground text-xs'>
+                      Completed
+                    </Label>
+                    <p className='text-sm'>
+                      {new Date(selectedJob.completed_at).toLocaleString()}
+                    </p>
                   </div>
                 )}
                 {selectedJob.progress_percent !== undefined && (
                   <div className='space-y-2'>
-                    <Label className='text-xs text-muted-foreground'>Progress</Label>
+                    <Label className='text-muted-foreground text-xs'>
+                      Progress
+                    </Label>
                     <div className='space-y-1'>
                       <div className='flex items-center justify-between text-sm'>
-                        <span className='font-medium'>{selectedJob.progress_percent}%</span>
-                        {selectedJob.estimated_seconds_left !== undefined && selectedJob.estimated_seconds_left > 0 && (
-                          <span className='text-muted-foreground'>
-                            ~{selectedJob.estimated_seconds_left < 60
-                              ? `${selectedJob.estimated_seconds_left}s`
-                              : selectedJob.estimated_seconds_left < 3600
-                                ? `${Math.round(selectedJob.estimated_seconds_left / 60)}m`
-                                : `${Math.round(selectedJob.estimated_seconds_left / 3600)}h`} remaining
-                          </span>
-                        )}
+                        <span className='font-medium'>
+                          {selectedJob.progress_percent}%
+                        </span>
+                        {selectedJob.estimated_seconds_left !== undefined &&
+                          selectedJob.estimated_seconds_left > 0 && (
+                            <span className='text-muted-foreground'>
+                              ~
+                              {selectedJob.estimated_seconds_left < 60
+                                ? `${selectedJob.estimated_seconds_left}s`
+                                : selectedJob.estimated_seconds_left < 3600
+                                  ? `${Math.round(selectedJob.estimated_seconds_left / 60)}m`
+                                  : `${Math.round(selectedJob.estimated_seconds_left / 3600)}h`}{' '}
+                              remaining
+                            </span>
+                          )}
                       </div>
-                      <div className='h-3 w-full overflow-hidden rounded-full bg-secondary'>
+                      <div className='bg-secondary h-3 w-full overflow-hidden rounded-full'>
                         <div
-                          className={`h-full transition-all duration-300 ${selectedJob.status === 'running' ? 'bg-blue-500' :
-                              selectedJob.status === 'completed' ? 'bg-green-500' :
-                                selectedJob.status === 'failed' ? 'bg-red-500' : 'bg-primary'
-                            }`}
+                          className={`h-full transition-all duration-300 ${
+                            selectedJob.status === 'running'
+                              ? 'bg-blue-500'
+                              : selectedJob.status === 'completed'
+                                ? 'bg-green-500'
+                                : selectedJob.status === 'failed'
+                                  ? 'bg-red-500'
+                                  : 'bg-primary'
+                          }`}
                           style={{ width: `${selectedJob.progress_percent}%` }}
                         />
                       </div>
                       {selectedJob.progress_message && (
-                        <p className='text-sm text-muted-foreground'>{selectedJob.progress_message}</p>
+                        <p className='text-muted-foreground text-sm'>
+                          {selectedJob.progress_message}
+                        </p>
                       )}
                       {selectedJob.last_progress_at && (
-                        <p className='text-xs text-muted-foreground'>
-                          Last updated: {new Date(selectedJob.last_progress_at).toLocaleString()}
+                        <p className='text-muted-foreground text-xs'>
+                          Last updated:{' '}
+                          {new Date(
+                            selectedJob.last_progress_at
+                          ).toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -1414,36 +1555,43 @@ function JobsPage() {
 
               <Separator />
 
-              {selectedJob.payload !== undefined && selectedJob.payload !== null && (
-                <div>
-                  <div className='flex items-center justify-between mb-2'>
-                    <Label>Payload</Label>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-6 px-2'
-                      onClick={() => copyToClipboard(formatJsonValue(selectedJob.payload), 'Payload')}
-                    >
-                      <Copy className='h-3 w-3' />
-                    </Button>
+              {selectedJob.payload !== undefined &&
+                selectedJob.payload !== null && (
+                  <div>
+                    <div className='mb-2 flex items-center justify-between'>
+                      <Label>Payload</Label>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 px-2'
+                        onClick={() =>
+                          copyToClipboard(
+                            formatJsonValue(selectedJob.payload),
+                            'Payload'
+                          )
+                        }
+                      >
+                        <Copy className='h-3 w-3' />
+                      </Button>
+                    </div>
+                    <div className='bg-muted max-h-48 overflow-auto rounded-lg border p-4'>
+                      <pre className='text-xs break-all whitespace-pre-wrap'>
+                        {formatJsonValue(selectedJob.payload)}
+                      </pre>
+                    </div>
                   </div>
-                  <div className='bg-muted max-h-48 overflow-auto rounded-lg border p-4'>
-                    <pre className='text-xs whitespace-pre-wrap break-all'>
-                      {formatJsonValue(selectedJob.payload)}
-                    </pre>
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* Logs and Result/Error side by side */}
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+              <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
                 {/* Logs Column - Always show for consistent layout */}
                 <div className='flex flex-col'>
-                  <div className='flex items-center justify-between mb-2'>
+                  <div className='mb-2 flex items-center justify-between'>
                     <Label>Logs</Label>
                     <div className='flex items-center gap-2'>
-                      {(selectedJob.status === 'running' || selectedJob.status === 'pending') && (
-                        <div className='flex items-center gap-2 text-xs text-muted-foreground'>
+                      {(selectedJob.status === 'running' ||
+                        selectedJob.status === 'pending') && (
+                        <div className='text-muted-foreground flex items-center gap-2 text-xs'>
                           <Loader2 className='h-3 w-3 animate-spin' />
                           <span>Live updating...</span>
                         </div>
@@ -1453,7 +1601,12 @@ function JobsPage() {
                           variant='ghost'
                           size='sm'
                           className='h-6 px-2'
-                          onClick={() => copyToClipboard(executionLogs.map((l) => l.message).join('\n'), 'Logs')}
+                          onClick={() =>
+                            copyToClipboard(
+                              collapseConsecutiveLogs(executionLogs).join('\n'),
+                              'Logs'
+                            )
+                          }
                         >
                           <Copy className='h-3 w-3' />
                         </Button>
@@ -1462,18 +1615,21 @@ function JobsPage() {
                   </div>
                   <div
                     ref={logsContainerRef}
-                    className='bg-black/90 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto rounded-lg border p-4 font-mono'
+                    className='max-h-[400px] min-h-[200px] flex-1 overflow-y-auto rounded-lg border bg-black/90 p-4 font-mono'
+                    onScroll={() => {
+                      isAtBottomRef.current = checkIfAtBottom()
+                    }}
                   >
                     {loadingLogs ? (
-                      <span className='text-xs text-muted-foreground italic'>
+                      <span className='text-muted-foreground text-xs italic'>
                         Loading logs...
                       </span>
                     ) : executionLogs.length > 0 ? (
-                      <pre className='text-xs text-green-400 whitespace-pre-wrap break-words'>
-                        {executionLogs.map((l) => l.message).join('\n')}
+                      <pre className='text-xs break-words whitespace-pre-wrap text-green-400'>
+                        {collapseConsecutiveLogs(executionLogs).join('\n')}
                       </pre>
                     ) : (
-                      <span className='text-xs text-muted-foreground italic'>
+                      <span className='text-muted-foreground text-xs italic'>
                         No logs available
                       </span>
                     )}
@@ -1481,44 +1637,57 @@ function JobsPage() {
                 </div>
 
                 {/* Result/Error Column */}
-                {(selectedJob.result !== undefined && selectedJob.result !== null) || selectedJob.error_message ? (
+                {(selectedJob.result !== undefined &&
+                  selectedJob.result !== null) ||
+                selectedJob.error_message ? (
                   <div className='flex flex-col gap-4'>
-                    {selectedJob.result !== undefined && selectedJob.result !== null && (
-                      <div className='flex flex-col flex-1'>
-                        <div className='flex items-center justify-between mb-2'>
-                          <Label>Result</Label>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='h-6 px-2'
-                            onClick={() => copyToClipboard(formatJsonValue(selectedJob.result), 'Result')}
-                          >
-                            <Copy className='h-3 w-3' />
-                          </Button>
+                    {selectedJob.result !== undefined &&
+                      selectedJob.result !== null && (
+                        <div className='flex flex-1 flex-col'>
+                          <div className='mb-2 flex items-center justify-between'>
+                            <Label>Result</Label>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-6 px-2'
+                              onClick={() =>
+                                copyToClipboard(
+                                  formatJsonValue(selectedJob.result),
+                                  'Result'
+                                )
+                              }
+                            >
+                              <Copy className='h-3 w-3' />
+                            </Button>
+                          </div>
+                          <div className='bg-muted max-h-[200px] min-h-[100px] flex-1 overflow-auto rounded-lg border p-4'>
+                            <pre className='text-xs break-all whitespace-pre-wrap'>
+                              {formatJsonValue(selectedJob.result)}
+                            </pre>
+                          </div>
                         </div>
-                        <div className='bg-muted flex-1 min-h-[100px] max-h-[200px] overflow-auto rounded-lg border p-4'>
-                          <pre className='text-xs whitespace-pre-wrap break-all'>
-                            {formatJsonValue(selectedJob.result)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
+                      )}
 
                     {selectedJob.error_message && (
-                      <div className='flex flex-col flex-1'>
-                        <div className='flex items-center justify-between mb-2'>
+                      <div className='flex flex-1 flex-col'>
+                        <div className='mb-2 flex items-center justify-between'>
                           <Label className='text-destructive'>Error</Label>
                           <Button
                             variant='ghost'
                             size='sm'
                             className='h-6 px-2'
-                            onClick={() => copyToClipboard(selectedJob.error_message || '', 'Error')}
+                            onClick={() =>
+                              copyToClipboard(
+                                selectedJob.error_message || '',
+                                'Error'
+                              )
+                            }
                           >
                             <Copy className='h-3 w-3' />
                           </Button>
                         </div>
-                        <div className='bg-destructive/10 border-destructive/20 flex-1 min-h-[100px] max-h-[200px] overflow-auto rounded-lg border p-4'>
-                          <pre className='text-xs text-destructive whitespace-pre-wrap break-all'>
+                        <div className='bg-destructive/10 border-destructive/20 max-h-[200px] min-h-[100px] flex-1 overflow-auto rounded-lg border p-4'>
+                          <pre className='text-destructive text-xs break-all whitespace-pre-wrap'>
                             {selectedJob.error_message}
                           </pre>
                         </div>
@@ -1531,15 +1700,32 @@ function JobsPage() {
           )}
 
           <DialogFooter className='flex gap-2'>
-            {selectedJob && (selectedJob.status === 'completed' || selectedJob.status === 'cancelled' || selectedJob.status === 'failed') && (
-              <Button
-                variant='secondary'
-                onClick={() => resubmitJob(selectedJob.id)}
-              >
-                <RefreshCw className='mr-2 h-4 w-4' />
-                Re-submit
-              </Button>
-            )}
+            {selectedJob &&
+              (selectedJob.status === 'pending' ||
+                selectedJob.status === 'running') && (
+                <Button
+                  variant='destructive'
+                  onClick={() => {
+                    cancelJob(selectedJob.id)
+                    setShowJobDetails(false)
+                  }}
+                >
+                  <XCircle className='mr-2 h-4 w-4' />
+                  Cancel Job
+                </Button>
+              )}
+            {selectedJob &&
+              (selectedJob.status === 'completed' ||
+                selectedJob.status === 'cancelled' ||
+                selectedJob.status === 'failed') && (
+                <Button
+                  variant='secondary'
+                  onClick={() => resubmitJob(selectedJob.id)}
+                >
+                  <RefreshCw className='mr-2 h-4 w-4' />
+                  Re-submit
+                </Button>
+              )}
             <Button variant='outline' onClick={() => setShowJobDetails(false)}>
               Close
             </Button>
@@ -1556,21 +1742,22 @@ function JobsPage() {
               Run Job
             </DialogTitle>
             <DialogDescription>
-              Submit a new job for "{selectedFunction?.name}" in the "{selectedNamespace}" namespace
+              Submit a new job for "{selectedFunction?.name}" in the "
+              {selectedNamespace}" namespace
             </DialogDescription>
           </DialogHeader>
 
           <div className='space-y-4'>
             {selectedFunction && (
-              <div className='rounded-lg border bg-muted/50 p-3'>
-                <div className='flex items-center gap-2 mb-2'>
+              <div className='bg-muted/50 rounded-lg border p-3'>
+                <div className='mb-2 flex items-center gap-2'>
                   <span className='font-medium'>{selectedFunction.name}</span>
                   <Badge variant='outline'>v{selectedFunction.version}</Badge>
                 </div>
-                <p className='text-sm text-muted-foreground'>
+                <p className='text-muted-foreground text-sm'>
                   {selectedFunction.description || 'No description'}
                 </p>
-                <div className='mt-2 flex items-center gap-4 text-xs text-muted-foreground'>
+                <div className='text-muted-foreground mt-2 flex items-center gap-4 text-xs'>
                   <span>Timeout: {selectedFunction.timeout_seconds}s</span>
                   <span>Max retries: {selectedFunction.max_retries}</span>
                 </div>
@@ -1578,18 +1765,19 @@ function JobsPage() {
             )}
 
             <div className='space-y-2'>
-              <Label htmlFor='job-payload'>
-                Payload (JSON)
-              </Label>
+              <Label htmlFor='job-payload'>Payload (JSON)</Label>
               <Textarea
                 id='job-payload'
                 value={jobPayload}
                 onChange={(e) => setJobPayload(e.target.value)}
                 placeholder='{\n  "key": "value"\n}'
-                className='font-mono text-sm min-h-[150px]'
+                className='min-h-[150px] font-mono text-sm'
               />
-              <p className='text-xs text-muted-foreground'>
-                Enter the JSON payload to pass to the job's handler function. This will be available as <code className='bg-muted px-1 rounded'>request.payload</code> in your job code.
+              <p className='text-muted-foreground text-xs'>
+                Enter the JSON payload to pass to the job's handler function.
+                This will be available as{' '}
+                <code className='bg-muted rounded px-1'>request.payload</code>{' '}
+                in your job code.
               </p>
             </div>
           </div>
@@ -1605,10 +1793,7 @@ function JobsPage() {
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmitJob}
-              disabled={submittingJob}
-            >
+            <Button onClick={handleSubmitJob} disabled={submittingJob}>
               {submittingJob ? (
                 <>
                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />

@@ -10,6 +10,9 @@ import type {
   ListOptions,
   SignedUrlOptions,
   DownloadOptions,
+  StreamDownloadData,
+  ResumableDownloadOptions,
+  ResumableDownloadData,
   ShareFileOptions,
   FileShare,
   BucketSettings,
@@ -171,8 +174,10 @@ export class StorageBucket {
    * // Default: returns Blob
    * const { data: blob } = await storage.from('bucket').download('file.pdf');
    *
-   * // Streaming: returns ReadableStream
-   * const { data: stream } = await storage.from('bucket').download('large.json', { stream: true });
+   * // Streaming: returns { stream, size } for progress tracking
+   * const { data } = await storage.from('bucket').download('large.json', { stream: true });
+   * console.log(`File size: ${data.size} bytes`);
+   * // Process data.stream...
    * ```
    */
   async download(
@@ -180,42 +185,309 @@ export class StorageBucket {
   ): Promise<{ data: Blob | null; error: Error | null }>;
   async download(
     path: string,
-    options: { stream: true },
-  ): Promise<{ data: ReadableStream<Uint8Array> | null; error: Error | null }>;
+    options: { stream: true; timeout?: number; signal?: AbortSignal },
+  ): Promise<{ data: StreamDownloadData | null; error: Error | null }>;
   async download(
     path: string,
-    options: { stream?: false },
+    options: { stream?: false; timeout?: number; signal?: AbortSignal },
   ): Promise<{ data: Blob | null; error: Error | null }>;
   async download(
     path: string,
     options?: DownloadOptions,
   ): Promise<{
-    data: Blob | ReadableStream<Uint8Array> | null;
+    data: Blob | StreamDownloadData | null;
     error: Error | null;
   }> {
     try {
-      const response = await fetch(
-        `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`,
-        {
-          headers: this.fetch["defaultHeaders"],
-        },
-      );
+      const controller = new AbortController();
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-      if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`);
-      }
-
-      // Return stream if requested
-      if (options?.stream) {
-        if (!response.body) {
-          throw new Error("Response body is not available for streaming");
+      // Forward external signal to our controller
+      if (options?.signal) {
+        if (options.signal.aborted) {
+          return { data: null, error: new Error("Download aborted") };
         }
-        return { data: response.body, error: null };
+        options.signal.addEventListener("abort", () => controller.abort(), {
+          once: true,
+        });
       }
 
-      // Default: return Blob
-      const blob = await response.blob();
-      return { data: blob, error: null };
+      // For streaming: no timeout by default (large files need time)
+      // For non-streaming: 30s default
+      const timeout = options?.timeout ?? (options?.stream ? 0 : 30000);
+
+      if (timeout > 0) {
+        timeoutId = setTimeout(() => controller.abort(), timeout);
+      }
+
+      try {
+        const response = await fetch(
+          `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`,
+          {
+            headers: this.fetch["defaultHeaders"],
+            signal: controller.signal,
+          },
+        );
+
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Failed to download file: ${response.statusText}`);
+        }
+
+        // Return stream with size if requested
+        if (options?.stream) {
+          if (!response.body) {
+            throw new Error("Response body is not available for streaming");
+          }
+          // Extract file size from Content-Length header
+          const contentLength = response.headers.get("content-length");
+          const size = contentLength ? parseInt(contentLength, 10) : null;
+          return {
+            data: { stream: response.body, size },
+            error: null,
+          };
+        }
+
+        // Default: return Blob
+        const blob = await response.blob();
+        return { data: blob, error: null };
+      } catch (err) {
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (err instanceof Error && err.name === "AbortError") {
+          // Check if it was user abort or timeout
+          if (options?.signal?.aborted) {
+            return { data: null, error: new Error("Download aborted") };
+          }
+          return { data: null, error: new Error("Download timeout") };
+        }
+        throw err;
+      }
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Download a file with resumable chunked downloads for large files.
+   * Returns a ReadableStream that abstracts the chunking internally.
+   *
+   * Features:
+   * - Downloads file in chunks using HTTP Range headers
+   * - Automatically retries failed chunks with exponential backoff
+   * - Reports progress via callback
+   * - Falls back to regular streaming if Range not supported
+   *
+   * @param path - The file path within the bucket
+   * @param options - Download options including chunk size, retries, and progress callback
+   * @returns A ReadableStream and file size (consumer doesn't need to know about chunking)
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await storage.from('bucket').downloadResumable('large.json', {
+   *   chunkSize: 5 * 1024 * 1024, // 5MB chunks
+   *   maxRetries: 3,
+   *   onProgress: (progress) => console.log(`${progress.percentage}% complete`)
+   * });
+   * if (data) {
+   *   console.log(`File size: ${data.size} bytes`);
+   *   // Process data.stream...
+   * }
+   * ```
+   */
+  async downloadResumable(
+    path: string,
+    options?: ResumableDownloadOptions,
+  ): Promise<{ data: ResumableDownloadData | null; error: Error | null }> {
+    try {
+      const chunkSize = options?.chunkSize ?? 5 * 1024 * 1024; // 5MB default
+      const maxRetries = options?.maxRetries ?? 3;
+      const retryDelayMs = options?.retryDelayMs ?? 1000;
+      const chunkTimeout = options?.chunkTimeout ?? 30000;
+
+      const url = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+      const headers = this.fetch["defaultHeaders"];
+
+      // Check if already aborted
+      if (options?.signal?.aborted) {
+        return { data: null, error: new Error("Download aborted") };
+      }
+
+      // Get file info with HEAD request to determine size and Range support
+      const headResponse = await fetch(url, {
+        method: "HEAD",
+        headers,
+        signal: options?.signal,
+      });
+
+      if (!headResponse.ok) {
+        throw new Error(`Failed to get file info: ${headResponse.statusText}`);
+      }
+
+      const contentLength = headResponse.headers.get("content-length");
+      const acceptRanges = headResponse.headers.get("accept-ranges");
+      const totalSize = contentLength ? parseInt(contentLength, 10) : null;
+
+      // If server doesn't support Range requests, fall back to regular streaming
+      if (acceptRanges !== "bytes") {
+        const { data, error } = await this.download(path, {
+          stream: true,
+          timeout: 0,
+          signal: options?.signal,
+        });
+        if (error) return { data: null, error };
+        return {
+          data: data as ResumableDownloadData,
+          error: null,
+        };
+      }
+
+      // Create a ReadableStream that fetches chunks internally
+      let downloadedBytes = 0;
+      let currentChunk = 0;
+      const totalChunks = totalSize ? Math.ceil(totalSize / chunkSize) : null;
+      let lastProgressTime = Date.now();
+      let lastProgressBytes = 0;
+
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          // Check if aborted
+          if (options?.signal?.aborted) {
+            controller.error(new Error("Download aborted"));
+            return;
+          }
+
+          // Check if we've downloaded everything
+          if (totalSize !== null && downloadedBytes >= totalSize) {
+            controller.close();
+            return;
+          }
+
+          const rangeStart = downloadedBytes;
+          const rangeEnd =
+            totalSize !== null
+              ? Math.min(downloadedBytes + chunkSize - 1, totalSize - 1)
+              : downloadedBytes + chunkSize - 1;
+
+          let retryCount = 0;
+          let chunk: Uint8Array | null = null;
+
+          while (retryCount <= maxRetries && chunk === null) {
+            try {
+              // Check abort before each attempt
+              if (options?.signal?.aborted) {
+                controller.error(new Error("Download aborted"));
+                return;
+              }
+
+              const chunkController = new AbortController();
+              const timeoutId = setTimeout(
+                () => chunkController.abort(),
+                chunkTimeout,
+              );
+
+              // Forward external signal to chunk controller
+              if (options?.signal) {
+                options.signal.addEventListener(
+                  "abort",
+                  () => chunkController.abort(),
+                  { once: true },
+                );
+              }
+
+              const chunkResponse = await fetch(url, {
+                headers: {
+                  ...headers,
+                  Range: `bytes=${rangeStart}-${rangeEnd}`,
+                },
+                signal: chunkController.signal,
+              });
+
+              clearTimeout(timeoutId);
+
+              if (!chunkResponse.ok && chunkResponse.status !== 206) {
+                throw new Error(
+                  `Chunk download failed: ${chunkResponse.statusText}`,
+                );
+              }
+
+              const arrayBuffer = await chunkResponse.arrayBuffer();
+              chunk = new Uint8Array(arrayBuffer);
+
+              // Check if we got less data than expected (end of file)
+              if (totalSize === null && chunk.byteLength < chunkSize) {
+                downloadedBytes += chunk.byteLength;
+                currentChunk++;
+                controller.enqueue(chunk);
+                controller.close();
+                return;
+              }
+            } catch (err) {
+              // Check if it was user abort
+              if (options?.signal?.aborted) {
+                controller.error(new Error("Download aborted"));
+                return;
+              }
+
+              retryCount++;
+              if (retryCount > maxRetries) {
+                controller.error(
+                  new Error(
+                    `Failed to download chunk after ${maxRetries} retries`,
+                  ),
+                );
+                return;
+              }
+
+              // Exponential backoff: 1s, 2s, 4s...
+              const delay = retryDelayMs * Math.pow(2, retryCount - 1);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+          }
+
+          if (chunk) {
+            downloadedBytes += chunk.byteLength;
+            currentChunk++;
+
+            // Report progress
+            if (options?.onProgress) {
+              const now = Date.now();
+              const elapsed = (now - lastProgressTime) / 1000;
+              const bytesPerSecond =
+                elapsed > 0
+                  ? (downloadedBytes - lastProgressBytes) / elapsed
+                  : 0;
+
+              lastProgressTime = now;
+              lastProgressBytes = downloadedBytes;
+
+              options.onProgress({
+                loaded: downloadedBytes,
+                total: totalSize,
+                percentage: totalSize
+                  ? Math.round((downloadedBytes / totalSize) * 100)
+                  : null,
+                currentChunk,
+                totalChunks,
+                bytesPerSecond,
+              });
+            }
+
+            controller.enqueue(chunk);
+
+            // Check if we're done
+            if (totalSize !== null && downloadedBytes >= totalSize) {
+              controller.close();
+            }
+          }
+        },
+      });
+
+      return {
+        data: { stream, size: totalSize },
+        error: null,
+      };
     } catch (error) {
       return { data: null, error: error as Error };
     }

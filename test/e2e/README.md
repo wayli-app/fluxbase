@@ -93,14 +93,14 @@ task1 := map[string]interface{}{
   "title": "User 1 Task",
   "user_id": user1ID,
 }
-// POST /api/v1/rest/tasks with User 1's token
+// POST /api/v1/tables/tasks with User 1's token
 
 // User 1 queries tasks
-// GET /api/v1/rest/tasks with User 1's token
+// GET /api/v1/tables/tasks with User 1's token
 // Returns only User 1's tasks (RLS enforced)
 
 // User 2 queries tasks
-// GET /api/v1/rest/tasks with User 2's token
+// GET /api/v1/tables/tasks with User 2's token
 // Returns only User 2's tasks (isolated from User 1)
 ```
 

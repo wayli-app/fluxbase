@@ -21,12 +21,21 @@ type S3Storage struct {
 
 // NewS3Storage creates a new S3-compatible storage provider
 // Works with AWS S3, MinIO, Wasabi, DigitalOcean Spaces, and other S3-compatible services
-func NewS3Storage(endpoint, accessKey, secretKey, region string, useSSL bool) (*S3Storage, error) {
+func NewS3Storage(endpoint, accessKey, secretKey, region string, useSSL bool, forcePathStyle bool) (*S3Storage, error) {
+	// Determine bucket lookup style
+	// Path-style: endpoint/bucket (required for MinIO, R2, Spaces, etc.)
+	// DNS-style: bucket.endpoint (AWS S3 default)
+	bucketLookup := minio.BucketLookupAuto
+	if forcePathStyle {
+		bucketLookup = minio.BucketLookupPath
+	}
+
 	// Create MinIO client (works with S3-compatible services)
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
-		Region: region,
+		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure:       useSSL,
+		Region:       region,
+		BucketLookup: bucketLookup,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 client: %w", err)
@@ -36,6 +45,7 @@ func NewS3Storage(endpoint, accessKey, secretKey, region string, useSSL bool) (*
 		Str("endpoint", endpoint).
 		Str("region", region).
 		Bool("ssl", useSSL).
+		Bool("force_path_style", forcePathStyle).
 		Msg("S3-compatible storage initialized")
 
 	return &S3Storage{
@@ -137,10 +147,25 @@ func (s3 *S3Storage) Download(ctx context.Context, bucket, key string, opts *Dow
 		return nil, nil, fmt.Errorf("failed to download from S3: %w", err)
 	}
 
+	// Calculate actual size (considering Range request)
+	actualSize := stat.Size
+	if opts != nil && opts.Range != "" {
+		var start, end int64
+		if _, err := fmt.Sscanf(opts.Range, "bytes=%d-%d", &start, &end); err == nil {
+			// Clamp to actual file size
+			if end >= stat.Size {
+				end = stat.Size - 1
+			}
+			if start <= end && start < stat.Size {
+				actualSize = end - start + 1
+			}
+		}
+	}
+
 	object := &Object{
 		Key:          key,
 		Bucket:       bucket,
-		Size:         stat.Size,
+		Size:         actualSize,
 		ContentType:  stat.ContentType,
 		LastModified: stat.LastModified,
 		ETag:         stat.ETag,

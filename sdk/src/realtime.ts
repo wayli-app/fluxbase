@@ -32,12 +32,15 @@ export class RealtimeChannel {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
+  private shouldReconnect = true;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private pendingAcks: Map<
     string,
     { resolve: (value: string) => void; reject: (reason: any) => void; timeout: ReturnType<typeof setTimeout> }
   > = new Map();
   private messageIdCounter = 0;
+  private onTokenRefreshNeeded: (() => Promise<string | null>) | null = null;
+  private isRefreshingToken = false;
 
   constructor(
     url: string,
@@ -49,6 +52,14 @@ export class RealtimeChannel {
     this.channelName = channelName;
     this.token = token;
     this.config = config;
+  }
+
+  /**
+   * Set callback to request a token refresh when connection fails due to auth
+   * @internal
+   */
+  setTokenRefreshCallback(callback: () => Promise<string | null>) {
+    this.onTokenRefreshNeeded = callback;
   }
 
   /**
@@ -227,6 +238,8 @@ export class RealtimeChannel {
     ) => void,
     _timeout?: number,
   ): this {
+    // Re-enable reconnection in case this is a re-subscribe after unsubscribe
+    this.shouldReconnect = true;
     this.connect();
 
     // Call callback with SUBSCRIBED status after connection
@@ -253,6 +266,9 @@ export class RealtimeChannel {
    * @returns Promise resolving to status string (Supabase-compatible)
    */
   async unsubscribe(timeout?: number): Promise<"ok" | "timed out" | "error"> {
+    // Prevent automatic reconnection after intentional unsubscribe
+    this.shouldReconnect = false;
+
     return new Promise((resolve) => {
       if (this.ws) {
         this.sendMessage({
@@ -456,6 +472,29 @@ export class RealtimeChannel {
   }
 
   /**
+   * Check if the current token is expired or about to expire
+   */
+  private isTokenExpired(): boolean {
+    if (!this.token) return false;
+
+    try {
+      // Decode JWT payload (base64url encoded, second part)
+      const parts = this.token.split(".");
+      if (parts.length !== 3 || !parts[1]) return false;
+
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (!payload.exp) return false;
+
+      // Check if expired or will expire in the next 10 seconds
+      const now = Math.floor(Date.now() / 1000);
+      return payload.exp <= now + 10;
+    } catch {
+      // If we can't decode the token, assume it might be expired
+      return true;
+    }
+  }
+
+  /**
    * Internal: Connect to WebSocket
    */
   private connect() {
@@ -463,6 +502,36 @@ export class RealtimeChannel {
       return;
     }
 
+    // Check if token is expired and we have a refresh callback
+    if (this.isTokenExpired() && this.onTokenRefreshNeeded && !this.isRefreshingToken) {
+      this.isRefreshingToken = true;
+      console.log("[Fluxbase Realtime] Token expired, requesting refresh before connecting");
+
+      this.onTokenRefreshNeeded()
+        .then((newToken) => {
+          this.isRefreshingToken = false;
+          if (newToken) {
+            this.token = newToken;
+            console.log("[Fluxbase Realtime] Token refreshed, connecting with new token");
+          }
+          this.connectWithToken();
+        })
+        .catch((err) => {
+          this.isRefreshingToken = false;
+          console.error("[Fluxbase Realtime] Token refresh failed:", err);
+          // Try connecting anyway - might work if refresh failed for other reasons
+          this.connectWithToken();
+        });
+      return;
+    }
+
+    this.connectWithToken();
+  }
+
+  /**
+   * Internal: Actually establish the WebSocket connection
+   */
+  private connectWithToken() {
     // Build WebSocket URL
     const wsUrl = new URL(this.url);
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
@@ -495,12 +564,21 @@ export class RealtimeChannel {
       this.startHeartbeat();
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (event: MessageEvent) => {
+      let message: RealtimeMessage;
       try {
-        const message: RealtimeMessage = JSON.parse(event.data);
-        this.handleMessage(message);
+        message = typeof event.data === 'string'
+          ? JSON.parse(event.data)
+          : event.data;
       } catch (err) {
         console.error("[Fluxbase Realtime] Failed to parse message:", err);
+        return;
+      }
+
+      try {
+        this.handleMessage(message);
+      } catch (err) {
+        console.error("[Fluxbase Realtime] Error handling message:", err, message);
       }
     };
 
@@ -542,8 +620,8 @@ export class RealtimeChannel {
   private handleMessage(message: RealtimeMessage) {
     switch (message.type) {
       case "heartbeat":
-        // Echo heartbeat back
-        this.ws?.send(JSON.stringify({ type: "heartbeat" }));
+        // Server heartbeat received - no echo needed
+        // Client sends its own heartbeats on interval
         break;
 
       case "broadcast":
@@ -568,8 +646,29 @@ export class RealtimeChannel {
           if (ackHandler) {
             ackHandler.resolve(message.status || "ok");
           }
+        } else if (message.payload && typeof message.payload === 'object' && 'type' in message.payload) {
+          const payload = message.payload as { type: string; updated?: boolean; subscription_id?: string };
+
+          // Handle access_token acknowledgment
+          if (payload.type === "access_token" && this.pendingAcks.has("access_token")) {
+            const ackHandler = this.pendingAcks.get("access_token");
+            if (ackHandler) {
+              ackHandler.resolve("ok");
+              this.pendingAcks.delete("access_token");
+            }
+            console.log("[Fluxbase Realtime] Token updated successfully");
+          } else {
+            // Store subscription_id from subscription acknowledgment
+            if (payload.subscription_id) {
+              this.subscriptionId = payload.subscription_id;
+              console.log("[Fluxbase Realtime] Subscription ID received:", this.subscriptionId);
+            } else {
+              // Log other acknowledgments
+              console.log("[Fluxbase Realtime] Acknowledged:", message);
+            }
+          }
         } else {
-          // Store subscription_id from subscription acknowledgment
+          // Store subscription_id from subscription acknowledgment (legacy format)
           if (message.payload && typeof message.payload === 'object' && 'subscription_id' in message.payload) {
             this.subscriptionId = (message.payload as { subscription_id: string }).subscription_id;
             console.log("[Fluxbase Realtime] Subscription ID received:", this.subscriptionId);
@@ -582,6 +681,21 @@ export class RealtimeChannel {
 
       case "error":
         console.error("[Fluxbase Realtime] Error:", message.error);
+        // If there's a pending access_token update, reject it and trigger reconnect
+        if (this.pendingAcks.has("access_token")) {
+          const ackHandler = this.pendingAcks.get("access_token");
+          if (ackHandler) {
+            ackHandler.reject(new Error(message.error || "Token update failed"));
+            this.pendingAcks.delete("access_token");
+          }
+        }
+        break;
+
+      case "postgres_changes":
+        // Handle postgres_changes events
+        if (message.payload) {
+          this.handlePostgresChanges(message.payload);
+        }
         break;
     }
   }
@@ -652,7 +766,7 @@ export class RealtimeChannel {
         payload.timestamp ||
         payload.commit_timestamp ||
         new Date().toISOString(),
-      new: payload.new_record || payload.new || {},
+      new: payload.new_record || payload.new || payload.record || {},
       old: payload.old_record || payload.old || {},
       errors: payload.errors || null,
     };
@@ -674,6 +788,8 @@ export class RealtimeChannel {
    * Internal: Start heartbeat interval
    */
   private startHeartbeat() {
+    // Clear any existing interval to prevent accumulation during reconnects
+    this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
       this.sendMessage({ type: "heartbeat" });
     }, 30000); // 30 seconds
@@ -690,9 +806,76 @@ export class RealtimeChannel {
   }
 
   /**
+   * Update the authentication token on an existing connection
+   * Sends an access_token message to the server to update auth context
+   * On failure, silently triggers a reconnect
+   *
+   * @param token - The new JWT access token
+   * @internal
+   */
+  updateToken(token: string | null) {
+    this.token = token;
+
+    // Only send update if connected
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    if (!token) {
+      // If token is null, we need to reconnect (can't send null token message)
+      this.disconnect();
+      this.connect();
+      return;
+    }
+
+    // Send access_token message
+    const message: RealtimeMessage = {
+      type: "access_token",
+      token: token,
+    };
+
+    try {
+      this.ws.send(JSON.stringify(message));
+
+      // Set up a timeout for the acknowledgment
+      const timeout = setTimeout(() => {
+        console.warn(
+          "[Fluxbase Realtime] Token update acknowledgment timeout, reconnecting"
+        );
+        this.disconnect();
+        this.connect();
+      }, 5000); // 5 second timeout
+
+      // Store the timeout so we can clear it when we receive the ack
+      // We'll handle this in handleMessage for 'ack' type with access_token
+      this.pendingAcks.set("access_token", {
+        resolve: () => {
+          clearTimeout(timeout);
+        },
+        reject: () => {
+          clearTimeout(timeout);
+          this.disconnect();
+          this.connect();
+        },
+        timeout,
+      });
+    } catch (error) {
+      console.error("[Fluxbase Realtime] Failed to send token update:", error);
+      // Silent fallback: reconnect
+      this.disconnect();
+      this.connect();
+    }
+  }
+
+  /**
    * Internal: Attempt to reconnect
    */
   private attemptReconnect() {
+    // Don't reconnect if intentionally disconnected
+    if (!this.shouldReconnect) {
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error("[Fluxbase Realtime] Max reconnect attempts reached");
       return;
@@ -715,10 +898,24 @@ export class FluxbaseRealtime {
   private url: string;
   private token: string | null;
   private channels: Map<string, RealtimeChannel> = new Map();
+  private tokenRefreshCallback: (() => Promise<string | null>) | null = null;
 
   constructor(url: string, token: string | null = null) {
     this.url = url;
     this.token = token;
+  }
+
+  /**
+   * Set callback to request a token refresh when connections fail due to auth
+   * This callback should refresh the auth token and return the new access token
+   * @internal
+   */
+  setTokenRefreshCallback(callback: () => Promise<string | null>) {
+    this.tokenRefreshCallback = callback;
+    // Set callback on all existing channels
+    this.channels.forEach((channel) => {
+      channel.setTokenRefreshCallback(callback);
+    });
   }
 
   /**
@@ -754,6 +951,10 @@ export class FluxbaseRealtime {
       this.token,
       config
     );
+    // Set token refresh callback if available
+    if (this.tokenRefreshCallback) {
+      channel.setTokenRefreshCallback(this.tokenRefreshCallback);
+    }
     this.channels.set(key, channel);
     return channel;
   }
@@ -797,11 +998,16 @@ export class FluxbaseRealtime {
 
   /**
    * Update auth token for all channels
+   * Updates both the stored token for new channels and propagates
+   * the token to all existing connected channels.
+   *
    * @param token - The new auth token
    */
   setAuth(token: string | null) {
     this.token = token;
-    // Note: Existing channels won't be updated, only new ones
-    // For existing channels to update, they need to reconnect
+    // Update all existing connected channels
+    this.channels.forEach((channel) => {
+      channel.updateToken(token);
+    });
   }
 }

@@ -22,7 +22,8 @@ const (
 	MessageTypePresence    MessageType = "presence"
 	MessageTypeError       MessageType = "error"
 	MessageTypeAck         MessageType = "ack"
-	MessageTypeChange      MessageType = "change"
+	MessageTypeChange      MessageType = "postgres_changes"
+	MessageTypeAccessToken MessageType = "access_token"
 )
 
 // ClientMessage represents a message from the client
@@ -37,6 +38,7 @@ type ClientMessage struct {
 	Config         *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
 	SubscriptionID string                 `json:"subscription_id,omitempty"`
 	MessageID      string                 `json:"messageId,omitempty"` // Optional message ID for broadcast acknowledgements
+	Token          string                 `json:"token,omitempty"`     // JWT token for access_token message type
 }
 
 // PostgresChangesConfig represents the config object in postgres_changes subscriptions
@@ -335,16 +337,17 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		}
 
 	case MessageTypeHeartbeat:
-		// Respond to heartbeat
-		_ = conn.SendMessage(ServerMessage{
-			Type: MessageTypeHeartbeat,
-		})
+		// Client heartbeat received - no echo needed
+		// Server sends its own heartbeats on interval (line 172)
 
 	case MessageTypeBroadcast:
 		h.handleBroadcast(conn, msg)
 
 	case MessageTypePresence:
 		h.handlePresence(conn, msg)
+
+	case MessageTypeAccessToken:
+		h.handleAccessToken(conn, msg)
 
 	default:
 		_ = conn.SendMessage(ServerMessage{
@@ -554,6 +557,61 @@ func (h *RealtimeHandler) notifyPresenceSync(channel string) {
 		Channel: channel,
 		Payload: map[string]interface{}{
 			"presence": payload,
+		},
+	})
+}
+
+// handleAccessToken processes access token update messages
+func (h *RealtimeHandler) handleAccessToken(conn *Connection, msg ClientMessage) {
+	if msg.Token == "" {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "token is required for access_token message",
+		})
+		return
+	}
+
+	// Validate the new token
+	claims, err := h.authService.ValidateToken(msg.Token)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("connection_id", conn.ID).
+			Msg("Invalid token in access_token message")
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "invalid token",
+		})
+		return
+	}
+
+	// Update the connection's auth context
+	var userID *string
+	if claims.UserID != "" {
+		userID = &claims.UserID
+	}
+
+	oldRole := conn.Role
+	conn.UpdateAuth(userID, claims.Role)
+
+	// If role changed, update subscriptions in the subscription manager
+	if oldRole != claims.Role && h.subManager != nil {
+		h.subManager.UpdateConnectionRole(conn.ID, claims.Role)
+	}
+
+	log.Info().
+		Str("connection_id", conn.ID).
+		Str("user_id", claims.UserID).
+		Str("old_role", oldRole).
+		Str("new_role", claims.Role).
+		Msg("Access token updated on connection")
+
+	// Send acknowledgment
+	_ = conn.SendMessage(ServerMessage{
+		Type: MessageTypeAck,
+		Payload: map[string]interface{}{
+			"type":    "access_token",
+			"updated": true,
 		},
 	})
 }

@@ -138,11 +138,18 @@ func (s *TriggerService) listen(ctx context.Context) {
 		case <-s.stopChan:
 			return
 		default:
-			// Wait for notification with timeout
-			notification, err := conn.Conn().WaitForNotification(ctx)
+			// Wait for notification with timeout to allow checking stop signals
+			waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			notification, err := conn.Conn().WaitForNotification(waitCtx)
+			cancel()
+
 			if err != nil {
 				if ctx.Err() != nil {
 					return
+				}
+				// Timeout is expected, just continue to check stop signals
+				if waitCtx.Err() == context.DeadlineExceeded {
+					continue
 				}
 				log.Error().Err(err).Msg("Error waiting for notification")
 				time.Sleep(1 * time.Second)

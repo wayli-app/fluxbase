@@ -201,11 +201,15 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx := c.Context()
 
-		// Convert Fiber queries to url.Values
-		queries := c.Queries()
-		urlValues := make(url.Values)
-		for k, v := range queries {
-			urlValues.Add(k, v)
+		// Parse raw query string to preserve multiple values for the same key
+		// (e.g., recorded_at=gte.2025-01-01&recorded_at=lte.2025-12-31)
+		// Note: c.Queries() returns map[string]string which loses duplicate keys
+		rawQuery := string(c.Request().URI().QueryString())
+		urlValues, err := url.ParseQuery(rawQuery)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid query string: %v", err),
+			})
 		}
 
 		// Parse query parameters
@@ -776,11 +780,13 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 			})
 		}
 
-		// Parse query parameters for filters
-		queries := c.Queries()
-		urlValues := make(url.Values)
-		for k, v := range queries {
-			urlValues.Add(k, v)
+		// Parse raw query string to preserve multiple values for the same key
+		rawQuery := string(c.Request().URI().QueryString())
+		urlValues, err := url.ParseQuery(rawQuery)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid query string: %v", err),
+			})
 		}
 
 		params, err := h.parser.Parse(urlValues)
@@ -865,11 +871,13 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 	return func(c *fiber.Ctx) error {
 		ctx := c.Context()
 
-		// Parse query parameters for filters
-		queries := c.Queries()
-		urlValues := make(url.Values)
-		for k, v := range queries {
-			urlValues.Add(k, v)
+		// Parse raw query string to preserve multiple values for the same key
+		rawQuery := string(c.Request().URI().QueryString())
+		urlValues, err := url.ParseQuery(rawQuery)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid query string: %v", err),
+			})
 		}
 
 		params, err := h.parser.Parse(urlValues)

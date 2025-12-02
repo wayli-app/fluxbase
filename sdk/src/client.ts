@@ -48,6 +48,7 @@ import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
 import { QueryBuilder } from "./query-builder";
+import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
 
 /**
@@ -120,6 +121,9 @@ export class FluxbaseClient<
       debug: options?.debug,
     });
 
+    // Store anon key for auth restoration (when user signs out, restore anon key auth)
+    this.fetch.setAnonKey(fluxbaseKey);
+
     // Initialize auth module
     this.auth = new FluxbaseAuth(
       this.fetch,
@@ -189,6 +193,38 @@ export class FluxbaseClient<
   }
 
   /**
+   * Access a specific database schema
+   *
+   * Use this to query tables in non-public schemas.
+   *
+   * @param schemaName - The schema name (e.g., 'jobs', 'analytics')
+   * @returns A schema query builder for constructing queries on that schema
+   *
+   * @example
+   * ```typescript
+   * // Query the jobs.execution_logs table
+   * const { data } = await client
+   *   .schema('jobs')
+   *   .from('execution_logs')
+   *   .select('*')
+   *   .eq('job_id', jobId)
+   *   .execute()
+   *
+   * // Insert into a custom schema table
+   * await client
+   *   .schema('analytics')
+   *   .from('events')
+   *   .insert({ event_type: 'click', data: {} })
+   *   .execute()
+   * ```
+   *
+   * @category Database
+   */
+  schema(schemaName: string): SchemaQueryBuilder {
+    return new SchemaQueryBuilder(this.fetch, schemaName);
+  }
+
+  /**
    * Call a PostgreSQL function (Remote Procedure Call)
    *
    * @param functionName - The name of the PostgreSQL function to call
@@ -235,6 +271,17 @@ export class FluxbaseClient<
       originalSetAuthToken(token);
       this.realtime.setAuth(token);
     };
+
+    // Set up token refresh callback for realtime connections
+    // This is called when WebSocket connections detect an expired token
+    this.realtime.setTokenRefreshCallback(async () => {
+      const result = await this.auth.refreshSession();
+      if (result.error || !result.data?.session) {
+        console.error("[Fluxbase] Failed to refresh token for realtime:", result.error);
+        return null;
+      }
+      return result.data.session.access_token;
+    });
   }
 
   /**
@@ -325,13 +372,48 @@ export class FluxbaseClient<
   }
 }
 
+// Deno type declaration for env access
+declare const Deno:
+  | {
+      env: {
+        get(name: string): string | undefined;
+      };
+    }
+  | undefined;
+
+/**
+ * Get environment variable (works in Node.js, Deno, and browser with globalThis)
+ * @internal
+ */
+function getEnvVar(name: string): string | undefined {
+  // Node.js
+  if (typeof process !== "undefined" && process.env) {
+    return process.env[name];
+  }
+  // Deno
+  if (typeof Deno !== "undefined" && Deno?.env) {
+    return Deno.env.get(name);
+  }
+  return undefined;
+}
+
 /**
  * Create a new Fluxbase client instance (Supabase-compatible)
  *
  * This function signature is identical to Supabase's createClient, making migration seamless.
  *
- * @param fluxbaseUrl - The URL of your Fluxbase instance
- * @param fluxbaseKey - The anon key (JWT token with "anon" role). Generate using: `./scripts/generate-keys.sh` (option 3)
+ * When called without arguments (or with undefined values), the function will attempt to
+ * read from environment variables:
+ * - `FLUXBASE_URL` - The URL of your Fluxbase instance
+ * - `FLUXBASE_ANON_KEY` or `FLUXBASE_JOB_TOKEN` or `FLUXBASE_SERVICE_TOKEN` - The API key/token
+ *
+ * This is useful in:
+ * - Server-side environments where env vars are set
+ * - Fluxbase job functions where tokens are automatically provided
+ * - Edge functions with configured environment
+ *
+ * @param fluxbaseUrl - The URL of your Fluxbase instance (optional if FLUXBASE_URL env var is set)
+ * @param fluxbaseKey - The anon key or JWT token (optional if env var is set)
  * @param options - Optional client configuration
  * @returns A configured Fluxbase client instance with full TypeScript support
  *
@@ -352,6 +434,9 @@ export class FluxbaseClient<
  *   { timeout: 30000, debug: true }
  * )
  *
+ * // In a Fluxbase job function (reads from env vars automatically)
+ * const client = createClient()
+ *
  * // With TypeScript database types
  * const client = createClient<Database>(
  *   'http://localhost:8080',
@@ -365,13 +450,37 @@ export function createClient<
   Database = any,
   SchemaName extends string & keyof Database = any,
 >(
-  fluxbaseUrl: string,
-  fluxbaseKey: string,
+  fluxbaseUrl?: string,
+  fluxbaseKey?: string,
   options?: FluxbaseClientOptions,
 ): FluxbaseClient<Database, SchemaName> {
-  return new FluxbaseClient<Database, SchemaName>(
-    fluxbaseUrl,
-    fluxbaseKey,
-    options,
-  );
+  // Resolve URL from argument or environment variable
+  const url =
+    fluxbaseUrl ||
+    getEnvVar("FLUXBASE_URL") ||
+    getEnvVar("NEXT_PUBLIC_FLUXBASE_URL") ||
+    getEnvVar("VITE_FLUXBASE_URL");
+
+  // Resolve key from argument or environment variables (try multiple common names)
+  const key =
+    fluxbaseKey ||
+    getEnvVar("FLUXBASE_ANON_KEY") ||
+    getEnvVar("FLUXBASE_SERVICE_TOKEN") ||
+    getEnvVar("FLUXBASE_JOB_TOKEN") ||
+    getEnvVar("NEXT_PUBLIC_FLUXBASE_ANON_KEY") ||
+    getEnvVar("VITE_FLUXBASE_ANON_KEY");
+
+  if (!url) {
+    throw new Error(
+      "Fluxbase URL is required. Pass it as the first argument or set FLUXBASE_URL environment variable.",
+    );
+  }
+
+  if (!key) {
+    throw new Error(
+      "Fluxbase key is required. Pass it as the second argument or set FLUXBASE_ANON_KEY environment variable.",
+    );
+  }
+
+  return new FluxbaseClient<Database, SchemaName>(url, key, options);
 }

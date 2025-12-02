@@ -3,6 +3,7 @@ package jobs
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,6 +18,12 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
+// embeddedSDK contains the JavaScript SDK for job runtime
+// Generated from: sdk/src/*.ts via `npm run generate:embedded-sdk`
+//
+//go:embed embedded_sdk.js
+var embeddedSDK string
+
 // JobRuntime manages execution of Deno-based job functions
 type JobRuntime struct {
 	denoPath             string
@@ -25,7 +32,7 @@ type JobRuntime struct {
 	jwtSecret            string
 	publicURL            string
 	onProgress           func(jobID uuid.UUID, progress *Progress)
-	onLog                func(jobID uuid.UUID, message string)
+	onLog                func(jobID uuid.UUID, level string, message string)
 }
 
 // NewJobRuntime creates a new job runtime
@@ -63,7 +70,7 @@ func (r *JobRuntime) SetProgressCallback(fn func(jobID uuid.UUID, progress *Prog
 }
 
 // SetLogCallback sets the callback for log messages
-func (r *JobRuntime) SetLogCallback(fn func(jobID uuid.UUID, message string)) {
+func (r *JobRuntime) SetLogCallback(fn func(jobID uuid.UUID, level string, message string)) {
 	r.onLog = fn
 }
 
@@ -167,9 +174,25 @@ func (r *JobRuntime) Execute(
 		timeout = time.Duration(*job.MaxDurationSeconds) * time.Second
 	}
 
-	// Create context with timeout
-	execCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	// Create context with timeout that's also cancelled by the cancel signal
+	// This ensures the Deno process is killed immediately when cancelled
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, timeout)
+	defer timeoutCancel()
+
+	// Merge timeout context with cancel signal context
+	// The exec context is cancelled when EITHER times out OR cancel signal is triggered
+	execCtx, execCancel := context.WithCancel(timeoutCtx)
+	defer execCancel()
+
+	// Watch for cancel signal and cancel exec context
+	go func() {
+		select {
+		case <-cancelSignal.Context().Done():
+			execCancel() // This will kill the Deno process
+		case <-execCtx.Done():
+			// Already done (timeout or normal completion)
+		}
+	}()
 
 	// Prepare execution request
 	execReq := JobExecutionRequest{
@@ -333,10 +356,10 @@ func (r *JobRuntime) Execute(
 						r.onProgress(job.ID, &progress)
 					}
 				}
-			} else {
-				// Regular console.log output - send to log callback
+			} else if line != "" {
+				// Regular console.log output - send to log callback (skip empty lines)
 				if r.onLog != nil {
-					r.onLog(job.ID, line)
+					r.onLog(job.ID, "info", line)
 				}
 			}
 		}
@@ -356,9 +379,9 @@ func (r *JobRuntime) Execute(
 			line := scanner.Text()
 			stderrBuilder.WriteString(line + "\n")
 
-			// Call log callback
-			if r.onLog != nil {
-				r.onLog(job.ID, line)
+			// Call log callback (skip empty lines) - stderr is treated as error level
+			if r.onLog != nil && line != "" {
+				r.onLog(job.ID, "error", line)
 			}
 		}
 	}()
@@ -533,329 +556,18 @@ func (r *JobRuntime) wrapJobCode(userCode string, req JobExecutionRequest) strin
 	// Extract imports (same pattern as functions)
 	imports, codeWithoutImports := r.extractImports(userCode)
 
+	// Use the embedded SDK instead of inline code
 	return fmt.Sprintf(`
 // Fluxbase Job Runtime Bridge
 %s
 
-// Inline Fluxbase SDK for job runtime (no external npm dependency)
+// Environment configuration
 const _fluxbaseUrl = Deno.env.get('FLUXBASE_URL') || '';
 const _jobToken = Deno.env.get('FLUXBASE_JOB_TOKEN') || '';
 const _serviceToken = Deno.env.get('FLUXBASE_SERVICE_TOKEN') || '';
 
-// Minimal Fluxbase client implementation for jobs
-class _FluxbaseClient {
-  constructor(url, token) {
-    this.url = url.replace(/\/$/, '');
-    this.token = token;
-    this.headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-      'apikey': token,
-    };
-    this.storage = new _FluxbaseStorage(this);
-    this.jobs = new _FluxbaseJobs(this);
-    this.auth = new _FluxbaseAuth(this);
-  }
-
-  async _request(path, options = {}) {
-    const response = await fetch(this.url + path, {
-      method: options.method || 'GET',
-      headers: { ...this.headers, ...options.headers },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-    const contentType = response.headers.get('content-type');
-    const data = contentType?.includes('application/json') ? await response.json() : await response.text();
-    if (!response.ok) {
-      return { data: null, error: { message: data?.error || data?.message || response.statusText, code: response.status } };
-    }
-    return { data, error: null };
-  }
-
-  from(table) {
-    return new _QueryBuilder(this, table);
-  }
-
-  async rpc(fn, params) {
-    return this._request('/api/v1/rpc/' + fn, { method: 'POST', body: params || {} });
-  }
-}
-
-// Query builder for database operations
-class _QueryBuilder {
-  constructor(client, table) {
-    this.client = client;
-    this.table = table;
-    this.query = {};
-    this.filters = [];
-    this.method = 'GET';
-    this.body = null;
-  }
-
-  select(columns, options) {
-    this.query.select = columns || '*';
-    if (options?.count) this.query.count = options.count;
-    return this;
-  }
-
-  insert(data, options) {
-    this.method = 'POST';
-    this.body = data;
-    if (options?.onConflict) this.query.on_conflict = options.onConflict;
-    return this;
-  }
-
-  upsert(data, options) {
-    this.method = 'POST';
-    this.body = data;
-    this.query.upsert = 'true';
-    if (options?.onConflict) this.query.on_conflict = options.onConflict;
-    return this;
-  }
-
-  update(data) {
-    this.method = 'PATCH';
-    this.body = data;
-    return this;
-  }
-
-  delete() {
-    this.method = 'DELETE';
-    return this;
-  }
-
-  eq(column, value) { this.filters.push(column + '=eq.' + encodeURIComponent(value)); return this; }
-  neq(column, value) { this.filters.push(column + '=neq.' + encodeURIComponent(value)); return this; }
-  gt(column, value) { this.filters.push(column + '=gt.' + encodeURIComponent(value)); return this; }
-  gte(column, value) { this.filters.push(column + '=gte.' + encodeURIComponent(value)); return this; }
-  lt(column, value) { this.filters.push(column + '=lt.' + encodeURIComponent(value)); return this; }
-  lte(column, value) { this.filters.push(column + '=lte.' + encodeURIComponent(value)); return this; }
-  like(column, pattern) { this.filters.push(column + '=like.' + encodeURIComponent(pattern)); return this; }
-  ilike(column, pattern) { this.filters.push(column + '=ilike.' + encodeURIComponent(pattern)); return this; }
-  in(column, values) { this.filters.push(column + '=in.(' + values.map(v => encodeURIComponent(v)).join(',') + ')'); return this; }
-  is(column, value) { this.filters.push(column + '=is.' + value); return this; }
-  not(column, op, value) { this.filters.push(column + '=not.' + op + '.' + encodeURIComponent(value)); return this; }
-  or(filters) { this.filters.push('or=(' + filters + ')'); return this; }
-  order(column, options) { this.query.order = column + (options?.ascending === false ? '.desc' : '.asc'); return this; }
-  limit(count) { this.query.limit = count; return this; }
-  offset(count) { this.query.offset = count; return this; }
-  range(from, to) { this.query.offset = from; this.query.limit = to - from + 1; return this; }
-
-  async single() {
-    this.query.limit = 1;
-    const result = await this._execute();
-    if (result.error) return result;
-    return { data: Array.isArray(result.data) ? result.data[0] || null : result.data, error: null };
-  }
-
-  async maybeSingle() {
-    return this.single();
-  }
-
-  async then(resolve, reject) {
-    try {
-      const result = await this._execute();
-      resolve(result);
-    } catch (e) {
-      if (reject) reject(e);
-      else throw e;
-    }
-  }
-
-  async _execute() {
-    let path = '/api/v1/rest/' + this.table;
-    const params = [];
-    if (this.query.select) params.push('select=' + encodeURIComponent(this.query.select));
-    for (const f of this.filters) params.push(f);
-    for (const [k, v] of Object.entries(this.query)) {
-      if (k !== 'select') params.push(k + '=' + encodeURIComponent(v));
-    }
-    if (params.length > 0) path += '?' + params.join('&');
-    return this.client._request(path, { method: this.method, body: this.body });
-  }
-}
-
-// Storage client
-class _FluxbaseStorage {
-  constructor(client) { this.client = client; }
-  from(bucket) { return new _StorageBucket(this.client, bucket); }
-
-  async listBuckets() {
-    return this.client._request('/api/v1/storage/buckets');
-  }
-
-  async createBucket(name, options) {
-    return this.client._request('/api/v1/storage/buckets/' + encodeURIComponent(name), {
-      method: 'POST',
-      body: { public: options?.public, max_file_size: options?.fileSizeLimit },
-    });
-  }
-
-  async getBucket(name) {
-    return this.client._request('/api/v1/storage/buckets/' + encodeURIComponent(name));
-  }
-
-  async deleteBucket(name) {
-    return this.client._request('/api/v1/storage/buckets/' + encodeURIComponent(name), { method: 'DELETE' });
-  }
-}
-
-class _StorageBucket {
-  constructor(client, bucket) { this.client = client; this.bucket = bucket; }
-
-  // Helper to build storage path: /api/v1/storage/:bucket/:path
-  _storagePath(filePath) {
-    return '/api/v1/storage/' + encodeURIComponent(this.bucket) + '/' + filePath;
-  }
-
-  async upload(path, data, options) {
-    const formData = new FormData();
-    const blob = data instanceof Blob ? data : new Blob([data]);
-    formData.append('file', blob, path.split('/').pop());
-
-    const params = [];
-    if (options?.upsert) params.push('upsert=true');
-    const queryStr = params.length > 0 ? '?' + params.join('&') : '';
-
-    const response = await fetch(
-      this.client.url + this._storagePath(path) + queryStr,
-      {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + this.client.token, 'apikey': this.client.token },
-        body: formData,
-      }
-    );
-    const resData = await response.json().catch(() => null);
-    if (!response.ok) return { data: null, error: { message: resData?.error || response.statusText } };
-    return { data: { path }, error: null };
-  }
-
-  async download(path, options) {
-    const response = await fetch(
-      this.client.url + this._storagePath(path),
-      { headers: { 'Authorization': 'Bearer ' + this.client.token, 'apikey': this.client.token } }
-    );
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({ message: response.statusText }));
-      return { data: null, error: { message: errData?.error || errData?.message || response.statusText } };
-    }
-    // Return stream if requested, otherwise return Blob
-    if (options?.stream) {
-      if (!response.body) {
-        return { data: null, error: { message: 'Response body is not available for streaming' } };
-      }
-      return { data: response.body, error: null };
-    }
-    return { data: await response.blob(), error: null };
-  }
-
-  async list(pathPrefix, options) {
-    const params = [];
-    if (pathPrefix) params.push('prefix=' + encodeURIComponent(pathPrefix));
-    if (options?.limit) params.push('limit=' + options.limit);
-    if (options?.offset) params.push('offset=' + options.offset);
-    const queryStr = params.length > 0 ? '?' + params.join('&') : '';
-    // List uses /api/v1/storage/:bucket (no file path)
-    return this.client._request('/api/v1/storage/' + encodeURIComponent(this.bucket) + queryStr);
-  }
-
-  async remove(paths) {
-    // Delete individual files - need to delete each path
-    const results = [];
-    for (const p of (Array.isArray(paths) ? paths : [paths])) {
-      const result = await this.client._request(this._storagePath(p), { method: 'DELETE' });
-      results.push(result);
-    }
-    return { data: results, error: null };
-  }
-
-  async move(from, to) {
-    // Move is not directly supported - copy then delete
-    const copyResult = await this.copy(from, to);
-    if (copyResult.error) return copyResult;
-    return this.remove([from]);
-  }
-
-  async copy(from, to) {
-    // Copy by downloading and re-uploading
-    const downloadResult = await this.download(from);
-    if (downloadResult.error) return downloadResult;
-    return this.upload(to, downloadResult.data);
-  }
-
-  async createSignedUrl(path, expiresIn) {
-    return this.client._request(
-      this._storagePath(path) + '/signed-url',
-      { method: 'POST', body: { expires_in: expiresIn } }
-    );
-  }
-
-  getPublicUrl(path) {
-    // Public URL format for public buckets
-    return { data: { publicUrl: this.client.url + this._storagePath(path) } };
-  }
-}
-
-// Jobs client
-class _FluxbaseJobs {
-  constructor(client) { this.client = client; }
-
-  async submit(jobName, payload, options) {
-    return this.client._request('/api/v1/jobs', {
-      method: 'POST',
-      body: {
-        job_name: jobName,
-        payload,
-        namespace: options?.namespace,
-        priority: options?.priority,
-        scheduled_at: options?.scheduledAt?.toISOString(),
-      },
-    });
-  }
-
-  async get(jobId) {
-    return this.client._request('/api/v1/jobs/' + jobId);
-  }
-
-  async list(options) {
-    const params = [];
-    if (options?.status) params.push('status=' + options.status);
-    if (options?.jobName) params.push('job_name=' + encodeURIComponent(options.jobName));
-    if (options?.limit) params.push('limit=' + options.limit);
-    const queryStr = params.length > 0 ? '?' + params.join('&') : '';
-    return this.client._request('/api/v1/jobs' + queryStr);
-  }
-
-  async cancel(jobId) {
-    return this.client._request('/api/v1/jobs/' + jobId + '/cancel', { method: 'POST' });
-  }
-}
-
-// Auth client (limited in job context)
-class _FluxbaseAuth {
-  constructor(client) { this.client = client; }
-
-  async getSession() {
-    return { data: { session: null }, error: null };
-  }
-
-  async getUser() {
-    return this.client._request('/api/v1/auth/user');
-  }
-}
-
-// Create SDK client instances
-function _createFluxbaseClient(url, token, clientName) {
-  if (!url || !token) {
-    console.error('[Fluxbase SDK] ' + clientName + ': Missing URL or token');
-    return null;
-  }
-  try {
-    return new _FluxbaseClient(url, token);
-  } catch (e) {
-    console.error('[Fluxbase SDK] ' + clientName + ': Failed to create client:', e.message);
-    return null;
-  }
-}
+// Embedded Fluxbase SDK for job runtime
+%s
 
 // User client - respects RLS based on job submitter's permissions
 const _fluxbase = _createFluxbaseClient(_fluxbaseUrl, _jobToken, 'UserClient');
@@ -904,6 +616,9 @@ const _jobUtils = {
     return jobContext.payload || {};
   }
 };
+
+// Expose Fluxbase as a global object for user code (documented API)
+const Fluxbase = _jobUtils;
 
 // User job code (imports extracted)
 %s
@@ -967,10 +682,11 @@ const _jobUtils = {
     }));
   }
 })();
-`, imports, string(reqJSON), string(reqJSON), codeWithoutImports, string(reqJSON))
+`, imports, embeddedSDK, string(reqJSON), string(reqJSON), codeWithoutImports, string(reqJSON))
 }
 
-// extractImports separates import/export statements from code
+// Old inline SDK removed - now using go:embed embedded_sdk.js
+// To update the SDK: cd sdk && npm run generate:embedded-sdk
 func (r *JobRuntime) extractImports(code string) (imports string, remaining string) {
 	lines := strings.Split(code, "\n")
 	var importLines []string
@@ -1100,18 +816,27 @@ func (r *JobRuntime) buildEnvForJob(job *Job, cancelSignal *CancelSignal, jobTok
 type CancelSignal struct {
 	mu        sync.RWMutex
 	cancelled bool
+	cancel    context.CancelFunc
+	ctx       context.Context
 }
 
-// NewCancelSignal creates a new cancel signal
+// NewCancelSignal creates a new cancel signal with a cancellable context
 func NewCancelSignal() *CancelSignal {
-	return &CancelSignal{}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &CancelSignal{
+		ctx:    ctx,
+		cancel: cancel,
+	}
 }
 
-// Cancel marks the job as cancelled
+// Cancel marks the job as cancelled and cancels the context (which kills the process)
 func (s *CancelSignal) Cancel() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cancelled = true
+	if s.cancel != nil {
+		s.cancel()
+	}
 }
 
 // IsCancelled returns true if the job was cancelled
@@ -1119,4 +844,9 @@ func (s *CancelSignal) IsCancelled() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.cancelled
+}
+
+// Context returns the cancellable context for this signal
+func (s *CancelSignal) Context() context.Context {
+	return s.ctx
 }

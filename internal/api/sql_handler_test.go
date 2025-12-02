@@ -237,3 +237,71 @@ func TestConstants(t *testing.T) {
 		assert.NotZero(t, queryTimeout)
 	})
 }
+
+func TestConvertValue(t *testing.T) {
+	t.Run("nil value", func(t *testing.T) {
+		result := convertValue(nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("UUID as [16]byte", func(t *testing.T) {
+		// UUID: 550e8400-e29b-41d4-a716-446655440000
+		uuid := [16]byte{0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00}
+		result := convertValue(uuid)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result)
+	})
+
+	t.Run("UUID as []byte", func(t *testing.T) {
+		// UUID: 550e8400-e29b-41d4-a716-446655440000
+		uuid := []byte{0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00}
+		result := convertValue(uuid)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result)
+	})
+
+	t.Run("printable 16-byte string stays as is", func(t *testing.T) {
+		// "ABCDEFGHIJKLMNOP" - 16 printable ASCII chars
+		printable := []byte("ABCDEFGHIJKLMNOP")
+		result := convertValue(printable)
+		assert.Equal(t, printable, result)
+	})
+
+	t.Run("string value unchanged", func(t *testing.T) {
+		result := convertValue("hello")
+		assert.Equal(t, "hello", result)
+	})
+
+	t.Run("int value unchanged", func(t *testing.T) {
+		result := convertValue(42)
+		assert.Equal(t, 42, result)
+	})
+
+	t.Run("float value unchanged", func(t *testing.T) {
+		result := convertValue(3.14)
+		assert.Equal(t, 3.14, result)
+	})
+
+	t.Run("bool value unchanged", func(t *testing.T) {
+		result := convertValue(true)
+		assert.Equal(t, true, result)
+	})
+}
+
+func TestFormatUUID(t *testing.T) {
+	t.Run("standard UUID", func(t *testing.T) {
+		uuid := []byte{0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00}
+		result := formatUUID(uuid)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result)
+	})
+
+	t.Run("all zeros UUID", func(t *testing.T) {
+		uuid := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+		result := formatUUID(uuid)
+		assert.Equal(t, "00000000-0000-0000-0000-000000000000", result)
+	})
+
+	t.Run("all ones UUID", func(t *testing.T) {
+		uuid := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		result := formatUUID(uuid)
+		assert.Equal(t, "ffffffff-ffff-ffff-ffff-ffffffffffff", result)
+	})
+}

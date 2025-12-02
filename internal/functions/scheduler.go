@@ -89,7 +89,7 @@ func (s *Scheduler) Stop() {
 }
 
 // ScheduleFunction adds or updates a function's cron schedule
-func (s *Scheduler) ScheduleFunction(fn EdgeFunction) error {
+func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 	if fn.CronSchedule == nil || *fn.CronSchedule == "" {
 		return nil
 	}
@@ -104,9 +104,13 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunction) error {
 		log.Debug().Str("function", fn.Name).Msg("Removed existing cron schedule")
 	}
 
+	// Capture only name and namespace - fetch fresh data at execution time
+	funcName := fn.Name
+	funcNamespace := fn.Namespace
+
 	// Add new schedule
 	entryID, err := s.cron.AddFunc(*fn.CronSchedule, func() {
-		s.executeScheduledFunction(fn)
+		s.executeScheduledFunction(funcName, funcNamespace)
 	})
 
 	if err != nil {
@@ -141,7 +145,7 @@ func (s *Scheduler) UnscheduleFunction(functionName string) {
 }
 
 // RescheduleFunction updates a function's schedule (helper method)
-func (s *Scheduler) RescheduleFunction(fn EdgeFunction) error {
+func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
 	s.UnscheduleFunction(fn.Name)
 	if fn.Enabled && fn.CronSchedule != nil && *fn.CronSchedule != "" {
 		return s.ScheduleFunction(fn)
@@ -150,13 +154,13 @@ func (s *Scheduler) RescheduleFunction(fn EdgeFunction) error {
 }
 
 // executeScheduledFunction executes a function triggered by cron
-func (s *Scheduler) executeScheduledFunction(fn EdgeFunction) {
+func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 	// Check concurrent execution limit
 	s.activeMu.Lock()
 	if s.activeCount >= s.maxConcurrent {
 		s.activeMu.Unlock()
 		log.Warn().
-			Str("function", fn.Name).
+			Str("function", funcName).
 			Int("active", s.activeCount).
 			Int("max", s.maxConcurrent).
 			Msg("Skipping scheduled execution - concurrent limit reached")
@@ -171,6 +175,25 @@ func (s *Scheduler) executeScheduledFunction(fn EdgeFunction) {
 		s.activeCount--
 		s.activeMu.Unlock()
 	}()
+
+	// Fetch the current function data from storage
+	fn, err := s.storage.GetFunctionByNamespace(s.ctx, funcName, funcNamespace)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("function", funcName).
+			Str("namespace", funcNamespace).
+			Msg("Failed to fetch function for scheduled execution")
+		return
+	}
+
+	// Check if function is still enabled
+	if !fn.Enabled {
+		log.Debug().
+			Str("function", funcName).
+			Msg("Skipping scheduled execution - function is disabled")
+		return
+	}
 
 	log.Info().
 		Str("function", fn.Name).

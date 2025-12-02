@@ -758,6 +758,7 @@ export interface Job {
   created_by?: string
   user_role?: string
   user_email?: string
+  user_name?: string
   created_at: string
   started_at?: string
   completed_at?: string

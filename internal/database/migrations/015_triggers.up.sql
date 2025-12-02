@@ -54,7 +54,7 @@ CREATE TRIGGER validate_app_metadata_trigger BEFORE UPDATE ON dashboard.users
 CREATE TRIGGER update_functions_edge_functions_updated_at BEFORE UPDATE ON functions.edge_functions
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
-CREATE TRIGGER update_functions_edge_function_triggers_updated_at BEFORE UPDATE ON functions.edge_function_triggers
+CREATE TRIGGER update_functions_edge_triggers_updated_at BEFORE UPDATE ON functions.edge_triggers
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 CREATE TRIGGER update_function_dependencies_updated_at BEFORE UPDATE ON functions.function_dependencies

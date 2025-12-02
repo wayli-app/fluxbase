@@ -13,6 +13,8 @@ import (
 //   - created_by=eq.user123
 //   - priority=gt.5
 //   - status=in.(queued,running)
+//   - data->key=eq.value (JSONB path access)
+//   - data->>key=eq.value (JSONB text access)
 type Filter struct {
 	Column   string
 	Operator string
@@ -20,7 +22,8 @@ type Filter struct {
 }
 
 // filterRegex matches the Supabase filter format: column=operator.value
-var filterRegex = regexp.MustCompile(`^(\w+)=(eq|neq|gt|gte|lt|lte|like|ilike|is|in)\.(.+)$`)
+// Supports JSONB path operators (-> and ->>) in column names
+var filterRegex = regexp.MustCompile(`^([\w]+(?:->?>?[\w]+)*)=(eq|neq|gt|gte|lt|lte|like|ilike|is|in)\.(.+)$`)
 
 // ParseFilter parses a Supabase-compatible filter string
 // Returns nil if filterStr is empty (no filter)
@@ -49,7 +52,7 @@ func (f *Filter) Matches(record map[string]interface{}) bool {
 		return true // No filter means match all
 	}
 
-	recordValue, exists := record[f.Column]
+	recordValue, exists := f.getNestedValue(record)
 	if !exists {
 		return false
 	}
@@ -88,6 +91,75 @@ func (f *Filter) Matches(record map[string]interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// getNestedValue retrieves a value from a record, supporting JSONB path syntax.
+// For simple columns like "name", it returns record["name"].
+// For JSONB paths like "data->key" or "data->>key", it traverses nested maps.
+// Returns (value, true) if found, (nil, false) if not found.
+func (f *Filter) getNestedValue(record map[string]interface{}) (interface{}, bool) {
+	column := f.Column
+
+	// Check if column contains JSONB path operators
+	if !strings.Contains(column, "->") {
+		// Simple column access
+		val, exists := record[column]
+		return val, exists
+	}
+
+	// Parse the JSONB path and traverse
+	// Track whether the last operator was ->> (text extraction)
+	var current interface{} = record
+	remaining := column
+	lastOpWasText := false
+
+	for len(remaining) > 0 {
+		// Find the next operator (->> or ->)
+		textOpIdx := strings.Index(remaining, "->>")
+		jsonOpIdx := strings.Index(remaining, "->")
+
+		var key string
+
+		if textOpIdx >= 0 && (jsonOpIdx < 0 || textOpIdx <= jsonOpIdx) {
+			// ->> operator (text extraction)
+			key = remaining[:textOpIdx]
+			remaining = remaining[textOpIdx+3:]
+			lastOpWasText = true
+		} else if jsonOpIdx >= 0 {
+			// -> operator (JSON access)
+			key = remaining[:jsonOpIdx]
+			remaining = remaining[jsonOpIdx+2:]
+			lastOpWasText = false
+		} else {
+			// No more operators - this is the last key
+			key = remaining
+			remaining = ""
+		}
+
+		// Navigate to the key
+		if key != "" {
+			currentMap, ok := current.(map[string]interface{})
+			if !ok {
+				return nil, false
+			}
+			val, exists := currentMap[key]
+			if !exists {
+				return nil, false
+			}
+			current = val
+		}
+
+		// If there are more segments and key was empty, path is invalid
+		if remaining != "" && key == "" {
+			return nil, false
+		}
+	}
+
+	// For ->> operator, convert to string representation
+	if lastOpWasText && current != nil {
+		return fmt.Sprint(current), true
+	}
+	return current, true
 }
 
 // matchesEquality checks equality/inequality

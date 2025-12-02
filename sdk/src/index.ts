@@ -47,6 +47,7 @@ export { FluxbaseAuth } from "./auth";
 
 // Database query builder
 export { QueryBuilder } from "./query-builder";
+export { SchemaQueryBuilder } from "./schema-query-builder";
 
 // Realtime module
 export { FluxbaseRealtime, RealtimeChannel } from "./realtime";
@@ -155,6 +156,10 @@ export type {
   ListOptions,
   SignedUrlOptions,
   DownloadOptions,
+  StreamDownloadData,
+  ResumableDownloadOptions,
+  DownloadProgress,
+  ResumableDownloadData,
 
   // Functions types
   FunctionInvokeOptions,

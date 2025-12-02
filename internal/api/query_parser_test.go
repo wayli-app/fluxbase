@@ -117,6 +117,39 @@ func TestQueryParser_ParseFilters(t *testing.T) {
 	}
 }
 
+func TestQueryParser_MultipleFiltersOnSameColumn(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	// Test range query: recorded_at=gte.2025-01-01&recorded_at=lte.2025-12-31
+	// This should create TWO filters, not just one
+	values := url.Values{}
+	values.Add("recorded_at", "gte.2025-01-01")
+	values.Add("recorded_at", "lte.2025-12-31")
+
+	params, err := parser.Parse(values)
+	require.NoError(t, err)
+	require.Len(t, params.Filters, 2, "Expected 2 filters for range query")
+
+	// Find gte and lte filters (order may vary due to map iteration)
+	var gteFilter, lteFilter *Filter
+	for i := range params.Filters {
+		if params.Filters[i].Operator == OpGreaterOrEqual {
+			gteFilter = &params.Filters[i]
+		}
+		if params.Filters[i].Operator == OpLessOrEqual {
+			lteFilter = &params.Filters[i]
+		}
+	}
+
+	require.NotNil(t, gteFilter, "Expected gte filter")
+	assert.Equal(t, "recorded_at", gteFilter.Column)
+	assert.Equal(t, "2025-01-01", gteFilter.Value)
+
+	require.NotNil(t, lteFilter, "Expected lte filter")
+	assert.Equal(t, "recorded_at", lteFilter.Column)
+	assert.Equal(t, "2025-12-31", lteFilter.Value)
+}
+
 func TestQueryParser_ParseOrder(t *testing.T) {
 	parser := NewQueryParser(testConfig())
 
@@ -191,7 +224,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 					{Column: "name", Operator: OpEqual, Value: "John"},
 				},
 			},
-			expectedSQL:  "WHERE name = $1",
+			expectedSQL:  `WHERE "name" = $1`,
 			expectedArgs: []interface{}{"John"},
 		},
 		{
@@ -202,7 +235,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 					{Column: "age", Operator: OpGreaterThan, Value: "18"},
 				},
 			},
-			expectedSQL:  "WHERE name = $1 AND age > $2",
+			expectedSQL:  `WHERE "name" = $1 AND "age" > $2`,
 			expectedArgs: []interface{}{"John", "18"},
 		},
 		{
@@ -212,7 +245,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 					{Column: "status", Operator: OpIn, Value: []string{"queued", "running"}},
 				},
 			},
-			expectedSQL:  "WHERE status = ANY($1)",
+			expectedSQL:  `WHERE "status" = ANY($1)`,
 			expectedArgs: []interface{}{[]string{"queued", "running"}},
 		},
 		{
@@ -222,7 +255,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 					{Column: "status", Operator: OpIn, Value: []string{"active"}},
 				},
 			},
-			expectedSQL:  "WHERE status = ANY($1)",
+			expectedSQL:  `WHERE "status" = ANY($1)`,
 			expectedArgs: []interface{}{[]string{"active"}},
 		},
 		{
@@ -233,7 +266,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 					{Column: "status", Operator: OpIn, Value: []string{"queued", "running"}},
 				},
 			},
-			expectedSQL:  "WHERE user_id = $1 AND status = ANY($2)",
+			expectedSQL:  `WHERE "user_id" = $1 AND "status" = ANY($2)`,
 			expectedArgs: []interface{}{"123", []string{"queued", "running"}},
 		},
 		{
@@ -676,6 +709,261 @@ func TestPaginationLimitEnforcement(t *testing.T) {
 				require.NotNil(t, params.Offset, "Expected offset to be set but got nil")
 				assert.Equal(t, *tt.expectedOffset, *params.Offset)
 			}
+		})
+	}
+}
+
+func TestParseJSONBPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		column   string
+		expected string
+	}{
+		{
+			name:     "simple column",
+			column:   "name",
+			expected: `"name"`,
+		},
+		{
+			name:     "json access single key",
+			column:   "data->key",
+			expected: `"data"->'key'`,
+		},
+		{
+			name:     "text access single key",
+			column:   "data->>key",
+			expected: `"data"->>'key'`,
+		},
+		{
+			name:     "chained json access",
+			column:   "data->nested->value",
+			expected: `"data"->'nested'->'value'`,
+		},
+		{
+			name:     "mixed json and text access",
+			column:   "data->nested->>value",
+			expected: `"data"->'nested'->>'value'`,
+		},
+		{
+			name:     "deep nesting",
+			column:   "a->b->c->d->>e",
+			expected: `"a"->'b'->'c'->'d'->>'e'`,
+		},
+		{
+			name:     "array index",
+			column:   "data->0",
+			expected: `"data"->0`,
+		},
+		{
+			name:     "array index with nested key",
+			column:   "data->0->name",
+			expected: `"data"->0->'name'`,
+		},
+		{
+			name:     "array index with text extraction",
+			column:   "data->0->>name",
+			expected: `"data"->0->>'name'`,
+		},
+		{
+			name:     "realistic geocode example",
+			column:   "geocode->properties->>country",
+			expected: `"geocode"->'properties'->>'country'`,
+		},
+		{
+			name:     "metadata stats count",
+			column:   "metadata->stats->>count",
+			expected: `"metadata"->'stats'->>'count'`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseJSONBPath(tt.column)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFilterToSQLWithJSONBPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		filter      Filter
+		expectedSQL string
+		expectValue bool
+	}{
+		{
+			name: "simple column equality",
+			filter: Filter{
+				Column:   "name",
+				Operator: OpEqual,
+				Value:    "John",
+			},
+			expectedSQL: `"name" = $1`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb path equality",
+			filter: Filter{
+				Column:   "data->key",
+				Operator: OpEqual,
+				Value:    "value",
+			},
+			expectedSQL: `"data"->'key' = $1`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb text extraction equality",
+			filter: Filter{
+				Column:   "data->>key",
+				Operator: OpEqual,
+				Value:    "value",
+			},
+			expectedSQL: `"data"->>'key' = $1`,
+			expectValue: true,
+		},
+		{
+			name: "nested jsonb path IS NULL",
+			filter: Filter{
+				Column:   "geocode->properties->>country",
+				Operator: OpIs,
+				Value:    nil,
+			},
+			expectedSQL: `"geocode"->'properties'->>'country' IS NULL`,
+			expectValue: false,
+		},
+		{
+			name: "jsonb text extraction greater than with numeric",
+			filter: Filter{
+				Column:   "metadata->stats->>count",
+				Operator: OpGreaterThan,
+				Value:    10,
+			},
+			expectedSQL: `("metadata"->'stats'->>'count')::numeric > $1`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb text extraction less than with string number",
+			filter: Filter{
+				Column:   "data->>amount",
+				Operator: OpLessThan,
+				Value:    "100",
+			},
+			expectedSQL: `("data"->>'amount')::numeric < $1`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb json access greater than (no cast)",
+			filter: Filter{
+				Column:   "data->count",
+				Operator: OpGreaterThan,
+				Value:    10,
+			},
+			expectedSQL: `"data"->'count' > $1`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb IN operator",
+			filter: Filter{
+				Column:   "data->>status",
+				Operator: OpIn,
+				Value:    []string{"active", "pending"},
+			},
+			expectedSQL: `"data"->>'status' = ANY($1)`,
+			expectValue: true,
+		},
+		{
+			name: "jsonb LIKE operator",
+			filter: Filter{
+				Column:   "data->>email",
+				Operator: OpLike,
+				Value:    "%@example.com",
+			},
+			expectedSQL: `"data"->>'email' LIKE $1`,
+			expectValue: true,
+		},
+		{
+			name: "array index access",
+			filter: Filter{
+				Column:   "items->0->>name",
+				Operator: OpEqual,
+				Value:    "first",
+			},
+			expectedSQL: `"items"->0->>'name' = $1`,
+			expectValue: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			argCounter := 1
+			sql, value := tt.filter.toSQL(&argCounter)
+
+			assert.Equal(t, tt.expectedSQL, sql)
+
+			if tt.expectValue {
+				assert.Equal(t, tt.filter.Value, value)
+			} else {
+				assert.Nil(t, value)
+			}
+		})
+	}
+}
+
+func TestNeedsNumericCast(t *testing.T) {
+	tests := []struct {
+		name     string
+		column   string
+		value    interface{}
+		expected bool
+	}{
+		{
+			name:     "text extraction with int",
+			column:   "data->>count",
+			value:    10,
+			expected: true,
+		},
+		{
+			name:     "text extraction with float",
+			column:   "data->>price",
+			value:    19.99,
+			expected: true,
+		},
+		{
+			name:     "text extraction with string number",
+			column:   "data->>count",
+			value:    "10",
+			expected: true,
+		},
+		{
+			name:     "text extraction with non-numeric string",
+			column:   "data->>name",
+			value:    "John",
+			expected: false,
+		},
+		{
+			name:     "json access with int (no cast needed)",
+			column:   "data->count",
+			value:    10,
+			expected: false,
+		},
+		{
+			name:     "simple column with int (no cast)",
+			column:   "count",
+			value:    10,
+			expected: false,
+		},
+		{
+			name:     "nested text extraction with int",
+			column:   "metadata->stats->>total",
+			value:    100,
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := needsNumericCast(tt.column, tt.value)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

@@ -40,6 +40,7 @@ describe("FluxbaseAuth", () => {
       patch: vi.fn(),
       delete: vi.fn(),
       setAuthToken: vi.fn(),
+      setRefreshTokenCallback: vi.fn(),
     } as unknown as FluxbaseFetch;
 
     auth = new FluxbaseAuth(mockFetch, true, true);
@@ -289,9 +290,13 @@ describe("FluxbaseAuth", () => {
 
       const { data, error } = await auth.refreshSession();
 
-      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/refresh", {
-        refresh_token: "refresh-token",
-      });
+      expect(mockFetch.post).toHaveBeenCalledWith(
+        "/api/v1/auth/refresh",
+        {
+          refresh_token: "refresh-token",
+        },
+        { skipAutoRefresh: true },
+      );
       expect(error).toBeNull();
       expect(data).toBeDefined();
       expect(data!.session.access_token).toBe("new-token");
@@ -467,6 +472,7 @@ describe("FluxbaseAuth", () => {
         patch: vi.fn(),
         delete: vi.fn(),
         setAuthToken: vi.fn(),
+        setRefreshTokenCallback: vi.fn(),
       } as unknown as FluxbaseFetch;
 
       // Create auth instance - should use MemoryStorage fallback due to localStorage throwing
@@ -524,6 +530,7 @@ describe("FluxbaseAuth", () => {
         patch: vi.fn(),
         delete: vi.fn(),
         setAuthToken: vi.fn(),
+        setRefreshTokenCallback: vi.fn(),
       } as unknown as FluxbaseFetch;
 
       const nodeAuth = new FluxbaseAuth(freshMockFetch, true, true);
@@ -568,6 +575,7 @@ describe("FluxbaseAuth", () => {
         patch: vi.fn(),
         delete: vi.fn(),
         setAuthToken: vi.fn(),
+        setRefreshTokenCallback: vi.fn(),
       } as unknown as FluxbaseFetch;
 
       // Clear localStorage before test
@@ -1026,9 +1034,13 @@ describe("FluxbaseAuth", () => {
       expect(error).toBeNull();
       expect(data).toBeDefined();
       expect(data!.session.access_token).toBe("new-token");
-      expect(mockFetch.post).toHaveBeenCalledWith("/api/v1/auth/refresh", {
-        refresh_token: "refresh-token",
-      });
+      expect(mockFetch.post).toHaveBeenCalledWith(
+        "/api/v1/auth/refresh",
+        {
+          refresh_token: "refresh-token",
+        },
+        { skipAutoRefresh: true },
+      );
     });
   });
 
@@ -1229,6 +1241,7 @@ describe("FluxbaseAuth", () => {
           patch: vi.fn(),
           delete: vi.fn(),
           setAuthToken: vi.fn(),
+          setRefreshTokenCallback: vi.fn(),
         } as unknown as FluxbaseFetch;
 
         const newAuth = new FluxbaseAuth(freshMockFetch, false, false);
@@ -1269,6 +1282,7 @@ describe("FluxbaseAuth", () => {
           patch: vi.fn(),
           delete: vi.fn(),
           setAuthToken: vi.fn(),
+          setRefreshTokenCallback: vi.fn(),
         } as unknown as FluxbaseFetch;
 
         const newAuth = new FluxbaseAuth(freshMockFetch, false, false);
@@ -1310,6 +1324,7 @@ describe("FluxbaseAuth", () => {
           patch: vi.fn(),
           delete: vi.fn(),
           setAuthToken: vi.fn(),
+          setRefreshTokenCallback: vi.fn(),
         } as unknown as FluxbaseFetch;
 
         const newAuth = new FluxbaseAuth(freshMockFetch, false, false);

@@ -14,7 +14,7 @@ ALTER TABLE functions.edge_functions
 DROP TABLE IF EXISTS functions.rpc_function_config;
 DROP TABLE IF EXISTS functions.function_dependencies;
 DROP TABLE IF EXISTS functions.shared_modules;
-DROP TABLE IF EXISTS functions.edge_function_files;
-DROP TABLE IF EXISTS functions.edge_function_executions;
-DROP TABLE IF EXISTS functions.edge_function_triggers;
+DROP TABLE IF EXISTS functions.edge_files;
+DROP TABLE IF EXISTS functions.edge_executions;
+DROP TABLE IF EXISTS functions.edge_triggers;
 DROP TABLE IF EXISTS functions.edge_functions;

@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/wayli-app/fluxbase/internal/config"
 )
 
@@ -50,6 +52,7 @@ func NewService(cfg *config.StorageConfig) (*Service, error) {
 			cfg.S3SecretKey,
 			cfg.S3Region,
 			useSSL,
+			cfg.S3ForcePathStyle,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize S3 storage: %w", err)
@@ -91,4 +94,29 @@ func (s *Service) IsS3Compatible() bool {
 // IsLocal returns true if the storage provider is local filesystem
 func (s *Service) IsLocal() bool {
 	return s.Provider.Name() == "local"
+}
+
+// DefaultBuckets returns the list of default buckets from config
+func (s *Service) DefaultBuckets() []string {
+	return s.config.DefaultBuckets
+}
+
+// EnsureDefaultBuckets creates the default buckets if they don't exist
+func (s *Service) EnsureDefaultBuckets(ctx context.Context) error {
+	for _, bucket := range s.config.DefaultBuckets {
+		exists, err := s.Provider.BucketExists(ctx, bucket)
+		if err != nil {
+			log.Warn().Err(err).Str("bucket", bucket).Msg("Failed to check if bucket exists")
+			continue
+		}
+
+		if !exists {
+			if err := s.Provider.CreateBucket(ctx, bucket); err != nil {
+				log.Warn().Err(err).Str("bucket", bucket).Msg("Failed to create default bucket")
+				continue
+			}
+			log.Info().Str("bucket", bucket).Msg("Created default bucket")
+		}
+	}
+	return nil
 }

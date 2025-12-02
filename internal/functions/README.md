@@ -238,14 +238,14 @@ edge_functions (
 )
 
 -- Execution logs (30-day retention)
-edge_function_executions (
+edge_executions (
   id, function_id, trigger_type, status, status_code,
   duration_ms, result, logs, error_message,
   executed_at, completed_at
 )
 
 -- Database triggers (future)
-edge_function_triggers (
+edge_triggers (
   id, function_id, table_name, events, condition
 )
 ```

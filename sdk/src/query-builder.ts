@@ -5,9 +5,11 @@
 
 import type { FluxbaseFetch } from "./fetch";
 import type {
+  CountType,
   FilterOperator,
   OrderBy,
   PostgrestResponse,
+  SelectOptions,
   UpsertOptions,
 } from "./types";
 
@@ -16,6 +18,7 @@ export class QueryBuilder<T = unknown>
 {
   private fetch: FluxbaseFetch;
   private table: string;
+  private schema?: string;
   private selectQuery: string = "*";
   private filters: Array<{
     column: string;
@@ -31,12 +34,24 @@ export class QueryBuilder<T = unknown>
   private maybeSingleRow: boolean = false;
   private groupByColumns?: string[];
   private operationType: "select" | "insert" | "update" | "delete" = "select";
+  private countType?: CountType;
+  private headOnly: boolean = false;
   private insertData?: Partial<T> | Array<Partial<T>>;
   private updateData?: Partial<T>;
 
-  constructor(fetch: FluxbaseFetch, table: string) {
+  constructor(fetch: FluxbaseFetch, table: string, schema?: string) {
     this.fetch = fetch;
     this.table = table;
+    this.schema = schema;
+  }
+
+  /**
+   * Build the API path for this table, including schema if specified
+   */
+  private buildTablePath(): string {
+    return this.schema
+      ? `/api/v1/tables/${this.schema}/${this.table}`
+      : `/api/v1/tables/${this.table}`;
   }
 
   /**
@@ -44,9 +59,17 @@ export class QueryBuilder<T = unknown>
    * @example select('*')
    * @example select('id, name, email')
    * @example select('id, name, posts(title, content)')
+   * @example select('*', { count: 'exact' }) // Get exact count
+   * @example select('*', { count: 'exact', head: true }) // Get count only (no data)
    */
-  select(columns: string = "*"): this {
+  select(columns: string = "*", options?: SelectOptions): this {
     this.selectQuery = columns;
+    if (options?.count) {
+      this.countType = options.count;
+    }
+    if (options?.head) {
+      this.headOnly = true;
+    }
     return this;
   }
 
@@ -88,7 +111,7 @@ export class QueryBuilder<T = unknown>
     };
 
     // Add onConflict as query parameter if specified
-    let path = `/api/v1/tables/${this.table}`;
+    let path = this.buildTablePath();
     if (options?.onConflict) {
       path += `?on_conflict=${encodeURIComponent(options.onConflict)}`;
     }
@@ -705,10 +728,7 @@ export class QueryBuilder<T = unknown>
         const body = Array.isArray(this.insertData)
           ? this.insertData
           : this.insertData;
-        const response = await this.fetch.post<T>(
-          `/api/v1/tables/${this.table}`,
-          body,
-        );
+        const response = await this.fetch.post<T>(this.buildTablePath(), body);
 
         return {
           data: response,
@@ -725,7 +745,7 @@ export class QueryBuilder<T = unknown>
           throw new Error("Update data is required for update operation");
         }
         const queryString = this.buildQueryString();
-        const path = `/api/v1/tables/${this.table}${queryString}`;
+        const path = `${this.buildTablePath()}${queryString}`;
         const response = await this.fetch.patch<T>(path, this.updateData);
 
         return {
@@ -740,7 +760,7 @@ export class QueryBuilder<T = unknown>
       // Handle DELETE operation
       if (this.operationType === "delete") {
         const queryString = this.buildQueryString();
-        const path = `/api/v1/tables/${this.table}${queryString}`;
+        const path = `${this.buildTablePath()}${queryString}`;
         await this.fetch.delete(path);
 
         return {
@@ -754,7 +774,78 @@ export class QueryBuilder<T = unknown>
 
       // Handle SELECT operation (default)
       const queryString = this.buildQueryString();
-      const path = `/api/v1/tables/${this.table}${queryString}`;
+      const path = `${this.buildTablePath()}${queryString}`;
+
+      // When count is requested, use getWithHeaders to access Content-Range header
+      if (this.countType) {
+        const response = await this.fetch.getWithHeaders<T | T[]>(path);
+        const serverCount = this.parseContentRangeCount(response.headers);
+        const data = response.data;
+
+        // Handle head-only request (only return count, no data)
+        if (this.headOnly) {
+          return {
+            data: null,
+            error: null,
+            count: serverCount,
+            status: response.status,
+            statusText: "OK",
+          };
+        }
+
+        // Handle single row response with count
+        if (this.singleRow) {
+          if (Array.isArray(data) && data.length === 0) {
+            return {
+              data: null,
+              error: { message: "No rows found", code: "PGRST116" },
+              count: serverCount ?? 0,
+              status: 404,
+              statusText: "Not Found",
+            };
+          }
+          const singleData = Array.isArray(data) ? data[0] : data;
+          return {
+            data: singleData as T,
+            error: null,
+            count: serverCount ?? 1,
+            status: 200,
+            statusText: "OK",
+          };
+        }
+
+        // Handle maybeSingle row response with count
+        if (this.maybeSingleRow) {
+          if (Array.isArray(data) && data.length === 0) {
+            return {
+              data: null,
+              error: null,
+              count: serverCount ?? 0,
+              status: 200,
+              statusText: "OK",
+            };
+          }
+          const singleData = Array.isArray(data) ? data[0] : data;
+          return {
+            data: singleData as T,
+            error: null,
+            count: serverCount ?? 1,
+            status: 200,
+            statusText: "OK",
+          };
+        }
+
+        // Normal response with server count
+        return {
+          data: data as T,
+          error: null,
+          count: serverCount ?? (Array.isArray(data) ? data.length : null),
+          status: 200,
+          statusText: "OK",
+        };
+      }
+
+      // Standard path without count - use regular get
       const data = await this.fetch.get<T | T[]>(path);
 
       // Handle single row response
@@ -933,6 +1024,11 @@ export class QueryBuilder<T = unknown>
       params.append("offset", String(this.offsetValue));
     }
 
+    // Count - request server to return total count in Content-Range header
+    if (this.countType) {
+      params.append("count", this.countType);
+    }
+
     const queryString = params.toString();
     return queryString ? `?${queryString}` : "";
   }
@@ -954,5 +1050,22 @@ export class QueryBuilder<T = unknown>
       return JSON.stringify(value);
     }
     return String(value);
+  }
+
+  /**
+   * Parse the Content-Range header to extract the total count
+   * Header format: "0-999/50000" or "* /50000" (when no rows returned)
+   */
+  private parseContentRangeCount(headers: Headers): number | null {
+    const contentRange = headers.get("Content-Range");
+    if (!contentRange) {
+      return null;
+    }
+    // Match the total count after the slash: "0-999/50000" -> "50000"
+    const match = contentRange.match(/\/(\d+)$/);
+    if (match && match[1]) {
+      return parseInt(match[1], 10);
+    }
+    return null;
   }
 }

@@ -23,6 +23,7 @@ type Worker struct {
 	MaxConcurrent         int
 	currentJobs           sync.Map // jobID -> *CancelSignal
 	jobLogCounters        sync.Map // jobID -> *int (line counter)
+	jobStartTimes         sync.Map // jobID -> time.Time (for ETA calculation)
 	currentJobCount       int
 	currentJobCountMutex  sync.RWMutex
 	shutdownChan          chan struct{}
@@ -306,6 +307,10 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	w.jobLogCounters.Store(job.ID, &lineCounter)
 	defer w.jobLogCounters.Delete(job.ID)
 
+	// Store job start time for ETA calculation
+	w.jobStartTimes.Store(job.ID, time.Now())
+	defer w.jobStartTimes.Delete(job.ID)
+
 	// Get job function
 	var jobFunction *JobFunction
 	var err error
@@ -410,6 +415,20 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 
 // handleProgressUpdate is called when a job reports progress
 func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *Progress) {
+	// Calculate ETA if we have valid progress (between 1-99%)
+	if progress.Percent > 0 && progress.Percent < 100 {
+		if startTimeVal, ok := w.jobStartTimes.Load(jobID); ok {
+			startTime := startTimeVal.(time.Time)
+			elapsed := time.Since(startTime).Seconds()
+			if elapsed > 0 {
+				// ETA = (elapsed / percent) * remaining_percent
+				remainingPercent := float64(100 - progress.Percent)
+				etaSeconds := int((elapsed / float64(progress.Percent)) * remainingPercent)
+				progress.EstimatedSecondsLeft = &etaSeconds
+			}
+		}
+	}
+
 	log.Debug().
 		Str("job_id", jobID.String()).
 		Int("percent", progress.Percent).
@@ -431,9 +450,10 @@ func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *Progress) {
 }
 
 // handleLogMessage is called when a job outputs a log message
-func (w *Worker) handleLogMessage(jobID uuid.UUID, message string) {
+func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string) {
 	log.Debug().
 		Str("job_id", jobID.String()).
+		Str("level", level).
 		Str("message", message).
 		Msg("Job log")
 
@@ -448,7 +468,7 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, message string) {
 
 	// Insert log line
 	ctx := context.Background()
-	if err := w.Storage.InsertExecutionLog(ctx, jobID, lineNumber, message); err != nil {
+	if err := w.Storage.InsertExecutionLog(ctx, jobID, lineNumber, level, message); err != nil {
 		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to insert execution log")
 	}
 }

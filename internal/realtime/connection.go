@@ -71,3 +71,15 @@ func (c *Connection) SendMessage(msg interface{}) error {
 func (c *Connection) Close() error {
 	return c.Conn.Close()
 }
+
+// UpdateAuth updates the connection's authentication context
+func (c *Connection) UpdateAuth(userID *string, role string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.UserID = userID
+	c.Role = role
+	log.Info().
+		Str("connection_id", c.ID).
+		Str("role", role).
+		Msg("Updated connection auth")
+}

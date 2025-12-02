@@ -99,14 +99,16 @@ type CORSConfig struct {
 
 // StorageConfig contains file storage settings
 type StorageConfig struct {
-	Provider      string `mapstructure:"provider"` // local or s3
-	LocalPath     string `mapstructure:"local_path"`
-	S3Endpoint    string `mapstructure:"s3_endpoint"`
-	S3AccessKey   string `mapstructure:"s3_access_key"`
-	S3SecretKey   string `mapstructure:"s3_secret_key"`
-	S3Bucket      string `mapstructure:"s3_bucket"`
-	S3Region      string `mapstructure:"s3_region"`
-	MaxUploadSize int64  `mapstructure:"max_upload_size"`
+	Provider         string   `mapstructure:"provider"` // local or s3
+	LocalPath        string   `mapstructure:"local_path"`
+	S3Endpoint       string   `mapstructure:"s3_endpoint"`
+	S3AccessKey      string   `mapstructure:"s3_access_key"`
+	S3SecretKey      string   `mapstructure:"s3_secret_key"`
+	S3Bucket         string   `mapstructure:"s3_bucket"`
+	S3Region         string   `mapstructure:"s3_region"`
+	S3ForcePathStyle bool     `mapstructure:"s3_force_path_style"` // Use path-style addressing (required for MinIO, R2, Spaces, etc.)
+	DefaultBuckets   []string `mapstructure:"default_buckets"`     // Buckets to auto-create on startup
+	MaxUploadSize    int64    `mapstructure:"max_upload_size"`
 }
 
 // RealtimeConfig contains realtime/websocket settings
@@ -281,9 +283,9 @@ func loadEnvFile() error {
 func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.address", ":8080")
-	viper.SetDefault("server.read_timeout", "15s")
-	viper.SetDefault("server.write_timeout", "15s")
-	viper.SetDefault("server.idle_timeout", "60s")
+	viper.SetDefault("server.read_timeout", "300s")         // 5 min for large file streaming
+	viper.SetDefault("server.write_timeout", "300s")        // 5 min for large file streaming
+	viper.SetDefault("server.idle_timeout", "120s")         // 2 min idle timeout
 	viper.SetDefault("server.body_limit", 2*1024*1024*1024) // 2GB
 
 	// Database defaults
@@ -325,9 +327,9 @@ func setDefaults() {
 	viper.SetDefault("security.admin_login_rate_window", "1m")   // per minute
 
 	// CORS defaults
-	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080")
+	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080,https://pelias.wayli.app")
 	viper.SetDefault("cors.allowed_methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,Prefer,apikey")
+	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,Prefer,apikey,x-client-app")
 	viper.SetDefault("cors.exposed_headers", "Content-Range,Content-Encoding,Content-Length,X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset")
 	viper.SetDefault("cors.allow_credentials", true) // Required for CSRF tokens
 	viper.SetDefault("cors.max_age", 300)
@@ -340,6 +342,8 @@ func setDefaults() {
 	viper.SetDefault("storage.s3_secret_key", "")
 	viper.SetDefault("storage.s3_bucket", "")
 	viper.SetDefault("storage.s3_region", "")
+	viper.SetDefault("storage.s3_force_path_style", true) // Default true for S3-compatible services (MinIO, R2, Spaces, etc.)
+	viper.SetDefault("storage.default_buckets", []string{"uploads", "temp-files", "public"})
 	viper.SetDefault("storage.max_upload_size", 2*1024*1024*1024) // 2GB
 
 	// Realtime defaults
@@ -400,7 +404,7 @@ func setDefaults() {
 	viper.SetDefault("jobs.max_concurrent_per_namespace", 20) // Max concurrent jobs per namespace
 	viper.SetDefault("jobs.default_max_duration", "5m")       // 5 minutes default job timeout
 	viper.SetDefault("jobs.max_max_duration", "1h")           // 1 hour maximum job timeout
-	viper.SetDefault("jobs.default_progress_timeout", "60s")  // 60 seconds progress timeout
+	viper.SetDefault("jobs.default_progress_timeout", "300s") // 60 seconds progress timeout
 	viper.SetDefault("jobs.poll_interval", "1s")              // Worker polls every 1 second
 	viper.SetDefault("jobs.worker_heartbeat_interval", "10s") // Worker heartbeat every 10 seconds
 	viper.SetDefault("jobs.worker_timeout", "30s")            // Worker considered dead after 30 seconds

@@ -172,7 +172,9 @@ func main() {
 	go func() {
 		log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
 		if err := server.Start(); err != nil {
-			log.Fatal().Err(err).Msg("Failed to start server")
+			// Don't log.Fatal on graceful shutdown - the server returns nil or
+			// an error when ShutdownWithContext is called
+			log.Debug().Err(err).Msg("Server stopped")
 		}
 	}()
 
@@ -183,13 +185,23 @@ func main() {
 
 	log.Info().Msg("Shutting down server...")
 
-	// Graceful shutdown
-	ctx := context.Background()
+	// Graceful shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("Server forced to shutdown")
+		log.Error().Err(err).Msg("Graceful shutdown failed")
 	}
 
 	log.Info().Msg("Server exited")
+
+	// Safety: force exit after a short delay if the process hasn't exited
+	// This handles edge cases where goroutines might keep the process alive
+	go func() {
+		time.Sleep(2 * time.Second)
+		log.Warn().Msg("Force exiting - cleanup took too long")
+		os.Exit(0)
+	}()
 }
 
 // getEnvInt retrieves an integer environment variable or returns a default value

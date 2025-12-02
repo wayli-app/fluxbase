@@ -26,13 +26,13 @@ func NewStorage(conn *database.Connection) *Storage {
 // CreateJobFunction creates a new job function
 func (s *Storage) CreateJobFunction(ctx context.Context, fn *JobFunction) error {
 	query := `
-		INSERT INTO jobs.job_functions (
+		INSERT INTO jobs.functions (
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_role, version, created_by
+			require_role, version, created_by, source
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		)
 		RETURNING created_at, updated_at
 	`
@@ -42,14 +42,14 @@ func (s *Storage) CreateJobFunction(ctx context.Context, fn *JobFunction) error 
 		fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 		fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
-		fn.RequireRole, fn.Version, fn.CreatedBy,
+		fn.RequireRole, fn.Version, fn.CreatedBy, fn.Source,
 	).Scan(&fn.CreatedAt, &fn.UpdatedAt)
 }
 
 // UpdateJobFunction updates an existing job function
 func (s *Storage) UpdateJobFunction(ctx context.Context, fn *JobFunction) error {
 	query := `
-		UPDATE jobs.job_functions SET
+		UPDATE jobs.functions SET
 			description = $1, code = $2, original_code = $3, is_bundled = $4, bundle_error = $5,
 			enabled = $6, schedule = $7, timeout_seconds = $8, memory_limit_mb = $9,
 			max_retries = $10, progress_timeout_seconds = $11, allow_net = $12, allow_env = $13,
@@ -69,13 +69,13 @@ func (s *Storage) UpdateJobFunction(ctx context.Context, fn *JobFunction) error 
 // UpsertJobFunction creates or updates a job function atomically
 func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error {
 	query := `
-		INSERT INTO jobs.job_functions (
+		INSERT INTO jobs.functions (
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_role, version, created_by
+			require_role, version, created_by, source
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 1, $20
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 1, $20, $21
 		)
 		ON CONFLICT (name, namespace) DO UPDATE SET
 			description = EXCLUDED.description,
@@ -94,7 +94,7 @@ func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error 
 			allow_read = EXCLUDED.allow_read,
 			allow_write = EXCLUDED.allow_write,
 			require_role = EXCLUDED.require_role,
-			version = jobs.job_functions.version + 1,
+			version = jobs.functions.version + 1,
 			updated_at = NOW()
 		RETURNING id, version, created_at, updated_at
 	`
@@ -104,7 +104,7 @@ func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error 
 		fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 		fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
-		fn.RequireRole, fn.CreatedBy,
+		fn.RequireRole, fn.CreatedBy, fn.Source,
 	).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 }
 
@@ -114,8 +114,8 @@ func (s *Storage) GetJobFunction(ctx context.Context, namespace, name string) (*
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
-			version, created_by, created_at, updated_at
-		FROM jobs.job_functions
+			version, created_by, source, created_at, updated_at
+		FROM jobs.functions
 		WHERE namespace = $1 AND name = $2
 	`
 
@@ -125,7 +125,7 @@ func (s *Storage) GetJobFunction(ctx context.Context, namespace, name string) (*
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
 		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
-		&fn.Version, &fn.CreatedBy, &fn.CreatedAt, &fn.UpdatedAt,
+		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -144,8 +144,8 @@ func (s *Storage) GetJobFunctionByName(ctx context.Context, name string) (*JobFu
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
-			version, created_by, created_at, updated_at
-		FROM jobs.job_functions
+			version, created_by, source, created_at, updated_at
+		FROM jobs.functions
 		WHERE name = $1
 		ORDER BY namespace
 		LIMIT 1
@@ -157,7 +157,7 @@ func (s *Storage) GetJobFunctionByName(ctx context.Context, name string) (*JobFu
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
 		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
-		&fn.Version, &fn.CreatedBy, &fn.CreatedAt, &fn.UpdatedAt,
+		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -175,8 +175,8 @@ func (s *Storage) GetJobFunctionByID(ctx context.Context, id uuid.UUID) (*JobFun
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
-			version, created_by, created_at, updated_at
-		FROM jobs.job_functions
+			version, created_by, source, created_at, updated_at
+		FROM jobs.functions
 		WHERE id = $1
 	`
 
@@ -186,7 +186,7 @@ func (s *Storage) GetJobFunctionByID(ctx context.Context, id uuid.UUID) (*JobFun
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
 		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
-		&fn.Version, &fn.CreatedBy, &fn.CreatedAt, &fn.UpdatedAt,
+		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -198,14 +198,14 @@ func (s *Storage) GetJobFunctionByID(ctx context.Context, id uuid.UUID) (*JobFun
 	return &fn, nil
 }
 
-// ListJobFunctions lists all job functions in a namespace
-func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*JobFunction, error) {
+// ListJobFunctions lists all job functions in a namespace (excludes code for performance)
+func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*JobFunctionSummary, error) {
 	query := `
-		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
+		SELECT id, name, namespace, description, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
-			version, created_by, created_at, updated_at
-		FROM jobs.job_functions
+			version, created_by, source, created_at, updated_at
+		FROM jobs.functions
 		WHERE namespace = $1
 		ORDER BY name
 	`
@@ -216,15 +216,15 @@ func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*Jo
 	}
 	defer rows.Close()
 
-	var functions []*JobFunction
+	var functions []*JobFunctionSummary
 	for rows.Next() {
-		var fn JobFunction
+		var fn JobFunctionSummary
 		err := rows.Scan(
-			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode,
+			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description,
 			&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 			&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
 			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
-			&fn.Version, &fn.CreatedBy, &fn.CreatedAt, &fn.UpdatedAt,
+			&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -237,7 +237,7 @@ func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*Jo
 
 // DeleteJobFunction deletes a job function
 func (s *Storage) DeleteJobFunction(ctx context.Context, namespace, name string) error {
-	query := `DELETE FROM jobs.job_functions WHERE namespace = $1 AND name = $2`
+	query := `DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2`
 	result, err := s.conn.Pool().Exec(ctx, query, namespace, name)
 	if err != nil {
 		return err
@@ -255,9 +255,9 @@ func (s *Storage) DeleteJobFunction(ctx context.Context, namespace, name string)
 // CreateJobFunctionFile creates a supporting file for a job function
 func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFile) error {
 	query := `
-		INSERT INTO jobs.job_function_files (id, job_function_id, file_path, content)
+		INSERT INTO jobs.function_files (id, function_id, file_path, content)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (job_function_id, file_path) DO UPDATE SET content = EXCLUDED.content
+		ON CONFLICT (function_id, file_path) DO UPDATE SET content = EXCLUDED.content
 		RETURNING created_at
 	`
 
@@ -269,9 +269,9 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 // ListJobFunctionFiles lists all files for a job function
 func (s *Storage) ListJobFunctionFiles(ctx context.Context, jobFunctionID uuid.UUID) ([]*JobFunctionFile, error) {
 	query := `
-		SELECT id, job_function_id, file_path, content, created_at
-		FROM jobs.job_function_files
-		WHERE job_function_id = $1
+		SELECT id, function_id, file_path, content, created_at
+		FROM jobs.function_files
+		WHERE function_id = $1
 		ORDER BY file_path
 	`
 
@@ -295,7 +295,7 @@ func (s *Storage) ListJobFunctionFiles(ctx context.Context, jobFunctionID uuid.U
 
 // DeleteJobFunctionFiles deletes all files for a job function
 func (s *Storage) DeleteJobFunctionFiles(ctx context.Context, jobFunctionID uuid.UUID) error {
-	query := `DELETE FROM jobs.job_function_files WHERE job_function_id = $1`
+	query := `DELETE FROM jobs.function_files WHERE function_id = $1`
 	_, err := s.conn.Pool().Exec(ctx, query, jobFunctionID)
 	return err
 }
@@ -305,8 +305,8 @@ func (s *Storage) DeleteJobFunctionFiles(ctx context.Context, jobFunctionID uuid
 // EnqueueJob adds a new job to the queue
 func (s *Storage) EnqueueJob(ctx context.Context, job *Job) error {
 	query := `
-		INSERT INTO jobs.job_queue (
-			id, namespace, job_function_id, job_name, status, payload, priority,
+		INSERT INTO jobs.queue (
+			id, namespace, function_id, job_name, status, payload, priority,
 			max_duration_seconds, progress_timeout_seconds, max_retries, created_by, user_role, user_email, scheduled_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING created_at
@@ -322,20 +322,20 @@ func (s *Storage) EnqueueJob(ctx context.Context, job *Job) error {
 // ClaimNextJob claims the next available job for a worker (using SELECT FOR UPDATE SKIP LOCKED)
 func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, error) {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET status = $1,
 		    worker_id = $2,
 		    started_at = NOW(),
 		    last_progress_at = NOW()
 		WHERE id = (
-			SELECT id FROM jobs.job_queue
+			SELECT id FROM jobs.queue
 			WHERE status = $3
 			  AND (scheduled_at IS NULL OR scheduled_at <= NOW())
 			ORDER BY priority DESC, created_at ASC
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED
 		)
-		RETURNING id, namespace, job_function_id, job_name, status, payload, result, progress,
+		RETURNING id, namespace, function_id, job_name, status, payload, result, progress,
 		          priority, max_duration_seconds, progress_timeout_seconds, max_retries,
 		          retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
 		          scheduled_at, started_at, last_progress_at, completed_at
@@ -362,7 +362,7 @@ func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, e
 // UpdateJobProgress updates job progress
 func (s *Storage) UpdateJobProgress(ctx context.Context, jobID uuid.UUID, progress string) error {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET progress = $1, last_progress_at = NOW()
 		WHERE id = $2 AND status = $3
 	`
@@ -380,20 +380,20 @@ func (s *Storage) UpdateJobProgress(ctx context.Context, jobID uuid.UUID, progre
 }
 
 // InsertExecutionLog inserts a single log line for a job
-func (s *Storage) InsertExecutionLog(ctx context.Context, jobID uuid.UUID, lineNumber int, message string) error {
+func (s *Storage) InsertExecutionLog(ctx context.Context, jobID uuid.UUID, lineNumber int, level string, message string) error {
 	query := `
-		INSERT INTO jobs.execution_logs (job_id, line_number, message)
-		VALUES ($1, $2, $3)
+		INSERT INTO jobs.execution_logs (job_id, line_number, level, message)
+		VALUES ($1, $2, $3, $4)
 	`
 
-	_, err := s.conn.Pool().Exec(ctx, query, jobID, lineNumber, message)
+	_, err := s.conn.Pool().Exec(ctx, query, jobID, lineNumber, level, message)
 	return err
 }
 
 // GetExecutionLogs retrieves execution logs for a job, optionally starting after a line number
 func (s *Storage) GetExecutionLogs(ctx context.Context, jobID uuid.UUID, afterLine *int) ([]*ExecutionLog, error) {
 	query := `
-		SELECT id, job_id, line_number, message, created_at
+		SELECT id, job_id, line_number, level, message, created_at
 		FROM jobs.execution_logs
 		WHERE job_id = $1
 	`
@@ -418,7 +418,7 @@ func (s *Storage) GetExecutionLogs(ctx context.Context, jobID uuid.UUID, afterLi
 
 		for rows.Next() {
 			var log ExecutionLog
-			if err := rows.Scan(&log.ID, &log.JobID, &log.LineNumber, &log.Message, &log.CreatedAt); err != nil {
+			if err := rows.Scan(&log.ID, &log.JobID, &log.LineNumber, &log.Level, &log.Message, &log.CreatedAt); err != nil {
 				return err
 			}
 			logs = append(logs, &log)
@@ -437,7 +437,7 @@ func (s *Storage) GetExecutionLogs(ctx context.Context, jobID uuid.UUID, afterLi
 // CompleteJob marks a job as completed
 func (s *Storage) CompleteJob(ctx context.Context, jobID uuid.UUID, result string) error {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET status = $1, result = $2, completed_at = NOW()
 		WHERE id = $3 AND status = $4
 	`
@@ -457,7 +457,7 @@ func (s *Storage) CompleteJob(ctx context.Context, jobID uuid.UUID, result strin
 // FailJob marks a job as failed
 func (s *Storage) FailJob(ctx context.Context, jobID uuid.UUID, errorMessage string) error {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET status = $1, error_message = $2, completed_at = NOW()
 		WHERE id = $3 AND status = $4
 	`
@@ -477,7 +477,7 @@ func (s *Storage) FailJob(ctx context.Context, jobID uuid.UUID, errorMessage str
 // CancelJob marks a job as cancelled
 func (s *Storage) CancelJob(ctx context.Context, jobID uuid.UUID) error {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET status = $1, completed_at = NOW()
 		WHERE id = $2 AND status IN ($3, $4)
 	`
@@ -497,7 +497,7 @@ func (s *Storage) CancelJob(ctx context.Context, jobID uuid.UUID) error {
 // RequeueJob requeues a failed job for retry
 func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	query := `
-		UPDATE jobs.job_queue
+		UPDATE jobs.queue
 		SET status = $1, retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
 		    error_message = NULL
@@ -544,8 +544,8 @@ func (s *Storage) ResubmitJob(ctx context.Context, originalJobID uuid.UUID) (*Jo
 
 	// Insert the new job
 	query := `
-		INSERT INTO jobs.job_queue (
-			id, namespace, job_function_id, job_name, status, payload, priority,
+		INSERT INTO jobs.queue (
+			id, namespace, function_id, job_name, status, payload, priority,
 			max_duration_seconds, progress_timeout_seconds, max_retries, created_by, user_role, user_email
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING created_at
@@ -567,12 +567,14 @@ func (s *Storage) ResubmitJob(ctx context.Context, originalJobID uuid.UUID) (*Jo
 // GetJob retrieves a job by ID
 func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 	query := `
-		SELECT id, namespace, job_function_id, job_name, status, payload, result, progress,
-		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
-		       scheduled_at, started_at, last_progress_at, completed_at
-		FROM jobs.job_queue
-		WHERE id = $1
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.payload, q.result, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
+		WHERE q.id = $1
 	`
 
 	var job Job
@@ -580,7 +582,7 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 		&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 		&job.Payload, &job.Result, &job.Progress, &job.Priority,
 		&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-		&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+		&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
 		&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 	)
 	if err != nil {
@@ -599,11 +601,13 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, error) {
 	// Exclude result, payload for list performance - these can be very large
 	query := `
-		SELECT id, namespace, job_function_id, job_name, status, progress,
-		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
-		       scheduled_at, started_at, last_progress_at, completed_at
-		FROM jobs.job_queue
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
 		WHERE 1=1
 	`
 
@@ -612,33 +616,33 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 
 	if filters != nil {
 		if filters.Status != nil {
-			query += fmt.Sprintf(" AND status = $%d", argCount)
+			query += fmt.Sprintf(" AND q.status = $%d", argCount)
 			args = append(args, *filters.Status)
 			argCount++
 		}
 		if filters.JobName != nil {
-			query += fmt.Sprintf(" AND job_name = $%d", argCount)
+			query += fmt.Sprintf(" AND q.job_name = $%d", argCount)
 			args = append(args, *filters.JobName)
 			argCount++
 		}
 		if filters.Namespace != nil {
-			query += fmt.Sprintf(" AND namespace = $%d", argCount)
+			query += fmt.Sprintf(" AND q.namespace = $%d", argCount)
 			args = append(args, *filters.Namespace)
 			argCount++
 		}
 		if filters.CreatedBy != nil {
-			query += fmt.Sprintf(" AND created_by = $%d", argCount)
+			query += fmt.Sprintf(" AND q.created_by = $%d", argCount)
 			args = append(args, *filters.CreatedBy)
 			argCount++
 		}
 		if filters.WorkerID != nil {
-			query += fmt.Sprintf(" AND worker_id = $%d", argCount)
+			query += fmt.Sprintf(" AND q.worker_id = $%d", argCount)
 			args = append(args, *filters.WorkerID)
 			argCount++
 		}
 	}
 
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY q.created_at DESC"
 
 	if filters != nil && filters.Limit != nil && *filters.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argCount)
@@ -665,7 +669,7 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
 			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 		)
 		if err != nil {
@@ -693,11 +697,13 @@ func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, e
 func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Job, error) {
 	// Exclude result, payload for list performance - these can be very large
 	query := `
-		SELECT id, namespace, job_function_id, job_name, status, progress,
-		       priority, max_duration_seconds, progress_timeout_seconds, max_retries,
-		       retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
-		       scheduled_at, started_at, last_progress_at, completed_at
-		FROM jobs.job_queue
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
 		WHERE 1=1
 	`
 
@@ -706,33 +712,33 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 
 	if filters != nil {
 		if filters.Status != nil {
-			query += fmt.Sprintf(" AND status = $%d", argCount)
+			query += fmt.Sprintf(" AND q.status = $%d", argCount)
 			args = append(args, *filters.Status)
 			argCount++
 		}
 		if filters.Namespace != nil {
-			query += fmt.Sprintf(" AND namespace = $%d", argCount)
+			query += fmt.Sprintf(" AND q.namespace = $%d", argCount)
 			args = append(args, *filters.Namespace)
 			argCount++
 		}
 		if filters.JobName != nil {
-			query += fmt.Sprintf(" AND job_name = $%d", argCount)
+			query += fmt.Sprintf(" AND q.job_name = $%d", argCount)
 			args = append(args, *filters.JobName)
 			argCount++
 		}
 		if filters.CreatedBy != nil {
-			query += fmt.Sprintf(" AND created_by = $%d", argCount)
+			query += fmt.Sprintf(" AND q.created_by = $%d", argCount)
 			args = append(args, *filters.CreatedBy)
 			argCount++
 		}
 		if filters.WorkerID != nil {
-			query += fmt.Sprintf(" AND worker_id = $%d", argCount)
+			query += fmt.Sprintf(" AND q.worker_id = $%d", argCount)
 			args = append(args, *filters.WorkerID)
 			argCount++
 		}
 	}
 
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY q.created_at DESC"
 
 	if filters != nil && filters.Limit != nil && *filters.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argCount)
@@ -759,7 +765,7 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail,
+			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
 			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
 		)
 		if err != nil {
@@ -785,7 +791,7 @@ func (s *Storage) GetJobStats(ctx context.Context, namespace *string) (*JobStats
 			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
 			COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
 			COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) FILTER (WHERE completed_at IS NOT NULL AND started_at IS NOT NULL), 0) AS avg_duration
-		FROM jobs.job_queue
+		FROM jobs.queue
 	`
 
 	var args []interface{}
@@ -808,7 +814,7 @@ func (s *Storage) GetJobStats(ctx context.Context, namespace *string) (*JobStats
 	// Jobs by status
 	statusQuery := `
 		SELECT status, COUNT(*) as count
-		FROM jobs.job_queue
+		FROM jobs.queue
 	`
 	if namespace != nil {
 		statusQuery += " WHERE namespace = $1"
@@ -833,7 +839,7 @@ func (s *Storage) GetJobStats(ctx context.Context, namespace *string) (*JobStats
 	// Jobs by day (last 7 days)
 	dayQuery := `
 		SELECT DATE(created_at) as date, COUNT(*) as count
-		FROM jobs.job_queue
+		FROM jobs.queue
 		WHERE created_at >= NOW() - INTERVAL '7 days'
 	`
 	if namespace != nil {
@@ -861,7 +867,7 @@ func (s *Storage) GetJobStats(ctx context.Context, namespace *string) (*JobStats
 	// Jobs by function (top 10)
 	funcQuery := `
 		SELECT job_name, COUNT(*) as count
-		FROM jobs.job_queue
+		FROM jobs.queue
 	`
 	if namespace != nil {
 		funcQuery += " WHERE namespace = $1"
@@ -1003,7 +1009,7 @@ func (s *Storage) CleanupStaleWorkers(ctx context.Context, timeout time.Duration
 
 // ListJobNamespaces returns all unique namespaces that have job functions
 func (s *Storage) ListJobNamespaces(ctx context.Context) ([]string, error) {
-	query := `SELECT DISTINCT namespace FROM jobs.job_functions ORDER BY namespace`
+	query := `SELECT DISTINCT namespace FROM jobs.functions ORDER BY namespace`
 	rows, err := s.conn.Pool().Query(ctx, query)
 	if err != nil {
 		return nil, err
