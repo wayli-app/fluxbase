@@ -495,6 +495,11 @@ func (h *Handler) ListJobs(c *fiber.Ctx) error {
 		filters.Namespace = &namespace
 	}
 
+	if c.Query("include_result") == "true" {
+		includeResult := true
+		filters.IncludeResult = &includeResult
+	}
+
 	limit := c.QueryInt("limit", 50)
 	offset := c.QueryInt("offset", 0)
 
@@ -1336,6 +1341,11 @@ func (h *Handler) ListAllJobs(c *fiber.Ctx) error {
 		if err == nil {
 			filters.WorkerID = &workerID
 		}
+	}
+
+	if c.Query("include_result") == "true" {
+		includeResult := true
+		filters.IncludeResult = &includeResult
 	}
 
 	limit := c.QueryInt("limit", 50)

@@ -370,6 +370,7 @@ export class FluxbaseAdminJobs {
     namespace?: string;
     limit?: number;
     offset?: number;
+    includeResult?: boolean;
   }): Promise<{ data: Job[] | null; error: Error | null }> {
     try {
       const params = new URLSearchParams();
@@ -377,6 +378,7 @@ export class FluxbaseAdminJobs {
       if (filters?.namespace) params.append("namespace", filters.namespace);
       if (filters?.limit) params.append("limit", filters.limit.toString());
       if (filters?.offset) params.append("offset", filters.offset.toString());
+      if (filters?.includeResult) params.append("include_result", "true");
 
       const queryString = params.toString();
       const data = await this.fetch.get<Job[]>(

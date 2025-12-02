@@ -16,7 +16,7 @@ func setupLocalStorage(t *testing.T) (*LocalStorage, string) {
 	// Create temporary directory
 	tmpDir := t.TempDir()
 
-	storage, err := NewLocalStorage(tmpDir)
+	storage, err := NewLocalStorage(tmpDir, "http://localhost:8080", "test-signing-secret")
 	require.NoError(t, err)
 
 	return storage, tmpDir
@@ -25,11 +25,13 @@ func setupLocalStorage(t *testing.T) (*LocalStorage, string) {
 func TestNewLocalStorage(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	storage, err := NewLocalStorage(tmpDir)
+	storage, err := NewLocalStorage(tmpDir, "http://localhost:8080", "test-signing-secret")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, storage)
 	assert.Equal(t, tmpDir, storage.basePath)
+	assert.Equal(t, "http://localhost:8080", storage.baseURL)
+	assert.Equal(t, "test-signing-secret", storage.signingSecret)
 
 	// Verify directory was created
 	_, err = os.Stat(tmpDir)
@@ -487,9 +489,52 @@ func TestLocalStorage_GenerateSignedURL(t *testing.T) {
 	storage, _ := setupLocalStorage(t)
 	ctx := context.Background()
 
-	// Signed URLs not supported for local storage
-	_, err := storage.GenerateSignedURL(ctx, "bucket", "key", nil)
+	// Generate a signed URL
+	url, err := storage.GenerateSignedURL(ctx, "test-bucket", "test-file.txt", nil)
 
+	assert.NoError(t, err)
+	assert.Contains(t, url, "http://localhost:8080/api/v1/storage/object?token=")
+
+	// Test with custom options
+	opts := &SignedURLOptions{
+		ExpiresIn: 3600 * 1000000000, // 1 hour in nanoseconds
+		Method:    "GET",
+	}
+	url2, err := storage.GenerateSignedURL(ctx, "test-bucket", "test-file.txt", opts)
+
+	assert.NoError(t, err)
+	assert.Contains(t, url2, "http://localhost:8080/api/v1/storage/object?token=")
+}
+
+func TestLocalStorage_ValidateSignedToken(t *testing.T) {
+	storage, _ := setupLocalStorage(t)
+	ctx := context.Background()
+
+	// Generate a signed URL
+	url, err := storage.GenerateSignedURL(ctx, "test-bucket", "path/to/file.txt", nil)
+	require.NoError(t, err)
+
+	// Extract token from URL
+	parts := strings.Split(url, "token=")
+	require.Len(t, parts, 2)
+	token := parts[1]
+
+	// Validate the token
+	bucket, key, method, err := storage.ValidateSignedToken(token)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-bucket", bucket)
+	assert.Equal(t, "path/to/file.txt", key)
+	assert.Equal(t, "GET", method)
+}
+
+func TestLocalStorage_ValidateSignedToken_Invalid(t *testing.T) {
+	storage, _ := setupLocalStorage(t)
+
+	// Test invalid token
+	_, _, _, err := storage.ValidateSignedToken("invalid-token")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not supported")
+
+	// Test tampered token
+	_, _, _, err = storage.ValidateSignedToken("dGFtcGVyZWQ=")
+	assert.Error(t, err)
 }

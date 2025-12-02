@@ -8,7 +8,7 @@
  * Source: sdk/src/*.ts
  *
  * SDK Version: 0.1.0
- * Generated: 2025-12-02T18:03:57.594Z
+ * Generated: 2025-12-02T20:35:34.098Z
  *
  * @generated
  */
@@ -1877,13 +1877,20 @@ var _FluxbaseSDK = (() => {
     /**
      * Upload a file to the bucket
      * @param path - The path/key for the file
-     * @param file - The file to upload (File, Blob, or ArrayBuffer)
+     * @param file - The file to upload (File, Blob, ArrayBuffer, or ArrayBufferView like Uint8Array)
      * @param options - Upload options
      */
     async upload(path, file, options) {
       try {
         const formData = new FormData();
-        const blob = file instanceof ArrayBuffer ? new Blob([file]) : file;
+        let blob;
+        if (file instanceof ArrayBuffer) {
+          blob = new Blob([file], { type: options?.contentType });
+        } else if (ArrayBuffer.isView(file)) {
+          blob = new Blob([file], { type: options?.contentType });
+        } else {
+          blob = file;
+        }
         formData.append("file", blob);
         if (options?.contentType) {
           formData.append("content_type", options.contentType);
@@ -2702,6 +2709,7 @@ var _FluxbaseSDK = (() => {
         if (filters?.namespace) params.append("namespace", filters.namespace);
         if (filters?.limit) params.append("limit", filters.limit.toString());
         if (filters?.offset) params.append("offset", filters.offset.toString());
+        if (filters?.includeResult) params.append("include_result", "true");
         const queryString = params.toString();
         const data = await this.fetch.get(
           `/api/v1/jobs${queryString ? `?${queryString}` : ""}`
@@ -5458,6 +5466,7 @@ var _FluxbaseSDK = (() => {
         if (filters?.namespace) params.append("namespace", filters.namespace);
         if (filters?.limit) params.append("limit", filters.limit.toString());
         if (filters?.offset) params.append("offset", filters.offset.toString());
+        if (filters?.includeResult) params.append("include_result", "true");
         const queryString = params.toString();
         const data = await this.fetch.get(
           `/api/v1/admin/jobs/queue${queryString ? `?${queryString}` : ""}`

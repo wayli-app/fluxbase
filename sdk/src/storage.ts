@@ -31,20 +31,28 @@ export class StorageBucket {
   /**
    * Upload a file to the bucket
    * @param path - The path/key for the file
-   * @param file - The file to upload (File, Blob, or ArrayBuffer)
+   * @param file - The file to upload (File, Blob, ArrayBuffer, or ArrayBufferView like Uint8Array)
    * @param options - Upload options
    */
   async upload(
     path: string,
-    file: File | Blob | ArrayBuffer,
+    file: File | Blob | ArrayBuffer | ArrayBufferView,
     options?: UploadOptions,
   ): Promise<{ data: { id: string; path: string; fullPath: string } | null; error: Error | null }> {
     try {
       // Prepare FormData (common to both code paths)
       const formData = new FormData();
 
-      // Convert to Blob if ArrayBuffer
-      const blob = file instanceof ArrayBuffer ? new Blob([file]) : file;
+      // Convert to Blob if ArrayBuffer or ArrayBufferView (Uint8Array, etc.)
+      let blob: Blob | File;
+      if (file instanceof ArrayBuffer) {
+        blob = new Blob([file], { type: options?.contentType });
+      } else if (ArrayBuffer.isView(file)) {
+        // Cast needed because TypeScript's ArrayBufferView includes SharedArrayBuffer views
+        blob = new Blob([file as BlobPart], { type: options?.contentType });
+      } else {
+        blob = file;
+      }
 
       formData.append("file", blob);
 

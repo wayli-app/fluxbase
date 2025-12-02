@@ -1096,15 +1096,8 @@ func (h *StorageHandler) ListBuckets(c *fiber.Ctx) error {
 }
 
 // GenerateSignedURL generates a presigned URL for temporary access
-// POST /api/v1/storage/:bucket/:key/signed-url
+// POST /api/v1/storage/:bucket/sign/*
 func (h *StorageHandler) GenerateSignedURL(c *fiber.Ctx) error {
-	// Check if provider supports signed URLs
-	if h.storage.IsLocal() {
-		return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
-			"error": "signed URLs not supported for local storage",
-		})
-	}
-
 	bucket := c.Params("bucket")
 	key := c.Params("*")
 
@@ -1148,7 +1141,7 @@ func (h *StorageHandler) GenerateSignedURL(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"url":        url,
+		"signed_url": url,
 		"expires_in": req.ExpiresIn,
 		"method":     req.Method,
 	})
@@ -1647,4 +1640,72 @@ func uploadMultipartFile(c *fiber.Ctx, svc *storage.Service, bucket, key string,
 
 	_, err = svc.Provider.Upload(c.Context(), bucket, key, src, file.Size, opts)
 	return err
+}
+
+// DownloadSignedObject handles file downloads via signed URL tokens
+// GET /api/v1/storage/object?token=...
+// This is a PUBLIC endpoint - authentication is provided by the signed token
+func (h *StorageHandler) DownloadSignedObject(c *fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "token is required",
+		})
+	}
+
+	// Only local storage supports signed URL validation
+	localStorage, ok := h.storage.Provider.(*storage.LocalStorage)
+	if !ok {
+		// For S3, the signed URL is handled directly by S3
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "this endpoint is only for local storage signed URLs",
+		})
+	}
+
+	// Validate the token
+	bucket, key, method, err := localStorage.ValidateSignedToken(token)
+	if err != nil {
+		log.Warn().Err(err).Msg("Invalid signed URL token")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "invalid or expired token",
+		})
+	}
+
+	// Verify the request method matches the token
+	if method != c.Method() {
+		return c.Status(fiber.StatusMethodNotAllowed).JSON(fiber.Map{
+			"error": fmt.Sprintf("token is only valid for %s requests", method),
+		})
+	}
+
+	// Download the file (no RLS check - token is the authorization)
+	opts := &storage.DownloadOptions{}
+	if rangeHeader := c.Get("Range"); rangeHeader != "" {
+		opts.Range = rangeHeader
+	}
+
+	reader, object, err := h.storage.Provider.Download(c.Context(), bucket, key, opts)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "file not found",
+			})
+		}
+		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to download file via signed URL")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to download file",
+		})
+	}
+
+	// Set response headers
+	c.Set("Content-Type", object.ContentType)
+	c.Set("Content-Length", strconv.FormatInt(object.Size, 10))
+	c.Set("Last-Modified", object.LastModified.UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+
+	// Set Content-Disposition for download
+	filename := filepath.Base(key)
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+
+	// Stream the file
+	return c.SendStream(reader)
 }

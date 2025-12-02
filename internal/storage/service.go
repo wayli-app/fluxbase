@@ -16,13 +16,15 @@ type Service struct {
 }
 
 // NewService creates a new storage service based on configuration
-func NewService(cfg *config.StorageConfig) (*Service, error) {
+// baseURL is used for generating signed URLs (e.g., "http://localhost:8080")
+// signingSecret is used for signing local storage URLs (typically the JWT secret)
+func NewService(cfg *config.StorageConfig, baseURL, signingSecret string) (*Service, error) {
 	var provider Provider
 	var err error
 
 	switch strings.ToLower(cfg.Provider) {
 	case "local":
-		provider, err = NewLocalStorage(cfg.LocalPath)
+		provider, err = NewLocalStorage(cfg.LocalPath, baseURL, signingSecret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize local storage: %w", err)
 		}

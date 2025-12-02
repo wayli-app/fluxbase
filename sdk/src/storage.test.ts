@@ -178,6 +178,60 @@ describe('StorageBucket - File Upload', () => {
     expect(fetch.lastUrl).toContain('/api/v1/storage/uploads/documents/2024/document.pdf')
     expect(error).toBeNull()
   })
+
+  it('should upload a Uint8Array', async () => {
+    const uint8Array = new Uint8Array([1, 2, 3, 4, 5])
+    fetch.mockResponse = { id: '789', key: 'binary.bin' }
+
+    const { data, error } = await bucket.upload('binary.bin', uint8Array, {
+      contentType: 'application/octet-stream'
+    })
+
+    expect(fetch.lastMethod).toBe('POST')
+    expect(fetch.lastUrl).toContain('/api/v1/storage/uploads/binary.bin')
+    expect(error).toBeNull()
+    expect(data).toBeDefined()
+    expect(data?.path).toBe('binary.bin')
+    // Verify the body is FormData
+    expect(fetch.lastBody).toBeInstanceOf(FormData)
+    const formData = fetch.lastBody as FormData
+    expect(formData.has('file')).toBe(true)
+  })
+
+  it('should upload an ArrayBuffer', async () => {
+    const buffer = new ArrayBuffer(8)
+    const view = new Uint8Array(buffer)
+    view.set([10, 20, 30, 40, 50, 60, 70, 80])
+    fetch.mockResponse = { id: '101', key: 'buffer.bin' }
+
+    const { data, error } = await bucket.upload('buffer.bin', buffer, {
+      contentType: 'application/octet-stream'
+    })
+
+    expect(fetch.lastMethod).toBe('POST')
+    expect(fetch.lastUrl).toContain('/api/v1/storage/uploads/buffer.bin')
+    expect(error).toBeNull()
+    expect(data).toBeDefined()
+    // Verify the body is FormData
+    expect(fetch.lastBody).toBeInstanceOf(FormData)
+    const formData = fetch.lastBody as FormData
+    expect(formData.has('file')).toBe(true)
+  })
+
+  it('should upload a Blob', async () => {
+    const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'application/zip' })
+    fetch.mockResponse = { id: '202', key: 'archive.zip' }
+
+    const { data, error } = await bucket.upload('archive.zip', blob)
+
+    expect(fetch.lastMethod).toBe('POST')
+    expect(error).toBeNull()
+    expect(data?.path).toBe('archive.zip')
+    // Verify the body is FormData
+    expect(fetch.lastBody).toBeInstanceOf(FormData)
+    const formData = fetch.lastBody as FormData
+    expect(formData.has('file')).toBe(true)
+  })
 })
 
 describe('StorageBucket - File List', () => {

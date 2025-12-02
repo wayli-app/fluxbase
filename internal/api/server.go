@@ -95,7 +95,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	apiKeyService := auth.NewAPIKeyService(db.Pool())
 
 	// Initialize storage service
-	storageService, err := storage.NewService(&cfg.Storage)
+	storageService, err := storage.NewService(&cfg.Storage, cfg.BaseURL, cfg.Auth.JWTSecret)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize storage service")
 	}
@@ -539,6 +539,9 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 
 // setupStorageRoutes sets up storage routes
 func (s *Server) setupStorageRoutes(router fiber.Router) {
+	// Signed URL download (PUBLIC - no auth required, token provides authorization)
+	router.Get("/object", s.storageHandler.DownloadSignedObject)
+
 	// Bucket management
 	router.Get("/buckets", s.storageHandler.ListBuckets)
 	router.Post("/buckets/:bucket", s.storageHandler.CreateBucket)
@@ -557,7 +560,7 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	router.Get("/:bucket/*/shares", s.storageHandler.ListShares)             // List shares
 
 	// Signed URLs (for S3-compatible storage, must come before /:bucket/*)
-	router.Post("/:bucket/*/signed-url", s.storageHandler.GenerateSignedURL)
+	router.Post("/:bucket/sign/*", s.storageHandler.GenerateSignedURL)
 
 	// File operations (generic wildcard routes - must come LAST)
 	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file

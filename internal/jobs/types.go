@@ -224,13 +224,14 @@ func (j *Job) CalculateETA() {
 
 // JobFilters represents filters for querying jobs
 type JobFilters struct {
-	Status    *JobStatus
-	JobName   *string
-	Namespace *string
-	CreatedBy *uuid.UUID
-	WorkerID  *uuid.UUID
-	Limit     *int
-	Offset    *int
+	Status        *JobStatus
+	JobName       *string
+	Namespace     *string
+	CreatedBy     *uuid.UUID
+	WorkerID      *uuid.UUID
+	Limit         *int
+	Offset        *int
+	IncludeResult *bool // Include result field in response (excluded by default for performance)
 }
 
 // JobStats represents aggregate statistics about jobs

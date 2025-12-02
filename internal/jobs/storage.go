@@ -596,11 +596,26 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 }
 
 // ListJobs lists jobs with optional filters
-// Note: This query excludes large fields (result, payload) for performance.
-// Use GetJob to fetch full job details. Logs are in separate execution_logs table.
+// Note: This query excludes large fields (result, payload) for performance by default.
+// Use GetJob to fetch full job details, or set IncludeResult filter to include result field.
 func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, error) {
-	// Exclude result, payload for list performance - these can be very large
-	query := `
+	// Conditionally include result field (payload always excluded for list performance)
+	includeResult := filters != nil && filters.IncludeResult != nil && *filters.IncludeResult
+
+	var query string
+	if includeResult {
+		query = `
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.result, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
+		WHERE 1=1
+	`
+	} else {
+		query = `
 		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.progress,
 		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
 		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
@@ -610,6 +625,7 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 		LEFT JOIN auth.users u ON q.created_by = u.id
 		WHERE 1=1
 	`
+	}
 
 	args := []interface{}{}
 	argCount := 1
@@ -664,16 +680,28 @@ func (s *Storage) ListJobs(ctx context.Context, filters *JobFilters) ([]*Job, er
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
-		// Note: payload, result are nil in list view for performance
-		err := rows.Scan(
-			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-			&job.Progress, &job.Priority,
-			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
-			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
-		)
-		if err != nil {
-			return nil, err
+		var scanErr error
+		if includeResult {
+			// Scan with result field included
+			scanErr = rows.Scan(
+				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+				&job.Result, &job.Progress, &job.Priority,
+				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+			)
+		} else {
+			// Scan without result field (payload, result are nil for performance)
+			scanErr = rows.Scan(
+				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+				&job.Progress, &job.Priority,
+				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+			)
+		}
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		jobs = append(jobs, &job)
 	}
@@ -692,11 +720,26 @@ func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, e
 }
 
 // ListJobsAdmin lists jobs with optional filters (admin access, bypasses RLS)
-// Note: This query excludes large fields (result, payload) for performance.
-// Use GetJobByIDAdmin to fetch full job details. Logs are in separate execution_logs table.
+// Note: This query excludes large fields (result, payload) for performance by default.
+// Use GetJobByIDAdmin to fetch full job details, or set IncludeResult filter to include result field.
 func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Job, error) {
-	// Exclude result, payload for list performance - these can be very large
-	query := `
+	// Conditionally include result field (payload always excluded for list performance)
+	includeResult := filters != nil && filters.IncludeResult != nil && *filters.IncludeResult
+
+	var query string
+	if includeResult {
+		query = `
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.result, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
+		WHERE 1=1
+	`
+	} else {
+		query = `
 		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.progress,
 		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
 		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
@@ -706,6 +749,7 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 		LEFT JOIN auth.users u ON q.created_by = u.id
 		WHERE 1=1
 	`
+	}
 
 	args := []interface{}{}
 	argCount := 1
@@ -760,16 +804,28 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 	var jobs []*Job
 	for rows.Next() {
 		var job Job
-		// Note: payload, result are nil in list view for performance
-		err := rows.Scan(
-			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-			&job.Progress, &job.Priority,
-			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
-			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
-		)
-		if err != nil {
-			return nil, err
+		var scanErr error
+		if includeResult {
+			// Scan with result field included
+			scanErr = rows.Scan(
+				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+				&job.Result, &job.Progress, &job.Priority,
+				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+			)
+		} else {
+			// Scan without result field (payload, result are nil for performance)
+			scanErr = rows.Scan(
+				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+				&job.Progress, &job.Priority,
+				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+			)
+		}
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		jobs = append(jobs, &job)
 	}
