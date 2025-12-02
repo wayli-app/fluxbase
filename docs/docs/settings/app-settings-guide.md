@@ -268,7 +268,7 @@ if enableSignup {
 }
 
 // Get integer setting
-passwordMinLength := settingsCache.GetInt(ctx, "app.auth.password_min_length", 8)
+passwordMinLength := settingsCache.GetInt(ctx, "app.auth.password_min_length", 12)
 
 // Get string setting
 appVersion := settingsCache.GetString(ctx, "public.app_version", "1.0.0")

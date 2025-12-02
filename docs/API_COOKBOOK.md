@@ -38,7 +38,7 @@ import { createClient } from "@fluxbase/client";
 
 const fluxbase = createClient(
   "https://your-project.fluxbase.io",
-  "your-anon-key", // For anonymous access
+  "your-anon-key" // For anonymous access
 );
 
 // For service role access, use the service role key instead
@@ -278,7 +278,7 @@ const { data, error } = await fluxbase
     },
     {
       onConflict: "user_id", // Unique constraint column
-    },
+    }
   )
   .select();
 ```
@@ -1058,7 +1058,7 @@ async function batchInsert(records: any[]) {
 async function transferCredits(
   fromUserId: string,
   toUserId: string,
-  amount: number,
+  amount: number
 ) {
   // Start transaction using RPC function
   const { data, error } = await fluxbase.rpc("transfer_credits", {
@@ -1134,7 +1134,7 @@ function useCreatePost() {
 
 ```typescript
 async function safeQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+  queryFn: () => Promise<{ data: T | null; error: any }>
 ): Promise<T> {
   const { data, error } = await queryFn();
 
@@ -1327,9 +1327,9 @@ const { data } = await fluxbase.from("posts").select("*");
 
 ```sql
 -- Add indexes for frequently queried columns
-CREATE INDEX idx_posts_user_id ON posts(user_id);
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
-CREATE INDEX idx_posts_published ON posts(published) WHERE published = true;
+CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published) WHERE published = true;
 ```
 
 ### 5. Batch Operations When Possible

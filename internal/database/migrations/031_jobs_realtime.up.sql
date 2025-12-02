@@ -18,8 +18,8 @@ CREATE TABLE jobs.execution_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_execution_logs_job_id ON jobs.execution_logs(job_id);
-CREATE INDEX idx_execution_logs_job_id_line ON jobs.execution_logs(job_id, line_number);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_job_id ON jobs.execution_logs(job_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_job_id_line ON jobs.execution_logs(job_id, line_number);
 
 -- Enable Realtime for execution_logs
 ALTER TABLE jobs.execution_logs REPLICA IDENTITY FULL;

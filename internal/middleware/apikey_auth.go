@@ -328,7 +328,8 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 // - apikey header containing a JWT with role claim (anon, service_role, authenticated)
 // - Authorization: Bearer <jwt> with role claim
 // - X-Service-Key header with hashed service key
-func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool) fiber.Handler {
+// - Dashboard admin JWT tokens (when jwtManager is provided)
+func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// First, try service key authentication (highest privilege)
 		serviceKey := c.Get("X-Service-Key")
@@ -372,6 +373,32 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 					// Set RLS context
 					c.Locals("rls_user_id", claims.UserID)
 					c.Locals("rls_role", claims.Role)
+
+					return c.Next()
+				}
+			}
+
+			// If auth.users validation failed and jwtManager is provided, try dashboard.users token
+			if len(jwtManager) > 0 && jwtManager[0] != nil {
+				dashboardClaims, err := jwtManager[0].ValidateAccessToken(token)
+				if err == nil {
+					// Successfully validated as dashboard.users token
+					c.Locals("user_id", dashboardClaims.Subject)
+					c.Locals("user_email", dashboardClaims.Email)
+					c.Locals("user_name", dashboardClaims.Name)
+					c.Locals("user_role", dashboardClaims.Role)
+					c.Locals("auth_type", "jwt")
+					c.Locals("is_anonymous", false)
+					c.Locals("jwt_claims", dashboardClaims)
+
+					// Set RLS context for dashboard admin (maps to service_role in RLS middleware)
+					c.Locals("rls_user_id", dashboardClaims.Subject)
+					c.Locals("rls_role", dashboardClaims.Role)
+
+					log.Debug().
+						Str("user_id", dashboardClaims.Subject).
+						Str("role", dashboardClaims.Role).
+						Msg("Authenticated as dashboard.users via Bearer header")
 
 					return c.Next()
 				}

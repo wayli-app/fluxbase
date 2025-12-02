@@ -72,13 +72,13 @@ User migrations allow you to add your own custom database schema and data migrat
 
 ### When to Use Each
 
-| Use System Migrations | Use User Migrations |
-|----------------------|---------------------|
-| Never (managed by Fluxbase) | Application tables |
-| | Custom indexes |
-| | Data transformations |
-| | Business logic triggers |
-| | Application-specific RLS policies |
+| Use System Migrations       | Use User Migrations               |
+| --------------------------- | --------------------------------- |
+| Never (managed by Fluxbase) | Application tables                |
+|                             | Custom indexes                    |
+|                             | Data transformations              |
+|                             | Business logic triggers           |
+|                             | Application-specific RLS policies |
 
 ### Migration State Machine
 
@@ -97,6 +97,7 @@ stateDiagram-v2
 ```
 
 **Migration States:**
+
 - **Pending**: Not yet executed
 - **Running**: Currently executing (rare to see)
 - **Applied**: Successfully completed
@@ -115,6 +116,7 @@ User migrations follow the standard golang-migrate format:
 ```
 
 Each migration has two files:
+
 - **`.up.sql`** - Applied when migrating forward
 - **`.down.sql`** - Applied when rolling back (optional but recommended)
 
@@ -130,6 +132,7 @@ Migrations are executed in numerical order based on the prefix. Best practices:
 ### Example Migration
 
 **001_create_products_table.up.sql:**
+
 ```sql
 -- Create products table in public schema
 CREATE TABLE IF NOT EXISTS public.products (
@@ -161,6 +164,7 @@ CREATE POLICY "Products are manageable by admins"
 ```
 
 **001_create_products_table.down.sql:**
+
 ```sql
 -- Drop the table (this will also drop policies)
 DROP TABLE IF EXISTS public.products CASCADE;
@@ -173,6 +177,7 @@ DROP TABLE IF EXISTS public.products CASCADE;
 To enable user migrations in Docker Compose:
 
 1. Create a directory for your migrations:
+
 ```bash
 mkdir -p deploy/migrations/user
 ```
@@ -180,6 +185,7 @@ mkdir -p deploy/migrations/user
 2. Add your migration files to this directory
 
 3. Update `docker-compose.yml`:
+
 ```yaml
 services:
   fluxbase:
@@ -192,6 +198,7 @@ services:
 ```
 
 4. Restart Fluxbase:
+
 ```bash
 docker-compose restart fluxbase
 ```
@@ -203,6 +210,7 @@ To enable user migrations in Kubernetes:
 1. Create a ConfigMap or PVC with your migration files
 
 **Option A: Using ConfigMap (for small migrations):**
+
 ```bash
 kubectl create configmap user-migrations \
   --from-file=migrations/user/ \
@@ -210,12 +218,13 @@ kubectl create configmap user-migrations \
 ```
 
 **Option B: Using PVC (recommended for production):**
+
 ```yaml
 # values.yaml
 migrationsPersistence:
   enabled: true
   size: 100Mi
-  storageClass: ""  # Use cluster default
+  storageClass: "" # Use cluster default
 
 config:
   database:
@@ -223,6 +232,7 @@ config:
 ```
 
 2. Install or upgrade the Helm chart:
+
 ```bash
 helm upgrade --install fluxbase ./deploy/helm/fluxbase \
   --namespace fluxbase \
@@ -231,6 +241,7 @@ helm upgrade --install fluxbase ./deploy/helm/fluxbase \
 ```
 
 3. Copy your migration files to the PVC:
+
 ```bash
 # Find a pod
 POD_NAME=$(kubectl get pod -n fluxbase -l app.kubernetes.io/name=fluxbase -o jsonpath="{.items[0].metadata.name}")
@@ -240,6 +251,7 @@ kubectl cp migrations/user/ fluxbase/$POD_NAME:/migrations/user/
 ```
 
 4. Restart the deployment:
+
 ```bash
 kubectl rollout restart deployment/fluxbase -n fluxbase
 ```
@@ -248,8 +260,8 @@ kubectl rollout restart deployment/fluxbase -n fluxbase
 
 You can configure user migrations via environment variables:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable                  | Description                       | Default         |
+| ------------------------- | --------------------------------- | --------------- |
 | `DB_USER_MIGRATIONS_PATH` | Path to user migrations directory | `""` (disabled) |
 
 When `DB_USER_MIGRATIONS_PATH` is empty or not set, user migrations are skipped.
@@ -297,6 +309,7 @@ make migrate-up
 ```
 
 **Prerequisites:** These commands require:
+
 - Local PostgreSQL running
 - Database connection configured in `.env` or `fluxbase.yaml`
 - `migrate` CLI installed (automatically available in DevContainer)
@@ -324,6 +337,7 @@ INFO Database migrations completed successfully
 ```
 
 If no new migrations are found:
+
 ```
 INFO No new migrations to apply source=system
 INFO No new migrations to apply source=user
@@ -351,7 +365,7 @@ Wrap DDL statements in transactions when possible:
 BEGIN;
 
 CREATE TABLE products (...);
-CREATE INDEX idx_products_name ON products(name);
+CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
 
 COMMIT;
 ```
@@ -399,7 +413,7 @@ Add comments explaining the purpose of complex migrations:
 
 ALTER TABLE products ADD COLUMN search_vector tsvector;
 
-CREATE INDEX idx_products_search
+CREATE INDEX IF NOT EXISTS idx_products_search
   ON products
   USING gin(search_vector);
 ```
@@ -418,8 +432,8 @@ CREATE TABLE public.orders (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_orders_user_id ON orders(user_id);
-CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ```

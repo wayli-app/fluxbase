@@ -7,26 +7,33 @@
 
 --
 
--- Auth schema triggers
+-- Auth schema triggers (DROP IF EXISTS for idempotency since auth schema is preserved in db-reset)
+DROP TRIGGER IF EXISTS update_auth_users_updated_at ON auth.users;
 CREATE TRIGGER update_auth_users_updated_at BEFORE UPDATE ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS update_auth_sessions_updated_at ON auth.sessions;
 CREATE TRIGGER update_auth_sessions_updated_at BEFORE UPDATE ON auth.sessions
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS update_auth_api_keys_updated_at ON auth.api_keys;
 CREATE TRIGGER update_auth_api_keys_updated_at BEFORE UPDATE ON auth.api_keys
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS update_oauth_links_updated_at ON auth.oauth_links;
 CREATE TRIGGER update_oauth_links_updated_at BEFORE UPDATE ON auth.oauth_links
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS update_oauth_tokens_updated_at ON auth.oauth_tokens;
 CREATE TRIGGER update_oauth_tokens_updated_at BEFORE UPDATE ON auth.oauth_tokens
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS update_auth_webhooks_updated_at ON auth.webhooks;
 CREATE TRIGGER update_auth_webhooks_updated_at BEFORE UPDATE ON auth.webhooks
     FOR EACH ROW EXECUTE FUNCTION auth.update_webhook_updated_at();
 
 -- App metadata protection trigger
+DROP TRIGGER IF EXISTS validate_app_metadata_trigger ON auth.users;
 CREATE TRIGGER validate_app_metadata_trigger BEFORE UPDATE ON auth.users
     FOR EACH ROW EXECUTE FUNCTION auth.validate_app_metadata_update();
 

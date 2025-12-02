@@ -796,7 +796,7 @@ sudo systemctl restart fluxbase
 journalctl -u fluxbase | jq 'select(.slow_query==true)'
 
 # Add indexes
-psql -c "CREATE INDEX idx_users_email ON users(email);"
+psql -c "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);"
 
 # Check query plans
 psql -c "EXPLAIN ANALYZE SELECT * FROM users WHERE email='...'"

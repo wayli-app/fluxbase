@@ -7,6 +7,7 @@
 ## 🎯 Features
 
 ### Core Features
+
 - ✅ Server-Side Rendering (SSR) for SEO
 - ✅ Static Site Generation (SSG) for performance
 - ✅ User authentication (signup, signin, OAuth)
@@ -19,6 +20,7 @@
 - ✅ Social sharing
 
 ### Advanced Features
+
 - ✅ Admin dashboard
 - ✅ Draft posts
 - ✅ Post scheduling
@@ -37,6 +39,7 @@ Next.js App Router (RSC) → Fluxbase SDK → Fluxbase Server → PostgreSQL
 ```
 
 **Data Flow**:
+
 1. Blog posts fetched server-side for SEO
 2. Comments loaded client-side for interactivity
 3. Images uploaded to Fluxbase Storage
@@ -179,15 +182,15 @@ CREATE POLICY "Users can delete own comments"
   USING (author_id::text = current_setting('app.user_id', true));
 
 -- Indexes
-CREATE INDEX idx_posts_author ON posts(author_id);
-CREATE INDEX idx_posts_published ON posts(published, published_at DESC);
-CREATE INDEX idx_posts_slug ON posts(slug);
-CREATE INDEX idx_posts_category ON posts(category_id);
-CREATE INDEX idx_posts_search ON posts USING gin(search_vector);
-CREATE INDEX idx_comments_post ON comments(post_id);
-CREATE INDEX idx_comments_author ON comments(author_id);
-CREATE INDEX idx_post_tags_post ON post_tags(post_id);
-CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug);
+CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id);
+CREATE INDEX IF NOT EXISTS idx_posts_search ON posts USING gin(search_vector);
+CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_id);
+CREATE INDEX IF NOT EXISTS idx_post_tags_post ON post_tags(post_id);
+CREATE INDEX IF NOT EXISTS idx_post_tags_tag ON post_tags(tag_id);
 
 -- Function to update search vector
 CREATE OR REPLACE FUNCTION update_post_search_vector()
@@ -338,32 +341,34 @@ blog-platform/
 
 ```typescript
 // app/(blog)/post/[slug]/page.tsx
-import { fluxbaseServer } from '@/lib/fluxbase-server'
-import PostContent from '@/components/blog/PostContent'
-import Comments from '@/components/blog/Comments'
-import type { Metadata } from 'next'
+import { fluxbaseServer } from "@/lib/fluxbase-server";
+import PostContent from "@/components/blog/PostContent";
+import Comments from "@/components/blog/Comments";
+import type { Metadata } from "next";
 
 // Generate static params for all posts
 export async function generateStaticParams() {
   const { data: posts } = await fluxbaseServer
-    .from('posts')
-    .select('slug')
-    .eq('published', true)
+    .from("posts")
+    .select("slug")
+    .eq("published", true);
 
-  return posts?.map((post) => ({
-    slug: post.slug,
-  })) || []
+  return (
+    posts?.map((post) => ({
+      slug: post.slug,
+    })) || []
+  );
 }
 
 // Generate metadata for SEO
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data: post } = await fluxbaseServer
-    .from('posts')
-    .select('*, profiles(*), categories(*)')
-    .eq('slug', params.slug)
-    .single()
+    .from("posts")
+    .select("*, profiles(*), categories(*)")
+    .eq("slug", params.slug)
+    .single();
 
-  if (!post) return { title: 'Post not found' }
+  if (!post) return { title: "Post not found" };
 
   return {
     title: post.title,
@@ -374,39 +379,41 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: post.excerpt,
       images: post.cover_image ? [post.cover_image] : [],
     },
-  }
+  };
 }
 
 export default async function PostPage({ params }: Props) {
   const { data: post } = await fluxbaseServer
-    .from('posts')
-    .select(`
+    .from("posts")
+    .select(
+      `
       *,
       profiles:author_id (*),
       categories (*),
       tags:post_tags(tags(*))
-    `)
-    .eq('slug', params.slug)
-    .eq('published', true)
-    .single()
+    `
+    )
+    .eq("slug", params.slug)
+    .eq("published", true)
+    .single();
 
   if (!post) {
-    return <div>Post not found</div>
+    return <div>Post not found</div>;
   }
 
   // Increment view count (async, don't await)
   fluxbaseServer
-    .from('posts')
+    .from("posts")
     .update({ views: post.views + 1 })
-    .eq('id', post.id)
-    .then()
+    .eq("id", post.id)
+    .then();
 
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       <PostContent post={post} />
       <Comments postId={post.id} />
     </article>
-  )
+  );
 }
 ```
 
@@ -414,23 +421,23 @@ export default async function PostPage({ params }: Props) {
 
 ```typescript
 // components/editor/RichTextEditor.tsx
-'use client'
+"use client";
 
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
-import Link from '@tiptap/extension-link'
-import { useState } from 'react'
-import ImageUpload from './ImageUpload'
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import { useState } from "react";
+import ImageUpload from "./ImageUpload";
 
 export default function RichTextEditor({
   content,
-  onChange
+  onChange,
 }: {
-  content: string
-  onChange: (content: string) => void
+  content: string;
+  onChange: (content: string) => void;
 }) {
-  const [showImageUpload, setShowImageUpload] = useState(false)
+  const [showImageUpload, setShowImageUpload] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -442,16 +449,16 @@ export default function RichTextEditor({
     ],
     content,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML())
+      onChange(editor.getHTML());
     },
-  })
+  });
 
-  if (!editor) return null
+  if (!editor) return null;
 
   const addImage = (url: string) => {
-    editor.chain().focus().setImage({ src: url }).run()
-    setShowImageUpload(false)
-  }
+    editor.chain().focus().setImage({ src: url }).run();
+    setShowImageUpload(false);
+  };
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -459,31 +466,33 @@ export default function RichTextEditor({
       <div className="flex gap-2 p-2 border-b bg-gray-50">
         <button
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={editor.isActive('bold') ? 'font-bold' : ''}
+          className={editor.isActive("bold") ? "font-bold" : ""}
         >
           Bold
         </button>
         <button
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={editor.isActive('italic') ? 'italic' : ''}
+          className={editor.isActive("italic") ? "italic" : ""}
         >
           Italic
         </button>
         <button
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={editor.isActive('heading', { level: 2 }) ? 'font-bold' : ''}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
+          className={
+            editor.isActive("heading", { level: 2 }) ? "font-bold" : ""
+          }
         >
           H2
         </button>
         <button
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={editor.isActive('bulletList') ? 'font-bold' : ''}
+          className={editor.isActive("bulletList") ? "font-bold" : ""}
         >
           List
         </button>
-        <button onClick={() => setShowImageUpload(true)}>
-          Image
-        </button>
+        <button onClick={() => setShowImageUpload(true)}>Image</button>
       </div>
 
       {/* Editor */}
@@ -500,7 +509,7 @@ export default function RichTextEditor({
         />
       )}
     </div>
-  )
+  );
 }
 ```
 
@@ -508,49 +517,49 @@ export default function RichTextEditor({
 
 ```typescript
 // components/editor/ImageUpload.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { fluxbase } from '@/lib/fluxbase'
+import { useState } from "react";
+import { fluxbase } from "@/lib/fluxbase";
 
 export default function ImageUpload({
   onUpload,
-  onClose
+  onClose,
 }: {
-  onUpload: (url: string) => void
-  onClose: () => void
+  onUpload: (url: string) => void;
+  onClose: () => void;
 }) {
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setUploading(true)
-    setError('')
+    setUploading(true);
+    setError("");
 
     try {
       // Upload to Fluxbase Storage
-      const fileName = `${Date.now()}-${file.name}`
+      const fileName = `${Date.now()}-${file.name}`;
       const { data, error } = await fluxbase.storage
-        .from('blog-images')
-        .upload(fileName, file)
+        .from("blog-images")
+        .upload(fileName, file);
 
-      if (error) throw error
+      if (error) throw error;
 
       // Get public URL
       const { publicURL } = fluxbase.storage
-        .from('blog-images')
-        .getPublicUrl(fileName)
+        .from("blog-images")
+        .getPublicUrl(fileName);
 
-      onUpload(publicURL)
+      onUpload(publicURL);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -581,7 +590,7 @@ export default function ImageUpload({
         </div>
       </div>
     </div>
-  )
+  );
 }
 ```
 
@@ -589,33 +598,33 @@ export default function ImageUpload({
 
 ```typescript
 // app/(blog)/search/page.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { fluxbase } from '@/lib/fluxbase'
-import PostCard from '@/components/blog/PostCard'
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fluxbase } from "@/lib/fluxbase";
+import PostCard from "@/components/blog/PostCard";
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState("");
 
   const { data: results, isLoading } = useQuery({
-    queryKey: ['search', query],
+    queryKey: ["search", query],
     queryFn: async () => {
-      if (!query) return []
+      if (!query) return [];
 
       const { data, error } = await fluxbase
-        .from('posts')
-        .select('*, profiles:author_id(*)')
-        .textSearch('search_vector', query)
-        .eq('published', true)
-        .order('published_at', { ascending: false })
+        .from("posts")
+        .select("*, profiles:author_id(*)")
+        .textSearch("search_vector", query)
+        .eq("published", true)
+        .order("published_at", { ascending: false });
 
-      if (error) throw error
-      return data || []
+      if (error) throw error;
+      return data || [];
     },
     enabled: query.length > 0,
-  })
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -643,7 +652,7 @@ export default function SearchPage() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 ```
 

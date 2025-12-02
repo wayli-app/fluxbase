@@ -32,8 +32,8 @@ COMMENT ON COLUMN jobs.functions.original_code IS 'Original source code before b
 COMMENT ON COLUMN jobs.functions.schedule IS 'Cron expression for scheduled execution';
 COMMENT ON COLUMN jobs.functions.source IS 'Source of function: filesystem or api';
 
-CREATE INDEX idx_functions_namespace ON jobs.functions(namespace);
-CREATE INDEX idx_functions_enabled ON jobs.functions(enabled) WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_functions_namespace ON jobs.functions(namespace);
+CREATE INDEX IF NOT EXISTS idx_functions_enabled ON jobs.functions(enabled) WHERE enabled = true;
 
 -- Queue table (job instances/runs)
 CREATE TABLE jobs.queue (
@@ -65,12 +65,12 @@ COMMENT ON COLUMN jobs.queue.status IS 'Job execution status';
 COMMENT ON COLUMN jobs.queue.priority IS 'Higher numbers = higher priority';
 COMMENT ON COLUMN jobs.queue.progress IS 'Current progress state (for running jobs)';
 
-CREATE INDEX idx_queue_status ON jobs.queue(status);
-CREATE INDEX idx_queue_status_priority ON jobs.queue(status, priority DESC, created_at ASC);
-CREATE INDEX idx_queue_namespace ON jobs.queue(namespace);
-CREATE INDEX idx_queue_created_by ON jobs.queue(created_by);
-CREATE INDEX idx_queue_created_at ON jobs.queue(created_at DESC);
-CREATE INDEX idx_queue_scheduled_at ON jobs.queue(scheduled_at) WHERE scheduled_at IS NOT NULL AND status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_queue_status ON jobs.queue(status);
+CREATE INDEX IF NOT EXISTS idx_queue_status_priority ON jobs.queue(status, priority DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_queue_namespace ON jobs.queue(namespace);
+CREATE INDEX IF NOT EXISTS idx_queue_created_by ON jobs.queue(created_by);
+CREATE INDEX IF NOT EXISTS idx_queue_created_at ON jobs.queue(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_queue_scheduled_at ON jobs.queue(scheduled_at) WHERE scheduled_at IS NOT NULL AND status = 'pending';
 
 -- Worker registry
 CREATE TABLE jobs.workers (
@@ -89,8 +89,8 @@ COMMENT ON TABLE jobs.workers IS 'Active worker registry';
 COMMENT ON COLUMN jobs.workers.status IS 'Worker status: active=accepting jobs, draining=finishing current jobs, stopped=shut down';
 COMMENT ON COLUMN jobs.workers.last_heartbeat_at IS 'Last heartbeat timestamp for health monitoring';
 
-CREATE INDEX idx_workers_status ON jobs.workers(status);
-CREATE INDEX idx_workers_heartbeat ON jobs.workers(last_heartbeat_at);
+CREATE INDEX IF NOT EXISTS idx_workers_status ON jobs.workers(status);
+CREATE INDEX IF NOT EXISTS idx_workers_heartbeat ON jobs.workers(last_heartbeat_at);
 
 -- Now add foreign key from queue to workers
 ALTER TABLE jobs.queue ADD CONSTRAINT fk_queue_worker
@@ -108,7 +108,7 @@ CREATE TABLE jobs.function_files (
 
 COMMENT ON TABLE jobs.function_files IS 'Supporting files for multi-file job functions';
 
-CREATE INDEX idx_function_files_function_id ON jobs.function_files(function_id);
+CREATE INDEX IF NOT EXISTS idx_function_files_function_id ON jobs.function_files(function_id);
 
 -- Trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION jobs.update_updated_at_column()

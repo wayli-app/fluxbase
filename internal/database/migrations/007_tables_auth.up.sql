@@ -191,8 +191,8 @@ CREATE TABLE IF NOT EXISTS auth.oauth_links (
     CONSTRAINT fk_oauth_links_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_oauth_links_user ON auth.oauth_links(user_id);
-CREATE INDEX idx_oauth_links_provider ON auth.oauth_links(provider, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_links_user ON auth.oauth_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_links_provider ON auth.oauth_links(provider, provider_user_id);
 
 -- OAuth tokens storage
 CREATE TABLE IF NOT EXISTS auth.oauth_tokens (
@@ -208,8 +208,8 @@ CREATE TABLE IF NOT EXISTS auth.oauth_tokens (
     CONSTRAINT fk_oauth_tokens_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_oauth_tokens_user ON auth.oauth_tokens(user_id);
-CREATE INDEX idx_oauth_tokens_provider ON auth.oauth_tokens(user_id, provider);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user ON auth.oauth_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_tokens_provider ON auth.oauth_tokens(user_id, provider);
 
 -- 2FA setup tracking table
 CREATE TABLE IF NOT EXISTS auth.two_factor_setups (

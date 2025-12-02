@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_mfa_factors_user_id_status ON auth.mfa_facto
 CREATE INDEX IF NOT EXISTS idx_auth_mfa_factors_factor_type ON auth.mfa_factors(factor_type);
 
 -- Trigger to update updated_at timestamp
+DROP TRIGGER IF EXISTS set_timestamp ON auth.mfa_factors;
 CREATE TRIGGER set_timestamp
     BEFORE UPDATE ON auth.mfa_factors
     FOR EACH ROW

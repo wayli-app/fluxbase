@@ -7,6 +7,7 @@ Row Level Security (RLS) is PostgreSQL's feature for controlling which rows user
 RLS enables fine-grained access control at the row level. Instead of granting permissions to entire tables, you define policies that determine which rows each user can see, insert, update, or delete.
 
 **Benefits:**
+
 - Automatic enforcement at database level
 - No application-level filtering code needed
 - Defense in depth security
@@ -14,18 +15,20 @@ RLS enables fine-grained access control at the row level. Instead of granting pe
 - Version-controlled policies via migrations
 
 **Without RLS:**
+
 ```typescript
 // Must remember to filter by user
 const tasks = await client
-  .from('tasks')
-  .select('*')
-  .eq('user_id', currentUser.id) // Easy to forget!
+  .from("tasks")
+  .select("*")
+  .eq("user_id", currentUser.id); // Easy to forget!
 ```
 
 **With RLS:**
+
 ```typescript
 // Database automatically enforces access
-const tasks = await client.from('tasks').select('*')
+const tasks = await client.from("tasks").select("*");
 // Only returns current user's tasks
 ```
 
@@ -210,40 +213,42 @@ SELECT * FROM posts;
 ### Test via SDK
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient('http://localhost:8080', 'user-api-key')
+const client = createClient("http://localhost:8080", "user-api-key");
 
 // Queries automatically use authenticated user's context
-const posts = await client.from('posts').select('*')
+const posts = await client.from("posts").select("*");
 
 // Should only return posts user has access to
-console.log(posts.data)
+console.log(posts.data);
 ```
 
 ### Test Service Role (Bypass RLS)
 
 ```typescript
-const adminClient = createClient('http://localhost:8080', {
-  serviceKey: process.env.SERVICE_KEY
-})
+const adminClient = createClient("http://localhost:8080", {
+  serviceKey: process.env.SERVICE_KEY,
+});
 
 // Service key bypasses RLS - returns ALL posts
-const allPosts = await adminClient.from('posts').select('*')
+const allPosts = await adminClient.from("posts").select("*");
 ```
 
 ## Performance Considerations
 
 **Index on Policy Columns:**
+
 ```sql
 -- If policies filter by user_id, index it
-CREATE INDEX idx_posts_user_id ON posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
 
 -- If policies check organization_id
-CREATE INDEX idx_posts_org_id ON posts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_posts_org_id ON posts(organization_id);
 ```
 
 **Avoid Complex Subqueries:**
+
 ```sql
 -- Slow: Subquery runs for each row
 CREATE POLICY "slow_policy"
@@ -272,6 +277,7 @@ AS $$ ... $$;
 ## Security Best Practices
 
 **Always Enable RLS:**
+
 ```sql
 -- Enable on all user-accessible tables
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
@@ -280,12 +286,14 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ```
 
 **Default Deny:**
+
 ```sql
 -- No policies = no access (except for service role)
 -- This is secure by default
 ```
 
 **Explicit Policies:**
+
 ```sql
 -- Be explicit about what each policy allows
 -- Don't use overly permissive policies like:
@@ -293,12 +301,14 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ```
 
 **Test Thoroughly:**
+
 - Test as different users
 - Test unauthorized access attempts
 - Test with anonymous users
 - Test with service role
 
 **Audit Policies:**
+
 ```sql
 -- List all policies for a table
 SELECT * FROM pg_policies WHERE tablename = 'posts';
@@ -343,15 +353,16 @@ SELECT * FROM posts;
 Use service keys to bypass RLS for administrative operations:
 
 ```typescript
-const adminClient = createClient('http://localhost:8080', {
-  serviceKey: process.env.FLUXBASE_SERVICE_KEY
-})
+const adminClient = createClient("http://localhost:8080", {
+  serviceKey: process.env.FLUXBASE_SERVICE_KEY,
+});
 
 // Bypasses all RLS policies
-const allUsers = await adminClient.from('users').select('*')
+const allUsers = await adminClient.from("users").select("*");
 ```
 
 **Security:**
+
 - Never expose service keys in client code
 - Use only in backend services
 - Store in secure secrets management
@@ -359,21 +370,25 @@ const allUsers = await adminClient.from('users').select('*')
 ## Common Issues
 
 **Policy Not Applied:**
+
 - Verify RLS is enabled: `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
 - Check policy exists: `SELECT * FROM pg_policies WHERE tablename = 'table_name'`
 - Ensure session variables are set
 
 **Empty Results:**
+
 - Policy may be too restrictive
 - Check `current_setting('app.user_id')` is set correctly
 - Test with simpler policy first
 
 **Performance Issues:**
+
 - Add indexes on columns used in policies
 - Avoid complex subqueries in policies
 - Use `EXPLAIN ANALYZE` to identify bottlenecks
 
 **Service Role Still Affected:**
+
 - Service keys should bypass RLS
 - Verify you're using `serviceKey` not `apiKey` in SDK
 

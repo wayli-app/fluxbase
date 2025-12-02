@@ -20,11 +20,13 @@ Fluxbase supports both vertical scaling (bigger machines) and horizontal scaling
 **When to use**: Quick fix for performance issues, simpler setup
 
 **Pros**:
+
 - Simple to implement
 - No code changes needed
 - Maintains data consistency easily
 
 **Cons**:
+
 - Limited by hardware
 - Single point of failure
 - Expensive at scale
@@ -47,11 +49,13 @@ resources:
 **When to use**: Long-term growth, high availability needs
 
 **Pros**:
+
 - Nearly unlimited scaling
 - High availability
 - Cost-effective at scale
 
 **Cons**:
+
 - More complex setup
 - Requires load balancer
 - Session management considerations
@@ -75,17 +79,20 @@ To scale Fluxbase horizontally across multiple instances, you need to ensure all
 #### Prerequisites Checklist
 
 ✅ **External PostgreSQL Database**
+
 - Cannot use embedded/local PostgreSQL
 - Must be accessible by all Fluxbase instances
 - Configure with `DATABASE_URL` environment variable
 - **Note**: PostgreSQL also stores authentication sessions (shared across all instances)
 
 ✅ **S3-Compatible Object Storage (MinIO/AWS S3/DigitalOcean Spaces)**
+
 - Cannot use local filesystem storage (`provider: local`)
 - Must configure S3 provider for shared storage
 - All instances must access the same S3 bucket
 
 ✅ **Load Balancer with Session Stickiness**
+
 - Required for WebSocket connections (realtime subscriptions)
 - Configure sticky sessions based on source IP or cookies
 - Ensures WebSocket connections remain on the same instance
@@ -93,11 +100,13 @@ To scale Fluxbase horizontally across multiple instances, you need to ensure all
 #### Current Limitations
 
 ⚠️ **Per-Instance State** (not shared across instances):
+
 - **Rate limiting**: Request counters are stored in-memory per instance
 - **CSRF tokens**: Anti-CSRF tokens are stored in-memory per instance
 - Session stickiness helps mitigate these limitations for individual users
 
 💡 **Future Enhancement**: Redis support planned to enable:
+
 - Shared rate limiting across all instances
 - Shared CSRF token validation
 - Faster session lookups (compared to PostgreSQL)
@@ -179,7 +188,7 @@ backend fluxbase_back
 #### Docker Compose Multi-Instance Example
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -301,7 +310,7 @@ metadata:
   namespace: fluxbase
 spec:
   type: ClusterIP
-  sessionAffinity: ClientIP  # Sticky sessions for WebSocket
+  sessionAffinity: ClientIP # Sticky sessions for WebSocket
   sessionAffinityConfig:
     clientIP:
       timeoutSeconds: 3600
@@ -341,6 +350,7 @@ graph TB
 ```
 
 **Key Points:**
+
 - Each Fluxbase instance shares state via external PostgreSQL and S3/MinIO
 - **PostgreSQL** stores: Database records + authentication sessions + token blacklist
 - **MinIO/S3** stores: User-uploaded files and objects
@@ -542,6 +552,7 @@ FLUXBASE_DATABASE_READ_REPLICAS=replica1.example.com:5432,replica2.example.com:5
 For massive scale (millions of users):
 
 1. **Horizontal Partitioning**: Split tables by user ID range
+
    ```sql
    -- Example: Partition users table
    CREATE TABLE users_0_1000000 PARTITION OF users
@@ -652,6 +663,7 @@ server {
 ```
 
 **CDN Providers**:
+
 - Cloudflare (Free tier available)
 - AWS CloudFront
 - Google Cloud CDN
@@ -769,9 +781,9 @@ upstream fluxbase_backend {
 ```typescript
 // Client-side: Batch requests
 const [users, posts, comments] = await Promise.all([
-  fluxbase.from('users').select('*').limit(10),
-  fluxbase.from('posts').select('*').limit(10),
-  fluxbase.from('comments').select('*').limit(10)
+  fluxbase.from("users").select("*").limit(10),
+  fluxbase.from("posts").select("*").limit(10),
+  fluxbase.from("comments").select("*").limit(10),
 ]);
 ```
 
@@ -792,15 +804,15 @@ FLUXBASE_DATABASE_MIN_CONNECTIONS=5
 
 ```sql
 -- Add indexes for frequently queried columns
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_posts_user_id ON posts(user_id);
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
 
 -- Composite indexes for multi-column queries
-CREATE INDEX idx_posts_user_created ON posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts(user_id, created_at DESC);
 
 -- Partial indexes for filtered queries
-CREATE INDEX idx_active_users ON users(email) WHERE active = true;
+CREATE INDEX IF NOT EXISTS idx_active_users ON users(email) WHERE active = true;
 
 -- Monitor slow queries
 SELECT query, calls, total_time, mean_time
@@ -941,14 +953,14 @@ rate(container_fs_writes_bytes_total[5m])
 
 ### Scaling Triggers
 
-| Metric | Threshold | Action |
-|--------|-----------|--------|
-| CPU usage | > 70% for 5 min | Scale up pods |
-| Memory usage | > 80% for 5 min | Scale up pods |
-| Request queue | > 100 requests | Scale up pods |
-| Response time (p95) | > 1s | Scale up or optimize |
-| Database connections | > 80% of max | Scale database or add replicas |
-| Error rate | > 1% | Investigate and fix |
+| Metric               | Threshold       | Action                         |
+| -------------------- | --------------- | ------------------------------ |
+| CPU usage            | > 70% for 5 min | Scale up pods                  |
+| Memory usage         | > 80% for 5 min | Scale up pods                  |
+| Request queue        | > 100 requests  | Scale up pods                  |
+| Response time (p95)  | > 1s            | Scale up or optimize           |
+| Database connections | > 80% of max    | Scale database or add replicas |
+| Error rate           | > 1%            | Investigate and fix            |
 
 ---
 
@@ -957,6 +969,7 @@ rate(container_fs_writes_bytes_total[5m])
 ### < 1,000 Users
 
 **Setup**:
+
 - 1-2 Fluxbase instances
 - Single PostgreSQL instance
 - No Redis (optional)
@@ -974,6 +987,7 @@ resources:
 ### 1,000 - 10,000 Users
 
 **Setup**:
+
 - 2-3 Fluxbase instances
 - PostgreSQL with 2-4 cores
 - Redis for caching
@@ -991,6 +1005,7 @@ resources:
 ### 10,000 - 100,000 Users
 
 **Setup**:
+
 - 3-5 Fluxbase instances with HPA
 - PostgreSQL with 4-8 cores
 - PostgreSQL read replica
@@ -1014,6 +1029,7 @@ autoscaling:
 ### 100,000 - 1,000,000 Users
 
 **Setup**:
+
 - 5-10 Fluxbase instances with aggressive HPA
 - PostgreSQL cluster (primary + 2+ replicas)
 - Redis Cluster (3+ nodes)
@@ -1037,6 +1053,7 @@ autoscaling:
 ### 1,000,000+ Users
 
 **Setup**:
+
 - 10-50+ Fluxbase instances across regions
 - PostgreSQL sharding or distributed database (CockroachDB, Yugabyte)
 - Redis Cluster with persistence
@@ -1083,14 +1100,14 @@ resources:
 ```yaml
 autoscaling:
   enabled: true
-  minReplicas: 3  # Minimum for HA during business hours
+  minReplicas: 3 # Minimum for HA during business hours
   maxReplicas: 10
   targetCPU: 70
 
   # Scale down during off-hours (custom schedule)
   behavior:
     scaleDown:
-      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+      stabilizationWindowSeconds: 300 # Wait 5 min before scaling down
 ```
 
 ### Use Spot Instances (Non-critical Workloads)
@@ -1121,6 +1138,7 @@ tolerations:
 ### High CPU Usage
 
 **Diagnosis**:
+
 ```bash
 # Check CPU usage per pod
 kubectl top pods -n fluxbase
@@ -1130,6 +1148,7 @@ FLUXBASE_DEBUG=true
 ```
 
 **Solutions**:
+
 1. Scale horizontally (add more pods)
 2. Optimize expensive operations
 3. Enable caching
@@ -1137,6 +1156,7 @@ FLUXBASE_DEBUG=true
 ### High Memory Usage
 
 **Diagnosis**:
+
 ```bash
 # Check memory usage
 kubectl top pods -n fluxbase
@@ -1146,6 +1166,7 @@ kubectl logs <pod> -n fluxbase | grep -i "memory"
 ```
 
 **Solutions**:
+
 1. Increase memory limits
 2. Check for memory leaks
 3. Optimize query results (pagination)
@@ -1153,6 +1174,7 @@ kubectl logs <pod> -n fluxbase | grep -i "memory"
 ### Slow Database Queries
 
 **Diagnosis**:
+
 ```sql
 SELECT * FROM pg_stat_statements
 ORDER BY mean_exec_time DESC
@@ -1160,6 +1182,7 @@ LIMIT 10;
 ```
 
 **Solutions**:
+
 1. Add indexes
 2. Optimize query
 3. Use caching
@@ -1168,12 +1191,14 @@ LIMIT 10;
 ### Connection Pool Exhaustion
 
 **Diagnosis**:
+
 ```bash
 # Check database connections
 kubectl logs <pod> -n fluxbase | grep "connection pool"
 ```
 
 **Solutions**:
+
 1. Increase `max_connections` in PostgreSQL
 2. Increase `FLUXBASE_DATABASE_MAX_CONNECTIONS`
 3. Scale horizontally instead of increasing connections

@@ -83,9 +83,9 @@ CREATE POLICY "Users can delete own todos"
   USING (user_id::text = current_setting('app.user_id', true));
 
 -- Index for performance
-CREATE INDEX idx_todos_user_id ON todos(user_id);
-CREATE INDEX idx_todos_completed ON todos(completed);
-CREATE INDEX idx_todos_created_at ON todos(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
+CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at DESC);
 
 -- Trigger for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()

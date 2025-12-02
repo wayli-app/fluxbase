@@ -38,6 +38,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Network Security
 
 - [ ] **HTTPS/TLS**: Enabled for all connections
+
   - [ ] Valid SSL certificate (not self-signed)
   - [ ] TLS 1.2+ only
   - [ ] HTTP → HTTPS redirect enabled
@@ -55,6 +56,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```
 
 - [ ] **Firewall Rules**: Only expose 80/443
+
   - [ ] Database port (5432) not publicly accessible
   - [ ] Redis port (6379) not publicly accessible
   - [ ] Metrics port (9090) internal only
@@ -69,6 +71,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 
 - [ ] **Environment Variables**: Not hardcoded in code
 - [ ] **Secrets**: Stored in secure vault
+
   - [ ] AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault
   - [ ] Not committed to version control
   - [ ] `.env` files in `.gitignore`
@@ -184,10 +187,12 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```
 
 - [ ] **Database Replication**: Primary + replicas
+
   - [ ] Synchronous or asynchronous replication
   - [ ] Automatic failover configured
 
 - [ ] **Load Balancer**: Configured
+
   - [ ] Health checks enabled
   - [ ] Session affinity if needed
 
@@ -270,6 +275,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Alerting
 
 - [ ] **Alert Rules**: Configured
+
   - [ ] High error rate (&gt;1%)
   - [ ] Slow response time (p95 &gt; 1s)
   - [ ] High CPU/memory usage (&gt;80%)
@@ -277,6 +283,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   - [ ] Disk space low (&lt;20%)
 
 - [ ] **Alert Channels**: Configured
+
   - [ ] Email
   - [ ] Slack/Discord
   - [ ] PagerDuty/OpsGenie
@@ -306,6 +313,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   ```
 
 - [ ] **Backup Retention**: Defined policy
+
   - [ ] Daily: 7 days
   - [ ] Weekly: 4 weeks
   - [ ] Monthly: 12 months
@@ -359,7 +367,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 - [ ] **Database Indexes**: Created for all queries
 
   ```sql
-  CREATE INDEX idx_users_email ON users(email);
+  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   ```
 
 - [ ] **Query Optimization**: Slow queries identified and fixed
@@ -378,11 +386,13 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Data Protection
 
 - [ ] **GDPR Compliance**: If applicable
+
   - [ ] Data retention policies
   - [ ] Right to deletion implemented
   - [ ] Data export functionality
 
 - [ ] **Data Encryption**:
+
   - [ ] At rest (database, backups)
   - [ ] In transit (TLS)
 
@@ -399,6 +409,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 - [ ] **Architecture Diagram**: Up to date
 - [ ] **Deployment Guide**: Complete
 - [ ] **Runbooks**: For common operations
+
   - [ ] Deployment
   - [ ] Rollback
   - [ ] Scaling

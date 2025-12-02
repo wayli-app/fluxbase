@@ -46,8 +46,8 @@ CREATE TABLE todos (
 );
 
 -- Create index for faster queries
-CREATE INDEX idx_todos_user_id ON todos(user_id);
-CREATE INDEX idx_todos_completed ON todos(completed);
+CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
+CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
 
 -- Enable realtime for this table
 SELECT enable_realtime('todos');
@@ -93,7 +93,7 @@ import { createClient } from "@fluxbase/sdk";
 // Initialize client (identical to Supabase)
 const client = createClient(
   "http://localhost:8080",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // Your anon key from step 3
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." // Your anon key from step 3
 );
 
 // Sign up a new user

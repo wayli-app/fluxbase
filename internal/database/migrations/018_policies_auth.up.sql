@@ -13,6 +13,7 @@
 ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
 
 -- Service role has full access (for auth operations: signup, signin, password reset, admin tasks)
+DROP POLICY IF EXISTS auth_users_service_role_all ON auth.users;
 CREATE POLICY auth_users_service_role_all ON auth.users
     FOR ALL
     TO service_role
@@ -22,6 +23,7 @@ CREATE POLICY auth_users_service_role_all ON auth.users
 COMMENT ON POLICY auth_users_service_role_all ON auth.users IS 'Service role has full access for auth operations (signup, signin, admin). Equivalent to Supabase supabase_auth_admin.';
 
 -- Authenticated users can see their own record, admins can see all
+DROP POLICY IF EXISTS auth_users_select_own ON auth.users;
 CREATE POLICY auth_users_select_own ON auth.users
     FOR SELECT
     TO authenticated
@@ -34,6 +36,7 @@ CREATE POLICY auth_users_select_own ON auth.users
 COMMENT ON POLICY auth_users_select_own ON auth.users IS 'Users can only see their own record. Admins and dashboard admins can see all users.';
 
 -- Authenticated users can update their own record, admins can update any
+DROP POLICY IF EXISTS auth_users_update_own ON auth.users;
 CREATE POLICY auth_users_update_own ON auth.users
     FOR UPDATE
     TO authenticated
@@ -51,6 +54,7 @@ CREATE POLICY auth_users_update_own ON auth.users
 COMMENT ON POLICY auth_users_update_own ON auth.users IS 'Users can update their own record. Admins and dashboard admins can update any user.';
 
 -- Only admins can delete users
+DROP POLICY IF EXISTS auth_users_delete_admin ON auth.users;
 CREATE POLICY auth_users_delete_admin ON auth.users
     FOR DELETE
     TO authenticated
@@ -67,6 +71,7 @@ COMMENT ON POLICY auth_users_delete_admin ON auth.users IS 'Only admins and dash
 ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY;
 
 -- Service role has full access (for auth operations: session creation, cleanup, admin tasks)
+DROP POLICY IF EXISTS auth_sessions_service_role_all ON auth.sessions;
 CREATE POLICY auth_sessions_service_role_all ON auth.sessions
     FOR ALL
     TO service_role
@@ -76,6 +81,7 @@ CREATE POLICY auth_sessions_service_role_all ON auth.sessions
 COMMENT ON POLICY auth_sessions_service_role_all ON auth.sessions IS 'Service role has full access for session management (creation during signin/signup, cleanup, admin tasks).';
 
 -- Authenticated users can view their own sessions, admins can view all
+DROP POLICY IF EXISTS auth_sessions_select_own ON auth.sessions;
 CREATE POLICY auth_sessions_select_own ON auth.sessions
     FOR SELECT
     TO authenticated
@@ -87,6 +93,7 @@ CREATE POLICY auth_sessions_select_own ON auth.sessions
 COMMENT ON POLICY auth_sessions_select_own ON auth.sessions IS 'Users can view their own sessions. Dashboard admins can view all sessions.';
 
 -- Authenticated users can update their own sessions (e.g., last_accessed_at)
+DROP POLICY IF EXISTS auth_sessions_update_own ON auth.sessions;
 CREATE POLICY auth_sessions_update_own ON auth.sessions
     FOR UPDATE
     TO authenticated
@@ -96,6 +103,7 @@ CREATE POLICY auth_sessions_update_own ON auth.sessions
 COMMENT ON POLICY auth_sessions_update_own ON auth.sessions IS 'Users can update their own sessions (e.g., refresh token rotation).';
 
 -- Authenticated users can delete their own sessions (logout), admins can delete any
+DROP POLICY IF EXISTS auth_sessions_delete_own ON auth.sessions;
 CREATE POLICY auth_sessions_delete_own ON auth.sessions
     FOR DELETE
     TO authenticated
@@ -110,6 +118,7 @@ COMMENT ON POLICY auth_sessions_delete_own ON auth.sessions IS 'Users can delete
 ALTER TABLE auth.api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.api_keys FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS auth_api_keys_policy ON auth.api_keys;
 CREATE POLICY auth_api_keys_policy ON auth.api_keys
     FOR ALL
     USING (

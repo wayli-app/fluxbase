@@ -18,6 +18,7 @@ import {
 } from '@fluxbase/sdk-react'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
@@ -76,16 +77,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       const tableNameOnly = tableName.includes('.')
         ? tableName.split('.')[1]
         : tableName
-      const response = await fetch(
-        `/api/v1/admin/tables/${schema}/${tableNameOnly}`,
-        {
-          credentials: 'include',
-        }
+      const response = await apiClient.get(
+        `/api/v1/admin/tables/${schema}/${tableNameOnly}`
       )
-      if (!response.ok) {
-        throw new Error('Failed to fetch table schema')
-      }
-      return response.json()
+      return response.data
     },
     staleTime: 60000, // Cache for 1 minute
   })

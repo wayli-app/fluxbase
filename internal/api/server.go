@@ -344,8 +344,9 @@ func (s *Server) setupRoutes() {
 	// REST API routes (auto-generated from database schema)
 	// Optional authentication (JWT, API key, or service key) - allows anonymous access with RLS
 	// Followed by RLS middleware to set PostgreSQL session variables (role 'anon' if unauthenticated)
+	// Pass jwtManager to support dashboard admin tokens (maps to service_role for full access)
 	rest := v1.Group("/tables",
-		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RLSMiddleware(rlsConfig),
 	)
 	s.setupRESTRoutes(rest)
