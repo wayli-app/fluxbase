@@ -9,7 +9,7 @@ ALTER TABLE jobs.function_files REPLICA IDENTITY FULL;
 -- ============================================
 -- Execution logs table (separate from queue for efficient Realtime streaming)
 -- ============================================
-CREATE TABLE jobs.execution_logs (
+CREATE TABLE IF NOT EXISTS jobs.execution_logs (
     id BIGSERIAL PRIMARY KEY,
     job_id UUID NOT NULL REFERENCES jobs.queue(id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL,
@@ -30,6 +30,7 @@ COMMENT ON TABLE jobs.execution_logs IS 'Individual log lines for job execution 
 ALTER TABLE jobs.execution_logs ENABLE ROW LEVEL SECURITY;
 
 -- Execution Logs: Users can read logs for their own jobs
+DROP POLICY IF EXISTS "Users can read their own job logs" ON jobs.execution_logs;
 CREATE POLICY "Users can read their own job logs"
     ON jobs.execution_logs FOR SELECT
     TO authenticated
@@ -41,6 +42,7 @@ CREATE POLICY "Users can read their own job logs"
         )
     );
 
+DROP POLICY IF EXISTS "Service role can manage execution logs" ON jobs.execution_logs;
 CREATE POLICY "Service role can manage execution logs"
     ON jobs.execution_logs FOR ALL
     TO service_role
@@ -87,6 +89,7 @@ $$ LANGUAGE plpgsql;
 -- functions contains large code fields (20MB+) that would exceed
 -- pg_notify's 8KB limit, so we skip the trigger for that table.
 -- ============================================
+DROP TRIGGER IF EXISTS queue_realtime_notify ON jobs.queue;
 CREATE TRIGGER queue_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.queue
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
@@ -96,15 +99,18 @@ FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 -- AFTER INSERT OR UPDATE OR DELETE ON jobs.functions
 -- FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
+DROP TRIGGER IF EXISTS workers_realtime_notify ON jobs.workers;
 CREATE TRIGGER workers_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.workers
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
+DROP TRIGGER IF EXISTS function_files_realtime_notify ON jobs.function_files;
 CREATE TRIGGER function_files_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.function_files
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 
 -- execution_logs only needs INSERT notifications (logs are append-only)
+DROP TRIGGER IF EXISTS execution_logs_realtime_notify ON jobs.execution_logs;
 CREATE TRIGGER execution_logs_realtime_notify
 AFTER INSERT ON jobs.execution_logs
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
@@ -128,26 +134,31 @@ SET realtime_enabled = true,
 -- ============================================
 -- RLS Policy: dashboard_admin can read all jobs
 -- ============================================
+DROP POLICY IF EXISTS "Dashboard admins can read all jobs" ON jobs.queue;
 CREATE POLICY "Dashboard admins can read all jobs"
     ON jobs.queue FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS "Dashboard admins can read all functions" ON jobs.functions;
 CREATE POLICY "Dashboard admins can read all functions"
     ON jobs.functions FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS "Dashboard admins can read all workers" ON jobs.workers;
 CREATE POLICY "Dashboard admins can read all workers"
     ON jobs.workers FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS "Dashboard admins can read all function files" ON jobs.function_files;
 CREATE POLICY "Dashboard admins can read all function files"
     ON jobs.function_files FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS "Dashboard admins can read all execution logs" ON jobs.execution_logs;
 CREATE POLICY "Dashboard admins can read all execution logs"
     ON jobs.execution_logs FOR SELECT
     TO authenticated

@@ -1,5 +1,5 @@
 -- Functions table (job definitions/templates)
-CREATE TABLE jobs.functions (
+CREATE TABLE IF NOT EXISTS jobs.functions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     namespace TEXT NOT NULL DEFAULT 'default',
@@ -21,6 +21,7 @@ CREATE TABLE jobs.functions (
     version INTEGER DEFAULT 1,
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     source TEXT NOT NULL DEFAULT 'filesystem',
+    require_role TEXT,                -- Required role to submit this job (admin, authenticated, anon, or null for any)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(name, namespace)
@@ -31,12 +32,13 @@ COMMENT ON COLUMN jobs.functions.code IS 'Bundled JavaScript/TypeScript code';
 COMMENT ON COLUMN jobs.functions.original_code IS 'Original source code before bundling';
 COMMENT ON COLUMN jobs.functions.schedule IS 'Cron expression for scheduled execution';
 COMMENT ON COLUMN jobs.functions.source IS 'Source of function: filesystem or api';
+COMMENT ON COLUMN jobs.functions.require_role IS 'Required role to submit this job (admin, authenticated, anon, or null for any)';
 
 CREATE INDEX IF NOT EXISTS idx_functions_namespace ON jobs.functions(namespace);
 CREATE INDEX IF NOT EXISTS idx_functions_enabled ON jobs.functions(enabled) WHERE enabled = true;
 
 -- Queue table (job instances/runs)
-CREATE TABLE jobs.queue (
+CREATE TABLE IF NOT EXISTS jobs.queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace TEXT NOT NULL,
     function_id UUID REFERENCES jobs.functions(id) ON DELETE SET NULL,
@@ -53,6 +55,9 @@ CREATE TABLE jobs.queue (
     error_message TEXT,
     worker_id UUID,                    -- Will reference jobs.workers after it's created
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_role TEXT,                    -- Role of the user who submitted the job
+    user_email TEXT,                   -- Email of the user who submitted the job
+    user_name TEXT,                    -- Display name of the user who submitted the job
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     scheduled_at TIMESTAMPTZ,          -- For delayed jobs
     started_at TIMESTAMPTZ,
@@ -64,6 +69,9 @@ COMMENT ON TABLE jobs.queue IS 'Job execution queue and history';
 COMMENT ON COLUMN jobs.queue.status IS 'Job execution status';
 COMMENT ON COLUMN jobs.queue.priority IS 'Higher numbers = higher priority';
 COMMENT ON COLUMN jobs.queue.progress IS 'Current progress state (for running jobs)';
+COMMENT ON COLUMN jobs.queue.user_role IS 'Role of the user who submitted the job';
+COMMENT ON COLUMN jobs.queue.user_email IS 'Email of the user who submitted the job';
+COMMENT ON COLUMN jobs.queue.user_name IS 'Display name of the user who submitted the job';
 
 CREATE INDEX IF NOT EXISTS idx_queue_status ON jobs.queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_status_priority ON jobs.queue(status, priority DESC, created_at ASC);
@@ -73,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_queue_created_at ON jobs.queue(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_queue_scheduled_at ON jobs.queue(scheduled_at) WHERE scheduled_at IS NOT NULL AND status = 'pending';
 
 -- Worker registry
-CREATE TABLE jobs.workers (
+CREATE TABLE IF NOT EXISTS jobs.workers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT,
     hostname TEXT,
@@ -93,11 +101,18 @@ CREATE INDEX IF NOT EXISTS idx_workers_status ON jobs.workers(status);
 CREATE INDEX IF NOT EXISTS idx_workers_heartbeat ON jobs.workers(last_heartbeat_at);
 
 -- Now add foreign key from queue to workers
-ALTER TABLE jobs.queue ADD CONSTRAINT fk_queue_worker
-    FOREIGN KEY (worker_id) REFERENCES jobs.workers(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_queue_worker'
+    ) THEN
+        ALTER TABLE jobs.queue ADD CONSTRAINT fk_queue_worker
+            FOREIGN KEY (worker_id) REFERENCES jobs.workers(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- Supporting files for multi-file jobs
-CREATE TABLE jobs.function_files (
+CREATE TABLE IF NOT EXISTS jobs.function_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     function_id UUID NOT NULL REFERENCES jobs.functions(id) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
@@ -119,6 +134,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_functions_updated_at ON jobs.functions;
 CREATE TRIGGER update_functions_updated_at
     BEFORE UPDATE ON jobs.functions
     FOR EACH ROW
