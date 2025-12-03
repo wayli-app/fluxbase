@@ -196,13 +196,26 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Create and push tag
         run: |
+          TAG_NAME="${{ needs.get-version.outputs.tag_name }}"
+
+          # Fetch all tags from remote to ensure we have the latest state
+          git fetch --tags
+
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG_NAME already exists. Please pull the latest changes and try again."
+            exit 1
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ needs.get-version.outputs.tag_name }}" -m "Release ${{ needs.get-version.outputs.tag_name }}"
-          git push origin "${{ needs.get-version.outputs.tag_name }}"
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
 
       - name: Create GitHub Release
         env:
