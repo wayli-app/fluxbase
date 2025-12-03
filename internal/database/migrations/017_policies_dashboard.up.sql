@@ -10,6 +10,7 @@
 ALTER TABLE dashboard.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.users FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_users_insert_policy ON dashboard.users;
 CREATE POLICY dashboard_users_insert_policy ON dashboard.users
     FOR INSERT
     WITH CHECK (
@@ -23,6 +24,7 @@ CREATE POLICY dashboard_users_insert_policy ON dashboard.users
         )
     );
 
+DROP POLICY IF EXISTS dashboard_users_select_policy ON dashboard.users;
 CREATE POLICY dashboard_users_select_policy ON dashboard.users
     FOR SELECT
     USING (
@@ -30,6 +32,7 @@ CREATE POLICY dashboard_users_select_policy ON dashboard.users
         OR auth.current_user_id()::TEXT = id::TEXT
     );
 
+DROP POLICY IF EXISTS dashboard_users_update_policy ON dashboard.users;
 CREATE POLICY dashboard_users_update_policy ON dashboard.users
     FOR UPDATE
     USING (
@@ -37,6 +40,7 @@ CREATE POLICY dashboard_users_update_policy ON dashboard.users
         OR auth.current_user_id()::TEXT = id::TEXT
     );
 
+DROP POLICY IF EXISTS dashboard_users_delete_policy ON dashboard.users;
 CREATE POLICY dashboard_users_delete_policy ON dashboard.users
     FOR DELETE
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -45,6 +49,7 @@ CREATE POLICY dashboard_users_delete_policy ON dashboard.users
 ALTER TABLE dashboard.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.sessions FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_sessions_all_policy ON dashboard.sessions;
 CREATE POLICY dashboard_sessions_all_policy ON dashboard.sessions
     FOR ALL
     USING (
@@ -62,10 +67,12 @@ CREATE POLICY dashboard_sessions_all_policy ON dashboard.sessions
 ALTER TABLE dashboard.invitation_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.invitation_tokens FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_invitation_tokens_select_policy ON dashboard.invitation_tokens;
 CREATE POLICY dashboard_invitation_tokens_select_policy ON dashboard.invitation_tokens
     FOR SELECT
     USING (auth.current_user_role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS dashboard_invitation_tokens_modify_policy ON dashboard.invitation_tokens;
 CREATE POLICY dashboard_invitation_tokens_modify_policy ON dashboard.invitation_tokens
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -74,10 +81,12 @@ CREATE POLICY dashboard_invitation_tokens_modify_policy ON dashboard.invitation_
 ALTER TABLE dashboard.email_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.email_templates FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_email_templates_select_policy ON dashboard.email_templates;
 CREATE POLICY dashboard_email_templates_select_policy ON dashboard.email_templates
     FOR SELECT
     USING (auth.current_user_role() = 'dashboard_admin' OR auth.current_user_role() = 'service_role');
 
+DROP POLICY IF EXISTS dashboard_email_templates_modify_policy ON dashboard.email_templates;
 CREATE POLICY dashboard_email_templates_modify_policy ON dashboard.email_templates
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -89,6 +98,7 @@ COMMENT ON POLICY dashboard_email_templates_modify_policy ON dashboard.email_tem
 ALTER TABLE dashboard.password_reset_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.password_reset_tokens FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_password_reset_service_only ON dashboard.password_reset_tokens;
 CREATE POLICY dashboard_password_reset_service_only ON dashboard.password_reset_tokens
     FOR ALL
     USING (
@@ -102,6 +112,7 @@ COMMENT ON POLICY dashboard_password_reset_service_only ON dashboard.password_re
 ALTER TABLE dashboard.email_verification_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.email_verification_tokens FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS dashboard_email_verification_service_only ON dashboard.email_verification_tokens;
 CREATE POLICY dashboard_email_verification_service_only ON dashboard.email_verification_tokens
     FOR ALL
     USING (
@@ -115,12 +126,14 @@ COMMENT ON POLICY dashboard_email_verification_service_only ON dashboard.email_v
 ALTER TABLE dashboard.activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.activity_log FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS activity_log_service_write ON dashboard.activity_log;
 CREATE POLICY activity_log_service_write ON dashboard.activity_log
     FOR INSERT
     WITH CHECK (auth.current_user_role() = 'service_role');
 
 COMMENT ON POLICY activity_log_service_write ON dashboard.activity_log IS 'Service role can create activity log entries.';
 
+DROP POLICY IF EXISTS activity_log_admin_read ON dashboard.activity_log;
 CREATE POLICY activity_log_admin_read ON dashboard.activity_log
     FOR SELECT
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -131,6 +144,7 @@ COMMENT ON POLICY activity_log_admin_read ON dashboard.activity_log IS 'Dashboar
 ALTER TABLE dashboard.oauth_providers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard.oauth_providers FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS oauth_providers_dashboard_admin_only ON dashboard.oauth_providers;
 CREATE POLICY oauth_providers_dashboard_admin_only ON dashboard.oauth_providers
     FOR ALL
     USING (

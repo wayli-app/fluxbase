@@ -92,7 +92,7 @@
       ]
     }
   },
-  "forwardPorts": [8080, 5050, 3000, 6379, 8025, 1025, 9000, 9001],
+  "forwardPorts": [8080, 5050, 4321, 6379, 8025, 1025, 9000, 9001],
   "portsAttributes": {
     "4000": {
       "label": "External Service",
@@ -108,8 +108,8 @@
       "onAutoForward": "notify",
       "requireLocalPort": false
     },
-    "3000": {
-      "label": "Documentation",
+    "4321": {
+      "label": "Documentation (Starlight)",
       "onAutoForward": "notify"
     },
     "6379": {

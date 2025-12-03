@@ -480,6 +480,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Verify build output
+        run: |
+          # Astro outputs to dist/
+          test -f ./docs/dist/index.html || exit 1
+          echo "Build output verified: ./docs/dist/index.html exists"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

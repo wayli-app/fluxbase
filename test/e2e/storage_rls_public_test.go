@@ -36,7 +36,7 @@ func TestStorageRLS_PublicBucketAccess(t *testing.T) {
 		AssertStatus(fiber.StatusCreated)
 
 	// Upload file as authenticated user
-	fileName := "logo.png"
+	fileName := "logo.svg"
 	fileContent := []byte("PNG data")
 
 	body := &bytes.Buffer{}

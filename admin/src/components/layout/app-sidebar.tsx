@@ -1,4 +1,3 @@
-import { Database } from 'lucide-react'
 import { getStoredUser, type AdminUser, type DashboardUser } from '@/lib/auth'
 import { useLayout } from '@/context/layout-provider'
 import {
@@ -52,9 +51,11 @@ export function AppSidebar() {
               size='lg'
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
-              <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
-                <Database className='size-4' />
-              </div>
+              <img
+                src='/images/logo-icon.svg'
+                alt='Fluxbase'
+                className='size-8 rounded-lg'
+              />
               <div className='grid flex-1 text-start text-sm leading-tight'>
                 <span className='truncate font-semibold'>Fluxbase</span>
                 <span className='truncate text-xs'>Backend-as-a-Service</span>

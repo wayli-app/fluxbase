@@ -1,0 +1,83 @@
+---
+title: Fluxbase
+description: Lightweight Backend-as-a-Service Alternative to Supabase
+template: splash
+hero:
+  tagline: A lightweight, self-hosted Backend-as-a-Service with PostgreSQL, real-time subscriptions, authentication, storage, and edge functions.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get Started
+      link: /intro/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/wayli-app/fluxbase
+      icon: external
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+:::caution[Pre-Release Software]
+Fluxbase is currently in active development. APIs may change between versions.
+:::
+
+## Features
+
+<CardGrid stagger>
+  <Card title="PostgreSQL Database" icon="database">
+    Full PostgreSQL with PostgREST-compatible API, row-level security, and
+    real-time subscriptions.
+  </Card>
+  <Card title="Authentication" icon="user">
+    Built-in auth with JWT tokens, OAuth providers, 2FA support, and user
+    management.
+  </Card>
+  <Card title="Edge Functions" icon="lightning">
+    Deploy serverless JavaScript/TypeScript functions with Deno runtime.
+  </Card>
+  <Card title="Storage" icon="folder">
+    S3-compatible object storage with signed URLs, resumable uploads, and access
+    policies.
+  </Card>
+  <Card title="Real-time" icon="refresh">
+    WebSocket-based real-time subscriptions for database changes, broadcasts,
+    and presence.
+  </Card>
+  <Card title="Background Jobs" icon="hourglass">
+    Scheduled and queued background jobs with retry logic and monitoring.
+  </Card>
+  <Card title="Self-Hosted" icon="server">
+    Single binary deployment with Docker support. Own your data.
+  </Card>
+</CardGrid>
+
+## Quick Start
+
+```bash
+# Pull and run with Docker
+docker run -p 8080:8080 ghcr.io/wayli-app/fluxbase:latest
+
+# Or use Docker Compose for production
+curl -O https://raw.githubusercontent.com/wayli-app/fluxbase/main/docker-compose.yml
+docker compose up -d
+```
+
+Then connect with the TypeScript SDK:
+
+```typescript
+import { createClient } from "@fluxbase/sdk";
+
+const client = createClient("http://localhost:8080", "your-api-key");
+
+// Query data
+const { data, error } = await client.from("posts").select("*");
+
+// Subscribe to changes
+client
+  .channel("posts")
+  .on("postgres_changes", { event: "*", table: "posts" }, (payload) => {
+    console.log("Change:", payload);
+  })
+  .subscribe();
+```

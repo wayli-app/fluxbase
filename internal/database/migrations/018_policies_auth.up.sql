@@ -131,12 +131,14 @@ CREATE POLICY auth_api_keys_policy ON auth.api_keys
 ALTER TABLE auth.api_key_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.api_key_usage FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS api_key_usage_service_write ON auth.api_key_usage;
 CREATE POLICY api_key_usage_service_write ON auth.api_key_usage
     FOR INSERT
     WITH CHECK (auth.current_user_role() = 'service_role');
 
 COMMENT ON POLICY api_key_usage_service_write ON auth.api_key_usage IS 'Service role can record API key usage.';
 
+DROP POLICY IF EXISTS api_key_usage_user_read ON auth.api_key_usage;
 CREATE POLICY api_key_usage_user_read ON auth.api_key_usage
     FOR SELECT
     USING (
@@ -154,6 +156,7 @@ COMMENT ON POLICY api_key_usage_user_read ON auth.api_key_usage IS 'Users can vi
 ALTER TABLE auth.magic_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.magic_links FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS magic_links_service_only ON auth.magic_links;
 CREATE POLICY magic_links_service_only ON auth.magic_links
     FOR ALL
     USING (auth.current_user_role() = 'service_role');
@@ -164,6 +167,7 @@ COMMENT ON POLICY magic_links_service_only ON auth.magic_links IS 'Only service 
 ALTER TABLE auth.password_reset_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.password_reset_tokens FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS password_reset_tokens_service_only ON auth.password_reset_tokens;
 CREATE POLICY password_reset_tokens_service_only ON auth.password_reset_tokens
     FOR ALL
     USING (auth.current_user_role() = 'service_role');
@@ -174,6 +178,7 @@ COMMENT ON POLICY password_reset_tokens_service_only ON auth.password_reset_toke
 ALTER TABLE auth.token_blacklist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.token_blacklist FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS token_blacklist_admin_only ON auth.token_blacklist;
 CREATE POLICY token_blacklist_admin_only ON auth.token_blacklist
     FOR ALL
     USING (
@@ -187,10 +192,12 @@ COMMENT ON POLICY token_blacklist_admin_only ON auth.token_blacklist IS 'Only se
 ALTER TABLE auth.oauth_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.oauth_links FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS oauth_links_select ON auth.oauth_links;
 CREATE POLICY oauth_links_select ON auth.oauth_links
     FOR SELECT
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS oauth_links_service_all ON auth.oauth_links;
 CREATE POLICY oauth_links_service_all ON auth.oauth_links
     FOR ALL
     USING (auth.current_user_role() = 'service_role');
@@ -199,10 +206,12 @@ CREATE POLICY oauth_links_service_all ON auth.oauth_links
 ALTER TABLE auth.oauth_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.oauth_tokens FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS oauth_tokens_select ON auth.oauth_tokens;
 CREATE POLICY oauth_tokens_select ON auth.oauth_tokens
     FOR SELECT
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS oauth_tokens_service_all ON auth.oauth_tokens;
 CREATE POLICY oauth_tokens_service_all ON auth.oauth_tokens
     FOR ALL
     USING (auth.current_user_role() = 'service_role');
@@ -211,23 +220,28 @@ CREATE POLICY oauth_tokens_service_all ON auth.oauth_tokens
 ALTER TABLE auth.two_factor_setups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.two_factor_setups FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS two_factor_setups_select ON auth.two_factor_setups;
 CREATE POLICY two_factor_setups_select ON auth.two_factor_setups
     FOR SELECT
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS two_factor_setups_insert ON auth.two_factor_setups;
 CREATE POLICY two_factor_setups_insert ON auth.two_factor_setups
     FOR INSERT
     WITH CHECK (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS two_factor_setups_delete ON auth.two_factor_setups;
 CREATE POLICY two_factor_setups_delete ON auth.two_factor_setups
     FOR DELETE
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS two_factor_setups_update ON auth.two_factor_setups;
 CREATE POLICY two_factor_setups_update ON auth.two_factor_setups
     FOR UPDATE
     USING (user_id = auth.current_user_id())
     WITH CHECK (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS two_factor_setups_admin_select ON auth.two_factor_setups;
 CREATE POLICY two_factor_setups_admin_select ON auth.two_factor_setups
     FOR SELECT
     USING (auth.is_admin() OR auth.current_user_role() = 'dashboard_admin');
@@ -236,10 +250,12 @@ CREATE POLICY two_factor_setups_admin_select ON auth.two_factor_setups
 ALTER TABLE auth.two_factor_recovery_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.two_factor_recovery_attempts FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS two_factor_recovery_select ON auth.two_factor_recovery_attempts;
 CREATE POLICY two_factor_recovery_select ON auth.two_factor_recovery_attempts
     FOR SELECT
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS two_factor_recovery_insert ON auth.two_factor_recovery_attempts;
 CREATE POLICY two_factor_recovery_insert ON auth.two_factor_recovery_attempts
     FOR INSERT
     WITH CHECK (
@@ -249,6 +265,7 @@ CREATE POLICY two_factor_recovery_insert ON auth.two_factor_recovery_attempts
         OR user_id = auth.current_user_id()
     );
 
+DROP POLICY IF EXISTS two_factor_recovery_admin_select ON auth.two_factor_recovery_attempts;
 CREATE POLICY two_factor_recovery_admin_select ON auth.two_factor_recovery_attempts
     FOR SELECT
     USING (auth.is_admin() OR auth.current_user_role() = 'dashboard_admin');
@@ -257,6 +274,7 @@ CREATE POLICY two_factor_recovery_admin_select ON auth.two_factor_recovery_attem
 ALTER TABLE auth.webhooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.webhooks FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS webhooks_admin_only ON auth.webhooks;
 CREATE POLICY webhooks_admin_only ON auth.webhooks
     FOR ALL
     USING (
@@ -271,12 +289,14 @@ COMMENT ON POLICY webhooks_admin_only ON auth.webhooks IS 'Only admins, dashboar
 ALTER TABLE auth.webhook_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.webhook_deliveries FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS webhook_deliveries_service_write ON auth.webhook_deliveries;
 CREATE POLICY webhook_deliveries_service_write ON auth.webhook_deliveries
     FOR INSERT
     WITH CHECK (auth.current_user_role() = 'service_role');
 
 COMMENT ON POLICY webhook_deliveries_service_write ON auth.webhook_deliveries IS 'Service role can create webhook delivery records.';
 
+DROP POLICY IF EXISTS webhook_deliveries_admin_read ON auth.webhook_deliveries;
 CREATE POLICY webhook_deliveries_admin_read ON auth.webhook_deliveries
     FOR SELECT
     USING (
@@ -287,6 +307,7 @@ CREATE POLICY webhook_deliveries_admin_read ON auth.webhook_deliveries
 
 COMMENT ON POLICY webhook_deliveries_admin_read ON auth.webhook_deliveries IS 'Admins, dashboard admins, and service role can view webhook delivery logs.';
 
+DROP POLICY IF EXISTS webhook_deliveries_service_update ON auth.webhook_deliveries;
 CREATE POLICY webhook_deliveries_service_update ON auth.webhook_deliveries
     FOR UPDATE
     USING (auth.current_user_role() = 'service_role')
@@ -298,10 +319,12 @@ COMMENT ON POLICY webhook_deliveries_service_update ON auth.webhook_deliveries I
 ALTER TABLE auth.webhook_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.webhook_events FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS webhook_events_admin_select ON auth.webhook_events;
 CREATE POLICY webhook_events_admin_select ON auth.webhook_events
     FOR SELECT
     USING (auth.is_admin() OR auth.current_user_role() = 'dashboard_admin');
 
+DROP POLICY IF EXISTS webhook_events_service ON auth.webhook_events;
 CREATE POLICY webhook_events_service ON auth.webhook_events
     FOR ALL
     USING (auth.current_user_role() = 'service_role');
@@ -310,6 +333,7 @@ CREATE POLICY webhook_events_service ON auth.webhook_events
 ALTER TABLE auth.impersonation_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.impersonation_sessions FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS impersonation_sessions_dashboard_admin_only ON auth.impersonation_sessions;
 CREATE POLICY impersonation_sessions_dashboard_admin_only ON auth.impersonation_sessions
     FOR ALL
     USING (
@@ -324,18 +348,21 @@ ALTER TABLE auth.rls_audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.rls_audit_log FORCE ROW LEVEL SECURITY;
 
 -- Policy: Service role can insert audit logs (for system logging)
+DROP POLICY IF EXISTS rls_audit_log_service_insert ON auth.rls_audit_log;
 CREATE POLICY rls_audit_log_service_insert ON auth.rls_audit_log
     FOR INSERT
     TO authenticated
     WITH CHECK (auth.current_user_role() = 'service_role');
 
 -- Policy: Admins can view all audit logs (for security monitoring)
+DROP POLICY IF EXISTS rls_audit_log_admin_select ON auth.rls_audit_log;
 CREATE POLICY rls_audit_log_admin_select ON auth.rls_audit_log
     FOR SELECT
     TO authenticated
     USING (auth.current_user_role() IN ('admin', 'dashboard_admin', 'service_role'));
 
 -- Policy: Users can view their own audit logs (for transparency)
+DROP POLICY IF EXISTS rls_audit_log_user_select ON auth.rls_audit_log;
 CREATE POLICY rls_audit_log_user_select ON auth.rls_audit_log
     FOR SELECT
     TO authenticated
@@ -349,23 +376,28 @@ COMMENT ON POLICY rls_audit_log_user_select ON auth.rls_audit_log IS 'Users can 
 ALTER TABLE auth.mfa_factors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.mfa_factors FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS mfa_factors_select_own ON auth.mfa_factors;
 CREATE POLICY mfa_factors_select_own ON auth.mfa_factors
     FOR SELECT
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS mfa_factors_insert_own ON auth.mfa_factors;
 CREATE POLICY mfa_factors_insert_own ON auth.mfa_factors
     FOR INSERT
     WITH CHECK (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS mfa_factors_update_own ON auth.mfa_factors;
 CREATE POLICY mfa_factors_update_own ON auth.mfa_factors
     FOR UPDATE
     USING (user_id = auth.current_user_id())
     WITH CHECK (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS mfa_factors_delete_own ON auth.mfa_factors;
 CREATE POLICY mfa_factors_delete_own ON auth.mfa_factors
     FOR DELETE
     USING (user_id = auth.current_user_id());
 
+DROP POLICY IF EXISTS mfa_factors_admin_all ON auth.mfa_factors;
 CREATE POLICY mfa_factors_admin_all ON auth.mfa_factors
     FOR ALL
     USING (

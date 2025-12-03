@@ -283,11 +283,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Build SDKs (required by Admin UI)
+      - name: Build SDKs (required by Admin UI and Go embed)
         run: |
           cd sdk
           npm ci
           npm run build
+          npm run generate:embedded-sdk
           cd ../sdk-react
           npm ci
           npm run build

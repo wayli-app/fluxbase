@@ -9,6 +9,7 @@
 ALTER TABLE functions.edge_functions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE functions.edge_functions FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS functions_edge_functions_policy ON functions.edge_functions;
 CREATE POLICY functions_edge_functions_policy ON functions.edge_functions
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -17,6 +18,7 @@ CREATE POLICY functions_edge_functions_policy ON functions.edge_functions
 ALTER TABLE functions.edge_triggers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE functions.edge_triggers FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS functions_edge_triggers_policy ON functions.edge_triggers;
 CREATE POLICY functions_edge_triggers_policy ON functions.edge_triggers
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');
@@ -25,6 +27,7 @@ CREATE POLICY functions_edge_triggers_policy ON functions.edge_triggers
 ALTER TABLE functions.edge_executions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE functions.edge_executions FORCE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS functions_edge_executions_policy ON functions.edge_executions;
 CREATE POLICY functions_edge_executions_policy ON functions.edge_executions
     FOR ALL
     USING (auth.current_user_role() = 'dashboard_admin');

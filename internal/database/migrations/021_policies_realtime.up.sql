@@ -11,6 +11,7 @@ ALTER TABLE realtime.schema_registry ENABLE ROW LEVEL SECURITY;
 ALTER TABLE realtime.schema_registry FORCE ROW LEVEL SECURITY;
 
 -- Authenticated users can view realtime configuration
+DROP POLICY IF EXISTS "Authenticated users can view realtime configuration" ON realtime.schema_registry;
 CREATE POLICY "Authenticated users can view realtime configuration"
     ON realtime.schema_registry
     FOR SELECT
@@ -18,6 +19,7 @@ CREATE POLICY "Authenticated users can view realtime configuration"
     USING (true);
 
 -- Only admins and service_role can modify realtime configuration
+DROP POLICY IF EXISTS "Admins can manage realtime configuration" ON realtime.schema_registry;
 CREATE POLICY "Admins can manage realtime configuration"
     ON realtime.schema_registry
     FOR ALL

@@ -5,17 +5,20 @@
 -- service_role for use with SET ROLE in RLS middleware.
 -- Actual data access is still controlled by RLS policies.
 -- This runs AFTER all tables are created (migrations 004-021).
+--
+-- Security principle: "closed by default"
+-- - Anon has minimal access (only what's explicitly needed)
+-- - Authenticated has CRUD on user-facing schemas (controlled by RLS)
+-- - Service role has full access (BYPASSRLS)
+-- - Internal schemas (migrations) are service_role only
+-- - Public schema requires explicit RLS policies for access
 -- ============================================================================
 
 -- ==========================
 -- AUTH SCHEMA PERMISSIONS
 -- ==========================
 
--- Anon role: Minimal permissions for signup flow only
--- INSERT on users (for signup) - RLS policies will restrict SELECT
-GRANT INSERT ON auth.users TO anon;
-GRANT INSERT ON auth.sessions TO anon;
-
+-- Anon role: No direct access (signup/signin use service_role internally)
 -- Authenticated role: Full CRUD on auth tables (filtered by RLS)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA auth TO authenticated;
 
@@ -72,25 +75,16 @@ GRANT ALL ON ALL TABLES IN SCHEMA dashboard TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA dashboard TO service_role;
 
 -- ==========================
--- _FLUXBASE SCHEMA PERMISSIONS
--- ==========================
-
--- Anon role: No access to internal Fluxbase tables
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA _fluxbase TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO service_role;
-
--- ==========================
 -- PUBLIC SCHEMA PERMISSIONS
 -- ==========================
 
--- Grant full CRUD to all roles on public schema tables
--- Note: RLS policies on individual tables control actual data access
--- For tables without RLS (like products used in REST tests), all roles have full access
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+-- Public schema: "closed by default"
+-- No default access for anon or authenticated users
+-- Developers must create RLS policies to grant access to their tables
+-- This prevents accidental data exposure if RLS is not enabled
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 
 -- ==========================
 -- DEFAULT PRIVILEGES
@@ -134,17 +128,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard
 ALTER DEFAULT PRIVILEGES IN SCHEMA dashboard
     GRANT ALL ON TABLES TO service_role;
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA _fluxbase
-    GRANT ALL ON TABLES TO service_role;
-
--- Default privileges for tables created by the application user
--- CURRENT_USER refers to whoever runs the migration (typically the admin/owner of the database)
--- This ensures tables created by the application user get proper permissions
-ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated;
-
+-- Default privileges for public schema - service_role only
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
     GRANT ALL ON TABLES TO service_role;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
+    GRANT EXECUTE ON FUNCTIONS TO service_role;

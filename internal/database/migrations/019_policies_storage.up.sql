@@ -11,6 +11,7 @@ ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.buckets FORCE ROW LEVEL SECURITY;
 
 -- Admins and service roles can do everything with buckets
+DROP POLICY IF EXISTS storage_buckets_admin ON storage.buckets;
 CREATE POLICY storage_buckets_admin ON storage.buckets
     FOR ALL
     USING (auth.current_user_role() IN ('dashboard_admin', 'service_role'))
@@ -19,6 +20,7 @@ CREATE POLICY storage_buckets_admin ON storage.buckets
 COMMENT ON POLICY storage_buckets_admin ON storage.buckets IS 'Dashboard admins and service role have full access to all buckets';
 
 -- Anyone can view public buckets (read-only)
+DROP POLICY IF EXISTS storage_buckets_public_view ON storage.buckets;
 CREATE POLICY storage_buckets_public_view ON storage.buckets
     FOR SELECT
     USING (public = true);
@@ -30,6 +32,7 @@ ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.objects FORCE ROW LEVEL SECURITY;
 
 -- Admins and service roles can do everything with objects
+DROP POLICY IF EXISTS storage_objects_admin ON storage.objects;
 CREATE POLICY storage_objects_admin ON storage.objects
     FOR ALL
     USING (auth.current_user_role() IN ('dashboard_admin', 'service_role'))
@@ -38,6 +41,7 @@ CREATE POLICY storage_objects_admin ON storage.objects
 COMMENT ON POLICY storage_objects_admin ON storage.objects IS 'Dashboard admins and service role have full access to all objects';
 
 -- Owners can do everything with their files
+DROP POLICY IF EXISTS storage_objects_owner ON storage.objects;
 CREATE POLICY storage_objects_owner ON storage.objects
     FOR ALL
     USING (auth.current_user_id() = owner_id)
@@ -46,6 +50,7 @@ CREATE POLICY storage_objects_owner ON storage.objects
 COMMENT ON POLICY storage_objects_owner ON storage.objects IS 'Users can fully manage their own files';
 
 -- Anyone can read files in public buckets (unauthenticated access allowed)
+DROP POLICY IF EXISTS storage_objects_public_read ON storage.objects;
 CREATE POLICY storage_objects_public_read ON storage.objects
     FOR SELECT
     USING (
@@ -59,6 +64,7 @@ CREATE POLICY storage_objects_public_read ON storage.objects
 COMMENT ON POLICY storage_objects_public_read ON storage.objects IS 'Files in public buckets are readable by everyone (including unauthenticated users)';
 
 -- Users can read files shared with them (via object_permissions)
+DROP POLICY IF EXISTS storage_objects_shared_read ON storage.objects;
 CREATE POLICY storage_objects_shared_read ON storage.objects
     FOR SELECT
     USING (
@@ -74,6 +80,7 @@ CREATE POLICY storage_objects_shared_read ON storage.objects
 COMMENT ON POLICY storage_objects_shared_read ON storage.objects IS 'Users can read files that have been shared with them';
 
 -- Users can update/delete files shared with them with write permission
+DROP POLICY IF EXISTS storage_objects_shared_write ON storage.objects;
 CREATE POLICY storage_objects_shared_write ON storage.objects
     FOR UPDATE
     USING (
@@ -88,6 +95,7 @@ CREATE POLICY storage_objects_shared_write ON storage.objects
 
 COMMENT ON POLICY storage_objects_shared_write ON storage.objects IS 'Users can update files that have been shared with them with write permission';
 
+DROP POLICY IF EXISTS storage_objects_shared_delete ON storage.objects;
 CREATE POLICY storage_objects_shared_delete ON storage.objects
     FOR DELETE
     USING (
@@ -103,6 +111,7 @@ CREATE POLICY storage_objects_shared_delete ON storage.objects
 COMMENT ON POLICY storage_objects_shared_delete ON storage.objects IS 'Users can delete files that have been shared with them with write permission';
 
 -- Authenticated users can insert objects (owner_id will be set by application)
+DROP POLICY IF EXISTS storage_objects_insert ON storage.objects;
 CREATE POLICY storage_objects_insert ON storage.objects
     FOR INSERT
     WITH CHECK (
@@ -117,6 +126,7 @@ ALTER TABLE storage.object_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.object_permissions FORCE ROW LEVEL SECURITY;
 
 -- Admins can manage all permissions
+DROP POLICY IF EXISTS storage_object_permissions_admin ON storage.object_permissions;
 CREATE POLICY storage_object_permissions_admin ON storage.object_permissions
     FOR ALL
     USING (auth.current_user_role() IN ('dashboard_admin', 'service_role'))
@@ -125,6 +135,7 @@ CREATE POLICY storage_object_permissions_admin ON storage.object_permissions
 COMMENT ON POLICY storage_object_permissions_admin ON storage.object_permissions IS 'Dashboard admins and service role can manage all file sharing permissions';
 
 -- Owners can share their own files
+DROP POLICY IF EXISTS storage_object_permissions_owner_manage ON storage.object_permissions;
 CREATE POLICY storage_object_permissions_owner_manage ON storage.object_permissions
     FOR ALL
     USING (
@@ -145,6 +156,7 @@ CREATE POLICY storage_object_permissions_owner_manage ON storage.object_permissi
 COMMENT ON POLICY storage_object_permissions_owner_manage ON storage.object_permissions IS 'File owners can manage sharing permissions for their files';
 
 -- Users can view permissions for files shared with them
+DROP POLICY IF EXISTS storage_object_permissions_view_shared ON storage.object_permissions;
 CREATE POLICY storage_object_permissions_view_shared ON storage.object_permissions
     FOR SELECT
     USING (

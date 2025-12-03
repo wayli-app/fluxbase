@@ -1,5 +1,5 @@
 # Dockerfile for Fluxbase Documentation Site
-# This builds a standalone container for the Docusaurus documentation
+# This builds a standalone container for the Starlight (Astro) documentation
 #
 # This Dockerfile generates TypeDoc API documentation from the SDK source files
 # and builds the complete documentation site.
@@ -17,9 +17,6 @@ RUN npm ci
 # Build the documentation
 FROM base AS builder
 
-# Install bash (needed for build scripts)
-RUN apk add --no-cache bash
-
 WORKDIR /app
 
 # Copy SDK source files (needed for TypeDoc generation)
@@ -30,7 +27,7 @@ COPY sdk-react/ ./sdk-react/
 COPY --from=deps /app/docs/node_modules ./docs/node_modules
 COPY docs/ ./docs/
 
-# Build the static site using the build script that handles TypeDoc generation and fixing
+# Build the static site (Astro/Starlight with starlight-typedoc)
 WORKDIR /app/docs
 # Set NODE_OPTIONS to provide a localstorage file path for Node.js 25
 ENV NODE_OPTIONS="--localstorage-file=/tmp/localstorage.db"
@@ -46,8 +43,8 @@ RUN mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp 
                          /var/cache/nginx /usr/share/nginx/html && \
     chmod -R 755 /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
 
-# Copy built site to nginx
-COPY --from=builder /app/docs/build /usr/share/nginx/html
+# Copy built site to nginx (Astro outputs to dist/)
+COPY --from=builder /app/docs/dist /usr/share/nginx/html
 RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Copy nginx configuration

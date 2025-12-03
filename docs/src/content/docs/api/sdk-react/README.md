@@ -1,0 +1,66 @@
+---
+editUrl: false
+next: false
+prev: false
+title: "@fluxbase/sdk-react"
+---
+
+## Client
+
+- [FluxbaseClient](/api/sdk-react/classes/fluxbaseclient/)
+
+## Other
+
+- [AdminUser](/api/sdk-react/interfaces/adminuser/)
+- [APIKey](/api/sdk-react/interfaces/apikey/)
+- [AppSettings](/api/sdk-react/interfaces/appsettings/)
+- [AuthSession](/api/sdk-react/interfaces/authsession/)
+- [EnrichedUser](/api/sdk-react/interfaces/enricheduser/)
+- [PostgrestResponse](/api/sdk-react/interfaces/postgrestresponse/)
+- [RealtimeChangePayload](/api/sdk-react/interfaces/realtimechangepayload/)
+- [SignInCredentials](/api/sdk-react/interfaces/signincredentials/)
+- [SignUpCredentials](/api/sdk-react/interfaces/signupcredentials/)
+- [SystemSetting](/api/sdk-react/interfaces/systemsetting/)
+- [User](/api/sdk-react/interfaces/user/)
+- [Webhook](/api/sdk-react/interfaces/webhook/)
+- [StorageObject](/api/sdk-react/type-aliases/storageobject/)
+- [FluxbaseProvider](/api/sdk-react/functions/fluxbaseprovider/)
+- [useAdminAuth](/api/sdk-react/functions/useadminauth/)
+- [useAPIKeys](/api/sdk-react/functions/useapikeys/)
+- [useAppSettings](/api/sdk-react/functions/useappsettings/)
+- [useAuth](/api/sdk-react/functions/useauth/)
+- [useCreateBucket](/api/sdk-react/functions/usecreatebucket/)
+- [useDelete](/api/sdk-react/functions/usedelete/)
+- [useDeleteBucket](/api/sdk-react/functions/usedeletebucket/)
+- [useFluxbaseClient](/api/sdk-react/functions/usefluxbaseclient/)
+- [useFluxbaseQuery](/api/sdk-react/functions/usefluxbasequery/)
+- [useInsert](/api/sdk-react/functions/useinsert/)
+- [useRealtime](/api/sdk-react/functions/userealtime/)
+- [useRPC](/api/sdk-react/functions/userpc/)
+- [useRPCBatch](/api/sdk-react/functions/userpcbatch/)
+- [useRPCMutation](/api/sdk-react/functions/userpcmutation/)
+- [useSession](/api/sdk-react/functions/usesession/)
+- [useSignIn](/api/sdk-react/functions/usesignin/)
+- [useSignOut](/api/sdk-react/functions/usesignout/)
+- [useSignUp](/api/sdk-react/functions/usesignup/)
+- [useStorageBuckets](/api/sdk-react/functions/usestoragebuckets/)
+- [useStorageCopy](/api/sdk-react/functions/usestoragecopy/)
+- [useStorageDelete](/api/sdk-react/functions/usestoragedelete/)
+- [useStorageDownload](/api/sdk-react/functions/usestoragedownload/)
+- [useStorageList](/api/sdk-react/functions/usestoragelist/)
+- [useStorageMove](/api/sdk-react/functions/usestoragemove/)
+- [useStoragePublicUrl](/api/sdk-react/functions/usestoragepublicurl/)
+- [useStorageSignedUrl](/api/sdk-react/functions/usestoragesignedurl/)
+- [useStorageUpload](/api/sdk-react/functions/usestorageupload/)
+- [useSystemSettings](/api/sdk-react/functions/usesystemsettings/)
+- [useTable](/api/sdk-react/functions/usetable/)
+- [useTableDeletes](/api/sdk-react/functions/usetabledeletes/)
+- [useTableInserts](/api/sdk-react/functions/usetableinserts/)
+- [useTableSubscription](/api/sdk-react/functions/usetablesubscription/)
+- [useTableUpdates](/api/sdk-react/functions/usetableupdates/)
+- [useUpdate](/api/sdk-react/functions/useupdate/)
+- [useUpdateUser](/api/sdk-react/functions/useupdateuser/)
+- [useUpsert](/api/sdk-react/functions/useupsert/)
+- [useUser](/api/sdk-react/functions/useuser/)
+- [useUsers](/api/sdk-react/functions/useusers/)
+- [useWebhooks](/api/sdk-react/functions/usewebhooks/)

@@ -7,6 +7,7 @@
 ALTER TABLE app.settings ENABLE ROW LEVEL SECURITY;
 
 -- Allow service_role to do everything (bypasses RLS anyway, but explicit is good)
+DROP POLICY IF EXISTS "Service role has full access to app settings" ON app.settings;
 CREATE POLICY "Service role has full access to app settings"
     ON app.settings
     FOR ALL
@@ -15,6 +16,7 @@ CREATE POLICY "Service role has full access to app settings"
     WITH CHECK (true);
 
 -- Allow public/anon users to read public settings
+DROP POLICY IF EXISTS "Public settings are readable by anyone" ON app.settings;
 CREATE POLICY "Public settings are readable by anyone"
     ON app.settings
     FOR SELECT
@@ -22,6 +24,7 @@ CREATE POLICY "Public settings are readable by anyone"
     USING (is_public = true AND is_secret = false);
 
 -- Allow authenticated users to read non-secret settings
+DROP POLICY IF EXISTS "Authenticated users can read non-secret settings" ON app.settings;
 CREATE POLICY "Authenticated users can read non-secret settings"
     ON app.settings
     FOR SELECT
@@ -29,6 +32,7 @@ CREATE POLICY "Authenticated users can read non-secret settings"
     USING (is_secret = false);
 
 -- Settings write policies: Only roles in editable_by array can modify settings
+DROP POLICY IF EXISTS "Settings can be created by authorized roles" ON app.settings;
 CREATE POLICY "Settings can be created by authorized roles"
     ON app.settings
     FOR INSERT
@@ -38,6 +42,7 @@ CREATE POLICY "Settings can be created by authorized roles"
         OR auth.current_user_role() = ANY(editable_by)
     );
 
+DROP POLICY IF EXISTS "Settings can be updated by authorized roles" ON app.settings;
 CREATE POLICY "Settings can be updated by authorized roles"
     ON app.settings
     FOR UPDATE
@@ -51,6 +56,7 @@ CREATE POLICY "Settings can be updated by authorized roles"
         OR auth.current_user_role() = ANY(editable_by)
     );
 
+DROP POLICY IF EXISTS "Settings can be deleted by authorized roles" ON app.settings;
 CREATE POLICY "Settings can be deleted by authorized roles"
     ON app.settings
     FOR DELETE

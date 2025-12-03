@@ -44,7 +44,20 @@
       "Bash(tee:*)",
       "Bash(npm run generate:embedded-sdk:*)",
       "Bash(npm install:*)",
-      "Bash(/workspace --include=*.go --include=*.ts --include=*.sql)"
+      "Bash(/workspace --include=*.go --include=*.ts --include=*.sql)",
+      "Bash(ls:*)",
+      "Bash(xargs cat:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)",
+      "Bash(/workspace/docs-new/scripts/migrate-content.sh:*)",
+      "Bash(node scripts/convert-frontmatter.mjs:*)",
+      "Bash(npm ci:*)",
+      "Bash(node scripts/fix-frontmatter.mjs:*)",
+      "Bash(node scripts/fix-all-frontmatter.mjs:*)",
+      "Bash(/workspace/docs/scripts/fix-duplicate-titles.sh)",
+      "Bash(timeout 120 npm run build:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []
