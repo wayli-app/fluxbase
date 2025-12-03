@@ -246,6 +246,11 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Update version in files
         run: |
           VERSION=${{ needs.get-version.outputs.version }}
@@ -262,6 +267,10 @@ jobs:
           sed -i "s|FLUXBASE_VERSION:-.*}|FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.production.yml
           sed -i "s|FLUXBASE_VERSION:-.*}|FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.external-db.yml
 
+          # Update NPM package versions
+          cd sdk && npm version ${VERSION} --no-git-tag-version && cd ..
+          cd sdk-react && npm version ${VERSION} --no-git-tag-version && npm install && cd ..
+
       - name: Commit version updates
         run: |
           git config user.name "github-actions[bot]"
@@ -269,6 +278,8 @@ jobs:
 
           git add deploy/helm/fluxbase/Chart.yaml
           git add deploy/docker-compose*.yml
+          git add sdk/package.json sdk/package-lock.json
+          git add sdk-react/package.json sdk-react/package-lock.json
 
           if git diff --staged --quiet; then
             echo "No version changes to commit"
