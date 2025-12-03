@@ -175,7 +175,6 @@ export class StorageBucket {
   /**
    * Download a file from the bucket
    * @param path - The path/key of the file
-   * @param options - Download options (use { stream: true } for streaming)
    *
    * @example
    * ```typescript

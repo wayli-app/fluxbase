@@ -46,13 +46,16 @@ export default defineConfig({
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
             mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
             document.addEventListener('DOMContentLoaded', () => {
-              const codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
-              codeBlocks.forEach((codeBlock, index) => {
-                const pre = codeBlock.parentElement;
+              const codeBlocks = document.querySelectorAll('pre[data-language="mermaid"]');
+              codeBlocks.forEach((pre) => {
+                const wrapper = pre.closest('.expressive-code');
+                const copyBtn = wrapper?.querySelector('button[data-code]');
+                if (!wrapper || !copyBtn) return;
+                const text = copyBtn.getAttribute('data-code').split(String.fromCharCode(127)).join(String.fromCharCode(10));
                 const container = document.createElement('div');
                 container.className = 'mermaid';
-                container.textContent = codeBlock.textContent;
-                pre.replaceWith(container);
+                container.textContent = text;
+                wrapper.replaceWith(container);
               });
               mermaid.run();
             });

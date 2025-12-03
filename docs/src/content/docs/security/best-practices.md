@@ -343,7 +343,7 @@ security:
 
 ### 1. Never Commit Secrets to Git
 
-```gitignore
+```text
 # .gitignore
 .env
 .env.local

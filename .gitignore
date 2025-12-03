@@ -65,7 +65,7 @@ internal/jobs/embedded_sdk.js
 
 # Documentation built assets
 docs/build/
-docs/.docusaurus/
+docs/.astro/
 docs/node_modules/
 
 # Storage directories (user uploaded files)

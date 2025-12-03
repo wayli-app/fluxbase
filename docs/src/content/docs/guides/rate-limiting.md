@@ -420,7 +420,7 @@ redis:
 
 Fluxbase exposes rate limiting metrics:
 
-```promql
+```txt
 # Total rate limit hits
 rate_limit_hits_total{endpoint="/api/v1/auth/signin"}
 

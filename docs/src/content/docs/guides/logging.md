@@ -607,7 +607,7 @@ docker logs fluxbase 2>&1 | jq -s 'map(.duration_ms) | add / length'
 
 **Query Examples:**
 
-```logql
+```txt
 # All logs from fluxbase
 {container="fluxbase"}
 
@@ -771,7 +771,7 @@ Use Loki, Elasticsearch, or CloudWatch for long-term storage and analysis.
 
 Set up alerts for:
 
-```logql
+```txt
 # High error rate
 rate({container="fluxbase"} | json | level="error" [5m]) > 1
 

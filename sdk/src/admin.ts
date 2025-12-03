@@ -146,9 +146,7 @@ export class FluxbaseAdmin {
    * Creates the first admin user and completes initial setup.
    * This endpoint can only be called once.
    *
-   * @param email - Admin email address
-   * @param password - Admin password (minimum 12 characters)
-   * @param name - Admin display name
+   * @param request - Setup request containing email, password, and name
    * @returns Authentication response with tokens
    *
    * @example
@@ -163,7 +161,9 @@ export class FluxbaseAdmin {
    * localStorage.setItem('admin_token', response.access_token);
    * ```
    */
-  async setup(request: AdminSetupRequest): Promise<DataResponse<AdminAuthResponse>> {
+  async setup(
+    request: AdminSetupRequest,
+  ): Promise<DataResponse<AdminAuthResponse>> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AdminAuthResponse>(
         "/api/v1/admin/setup",
@@ -179,8 +179,7 @@ export class FluxbaseAdmin {
    *
    * Authenticate as an admin user
    *
-   * @param email - Admin email
-   * @param password - Admin password
+   * @param request - Login request containing email and password
    * @returns Authentication response with tokens
    *
    * @example
@@ -194,7 +193,9 @@ export class FluxbaseAdmin {
    * console.log('Logged in as:', response.user.email);
    * ```
    */
-  async login(request: AdminLoginRequest): Promise<DataResponse<AdminAuthResponse>> {
+  async login(
+    request: AdminLoginRequest,
+  ): Promise<DataResponse<AdminAuthResponse>> {
     return wrapAsync(async () => {
       const response = await this.fetch.post<AdminAuthResponse>(
         "/api/v1/admin/login",
@@ -208,7 +209,7 @@ export class FluxbaseAdmin {
   /**
    * Refresh admin access token
    *
-   * @param refreshToken - Refresh token
+   * @param request - Refresh request containing the refresh token
    * @returns New access and refresh tokens
    *
    * @example
@@ -294,7 +295,9 @@ export class FluxbaseAdmin {
    * });
    * ```
    */
-  async listUsers(options: ListUsersOptions = {}): Promise<DataResponse<ListUsersResponse>> {
+  async listUsers(
+    options: ListUsersOptions = {},
+  ): Promise<DataResponse<ListUsersResponse>> {
     return wrapAsync(async () => {
       const params = new URLSearchParams();
 

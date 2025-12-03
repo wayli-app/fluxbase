@@ -168,7 +168,7 @@ server {
 
 **HAProxy with Sticky Sessions:**
 
-```haproxy
+```ini
 frontend fluxbase_front
     bind *:443 ssl crt /etc/ssl/certs/fluxbase.pem
     default_backend fluxbase_back
@@ -712,7 +712,7 @@ server {
 
 #### HAProxy
 
-```haproxy
+```ini
 frontend fluxbase_front
     bind *:443 ssl crt /etc/ssl/certs/fluxbase.pem
     default_backend fluxbase_back
@@ -911,7 +911,7 @@ upstream fluxbase_backend {
 
 #### Application Metrics
 
-```promql
+```txt
 # Request rate
 rate(http_requests_total[5m])
 
@@ -927,7 +927,7 @@ fluxbase_active_connections
 
 #### Database Metrics
 
-```promql
+```txt
 # Connection pool usage
 pg_stat_database_connections / pg_settings_max_connections
 
@@ -940,7 +940,7 @@ pg_stat_database_blks_hit / (pg_stat_database_blks_hit + pg_stat_database_blks_r
 
 #### System Metrics
 
-```promql
+```txt
 # CPU usage
 rate(container_cpu_usage_seconds_total[5m])
 

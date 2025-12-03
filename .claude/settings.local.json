@@ -57,7 +57,8 @@
       "Bash(/workspace/docs/scripts/fix-duplicate-titles.sh)",
       "Bash(timeout 120 npm run build:*)",
       "Bash(npm uninstall:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(xxd:*)"
     ],
     "deny": [],
     "ask": []

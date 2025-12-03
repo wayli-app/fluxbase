@@ -232,9 +232,9 @@ Authenticate as an admin user
 
 #### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `request` | [`AdminLoginRequest`](/api/sdk/interfaces/adminloginrequest/) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `request` | [`AdminLoginRequest`](/api/sdk/interfaces/adminloginrequest/) | Login request containing email and password |
 
 #### Returns
 
@@ -307,9 +307,9 @@ Refresh admin access token
 
 #### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `request` | [`AdminRefreshRequest`](/api/sdk/interfaces/adminrefreshrequest/) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `request` | [`AdminRefreshRequest`](/api/sdk/interfaces/adminrefreshrequest/) | Refresh request containing the refresh token |
 
 #### Returns
 
@@ -389,9 +389,9 @@ This endpoint can only be called once.
 
 #### Parameters
 
-| Parameter | Type |
-| ------ | ------ |
-| `request` | [`AdminSetupRequest`](/api/sdk/interfaces/adminsetuprequest/) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `request` | [`AdminSetupRequest`](/api/sdk/interfaces/adminsetuprequest/) | Setup request containing email, password, and name |
 
 #### Returns
 
