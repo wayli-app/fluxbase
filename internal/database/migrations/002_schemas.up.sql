@@ -2,14 +2,6 @@
 -- This file creates all database schemas
 
 --
--- _FLUXBASE SCHEMA
--- Internal Fluxbase system schema for migration tracking and system tables
---
-
-CREATE SCHEMA IF NOT EXISTS _fluxbase;
-GRANT USAGE, CREATE ON SCHEMA _fluxbase TO CURRENT_USER;
-
---
 -- AUTH SCHEMA
 -- Handles application user authentication, API keys, and sessions
 --
@@ -63,8 +55,13 @@ GRANT USAGE, CREATE ON SCHEMA realtime TO CURRENT_USER;
 
 --
 -- MIGRATIONS SCHEMA
--- Handles user-defined migrations managed via API
+-- Handles all migration tracking:
+-- - System migrations (Fluxbase internal)
+-- - User migrations (filesystem-based)
+-- - API-managed migrations (multi-tenant)
 --
 
 CREATE SCHEMA IF NOT EXISTS migrations;
 GRANT USAGE, CREATE ON SCHEMA migrations TO CURRENT_USER;
+
+COMMENT ON SCHEMA migrations IS 'Schema for all migration tracking including system, user, and API-managed migrations';

@@ -3,4 +3,5 @@
 --
 
 DROP TABLE IF EXISTS migrations.execution_logs;
-DROP TABLE IF EXISTS migrations.migrations;
+DROP TABLE IF EXISTS migrations.app;
+DROP TABLE IF EXISTS migrations.fluxbase;

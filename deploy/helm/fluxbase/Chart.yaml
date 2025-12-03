@@ -20,7 +20,7 @@ sources:
 maintainers:
   - name: Fluxbase Team
     email: hello@fluxbase.io
-icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/img/logo.png
+icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/img/logo.svg
 annotations:
   category: Database
   licenses: MIT

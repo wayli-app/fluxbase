@@ -1,10 +1,28 @@
 --
 -- MIGRATIONS SCHEMA TABLES
--- API-managed user migrations
+-- All migration tracking tables
 --
 
--- Main migrations table
-CREATE TABLE IF NOT EXISTS migrations.migrations (
+-- ============================================================================
+-- SYSTEM MIGRATION TRACKING (golang-migrate)
+-- ============================================================================
+
+-- Fluxbase system migrations (embedded in binary)
+CREATE TABLE IF NOT EXISTS migrations.fluxbase (
+    version BIGINT NOT NULL PRIMARY KEY,
+    dirty BOOLEAN NOT NULL
+);
+
+COMMENT ON TABLE migrations.fluxbase IS 'Tracks Fluxbase system migration versions (managed by golang-migrate)';
+
+-- ============================================================================
+-- APPLICATION MIGRATIONS (filesystem + API)
+-- ============================================================================
+
+-- Main migrations table for all user-facing migrations
+-- Filesystem migrations use namespace='filesystem'
+-- API migrations use custom namespaces (default, staging, prod, etc.)
+CREATE TABLE IF NOT EXISTS migrations.app (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace TEXT NOT NULL DEFAULT 'default',
     name TEXT NOT NULL,
@@ -26,7 +44,7 @@ CREATE TABLE IF NOT EXISTS migrations.migrations (
 -- Execution history for audit trail
 CREATE TABLE IF NOT EXISTS migrations.execution_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    migration_id UUID NOT NULL REFERENCES migrations.migrations(id) ON DELETE CASCADE,
+    migration_id UUID NOT NULL REFERENCES migrations.app(id) ON DELETE CASCADE,
     action TEXT NOT NULL,  -- apply, rollback
     status TEXT NOT NULL,  -- success, failed
     duration_ms INTEGER,
@@ -38,19 +56,24 @@ CREATE TABLE IF NOT EXISTS migrations.execution_logs (
     CONSTRAINT valid_execution_status CHECK (status IN ('success', 'failed'))
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_migrations_namespace ON migrations.migrations(namespace);
-CREATE INDEX IF NOT EXISTS idx_migrations_status ON migrations.migrations(status);
-CREATE INDEX IF NOT EXISTS idx_migrations_namespace_status ON migrations.migrations(namespace, status);
+-- ============================================================================
+-- INDEXES
+-- ============================================================================
+
+CREATE INDEX IF NOT EXISTS idx_migrations_app_namespace ON migrations.app(namespace);
+CREATE INDEX IF NOT EXISTS idx_migrations_app_status ON migrations.app(status);
+CREATE INDEX IF NOT EXISTS idx_migrations_app_namespace_status ON migrations.app(namespace, status);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_migration ON migrations.execution_logs(migration_id);
 CREATE INDEX IF NOT EXISTS idx_execution_logs_executed_at ON migrations.execution_logs(executed_at DESC);
 
--- Comments for documentation
-COMMENT ON SCHEMA migrations IS 'API-managed user migrations (separate from system migrations)';
-COMMENT ON TABLE migrations.migrations IS 'User-defined migrations managed via API, stored in database instead of filesystem';
-COMMENT ON COLUMN migrations.migrations.namespace IS 'Namespace for multi-tenancy isolation (e.g., dev, staging, prod, app1, app2)';
-COMMENT ON COLUMN migrations.migrations.name IS 'Migration name, should follow convention like 001_description for ordering';
-COMMENT ON COLUMN migrations.migrations.up_sql IS 'SQL to apply the migration';
-COMMENT ON COLUMN migrations.migrations.down_sql IS 'SQL to rollback the migration (optional)';
-COMMENT ON COLUMN migrations.migrations.status IS 'Current status: pending (not applied), applied (successful), failed (error), rolled_back';
+-- ============================================================================
+-- COMMENTS
+-- ============================================================================
+
+COMMENT ON TABLE migrations.app IS 'All user-facing migrations (filesystem and API-managed)';
+COMMENT ON COLUMN migrations.app.namespace IS 'Namespace for isolation: filesystem for local files, or custom (default, staging, prod, etc.) for API';
+COMMENT ON COLUMN migrations.app.name IS 'Migration name, should follow convention like 001_description for ordering';
+COMMENT ON COLUMN migrations.app.up_sql IS 'SQL to apply the migration';
+COMMENT ON COLUMN migrations.app.down_sql IS 'SQL to rollback the migration (optional)';
+COMMENT ON COLUMN migrations.app.status IS 'Current status: pending (not applied), applied (successful), failed (error), rolled_back';
 COMMENT ON TABLE migrations.execution_logs IS 'Audit log of all migration apply/rollback attempts';

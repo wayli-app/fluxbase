@@ -1615,7 +1615,7 @@ function JobsPage() {
                   </div>
                   <div
                     ref={logsContainerRef}
-                    className='max-h-[400px] min-h-[200px] flex-1 overflow-y-auto rounded-lg border bg-black/90 p-4 font-mono'
+                    className='h-[400px] overflow-y-auto rounded-lg border bg-black/90 p-4 font-mono'
                     onScroll={() => {
                       isAtBottomRef.current = checkIfAtBottom()
                     }}

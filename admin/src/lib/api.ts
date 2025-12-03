@@ -64,8 +64,73 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = []
 }
 
+// Helper to check if response indicates user is not authenticated
+const isNotLoggedInResponse = (data: unknown): boolean => {
+  if (!data || typeof data !== 'object') return false
+  const obj = data as Record<string, unknown>
+  // Check for common error messages indicating authentication issues
+  const errorFields = [obj.error, obj.message, obj.msg, obj.detail]
+  for (const field of errorFields) {
+    if (typeof field === 'string') {
+      const lower = field.toLowerCase()
+      if (
+        lower.includes('not logged in') ||
+        lower.includes('not authenticated') ||
+        lower.includes('unauthorized') ||
+        lower.includes('invalid token') ||
+        lower.includes('token expired') ||
+        lower.includes('session expired') ||
+        lower.includes('authentication required')
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Check if successful response contains auth error message
+    if (isNotLoggedInResponse(response.data)) {
+      const refreshToken = getRefreshToken()
+      if (refreshToken) {
+        // Try to refresh the token and retry
+        return axios
+          .post(`${API_BASE_URL}/api/v1/admin/refresh`, {
+            refresh_token: refreshToken,
+          })
+          .then((refreshResponse) => {
+            const {
+              access_token,
+              refresh_token: newRefreshToken,
+              user,
+              expires_in,
+            } = refreshResponse.data
+            setTokens(
+              { access_token, refresh_token: newRefreshToken, expires_in },
+              user as AdminUser
+            )
+            // Retry the original request with new token
+            if (response.config.headers) {
+              response.config.headers.Authorization = `Bearer ${access_token}`
+            }
+            return api(response.config)
+          })
+          .catch(() => {
+            // Refresh failed, redirect to login
+            clearTokens()
+            window.location.href = '/admin/login'
+            return new Promise(() => {})
+          })
+      }
+      // No refresh token, redirect to login
+      clearTokens()
+      window.location.href = '/admin/login'
+      return new Promise(() => {})
+    }
+    return response
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as typeof error.config & {
       _retry?: boolean
@@ -98,7 +163,9 @@ api.interceptors.response.use(
         // No refresh token, redirect to login
         clearTokens()
         window.location.href = '/admin/login'
-        return Promise.reject(error)
+        // Return a never-resolving promise to prevent React Query from showing errors
+        // while the redirect is happening
+        return new Promise(() => {})
       }
 
       try {
@@ -140,8 +207,51 @@ api.interceptors.response.use(
         clearTokens()
         window.location.href = '/admin/login'
 
-        return Promise.reject(refreshError)
+        // Return a never-resolving promise to prevent React Query from showing errors
+        // while the redirect is happening
+        return new Promise(() => {})
       }
+    }
+
+    // Check for auth error messages in error response body (for non-401 responses)
+    if (
+      error.response?.data &&
+      isNotLoggedInResponse(error.response.data) &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true
+      const refreshToken = getRefreshToken()
+      if (refreshToken) {
+        try {
+          const response = await axios.post(
+            `${API_BASE_URL}/api/v1/admin/refresh`,
+            { refresh_token: refreshToken }
+          )
+          const {
+            access_token,
+            refresh_token: newRefreshToken,
+            user,
+            expires_in,
+          } = response.data
+          setTokens(
+            { access_token, refresh_token: newRefreshToken, expires_in },
+            user as AdminUser
+          )
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${access_token}`
+          }
+          return api(originalRequest)
+        } catch {
+          // Refresh failed, redirect to login
+          clearTokens()
+          window.location.href = '/admin/login'
+          return new Promise(() => {})
+        }
+      }
+      // No refresh token, redirect to login
+      clearTokens()
+      window.location.href = '/admin/login'
+      return new Promise(() => {})
     }
 
     return Promise.reject(error)

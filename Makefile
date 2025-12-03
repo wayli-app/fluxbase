@@ -340,30 +340,19 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DO \$$\$$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT anon TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT authenticated TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_app')) THEN GRANT service_role TO fluxbase_app; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'anon') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT anon TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'authenticated') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT authenticated TO fluxbase_rls_test; END IF; IF NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = 'service_role') AND member = (SELECT oid FROM pg_roles WHERE rolname = 'fluxbase_rls_test')) THEN GRANT service_role TO fluxbase_rls_test; END IF; END \$$\$$;" || true
 	@echo "${GREEN}Full database reset complete!${NC}"
 
-docs: ## Serve Docusaurus documentation at http://localhost:3000
-	@echo "${YELLOW}Starting Docusaurus documentation server...${NC}"
+docs: ## Serve Starlight documentation at http://localhost:4321
+	@echo "${YELLOW}Starting Starlight documentation server...${NC}"
 	@if [ ! -d "docs/node_modules" ]; then \
 		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
 		cd docs && npm install; \
 	fi
-	@if [ ! -d "docs/docs/api/sdk" ] || [ -z "$$(ls -A docs/docs/api/sdk 2>/dev/null)" ]; then \
-		echo "${YELLOW}API documentation not found. Generating API docs...${NC}"; \
-		cd docs && npm run build > /dev/null 2>&1 || true; \
-		echo "${GREEN}✓ API documentation generated!${NC}"; \
-	fi
 	@echo ""
 	@echo "${GREEN}📚 Documentation will be available at:${NC}"
-	@echo "  ${GREEN}http://localhost:3000${NC}"
-	@echo ""
-	@echo "${GREEN}New Pages Added:${NC}"
-	@echo "  • API Cookbook (60+ examples)"
-	@echo "  • Supabase Migration Guide"
-	@echo "  • Advanced Guides (RLS, Performance, Scaling)"
-	@echo "  • Example Applications (Todo, Blog, Chat)"
+	@echo "  ${GREEN}http://localhost:4321${NC}"
 	@echo ""
 	@echo "${YELLOW}Press Ctrl+C to stop the server${NC}"
 	@echo ""
-	@cd docs && npm start -- --host 0.0.0.0
+	@cd docs && npm run dev -- --host 0.0.0.0
 
 docs-build: ## Build static documentation site for production
 	@echo "${YELLOW}Building documentation site...${NC}"
@@ -373,8 +362,8 @@ docs-build: ## Build static documentation site for production
 	fi
 	@cd docs && npm run build
 	@echo "${GREEN}Documentation built successfully!${NC}"
-	@echo "${YELLOW}Output:${NC} docs/build/"
-	@echo "${YELLOW}To serve locally:${NC} cd docs && npm run serve"
+	@echo "${YELLOW}Output:${NC} docs/dist/"
+	@echo "${YELLOW}To preview locally:${NC} cd docs && npm run preview"
 
 docker-build-docs: ## Build documentation Docker image
 	@echo "${YELLOW}Building documentation Docker image...${NC}"

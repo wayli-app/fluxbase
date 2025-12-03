@@ -2,52 +2,24 @@
   "name": "fluxbase-docs",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "docusaurus": "docusaurus",
-    "start": "bash fix-typedoc-brackets.sh && SKIP_TYPEDOC=true docusaurus start",
-    "build": "bash build-with-fix.sh",
-    "build:ci": "docusaurus build",
-    "swizzle": "docusaurus swizzle",
-    "deploy": "docusaurus deploy",
-    "clear": "docusaurus clear",
-    "serve": "docusaurus serve",
-    "write-translations": "docusaurus write-translations",
-    "write-heading-ids": "docusaurus write-heading-ids",
-    "typecheck": "tsc",
-    "validate": "bash validate-docs.sh",
-    "fix-typedoc": "bash fix-typedoc-brackets.sh",
-    "generate-api": "docusaurus build && bash fix-typedoc-brackets.sh"
+    "dev": "astro dev",
+    "start": "astro dev --host 0.0.0.0",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
   },
   "dependencies": {
-    "@docusaurus/core": "^3.6.3",
-    "@docusaurus/preset-classic": "^3.6.3",
-    "@docusaurus/theme-mermaid": "^3.6.3",
-    "@mdx-js/react": "^3.1.0",
-    "clsx": "^2.1.1",
-    "prism-react-renderer": "^2.4.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@astrojs/starlight": "^0.37.0",
+    "astro": "^5.16.4",
+    "sharp": "^0.33.5",
+    "starlight-typedoc": "0.16.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "^3.6.3",
-    "@docusaurus/tsconfig": "^3.6.3",
-    "@docusaurus/types": "^3.6.3",
-    "docusaurus-plugin-typedoc": "^1.4.2",
-    "typedoc": "^0.28.14",
-    "typedoc-plugin-markdown": "^4.9.0",
-    "typescript": "~5.7.2"
-  },
-  "browserslist": {
-    "production": [
-      ">0.5%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 3 chrome version",
-      "last 3 firefox version",
-      "last 5 safari version"
-    ]
+    "typedoc": "0.26.11",
+    "typedoc-plugin-markdown": "4.2.10",
+    "typescript": "5.6.3"
   },
   "engines": {
     "node": ">=18.0"

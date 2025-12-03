@@ -1,14 +1,17 @@
 --
 -- POLICIES FOR MIGRATIONS SCHEMA
--- Row-level security and permissions for API-managed migrations
+-- Permissions for migration tracking tables
+-- Service role only - no user access to migration internals
 --
 
--- Grant permissions to service_role (admin operations)
+-- Grant permissions to service_role only (admin operations)
 GRANT USAGE ON SCHEMA migrations TO service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA migrations TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO service_role;
 
--- Allow authenticated users to view their namespace's migrations (read-only)
-GRANT USAGE ON SCHEMA migrations TO authenticated;
-GRANT SELECT ON migrations.migrations TO authenticated;
-GRANT SELECT ON migrations.execution_logs TO authenticated;
+-- Default privileges for future tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA migrations
+    GRANT ALL ON TABLES TO service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA migrations
+    GRANT ALL ON SEQUENCES TO service_role;
