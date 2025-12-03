@@ -4,8 +4,8 @@ entries:
   - annotations:
       artifacthub.io/prerelease: "true"
     apiVersion: v2
-    appVersion: 0.1.0-rc.3
-    created: "2025-12-03T22:26:22.919592436Z"
+    appVersion: 0.0.1-rc.46
+    created: "2025-12-03T22:27:36.336570781Z"
     dependencies:
     - alias: cnpg
       condition: postgresql.cnpg.enabled
@@ -14,7 +14,7 @@ entries:
       version: ~0.0.10
     description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
       PostgreSQL
-    digest: e223996b37164d960100ee7b7a54727e8bf6c0e45df38652516f8aec5a6a502e
+    digest: ddb5a78faa29a93f9a99df8c3544ccda5f81759fe1dc9ff4fe6a2fec2a4d282e
     home: https://github.com/yourusername/fluxbase
     icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/img/logo.svg
     keywords:
@@ -33,6 +33,6 @@ entries:
     - https://github.com/yourusername/fluxbase
     type: application
     urls:
-    - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.1.0-rc.3.tgz
-    version: 0.1.0-rc.3
-generated: "2025-12-03T22:26:22.91588758Z"
+    - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.0.1-rc.46.tgz
+    version: 0.0.1-rc.46
+generated: "2025-12-03T22:27:36.332948411Z"
