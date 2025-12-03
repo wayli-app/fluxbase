@@ -114,9 +114,13 @@ jobs:
       - name: Get version
         id: get_version
         run: |
+          # Fetch all tags from remote to ensure we have the latest state
+          git fetch --tags --force
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Get latest tag
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            # Get latest tag (sorted by version, not by commit date)
+            LATEST_TAG=$(git tag -l 'v*' | sort -V | tail -n1)
+            LATEST_TAG=${LATEST_TAG:-v0.0.0}
             LATEST_VERSION=${LATEST_TAG#v}
 
             # Parse version components
