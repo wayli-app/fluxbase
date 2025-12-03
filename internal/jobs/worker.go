@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // Worker executes jobs from the queue

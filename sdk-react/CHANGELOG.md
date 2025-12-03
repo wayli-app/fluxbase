@@ -64,4 +64,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@tanstack/react-query`: ^5.0.0
 - `react`: ^18.0.0 || ^19.0.0
 
-[0.1.0]: https://github.com/wayli-app/fluxbase/releases/tag/sdk-react-v0.1.0
+[0.1.0]: https://github.com/fluxbase-eu/fluxbase/releases/tag/sdk-react-v0.1.0

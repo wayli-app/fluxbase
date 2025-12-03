@@ -7,6 +7,7 @@ This guide walks you through setting up your GitHub repository for automated rel
 ## Overview
 
 Fluxbase uses GitHub Actions to automatically:
+
 - Build binaries for multiple platforms
 - Build and push Docker images to GHCR (and optionally Docker Hub)
 - Package and publish Helm charts to GHCR and gh-pages
@@ -28,6 +29,7 @@ Fluxbase uses GitHub Actions to automatically:
 ## Secrets Configuration
 
 ### Navigation
+
 Go to: **Settings** → **Secrets and variables** → **Actions** → **Secrets** tab
 
 ### Required Secrets
@@ -37,6 +39,7 @@ Go to: **Settings** → **Secrets and variables** → **Actions** → **Secrets*
 **Purpose**: Publish TypeScript SDK (`@fluxbase/sdk`) to NPM registry
 
 **How to get it**:
+
 1. Log in to [npmjs.com](https://www.npmjs.com/)
 2. Click your profile → **Access Tokens**
 3. Click **Generate New Token** → **Classic Token**
@@ -44,6 +47,7 @@ Go to: **Settings** → **Secrets and variables** → **Actions** → **Secrets*
 5. Copy the token (starts with `npm_`)
 
 **Add to GitHub**:
+
 ```
 Name: NPM_TOKEN
 Secret: npm_xxxxxxxxxxxxxxxxxxxxxxxx
@@ -64,9 +68,11 @@ If you don't add these secrets, images will only be published to ghcr.io (which 
 **Purpose**: Authenticate with Docker Hub to push images
 
 **How to get it**:
+
 - This is your Docker Hub username (e.g., `wayliapp`, `mycompany`, etc.)
 
 **Add to GitHub**:
+
 ```
 Name: DOCKERHUB_USERNAME
 Secret: your-dockerhub-username
@@ -77,6 +83,7 @@ Secret: your-dockerhub-username
 **Purpose**: Docker Hub access token for authentication
 
 **How to get it**:
+
 1. Log in to [hub.docker.com](https://hub.docker.com/)
 2. Go to **Account Settings** → **Security**
 3. Click **New Access Token**
@@ -85,6 +92,7 @@ Secret: your-dockerhub-username
 6. Copy the token (starts with `dckr_pat_`)
 
 **Add to GitHub**:
+
 ```
 Name: DOCKERHUB_TOKEN
 Secret: dckr_pat_xxxxxxxxxxxxxxxxxxxxxxxx
@@ -99,6 +107,7 @@ Secret: dckr_pat_xxxxxxxxxxxxxxxxxxxxxxxx
 **Purpose**: Authenticate with GitHub services
 
 **Used for**:
+
 - Pushing Docker images to `ghcr.io`
 - Pushing Helm charts to `ghcr.io`
 - Creating GitHub releases
@@ -114,6 +123,7 @@ Secret: dckr_pat_xxxxxxxxxxxxxxxxxxxxxxxx
 Variables are like secrets, but they're not encrypted and can be read in workflow logs.
 
 ### Navigation
+
 Go to: **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
 
 ### Optional Variables
@@ -127,12 +137,13 @@ Go to: **Settings** → **Secrets and variables** → **Actions** → **Variable
 **When to set**: If you want images pushed to a different Docker Hub organization
 
 **Example**:
+
 ```
 Name: DOCKERHUB_ORG
 Value: mycompany
 ```
 
-This will push images to `mycompany/fluxbase` instead of `wayli-app/fluxbase`.
+This will push images to `mycompany/fluxbase` instead of `fluxbase-eu/fluxbase`.
 
 ---
 
@@ -145,6 +156,7 @@ This allows workflows to push Docker images and Helm charts to GitHub Container 
 **Navigation**: **Settings** → **Actions** → **General** → **Workflow permissions**
 
 **Configuration**:
+
 - Select: ✅ **Read and write permissions**
 - Check: ✅ **Allow GitHub Actions to create and approve pull requests**
 - Click: **Save**
@@ -156,6 +168,7 @@ After the first Docker image is pushed, you need to make the package public.
 **Navigation**: **Packages** (from repository main page) → **fluxbase** → **Package settings**
 
 **Configuration**:
+
 - Scroll to **Danger Zone**
 - Click **Change visibility**
 - Select **Public**
@@ -163,6 +176,7 @@ After the first Docker image is pushed, you need to make the package public.
 - Click **I understand, change package visibility**
 
 **Repeat for**:
+
 - `fluxbase` (Docker image)
 - `charts/fluxbase` (Helm chart)
 
@@ -171,17 +185,21 @@ After the first Docker image is pushed, you need to make the package public.
 ## GitHub Pages Setup
 
 ### Purpose
+
 Hosts Helm chart repository at `https://yourusername.github.io/fluxbase`
 
 ### Navigation
+
 **Settings** → **Pages**
 
 ### Configuration
 
 **Source**:
+
 - Select: **Deploy from a branch**
 
 **Branch**:
+
 - Branch: **gh-pages**
 - Folder: **/ (root)**
 
@@ -190,6 +208,7 @@ Hosts Helm chart repository at `https://yourusername.github.io/fluxbase`
 ### After First Release
 
 After your first release completes:
+
 1. Wait 2-5 minutes for Pages to deploy
 2. Visit `https://yourusername.github.io/fluxbase`
 3. You should see `index.yaml` (Helm repository index)
@@ -269,12 +288,14 @@ Create a PR and merge to `main`. Release Please will create a release PR.
 After successful release:
 
 **Binaries**:
+
 ```bash
 # Check GitHub Releases
 # Should see fluxbase-linux-amd64, fluxbase-darwin-arm64, etc.
 ```
 
 **Docker Images**:
+
 ```bash
 # GHCR (always published)
 docker pull ghcr.io/yourusername/fluxbase:0.1.0
@@ -284,6 +305,7 @@ docker pull yourusername/fluxbase:0.1.0
 ```
 
 **Helm Chart**:
+
 ```bash
 # OCI registry
 helm pull oci://ghcr.io/yourusername/charts/fluxbase --version 0.1.0
@@ -294,6 +316,7 @@ helm search repo fluxbase
 ```
 
 **NPM Package**:
+
 ```bash
 npm view @fluxbase/sdk
 ```
@@ -307,6 +330,7 @@ npm view @fluxbase/sdk
 **Error**: `npm ERR! code ENEEDAUTH`
 
 **Solutions**:
+
 1. Verify `NPM_TOKEN` is set correctly in GitHub secrets
 2. Ensure token has "Automation" scope
 3. Check token hasn't expired
@@ -317,6 +341,7 @@ npm view @fluxbase/sdk
 **Error**: `unauthorized: authentication required`
 
 **Solutions**:
+
 1. Check **Settings** → **Actions** → **General** → **Workflow permissions**
 2. Must be set to "Read and write permissions"
 3. Ensure **Allow GitHub Actions to create and approve pull requests** is checked
@@ -327,6 +352,7 @@ npm view @fluxbase/sdk
 **Error**: `unauthorized: incorrect username or password`
 
 **Solutions**:
+
 1. Verify `DOCKERHUB_USERNAME` matches your Docker Hub username exactly
 2. Verify `DOCKERHUB_TOKEN` is a valid access token (not password)
 3. Ensure token has "Read, Write, Delete" permissions
@@ -337,6 +363,7 @@ npm view @fluxbase/sdk
 **Error**: `Error: failed to authorize`
 
 **Solutions**:
+
 1. Same as "Docker Push to GHCR Fails" above
 2. Ensure workflow has write permissions
 3. Check that packages can be created in your organization
@@ -346,6 +373,7 @@ npm view @fluxbase/sdk
 **Error**: 404 when visiting Helm repository URL
 
 **Solutions**:
+
 1. Go to **Settings** → **Pages**
 2. Verify **gh-pages** branch is selected as source
 3. Wait 2-5 minutes after first push to gh-pages
@@ -357,6 +385,7 @@ npm view @fluxbase/sdk
 **Error**: Cannot pull Docker image or Helm chart
 
 **Solutions**:
+
 1. Go to repository main page → **Packages**
 2. Click on package name
 3. Click **Package settings** (gear icon)
@@ -377,6 +406,7 @@ npm view @fluxbase/sdk
 ### Audit
 
 Regularly review:
+
 - **Actions** → Recent workflow runs
 - **Settings** → **Secrets and variables** → Last updated
 - **Packages** → Download stats and access logs
@@ -384,6 +414,7 @@ Regularly review:
 ### Revoke Compromised Tokens
 
 If a token is compromised:
+
 1. **Immediately revoke** the token in its service (NPM, Docker Hub)
 2. **Generate a new token**
 3. **Update GitHub secret** with new token
@@ -396,7 +427,7 @@ If a token is compromised:
 - **Documentation**: [VERSIONING.md](../VERSIONING.md)
 - **Secrets Reference**: [SECRETS.md](SECRETS.md)
 - **GitHub Actions Docs**: https://docs.github.com/en/actions
-- **Issues**: https://github.com/wayli-app/fluxbase/issues
+- **Issues**: https://github.com/fluxbase-eu/fluxbase/issues
 
 ---
 
@@ -407,13 +438,16 @@ If a token is compromised:
 If you want the simplest setup without Docker Hub:
 
 **Required secrets**:
+
 1. ✅ `NPM_TOKEN`
 
 **Required settings**:
+
 1. ✅ Workflow permissions: "Read and write permissions"
 2. ✅ GitHub Pages: Enabled with gh-pages branch
 
 **Result**:
+
 - ✅ Docker images on ghcr.io
 - ✅ Helm charts on ghcr.io and GitHub Pages
 - ✅ NPM package on npmjs.com
@@ -423,18 +457,22 @@ If you want the simplest setup without Docker Hub:
 ### Full Setup (GHCR + Docker Hub + NPM)
 
 **Required secrets**:
+
 1. ✅ `NPM_TOKEN`
 2. ✅ `DOCKERHUB_USERNAME`
 3. ✅ `DOCKERHUB_TOKEN`
 
 **Optional variables**:
+
 - `DOCKERHUB_ORG` (if different from default)
 
 **Required settings**:
+
 1. ✅ Workflow permissions: "Read and write permissions"
 2. ✅ GitHub Pages: Enabled with gh-pages branch
 
 **Result**:
+
 - ✅ Docker images on ghcr.io AND Docker Hub
 - ✅ Helm charts on ghcr.io and GitHub Pages
 - ✅ NPM package on npmjs.com

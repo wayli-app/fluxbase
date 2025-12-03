@@ -113,10 +113,7 @@ import { FluxbaseProvider, useFluxbaseQuery } from "@fluxbase/sdk-react";
 import { createClient } from "@fluxbase/sdk";
 
 // Create client
-const client = createClient(
-  "http://localhost:8080",
-  "your-anon-key"
-);
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // Wrap your app
 function App() {
@@ -168,6 +165,7 @@ createClient(
 ```
 
 **Parameters:**
+
 - `url`: Your Fluxbase backend URL
 - `apiKey`: Your API key (anon key for client-side, service role key for server-side)
 
@@ -201,5 +199,5 @@ Check out the `/example` directory in the Fluxbase repository for complete worki
 
 ## Support
 
-- GitHub Issues: [github.com/wayli-app/fluxbase/issues](https://github.com/wayli-app/fluxbase/issues)
+- GitHub Issues: [github.com/fluxbase-eu/fluxbase/issues](https://github.com/fluxbase-eu/fluxbase/issues)
 - Documentation: [https://fluxbase.eu](https://fluxbase.eu)

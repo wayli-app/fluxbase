@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/mailgun/mailgun-go/v4"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // MailgunService handles email sending via Mailgun

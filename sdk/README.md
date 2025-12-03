@@ -30,48 +30,46 @@ pnpm add @fluxbase/sdk
 ## Quick Start
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
 // Create a client
 const client = createClient({
-  url: 'http://localhost:8080',
+  url: "http://localhost:8080",
   auth: {
     autoRefresh: true,
     persist: true,
   },
-})
+});
 
 // Authentication
 await client.auth.signUp({
-  email: 'user@example.com',
-  password: 'secure-password',
-})
+  email: "user@example.com",
+  password: "secure-password",
+});
 
 // Query data
 const { data } = await client
-  .from('products')
-  .select('*')
-  .eq('category', 'electronics')
-  .gte('price', 100)
-  .execute()
+  .from("products")
+  .select("*")
+  .eq("category", "electronics")
+  .gte("price", 100)
+  .execute();
 
 // Aggregations
 const stats = await client
-  .from('products')
-  .count('*')
-  .groupBy('category')
-  .execute()
+  .from("products")
+  .count("*")
+  .groupBy("category")
+  .execute();
 
 // Realtime subscriptions
 client.realtime
-  .channel('table:public.products')
-  .on('INSERT', (payload) => console.log('New:', payload.new_record))
-  .subscribe()
+  .channel("table:public.products")
+  .on("INSERT", (payload) => console.log("New:", payload.new_record))
+  .subscribe();
 
 // File upload
-await client.storage
-  .from('avatars')
-  .upload('user-123.png', file)
+await client.storage.from("avatars").upload("user-123.png", file);
 ```
 
 ## Documentation
@@ -79,11 +77,13 @@ await client.storage
 📚 **[Complete Documentation](../../docs/docs/sdks/getting-started.md)**
 
 ### Core Guides
+
 - **[Getting Started](../../docs/docs/sdks/getting-started.md)** - Installation, configuration, and basic usage
 - **[Database Operations](../../docs/docs/sdks/database.md)** - Queries, filters, aggregations, batch operations, and RPC
 - **[React Hooks](../../docs/docs/sdks/react-hooks.md)** - React integration with `@fluxbase/sdk-react`
 
 ### API Reference
+
 - **[TypeScript API Docs](../../docs/static/api/sdk/)** - Auto-generated from source code
 
 ## Browser & Node.js Support
@@ -97,19 +97,20 @@ Fully typed with TypeScript. Define your schemas for complete type safety:
 
 ```typescript
 interface Product {
-  id: number
-  name: string
-  price: number
-  category: string
+  id: number;
+  name: string;
+  price: number;
+  category: string;
 }
 
-const { data } = await client.from<Product>('products').select('*').execute()
+const { data } = await client.from<Product>("products").select("*").execute();
 // data is typed as Product[]
 ```
 
 ## Examples
 
 Check out working examples in the [`/example`](../example/) directory:
+
 - Vanilla JavaScript/TypeScript
 - React with hooks
 - Next.js integration
@@ -137,5 +138,5 @@ MIT © Fluxbase
 
 - [Documentation](../../docs/docs/sdks/getting-started.md)
 - [API Reference](../../docs/static/api/sdk/)
-- [GitHub](https://github.com/wayli-app/fluxbase)
-- [Issues](https://github.com/wayli-app/fluxbase/issues)
+- [GitHub](https://github.com/fluxbase-eu/fluxbase)
+- [Issues](https://github.com/fluxbase-eu/fluxbase/issues)

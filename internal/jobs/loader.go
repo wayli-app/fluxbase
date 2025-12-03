@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/functions"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/functions"
 )
 
 // Loader handles loading and syncing job functions

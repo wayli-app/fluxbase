@@ -6,7 +6,7 @@ version: "3.9"
 services:
   # Fluxbase Application (without bundled PostgreSQL)
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.45}
+    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.45}
     build:
       context: ..
       dockerfile: Dockerfile

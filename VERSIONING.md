@@ -191,7 +191,7 @@ See [.github/workflows/release.yml](.github/workflows/release.yml) for details.
 
 ### 1. Docker Images
 
-**Registry**: `ghcr.io/wayli-app/fluxbase`
+**Registry**: `ghcr.io/fluxbase-eu/fluxbase`
 
 **Tags**:
 
@@ -218,8 +218,8 @@ export FLUXBASE_VERSION=0.1.0
 docker-compose -f deploy/docker-compose.production.yml up
 
 # Docker CLI
-docker pull ghcr.io/wayli-app/fluxbase:latest
-docker run ghcr.io/wayli-app/fluxbase:latest
+docker pull ghcr.io/fluxbase-eu/fluxbase:latest
+docker run ghcr.io/fluxbase-eu/fluxbase:latest
 ```
 
 ### 2. Helm Chart
@@ -413,10 +413,10 @@ Always tag images with:
 
 ```yaml
 # ❌ Bad
-image: ghcr.io/wayli-app/fluxbase:latest
+image: ghcr.io/fluxbase-eu/fluxbase:latest
 
 # ✅ Good
-image: ghcr.io/wayli-app/fluxbase:0.1.0
+image: ghcr.io/fluxbase-eu/fluxbase:0.1.0
 ```
 
 ### Helm Chart Updates
@@ -459,7 +459,7 @@ go build -ldflags="-X main.Version=$(cat VERSION)" cmd/fluxbase/main.go
 
 ### Docker Image Not Found
 
-**Problem**: `docker pull ghcr.io/wayli-app/fluxbase:0.1.0` fails
+**Problem**: `docker pull ghcr.io/fluxbase-eu/fluxbase:0.1.0` fails
 
 **Solution**: Check if the version exists:
 

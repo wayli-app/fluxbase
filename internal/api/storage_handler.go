@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/storage"
 )
 
 // StorageHandler handles file storage operations

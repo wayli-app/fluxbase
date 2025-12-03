@@ -11,6 +11,7 @@ The Fluxbase Admin Dashboard provides powerful tools for managing your Fluxbase 
 Browse, query, and edit your database tables directly from the web interface.
 
 **Key features:**
+
 - View all tables and schemas
 - Filter, sort, and search data
 - Inline editing with validation
@@ -22,6 +23,7 @@ Browse, query, and edit your database tables directly from the web interface.
 Manage users, roles, and permissions.
 
 **Capabilities:**
+
 - List all users with enriched metadata
 - Invite new users
 - Update user roles
@@ -39,6 +41,7 @@ View the database as different users to debug issues and test RLS policies.
 Monitor your Fluxbase instance health and usage.
 
 **Metrics available:**
+
 - Active sessions
 - Database connection pool status
 - Query performance
@@ -162,7 +165,7 @@ pg_dump -t 'dashboard_auth.*' \
 Explore detailed guides for specific admin features:
 
 - [User Impersonation](./user-impersonation) - Debug issues by viewing data as different users
-- *More guides coming soon...*
+- _More guides coming soon..._
 
 ## Support
 
@@ -170,4 +173,4 @@ Need help with the admin dashboard?
 
 - 📖 Check the [documentation](https://docs.fluxbase.io)
 - 💬 Join our [Discord community](https://discord.gg/fluxbase)
-- 🐛 Report issues on [GitHub](https://github.com/wayli-app/fluxbase/issues)
+- 🐛 Report issues on [GitHub](https://github.com/fluxbase-eu/fluxbase/issues)

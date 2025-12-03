@@ -238,8 +238,8 @@ jobs:
 
           # Update Docker Compose files
           # Update the main example docker-compose.yml
-          sed -i "s|image: ghcr.io/wayli-app/fluxbase:.*|image: ghcr.io/wayli-app/fluxbase:${VERSION}|g" deploy/docker-compose.yml
-          sed -i "s|image: ghcr.io/wayli-app/fluxbase:.*|image: ghcr.io/wayli-app/fluxbase:${VERSION}|g" deploy/docker-compose.minimal.yml
+          sed -i "s|image: ghcr.io/fluxbase-eu/fluxbase:.*|image: ghcr.io/fluxbase-eu/fluxbase:${VERSION}|g" deploy/docker-compose.yml
+          sed -i "s|image: ghcr.io/fluxbase-eu/fluxbase:.*|image: ghcr.io/fluxbase-eu/fluxbase:${VERSION}|g" deploy/docker-compose.minimal.yml
 
           # For production and external-db, update the default in the variable
           sed -i "s|FLUXBASE_VERSION:-.*}|FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.production.yml
@@ -594,10 +594,10 @@ jobs:
       - name: Publish Go module
         run: |
           # Go modules are automatically available when tagged
-          echo "Go module published at github.com/wayli-app/fluxbase@${{ needs.get-version.outputs.tag_name }}"
+          echo "Go module published at github.com/fluxbase-eu/fluxbase@${{ needs.get-version.outputs.tag_name }}"
 
           # Update pkg.go.dev
-          curl "https://proxy.golang.org/github.com/wayli-app/fluxbase/@v/${{ needs.get-version.outputs.tag_name }}.info"
+          curl "https://proxy.golang.org/github.com/fluxbase-eu/fluxbase/@v/${{ needs.get-version.outputs.tag_name }}.info"
 
   publish-helm-chart:
     name: Publish Helm Chart to GHCR

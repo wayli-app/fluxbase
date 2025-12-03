@@ -66,7 +66,7 @@ Download the latest release for your platform (~40MB binary):
 **Linux (x86_64)**
 
 ```bash
-curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
+curl -L https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
 chmod +x fluxbase
 sudo mv fluxbase /usr/local/bin/
 ```
@@ -74,7 +74,7 @@ sudo mv fluxbase /usr/local/bin/
 **macOS (Intel)**
 
 ```bash
-curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-darwin-amd64 -o fluxbase
+curl -L https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-amd64 -o fluxbase
 chmod +x fluxbase
 sudo mv fluxbase /usr/local/bin/
 ```
@@ -84,14 +84,14 @@ sudo mv fluxbase /usr/local/bin/
 Pull and run the official Docker image (~80MB container):
 
 ```bash
-docker pull ghcr.io/wayli-app/fluxbase:latest
+docker pull ghcr.io/fluxbase-eu/fluxbase:latest
 
 docker run -d \
   --name fluxbase \
   -p 8080:8080 \
   -e DATABASE_URL=postgres://fluxbase:password@host.docker.internal:5432/fluxbase \
   -e JWT_SECRET=your-secret-key-change-this \
-  ghcr.io/wayli-app/fluxbase:latest
+  ghcr.io/fluxbase-eu/fluxbase:latest
 ```
 
 ### Method 3: Docker Compose
@@ -108,7 +108,7 @@ services:
       - "5432:5432"
 
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     depends_on:
       - postgres
     environment:
@@ -123,7 +123,7 @@ Start: `docker-compose up -d`
 ### Method 4: Build from Source
 
 ```bash
-git clone https://github.com/wayli-app/fluxbase.git
+git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase
 make build
 ```
@@ -254,14 +254,14 @@ curl http://localhost:8080/api/v1/tables/tasks
 
 ```bash
 pg_dump fluxbase > backup.sql  # Backup first!
-curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
+curl -L https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
 chmod +x fluxbase && ./fluxbase migrate && ./fluxbase
 ```
 
 **Docker:**
 
 ```bash
-docker pull ghcr.io/wayli-app/fluxbase:latest && docker-compose up -d
+docker pull ghcr.io/fluxbase-eu/fluxbase:latest && docker-compose up -d
 ```
 
 ## Running as systemd Service

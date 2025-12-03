@@ -23,13 +23,13 @@ npm install @fluxbase/sdk @fluxbase/sdk-react @tanstack/react-query
 ## Quick Start
 
 ```tsx
-import { createClient } from '@fluxbase/sdk'
-import { FluxbaseProvider, useAuth, useTable } from '@fluxbase/sdk-react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createClient } from "@fluxbase/sdk";
+import { FluxbaseProvider, useAuth, useTable } from "@fluxbase/sdk-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create clients
-const fluxbaseClient = createClient({ url: 'http://localhost:8080' })
-const queryClient = new QueryClient()
+const fluxbaseClient = createClient({ url: "http://localhost:8080" });
+const queryClient = new QueryClient();
 
 function App() {
   return (
@@ -38,14 +38,14 @@ function App() {
         <YourApp />
       </FluxbaseProvider>
     </QueryClientProvider>
-  )
+  );
 }
 
 function YourApp() {
-  const { user, signIn, signOut } = useAuth()
-  const { data: products } = useTable('products', (q) =>
-    q.select('*').eq('active', true).order('created_at', { ascending: false })
-  )
+  const { user, signIn, signOut } = useAuth();
+  const { data: products } = useTable("products", (q) =>
+    q.select("*").eq("active", true).order("created_at", { ascending: false })
+  );
 
   return (
     <div>
@@ -55,7 +55,11 @@ function YourApp() {
           <button onClick={signOut}>Sign Out</button>
         </>
       ) : (
-        <button onClick={() => signIn({ email: 'user@example.com', password: 'pass' })}>
+        <button
+          onClick={() =>
+            signIn({ email: "user@example.com", password: "pass" })
+          }
+        >
           Sign In
         </button>
       )}
@@ -65,13 +69,14 @@ function YourApp() {
         <div key={product.id}>{product.name}</div>
       ))}
     </div>
-  )
+  );
 }
 ```
 
 ## Available Hooks
 
 ### Authentication
+
 - `useAuth()` - Complete auth state and methods
 - `useUser()` - Current user data
 - `useSession()` - Current session
@@ -81,6 +86,7 @@ function YourApp() {
 - `useUpdateUser()` - Update user profile
 
 ### Database
+
 - `useTable()` - Query table with filters and ordering
 - `useFluxbaseQuery()` - Custom query hook
 - `useInsert()` - Insert rows
@@ -90,6 +96,7 @@ function YourApp() {
 - `useFluxbaseMutation()` - Generic mutation hook
 
 ### Realtime
+
 - `useRealtime()` - Subscribe to database changes
 - `useTableSubscription()` - Auto-refetch on changes
 - `useTableInserts()` - Listen to inserts
@@ -97,6 +104,7 @@ function YourApp() {
 - `useTableDeletes()` - Listen to deletes
 
 ### Storage
+
 - `useStorageUpload()` - Upload files
 - `useStorageList()` - List files in bucket
 - `useStorageDownload()` - Download files
@@ -105,11 +113,13 @@ function YourApp() {
 - `useStoragePublicUrl()` - Get public URLs
 
 ### RPC (PostgreSQL Functions)
+
 - `useRPC()` - Call PostgreSQL function (query)
 - `useRPCMutation()` - Call PostgreSQL function (mutation)
 - `useRPCBatch()` - Call multiple functions in parallel
 
 ### Admin (Management & Operations)
+
 - `useAdminAuth()` - Admin authentication state and login/logout
 - `useUsers()` - User management with pagination and CRUD
 - `useAPIKeys()` - API key creation and management
@@ -124,11 +134,13 @@ function YourApp() {
 📚 **[Complete React Hooks Guide](../../docs/docs/sdks/react-hooks.md)**
 
 ### Core Guides
+
 - **[Getting Started](../../docs/docs/sdks/getting-started.md)** - Installation and setup
 - **[React Hooks](../../docs/docs/sdks/react-hooks.md)** - Comprehensive hooks documentation with examples
 - **[Database Operations](../../docs/docs/sdks/database.md)** - Query building and data operations
 
 ### API Reference
+
 - **[React Hooks API](../../docs/static/api/sdk-react/)** - Auto-generated from source code
 - **[Core SDK API](../../docs/static/api/sdk/)** - Core TypeScript SDK reference
 
@@ -154,6 +166,7 @@ function ProductList() {
 ## Examples
 
 Check out working examples in the [`/example`](../example/) directory:
+
 - React with Vite
 - Next.js App Router
 - Next.js Pages Router
@@ -174,5 +187,5 @@ MIT © Fluxbase
 - [Documentation](../../docs/docs/sdks/react-hooks.md)
 - [API Reference](../../docs/static/api/sdk-react/)
 - [Core SDK](../sdk/)
-- [GitHub](https://github.com/wayli-app/fluxbase)
-- [Issues](https://github.com/wayli-app/fluxbase/issues)
+- [GitHub](https://github.com/fluxbase-eu/fluxbase)
+- [Issues](https://github.com/fluxbase-eu/fluxbase/issues)

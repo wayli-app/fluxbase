@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wayli-app/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 )
 
 // Service defines the interface for email providers

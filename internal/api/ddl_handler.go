@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // DDLHandler handles Database Definition Language (DDL) operations

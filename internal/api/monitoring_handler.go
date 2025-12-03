@@ -5,12 +5,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
+	"github.com/fluxbase-eu/fluxbase/internal/realtime"
+	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/middleware"
-	"github.com/wayli-app/fluxbase/internal/realtime"
-	"github.com/wayli-app/fluxbase/internal/storage"
 )
 
 // MonitoringHandler handles system monitoring and health check endpoints

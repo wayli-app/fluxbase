@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/smtp"
 
-	"github.com/wayli-app/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 )
 
 // SMTPService handles email sending via SMTP

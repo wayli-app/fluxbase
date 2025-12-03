@@ -7,14 +7,14 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/twpayne/go-geom/encoding/geojson"
 	"github.com/twpayne/go-geom/encoding/wkb"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // RESTHandler handles dynamic REST API endpoints

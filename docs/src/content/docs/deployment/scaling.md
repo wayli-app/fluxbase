@@ -212,7 +212,7 @@ services:
       - minio_data:/data
 
   fluxbase-1:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     environment:
       DATABASE_URL: postgres://fluxbase:secure-password@postgres:5432/fluxbase
       FLUXBASE_STORAGE_PROVIDER: s3
@@ -226,7 +226,7 @@ services:
       - minio
 
   fluxbase-2:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     environment:
       DATABASE_URL: postgres://fluxbase:secure-password@postgres:5432/fluxbase
       FLUXBASE_STORAGE_PROVIDER: s3
@@ -274,7 +274,7 @@ spec:
     spec:
       containers:
         - name: fluxbase
-          image: ghcr.io/wayli-app/fluxbase:latest
+          image: ghcr.io/fluxbase-eu/fluxbase:latest
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -369,8 +369,7 @@ Fluxbase uses PostgreSQL's `LISTEN/NOTIFY` for realtime subscriptions. Each inst
 
 Without sticky sessions, a client might establish a WebSocket on Instance 1, but subsequent requests could route to Instance 2, breaking the realtime connection.
 
-**Alternative:** Implement Redis Pub/Sub for realtime (future feature) to eliminate the need for sticky sessions.
----
+## **Alternative:** Implement Redis Pub/Sub for realtime (future feature) to eliminate the need for sticky sessions.
 
 ## Application Scaling
 

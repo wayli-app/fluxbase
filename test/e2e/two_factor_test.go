@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // cleanup2FATestUsers removes any existing test users created by 2FA tests

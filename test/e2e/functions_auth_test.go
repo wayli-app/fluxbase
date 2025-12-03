@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // TestFunctionAnonKeyRequired tests that functions require at minimum an anon key by default

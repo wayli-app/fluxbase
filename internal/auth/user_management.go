@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/jackc/pgx/v5"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // EnrichedUser represents a user with additional metadata for admin view

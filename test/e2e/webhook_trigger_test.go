@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // setupWebhookTriggerTest prepares the test context for webhook trigger tests

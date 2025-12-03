@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // SystemSettingsHandler handles system settings operations

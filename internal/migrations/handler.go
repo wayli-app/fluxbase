@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Handler manages HTTP endpoints for migrations

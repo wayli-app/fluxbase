@@ -161,10 +161,7 @@ The Fluxbase SDK handles CSRF tokens automatically:
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
-const client = createClient(
-  "http://localhost:8080",
-  "your-anon-key"
-);
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // CSRF token is automatically included
 await client
@@ -310,7 +307,7 @@ package main
 
 import (
     "github.com/gofiber/fiber/v2"
-    "github.com/wayli-app/fluxbase/internal/middleware"
+    "github.com/fluxbase-eu/fluxbase/internal/middleware"
 )
 
 func main() {
@@ -382,10 +379,7 @@ import { createClient } from "@fluxbase/sdk";
 
 describe("CSRF Protection", () => {
   it("should reject requests without CSRF token", async () => {
-    const client = createClient(
-      "http://localhost:8080",
-      "your-anon-key"
-    );
+    const client = createClient("http://localhost:8080", "your-anon-key");
 
     await client.auth.signIn({
       email: "user@example.com",
@@ -411,10 +405,7 @@ describe("CSRF Protection", () => {
   });
 
   it("should accept requests with valid CSRF token", async () => {
-    const client = createClient(
-      "http://localhost:8080",
-      "your-anon-key"
-    );
+    const client = createClient("http://localhost:8080", "your-anon-key");
 
     await client.auth.signIn({
       email: "user@example.com",
@@ -514,10 +505,7 @@ fetch(url, {
 
 ```typescript
 // Mobile app using API key (no CSRF needed)
-const client = createClient(
-  "https://api.yourdomain.com",
-  "your-anon-key"
-);
+const client = createClient("https://api.yourdomain.com", "your-anon-key");
 ```
 
 ---

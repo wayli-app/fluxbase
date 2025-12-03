@@ -6,20 +6,20 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 
 ## Quick Comparison
 
-| Feature | Supabase | Fluxbase |
-| --- | --- | --- |
-| **Deployment** | ~10 containers (~2GB) | 1 binary or container (~80MB) |
-| **REST API** | PostgREST | Compatible |
-| **Authentication** | GoTrue (JWT) | Compatible |
-| **Realtime** | WebSocket | Compatible |
-| **Storage** | S3-compatible | Compatible |
-| **Edge Functions** | Deno runtime | Deno runtime |
-| **Database** | PostgreSQL 15+ | PostgreSQL 15+ |
-| **Row-Level Security** | Yes (auth.uid()) | Yes (current_setting()) |
-| **Client SDK** | TypeScript/JS | TypeScript/JS (compatible) |
-| **Horizontal Scaling** | Yes (read replicas) | Yes (with configuration)* |
-| **Hosted Service** | Yes (free tier available) | No |
-| **Pricing** | Free/$25+/month | Open source (MIT) |
+| Feature                | Supabase                  | Fluxbase                      |
+| ---------------------- | ------------------------- | ----------------------------- |
+| **Deployment**         | ~10 containers (~2GB)     | 1 binary or container (~80MB) |
+| **REST API**           | PostgREST                 | Compatible                    |
+| **Authentication**     | GoTrue (JWT)              | Compatible                    |
+| **Realtime**           | WebSocket                 | Compatible                    |
+| **Storage**            | S3-compatible             | Compatible                    |
+| **Edge Functions**     | Deno runtime              | Deno runtime                  |
+| **Database**           | PostgreSQL 15+            | PostgreSQL 15+                |
+| **Row-Level Security** | Yes (auth.uid())          | Yes (current_setting())       |
+| **Client SDK**         | TypeScript/JS             | TypeScript/JS (compatible)    |
+| **Horizontal Scaling** | Yes (read replicas)       | Yes (with configuration)\*    |
+| **Hosted Service**     | Yes (free tier available) | No                            |
+| **Pricing**            | Free/$25+/month           | Open source (MIT)             |
 
 ## SDK Compatibility
 
@@ -27,18 +27,18 @@ The Fluxbase SDK is API-compatible with Supabase. Only the import statement diff
 
 ```typescript
 // Supabase
-import { createClient } from '@supabase/supabase-js'
-const client = createClient('https://project.supabase.co', 'anon-key')
+import { createClient } from "@supabase/supabase-js";
+const client = createClient("https://project.supabase.co", "anon-key");
 
 // Fluxbase
-import { createClient } from '@fluxbase/sdk'
-const client = createClient('http://localhost:8080', 'api-key')
+import { createClient } from "@fluxbase/sdk";
+const client = createClient("http://localhost:8080", "api-key");
 
 // Everything else is identical
 const { data, error } = await client
-  .from('users')
-  .select('id, name')
-  .eq('status', 'active')
+  .from("users")
+  .select("id, name")
+  .eq("status", "active");
 ```
 
 All query methods (`.select()`, `.insert()`, `.update()`, `.delete()`, `.eq()`, `.order()`, etc.) work identically.
@@ -50,15 +50,17 @@ Same JWT-based flow with identical method signatures:
 ```typescript
 // Sign up
 const { data, error } = await client.auth.signUp({
-  email: 'user@example.com',
-  password: 'password123'
-})
+  email: "user@example.com",
+  password: "password123",
+});
 
 // Sign in
-await client.auth.signInWithPassword({ email, password })
+await client.auth.signInWithPassword({ email, password });
 
 // Get session
-const { data: { session } } = await client.auth.getSession()
+const {
+  data: { session },
+} = await client.auth.getSession();
 ```
 
 Both support email/password, magic links, OAuth providers, and session management.
@@ -79,18 +81,20 @@ Similar patterns with different syntax:
 
 ```typescript
 // Supabase
-client.channel('changes')
-  .on('postgres_changes',
-    { event: '*', schema: 'public', table: 'posts' },
+client
+  .channel("changes")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "posts" },
     (payload) => console.log(payload)
   )
-  .subscribe()
+  .subscribe();
 
 // Fluxbase
 client.realtime
-  .channel('table:public.posts')
-  .on('*', (payload) => console.log(payload))
-  .subscribe()
+  .channel("table:public.posts")
+  .on("*", (payload) => console.log(payload))
+  .subscribe();
 ```
 
 ## Storage
@@ -99,13 +103,13 @@ Identical API for file operations:
 
 ```typescript
 // Upload
-await client.storage.from('avatars').upload('user1.png', file)
+await client.storage.from("avatars").upload("user1.png", file);
 
 // Download
-await client.storage.from('avatars').download('user1.png')
+await client.storage.from("avatars").download("user1.png");
 
 // List
-await client.storage.from('avatars').list()
+await client.storage.from("avatars").list();
 ```
 
 ## Edge Functions
@@ -154,11 +158,12 @@ Not a one-click migration, but API compatibility minimizes code changes.
 
 ## Scaling
 
-**Fluxbase:** Supports both vertical and horizontal scaling*
+**Fluxbase:** Supports both vertical and horizontal scaling\*
 
 **Supabase:** Horizontal scaling with read replicas for high traffic
 
-***Fluxbase horizontal scaling requirements:**
+**\*Fluxbase horizontal scaling requirements:**
+
 - External PostgreSQL database (not embedded) - stores data + sessions
 - S3-compatible storage (MinIO, AWS S3, etc.) instead of local filesystem
 - Load balancer with session stickiness for realtime WebSocket connections
@@ -170,11 +175,13 @@ See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for confi
 ## Resources
 
 **Fluxbase:**
+
 - [Documentation](/)
-- [GitHub](https://github.com/wayli-app/fluxbase)
+- [GitHub](https://github.com/fluxbase-eu/fluxbase)
 - [API Reference](/docs/api/sdk/classes/FluxbaseClient)
 
 **Supabase:**
+
 - [Documentation](https://supabase.com/docs)
 - [GitHub](https://github.com/supabase/supabase)
 - [Pricing](https://supabase.com/pricing)

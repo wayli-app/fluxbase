@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 /*

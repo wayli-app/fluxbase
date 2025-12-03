@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/config"
 	"golang.org/x/crypto/bcrypt"
 )
 

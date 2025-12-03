@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/api"
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/api"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 var (

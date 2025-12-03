@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Service provides a high-level authentication API

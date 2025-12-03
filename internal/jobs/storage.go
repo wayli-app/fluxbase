@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Storage provides database operations for jobs

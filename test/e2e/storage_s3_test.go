@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // StorageTestContext extends TestContext with storage-specific auth setup

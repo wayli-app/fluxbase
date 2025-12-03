@@ -1,4 +1,4 @@
-module github.com/wayli-app/fluxbase
+module github.com/fluxbase-eu/fluxbase
 
 go 1.25
 

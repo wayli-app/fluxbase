@@ -11,10 +11,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/pquerna/otp/totp"
-	"github.com/wayli-app/fluxbase/internal/database"
 	"golang.org/x/crypto/bcrypt"
 )
 

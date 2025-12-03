@@ -63,7 +63,7 @@ Python SDK for data science, ML, and backend applications.
 
 ### More SDKs
 
-Want an SDK for your favorite language? [Open an issue](https://github.com/wayli-app/fluxbase/issues) or [contribute](https://github.com/wayli-app/fluxbase/blob/main/CONTRIBUTING.md)!
+Want an SDK for your favorite language? [Open an issue](https://github.com/fluxbase-eu/fluxbase/issues) or [contribute](https://github.com/fluxbase-eu/fluxbase/blob/main/CONTRIBUTING.md)!
 
 ## Quick Links
 
@@ -75,6 +75,6 @@ Want an SDK for your favorite language? [Open an issue](https://github.com/wayli
 
 ## Need Help?
 
-- **[GitHub Discussions](https://github.com/wayli-app/fluxbase/discussions)** - Ask questions and share ideas
-- **[GitHub Issues](https://github.com/wayli-app/fluxbase/issues)** - Report bugs and request features
+- **[GitHub Discussions](https://github.com/fluxbase-eu/fluxbase/discussions)** - Ask questions and share ideas
+- **[GitHub Issues](https://github.com/fluxbase-eu/fluxbase/issues)** - Report bugs and request features
 - **[Documentation](/docs/intro)** - Full Fluxbase documentation

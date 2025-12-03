@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // Service wraps a storage provider and provides additional functionality

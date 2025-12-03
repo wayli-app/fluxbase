@@ -30,10 +30,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // getDatabase creates a database connection for setup/teardown operations.

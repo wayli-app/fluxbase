@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/internal/config"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/storage"
 )
 
 // setupStorageTestServer creates a test server with storage routes

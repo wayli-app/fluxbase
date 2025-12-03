@@ -787,7 +787,7 @@ CMD ["node", "server.js"]
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest:latest
     read_only: true
     tmpfs:
       - /tmp

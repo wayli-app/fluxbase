@@ -57,7 +57,7 @@ extraDeploy: []
 ##
 image:
   registry: ghcr.io
-  repository: wayli-app/fluxbase
+  repository: fluxbase-eu/fluxbase
   # Overrides the image tag whose default is the chart appVersion
   tag: ""
   digest: ""

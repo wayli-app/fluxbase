@@ -1,8 +1,8 @@
 package middleware
 
 import (
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // RequireFeatureEnabled returns a middleware that checks if a feature flag is enabled

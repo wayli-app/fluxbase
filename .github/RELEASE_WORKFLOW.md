@@ -13,7 +13,7 @@ Fluxbase uses a **manual release workflow** where:
 
 ### Option 1: GitHub Web Interface (Easiest)
 
-1. Go to https://github.com/wayli-app/fluxbase/releases/new
+1. Go to https://github.com/fluxbase-eu/fluxbase/releases/new
 2. Click "Choose a tag" and type your version (e.g., `v0.1.0`)
 3. Enter a title (e.g., "Release 0.1.0")
 4. Write release notes (auto-generated or custom)
@@ -50,16 +50,18 @@ gh release create v0.1.0 --generate-notes
 When you create a release (or push a version tag), GitHub Actions automatically:
 
 1. **Builds binaries** for multiple platforms:
+
    - Linux (amd64, arm64)
 
 2. **Publishes Docker images** with version tags:
-   - `ghcr.io/wayli-app/fluxbase:0.1.0`
-   - `ghcr.io/wayli-app/fluxbase:0.1`
-   - `ghcr.io/wayli-app/fluxbase:0`
-   - `ghcr.io/wayli-app/fluxbase:latest`
+
+   - `ghcr.io/fluxbase-eu/fluxbase:0.1.0`
+   - `ghcr.io/fluxbase-eu/fluxbase:0.1`
+   - `ghcr.io/fluxbase-eu/fluxbase:0`
+   - `ghcr.io/fluxbase-eu/fluxbase:latest`
    - (Also Docker Hub if configured)
 
-3. **Updates Go module** at `github.com/wayli-app/fluxbase@v0.1.0`
+3. **Updates Go module** at `github.com/fluxbase-eu/fluxbase@v0.1.0`
 
 4. **Publishes NPM packages** (if `NPM_TOKEN` secret is set)
 
@@ -91,6 +93,7 @@ graph LR
 ## Continuous Testing vs Releases
 
 ### Every Push to Main:
+
 - ✅ Linting
 - ✅ Unit tests
 - ✅ Integration tests
@@ -98,6 +101,7 @@ graph LR
 - ✅ Push to GHCR (with `main-<sha>` tag)
 
 ### On Release:
+
 - ✅ All of the above
 - ✅ Build cross-platform binaries
 - ✅ Tag Docker images with version
@@ -141,14 +145,17 @@ gh run list --workflow=release.yml
 ## Troubleshooting
 
 ### Release workflow didn't trigger
+
 - Ensure the tag starts with `v` (e.g., `v0.1.0`, not `0.1.0`)
 - Check the Actions tab for errors
 
 ### Docker images not tagged correctly
+
 - Verify the version format matches semver
 - Check GHCR permissions in repository settings
 
 ### Binaries not uploaded
+
 - Ensure you created a GitHub release, not just a tag
 - Check that `GITHUB_TOKEN` has write permissions
 

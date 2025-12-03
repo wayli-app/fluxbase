@@ -30,6 +30,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
    ```
 
 2. **Reopen in Container**
+
    - Click "Reopen in Container" when prompted
    - Or: `F1` → "Dev Containers: Reopen in Container"
    - First build: ~5-10 minutes
@@ -63,7 +64,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 1. **Clone Repository**
 
    ```bash
-   git clone https://github.com/wayli-app/fluxbase.git
+   git clone https://github.com/fluxbase-eu/fluxbase.git
    cd fluxbase
    ```
 

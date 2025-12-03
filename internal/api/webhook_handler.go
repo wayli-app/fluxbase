@@ -1,12 +1,12 @@
 package api
 
 import (
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
+	"github.com/fluxbase-eu/fluxbase/internal/webhook"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/middleware"
-	"github.com/wayli-app/fluxbase/internal/webhook"
 )
 
 // WebhookHandler handles HTTP requests for webhooks

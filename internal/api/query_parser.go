@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // QueryParams represents parsed query parameters for REST API

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/settings"
 )
 
 // CustomSettingsHandler handles custom settings operations

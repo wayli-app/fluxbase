@@ -383,7 +383,7 @@ version: "3.8"
 
 services:
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     environment:
       # Database
       DATABASE_URL: postgres://fluxbase:password@postgres:5432/fluxbase?sslmode=disable

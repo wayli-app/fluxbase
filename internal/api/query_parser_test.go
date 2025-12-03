@@ -4,9 +4,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // testConfig creates a test config with default API settings for testing

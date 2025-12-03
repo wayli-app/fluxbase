@@ -93,7 +93,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 - [ ] **Security Scanning**: Images scanned for vulnerabilities
 
   ```bash
-  docker scan ghcr.io/wayli-app/fluxbase:latest
+  docker scan ghcr.io/fluxbase-eu/fluxbase:latest
   ```
 
 - [ ] **Minimal Base Image**: Alpine or distroless

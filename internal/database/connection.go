@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -19,7 +20,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 //go:embed migrations/*.sql

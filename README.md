@@ -33,7 +33,7 @@ Get Fluxbase running instantly with Docker:
 
 ```bash
 # Clone the repository
-git clone https://github.com/wayli-app/fluxbase.git
+git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase/deploy
 
 # Start all services (PostgreSQL + Fluxbase + MinIO)
@@ -76,7 +76,7 @@ All tools pre-installed! See [.devcontainer/QUICK_START.md](.devcontainer/QUICK_
 
 ```bash
 # Clone the repository
-git clone https://github.com/wayli-app/fluxbase.git
+git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase
 
 # Install dependencies
@@ -411,7 +411,7 @@ MIT License - see LICENSE file for details.
 
 For issues, questions, and discussions:
 
-- GitHub Issues: [github.com/wayli-app/fluxbase/issues](https://github.com/wayli-app/fluxbase/issues)
+- GitHub Issues: [github.com/fluxbase-eu/fluxbase/issues](https://github.com/fluxbase-eu/fluxbase/issues)
 - Documentation: [docs.fluxbase.eu](https://docs.fluxbase.eu)
 
 ## Acknowledgments

@@ -12,7 +12,7 @@ This guide will help you get started with Fluxbase jobs in under 5 minutes.
 
 ```bash
 # Clone the repository (if not already)
-git clone https://github.com/wayli-app/fluxbase.git
+git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase
 
 # Configure environment for jobs (optional - these are defaults)
@@ -357,4 +357,4 @@ curl http://localhost:8000/api/v1/admin/jobs/workers \
 - [Fluxbase Documentation](../../docs)
 - [API Reference](../../docs/api)
 - [Jobs Configuration](../../internal/config)
-- [Issue Tracker](https://github.com/wayli-app/fluxbase/issues)
+- [Issue Tracker](https://github.com/fluxbase-eu/fluxbase/issues)

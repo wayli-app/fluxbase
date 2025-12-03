@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayli-app/fluxbase/internal/jobs"
+	"github.com/fluxbase-eu/fluxbase/internal/jobs"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"

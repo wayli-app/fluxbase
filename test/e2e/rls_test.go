@@ -3,9 +3,9 @@ package e2e
 import (
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // setupRLSTest prepares the test context for RLS tests

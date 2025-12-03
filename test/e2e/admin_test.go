@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // setupAdminTest prepares the test context for admin API tests

@@ -1,7 +1,7 @@
 package realtime
 
 import (
-	"github.com/wayli-app/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 )
 
 // AuthServiceAdapter adapts auth.Service to realtime.AuthService interface

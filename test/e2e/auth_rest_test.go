@@ -3,8 +3,8 @@ package e2e
 import (
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/test"
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/test"
 )
 
 // TestRESTAnonymousAccessAllowed verifies that unauthenticated requests are allowed

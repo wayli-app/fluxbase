@@ -89,18 +89,18 @@ JavaScript/TypeScript function execution:
 
 ## Quick Comparison
 
-| Feature            | Fluxbase          | Supabase                 | Firebase           |
-| ------------------ | ----------------- | ------------------------ | ------------------ |
-| **Deployment**     | Single binary (~40MB) | ~10 containers (~2GB) | Cloud only         |
-| **Dependencies**   | PostgreSQL only   | PostgreSQL + 5+ services | Proprietary        |
-| **Self-hosting**   | ✅ Easy           | ⚠️ Complex               | ❌ No              |
-| **REST API**       | ✅ Auto-generated | ✅ PostgREST             | ✅ Auto-generated  |
-| **Authentication** | ✅ Built-in       | ✅ GoTrue                | ✅ Built-in        |
-| **Realtime**       | ✅ WebSocket      | ✅ WebSocket             | ✅ WebSocket       |
-| **Storage**        | ✅ Local/S3       | ✅ S3                    | ✅ Cloud Storage   |
-| **Functions**      | ✅ Deno           | ✅ Deno                  | ✅ Cloud Functions |
-| **Background Jobs**| ✅ Built-in       | ✅ pg_cron (ext)         | ❌ No              |
-| **Open Source**    | ✅ MIT            | ✅ Apache 2.0            | ❌ Proprietary     |
+| Feature             | Fluxbase              | Supabase                 | Firebase           |
+| ------------------- | --------------------- | ------------------------ | ------------------ |
+| **Deployment**      | Single binary (~40MB) | ~10 containers (~2GB)    | Cloud only         |
+| **Dependencies**    | PostgreSQL only       | PostgreSQL + 5+ services | Proprietary        |
+| **Self-hosting**    | ✅ Easy               | ⚠️ Complex               | ❌ No              |
+| **REST API**        | ✅ Auto-generated     | ✅ PostgREST             | ✅ Auto-generated  |
+| **Authentication**  | ✅ Built-in           | ✅ GoTrue                | ✅ Built-in        |
+| **Realtime**        | ✅ WebSocket          | ✅ WebSocket             | ✅ WebSocket       |
+| **Storage**         | ✅ Local/S3           | ✅ S3                    | ✅ Cloud Storage   |
+| **Functions**       | ✅ Deno               | ✅ Deno                  | ✅ Cloud Functions |
+| **Background Jobs** | ✅ Built-in           | ✅ pg_cron (ext)         | ❌ No              |
+| **Open Source**     | ✅ MIT                | ✅ Apache 2.0            | ❌ Proprietary     |
 
 ## Getting Started
 
@@ -113,14 +113,14 @@ JavaScript/TypeScript function execution:
 
 ```bash
 # Download the latest binary
-curl -L https://github.com/wayli-app/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
+curl -L https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64 -o fluxbase
 chmod +x fluxbase
 
 # Or use Docker
-docker run -p 8080:8080 ghcr.io/wayli-app/fluxbase:latest
+docker run -p 8080:8080 ghcr.io/fluxbase-eu/fluxbase:latest
 
 # Or build from source
-git clone https://github.com/wayli-app/fluxbase.git
+git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase
 make build
 ./fluxbase
@@ -200,7 +200,7 @@ graph TB
 
 ## Community & Support
 
-- **GitHub**: [github.com/wayli-app/fluxbase](https://github.com/wayli-app/fluxbase)
+- **GitHub**: [github.com/fluxbase-eu/fluxbase](https://github.com/fluxbase-eu/fluxbase)
 - **Discord**: [discord.gg/fluxbase](https://discord.gg/fluxbase)
 - **Twitter**: [@fluxbase](https://twitter.com/fluxbase)
 

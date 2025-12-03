@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/internal/auth"
-	"github.com/wayli-app/fluxbase/internal/config"
 )
 
 // AdminAuthHandler handles admin-specific authentication

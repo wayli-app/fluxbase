@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/database"
-	"github.com/wayli-app/fluxbase/internal/middleware"
 )
 
 // RPCHandler handles RPC (Remote Procedure Call) endpoints for PostgreSQL functions

@@ -117,34 +117,34 @@ interface Request {
 Edge functions can import and use the Fluxbase SDK for database operations, authentication, and more:
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
 async function handler(req) {
   // Create a service client with elevated permissions
   const client = createClient(
-    Deno.env.get('FLUXBASE_BASE_URL')!,
-    Deno.env.get('FLUXBASE_SERVICE_ROLE_KEY')!
-  )
+    Deno.env.get("FLUXBASE_BASE_URL")!,
+    Deno.env.get("FLUXBASE_SERVICE_ROLE_KEY")!
+  );
 
   // Query the database
   const { data, error } = await client
-    .from('users')
-    .select('*')
-    .eq('id', req.user_id)
-    .execute()
+    .from("users")
+    .select("*")
+    .eq("id", req.user_id)
+    .execute();
 
   if (error) {
     return {
       status: 500,
-      body: JSON.stringify({ error: error.message })
-    }
+      body: JSON.stringify({ error: error.message }),
+    };
   }
 
   return {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  }
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  };
 }
 ```
 
@@ -251,9 +251,9 @@ Functions automatically receive the authenticated user context:
 ```typescript
 async function handler(req) {
   // User info from JWT token (if authenticated)
-  const userId = req.user_id;     // UUID string
+  const userId = req.user_id; // UUID string
   const userEmail = req.user_email; // Email string
-  const userRole = req.user_role;  // Role string (e.g., "authenticated", "admin")
+  const userRole = req.user_role; // Role string (e.g., "authenticated", "admin")
 
   if (!userId) {
     return {
@@ -395,7 +395,7 @@ await client.functions.createSharedModule({
         'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
       }
     }
-  `
+  `,
 });
 ```
 
@@ -416,20 +416,21 @@ functions/
 // functions/_shared/cors.ts
 export function corsHeaders(origin?: string) {
   return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
-  }
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  };
 }
 
 export function handleCors(req: Request) {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return {
       status: 200,
-      headers: corsHeaders()
-    }
+      headers: corsHeaders(),
+    };
   }
-  return null
+  return null;
 }
 ```
 
@@ -439,29 +440,29 @@ Import shared modules using the `_shared/` prefix:
 
 ```typescript
 // functions/my-api.ts
-import { corsHeaders, handleCors } from '_shared/cors.ts';
-import { validateEmail } from '_shared/validation.ts';
+import { corsHeaders, handleCors } from "_shared/cors.ts";
+import { validateEmail } from "_shared/validation.ts";
 
 async function handler(req) {
   // Handle preflight requests
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const data = JSON.parse(req.body || '{}');
+  const data = JSON.parse(req.body || "{}");
 
   // Use shared validation
   if (!validateEmail(data.email)) {
     return {
       status: 400,
       headers: corsHeaders(),
-      body: JSON.stringify({ error: 'Invalid email' })
+      body: JSON.stringify({ error: "Invalid email" }),
     };
   }
 
   return {
     status: 200,
     headers: corsHeaders(),
-    body: JSON.stringify({ success: true })
+    body: JSON.stringify({ success: true }),
   };
 }
 ```
@@ -486,18 +487,18 @@ functions/
 
 ```typescript
 // functions/my-function/index.ts
-import { corsHeaders } from '_shared/cors.ts';
-import { formatDate } from '_shared/utils/date.ts';
-import { query } from '_shared/database/queries.ts';
+import { corsHeaders } from "_shared/cors.ts";
+import { formatDate } from "_shared/utils/date.ts";
+import { query } from "_shared/database/queries.ts";
 
 async function handler(req) {
-  const users = await query('SELECT * FROM users');
+  const users = await query("SELECT * FROM users");
   const timestamp = formatDate(new Date());
 
   return {
     status: 200,
     headers: corsHeaders(),
-    body: JSON.stringify({ users, timestamp })
+    body: JSON.stringify({ users, timestamp }),
   };
 }
 ```
@@ -510,20 +511,21 @@ async function handler(req) {
 // _shared/cors.ts
 export function corsHeaders(origin?: string) {
   return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
-  }
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  };
 }
 
 export function handleCors(req: Request) {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return {
       status: 200,
-      headers: corsHeaders()
-    }
+      headers: corsHeaders(),
+    };
   }
-  return null
+  return null;
 }
 ```
 
@@ -547,7 +549,7 @@ export function validateRequired(data: any, fields: string[]): string[] {
 }
 
 export function sanitizeString(str: string): string {
-  return str.trim().replace(/[<>]/g, '');
+  return str.trim().replace(/[<>]/g, "");
 }
 ```
 
@@ -558,16 +560,16 @@ export function sanitizeString(str: string): string {
 export function errorResponse(message: string, status = 400) {
   return {
     status,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ error: message })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ error: message }),
   };
 }
 
 export function successResponse(data: any, status = 200) {
   return {
     status,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   };
 }
 ```
@@ -588,27 +590,27 @@ console.log(modules);
 **Get a specific module:**
 
 ```typescript
-const module = await client.functions.getSharedModule('_shared/cors.ts');
+const module = await client.functions.getSharedModule("_shared/cors.ts");
 console.log(module.content);
 ```
 
 **Update a shared module:**
 
 ```typescript
-await client.functions.updateSharedModule('_shared/cors.ts', {
+await client.functions.updateSharedModule("_shared/cors.ts", {
   content: `
     export function corsHeaders() {
       // Updated implementation
     }
   `,
-  description: 'Updated CORS helper'
+  description: "Updated CORS helper",
 });
 ```
 
 **Delete a shared module:**
 
 ```typescript
-await client.functions.deleteSharedModule('_shared/cors.ts');
+await client.functions.deleteSharedModule("_shared/cors.ts");
 ```
 
 ### How Bundling Works with Shared Modules
@@ -664,7 +666,7 @@ Mount a directory with function files:
 # docker-compose.yml
 services:
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     volumes:
       - ./functions:/app/functions
     environment:
@@ -678,17 +680,19 @@ services:
 Fluxbase supports two ways to organize your functions:
 
 **1. Flat File Pattern** (simple functions):
+
 ```typescript
 // functions/hello.ts
 async function handler(req) {
   return {
     status: 200,
-    body: JSON.stringify({ message: 'Hello!' })
-  }
+    body: JSON.stringify({ message: "Hello!" }),
+  };
 }
 ```
 
 **2. Directory Pattern** (complex functions with multiple files):
+
 ```
 functions/
 └── complex-webhook/
@@ -700,19 +704,20 @@ functions/
 
 ```typescript
 // functions/complex-webhook/index.ts
-import { processData } from './helpers.ts';
-import { WebhookConfig } from './types.ts';
+import { processData } from "./helpers.ts";
+import { WebhookConfig } from "./types.ts";
 
 async function handler(req) {
   const data = processData(req.body);
   return {
     status: 200,
-    body: JSON.stringify(data)
-  }
+    body: JSON.stringify(data),
+  };
 }
 ```
 
 **Priority Rules:**
+
 - If both `hello.ts` and `hello/index.ts` exist, the flat file takes precedence
 - Directory pattern requires `index.ts` as the entry point
 - Only `.ts` files are supported
@@ -771,13 +776,16 @@ Namespaces provide multi-tenant function isolation. Use namespaces to organize f
 await client.admin.functions.create({
   name: "process-payment",
   namespace: "payment-service",
-  code: `async function handler(req) { ... }`
+  code: `async function handler(req) { ... }`,
 });
 
 // Invoke with namespace
-const result = await client.functions.invoke("payment-service/process-payment", {
-  body: JSON.stringify({ amount: 100 })
-});
+const result = await client.functions.invoke(
+  "payment-service/process-payment",
+  {
+    body: JSON.stringify({ amount: 100 }),
+  }
+);
 
 // List functions by namespace
 const functions = await client.admin.functions.list("payment-service");
@@ -786,6 +794,7 @@ const functions = await client.admin.functions.list("payment-service");
 **Default namespace:** Functions without an explicit namespace use `"default"`.
 
 **Namespace use cases:**
+
 - **Multi-tenancy**: Isolate functions per customer
 - **Environments**: Separate dev, staging, production functions
 - **Services**: Organize by microservice boundaries
@@ -800,10 +809,10 @@ const result = await client.admin.functions.sync({
   namespace: "default",
   functions: [
     { name: "fn1", code: "..." },
-    { name: "fn2", code: "..." }
+    { name: "fn2", code: "..." },
   ],
   delete_missing: false, // Don't delete existing functions
-  dry_run: false        // Apply changes
+  dry_run: false, // Apply changes
 });
 
 console.log(result.summary);
@@ -811,6 +820,7 @@ console.log(result.summary);
 ```
 
 **Options:**
+
 - `delete_missing: true` - Remove functions not in sync list
 - `dry_run: true` - Preview changes without applying
 
@@ -1136,6 +1146,7 @@ const s3Secret = Deno.env.get("FLUXBASE_STORAGE_S3_SECRET_KEY");
 ```
 
 **Blocked variables:**
+
 - `FLUXBASE_AUTH_JWT_SECRET`
 - `FLUXBASE_DATABASE_PASSWORD` / `FLUXBASE_DATABASE_ADMIN_PASSWORD`
 - `FLUXBASE_STORAGE_S3_SECRET_KEY` / `FLUXBASE_STORAGE_S3_ACCESS_KEY`

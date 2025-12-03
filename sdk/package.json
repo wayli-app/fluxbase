@@ -50,7 +50,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wayli-app/fluxbase"
+    "url": "https://github.com/fluxbase-eu/fluxbase"
   },
   "publishConfig": {
     "access": "public"

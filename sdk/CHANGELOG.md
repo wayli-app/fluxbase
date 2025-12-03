@@ -86,4 +86,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `cross-fetch`: ^4.0.0 (for Node.js compatibility)
 
-[0.1.0]: https://github.com/wayli-app/fluxbase/releases/tag/sdk-v0.1.0
+[0.1.0]: https://github.com/fluxbase-eu/fluxbase/releases/tag/sdk-v0.1.0

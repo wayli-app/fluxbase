@@ -80,6 +80,7 @@ kubectl get secret my-fluxbase -n fluxbase -o jsonpath='{.data.jwt-secret}' | ba
 ```
 
 ---
+
 ## Production Installation
 
 ### Create Values File
@@ -93,7 +94,7 @@ replicaCount: 3
 # Image configuration
 image:
   registry: ghcr.io
-  repository: wayli-app/fluxbase
+  repository: fluxbase-eu/fluxbase
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
@@ -260,6 +261,7 @@ helm install fluxbase ./fluxbase \
   --create-namespace \
   --values production-values.yaml
 ```
+
 ---
 
 ## Configuration Options
@@ -270,20 +272,20 @@ See [values.yaml](https://github.com/your-org/fluxbase/blob/main/deploy/helm/flu
 
 **Key sections**:
 
-| Section               | Description                   | Default                           |
-| --------------------- | ----------------------------- | --------------------------------- |
-| `replicaCount`        | Number of Fluxbase pods       | 3                                 |
-| `image`               | Container image configuration | ghcr.io/wayli-app/fluxbase:latest |
-| `config.database`     | Database connection settings  | PostgreSQL defaults               |
-| `config.server`       | HTTP server settings          | Port 8080                         |
-| `config.jwt`          | JWT authentication settings   | 60 min expiry                     |
-| `config.storage`      | Storage backend (local/s3)    | local                             |
-| `postgresql.enabled`  | Deploy PostgreSQL in cluster  | true                              |
-| `externalDatabase`    | External database settings    | -                                 |
-| `ingress.enabled`     | Enable Ingress                | false                             |
-| `autoscaling.enabled` | Enable HPA                    | false                             |
-| `metrics.enabled`     | Expose Prometheus metrics     | true                              |
-| `persistence.enabled` | Enable persistent storage     | true                              |
+| Section               | Description                   | Default                             |
+| --------------------- | ----------------------------- | ----------------------------------- |
+| `replicaCount`        | Number of Fluxbase pods       | 3                                   |
+| `image`               | Container image configuration | ghcr.io/fluxbase-eu/fluxbase:latest |
+| `config.database`     | Database connection settings  | PostgreSQL defaults                 |
+| `config.server`       | HTTP server settings          | Port 8080                           |
+| `config.jwt`          | JWT authentication settings   | 60 min expiry                       |
+| `config.storage`      | Storage backend (local/s3)    | local                               |
+| `postgresql.enabled`  | Deploy PostgreSQL in cluster  | true                                |
+| `externalDatabase`    | External database settings    | -                                   |
+| `ingress.enabled`     | Enable Ingress                | false                               |
+| `autoscaling.enabled` | Enable HPA                    | false                               |
+| `metrics.enabled`     | Expose Prometheus metrics     | true                                |
+| `persistence.enabled` | Enable persistent storage     | true                                |
 
 ---
 

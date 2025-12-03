@@ -1,8 +1,8 @@
 package api
 
 import (
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
-	"github.com/wayli-app/fluxbase/internal/auth"
 )
 
 // UserManagementHandler handles admin user management operations

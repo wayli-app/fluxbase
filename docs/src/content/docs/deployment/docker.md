@@ -14,14 +14,14 @@ Fluxbase provides official Docker images (~80MB) with:
 - Admin UI embedded
 - Automatic database migrations
 
-**Image Registry**: `ghcr.io/wayli-app/fluxbase`
+**Image Registry**: `ghcr.io/fluxbase-eu/fluxbase`
 
 ## Quick Start
 
 ### 1. Pull the Docker Image
 
 ```bash
-docker pull ghcr.io/wayli-app/fluxbase:latest
+docker pull ghcr.io/fluxbase-eu/fluxbase:latest
 ```
 
 ### 2. Run with Docker Compose
@@ -52,7 +52,7 @@ services:
       retries: 5
 
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     container_name: fluxbase
     depends_on:
       postgres:
@@ -114,6 +114,7 @@ You should see:
 ```
 
 ---
+
 ## Production Docker Compose
 
 For production, use this enhanced configuration:
@@ -171,7 +172,7 @@ services:
     restart: unless-stopped
 
   fluxbase:
-    image: ghcr.io/wayli-app/fluxbase:latest
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
     container_name: fluxbase
     depends_on:
       postgres:
@@ -297,8 +298,7 @@ AWS_ACCESS_KEY=AKIAXXXXXXXXXXXXXXXX
 AWS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-**Important**: Add `.env` to `.gitignore`!
----
+## **Important**: Add `.env` to `.gitignore`!
 
 ## Building Custom Images
 
@@ -673,7 +673,7 @@ docker-compose ps
 ```bash
 # Use specific version
 docker-compose stop fluxbase
-docker run -d --name fluxbase ghcr.io/wayli-app/fluxbase:0.9.0
+docker run -d --name fluxbase ghcr.io/fluxbase-eu/fluxbase:0.9.0
 ```
 
 ---
@@ -713,7 +713,7 @@ docker run -d --name fluxbase ghcr.io/wayli-app/fluxbase:0.9.0
 
 5. **Scan images for vulnerabilities**:
    ```bash
-   docker scan ghcr.io/wayli-app/fluxbase:latest
+   docker scan ghcr.io/fluxbase-eu/fluxbase:latest
    ```
 
 ---

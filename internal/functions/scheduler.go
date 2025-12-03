@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog/log"
-	"github.com/wayli-app/fluxbase/internal/database"
 )
 
 // Scheduler manages scheduled execution of edge functions via cron
