@@ -351,15 +351,6 @@ func (s *Server) setupRoutes() {
 	)
 	s.setupRESTRoutes(rest)
 
-	// RPC routes (auto-generated from database functions)
-	// Require authentication (JWT, API key, or service key)
-	// followed by RLS middleware to set PostgreSQL session variables
-	rpc := v1.Group("/rpc",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
-		middleware.RLSMiddleware(rlsConfig),
-	)
-	s.setupRPCRoutes(rpc)
-
 	// Auth routes
 	auth := v1.Group("/auth")
 	s.setupAuthRoutes(auth)
@@ -502,17 +493,6 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 	// Metadata endpoint
 	router.Get("/", s.rest.HandleGetTables)
 
-}
-
-// setupRPCRoutes sets up auto-generated RPC routes for database functions
-func (s *Server) setupRPCRoutes(router fiber.Router) {
-	// Initialize RPC handler
-	rpcHandler := NewRPCHandler(s.db)
-
-	// Register all function routes
-	if err := rpcHandler.RegisterRoutes(router); err != nil {
-		log.Error().Err(err).Msg("Failed to register RPC routes")
-	}
 }
 
 // setupAuthRoutes sets up authentication routes

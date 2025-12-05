@@ -52,7 +52,7 @@ const AVAILABLE_SCOPES = [
   { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
   { id: 'write:storage', name: 'Write Storage', description: 'Upload and delete files' },
   { id: 'read:functions', name: 'Read Functions', description: 'View functions' },
-  { id: 'execute:functions', name: 'Execute Functions', description: 'Call RPC functions' },
+  { id: 'execute:functions', name: 'Execute Functions', description: 'Invoke Edge Functions' },
   { id: 'read:auth', name: 'Read Auth', description: 'View auth data' },
   { id: 'write:auth', name: 'Write Auth', description: 'Manage auth data' },
 ]

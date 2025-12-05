@@ -80,7 +80,7 @@ function SQLEditorPage() {
   const completionProviderRef = useRef<IDisposable | null>(null)
 
   // Fetch schema metadata for autocompletion
-  const { schemas, tables, functions } = useSchemaMetadata()
+  const { schemas, tables } = useSchemaMetadata()
 
   // Update completion provider when metadata changes
   useEffect(() => {
@@ -93,7 +93,7 @@ function SQLEditorPage() {
       // Register new provider with updated metadata
       completionProviderRef.current = monacoRef.current.languages.registerCompletionItemProvider(
         'sql',
-        createSqlCompletionProvider(monacoRef.current, { schemas, tables, functions })
+        createSqlCompletionProvider(monacoRef.current, { schemas, tables })
       )
     }
 
@@ -102,7 +102,7 @@ function SQLEditorPage() {
         completionProviderRef.current.dispose()
       }
     }
-  }, [schemas, tables, functions])
+  }, [schemas, tables])
 
   // Get current history item (most recent or selected)
   const currentHistory = selectedHistoryId
