@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -87,6 +88,9 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
                   </InputOTPGroup>
                 </InputOTP>
               </FormControl>
+              <FormDescription className='text-center'>
+                Enter the 6-digit code sent to your email or authenticator app
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

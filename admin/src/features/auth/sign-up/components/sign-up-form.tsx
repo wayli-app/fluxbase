@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { PasswordStrength } from '@/components/password-strength'
 import { dashboardAuthAPI } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -98,6 +100,9 @@ export function SignUpForm({
               <FormControl>
                 <Input placeholder='John Doe' {...field} />
               </FormControl>
+              <FormDescription>
+                Your name as it will appear in the dashboard
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -111,6 +116,9 @@ export function SignUpForm({
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
               </FormControl>
+              <FormDescription>
+                We'll use this for account verification and notifications
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -122,8 +130,9 @@ export function SignUpForm({
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput placeholder='Create a secure password' {...field} />
               </FormControl>
+              <PasswordStrength password={field.value} />
               <FormMessage />
             </FormItem>
           )}
@@ -135,8 +144,11 @@ export function SignUpForm({
             <FormItem>
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput placeholder='Re-enter your password' {...field} />
               </FormControl>
+              <FormDescription>
+                Please re-enter your password to confirm
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

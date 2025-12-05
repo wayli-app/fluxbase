@@ -17,7 +17,8 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
+import { PasswordStrength } from '@/components/password-strength'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const route = getRouteApi('/(auth)/reset-password')
@@ -147,15 +148,12 @@ export function ResetPasswordForm({
             <FormItem>
               <FormLabel>New Password</FormLabel>
               <FormControl>
-                <Input
-                  type='password'
-                  placeholder='Enter new password'
+                <PasswordInput
+                  placeholder='Create a new secure password'
                   {...field}
                 />
               </FormControl>
-              <FormDescription>
-                Must be at least 8 characters long
-              </FormDescription>
+              <PasswordStrength password={field.value} />
               <FormMessage />
             </FormItem>
           )}
@@ -167,12 +165,14 @@ export function ResetPasswordForm({
             <FormItem>
               <FormLabel>Confirm Password</FormLabel>
               <FormControl>
-                <Input
-                  type='password'
-                  placeholder='Confirm new password'
+                <PasswordInput
+                  placeholder='Re-enter your new password'
                   {...field}
                 />
               </FormControl>
+              <FormDescription>
+                Please re-enter your new password to confirm
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
