@@ -19,6 +19,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -195,6 +196,9 @@ export function UsersInviteDialog({
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>
+                    The invitation will be sent to this email address
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -214,6 +218,9 @@ export function UsersInviteDialog({
                       value,
                     }))}
                   />
+                  <FormDescription>
+                    Defines what actions the user can perform
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -230,10 +237,10 @@ export function UsersInviteDialog({
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>
+                    If left empty, a secure random password will be generated. Must be at least 8 characters if provided.
+                  </FormDescription>
                   <FormMessage />
-                  <p className='text-xs text-muted-foreground'>
-                    If left empty, a random password will be generated
-                  </p>
                 </FormItem>
               )}
             />

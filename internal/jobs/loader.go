@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -460,6 +461,7 @@ func (l *Loader) bundleJob(
 // JobAnnotations represents parsed annotations from job code
 type JobAnnotations struct {
 	Schedule               *string
+	ScheduleParams         map[string]interface{} // Parameters to pass when scheduled
 	TimeoutSeconds         int
 	MemoryLimitMB          int
 	MaxRetries             int
@@ -484,12 +486,34 @@ func parseAnnotations(code string) JobAnnotations {
 		AllowEnv:               true,
 		AllowRead:              false,
 		AllowWrite:             false,
+		ScheduleParams:         make(map[string]interface{}),
 	}
 
-	// Parse schedule
-	if match := regexp.MustCompile(`@fluxbase:schedule\s+(.+)`).FindStringSubmatch(code); match != nil {
+	// Parse schedule (cron expression)
+	// Supports: @fluxbase:schedule 0 2 * * *
+	if match := regexp.MustCompile(`@fluxbase:schedule\s+([0-9*,/\-\s]+)`).FindStringSubmatch(code); match != nil {
 		schedule := strings.TrimSpace(match[1])
 		annotations.Schedule = &schedule
+	}
+
+	// Parse schedule params (JSON object)
+	// Supports: @fluxbase:schedule-params {"type": "daily", "notify": true}
+	if match := regexp.MustCompile(`@fluxbase:schedule-params\s+(\{[^}]+\})`).FindStringSubmatch(code); match != nil {
+		paramsJSON := strings.TrimSpace(match[1])
+		var params map[string]interface{}
+		if err := json.Unmarshal([]byte(paramsJSON), &params); err == nil {
+			annotations.ScheduleParams = params
+		} else {
+			log.Warn().Err(err).Str("params", paramsJSON).Msg("Failed to parse schedule-params annotation")
+		}
+	}
+
+	// If we have schedule and schedule params, combine them using the pipe format
+	if annotations.Schedule != nil && len(annotations.ScheduleParams) > 0 {
+		if paramsJSON, err := json.Marshal(annotations.ScheduleParams); err == nil {
+			combined := *annotations.Schedule + "|" + string(paramsJSON)
+			annotations.Schedule = &combined
+		}
 	}
 
 	// Parse timeout

@@ -629,6 +629,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 				"error": "failed to list files",
 			})
 		}
+		defer rows.Close()
 
 		for rows.Next() {
 			var obj StorageObject
@@ -638,7 +639,6 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 			}
 			objects = append(objects, obj)
 		}
-		rows.Close()
 
 		if err := rows.Err(); err != nil {
 			log.Error().Err(err).Msg("Error iterating object rows")
@@ -664,6 +664,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 				"error": "failed to list files",
 			})
 		}
+		defer prefixRows.Close()
 
 		for prefixRows.Next() {
 			var p string
@@ -673,7 +674,6 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 			}
 			prefixes = append(prefixes, p)
 		}
-		prefixRows.Close()
 
 		if err := prefixRows.Err(); err != nil {
 			log.Error().Err(err).Msg("Error iterating prefix rows")

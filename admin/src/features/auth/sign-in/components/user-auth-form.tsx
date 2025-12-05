@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -71,6 +72,9 @@ export function UserAuthForm({
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
               </FormControl>
+              <FormDescription>
+                Enter your registered email address
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -82,7 +86,7 @@ export function UserAuthForm({
             <FormItem className='relative'>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput placeholder='Enter your password' {...field} />
               </FormControl>
               <FormMessage />
               <Link

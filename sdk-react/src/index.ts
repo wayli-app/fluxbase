@@ -77,13 +77,6 @@ export {
   useDeleteBucket,
 } from './use-storage'
 
-// RPC hooks
-export {
-  useRPC,
-  useRPCMutation,
-  useRPCBatch,
-} from './use-rpc'
-
 // Admin hooks
 export { useAdminAuth } from './use-admin-auth'
 export { useUsers } from './use-users'

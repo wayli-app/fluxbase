@@ -255,25 +255,9 @@ async function main() {
   }
 
   // ========================================
-  // 6. RPC FUNCTION CALLS
+  // 6. SIGN OUT
   // ========================================
-  console.log('\n6️⃣  RPC Function Calls')
-
-  const { data: sessionData } = await client.auth.getSession()
-  const { data: rpcResult, error: rpcError } = await client.rpc('get_user_stats', {
-    user_id: sessionData.session?.user?.id,
-  })
-
-  if (rpcError) {
-    console.log('⚠️  RPC call failed (function might not exist):', rpcError.message)
-  } else {
-    console.log('✅ RPC result:', rpcResult)
-  }
-
-  // ========================================
-  // 7. SIGN OUT
-  // ========================================
-  console.log('\n7️⃣  Sign Out')
+  console.log('\n6️⃣  Sign Out')
 
   await client.auth.signOut()
   console.log('✅ User signed out')

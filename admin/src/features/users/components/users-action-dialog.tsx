@@ -16,6 +16,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
+import { PasswordStrength } from '@/components/password-strength'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { roles } from '../data/data'
 import { type User } from '../data/schema'
@@ -213,6 +215,9 @@ export function UsersActionDialog({
                         {...field}
                       />
                     </FormControl>
+                    <FormDescription className='col-span-4 col-start-3'>
+                      Unique identifier for the user (letters, numbers, underscores)
+                    </FormDescription>
                     <FormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
@@ -269,6 +274,9 @@ export function UsersActionDialog({
                         value,
                       }))}
                     />
+                    <FormDescription className='col-span-4 col-start-3'>
+                      Defines the user's permissions and access level
+                    </FormDescription>
                     <FormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
@@ -277,18 +285,27 @@ export function UsersActionDialog({
                 control={form.control}
                 name='password'
                 render={({ field }) => (
-                  <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>
+                  <FormItem className='grid grid-cols-6 items-start space-y-0 gap-x-4 gap-y-1'>
+                    <FormLabel className='col-span-2 text-end mt-2.5'>
                       Password
                     </FormLabel>
-                    <FormControl>
-                      <PasswordInput
-                        placeholder='e.g., S3cur3P@ssw0rd'
-                        className='col-span-4'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
+                    <div className='col-span-4 space-y-2'>
+                      <FormControl>
+                        <PasswordInput
+                          placeholder='Create a secure password'
+                          {...field}
+                        />
+                      </FormControl>
+                      {field.value && (
+                        <PasswordStrength password={field.value} showRequirements={false} />
+                      )}
+                      {isEdit && !field.value && (
+                        <FormDescription>
+                          Leave blank to keep current password
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </div>
                   </FormItem>
                 )}
               />
@@ -303,7 +320,7 @@ export function UsersActionDialog({
                     <FormControl>
                       <PasswordInput
                         disabled={!isPasswordTouched}
-                        placeholder='e.g., S3cur3P@ssw0rd'
+                        placeholder='Re-enter password'
                         className='col-span-4'
                         {...field}
                       />

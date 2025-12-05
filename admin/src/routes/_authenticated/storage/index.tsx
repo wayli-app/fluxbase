@@ -468,6 +468,18 @@ function StorageBrowser() {
     return `${window.location.origin}/api/v1/storage/${selectedBucket}/${encodeURIComponent(key)}`
   }
 
+  // Escape HTML entities to prevent XSS attacks
+  const escapeHtml = (text: string): string => {
+    const htmlEntities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+    return text.replace(/[&<>"']/g, (char) => htmlEntities[char])
+  }
+
   const formatJson = (text: string) => {
     try {
       const json = JSON.parse(text)
@@ -475,6 +487,18 @@ function StorageBrowser() {
     } catch {
       return text
     }
+  }
+
+  // Format JSON with syntax highlighting (HTML-safe)
+  const formatJsonWithHighlighting = (text: string): string => {
+    const formatted = formatJson(text)
+    // First escape HTML to prevent XSS, then apply syntax highlighting
+    const escaped = escapeHtml(formatted)
+    return escaped
+      .replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)\s*:/g, '<span style="color: #94a3b8">$1</span>:')
+      .replace(/:\s*(&quot;(?:[^&]|&(?!quot;))*?&quot;)/g, ': <span style="color: #86efac">$1</span>')
+      .replace(/:\s*(\d+(?:\.\d+)?)/g, ': <span style="color: #fbbf24">$1</span>')
+      .replace(/:\s*(true|false|null)/g, ': <span style="color: #f472b6">$1</span>')
   }
 
   const isJsonFile = (contentType?: string, fileName?: string) => {
@@ -1080,19 +1104,7 @@ function StorageBrowser() {
                 <pre className="text-sm font-mono">
                   <code className="language-json text-slate-100"
                     dangerouslySetInnerHTML={{
-                      __html: formatJson(previewUrl).replace(
-                        /("(?:[^"\\]|\\.)*")\s*:/g,
-                        '<span style="color: #94a3b8">$1</span>:'
-                      ).replace(
-                        /:\s*("(?:[^"\\]|\\.)*")/g,
-                        ': <span style="color: #86efac">$1</span>'
-                      ).replace(
-                        /:\s*(\d+(?:\.\d+)?)/g,
-                        ': <span style="color: #fbbf24">$1</span>'
-                      ).replace(
-                        /:\s*(true|false|null)/g,
-                        ': <span style="color: #f472b6">$1</span>'
-                      )
+                      __html: formatJsonWithHighlighting(previewUrl)
                     }}
                   />
                 </pre>

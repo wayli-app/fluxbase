@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -72,6 +73,9 @@ export function ForgotPasswordForm({
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
               </FormControl>
+              <FormDescription>
+                Enter the email associated with your account and we'll send you a reset link
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

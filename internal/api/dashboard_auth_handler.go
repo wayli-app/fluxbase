@@ -77,6 +77,13 @@ func (h *DashboardAuthHandler) Signup(c *fiber.Ctx) error {
 
 	user, err := h.authService.CreateUser(c.Context(), req.Email, req.Password, req.FullName)
 	if err != nil {
+		// Check for validation errors
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "invalid email") ||
+			strings.Contains(errMsg, "invalid name") ||
+			strings.Contains(errMsg, "password must be") {
+			return fiber.NewError(fiber.StatusBadRequest, errMsg)
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
 	}
 
@@ -206,6 +213,12 @@ func (h *DashboardAuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 	err := h.authService.UpdateProfile(c.Context(), userID, req.FullName, req.AvatarURL)
 	if err != nil {
+		// Check for validation errors
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "invalid name") ||
+			strings.Contains(errMsg, "invalid avatar URL") {
+			return fiber.NewError(fiber.StatusBadRequest, errMsg)
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to update profile")
 	}
 
@@ -230,17 +243,18 @@ func (h *DashboardAuthHandler) ChangePassword(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Current password and new password are required")
 	}
 
-	if len(req.NewPassword) < 8 {
-		return fiber.NewError(fiber.StatusBadRequest, "New password must be at least 8 characters")
-	}
-
 	ipAddress := getIPAddress(c)
 	userAgent := string(c.Request().Header.UserAgent())
 
 	err := h.authService.ChangePassword(c.Context(), userID, req.CurrentPassword, req.NewPassword, ipAddress, userAgent)
 	if err != nil {
-		if err.Error() == "current password is incorrect" {
+		errMsg := err.Error()
+		if errMsg == "current password is incorrect" {
 			return fiber.NewError(fiber.StatusUnauthorized, "Current password is incorrect")
+		}
+		// Check for password validation errors
+		if strings.Contains(errMsg, "password must be") {
+			return fiber.NewError(fiber.StatusBadRequest, errMsg)
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to change password")
 	}

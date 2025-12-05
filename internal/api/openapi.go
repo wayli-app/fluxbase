@@ -96,25 +96,17 @@ func (h *OpenAPIHandler) GetOpenAPISpec(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get all functions for RPC endpoints
-	functions, err := inspector.GetAllFunctions(c.Context(), "public", "auth")
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "Failed to fetch database functions",
-		})
-	}
-
-	spec := h.generateSpec(tables, functions, c.BaseURL())
+	spec := h.generateSpec(tables, c.BaseURL())
 	return c.JSON(spec)
 }
 
 // generateSpec generates the complete OpenAPI spec
-func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, functions []database.FunctionInfo, baseURL string) OpenAPISpec {
+func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, baseURL string) OpenAPISpec {
 	spec := OpenAPISpec{
 		OpenAPI: "3.0.0",
 		Info: OpenAPIInfo{
 			Title:       "Fluxbase REST API",
-			Description: "Complete Fluxbase API including authentication, database tables, RPC functions, and admin endpoints",
+			Description: "Complete Fluxbase API including authentication, database tables, and admin endpoints",
 			Version:     "1.0.0",
 		},
 		Servers: []OpenAPIServer{
@@ -147,10 +139,6 @@ func (h *OpenAPIHandler) generateSpec(tables []database.TableInfo, functions []d
 	for _, table := range tables {
 		h.addTableToSpec(&spec, table)
 	}
-
-	// RPC endpoints are currently not included in the API Explorer
-	// In the future, we may add user-defined functions when we have a way to distinguish them
-	_ = functions // Suppress unused variable warning
 
 	return spec
 }

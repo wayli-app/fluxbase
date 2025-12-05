@@ -24,8 +24,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -52,7 +69,7 @@ const AVAILABLE_SCOPES = [
   { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
   { id: 'write:storage', name: 'Write Storage', description: 'Upload and delete files' },
   { id: 'read:functions', name: 'Read Functions', description: 'View functions' },
-  { id: 'execute:functions', name: 'Execute Functions', description: 'Call RPC functions' },
+  { id: 'execute:functions', name: 'Execute Functions', description: 'Invoke Edge Functions' },
   { id: 'read:auth', name: 'Read Auth', description: 'View auth data' },
   { id: 'write:auth', name: 'Write Auth', description: 'Manage auth data' },
 ]
@@ -254,9 +271,42 @@ function APIKeysPage() {
           </div>
 
           {isLoading ? (
-            <div className='flex items-center justify-center py-8 text-muted-foreground'>
-              Loading API keys...
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Key Prefix</TableHead>
+                  <TableHead>Scopes</TableHead>
+                  <TableHead>Rate Limit</TableHead>
+                  <TableHead>Last Used</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className='text-right'>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array(3).fill(0).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <div className='space-y-1'>
+                        <Skeleton className='h-4 w-28' />
+                        <Skeleton className='h-3 w-20' />
+                      </div>
+                    </TableCell>
+                    <TableCell><Skeleton className='h-4 w-24' /></TableCell>
+                    <TableCell><Skeleton className='h-5 w-16' /></TableCell>
+                    <TableCell><Skeleton className='h-4 w-20' /></TableCell>
+                    <TableCell><Skeleton className='h-4 w-24' /></TableCell>
+                    <TableCell><Skeleton className='h-5 w-16' /></TableCell>
+                    <TableCell className='text-right'>
+                      <div className='flex justify-end gap-1'>
+                        <Skeleton className='h-8 w-8' />
+                        <Skeleton className='h-8 w-8' />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : filteredKeys && filteredKeys.length > 0 ? (
             <Table>
               <TableHeader>
@@ -312,29 +362,56 @@ function APIKeysPage() {
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
                       <TableCell className='text-right'>
-                        <div className='flex justify-end gap-2'>
+                        <div className='flex justify-end gap-1'>
                           {!isRevoked(key.revoked_at) && (
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => revokeMutation.mutate(key.id)}
-                              disabled={revokeMutation.isPending}
-                            >
-                              Revoke
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => revokeMutation.mutate(key.id)}
+                                  disabled={revokeMutation.isPending}
+                                >
+                                  <X className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Revoke API key</TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button
-                            variant='destructive'
-                            size='sm'
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this API key?')) {
-                                deleteMutation.mutate(key.id)
-                              }
-                            }}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
+                          <AlertDialog>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    disabled={deleteMutation.isPending}
+                                    className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                                  >
+                                    <Trash2 className='h-4 w-4' />
+                                  </Button>
+                                </AlertDialogTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete API key</TooltipContent>
+                            </Tooltip>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{key.name}"? Any applications using this key will lose access immediately.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(key.id)}
+                                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>

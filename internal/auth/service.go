@@ -160,6 +160,11 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 		return nil, fmt.Errorf("signup is disabled")
 	}
 
+	// Validate email format and length
+	if err := ValidateEmail(req.Email); err != nil {
+		return nil, fmt.Errorf("invalid email: %w", err)
+	}
+
 	// Validate password
 	if err := s.passwordHasher.ValidatePassword(req.Password); err != nil {
 		return nil, fmt.Errorf("invalid password: %w", err)
@@ -376,6 +381,12 @@ func (s *Service) GetUser(ctx context.Context, accessToken string) (*User, error
 
 // UpdateUser updates user information
 func (s *Service) UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*User, error) {
+	// Validate email if provided
+	if req.Email != nil {
+		if err := ValidateEmail(*req.Email); err != nil {
+			return nil, fmt.Errorf("invalid email: %w", err)
+		}
+	}
 	return s.userRepo.Update(ctx, userID, req)
 }
 
@@ -901,6 +912,11 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (*User, erro
 
 // CreateUser creates a new user with email and optional password
 func (s *Service) CreateUser(ctx context.Context, email, password string) (*User, error) {
+	// Validate email format and length
+	if err := ValidateEmail(email); err != nil {
+		return nil, fmt.Errorf("invalid email: %w", err)
+	}
+
 	// If password is empty, create user without password (for OTP/OAuth flows)
 	hashedPassword := ""
 	if password != "" {

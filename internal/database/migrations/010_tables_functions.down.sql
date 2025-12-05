@@ -11,7 +11,6 @@ ALTER TABLE functions.edge_functions
     DROP COLUMN IF EXISTS is_public;
 
 -- Drop dependency tracking and configuration
-DROP TABLE IF EXISTS functions.rpc_function_config;
 DROP TABLE IF EXISTS functions.function_dependencies;
 DROP TABLE IF EXISTS functions.shared_modules;
 DROP TABLE IF EXISTS functions.edge_files;

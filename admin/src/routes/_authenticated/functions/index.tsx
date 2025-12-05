@@ -1,20 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  FileCode,
-  Search,
   Play,
   Copy,
   History,
-  Code2,
-  Filter,
   RefreshCw,
-  Zap,
   Plus,
   Edit,
   Trash2,
   Clock,
   HardDrive,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +19,6 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
 } from '@/components/ui/card'
 import {
@@ -34,6 +29,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -44,7 +54,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -52,617 +61,30 @@ import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
 import {
   functionsApi,
-  rpcApi,
   type EdgeFunction,
   type EdgeFunctionExecution,
-  type RPCFunction,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
   component: FunctionsPage,
 })
 
-// Local interfaces not in api.ts
-interface FunctionCall {
-  function: RPCFunction
-  params: Record<string, unknown>
-  result: unknown
-  timestamp: number
-  status: 'success' | 'error'
-}
-
-interface FunctionResult {
-  success: boolean
-  data?: unknown
-  error?: unknown
-}
-
 function FunctionsPage() {
-  const [activeTab, setActiveTab] = useState<'rpc' | 'edge'>('rpc')
-  const [functions, setFunctions] = useState<RPCFunction[]>([])
-  const [filteredFunctions, setFilteredFunctions] = useState<RPCFunction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [schemaFilter, setSchemaFilter] = useState<string>('all')
-  const [selectedFunction, setSelectedFunction] = useState<RPCFunction | null>(
-    null
-  )
-  const [showTester, setShowTester] = useState(false)
-  const [executing, setExecuting] = useState(false)
-  const [paramValues, setParamValues] = useState<Record<string, unknown>>({})
-  const [result, setResult] = useState<FunctionResult | null>(null)
-  const [history, setHistory] = useState<FunctionCall[]>([])
-  const [showHistory, setShowHistory] = useState(false)
-
-  useEffect(() => {
-    fetchFunctions()
-    loadHistory()
-  }, [])
-
-  useEffect(() => {
-    let filtered = functions
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (fn) =>
-          fn.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          fn.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Schema filter
-    if (schemaFilter !== 'all') {
-      filtered = filtered.filter((fn) => fn.schema === schemaFilter)
-    }
-
-    setFilteredFunctions(filtered)
-  }, [searchQuery, schemaFilter, functions])
-
-  const fetchFunctions = async () => {
-    setLoading(true)
-    try {
-      const data = await rpcApi.list()
-      // Filter to show only user-defined functions (exclude internal PostgreSQL functions)
-      // User functions are typically in plpgsql or sql, while internal functions use c or internal
-      const userFunctions = data.filter(
-        (fn: RPCFunction) =>
-          // Keep functions in plpgsql, sql, or other high-level languages
-          fn.language !== 'c' &&
-          fn.language !== 'internal' &&
-          // Exclude trigger functions (usually internal housekeeping)
-          fn.return_type !== 'trigger'
-      )
-      setFunctions(userFunctions)
-      setFilteredFunctions(userFunctions)
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error fetching functions:', error)
-      toast.error('Failed to fetch functions')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadHistory = () => {
-    const saved = localStorage.getItem('fluxbase-function-history')
-    if (saved) {
-      setHistory(JSON.parse(saved))
-    }
-  }
-
-  const saveHistory = (call: FunctionCall) => {
-    const newHistory = [call, ...history].slice(0, 20) // Keep last 20
-    setHistory(newHistory)
-    localStorage.setItem(
-      'fluxbase-function-history',
-      JSON.stringify(newHistory)
-    )
-  }
-
-  const openTester = (fn: RPCFunction) => {
-    setSelectedFunction(fn)
-    setParamValues({})
-    setResult(null)
-    setShowTester(true)
-  }
-
-  const executeFunction = async () => {
-    if (!selectedFunction) return
-
-    setExecuting(true)
-    setResult(null)
-
-    try {
-      const data = await rpcApi.execute(
-        selectedFunction.schema,
-        selectedFunction.name,
-        paramValues
-      )
-
-      setResult({ success: true, data })
-      toast.success('Function executed successfully')
-      saveHistory({
-        function: selectedFunction,
-        params: paramValues,
-        result: data,
-        timestamp: Date.now(),
-        status: 'success',
-      })
-    } catch (error: unknown) {
-      // eslint-disable-next-line no-console
-      console.error('Error executing function:', error)
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error'
-      setResult({ success: false, error: errorMessage })
-      toast.error('Failed to execute function')
-      saveHistory({
-        function: selectedFunction,
-        params: paramValues,
-        result: errorMessage,
-        timestamp: Date.now(),
-        status: 'error',
-      })
-    } finally {
-      setExecuting(false)
-    }
-  }
-
-  const replayFromHistory = (call: FunctionCall) => {
-    setSelectedFunction(call.function)
-    setParamValues(call.params)
-    setResult(null)
-    setShowHistory(false)
-    setShowTester(true)
-  }
-
-  const copyCode = (lang: 'curl' | 'javascript' | 'typescript') => {
-    if (!selectedFunction) return
-
-    const path =
-      selectedFunction.schema === 'public'
-        ? `/api/v1/rpc/${selectedFunction.name}`
-        : `/api/v1/rpc/${selectedFunction.schema}/${selectedFunction.name}`
-
-    let code = ''
-
-    if (lang === 'curl') {
-      code = `curl -X POST '${window.location.origin}${path}' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer YOUR_TOKEN' \\
-  -d '${JSON.stringify(paramValues, null, 2)}'`
-    } else if (lang === 'javascript') {
-      code = `const response = await fetch('${window.location.origin}${path}', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + token
-  },
-  body: JSON.stringify(${JSON.stringify(paramValues, null, 2)})
-})
-
-const data = await response.json()
-// eslint-disable-next-line no-console
-console.log(data)`
-    } else if (lang === 'typescript') {
-      code = `import { fluxbase } from '@fluxbase/sdk'
-
-const { data, error } = await fluxbase.rpc('${selectedFunction.name}', ${JSON.stringify(paramValues, null, 2)})
-
-// eslint-disable-next-line no-console
-if (error) console.error(error)
-// eslint-disable-next-line no-console
-else console.log(data)`
-    }
-
-    navigator.clipboard.writeText(code)
-    toast.success(`${lang} code copied to clipboard`)
-  }
-
-  const schemas = Array.from(new Set(functions.map((fn) => fn.schema)))
-
-  if (loading) {
-    return (
-      <div className='flex h-96 items-center justify-center'>
-        <RefreshCw className='text-muted-foreground h-8 w-8 animate-spin' />
-      </div>
-    )
-  }
-
   return (
     <div className='flex flex-col gap-6 p-6'>
       <ImpersonationBanner />
 
       <div className='flex items-center justify-between'>
         <div>
-          <h1 className='text-3xl font-bold'>Functions</h1>
+          <h1 className='text-3xl font-bold'>Edge Functions</h1>
           <p className='text-muted-foreground'>
-            Manage PostgreSQL RPC functions and Edge Functions (Deno runtime)
+            Deploy and run TypeScript/JavaScript functions with Deno runtime
           </p>
         </div>
-        <div className='flex items-center gap-2'>
-          <ImpersonationSelector />
-          <Button onClick={fetchFunctions} variant='outline' size='sm'>
-            <RefreshCw className='mr-2 h-4 w-4' />
-            Refresh
-          </Button>
-        </div>
+        <ImpersonationSelector />
       </div>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as 'rpc' | 'edge')}
-      >
-        <TabsList className='grid w-full max-w-md grid-cols-2'>
-          <TabsTrigger value='rpc'>
-            <FileCode className='mr-2 h-4 w-4' />
-            PostgreSQL Functions
-          </TabsTrigger>
-          <TabsTrigger value='edge'>
-            <Zap className='mr-2 h-4 w-4' />
-            Edge Functions
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='rpc' className='mt-6 space-y-6'>
-          {/* Stats */}
-          <div className='grid gap-4 md:grid-cols-3'>
-            <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-sm font-medium'>
-                  Total Functions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='text-2xl font-bold'>{functions.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-sm font-medium'>Schemas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='text-2xl font-bold'>{schemas.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-sm font-medium'>History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='flex items-center justify-between'>
-                  <div className='text-2xl font-bold'>{history.length}</div>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => setShowHistory(true)}
-                  >
-                    <History className='mr-2 h-4 w-4' />
-                    View
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
-          <div className='flex items-center gap-3'>
-            <div className='relative flex-1'>
-              <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
-              <Input
-                placeholder='Search functions...'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className='pl-9'
-              />
-            </div>
-            <Select value={schemaFilter} onValueChange={setSchemaFilter}>
-              <SelectTrigger className='w-[180px]'>
-                <Filter className='mr-2 h-4 w-4' />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>All Schemas</SelectItem>
-                {schemas.map((schema) => (
-                  <SelectItem key={schema} value={schema}>
-                    {schema}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Functions List */}
-          <ScrollArea className='h-[calc(100vh-28rem)]'>
-            <div className='grid gap-4'>
-              {filteredFunctions.length === 0 ? (
-                <Card>
-                  <CardContent className='p-12 text-center'>
-                    <FileCode className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
-                    <p className='mb-2 text-lg font-medium'>
-                      No functions found
-                    </p>
-                    <p className='text-muted-foreground text-sm'>
-                      {searchQuery || schemaFilter !== 'all'
-                        ? 'Try adjusting your filters'
-                        : 'Create functions in your PostgreSQL database to see them here'}
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                filteredFunctions.map((fn) => (
-                  <Card
-                    key={`${fn.schema}.${fn.name}`}
-                    className='hover:border-primary/50 transition-colors'
-                  >
-                    <CardHeader>
-                      <div className='flex items-start justify-between'>
-                        <div className='flex-1'>
-                          <div className='mb-2 flex items-center gap-2'>
-                            <CardTitle className='text-lg'>{fn.name}</CardTitle>
-                            <Badge variant='outline'>{fn.schema}</Badge>
-                            <Badge variant='secondary'>
-                              {fn.volatility.toLowerCase()}
-                            </Badge>
-                            {fn.is_set_of && <Badge>returns set</Badge>}
-                          </div>
-                          <CardDescription>
-                            {fn.description || 'No description available'}
-                          </CardDescription>
-                        </div>
-                        <Button onClick={() => openTester(fn)} size='sm'>
-                          <Play className='mr-2 h-4 w-4' />
-                          Test
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className='space-y-2'>
-                        <div className='flex items-center gap-2 text-sm'>
-                          <span className='font-medium'>Parameters:</span>
-                          {!fn.parameters || fn.parameters.length === 0 ? (
-                            <span className='text-muted-foreground'>None</span>
-                          ) : (
-                            <span className='text-muted-foreground'>
-                              {fn.parameters
-                                .map(
-                                  (p) =>
-                                    `${p.name || `arg${p.position}`}: ${p.type}`
-                                )
-                                .join(', ')}
-                            </span>
-                          )}
-                        </div>
-                        <div className='flex items-center gap-2 text-sm'>
-                          <span className='font-medium'>Returns:</span>
-                          <span className='text-muted-foreground'>
-                            {fn.is_set_of
-                              ? `SETOF ${fn.return_type}`
-                              : fn.return_type}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Function Tester Dialog */}
-          <Dialog open={showTester} onOpenChange={setShowTester}>
-            <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
-              <DialogHeader>
-                <DialogTitle className='flex items-center gap-2'>
-                  <FileCode className='h-5 w-5' />
-                  {selectedFunction?.schema}.{selectedFunction?.name}
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedFunction?.description ||
-                    'Test this PostgreSQL function'}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className='space-y-4'>
-                {/* Function Info */}
-                <div className='flex flex-wrap items-center gap-2'>
-                  <Badge variant='outline'>{selectedFunction?.schema}</Badge>
-                  <Badge variant='secondary'>
-                    {selectedFunction?.volatility.toLowerCase()}
-                  </Badge>
-                  <Badge>{selectedFunction?.language}</Badge>
-                  {selectedFunction?.is_set_of && <Badge>returns set</Badge>}
-                </div>
-
-                <Separator />
-
-                {/* Parameters */}
-                {selectedFunction &&
-                  selectedFunction.parameters &&
-                  selectedFunction.parameters.length > 0 && (
-                    <div className='space-y-3'>
-                      <h4 className='font-medium'>Parameters</h4>
-                      {selectedFunction.parameters.map((param) => (
-                        <div key={param.position} className='space-y-2'>
-                          <label className='flex items-center gap-2 text-sm font-medium'>
-                            {param.name || `arg${param.position}`}
-                            <Badge variant='outline' className='font-normal'>
-                              {param.type}
-                            </Badge>
-                            {!param.has_default && (
-                              <span className='text-destructive text-xs'>
-                                required
-                              </span>
-                            )}
-                          </label>
-                          <Input
-                            placeholder={`Enter ${param.type} value...`}
-                            value={String(
-                              paramValues[
-                                param.name || `arg${param.position}`
-                              ] ?? ''
-                            )}
-                            onChange={(e) =>
-                              setParamValues({
-                                ...paramValues,
-                                [param.name || `arg${param.position}`]:
-                                  e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                {selectedFunction &&
-                  (!selectedFunction.parameters ||
-                    selectedFunction.parameters.length === 0) && (
-                    <div className='text-muted-foreground text-sm'>
-                      This function takes no parameters
-                    </div>
-                  )}
-
-                {/* Result */}
-                {result && (
-                  <div className='space-y-2'>
-                    <h4 className='font-medium'>Result</h4>
-                    <div
-                      className={`overflow-x-auto rounded-lg p-4 font-mono text-sm ${
-                        result.success
-                          ? 'border border-green-500/20 bg-green-500/10'
-                          : 'bg-destructive/10 border-destructive/20 border'
-                      }`}
-                    >
-                      <pre>
-                        {JSON.stringify(
-                          result.success ? result.data : result.error,
-                          null,
-                          2
-                        )}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <DialogFooter className='flex-col gap-2 sm:flex-row'>
-                <div className='flex flex-1 gap-2'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => copyCode('curl')}
-                  >
-                    <Code2 className='mr-2 h-4 w-4' />
-                    cURL
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => copyCode('javascript')}
-                  >
-                    <Code2 className='mr-2 h-4 w-4' />
-                    JavaScript
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => copyCode('typescript')}
-                  >
-                    <Code2 className='mr-2 h-4 w-4' />
-                    TypeScript
-                  </Button>
-                </div>
-                <Button onClick={executeFunction} disabled={executing}>
-                  {executing ? (
-                    <>
-                      <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className='mr-2 h-4 w-4' />
-                      Execute
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* History Dialog */}
-          <Dialog open={showHistory} onOpenChange={setShowHistory}>
-            <DialogContent className='max-h-[90vh] max-w-2xl'>
-              <DialogHeader>
-                <DialogTitle className='flex items-center gap-2'>
-                  <History className='h-5 w-5' />
-                  Execution History
-                </DialogTitle>
-                <DialogDescription>
-                  Recent function calls (last 20)
-                </DialogDescription>
-              </DialogHeader>
-
-              <ScrollArea className='h-[60vh]'>
-                <div className='space-y-3'>
-                  {history.length === 0 ? (
-                    <div className='text-muted-foreground py-12 text-center'>
-                      <History className='mx-auto mb-4 h-12 w-12 opacity-50' />
-                      <p>No execution history yet</p>
-                    </div>
-                  ) : (
-                    history.map((call, i) => (
-                      <Card
-                        key={i}
-                        className='hover:border-primary/50 cursor-pointer transition-colors'
-                        onClick={() => replayFromHistory(call)}
-                      >
-                        <CardHeader className='pb-3'>
-                          <div className='flex items-start justify-between'>
-                            <div className='flex-1'>
-                              <div className='mb-1 flex items-center gap-2'>
-                                <span className='font-medium'>
-                                  {call.function.schema}.{call.function.name}
-                                </span>
-                                <Badge
-                                  variant={
-                                    call.status === 'success'
-                                      ? 'default'
-                                      : 'destructive'
-                                  }
-                                >
-                                  {call.status}
-                                </Badge>
-                              </div>
-                              <p className='text-muted-foreground text-xs'>
-                                {new Date(call.timestamp).toLocaleString()}
-                              </p>
-                            </div>
-                            <Button variant='ghost' size='sm'>
-                              <Copy className='h-4 w-4' />
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        {Object.keys(call.params).length > 0 && (
-                          <CardContent className='pt-0'>
-                            <div className='text-muted-foreground truncate font-mono text-xs'>
-                              {JSON.stringify(call.params)}
-                            </div>
-                          </CardContent>
-                        )}
-                      </Card>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
-
-        <TabsContent value='edge' className='mt-6 space-y-6'>
-          <EdgeFunctionsTab />
-        </TabsContent>
-      </Tabs>
+      <EdgeFunctionsTab />
     </div>
   )
 }
@@ -743,6 +165,7 @@ function EdgeFunctionsTab() {
   const [wordWrap, setWordWrap] = useState(false)
   const [logsWordWrap, setLogsWordWrap] = useState(false)
   const [reloading, setReloading] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
@@ -908,8 +331,6 @@ async function handler(req: Request) {
   }
 
   const deleteFunction = async (name: string) => {
-    if (!confirm(`Are you sure you want to delete function "${name}"?`)) return
-
     try {
       await functionsApi.delete(name)
       toast.success('Edge function deleted successfully')
@@ -918,6 +339,8 @@ async function handler(req: Request) {
       // eslint-disable-next-line no-console
       console.error('Error deleting edge function:', error)
       toast.error('Failed to delete edge function')
+    } finally {
+      setDeleteConfirm(null)
     }
   }
 
@@ -1112,43 +535,31 @@ async function handler(req: Request) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className='grid gap-4 md:grid-cols-3'>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>
-              Total Functions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{edgeFunctions.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {edgeFunctions.filter((f) => f.enabled).length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>Scheduled</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {edgeFunctions.filter((f) => f.cron_schedule).length}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stats - Compact inline design */}
+      <div className='flex gap-4 text-sm'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Total:</span>
+          <Badge variant='secondary' className='h-5 px-2'>
+            {edgeFunctions.length}
+          </Badge>
+        </div>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Active:</span>
+          <Badge variant='secondary' className='h-5 px-2 bg-green-500/10 text-green-600 dark:text-green-400'>
+            {edgeFunctions.filter((f) => f.enabled).length}
+          </Badge>
+        </div>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Scheduled:</span>
+          <Badge variant='secondary' className='h-5 px-2'>
+            {edgeFunctions.filter((f) => f.cron_schedule).length}
+          </Badge>
+        </div>
       </div>
 
       {/* Functions List */}
-      <ScrollArea className='h-[calc(100vh-28rem)]'>
-        <div className='grid gap-4'>
+      <ScrollArea className='h-[calc(100vh-16rem)]'>
+        <div className='grid gap-1'>
           {edgeFunctions.length === 0 ? (
             <Card>
               <CardContent className='p-12 text-center'>
@@ -1186,48 +597,88 @@ async function handler(req: Request) {
                     className='scale-75'
                   />
                 </div>
-                <div className='flex items-center gap-1 shrink-0'>
-                  <span className='text-[10px] text-muted-foreground'>{fn.timeout_seconds}s</span>
-                  <Button
-                    onClick={() => fetchExecutions(fn.name)}
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 w-6 p-0'
-                    title='View Logs'
-                  >
-                    <History className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => openInvokeDialog(fn)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 px-1.5 text-xs'
-                    disabled={!fn.enabled}
-                  >
-                    <Play className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => openEditDialog(fn)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 w-6 p-0'
-                  >
-                    <Edit className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => deleteFunction(fn.name)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 w-6 p-0'
-                  >
-                    <Trash2 className='h-3 w-3' />
-                  </Button>
+                <div className='flex items-center gap-0.5 shrink-0'>
+                  <span className='text-[10px] text-muted-foreground mr-1'>{fn.timeout_seconds}s</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => fetchExecutions(fn.name)}
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0'
+                      >
+                        <History className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View logs</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => openInvokeDialog(fn)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0'
+                        disabled={!fn.enabled}
+                      >
+                        <Play className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Invoke function</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => openEditDialog(fn)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0'
+                      >
+                        <Edit className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit function</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => setDeleteConfirm(fn.name)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10'
+                      >
+                        <Trash2 className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete function</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))
           )}
         </div>
       </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Function</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirm && deleteFunction(deleteConfirm)}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Function Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

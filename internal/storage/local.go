@@ -72,9 +72,58 @@ func (ls *LocalStorage) Health(ctx context.Context) error {
 	return nil
 }
 
+// validatePath validates that a path component doesn't contain path traversal sequences
+func validatePathComponent(component string) error {
+	if component == "" {
+		return fmt.Errorf("empty path component")
+	}
+	// Check for path traversal patterns
+	if strings.Contains(component, "..") {
+		return fmt.Errorf("path traversal detected: '..' not allowed")
+	}
+	// Check for null bytes (can be used to bypass validation)
+	if strings.Contains(component, "\x00") {
+		return fmt.Errorf("null bytes not allowed in path")
+	}
+	// Check for absolute paths
+	if filepath.IsAbs(component) || strings.HasPrefix(component, "/") || strings.HasPrefix(component, "\\") {
+		return fmt.Errorf("absolute paths not allowed")
+	}
+	return nil
+}
+
 // getPath returns the full filesystem path for a bucket/key
-func (ls *LocalStorage) getPath(bucket, key string) string {
-	return filepath.Join(ls.basePath, bucket, key)
+// Returns an error if path traversal is detected
+func (ls *LocalStorage) getPath(bucket, key string) (string, error) {
+	// Validate bucket name
+	if err := validatePathComponent(bucket); err != nil {
+		return "", fmt.Errorf("invalid bucket: %w", err)
+	}
+
+	// Validate each component of the key path
+	keyParts := strings.Split(filepath.ToSlash(key), "/")
+	for _, part := range keyParts {
+		if part == "" {
+			continue // Skip empty parts from leading/trailing slashes
+		}
+		if err := validatePathComponent(part); err != nil {
+			return "", fmt.Errorf("invalid key path: %w", err)
+		}
+	}
+
+	// Build the full path
+	fullPath := filepath.Join(ls.basePath, bucket, key)
+
+	// Clean the path and verify it's still within the base path
+	fullPath = filepath.Clean(fullPath)
+	bucketPath := filepath.Clean(filepath.Join(ls.basePath, bucket))
+
+	// Double-check: the full path must start with the bucket path
+	if !strings.HasPrefix(fullPath, bucketPath) {
+		return "", fmt.Errorf("path escapes bucket directory")
+	}
+
+	return fullPath, nil
 }
 
 // Upload uploads a file to local storage
@@ -83,13 +132,17 @@ func (ls *LocalStorage) Upload(ctx context.Context, bucket, key string, data io.
 		opts = &UploadOptions{}
 	}
 
+	// Validate and get file path
+	filePath, err := ls.getPath(bucket, key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path: %w", err)
+	}
+
 	// Create bucket directory if it doesn't exist
 	bucketPath := filepath.Join(ls.basePath, bucket)
 	if err := os.MkdirAll(bucketPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create bucket directory: %w", err)
 	}
-
-	filePath := ls.getPath(bucket, key)
 
 	// Create parent directories for the key
 	dir := filepath.Dir(filePath)
@@ -170,7 +223,10 @@ func (l *limitedReadCloser) Close() error {
 
 // Download downloads a file from local storage
 func (ls *LocalStorage) Download(ctx context.Context, bucket, key string, opts *DownloadOptions) (io.ReadCloser, *Object, error) {
-	filePath := ls.getPath(bucket, key)
+	filePath, err := ls.getPath(bucket, key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid path: %w", err)
+	}
 
 	// Check if file exists
 	info, err := os.Stat(filePath)
@@ -257,7 +313,10 @@ func (ls *LocalStorage) Download(ctx context.Context, bucket, key string, opts *
 
 // Delete deletes a file from local storage
 func (ls *LocalStorage) Delete(ctx context.Context, bucket, key string) error {
-	filePath := ls.getPath(bucket, key)
+	filePath, err := ls.getPath(bucket, key)
+	if err != nil {
+		return fmt.Errorf("invalid path: %w", err)
+	}
 
 	// Delete the file
 	if err := os.Remove(filePath); err != nil {
@@ -281,8 +340,11 @@ func (ls *LocalStorage) Delete(ctx context.Context, bucket, key string) error {
 
 // Exists checks if a file exists
 func (ls *LocalStorage) Exists(ctx context.Context, bucket, key string) (bool, error) {
-	filePath := ls.getPath(bucket, key)
-	_, err := os.Stat(filePath)
+	filePath, err := ls.getPath(bucket, key)
+	if err != nil {
+		return false, fmt.Errorf("invalid path: %w", err)
+	}
+	_, err = os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -294,7 +356,10 @@ func (ls *LocalStorage) Exists(ctx context.Context, bucket, key string) (bool, e
 
 // GetObject gets object metadata without downloading the file
 func (ls *LocalStorage) GetObject(ctx context.Context, bucket, key string) (*Object, error) {
-	filePath := ls.getPath(bucket, key)
+	filePath, err := ls.getPath(bucket, key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid path: %w", err)
+	}
 
 	info, err := os.Stat(filePath)
 	if err != nil {
@@ -344,6 +409,24 @@ func (ls *LocalStorage) List(ctx context.Context, bucket string, opts *ListOptio
 		opts.MaxKeys = 1000
 	}
 
+	// Validate bucket name
+	if err := validatePathComponent(bucket); err != nil {
+		return nil, fmt.Errorf("invalid bucket: %w", err)
+	}
+
+	// Validate prefix if provided
+	if opts.Prefix != "" {
+		prefixParts := strings.Split(filepath.ToSlash(opts.Prefix), "/")
+		for _, part := range prefixParts {
+			if part == "" {
+				continue
+			}
+			if err := validatePathComponent(part); err != nil {
+				return nil, fmt.Errorf("invalid prefix: %w", err)
+			}
+		}
+	}
+
 	bucketPath := filepath.Join(ls.basePath, bucket)
 
 	// Check if bucket exists
@@ -360,6 +443,12 @@ func (ls *LocalStorage) List(ctx context.Context, bucket string, opts *ListOptio
 	searchPath := bucketPath
 	if opts.Prefix != "" {
 		searchPath = filepath.Join(bucketPath, opts.Prefix)
+		// Double-check the searchPath is still within bucket
+		cleanSearch := filepath.Clean(searchPath)
+		cleanBucket := filepath.Clean(bucketPath)
+		if !strings.HasPrefix(cleanSearch, cleanBucket) {
+			return nil, fmt.Errorf("prefix escapes bucket directory")
+		}
 	}
 
 	err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
@@ -621,8 +710,14 @@ func (ls *LocalStorage) ValidateSignedToken(token string) (bucket, key, method s
 
 // CopyObject copies an object within storage
 func (ls *LocalStorage) CopyObject(ctx context.Context, srcBucket, srcKey, destBucket, destKey string) error {
-	srcPath := ls.getPath(srcBucket, srcKey)
-	destPath := ls.getPath(destBucket, destKey)
+	srcPath, err := ls.getPath(srcBucket, srcKey)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+	destPath, err := ls.getPath(destBucket, destKey)
+	if err != nil {
+		return fmt.Errorf("invalid destination path: %w", err)
+	}
 
 	// Create destination directory
 	destDir := filepath.Dir(destPath)

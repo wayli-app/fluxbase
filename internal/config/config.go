@@ -442,6 +442,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("storage configuration error: %w", err)
 	}
 
+	// Validate security configuration
+	if err := c.Security.Validate(); err != nil {
+		return fmt.Errorf("security configuration error: %w", err)
+	}
+
 	// Validate email configuration if enabled
 	if c.Email.Enabled {
 		if err := c.Email.Validate(); err != nil {
@@ -676,6 +681,31 @@ func (dc *DatabaseConfig) AdminConnectionString() string {
 	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		user, password, dc.Host, dc.Port, dc.Database, dc.SSLMode)
+}
+
+// Validate validates security configuration
+func (sc *SecurityConfig) Validate() error {
+	// Check for insecure default setup token if admin dashboard is enabled
+	if sc.SetupToken != "" {
+		insecureDefaults := []string{
+			"your-secret-setup-token-change-in-production",
+			"your-secret-setup-token",
+			"changeme",
+			"test",
+		}
+		for _, insecure := range insecureDefaults {
+			if sc.SetupToken == insecure {
+				return fmt.Errorf("please set a secure setup token (current value '%s' is insecure)", sc.SetupToken)
+			}
+		}
+
+		// Warn if setup token is too short
+		if len(sc.SetupToken) < 32 {
+			log.Warn().Msg("Security setup token is shorter than 32 characters - consider using a longer token for better security")
+		}
+	}
+
+	return nil
 }
 
 // Validate validates email configuration

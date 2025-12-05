@@ -129,8 +129,13 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 			})
 		}
 
-		// Check if user role is in allowed roles
-		role := userRole.(string)
+		// Check if user role is in allowed roles (with safe type assertion)
+		role, ok := userRole.(string)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid role type",
+			})
+		}
 		for _, allowedRole := range allowedRoles {
 			if role == allowedRole {
 				return c.Next()
@@ -149,7 +154,8 @@ func GetUserID(c *fiber.Ctx) (string, bool) {
 	if userID == nil {
 		return "", false
 	}
-	return userID.(string), true
+	id, ok := userID.(string)
+	return id, ok
 }
 
 // GetUserEmail is a helper to extract user email from context
@@ -158,7 +164,8 @@ func GetUserEmail(c *fiber.Ctx) (string, bool) {
 	if email == nil {
 		return "", false
 	}
-	return email.(string), true
+	e, ok := email.(string)
+	return e, ok
 }
 
 // GetUserRole is a helper to extract user role from context
@@ -167,7 +174,8 @@ func GetUserRole(c *fiber.Ctx) (string, bool) {
 	if role == nil {
 		return "", false
 	}
-	return role.(string), true
+	r, ok := role.(string)
+	return r, ok
 }
 
 // UnifiedAuthMiddleware creates a middleware that accepts both auth.users and dashboard.users authentication
