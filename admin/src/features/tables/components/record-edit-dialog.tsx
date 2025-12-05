@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
@@ -230,13 +231,26 @@ export function RecordEditDialog({
                         <span className='text-xs text-muted-foreground'>{typeHint}</span>
                       )}
                     </div>
-                    <Input
-                      id={key}
-                      value={value}
-                      onChange={(e) => handleChange(key, e.target.value)}
-                      disabled={colSchema?.is_primary_key && colSchema.default_value !== null}
-                      placeholder={defaultHint || `Enter ${key}`}
-                    />
+                    {colSchema?.data_type === 'text' ||
+                    colSchema?.data_type === 'json' ||
+                    colSchema?.data_type === 'jsonb' ? (
+                      <Textarea
+                        id={key}
+                        value={value}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                        disabled={colSchema?.is_primary_key && colSchema.default_value !== null}
+                        placeholder={defaultHint || `Enter ${key}`}
+                        className='min-h-[100px] font-mono text-sm'
+                      />
+                    ) : (
+                      <Input
+                        id={key}
+                        value={value}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                        disabled={colSchema?.is_primary_key && colSchema.default_value !== null}
+                        placeholder={defaultHint || `Enter ${key}`}
+                      />
+                    )}
                     {defaultHint && value === '' && (
                       <p className='text-xs text-muted-foreground'>{defaultHint}</p>
                     )}
