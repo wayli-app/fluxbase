@@ -25,6 +25,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -371,34 +387,66 @@ function WebhooksPage() {
                           </div>
                         </TableCell>
                         <TableCell className='text-right'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setSelectedWebhook(webhook)}
-                            >
-                              <Clock className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => testMutation.mutate(webhook.id)}
-                              disabled={testMutation.isPending}
-                            >
-                              <Send className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='destructive'
-                              size='sm'
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this webhook?')) {
-                                  deleteMutation.mutate(webhook.id)
-                                }
-                              }}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
+                          <div className='flex justify-end gap-1'>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => setSelectedWebhook(webhook)}
+                                >
+                                  <Clock className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View delivery history</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => testMutation.mutate(webhook.id)}
+                                  disabled={testMutation.isPending}
+                                >
+                                  <Send className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Send test webhook</TooltipContent>
+                            </Tooltip>
+                            <AlertDialog>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='sm'
+                                      disabled={deleteMutation.isPending}
+                                      className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                                    >
+                                      <Trash2 className='h-4 w-4' />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete webhook</TooltipContent>
+                              </Tooltip>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Webhook</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{webhook.name}"? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteMutation.mutate(webhook.id)}
+                                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

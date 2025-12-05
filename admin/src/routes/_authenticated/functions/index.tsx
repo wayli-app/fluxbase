@@ -29,6 +29,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -150,6 +165,7 @@ function EdgeFunctionsTab() {
   const [wordWrap, setWordWrap] = useState(false)
   const [logsWordWrap, setLogsWordWrap] = useState(false)
   const [reloading, setReloading] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
@@ -315,8 +331,6 @@ async function handler(req: Request) {
   }
 
   const deleteFunction = async (name: string) => {
-    if (!confirm(`Are you sure you want to delete function "${name}"?`)) return
-
     try {
       await functionsApi.delete(name)
       toast.success('Edge function deleted successfully')
@@ -325,6 +339,8 @@ async function handler(req: Request) {
       // eslint-disable-next-line no-console
       console.error('Error deleting edge function:', error)
       toast.error('Failed to delete edge function')
+    } finally {
+      setDeleteConfirm(null)
     }
   }
 
@@ -581,48 +597,88 @@ async function handler(req: Request) {
                     className='scale-75'
                   />
                 </div>
-                <div className='flex items-center gap-1 shrink-0'>
-                  <span className='text-[10px] text-muted-foreground'>{fn.timeout_seconds}s</span>
-                  <Button
-                    onClick={() => fetchExecutions(fn.name)}
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 w-6 p-0'
-                    title='View Logs'
-                  >
-                    <History className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => openInvokeDialog(fn)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 px-1.5 text-xs'
-                    disabled={!fn.enabled}
-                  >
-                    <Play className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => openEditDialog(fn)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 w-6 p-0'
-                  >
-                    <Edit className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    onClick={() => deleteFunction(fn.name)}
-                    size='sm'
-                    variant='ghost'
-                    className='h-6 w-6 p-0'
-                  >
-                    <Trash2 className='h-3 w-3' />
-                  </Button>
+                <div className='flex items-center gap-0.5 shrink-0'>
+                  <span className='text-[10px] text-muted-foreground mr-1'>{fn.timeout_seconds}s</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => fetchExecutions(fn.name)}
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 w-6 p-0'
+                      >
+                        <History className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View logs</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => openInvokeDialog(fn)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0'
+                        disabled={!fn.enabled}
+                      >
+                        <Play className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Invoke function</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => openEditDialog(fn)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0'
+                      >
+                        <Edit className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit function</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => setDeleteConfirm(fn.name)}
+                        size='sm'
+                        variant='ghost'
+                        className='h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10'
+                      >
+                        <Trash2 className='h-3 w-3' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete function</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))
           )}
         </div>
       </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Function</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirm && deleteFunction(deleteConfirm)}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Function Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

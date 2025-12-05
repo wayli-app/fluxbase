@@ -24,6 +24,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -312,29 +328,56 @@ function APIKeysPage() {
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </TableCell>
                       <TableCell className='text-right'>
-                        <div className='flex justify-end gap-2'>
+                        <div className='flex justify-end gap-1'>
                           {!isRevoked(key.revoked_at) && (
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => revokeMutation.mutate(key.id)}
-                              disabled={revokeMutation.isPending}
-                            >
-                              Revoke
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => revokeMutation.mutate(key.id)}
+                                  disabled={revokeMutation.isPending}
+                                >
+                                  <X className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Revoke API key</TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button
-                            variant='destructive'
-                            size='sm'
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this API key?')) {
-                                deleteMutation.mutate(key.id)
-                              }
-                            }}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
+                          <AlertDialog>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    disabled={deleteMutation.isPending}
+                                    className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                                  >
+                                    <Trash2 className='h-4 w-4' />
+                                  </Button>
+                                </AlertDialogTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete API key</TooltipContent>
+                            </Tooltip>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{key.name}"? Any applications using this key will lose access immediately.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(key.id)}
+                                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
