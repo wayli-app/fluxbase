@@ -426,12 +426,13 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/password/reset/confirm", h.ResetPassword)           // No rate limit on actual reset (token is single-use)
 	router.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
 
-	// 2FA verification (public - used during login)
-	router.Post("/2fa/verify", h.VerifyTOTP)
+	// 2FA verification (public - used during login) with rate limiting
+	// Rate limited to prevent brute-force attacks on 6-digit TOTP codes
+	router.Post("/2fa/verify", rateLimiters["2fa"], h.VerifyTOTP)
 
 	// OTP routes (public)
 	router.Post("/otp/signin", rateLimiters["otp"], h.SendOTP)
-	router.Post("/otp/verify", h.VerifyOTP)
+	router.Post("/otp/verify", rateLimiters["2fa"], h.VerifyOTP) // Use 2FA rate limiter to prevent brute-force
 	router.Post("/otp/resend", rateLimiters["otp"], h.ResendOTP)
 
 	// ID token signin (public - for mobile OAuth)

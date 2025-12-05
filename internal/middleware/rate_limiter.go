@@ -88,6 +88,19 @@ func AuthPasswordResetLimiter() fiber.Handler {
 	})
 }
 
+// Auth2FALimiter limits 2FA verification attempts per IP
+// Strict rate limiting to prevent brute-force attacks on 6-digit TOTP codes
+func Auth2FALimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        5,
+		Expiration: 5 * time.Minute,
+		KeyFunc: func(c *fiber.Ctx) string {
+			return "2fa:" + c.IP()
+		},
+		Message: "Too many 2FA verification attempts. Please try again in 5 minutes.",
+	})
+}
+
 // AuthRefreshLimiter limits token refresh attempts per token
 func AuthRefreshLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{

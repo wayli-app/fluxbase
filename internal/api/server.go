@@ -517,6 +517,7 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 		"magiclink":      middleware.AuthMagicLinkLimiter(),
 		"password_reset": middleware.AuthPasswordResetLimiter(),
 		"otp":            middleware.AuthMagicLinkLimiter(), // Use same rate limit as magic link
+		"2fa":            middleware.Auth2FALimiter(),       // Strict rate limit for 2FA verification
 	}
 
 	// Use the auth handler's RegisterRoutes method with rate limiters
