@@ -63,29 +63,72 @@ Fluxbase includes several built-in security features:
 
 When deploying Fluxbase:
 
-1. **Environment Variables**: Never commit sensitive credentials to version control
-2. **Database**: Use strong passwords and enable SSL/TLS for database connections
-3. **API Keys**: Rotate API keys and tokens regularly
-4. **Updates**: Keep Fluxbase and all dependencies up to date
-5. **Monitoring**: Enable audit logging and monitor for suspicious activity
-6. **Network**: Deploy behind a reverse proxy with TLS/SSL termination
-7. **Backups**: Implement regular encrypted backups
+### Configuration Security
+
+1. **JWT Secret**: Must be changed from default and at least 32 characters long
+   - The server will refuse to start with the default insecure JWT secret
+   - Generate a secure secret: `openssl rand -base64 32`
+
+2. **Setup Token**: Must be changed from default before production deployment
+   - The server validates against known insecure defaults
+   - Use a cryptographically secure random token
+
+3. **Environment Variables**: Never commit sensitive credentials to version control
+   - Use `.env` files for development
+   - Use proper secrets management in production (K8s Secrets, AWS Secrets Manager, etc.)
+
+4. **Database**: Use strong passwords and enable SSL/TLS for database connections
+   - Change default postgres password
+   - Enable `ssl_mode=require` in production
+
+### API & Authentication Security
+
+5. **Rate Limiting**: All sensitive endpoints have built-in rate limiting
+   - Login: 10 attempts per 15 minutes
+   - 2FA verification: 5 attempts per 5 minutes
+   - Password reset: 5 requests per 15 minutes
+   - Admin setup: 5 attempts per 15 minutes
+
+6. **Token Storage**: Access tokens use cookies with security attributes
+   - `SameSite=Strict` for CSRF protection
+   - `Secure` flag in production (HTTPS only)
+
+7. **API Keys**: Rotate API keys and tokens regularly
+
+### Operational Security
+
+8. **Updates**: Keep Fluxbase and all dependencies up to date
+9. **Monitoring**: Enable audit logging and monitor for suspicious activity
+10. **Network**: Deploy behind a reverse proxy with TLS/SSL termination
+11. **Backups**: Implement regular encrypted backups
 
 ## Known Security Considerations
 
 ### Development Mode
 - Development mode includes additional debugging features that should **never** be enabled in production
 - Ensure `FLUXBASE_ENV=production` in production deployments
+- Debug mode logs may contain sensitive information
 
 ### Database Access
 - RLS policies are enforced at the database level
 - Ensure PostgreSQL RLS is properly configured before production use
 - Review RLS policies regularly
+- Service role tokens bypass RLS - use with caution
 
 ### Rate Limiting
 - Default rate limits are configured conservatively
 - Adjust rate limits based on your specific use case
 - Consider implementing additional DDoS protection at the infrastructure level
+
+### Cookie Security
+- Access tokens are stored in cookies with `SameSite=Strict` and `Secure` flags
+- For maximum security in sensitive applications, consider implementing server-side session management
+- Refresh tokens are stored in localStorage (standard practice, but consider the trade-offs)
+
+### JWT Security
+- JWTs are signed using HMAC-SHA256 algorithm
+- Algorithm verification is enforced to prevent algorithm confusion attacks
+- Token revocation is supported via token blacklist
 
 ## Security Scanning
 
