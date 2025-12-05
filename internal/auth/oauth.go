@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -216,7 +217,9 @@ func GenerateState() (string, error) {
 }
 
 // StateStore manages OAuth state tokens for CSRF protection
+// Uses a mutex to protect concurrent access from multiple goroutines
 type StateStore struct {
+	mu     sync.RWMutex
 	states map[string]time.Time
 }
 
@@ -229,11 +232,17 @@ func NewStateStore() *StateStore {
 
 // Set stores a state token
 func (s *StateStore) Set(state string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.states[state] = time.Now().Add(10 * time.Minute)
 }
 
 // Validate checks if a state token is valid and removes it
+// Uses a full lock since we both read and delete atomically
 func (s *StateStore) Validate(state string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	expiry, exists := s.states[state]
 	if !exists {
 		return false
@@ -247,6 +256,9 @@ func (s *StateStore) Validate(state string) bool {
 
 // Cleanup removes expired state tokens
 func (s *StateStore) Cleanup() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	now := time.Now()
 	for state, expiry := range s.states {
 		if now.After(expiry) {
