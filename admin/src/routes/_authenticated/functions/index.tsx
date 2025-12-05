@@ -10,6 +10,7 @@ import {
   Trash2,
   Clock,
   HardDrive,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -518,43 +519,31 @@ async function handler(req: Request) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className='grid gap-4 md:grid-cols-3'>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>
-              Total Functions
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{edgeFunctions.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {edgeFunctions.filter((f) => f.enabled).length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-sm font-medium'>Scheduled</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {edgeFunctions.filter((f) => f.cron_schedule).length}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stats - Compact inline design */}
+      <div className='flex gap-4 text-sm'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Total:</span>
+          <Badge variant='secondary' className='h-5 px-2'>
+            {edgeFunctions.length}
+          </Badge>
+        </div>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Active:</span>
+          <Badge variant='secondary' className='h-5 px-2 bg-green-500/10 text-green-600 dark:text-green-400'>
+            {edgeFunctions.filter((f) => f.enabled).length}
+          </Badge>
+        </div>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground'>Scheduled:</span>
+          <Badge variant='secondary' className='h-5 px-2'>
+            {edgeFunctions.filter((f) => f.cron_schedule).length}
+          </Badge>
+        </div>
       </div>
 
       {/* Functions List */}
-      <ScrollArea className='h-[calc(100vh-28rem)]'>
-        <div className='grid gap-4'>
+      <ScrollArea className='h-[calc(100vh-16rem)]'>
+        <div className='grid gap-1'>
           {edgeFunctions.length === 0 ? (
             <Card>
               <CardContent className='p-12 text-center'>

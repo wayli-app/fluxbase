@@ -65,7 +65,7 @@ interface QueryHistory {
   query: string
 }
 
-const ROWS_PER_PAGE = 50
+const ROWS_PER_PAGE = 100
 
 function SQLEditorPage() {
   const { resolvedTheme } = useTheme()
