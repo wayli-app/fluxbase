@@ -59,6 +59,7 @@ type Server struct {
 	functionsScheduler    *functions.Scheduler
 	jobsHandler           *jobs.Handler
 	jobsManager           *jobs.Manager
+	jobsScheduler         *jobs.Scheduler
 	migrationsHandler     *migrations.Handler
 	realtimeManager       *realtime.Manager
 	realtimeHandler       *realtime.RealtimeHandler
@@ -153,6 +154,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Only create jobs components if jobs are enabled
 	var jobsManager *jobs.Manager
 	var jobsHandler *jobs.Handler
+	var jobsScheduler *jobs.Scheduler
 	if cfg.Jobs.Enabled {
 		// Determine public URL for jobs SDK client
 		jobsPublicURL := cfg.BaseURL
@@ -170,6 +172,9 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
 		}
+		// Create jobs scheduler for cron-based job execution
+		jobsScheduler = jobs.NewScheduler(db)
+		jobsHandler.SetScheduler(jobsScheduler)
 	}
 
 	migrationsHandler := migrations.NewHandler(db)
@@ -213,6 +218,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		functionsScheduler:    functionsScheduler,
 		jobsHandler:           jobsHandler,
 		jobsManager:           jobsManager,
+		jobsScheduler:         jobsScheduler,
 		migrationsHandler:     migrationsHandler,
 		realtimeManager:       realtimeManager,
 		realtimeHandler:       realtimeHandler,
@@ -230,7 +236,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		log.Error().Err(err).Msg("Failed to start edge functions scheduler")
 	}
 
-	// Start jobs manager
+	// Start jobs manager and scheduler
 	if cfg.Jobs.Enabled && jobsManager != nil {
 		workerCount := cfg.Jobs.EmbeddedWorkerCount
 		if workerCount <= 0 {
@@ -240,6 +246,12 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 			log.Error().Err(err).Msg("Failed to start jobs manager")
 		} else {
 			log.Info().Int("workers", workerCount).Msg("Jobs manager started successfully")
+		}
+		// Start jobs scheduler for cron-based execution
+		if jobsScheduler != nil {
+			if err := jobsScheduler.Start(); err != nil {
+				log.Error().Err(err).Msg("Failed to start jobs scheduler")
+			}
 		}
 	}
 
@@ -871,7 +883,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.functionsScheduler.Stop()
 	}
 
-	// Stop jobs manager
+	// Stop jobs scheduler and manager
+	if s.jobsScheduler != nil {
+		s.jobsScheduler.Stop()
+	}
 	if s.jobsManager != nil {
 		s.jobsManager.Stop()
 	}

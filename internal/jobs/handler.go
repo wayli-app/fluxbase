@@ -157,15 +157,22 @@ Configure job behavior using @fluxbase: annotations in code comments:
 - @fluxbase:allow-net false           // Disallow network access (default: true)
 - @fluxbase:allow-env false           // Disallow env var access (default: true)
 - @fluxbase:schedule 0 2 * * *        // Cron schedule (optional)
+- @fluxbase:schedule-params {"key": "value"}  // Parameters passed when scheduled (optional)
 
 */
 
 // Handler manages HTTP endpoints for jobs
 type Handler struct {
-	storage *Storage
-	loader  *Loader
-	manager *Manager
-	config  *config.JobsConfig
+	storage   *Storage
+	loader    *Loader
+	manager   *Manager
+	scheduler *Scheduler
+	config    *config.JobsConfig
+}
+
+// SetScheduler sets the scheduler for the handler
+func (h *Handler) SetScheduler(scheduler *Scheduler) {
+	h.scheduler = scheduler
 }
 
 // roleSatisfiesRequirement checks if the user's role satisfies the required role
@@ -804,6 +811,9 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 			})
 		}
 
+		// Reschedule jobs after filesystem sync
+		h.rescheduleJobsFromNamespace(ctx, namespace)
+
 		return c.JSON(fiber.Map{
 			"message":   "Jobs synced from filesystem",
 			"namespace": namespace,
@@ -1069,6 +1079,9 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 		Int("unchanged", len(unchanged)).
 		Int("errors", len(errorList)).
 		Msg("Jobs synced successfully")
+
+	// Reschedule jobs after sync
+	h.rescheduleJobsFromNamespace(ctx, namespace)
 
 	return c.JSON(fiber.Map{
 		"message":   "Jobs synced successfully",
@@ -1383,7 +1396,39 @@ func (h *Handler) ListAllJobs(c *fiber.Ctx) error {
 
 // LoadFromFilesystem loads jobs from filesystem at boot time
 func (h *Handler) LoadFromFilesystem(ctx context.Context, namespace string) error {
-	return h.loader.LoadFromFilesystem(ctx, namespace)
+	if err := h.loader.LoadFromFilesystem(ctx, namespace); err != nil {
+		return err
+	}
+
+	// Reschedule jobs after loading
+	if h.scheduler != nil {
+		h.rescheduleJobsFromNamespace(ctx, namespace)
+	}
+
+	return nil
+}
+
+// rescheduleJobsFromNamespace updates the scheduler with jobs from a namespace
+func (h *Handler) rescheduleJobsFromNamespace(ctx context.Context, namespace string) {
+	if h.scheduler == nil {
+		return
+	}
+
+	jobs, err := h.storage.ListJobFunctions(ctx, namespace)
+	if err != nil {
+		log.Warn().Err(err).Str("namespace", namespace).Msg("Failed to list jobs for rescheduling")
+		return
+	}
+
+	for _, job := range jobs {
+		if job.Enabled && job.Schedule != nil && *job.Schedule != "" {
+			if err := h.scheduler.ScheduleJob(job); err != nil {
+				log.Warn().Err(err).Str("job", job.Name).Msg("Failed to schedule job")
+			}
+		} else {
+			h.scheduler.UnscheduleJob(namespace, job.Name)
+		}
+	}
 }
 
 // Helper functions
