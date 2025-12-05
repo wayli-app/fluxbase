@@ -152,11 +152,11 @@ func (h *RPCHandler) isInternalFunction(fn database.FunctionInfo) bool {
 
 // isFunctionPublic checks if a function should be exposed as a public RPC endpoint
 // Returns true if:
-//   - Function NOT in config table (user-created, public by default)
-//   - Function in config table with is_public=true
+//   - Function in config table with is_public=true (explicitly opted in)
 //
 // Returns false if:
-//   - Function in config table with is_public=false (system function)
+//   - Function NOT in config table (private by default - must be explicitly opted in)
+//   - Function in config table with is_public=false
 func (h *RPCHandler) isFunctionPublic(ctx context.Context, fn database.FunctionInfo) bool {
 	var isPublic bool
 
@@ -169,15 +169,16 @@ func (h *RPCHandler) isFunctionPublic(ctx context.Context, fn database.FunctionI
 	err := h.db.QueryRow(ctx, query, fn.Schema, fn.Name).Scan(&isPublic)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			// Function not in config table -> user-created -> public by default
-			return true
+			// Function not in config table -> private by default (opt-in required)
+			// To expose a function, add it to functions.rpc_function_config with is_public=true
+			return false
 		}
-		// Database error -> log and default to public
+		// Database error -> log and default to private for security
 		log.Warn().Err(err).
 			Str("schema", fn.Schema).
 			Str("function", fn.Name).
-			Msg("Failed to check function config, defaulting to public")
-		return true
+			Msg("Failed to check function config, defaulting to private")
+		return false
 	}
 
 	// Function found in config table, use its is_public value
@@ -381,12 +382,12 @@ func (h *RPCHandler) buildFunctionCall(fn database.FunctionInfo, params map[stri
 		}
 	}
 
-	// Build function call
+	// Build function call - quote identifiers to prevent SQL injection
 	var query string
 	if len(placeholders) > 0 {
-		query = fmt.Sprintf("SELECT * FROM %s.%s(%s)", fn.Schema, fn.Name, strings.Join(placeholders, ", "))
+		query = fmt.Sprintf(`SELECT * FROM "%s"."%s"(%s)`, fn.Schema, fn.Name, strings.Join(placeholders, ", "))
 	} else {
-		query = fmt.Sprintf("SELECT * FROM %s.%s()", fn.Schema, fn.Name)
+		query = fmt.Sprintf(`SELECT * FROM "%s"."%s"()`, fn.Schema, fn.Name)
 	}
 
 	return query, args, nil

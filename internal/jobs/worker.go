@@ -418,13 +418,17 @@ func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *Progress) {
 	// Calculate ETA if we have valid progress (between 1-99%)
 	if progress.Percent > 0 && progress.Percent < 100 {
 		if startTimeVal, ok := w.jobStartTimes.Load(jobID); ok {
-			startTime := startTimeVal.(time.Time)
-			elapsed := time.Since(startTime).Seconds()
-			if elapsed > 0 {
-				// ETA = (elapsed / percent) * remaining_percent
-				remainingPercent := float64(100 - progress.Percent)
-				etaSeconds := int((elapsed / float64(progress.Percent)) * remainingPercent)
-				progress.EstimatedSecondsLeft = &etaSeconds
+			startTime, ok := startTimeVal.(time.Time)
+			if !ok {
+				log.Warn().Str("job_id", jobID.String()).Msg("Invalid start time type in progress calculation")
+			} else {
+				elapsed := time.Since(startTime).Seconds()
+				if elapsed > 0 {
+					// ETA = (elapsed / percent) * remaining_percent
+					remainingPercent := float64(100 - progress.Percent)
+					etaSeconds := int((elapsed / float64(progress.Percent)) * remainingPercent)
+					progress.EstimatedSecondsLeft = &etaSeconds
+				}
 			}
 		}
 	}
@@ -458,13 +462,18 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string)
 		Msg("Job log")
 
 	// Get and increment the line counter for this job
-	counterPtr, ok := w.jobLogCounters.Load(jobID)
+	counterVal, ok := w.jobLogCounters.Load(jobID)
 	if !ok {
 		log.Warn().Str("job_id", jobID.String()).Msg("Log counter not found for job")
 		return
 	}
-	lineNumber := *counterPtr.(*int)
-	*counterPtr.(*int) = lineNumber + 1
+	counterPtr, ok := counterVal.(*int)
+	if !ok {
+		log.Warn().Str("job_id", jobID.String()).Msg("Invalid log counter type for job")
+		return
+	}
+	lineNumber := *counterPtr
+	*counterPtr = lineNumber + 1
 
 	// Insert log line
 	ctx := context.Background()

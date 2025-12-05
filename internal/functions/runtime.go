@@ -85,7 +85,7 @@ func (r *DenoRuntime) Execute(ctx context.Context, code string, req ExecutionReq
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	//defer os.Remove(tmpPath) // Commented for debugging
+	defer os.Remove(tmpPath) // Clean up temp file after execution
 
 	if _, err := tmpFile.WriteString(wrappedCode); err != nil {
 		tmpFile.Close()

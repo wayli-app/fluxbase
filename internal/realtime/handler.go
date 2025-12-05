@@ -135,13 +135,17 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 	// Get user ID from Fiber locals (set in HandleWebSocket)
 	var userID *string
 	if uid := c.Locals("user_id"); uid != nil {
-		userID = uid.(*string)
+		if uidPtr, ok := uid.(*string); ok {
+			userID = uidPtr
+		}
 	}
 
 	// Get role from Fiber locals (set in HandleWebSocket)
 	role := "anon" // Default to anonymous
 	if r := c.Locals("role"); r != nil {
-		role = r.(string)
+		if roleStr, ok := r.(string); ok {
+			role = roleStr
+		}
 	}
 
 	// Add connection to manager
