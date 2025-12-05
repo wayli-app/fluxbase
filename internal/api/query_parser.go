@@ -648,9 +648,22 @@ func (params *QueryParams) ToSQL(tableName string) (string, []interface{}) {
 func (params *QueryParams) BuildSelectClause(tableName string) string {
 	var parts []string
 
-	// Add regular select fields
+	// Add regular select fields - quote identifiers for safety
 	if len(params.Select) > 0 {
-		parts = append(parts, params.Select...)
+		for _, field := range params.Select {
+			// Skip empty fields
+			if field == "" {
+				continue
+			}
+			// Check if it's already a complex expression (contains operators or functions)
+			// In which case, assume it's been validated elsewhere
+			if strings.ContainsAny(field, "()+-*/ ") {
+				parts = append(parts, field)
+			} else {
+				// Simple column name - quote it for safety
+				parts = append(parts, quoteIdentifier(field))
+			}
+		}
 	} else if len(params.Aggregations) == 0 && len(params.GroupBy) == 0 {
 		// Default to * if no select, aggregations, or group by
 		parts = append(parts, "*")
@@ -883,8 +896,10 @@ func formatJSONKey(key string) string {
 	if _, err := strconv.Atoi(key); err == nil {
 		return key
 	}
-	// String key - wrap in single quotes
-	return fmt.Sprintf("'%s'", key)
+	// String key - wrap in single quotes with proper escaping
+	// Escape single quotes by doubling them to prevent SQL injection
+	escaped := strings.ReplaceAll(key, "'", "''")
+	return fmt.Sprintf("'%s'", escaped)
 }
 
 // needsNumericCast checks if a JSONB path expression needs numeric casting
