@@ -225,42 +225,6 @@ export class FluxbaseClient<
   }
 
   /**
-   * Call a PostgreSQL function (Remote Procedure Call)
-   *
-   * @param functionName - The name of the PostgreSQL function to call
-   * @param params - Optional parameters to pass to the function
-   * @returns Promise containing the function result or error
-   *
-   * @example
-   * ```typescript
-   * // Call a function without parameters
-   * const { data, error } = await client.rpc('get_total_users')
-   *
-   * // Call a function with parameters
-   * const { data, error } = await client.rpc('calculate_discount', {
-   *   product_id: 123,
-   *   coupon_code: 'SAVE20'
-   * })
-   * ```
-   *
-   * @category Database
-   */
-  async rpc<T = any>(
-    functionName: string,
-    params?: Record<string, unknown>,
-  ): Promise<{ data: T | null; error: Error | null }> {
-    try {
-      const data = await this.fetch.post<T>(
-        `/api/v1/rpc/${functionName}`,
-        params || {},
-      );
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error: error as Error };
-    }
-  }
-
-  /**
    * Sync auth state with realtime connections
    * @internal
    */

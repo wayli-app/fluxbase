@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -76,6 +79,147 @@ type WebhookService struct {
 	client *http.Client
 }
 
+// isPrivateIP checks if an IP address is in a private range
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+
+	// Check for loopback
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check for link-local
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check for private ranges (RFC 1918)
+	privateBlocks := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"169.254.0.0/16", // AWS metadata endpoint range
+		"127.0.0.0/8",    // Loopback
+		"::1/128",        // IPv6 loopback
+		"fc00::/7",       // IPv6 unique local
+		"fe80::/10",      // IPv6 link local
+	}
+
+	for _, block := range privateBlocks {
+		_, cidr, err := net.ParseCIDR(block)
+		if err != nil {
+			continue
+		}
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// validateWebhookHeaders validates that custom webhook headers are safe
+// This prevents HTTP header injection attacks
+func validateWebhookHeaders(headers map[string]string) error {
+	// Blocklist of headers that shouldn't be overridden
+	blockedHeaders := map[string]bool{
+		"content-length":    true,
+		"host":              true,
+		"transfer-encoding": true,
+		"connection":        true,
+		"keep-alive":        true,
+		"proxy-authenticate": true,
+		"proxy-authorization": true,
+		"te":                true,
+		"trailers":          true,
+		"upgrade":           true,
+	}
+
+	for key, value := range headers {
+		lowerKey := strings.ToLower(key)
+
+		// Check for blocked headers
+		if blockedHeaders[lowerKey] {
+			return fmt.Errorf("header '%s' is not allowed to be overridden", key)
+		}
+
+		// Check for CRLF injection in header name
+		if strings.ContainsAny(key, "\r\n") {
+			return fmt.Errorf("header name '%s' contains invalid characters", key)
+		}
+
+		// Check for CRLF injection in header value
+		if strings.ContainsAny(value, "\r\n") {
+			return fmt.Errorf("header value for '%s' contains invalid characters", key)
+		}
+
+		// Limit header value length
+		if len(value) > 8192 {
+			return fmt.Errorf("header value for '%s' exceeds maximum length of 8192 bytes", key)
+		}
+	}
+
+	return nil
+}
+
+// validateWebhookURL validates that a webhook URL is safe to call
+// This prevents SSRF attacks by blocking internal/private IP addresses
+func validateWebhookURL(webhookURL string) error {
+	// Parse the URL
+	parsedURL, err := url.Parse(webhookURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Only allow HTTP and HTTPS schemes
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("URL scheme must be http or https, got: %s", parsedURL.Scheme)
+	}
+
+	// Get hostname
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("URL must have a hostname")
+	}
+
+	// Check for localhost variants
+	lowerHost := strings.ToLower(hostname)
+	if lowerHost == "localhost" || lowerHost == "ip6-localhost" {
+		return fmt.Errorf("localhost URLs are not allowed")
+	}
+
+	// Check for common internal hostnames
+	blockedHostnames := []string{
+		"metadata.google.internal",
+		"metadata",
+		"instance-data",
+		"kubernetes.default",
+		"kubernetes.default.svc",
+	}
+	for _, blocked := range blockedHostnames {
+		if lowerHost == blocked || strings.HasSuffix(lowerHost, "."+blocked) {
+			return fmt.Errorf("internal hostname '%s' is not allowed", hostname)
+		}
+	}
+
+	// Resolve the hostname and check if it resolves to a private IP
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		// If DNS lookup fails, we can't verify - block it to be safe
+		return fmt.Errorf("failed to resolve hostname: %w", err)
+	}
+
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("URL resolves to private IP address %s which is not allowed", ip.String())
+		}
+	}
+
+	return nil
+}
+
 // NewWebhookService creates a new webhook service
 func NewWebhookService(db *database.Connection) *WebhookService {
 	return &WebhookService{
@@ -88,6 +232,16 @@ func NewWebhookService(db *database.Connection) *WebhookService {
 
 // Create creates a new webhook
 func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
+	// Validate webhook URL to prevent SSRF attacks
+	if err := validateWebhookURL(webhook.URL); err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+
+	// Validate custom headers to prevent header injection
+	if err := validateWebhookHeaders(webhook.Headers); err != nil {
+		return fmt.Errorf("invalid webhook headers: %w", err)
+	}
+
 	eventsJSON, err := json.Marshal(webhook.Events)
 	if err != nil {
 		return fmt.Errorf("failed to marshal events: %w", err)
@@ -237,6 +391,16 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 
 // Update updates a webhook
 func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webhook) error {
+	// Validate webhook URL to prevent SSRF attacks
+	if err := validateWebhookURL(webhook.URL); err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+
+	// Validate custom headers to prevent header injection
+	if err := validateWebhookHeaders(webhook.Headers); err != nil {
+		return fmt.Errorf("invalid webhook headers: %w", err)
+	}
+
 	eventsJSON, err := json.Marshal(webhook.Events)
 	if err != nil {
 		return fmt.Errorf("failed to marshal events: %w", err)

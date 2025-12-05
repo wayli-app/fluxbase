@@ -89,7 +89,7 @@ export function Dashboard() {
                       href='/admin/functions'
                       className='text-primary hover:underline'
                     >
-                      Test RPC functions →
+                      Manage Edge Functions →
                     </a>
                   </div>
                   <div className='text-sm'>

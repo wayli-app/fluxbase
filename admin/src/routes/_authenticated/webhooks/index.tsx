@@ -25,8 +25,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -313,9 +330,39 @@ function WebhooksPage() {
               </div>
 
               {isLoading ? (
-                <div className='flex items-center justify-center py-8 text-muted-foreground'>
-                  Loading webhooks...
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>URL</TableHead>
+                      <TableHead>Events</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className='text-right'>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array(3).fill(0).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <div className='space-y-1'>
+                            <Skeleton className='h-4 w-32' />
+                            <Skeleton className='h-3 w-24' />
+                          </div>
+                        </TableCell>
+                        <TableCell><Skeleton className='h-4 w-48' /></TableCell>
+                        <TableCell><Skeleton className='h-5 w-20' /></TableCell>
+                        <TableCell><Skeleton className='h-5 w-16' /></TableCell>
+                        <TableCell className='text-right'>
+                          <div className='flex justify-end gap-1'>
+                            <Skeleton className='h-8 w-8' />
+                            <Skeleton className='h-8 w-8' />
+                            <Skeleton className='h-8 w-8' />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               ) : filteredWebhooks && filteredWebhooks.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -371,34 +418,66 @@ function WebhooksPage() {
                           </div>
                         </TableCell>
                         <TableCell className='text-right'>
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setSelectedWebhook(webhook)}
-                            >
-                              <Clock className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => testMutation.mutate(webhook.id)}
-                              disabled={testMutation.isPending}
-                            >
-                              <Send className='h-4 w-4' />
-                            </Button>
-                            <Button
-                              variant='destructive'
-                              size='sm'
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this webhook?')) {
-                                  deleteMutation.mutate(webhook.id)
-                                }
-                              }}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
+                          <div className='flex justify-end gap-1'>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => setSelectedWebhook(webhook)}
+                                >
+                                  <Clock className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View delivery history</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => testMutation.mutate(webhook.id)}
+                                  disabled={testMutation.isPending}
+                                >
+                                  <Send className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Send test webhook</TooltipContent>
+                            </Tooltip>
+                            <AlertDialog>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='sm'
+                                      disabled={deleteMutation.isPending}
+                                      className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                                    >
+                                      <Trash2 className='h-4 w-4' />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete webhook</TooltipContent>
+                              </Tooltip>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Webhook</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{webhook.name}"? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteMutation.mutate(webhook.id)}
+                                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

@@ -710,26 +710,6 @@ export interface EdgeFunctionInvokeOptions {
   body?: string
 }
 
-// RPC Functions API Types
-export interface FunctionParam {
-  name: string
-  type: string
-  mode: string
-  has_default: boolean
-  position: number
-}
-
-export interface RPCFunction {
-  schema: string
-  name: string
-  description: string
-  parameters: FunctionParam[]
-  return_type: string
-  is_set_of: boolean
-  volatility: string
-  language: string
-}
-
 // Edge Functions API
 export const functionsApi = {
   // List all namespaces with edge functions
@@ -1107,29 +1087,6 @@ export const jobsApi = {
     const response = await api.post<JobSyncResult>('/api/v1/admin/jobs/sync', {
       namespace,
     })
-    return response.data
-  },
-}
-
-// RPC Functions API
-export const rpcApi = {
-  // List all RPC functions
-  list: async (): Promise<RPCFunction[]> => {
-    const response = await api.get<RPCFunction[]>('/api/v1/rpc/')
-    return response.data
-  },
-
-  // Execute RPC function
-  execute: async (
-    schema: string,
-    name: string,
-    params: Record<string, unknown>
-  ): Promise<unknown> => {
-    const path =
-      schema === 'public'
-        ? `/api/v1/rpc/${name}`
-        : `/api/v1/rpc/${schema}/${name}`
-    const response = await api.post(path, params)
     return response.data
   },
 }

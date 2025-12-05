@@ -1,15 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   databaseApi,
-  rpcApi,
   type TableInfo,
-  type RPCFunction,
 } from '@/lib/api'
 
 export interface SchemaMetadata {
   schemas: string[]
   tables: TableInfo[]
-  functions: RPCFunction[]
   isLoading: boolean
   error: Error | null
 }
@@ -35,21 +32,10 @@ export function useSchemaMetadata(): SchemaMetadata {
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
-  const {
-    data: functions = [],
-    isLoading: functionsLoading,
-    error: functionsError,
-  } = useQuery({
-    queryKey: ['sql-editor', 'rpc-functions'],
-    queryFn: () => rpcApi.list(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  })
-
   return {
     schemas,
     tables,
-    functions,
-    isLoading: schemasLoading || tablesLoading || functionsLoading,
-    error: schemasError || tablesError || functionsError,
+    isLoading: schemasLoading || tablesLoading,
+    error: schemasError || tablesError,
   }
 }

@@ -68,6 +68,24 @@ func (s *DashboardAuthService) GetDB() *database.Connection {
 
 // CreateUser creates a new dashboard user with email and password
 func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, fullName string) (*DashboardUser, error) {
+	// Validate email format and length
+	if err := ValidateEmail(email); err != nil {
+		return nil, fmt.Errorf("invalid email: %w", err)
+	}
+
+	// Validate full name
+	if err := ValidateName(fullName); err != nil {
+		return nil, fmt.Errorf("invalid name: %w", err)
+	}
+
+	// Validate password length (bcrypt has a 72 byte limit)
+	if len(password) < MinPasswordLength {
+		return nil, fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	}
+	if len(password) > MaxPasswordLength {
+		return nil, fmt.Errorf("password must be at most %d characters", MaxPasswordLength)
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -233,6 +251,14 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 
 // ChangePassword changes a dashboard user's password
 func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string, ipAddress net.IP, userAgent string) error {
+	// Validate new password length
+	if len(newPassword) < MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	}
+	if len(newPassword) > MaxPasswordLength {
+		return fmt.Errorf("password must be at most %d characters", MaxPasswordLength)
+	}
+
 	// Fetch current password hash
 	var currentHash string
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
@@ -277,6 +303,18 @@ func (s *DashboardAuthService) ChangePassword(ctx context.Context, userID uuid.U
 
 // UpdateProfile updates a dashboard user's profile information
 func (s *DashboardAuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName string, avatarURL *string) error {
+	// Validate full name
+	if err := ValidateName(fullName); err != nil {
+		return fmt.Errorf("invalid name: %w", err)
+	}
+
+	// Validate avatar URL if provided
+	if avatarURL != nil {
+		if err := ValidateAvatarURL(*avatarURL); err != nil {
+			return fmt.Errorf("invalid avatar URL: %w", err)
+		}
+	}
+
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			UPDATE dashboard.users

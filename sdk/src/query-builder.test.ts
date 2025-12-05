@@ -673,27 +673,6 @@ describe("QueryBuilder - Advanced Features", () => {
   });
 });
 
-describe("QueryBuilder - RPC (Remote Procedure Call)", () => {
-  let fetch: MockFetch;
-
-  beforeEach(() => {
-    fetch = new MockFetch();
-  });
-
-  it("should call RPC function", async () => {
-    await fetch.post("/api/v1/rpc/calculate_total", { order_id: 123 });
-
-    expect(fetch.lastUrl).toContain("/api/v1/rpc/calculate_total");
-    expect(fetch.lastBody).toEqual({ order_id: 123 });
-  });
-
-  it("should call RPC with no parameters", async () => {
-    await fetch.post("/api/v1/rpc/get_stats");
-
-    expect(fetch.lastUrl).toContain("/api/v1/rpc/get_stats");
-  });
-});
-
 describe("QueryBuilder - Method Chaining (New)", () => {
   let fetch: MockFetch;
   let builder: QueryBuilder;

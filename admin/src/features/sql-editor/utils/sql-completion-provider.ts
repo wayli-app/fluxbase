@@ -1,5 +1,5 @@
 import type * as Monaco from 'monaco-editor'
-import type { TableInfo, RPCFunction } from '@/lib/api'
+import type { TableInfo } from '@/lib/api'
 
 // SQL keywords for autocompletion
 const SQL_KEYWORDS = [
@@ -90,7 +90,6 @@ const POSTGRESQL_FUNCTIONS = [
 export interface SchemaMetadataForCompletion {
   schemas: string[]
   tables: TableInfo[]
-  functions: RPCFunction[]
 }
 
 // Extract table aliases from SQL using regex
@@ -350,28 +349,6 @@ export function createSqlCompletionProvider(
             kind: monaco.languages.CompletionItemKind.Function,
             detail: func.detail,
             insertText: func.insertText,
-            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            range,
-          })
-        }
-
-        // RPC Functions from database
-        for (const func of metadata.functions) {
-          const params = (func.parameters || [])
-            .filter(p => p.mode === 'IN' || p.mode === 'INOUT')
-            .map((p, i) => `\${${i + 1}:${p.name}}`)
-            .join(', ')
-
-          const paramDoc = (func.parameters || []).length > 0
-            ? `Parameters: ${func.parameters.map(p => `${p.name}: ${p.type}`).join(', ')}`
-            : 'No parameters'
-
-          suggestions.push({
-            label: func.name,
-            kind: monaco.languages.CompletionItemKind.Function,
-            detail: `${func.return_type} - ${func.schema}`,
-            documentation: func.description || paramDoc,
-            insertText: `${func.name}(${params})`,
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             range,
           })

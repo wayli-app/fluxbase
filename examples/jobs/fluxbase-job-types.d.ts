@@ -15,13 +15,6 @@ interface FluxbaseClient {
   from(table: string): FluxbaseQueryBuilder;
 
   /**
-   * Call a PostgreSQL function
-   * @param fn - Function name
-   * @param params - Function parameters
-   */
-  rpc(fn: string, params?: Record<string, any>): Promise<DatabaseResponse<any>>;
-
-  /**
    * Access the storage API
    */
   storage: FluxbaseStorage;

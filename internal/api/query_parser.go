@@ -3,12 +3,32 @@ package api
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/rs/zerolog/log"
 )
+
+// validIdentifierRegex validates SQL identifiers (column names, table names, etc.)
+// Allows alphanumeric characters, underscores, and must start with a letter or underscore
+var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// isValidIdentifier checks if a string is a valid SQL identifier
+func isValidIdentifier(s string) bool {
+	return validIdentifierRegex.MatchString(s)
+}
+
+// quoteIdentifier safely quotes an SQL identifier to prevent injection
+// Returns empty string if the identifier is invalid
+func quoteIdentifier(s string) string {
+	if !isValidIdentifier(s) {
+		return ""
+	}
+	// Double-quote the identifier to handle reserved words and ensure safety
+	return `"` + s + `"`
+}
 
 // QueryParams represents parsed query parameters for REST API
 type QueryParams struct {
@@ -177,6 +197,10 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 			for _, col := range columns {
 				col = strings.TrimSpace(col)
 				if col != "" {
+					// Validate column name to prevent SQL injection
+					if !isValidIdentifier(col) {
+						return nil, fmt.Errorf("invalid group_by column name: %s", col)
+					}
 					params.GroupBy = append(params.GroupBy, col)
 				}
 			}
@@ -415,8 +439,14 @@ func (qp *QueryParser) parseOrder(value string, params *QueryParams) error {
 			return fmt.Errorf("invalid order format: %s", order)
 		}
 
+		// Validate column name to prevent SQL injection
+		colName := parts[0]
+		if !isValidIdentifier(colName) {
+			return fmt.Errorf("invalid order column name: %s", colName)
+		}
+
 		orderBy := OrderBy{
-			Column: parts[0],
+			Column: colName,
 			Desc:   parts[1] == "desc",
 		}
 
@@ -618,9 +648,22 @@ func (params *QueryParams) ToSQL(tableName string) (string, []interface{}) {
 func (params *QueryParams) BuildSelectClause(tableName string) string {
 	var parts []string
 
-	// Add regular select fields
+	// Add regular select fields - quote identifiers for safety
 	if len(params.Select) > 0 {
-		parts = append(parts, params.Select...)
+		for _, field := range params.Select {
+			// Skip empty fields
+			if field == "" {
+				continue
+			}
+			// Check if it's already a complex expression (contains operators or functions)
+			// In which case, assume it's been validated elsewhere
+			if strings.ContainsAny(field, "()+-*/ ") {
+				parts = append(parts, field)
+			} else {
+				// Simple column name - quote it for safety
+				parts = append(parts, quoteIdentifier(field))
+			}
+		}
 	} else if len(params.Aggregations) == 0 && len(params.GroupBy) == 0 {
 		// Default to * if no select, aggregations, or group by
 		parts = append(parts, "*")
@@ -645,7 +688,12 @@ func (params *QueryParams) BuildGroupByClause() string {
 	if len(params.GroupBy) == 0 {
 		return ""
 	}
-	return " GROUP BY " + strings.Join(params.GroupBy, ", ")
+	// Quote all identifiers for safety
+	quotedCols := make([]string, len(params.GroupBy))
+	for i, col := range params.GroupBy {
+		quotedCols[i] = quoteIdentifier(col)
+	}
+	return " GROUP BY " + strings.Join(quotedCols, ", ")
 }
 
 // ToSQL converts an Aggregation to SQL
@@ -660,25 +708,51 @@ func (agg *Aggregation) ToSQL() string {
 		}
 	}
 
+	// Validate alias to prevent injection
+	if !isValidIdentifier(alias) {
+		alias = "result"
+	}
+
 	var funcSQL string
 	switch agg.Function {
 	case AggCountAll:
 		funcSQL = "COUNT(*)"
 	case AggCount:
-		funcSQL = fmt.Sprintf("COUNT(%s)", agg.Column)
+		// Validate column name to prevent injection
+		quotedCol := quoteIdentifier(agg.Column)
+		if quotedCol == "" {
+			return "NULL AS " + quoteIdentifier(alias)
+		}
+		funcSQL = fmt.Sprintf("COUNT(%s)", quotedCol)
 	case AggSum:
-		funcSQL = fmt.Sprintf("SUM(%s)", agg.Column)
+		quotedCol := quoteIdentifier(agg.Column)
+		if quotedCol == "" {
+			return "NULL AS " + quoteIdentifier(alias)
+		}
+		funcSQL = fmt.Sprintf("SUM(%s)", quotedCol)
 	case AggAvg:
-		funcSQL = fmt.Sprintf("AVG(%s)", agg.Column)
+		quotedCol := quoteIdentifier(agg.Column)
+		if quotedCol == "" {
+			return "NULL AS " + quoteIdentifier(alias)
+		}
+		funcSQL = fmt.Sprintf("AVG(%s)", quotedCol)
 	case AggMin:
-		funcSQL = fmt.Sprintf("MIN(%s)", agg.Column)
+		quotedCol := quoteIdentifier(agg.Column)
+		if quotedCol == "" {
+			return "NULL AS " + quoteIdentifier(alias)
+		}
+		funcSQL = fmt.Sprintf("MIN(%s)", quotedCol)
 	case AggMax:
-		funcSQL = fmt.Sprintf("MAX(%s)", agg.Column)
+		quotedCol := quoteIdentifier(agg.Column)
+		if quotedCol == "" {
+			return "NULL AS " + quoteIdentifier(alias)
+		}
+		funcSQL = fmt.Sprintf("MAX(%s)", quotedCol)
 	default:
 		funcSQL = "NULL"
 	}
 
-	return fmt.Sprintf("%s AS %s", funcSQL, alias)
+	return fmt.Sprintf("%s AS %s", funcSQL, quoteIdentifier(alias))
 }
 
 // buildWhereClause builds the WHERE clause from filters
@@ -722,7 +796,12 @@ func (params *QueryParams) buildOrderClause() string {
 	var orderParts []string
 
 	for _, order := range params.Order {
-		part := order.Column
+		// Quote column name to prevent SQL injection
+		quotedCol := quoteIdentifier(order.Column)
+		if quotedCol == "" {
+			continue // Skip invalid column names
+		}
+		part := quotedCol
 		if order.Desc {
 			part += " DESC"
 		} else {
@@ -817,8 +896,10 @@ func formatJSONKey(key string) string {
 	if _, err := strconv.Atoi(key); err == nil {
 		return key
 	}
-	// String key - wrap in single quotes
-	return fmt.Sprintf("'%s'", key)
+	// String key - wrap in single quotes with proper escaping
+	// Escape single quotes by doubling them to prevent SQL injection
+	escaped := strings.ReplaceAll(key, "'", "''")
+	return fmt.Sprintf("'%s'", escaped)
 }
 
 // needsNumericCast checks if a JSONB path expression needs numeric casting

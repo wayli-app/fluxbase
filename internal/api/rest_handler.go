@@ -272,9 +272,9 @@ func (h *RESTHandler) makeGetByIdHandler(table database.TableInfo) fiber.Handler
 			pkColumn = table.PrimaryKey[0]
 		}
 
-		// Build query
+		// Build query - quote identifiers to prevent SQL injection
 		query := fmt.Sprintf(
-			"SELECT * FROM %s.%s WHERE %s = $1",
+			`SELECT * FROM "%s"."%s" WHERE "%s" = $1`,
 			table.Schema, table.Name, pkColumn,
 		)
 
@@ -676,7 +676,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 		values = append(values, id)
 
 		query := fmt.Sprintf(
-			"UPDATE %s.%s SET %s WHERE %s = $%d",
+			`UPDATE "%s"."%s" SET %s WHERE "%s" = $%d`,
 			table.Schema, table.Name,
 			strings.Join(setClauses, ", "),
 			pkColumn, i,
@@ -728,9 +728,9 @@ func (h *RESTHandler) makeDeleteHandler(table database.TableInfo) fiber.Handler 
 			pkColumn = table.PrimaryKey[0]
 		}
 
-		// Build DELETE query
+		// Build DELETE query - quote identifiers to prevent SQL injection
 		query := fmt.Sprintf(
-			"DELETE FROM %s.%s WHERE %s = $1",
+			`DELETE FROM "%s"."%s" WHERE "%s" = $1`,
 			table.Schema, table.Name, pkColumn,
 		) + buildReturningClause(table)
 
