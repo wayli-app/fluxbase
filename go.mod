@@ -1,6 +1,6 @@
 module github.com/fluxbase-eu/fluxbase
 
-go 1.25
+go 1.24
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.5
@@ -26,7 +26,6 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.11.1
 	github.com/twpayne/go-geom v1.6.1
-	go.opentelemetry.io/contrib/instrumentation/github.com/gofiber/fiber/otelfiber v0.49.0
 	go.opentelemetry.io/otel v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.28.0

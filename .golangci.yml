@@ -1,15 +1,19 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
 
-linters:
+formatters:
   enable:
     - gofmt
+
+linters:
+  enable:
     - govet
     - errcheck
-    - staticcheck
+    - staticcheck  # Includes gosimple checks
     - unused
-    - gosimple
     - ineffassign
     - gosec        # Security-focused linter
     - bodyclose    # Checks HTTP response body is closed
