@@ -16,36 +16,36 @@ linters:
     - noctx
   exclusions:
     paths:
-      - ".*internal/adminui.*"
+      - 'internal/adminui'
     rules:
       - linters:
           - typecheck
-        text: ".*"
+        text: '.*'
       - linters:
           - gosec
-        text: "G115:"
-      - path: "internal/functions/runtime\\.go"
+        text: 'G115:'
+      - path: 'internal/functions/runtime\.go'
         linters:
           - gosec
-        text: "G204:"
-      - path: "internal/storage/local\\.go"
+        text: 'G204:'
+      - path: 'internal/storage/local\.go'
         linters:
           - gosec
-        text: "(G401|G501|G306):"
-      - path: "internal/email/smtp\\.go"
+        text: 'G(401|501|306):'
+      - path: 'internal/email/smtp\.go'
         linters:
           - gosec
-        text: "(G101|G402):"
-      - path: "_test\\.go"
+        text: 'G(101|402):'
+      - path: '_test\.go'
         linters:
           - gosec
-        text: "G404:"
-      - path: "test/"
+        text: 'G404:'
+      - path: 'test/'
         linters:
           - errcheck
           - bodyclose
           - noctx
-      - path: "internal/webhook/webhook\\.go"
+      - path: 'internal/webhook/webhook\.go'
         linters:
           - unused
 
