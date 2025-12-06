@@ -3,8 +3,6 @@ version: "2"
 run:
   timeout: 5m
   tests: true
-  exclude-dirs:
-    - internal/adminui
 
 formatters:
   enable:
@@ -19,73 +17,67 @@ linters:
     - rowserrcheck # Checks SQL rows.Err is checked
     - sqlclosecheck # Checks SQL rows/statements are closed
     - wastedassign # Finds wasted assignments
+  exclusions:
+    # Exclude directories
+    paths:
+      - internal/adminui
+    # Exclusion rules
+    rules:
+      # Exclude typecheck errors (compilation errors caught by go build)
+      - linters:
+          - typecheck
+        text: ".*"
+      # Exclude gosec G115 (integer overflow) - intentional conversions
+      - linters:
+          - gosec
+        text: "G115:"
+      # Exclude gosec G204 (subprocess) in functions runtime - by design
+      - path: internal/functions/runtime.go
+        linters:
+          - gosec
+        text: "G204:"
+      # Exclude gosec G401/G501 (MD5) in storage - used for ETags
+      - path: internal/storage/local.go
+        linters:
+          - gosec
+        text: "(G401|G501):"
+      # Exclude gosec G101 (hardcoded credentials) for email templates
+      - path: internal/email/smtp.go
+        linters:
+          - gosec
+        text: "G101:"
+      # Exclude gosec G402 (TLS MinVersion) - using default TLS config
+      - path: internal/email/smtp.go
+        linters:
+          - gosec
+        text: "G402:"
+      # Allow 0644 permissions for non-sensitive files
+      - path: internal/storage/local.go
+        linters:
+          - gosec
+        text: "G306:"
+      # Allow math/rand in tests
+      - path: _test\.go
+        linters:
+          - gosec
+        text: "G404:"
+      # Allow unchecked errors in test setup/cleanup
+      - path: test/e2e/
+        linters:
+          - errcheck
+      # Allow bodyclose issues in test code
+      - path: test/
+        linters:
+          - bodyclose
+      # Allow noctx in test helpers
+      - path: test/
+        linters:
+          - noctx
+      # Allow unused funcs in webhook service
+      - path: internal/webhook/webhook.go
+        linters:
+          - unused
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Exclude typecheck errors (these are compilation errors that should be caught by go build)
-    - linters:
-        - typecheck
-      text: ".*"
-
-    # Exclude gosec G115 (integer overflow) - these are intentional conversions
-    - linters:
-        - gosec
-      text: "G115:"
-
-    # Exclude gosec G204 (subprocess) in functions runtime - this is by design
-    - path: internal/functions/runtime.go
-      linters:
-        - gosec
-      text: "G204:"
-
-    # Exclude gosec G401/G501 (MD5) in storage - used for ETags, not security
-    - path: internal/storage/local.go
-      linters:
-        - gosec
-      text: "(G401|G501):"
-
-    # Exclude gosec G101 (hardcoded credentials) for email templates
-    - path: internal/email/smtp.go
-      linters:
-        - gosec
-      text: "G101:"
-
-    # Exclude gosec G402 (TLS MinVersion) - using default TLS config
-    - path: internal/email/smtp.go
-      linters:
-        - gosec
-      text: "G402:"
-
-    # Allow 0644 permissions for non-sensitive files
-    - path: internal/storage/local.go
-      linters:
-        - gosec
-      text: "G306:"
-
-    # Allow math/rand in tests
-    - path: _test\.go
-      linters:
-        - gosec
-      text: "G404:"
-
-    # Allow unchecked errors in test setup/cleanup
-    - path: test/e2e/
-      linters:
-        - errcheck
-
-    # Allow bodyclose issues in test code (Fiber's test helpers don't need explicit close)
-    - path: test/
-      linters:
-        - bodyclose
-
-    # Allow noctx in test helpers
-    - path: test/
-      linters:
-        - noctx
-
-    # Allow unused funcs in webhook service (they're used indirectly via goroutines)
-    - path: internal/webhook/webhook.go
-      linters:
-        - unused
