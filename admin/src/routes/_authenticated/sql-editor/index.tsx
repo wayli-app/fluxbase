@@ -242,7 +242,7 @@ function SQLEditorPage() {
     if (schemas.length > 0 || tables.length > 0) {
       completionProviderRef.current = monaco.languages.registerCompletionItemProvider(
         'sql',
-        createSqlCompletionProvider(monaco, { schemas, tables, functions })
+        createSqlCompletionProvider(monaco, { schemas, tables })
       )
     }
 
