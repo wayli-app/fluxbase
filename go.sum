@@ -313,3 +313,5 @@ github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
 github.com/go-logr/stdr v1.2.2/go.mod h1:mMo/vtBO5dYbehREoey6XUKy/eSumjCCveDpRre4VKE=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 h1:bkypFPDjIYGfCYD5mRBvpqxfYX1YCS1PXdKYWi8FsN0=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0/go.mod h1:P+Lt/0by1T8bfcF3z737NnSbmxQAppXMRziHUxPOC8k=
+go.opentelemetry.io/otel/semconv/v1.24.0 v1.24.0 h1:TnQDKbhsUtrLPHTiy7V5U/v9E9VKkwPMdKYGJfBRBDs=
+go.opentelemetry.io/otel/semconv/v1.24.0 v1.24.0/go.mod h1:Y/rIi/+vdWwzsMKXRSf2WipA1F8rUhQDOPq8Y6jk/NQ=
