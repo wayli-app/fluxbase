@@ -17,6 +17,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/migrations"
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/fluxbase-eu/fluxbase/internal/realtime"
 	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
@@ -35,6 +36,7 @@ type Server struct {
 	app                   *fiber.App
 	config                *config.Config
 	db                    *database.Connection
+	tracer                *observability.Tracer
 	rest                  *RESTHandler
 	authHandler           *AuthHandler
 	adminAuthHandler      *AdminAuthHandler
@@ -81,6 +83,20 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		ErrorHandler:          customErrorHandler,
 		Prefork:               false,
 	})
+
+	// Initialize OpenTelemetry tracer
+	tracerCfg := observability.TracerConfig{
+		Enabled:     cfg.Tracing.Enabled,
+		Endpoint:    cfg.Tracing.Endpoint,
+		ServiceName: cfg.Tracing.ServiceName,
+		Environment: cfg.Tracing.Environment,
+		SampleRate:  cfg.Tracing.SampleRate,
+		Insecure:    cfg.Tracing.Insecure,
+	}
+	tracer, err := observability.NewTracer(context.Background(), tracerCfg)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize OpenTelemetry tracer, tracing will be disabled")
+	}
 
 	// Initialize email service
 	emailService, err := email.NewService(&cfg.Email)
@@ -194,6 +210,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		app:                   app,
 		config:                cfg,
 		db:                    db,
+		tracer:                tracer,
 		rest:                  NewRESTHandler(db, NewQueryParser(cfg)),
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
@@ -277,6 +294,18 @@ func (s *Server) setupMiddlewares() {
 	// Request ID middleware - must be first for tracing
 	log.Debug().Msg("Adding requestid middleware")
 	s.app.Use(requestid.New())
+
+	// OpenTelemetry tracing middleware - adds distributed tracing to all requests
+	if s.config.Tracing.Enabled && s.tracer != nil && s.tracer.IsEnabled() {
+		log.Debug().Msg("Adding OpenTelemetry tracing middleware")
+		s.app.Use(middleware.TracingMiddleware(middleware.TracingConfig{
+			Enabled:            true,
+			ServiceName:        s.config.Tracing.ServiceName,
+			SkipPaths:          []string{"/health", "/ready", "/metrics"},
+			RecordRequestBody:  false, // Don't record bodies for security
+			RecordResponseBody: false,
+		}))
+	}
 
 	// Security headers middleware - protect against common attacks
 	// Apply different CSP for admin UI (needs Google Fonts) vs API routes
@@ -895,6 +924,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Stop webhook trigger service
 	if s.webhookTriggerService != nil {
 		s.webhookTriggerService.Stop()
+	}
+
+	// Shutdown OpenTelemetry tracer (flush remaining spans)
+	if s.tracer != nil {
+		if err := s.tracer.Shutdown(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to shutdown OpenTelemetry tracer")
+		}
 	}
 
 	log.Info().Msg("Shutting down HTTP server")
