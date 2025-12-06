@@ -20,15 +20,15 @@ type ScheduleConfig struct {
 
 // Scheduler manages scheduled execution of jobs via cron
 type Scheduler struct {
-	cron         *cron.Cron
-	storage      *Storage
+	cron          *cron.Cron
+	storage       *Storage
 	maxConcurrent int
-	activeMu     sync.Mutex
-	activeCount  int
-	jobEntries   map[string]cron.EntryID // job function name -> cron entry ID
-	jobsMu       sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
+	activeMu      sync.Mutex
+	activeCount   int
+	jobEntries    map[string]cron.EntryID // job function name -> cron entry ID
+	jobsMu        sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // NewScheduler creates a new scheduler for jobs
@@ -285,7 +285,7 @@ func (s *Scheduler) enqueueScheduledJob(jobName, jobNamespace string, params map
 
 	// Prepare payload with schedule params and trigger info
 	payload := map[string]interface{}{
-		"_trigger": "cron",
+		"_trigger":      "cron",
 		"_scheduled_at": time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -344,10 +344,10 @@ func (s *Scheduler) GetScheduledJobs() []ScheduledJobInfo {
 	for key, entryID := range s.jobEntries {
 		entry := s.cron.Entry(entryID)
 		info := ScheduledJobInfo{
-			Key:      key,
-			EntryID:  int(entryID),
-			NextRun:  entry.Next,
-			PrevRun:  entry.Prev,
+			Key:     key,
+			EntryID: int(entryID),
+			NextRun: entry.Next,
+			PrevRun: entry.Prev,
 		}
 		jobs = append(jobs, info)
 	}
@@ -385,8 +385,8 @@ func (s *Scheduler) IsScheduled(namespace, jobName string) bool {
 
 // ScheduledJobInfo contains information about a scheduled job
 type ScheduledJobInfo struct {
-	Key      string    `json:"key"`
-	EntryID  int       `json:"entry_id"`
-	NextRun  time.Time `json:"next_run"`
-	PrevRun  time.Time `json:"prev_run"`
+	Key     string    `json:"key"`
+	EntryID int       `json:"entry_id"`
+	NextRun time.Time `json:"next_run"`
+	PrevRun time.Time `json:"prev_run"`
 }

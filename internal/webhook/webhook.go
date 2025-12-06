@@ -125,16 +125,16 @@ func isPrivateIP(ip net.IP) bool {
 func validateWebhookHeaders(headers map[string]string) error {
 	// Blocklist of headers that shouldn't be overridden
 	blockedHeaders := map[string]bool{
-		"content-length":    true,
-		"host":              true,
-		"transfer-encoding": true,
-		"connection":        true,
-		"keep-alive":        true,
-		"proxy-authenticate": true,
+		"content-length":      true,
+		"host":                true,
+		"transfer-encoding":   true,
+		"connection":          true,
+		"keep-alive":          true,
+		"proxy-authenticate":  true,
 		"proxy-authorization": true,
-		"te":                true,
-		"trailers":          true,
-		"upgrade":           true,
+		"te":                  true,
+		"trailers":            true,
+		"upgrade":             true,
 	}
 
 	for key, value := range headers {
