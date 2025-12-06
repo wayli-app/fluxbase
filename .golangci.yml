@@ -3,31 +3,26 @@ version: "2"
 run:
   timeout: 5m
   tests: true
+  exclude-dirs:
+    - internal/adminui
 
 formatters:
   enable:
     - gofmt
 
 linters:
+  default: standard
   enable:
-    - govet
-    - errcheck
-    - staticcheck  # Includes gosimple checks
-    - unused
-    - ineffassign
     - gosec        # Security-focused linter
     - bodyclose    # Checks HTTP response body is closed
     - noctx        # Finds HTTP requests without context
     - rowserrcheck # Checks SQL rows.Err is checked
     - sqlclosecheck # Checks SQL rows/statements are closed
     - wastedassign # Finds wasted assignments
-  disable-all: false
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - internal/adminui
   exclude-rules:
     # Exclude typecheck errors (these are compilation errors that should be caught by go build)
     - linters:
