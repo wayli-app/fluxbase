@@ -26,8 +26,19 @@ type Config struct {
 	API        APIConfig        `mapstructure:"api"`
 	Migrations MigrationsConfig `mapstructure:"migrations"`
 	Jobs       JobsConfig       `mapstructure:"jobs"`
+	Tracing    TracingConfig    `mapstructure:"tracing"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
+}
+
+// TracingConfig contains OpenTelemetry tracing settings
+type TracingConfig struct {
+	Enabled     bool    `mapstructure:"enabled"`      // Enable OpenTelemetry tracing
+	Endpoint    string  `mapstructure:"endpoint"`     // OTLP endpoint (e.g., "localhost:4317")
+	ServiceName string  `mapstructure:"service_name"` // Service name for traces (default: "fluxbase")
+	Environment string  `mapstructure:"environment"`  // Environment name (development, staging, production)
+	SampleRate  float64 `mapstructure:"sample_rate"`  // Sample rate 0.0-1.0 (1.0 = 100%)
+	Insecure    bool    `mapstructure:"insecure"`     // Use insecure connection (for local dev)
 }
 
 // ServerConfig contains HTTP server settings
@@ -415,6 +426,14 @@ func setDefaults() {
 		"127.0.0.0/8",    // Loopback (localhost)
 	})
 
+	// Tracing defaults (OpenTelemetry)
+	viper.SetDefault("tracing.enabled", false)             // Disabled by default
+	viper.SetDefault("tracing.endpoint", "localhost:4317") // Default OTLP gRPC endpoint
+	viper.SetDefault("tracing.service_name", "fluxbase")   // Service name for traces
+	viper.SetDefault("tracing.environment", "development") // Default environment
+	viper.SetDefault("tracing.sample_rate", 1.0)           // 100% sampling by default (reduce in production)
+	viper.SetDefault("tracing.insecure", true)             // Use insecure connection by default (for local dev)
+
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("debug", false)
@@ -470,6 +489,13 @@ func (c *Config) Validate() error {
 	if c.Jobs.Enabled {
 		if err := c.Jobs.Validate(); err != nil {
 			return fmt.Errorf("jobs configuration error: %w", err)
+		}
+	}
+
+	// Validate tracing configuration if enabled
+	if c.Tracing.Enabled {
+		if err := c.Tracing.Validate(); err != nil {
+			return fmt.Errorf("tracing configuration error: %w", err)
 		}
 	}
 
@@ -902,6 +928,30 @@ func (jc *JobsConfig) Validate() error {
 	// Warn if worker count is 0 in embedded mode
 	if jc.WorkerMode == "embedded" && jc.EmbeddedWorkerCount == 0 {
 		log.Warn().Msg("worker_mode is 'embedded' but embedded_worker_count is 0 - no jobs will be processed")
+	}
+
+	return nil
+}
+
+// Validate validates tracing configuration
+func (tc *TracingConfig) Validate() error {
+	if !tc.Enabled {
+		return nil // No validation needed if tracing is disabled
+	}
+
+	// Validate endpoint
+	if tc.Endpoint == "" {
+		return fmt.Errorf("tracing endpoint is required when tracing is enabled")
+	}
+
+	// Validate sample rate
+	if tc.SampleRate < 0 || tc.SampleRate > 1 {
+		return fmt.Errorf("tracing sample_rate must be between 0.0 and 1.0, got: %f", tc.SampleRate)
+	}
+
+	// Warn if sample rate is 100% in production
+	if tc.Environment == "production" && tc.SampleRate >= 1.0 {
+		log.Warn().Msg("Tracing sample_rate is 100% in production - consider reducing to lower overhead")
 	}
 
 	return nil
