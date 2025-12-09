@@ -52,7 +52,7 @@ export function AppSidebar() {
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
               <img
-                src='/images/logo-icon.svg'
+                src='/admin/images/logo-icon.svg'
                 alt='Fluxbase'
                 className='size-8 rounded-lg'
               />

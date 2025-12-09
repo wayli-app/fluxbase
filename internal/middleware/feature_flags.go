@@ -44,3 +44,13 @@ func RequireFunctionsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
 func RequireJobsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
 	return RequireFeatureEnabled(settingsCache, "app.features.enable_jobs")
 }
+
+// RequireAIEnabled returns a middleware that ensures AI chatbot feature is enabled
+func RequireAIEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
+	return RequireFeatureEnabled(settingsCache, "app.features.enable_ai")
+}
+
+// RequireRPCEnabled returns a middleware that ensures RPC feature is enabled
+func RequireRPCEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
+	return RequireFeatureEnabled(settingsCache, "app.features.enable_rpc")
+}

@@ -27,6 +27,12 @@ export class QueryBuilder<T = unknown>
   }> = [];
   private orFilters: string[] = [];
   private andFilters: string[] = [];
+  private betweenFilters: Array<{
+    column: string;
+    min: unknown;
+    max: unknown;
+    negated: boolean;
+  }> = [];
   private orderBys: OrderBy[] = [];
   private limitValue?: number;
   private offsetValue?: number;
@@ -291,8 +297,22 @@ export class QueryBuilder<T = unknown>
    * Generic filter method using PostgREST syntax (Supabase-compatible)
    * @example filter('name', 'in', '("Han","Yoda")')
    * @example filter('age', 'gte', '18')
+   * @example filter('recorded_at', 'between', ['2024-01-01', '2024-01-10'])
+   * @example filter('recorded_at', 'not.between', ['2024-01-01', '2024-01-10'])
    */
   filter(column: string, operator: FilterOperator, value: unknown): this {
+    // Handle special compound operators
+    if (operator === "between" || operator === "not.between") {
+      const [min, max] = this.validateBetweenValue(value, operator);
+      this.betweenFilters.push({
+        column,
+        min,
+        max,
+        negated: operator === "not.between",
+      });
+      return this;
+    }
+
     this.filters.push({ column, operator, value });
     return this;
   }
@@ -314,6 +334,35 @@ export class QueryBuilder<T = unknown>
   overlaps(column: string, value: unknown): this {
     this.filters.push({ column, operator: "ov", value });
     return this;
+  }
+
+  /**
+   * Filter column value within an inclusive range (BETWEEN)
+   * Generates: AND (column >= min AND column <= max)
+   *
+   * @param column - Column name to filter
+   * @param min - Minimum value (inclusive)
+   * @param max - Maximum value (inclusive)
+   * @example between('recorded_at', '2024-01-01', '2024-01-10')
+   * @example between('price', 10, 100)
+   */
+  between(column: string, min: unknown, max: unknown): this {
+    return this.filter(column, "between", [min, max]);
+  }
+
+  /**
+   * Filter column value outside an inclusive range (NOT BETWEEN)
+   * Generates: OR (column < min OR column > max)
+   * Multiple notBetween calls on the same column AND together
+   *
+   * @param column - Column name to filter
+   * @param min - Minimum value of excluded range
+   * @param max - Maximum value of excluded range
+   * @example notBetween('recorded_at', '2024-01-01', '2024-01-10')
+   * @example notBetween('price', 0, 10) // Excludes items priced 0-10
+   */
+  notBetween(column: string, min: unknown, max: unknown): this {
+    return this.filter(column, "not.between", [min, max]);
   }
 
   // PostGIS Spatial Query Methods
@@ -998,6 +1047,26 @@ export class QueryBuilder<T = unknown>
       params.append("and", `(${andFilter})`);
     }
 
+    // Between Filters
+    for (const bf of this.betweenFilters) {
+      const minFormatted = this.formatValue(bf.min);
+      const maxFormatted = this.formatValue(bf.max);
+
+      if (bf.negated) {
+        // not.between: or=(column.lt.min,column.gt.max)
+        // This generates: WHERE column < min OR column > max
+        params.append(
+          "or",
+          `(${bf.column}.lt.${minFormatted},${bf.column}.gt.${maxFormatted})`,
+        );
+      } else {
+        // between: column=gte.min&column=lte.max (two separate filters ANDed)
+        // This generates: WHERE column >= min AND column <= max
+        params.append(bf.column, `gte.${minFormatted}`);
+        params.append(bf.column, `lte.${maxFormatted}`);
+      }
+    }
+
     // Group By
     if (this.groupByColumns && this.groupByColumns.length > 0) {
       params.append("group_by", this.groupByColumns.join(","));
@@ -1050,6 +1119,38 @@ export class QueryBuilder<T = unknown>
       return JSON.stringify(value);
     }
     return String(value);
+  }
+
+  /**
+   * Validate between filter value - must be array of exactly 2 elements
+   * @throws Error if value is invalid
+   */
+  private validateBetweenValue(
+    value: unknown,
+    operator: string,
+  ): [unknown, unknown] {
+    if (!Array.isArray(value)) {
+      throw new Error(
+        `Invalid value for '${operator}' operator: expected array of [min, max], got ${typeof value}`,
+      );
+    }
+    if (value.length !== 2) {
+      throw new Error(
+        `Invalid value for '${operator}' operator: expected array with exactly 2 elements [min, max], got ${value.length} elements`,
+      );
+    }
+    const [min, max] = value;
+    if (min === null || min === undefined) {
+      throw new Error(
+        `Invalid value for '${operator}' operator: min value cannot be null or undefined`,
+      );
+    }
+    if (max === null || max === undefined) {
+      throw new Error(
+        `Invalid value for '${operator}' operator: max value cannot be null or undefined`,
+      );
+    }
+    return [min, max];
   }
 
   /**

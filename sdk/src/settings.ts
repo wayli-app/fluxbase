@@ -712,12 +712,20 @@ export class AppSettingsManager {
       value_type?: string;
     },
   ): Promise<CustomSetting> {
+    // Backend expects value to be a JSON object (map[string]interface{})
+    // Wrap primitive values in { value: ... } to ensure valid format
+    const wrappedValue =
+      value !== null && typeof value === "object" && !Array.isArray(value)
+        ? value
+        : { value };
+
     // Try to update first, if not found, create
     try {
       return await this.fetch.put<CustomSetting>(
         `/api/v1/admin/settings/custom/${key}`,
         {
-          value,
+          value: wrappedValue,
+          value_type: options?.value_type || "json",
           description: options?.description,
           is_public: options?.is_public,
           is_secret: options?.is_secret,
@@ -730,7 +738,7 @@ export class AppSettingsManager {
           "/api/v1/admin/settings/custom",
           {
             key,
-            value,
+            value: wrappedValue,
             value_type: options?.value_type || "json",
             description: options?.description,
             is_public: options?.is_public ?? false,

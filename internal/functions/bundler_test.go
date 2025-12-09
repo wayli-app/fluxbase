@@ -167,8 +167,7 @@ func TestBundle(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("bundle with npm import", func(t *testing.T) {
-		t.Skip("Skipping npm import test - deno bundle is deprecated in Deno 2.0, will use alternative bundler in future")
-
+		// npm: imports are marked as external by esbuild and resolved at runtime by Deno
 		code := `import { z } from "npm:zod@3.22.4"
 
 export async function handler(req) {
@@ -179,12 +178,11 @@ export async function handler(req) {
 
 		result, err := bundler.Bundle(ctx, code)
 
-		// This might fail if network is unavailable or due to Deno 2.0 changes
+		// This might fail if esbuild has issues
 		if err != nil {
 			if strings.Contains(err.Error(), "network") ||
-				strings.Contains(err.Error(), "timeout") ||
-				strings.Contains(err.Error(), "outdir") {
-				t.Skip("Network unavailable or Deno 2.0 bundling issues, skipping npm import test")
+				strings.Contains(err.Error(), "timeout") {
+				t.Skip("Network unavailable, skipping npm import test")
 			}
 		}
 
@@ -194,8 +192,8 @@ export async function handler(req) {
 		assert.Equal(t, code, result.OriginalCode)
 		assert.Empty(t, result.Error)
 
-		// Bundled code should be larger (contains zod library)
-		assert.Greater(t, len(result.BundledCode), len(code))
+		// Bundled code should contain the import (npm: imports are external, resolved at runtime)
+		assert.Contains(t, result.BundledCode, "npm:zod")
 	})
 
 	t.Run("no imports - passthrough", func(t *testing.T) {
@@ -242,6 +240,8 @@ export async function handler(req) {
 	})
 
 	t.Run("invalid package", func(t *testing.T) {
+		// Note: With esbuild bundling, npm: imports are marked as external and validated at runtime
+		// by Deno, not at bundle time. This test verifies the bundle succeeds (runtime will fail)
 		code := `import { foo } from "npm:this-package-definitely-does-not-exist-12345"
 
 export async function handler(req) {
@@ -250,9 +250,10 @@ export async function handler(req) {
 
 		result, err := bundler.Bundle(ctx, code)
 
-		// Should fail due to package not found
-		assert.Error(t, err)
-		assert.Nil(t, result)
+		// Bundle should succeed - npm: imports are external and resolved at runtime by Deno
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.IsBundled)
 	})
 
 	t.Run("timeout handling", func(t *testing.T) {

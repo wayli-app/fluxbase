@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
     email_verified BOOLEAN DEFAULT false,
-    role TEXT,
+    role TEXT DEFAULT 'authenticated',
     user_metadata JSONB DEFAULT '{}'::JSONB,
     app_metadata JSONB DEFAULT '{}'::JSONB,
     totp_secret VARCHAR(32),

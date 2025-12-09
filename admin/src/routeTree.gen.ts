@@ -32,11 +32,13 @@ import { Route as AuthenticatedStorageIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedSqlEditorIndexRouteImport } from './routes/_authenticated/sql-editor/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes/_authenticated/security-settings/index'
+import { Route as AuthenticatedRpcIndexRouteImport } from './routes/_authenticated/rpc/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
 import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
 import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_authenticated/email-settings/index'
+import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
@@ -164,6 +166,11 @@ const AuthenticatedSecuritySettingsIndexRoute =
     path: '/security-settings/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRpcIndexRoute = AuthenticatedRpcIndexRouteImport.update({
+  id: '/rpc/',
+  path: '/rpc/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedRealtimeIndexRoute =
   AuthenticatedRealtimeIndexRouteImport.update({
     id: '/realtime/',
@@ -191,6 +198,12 @@ const AuthenticatedEmailSettingsIndexRoute =
   AuthenticatedEmailSettingsIndexRouteImport.update({
     id: '/email-settings/',
     path: '/email-settings/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedChatbotsIndexRoute =
+  AuthenticatedChatbotsIndexRouteImport.update({
+    id: '/chatbots/',
+    path: '/chatbots/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAuthenticationIndexRoute =
@@ -243,11 +256,13 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
+  '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
+  '/rpc': typeof AuthenticatedRpcIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
@@ -277,11 +292,13 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
+  '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
+  '/rpc': typeof AuthenticatedRpcIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
@@ -313,11 +330,13 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
+  '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
   '/_authenticated/email-settings/': typeof AuthenticatedEmailSettingsIndexRoute
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
   '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
+  '/_authenticated/rpc/': typeof AuthenticatedRpcIndexRoute
   '/_authenticated/security-settings/': typeof AuthenticatedSecuritySettingsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/sql-editor/': typeof AuthenticatedSqlEditorIndexRoute
@@ -349,11 +368,13 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/api-keys'
     | '/authentication'
+    | '/chatbots'
     | '/email-settings'
     | '/functions'
     | '/jobs'
     | '/monitoring'
     | '/realtime'
+    | '/rpc'
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
@@ -383,11 +404,13 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/api-keys'
     | '/authentication'
+    | '/chatbots'
     | '/email-settings'
     | '/functions'
     | '/jobs'
     | '/monitoring'
     | '/realtime'
+    | '/rpc'
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
@@ -418,11 +441,13 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/api-keys/'
     | '/_authenticated/authentication/'
+    | '/_authenticated/chatbots/'
     | '/_authenticated/email-settings/'
     | '/_authenticated/functions/'
     | '/_authenticated/jobs/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
+    | '/_authenticated/rpc/'
     | '/_authenticated/security-settings/'
     | '/_authenticated/settings/'
     | '/_authenticated/sql-editor/'
@@ -613,6 +638,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSecuritySettingsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/rpc/': {
+      id: '/_authenticated/rpc/'
+      path: '/rpc'
+      fullPath: '/rpc'
+      preLoaderRoute: typeof AuthenticatedRpcIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/realtime/': {
       id: '/_authenticated/realtime/'
       path: '/realtime'
@@ -646,6 +678,13 @@ declare module '@tanstack/react-router' {
       path: '/email-settings'
       fullPath: '/email-settings'
       preLoaderRoute: typeof AuthenticatedEmailSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chatbots/': {
+      id: '/_authenticated/chatbots/'
+      path: '/chatbots'
+      fullPath: '/chatbots'
+      preLoaderRoute: typeof AuthenticatedChatbotsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/authentication/': {
@@ -693,11 +732,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
+  AuthenticatedChatbotsIndexRoute: typeof AuthenticatedChatbotsIndexRoute
   AuthenticatedEmailSettingsIndexRoute: typeof AuthenticatedEmailSettingsIndexRoute
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
+  AuthenticatedRpcIndexRoute: typeof AuthenticatedRpcIndexRoute
   AuthenticatedSecuritySettingsIndexRoute: typeof AuthenticatedSecuritySettingsIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSqlEditorIndexRoute: typeof AuthenticatedSqlEditorIndexRoute
@@ -715,11 +756,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
   AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
+  AuthenticatedChatbotsIndexRoute: AuthenticatedChatbotsIndexRoute,
   AuthenticatedEmailSettingsIndexRoute: AuthenticatedEmailSettingsIndexRoute,
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
+  AuthenticatedRpcIndexRoute: AuthenticatedRpcIndexRoute,
   AuthenticatedSecuritySettingsIndexRoute:
     AuthenticatedSecuritySettingsIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,

@@ -53,8 +53,8 @@ func TestRoleSatisfiesRequirement(t *testing.T) {
 // for database operations. This prevents regressions where the endpoint path might
 // be accidentally changed back to an incorrect value.
 func TestEmbeddedSDKEndpoint(t *testing.T) {
-	// Read the embedded SDK file (now separate from runtime.go)
-	embeddedSDKCode, err := os.ReadFile("embedded_sdk.js")
+	// Read the embedded SDK file (now in internal/runtime/)
+	embeddedSDKCode, err := os.ReadFile("../runtime/embedded_sdk.js")
 	if err != nil {
 		t.Fatalf("Failed to read embedded_sdk.js: %v", err)
 	}

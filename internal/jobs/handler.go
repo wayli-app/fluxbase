@@ -267,6 +267,12 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 		Payload   map[string]interface{} `json:"payload"`
 		Priority  *int                   `json:"priority"`
 		Scheduled *time.Time             `json:"scheduled_at"`
+		// OnBehalfOf allows service_role to submit jobs as a specific user
+		OnBehalfOf *struct {
+			UserID    string  `json:"user_id"`
+			UserEmail *string `json:"user_email"`
+			UserRole  *string `json:"user_role"`
+		} `json:"on_behalf_of"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -282,32 +288,76 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 	var userID *uuid.UUID
 	var userRole, userEmail *string
 
-	if uid := c.Locals("user_id"); uid != nil {
-		if uidStr, ok := uid.(string); ok {
-			parsed, err := uuid.Parse(uidStr)
-			if err == nil {
-				// Verify user exists in auth.users before setting created_by
-				// Dashboard admins are in dashboard.users, not auth.users
-				var exists bool
-				checkQuery := "SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1)"
-				if err := h.storage.conn.Pool().QueryRow(c.Context(), checkQuery, parsed).Scan(&exists); err == nil && exists {
-					userID = &parsed
+	// Check if on_behalf_of is being used
+	if req.OnBehalfOf != nil {
+		// Only service_role can use on_behalf_of
+		callerRole := c.Locals("user_role")
+		if callerRole == nil || callerRole.(string) != "service_role" {
+			return c.Status(403).JSON(fiber.Map{
+				"error": "on_behalf_of requires service_role",
+			})
+		}
+
+		// Parse and validate the target user ID
+		parsed, err := uuid.Parse(req.OnBehalfOf.UserID)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Invalid user_id in on_behalf_of",
+			})
+		}
+
+		// Verify user exists in auth.users
+		var exists bool
+		checkQuery := "SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1)"
+		if err := h.storage.conn.Pool().QueryRow(c.Context(), checkQuery, parsed).Scan(&exists); err != nil || !exists {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "User not found in on_behalf_of.user_id",
+			})
+		}
+
+		userID = &parsed
+		userEmail = req.OnBehalfOf.UserEmail
+		userRole = req.OnBehalfOf.UserRole
+
+		// Default role to "authenticated" if not specified
+		if userRole == nil {
+			defaultRole := "authenticated"
+			userRole = &defaultRole
+		}
+
+		log.Info().
+			Str("target_user_id", parsed.String()).
+			Str("caller", "service_role").
+			Msg("Job submitted on behalf of user")
+	} else {
+		// Standard flow: use caller's identity
+		if uid := c.Locals("user_id"); uid != nil {
+			if uidStr, ok := uid.(string); ok {
+				parsed, err := uuid.Parse(uidStr)
+				if err == nil {
+					// Verify user exists in auth.users before setting created_by
+					// Dashboard admins are in dashboard.users, not auth.users
+					var exists bool
+					checkQuery := "SELECT EXISTS(SELECT 1 FROM auth.users WHERE id = $1)"
+					if err := h.storage.conn.Pool().QueryRow(c.Context(), checkQuery, parsed).Scan(&exists); err == nil && exists {
+						userID = &parsed
+					}
+					// If user doesn't exist in auth.users, leave userID as nil
+					// Job will be created without created_by (allowed by nullable FK)
 				}
-				// If user doesn't exist in auth.users, leave userID as nil
-				// Job will be created without created_by (allowed by nullable FK)
 			}
 		}
-	}
 
-	if role := c.Locals("user_role"); role != nil {
-		if roleStr, ok := role.(string); ok {
-			userRole = &roleStr
+		if role := c.Locals("user_role"); role != nil {
+			if roleStr, ok := role.(string); ok {
+				userRole = &roleStr
+			}
 		}
-	}
 
-	if email := c.Locals("user_email"); email != nil {
-		if emailStr, ok := email.(string); ok {
-			userEmail = &emailStr
+		if email := c.Locals("user_email"); email != nil {
+			if emailStr, ok := email.(string); ok {
+				userEmail = &emailStr
+			}
 		}
 	}
 

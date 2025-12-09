@@ -14,13 +14,13 @@ keywords:
   - realtime
   - storage
   - auth
-home: https://github.com/yourusername/fluxbase
+home: https://github.com/fluxbase-eu/fluxbase
 sources:
-  - https://github.com/yourusername/fluxbase
+  - https://github.com/fluxbase-eu/fluxbase
 maintainers:
   - name: Fluxbase Team
     email: hello@fluxbase.io
-icon: https://raw.githubusercontent.com/yourusername/fluxbase/main/docs/static/img/logo.svg
+icon: https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/docs/src/assets/logo.svg
 annotations:
   category: Database
   licenses: MIT

@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
+	"github.com/fluxbase-eu/fluxbase/internal/runtime"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,25 +22,63 @@ import (
 // Handler manages HTTP endpoints for edge functions
 type Handler struct {
 	storage      *Storage
-	runtime      *DenoRuntime
+	runtime      *runtime.DenoRuntime
 	scheduler    *Scheduler
 	functionsDir string
 	corsConfig   config.CORSConfig
+	publicURL    string
+	logCounters  sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig) *Handler {
-	return &Handler{
+func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string) *Handler {
+	h := &Handler{
 		storage:      NewStorage(db),
-		runtime:      NewDenoRuntime(),
+		runtime:      runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
 		functionsDir: functionsDir,
 		corsConfig:   corsConfig,
+		publicURL:    publicURL,
 	}
+
+	// Set up log callback to capture console.log output
+	h.runtime.SetLogCallback(h.handleLogMessage)
+
+	return h
 }
 
 // SetScheduler sets the scheduler for this handler
 func (h *Handler) SetScheduler(scheduler *Scheduler) {
 	h.scheduler = scheduler
+}
+
+// handleLogMessage is called when a function outputs a log message via console.log/console.error
+func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message string) {
+	// Get and increment the line counter for this execution
+	counterVal, ok := h.logCounters.Load(executionID)
+	if !ok {
+		// No counter means execution wasn't set up for logging (e.g., old code path)
+		log.Debug().
+			Str("execution_id", executionID.String()).
+			Str("level", level).
+			Str("message", message).
+			Msg("Function log (no counter)")
+		return
+	}
+
+	counterPtr, ok := counterVal.(*int)
+	if !ok {
+		log.Warn().Str("execution_id", executionID.String()).Msg("Invalid log counter type")
+		return
+	}
+
+	lineNumber := *counterPtr
+	*counterPtr = lineNumber + 1
+
+	// Insert log line into database
+	ctx := context.Background()
+	if err := h.storage.AppendExecutionLog(ctx, executionID, lineNumber, level, message); err != nil {
+		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to insert execution log")
+	}
 }
 
 // applyCorsHeaders applies CORS headers to the response with fallback to global config
@@ -72,11 +110,28 @@ func (h *Handler) applyCorsHeaders(c *fiber.Ctx, fn *EdgeFunction) {
 	}
 
 	// Apply CORS headers
-	c.Set("Access-Control-Allow-Origin", origins)
+	// Handle Access-Control-Allow-Origin properly:
+	// - If origins is "*", use "*"
+	// - If origins contains multiple comma-separated values, check if request origin matches
+	// - Browsers only accept a single origin or "*", not comma-separated lists
+	allowedOrigin := origins
+	if origins != "*" && strings.Contains(origins, ",") {
+		requestOrigin := c.Get("Origin")
+		if requestOrigin != "" {
+			// Check if request origin is in the allowed list
+			for _, allowed := range strings.Split(origins, ",") {
+				if strings.TrimSpace(allowed) == requestOrigin {
+					allowedOrigin = requestOrigin
+					break
+				}
+			}
+		}
+	}
+	c.Set("Access-Control-Allow-Origin", allowedOrigin)
 	c.Set("Access-Control-Allow-Methods", methods)
 	c.Set("Access-Control-Allow-Headers", headers)
 
-	if credentials && origins != "*" {
+	if credentials && allowedOrigin != "*" {
 		c.Set("Access-Control-Allow-Credentials", "true")
 	}
 
@@ -108,9 +163,9 @@ func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiK
 	functions.Delete("/:name", authMiddleware, h.DeleteFunction)
 
 	// Invocation endpoint - auth checked per-function in handler based on allow_unauthenticated
-	// We use OptionalAuthMiddleware so auth context is set if token provided,
+	// We use OptionalAuthOrServiceKey so auth context is set if token provided (including anon key JWTs),
 	// but the handler will check the function's allow_unauthenticated setting
-	optionalAuth := middleware.OptionalAPIKeyAuth(authService, apiKeyService)
+	optionalAuth := middleware.OptionalAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
 	functions.Post("/:name/invoke", optionalAuth, h.InvokeFunction)
 	functions.Get("/:name/invoke", optionalAuth, h.InvokeFunction) // Also support GET for health checks
 
@@ -569,13 +624,20 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		}
 	}
 
-	// Build execution request
-	req := ExecutionRequest{
-		Method:  c.Method(),
-		URL:     c.OriginalURL(),
-		Headers: make(map[string]string),
-		Body:    string(c.Body()),
-		Params:  make(map[string]string),
+	// Generate execution ID for tracking
+	executionID := uuid.New()
+
+	// Build execution request with unified runtime types
+	req := runtime.ExecutionRequest{
+		ID:        executionID,
+		Name:      fn.Name,
+		Namespace: fn.Namespace,
+		Method:    c.Method(),
+		URL:       h.publicURL + c.OriginalURL(),
+		BaseURL:   h.publicURL,
+		Headers:   make(map[string]string),
+		Body:      string(c.Body()),
+		Params:    make(map[string]string),
 	}
 
 	// Copy headers
@@ -611,7 +673,7 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	}
 
 	// Build permissions
-	perms := Permissions{
+	perms := runtime.Permissions{
 		AllowNet:   fn.AllowNet,
 		AllowEnv:   fn.AllowEnv,
 		AllowRead:  fn.AllowRead,
@@ -622,41 +684,46 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	reqID := getRequestID(c)
 	log.Info().
 		Str("function_name", name).
+		Str("execution_id", executionID.String()).
 		Str("user_id", req.UserID).
 		Str("method", req.Method).
 		Str("request_id", reqID).
 		Msg("Invoking edge function")
 
-	// Execute function
-	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms)
+	// Create execution record BEFORE running to enable real-time logging
+	if err := h.storage.CreateExecution(c.Context(), executionID, fn.ID, "http"); err != nil {
+		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
+		// Continue anyway - logging will still work via stderr fallback
+	}
 
-	// Log execution
-	now := time.Now()
+	// Initialize log counter for this execution
+	lineCounter := 0
+	h.logCounters.Store(executionID, &lineCounter)
+	defer h.logCounters.Delete(executionID)
+
+	// Execute function (nil cancel signal for basic invocation - streaming endpoint will use actual signal)
+	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil)
+
+	// Complete execution record
 	durationMs := int(result.DurationMs)
-	exec := &EdgeFunctionExecution{
-		FunctionID:  fn.ID,
-		TriggerType: "http",
-		Status:      "success",
-		StatusCode:  &result.Status,
-		DurationMs:  &durationMs,
-		Logs:        &result.Logs,
-		CompletedAt: &now,
-	}
-
+	status := "success"
+	var errorMessage *string
 	if err != nil {
-		exec.Status = "error"
-		exec.ErrorMessage = &result.Error
+		status = "error"
+		errorMessage = &result.Error
 	}
 
+	var resultBody *string
 	if result.Body != "" {
-		exec.Result = &result.Body
+		resultBody = &result.Body
 	}
 
-	// Log asynchronously (don't block response)
-	// Use background context since the Fiber context will be released
+	// Update execution record asynchronously (don't block response)
 	go func() {
 		ctx := context.Background()
-		_ = h.storage.LogExecution(ctx, exec)
+		if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
+			log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
+		}
 	}()
 
 	// Return function result
@@ -729,6 +796,95 @@ func (h *Handler) GetExecutions(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(executions)
+}
+
+// ListAllExecutions returns execution history across all functions (admin only)
+func (h *Handler) ListAllExecutions(c *fiber.Ctx) error {
+	limit := c.QueryInt("limit", 25)
+	offset := c.QueryInt("offset", 0)
+	namespace := c.Query("namespace")
+	functionName := c.Query("function_name")
+	status := c.Query("status")
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	filters := AdminExecutionFilters{
+		Namespace:    namespace,
+		FunctionName: functionName,
+		Status:       status,
+		Limit:        limit,
+		Offset:       offset,
+	}
+
+	executions, total, err := h.storage.ListAllExecutions(c.Context(), filters)
+	if err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("request_id", reqID).
+			Interface("filters", filters).
+			Msg("Failed to list all edge function executions")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to list executions",
+			"details":    err.Error(),
+			"request_id": reqID,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"executions": executions,
+		"count":      total,
+	})
+}
+
+// GetExecutionLogs returns logs for a specific function execution
+func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
+	executionIDStr := c.Params("executionId")
+
+	executionID, err := uuid.Parse(executionIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Invalid execution ID",
+		})
+	}
+
+	// Get optional after parameter for pagination/streaming
+	afterLine := 0
+	if after := c.Query("after"); after != "" {
+		if a, err := strconv.Atoi(after); err == nil {
+			afterLine = a
+		}
+	}
+
+	var logs []ExecutionLog
+	if afterLine > 0 {
+		logs, err = h.storage.GetExecutionLogsSince(c.Context(), executionID, afterLine)
+	} else {
+		logs, err = h.storage.GetExecutionLogs(c.Context(), executionID)
+	}
+
+	if err != nil {
+		reqID := getRequestID(c)
+		log.Error().
+			Err(err).
+			Str("request_id", reqID).
+			Str("execution_id", executionIDStr).
+			Msg("Failed to get execution logs")
+
+		return c.Status(500).JSON(fiber.Map{
+			"error":      "Failed to get execution logs",
+			"details":    err.Error(),
+			"request_id": reqID,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"logs":  logs,
+		"count": len(logs),
+	})
 }
 
 // RegisterAdminRoutes registers admin-only routes for functions management

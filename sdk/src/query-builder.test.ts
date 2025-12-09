@@ -1056,4 +1056,179 @@ describe("QueryBuilder - Count Queries (Supabase-compatible)", () => {
       expect(error).toBeNull();
     });
   });
+
+  describe("QueryBuilder - Between Filters", () => {
+    let fetch: MockFetch;
+    let builder: QueryBuilder;
+
+    beforeEach(() => {
+      fetch = new MockFetch();
+      builder = new QueryBuilder(fetch, "tracker_data");
+    });
+
+    describe("between operator", () => {
+      it("should generate two separate filters for between with dates", async () => {
+        await builder
+          .filter("recorded_at", "between", ["2024-01-01", "2024-01-10"])
+          .execute();
+
+        // Should generate: recorded_at=gte.2024-01-01&recorded_at=lte.2024-01-10
+        expect(fetch.lastUrl).toContain("recorded_at=gte.2024-01-01");
+        expect(fetch.lastUrl).toContain("recorded_at=lte.2024-01-10");
+        // Should NOT use and=() wrapper - PostgREST ANDs multiple params on same column
+        expect(fetch.lastUrl).not.toContain("and=");
+      });
+
+      it("should generate two separate filters for between with numeric values", async () => {
+        await builder.filter("price", "between", [10, 100]).execute();
+
+        // Should generate: price=gte.10&price=lte.100
+        expect(fetch.lastUrl).toContain("price=gte.10");
+        expect(fetch.lastUrl).toContain("price=lte.100");
+        expect(fetch.lastUrl).not.toContain("and=");
+      });
+
+      it("should work with between() convenience method", async () => {
+        await builder
+          .between("recorded_at", "2024-01-01", "2024-01-10")
+          .execute();
+
+        expect(fetch.lastUrl).toContain("recorded_at=gte.2024-01-01");
+        expect(fetch.lastUrl).toContain("recorded_at=lte.2024-01-10");
+      });
+    });
+
+    describe("not.between operator", () => {
+      it("should generate or filter for not.between", async () => {
+        await builder
+          .filter("recorded_at", "not.between", ["2024-01-01", "2024-01-10"])
+          .execute();
+
+        expect(fetch.lastUrl).toContain("or=");
+        expect(fetch.lastUrl).toContain("recorded_at.lt.2024-01-01");
+        expect(fetch.lastUrl).toContain("recorded_at.gt.2024-01-10");
+      });
+
+      it("should work with notBetween() convenience method", async () => {
+        await builder
+          .notBetween("recorded_at", "2024-01-01", "2024-01-10")
+          .execute();
+
+        expect(fetch.lastUrl).toContain("or=");
+        expect(fetch.lastUrl).toContain("recorded_at.lt.2024-01-01");
+        expect(fetch.lastUrl).toContain("recorded_at.gt.2024-01-10");
+      });
+    });
+
+    describe("chained not.between filters", () => {
+      it("should AND together multiple not.between filters", async () => {
+        await builder
+          .filter("recorded_at", "not.between", ["2024-01-01", "2024-01-10"])
+          .filter("recorded_at", "not.between", ["2024-02-15", "2024-02-20"])
+          .execute();
+
+        const url = fetch.lastUrl;
+        // Should have two separate or= parameters
+        const orMatches = url.match(/or=/g);
+        expect(orMatches?.length).toBe(2);
+
+        // First range exclusion
+        expect(url).toContain("recorded_at.lt.2024-01-01");
+        expect(url).toContain("recorded_at.gt.2024-01-10");
+        // Second range exclusion
+        expect(url).toContain("recorded_at.lt.2024-02-15");
+        expect(url).toContain("recorded_at.gt.2024-02-20");
+      });
+    });
+
+    describe("mixed filters", () => {
+      it("should work with between and other filters", async () => {
+        await builder
+          .eq("user_id", "abc-123")
+          .filter("recorded_at", "between", ["2024-01-01", "2024-01-10"])
+          .order("recorded_at", { ascending: true })
+          .execute();
+
+        expect(fetch.lastUrl).toContain("user_id=eq.abc-123");
+        expect(fetch.lastUrl).toContain("recorded_at=gte.2024-01-01");
+        expect(fetch.lastUrl).toContain("recorded_at=lte.2024-01-10");
+        expect(fetch.lastUrl).toContain("order=recorded_at.asc");
+      });
+
+      it("should work with not.between and other filters", async () => {
+        await builder
+          .eq("status", "active")
+          .filter("recorded_at", "not.between", ["2024-01-01", "2024-01-10"])
+          .gte("score", 50)
+          .execute();
+
+        expect(fetch.lastUrl).toContain("status=eq.active");
+        expect(fetch.lastUrl).toContain("or=");
+        expect(fetch.lastUrl).toContain("score=gte.50");
+      });
+    });
+
+    describe("error handling", () => {
+      it("should throw error for non-array value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", "2024-01-01");
+        }).toThrow("expected array of [min, max]");
+      });
+
+      it("should throw error for array with wrong length (1 element)", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", ["2024-01-01"]);
+        }).toThrow("expected array with exactly 2 elements");
+      });
+
+      it("should throw error for array with 3 elements", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", [
+            "2024-01-01",
+            "2024-01-10",
+            "extra",
+          ]);
+        }).toThrow("expected array with exactly 2 elements");
+      });
+
+      it("should throw error for null min value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", [null, "2024-01-10"]);
+        }).toThrow("min value cannot be null or undefined");
+      });
+
+      it("should throw error for null max value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", ["2024-01-01", null]);
+        }).toThrow("max value cannot be null or undefined");
+      });
+
+      it("should throw error for undefined min value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", [undefined, "2024-01-10"]);
+        }).toThrow("min value cannot be null or undefined");
+      });
+
+      it("should throw error for undefined max value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "between", ["2024-01-01", undefined]);
+        }).toThrow("max value cannot be null or undefined");
+      });
+
+      it("should allow empty string values", async () => {
+        // Empty strings are valid - let PostgreSQL handle the semantics
+        await builder.filter("name", "between", ["", "Z"]).execute();
+
+        // New format: name=gte.&name=lte.Z (two separate filters)
+        expect(fetch.lastUrl).toContain("name=gte.");
+        expect(fetch.lastUrl).toContain("name=lte.Z");
+      });
+
+      it("should throw error for not.between with non-array value", () => {
+        expect(() => {
+          builder.filter("recorded_at", "not.between", "2024-01-01");
+        }).toThrow("expected array of [min, max]");
+      });
+    });
+  });
 });

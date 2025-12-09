@@ -394,7 +394,7 @@ func GetTestConfig() *config.Config {
 			EmbeddedWorkerCount:     0, // No workers in tests
 			DefaultMaxDuration:      5 * time.Minute,
 			MaxMaxDuration:          1 * time.Hour,
-			DefaultProgressTimeout:  60 * time.Second,
+			DefaultProgressTimeout:  5 * time.Minute,
 			PollInterval:            1 * time.Second,
 			WorkerHeartbeatInterval: 10 * time.Second,
 		},

@@ -43,16 +43,16 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 	@lsof -ti:5050 | xargs -r kill -9 2>/dev/null || true
 	@if [ ! -d "sdk/node_modules" ]; then \
 		echo "${YELLOW}Installing SDK dependencies...${NC}"; \
-		cd sdk && npm install; \
+		cd sdk && unset NODE_OPTIONS && npm install; \
 	fi
 	@echo "${YELLOW}Generating embedded SDK for job runtime...${NC}"
-	@cd sdk && npm run generate:embedded-sdk
+	@cd sdk && unset NODE_OPTIONS && npm run generate:embedded-sdk
 	@if [ ! -d "admin/node_modules" ]; then \
 		echo "${YELLOW}Installing admin UI dependencies...${NC}"; \
-		cd admin && npm install; \
+		cd admin && unset NODE_OPTIONS && npm install; \
 	fi
 	@echo "${YELLOW}Building admin UI...${NC}"
-	@cd admin && npm run build
+	@cd admin && unset NODE_OPTIONS && npm run build
 	@rm -rf internal/adminui/dist
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${GREEN}Backend:${NC}     http://localhost:8080"
@@ -61,7 +61,7 @@ dev: ## Build and run backend + frontend dev server (all-in-one)
 	@echo ""
 	@echo "${YELLOW}Press Ctrl+C to stop both servers${NC}"
 	@echo ""
-	@bash -c 'trap "kill 0" EXIT; ./run-server.sh & SERVER_PID=$$!; cd admin && npm run dev & NPM_PID=$$!; wait -n 2>/dev/null || while kill -0 $$SERVER_PID 2>/dev/null && kill -0 $$NPM_PID 2>/dev/null; do sleep 1; done'
+	@bash -c 'trap "kill 0" EXIT; ./run-server.sh & SERVER_PID=$$!; cd admin && unset NODE_OPTIONS && npm run dev & NPM_PID=$$!; wait -n 2>/dev/null || while kill -0 $$SERVER_PID 2>/dev/null && kill -0 $$NPM_PID 2>/dev/null; do sleep 1; done'
 
 version: ## Show version information
 	@echo "${GREEN}Version:${NC}    $(VERSION)"
@@ -70,9 +70,9 @@ version: ## Show version information
 
 build: ## Build production binary with embedded admin UI
 	@echo "${YELLOW}Generating embedded SDK for job runtime...${NC}"
-	@cd sdk && npm run generate:embedded-sdk
+	@cd sdk && unset NODE_OPTIONS && npm run generate:embedded-sdk
 	@echo "${YELLOW}Building admin UI...${NC}"
-	@cd admin && npm run build
+	@cd admin && unset NODE_OPTIONS && npm run build
 	@rm -rf internal/adminui/dist
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
@@ -116,12 +116,12 @@ test-storage: ## Run storage tests only
 
 test-sdk: ## Run SDK tests (TypeScript)
 	@echo "${YELLOW}Running SDK tests...${NC}"
-	@cd sdk && npm test -- src/admin.test.ts src/auth.test.ts src/management.test.ts src/ddl.test.ts src/impersonation.test.ts src/settings.test.ts src/oauth.test.ts
+	@cd sdk && unset NODE_OPTIONS && npm test -- src/admin.test.ts src/auth.test.ts src/management.test.ts src/ddl.test.ts src/impersonation.test.ts src/settings.test.ts src/oauth.test.ts
 	@echo "${GREEN}SDK tests complete!${NC}"
 
 test-sdk-react: ## Build React SDK (includes type checking)
 	@echo "${YELLOW}Building React SDK...${NC}"
-	@cd sdk-react && npm run build
+	@cd sdk-react && unset NODE_OPTIONS && npm run build
 	@echo "${GREEN}React SDK build complete!${NC}"
 
 test-integration: ## Run admin integration tests (requires running server)
@@ -131,7 +131,7 @@ test-integration: ## Run admin integration tests (requires running server)
 		echo "${YELLOW}Start server with: make dev${NC}"; \
 		exit 1; \
 	fi
-	@cd examples/admin-setup && npm test
+	@cd examples/admin-setup && unset NODE_OPTIONS && npm test
 	@echo "${GREEN}Integration tests complete!${NC}"
 
 test-all: ## Run ALL tests (backend + SDK + React + integration)
@@ -166,7 +166,7 @@ setup-dev: ## Set up development environment (first-time setup)
 	@echo "${YELLOW}Setting up development environment...${NC}"
 	@go mod download
 	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-	@cd admin && npm install
+	@cd admin && unset NODE_OPTIONS && npm install
 	@cp .env.example .env 2>/dev/null || echo ".env already exists"
 	@$(MAKE) install-hooks
 	@echo "${GREEN}Development environment ready!${NC}"
@@ -223,6 +223,7 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS functions CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS jobs CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
+	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS ai CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS _fluxbase CASCADE;" || true
 	@echo "${YELLOW}Creating _fluxbase schema for migration tracking...${NC}"
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS _fluxbase;" || true
@@ -244,6 +245,7 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
@@ -261,6 +263,8 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
@@ -288,6 +292,7 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS jobs CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS migrations CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS ai CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS _fluxbase CASCADE;" || true
 	@echo "${YELLOW}Dropping and recreating public schema...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS public CASCADE;" || true
@@ -314,6 +319,7 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
@@ -331,6 +337,8 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
@@ -344,7 +352,7 @@ docs: ## Serve Starlight documentation at http://localhost:4321
 	@echo "${YELLOW}Starting Starlight documentation server...${NC}"
 	@if [ ! -d "docs/node_modules" ]; then \
 		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
-		cd docs && npm install; \
+		cd docs && unset NODE_OPTIONS && npm install; \
 	fi
 	@echo ""
 	@echo "${GREEN}📚 Documentation will be available at:${NC}"
@@ -352,15 +360,15 @@ docs: ## Serve Starlight documentation at http://localhost:4321
 	@echo ""
 	@echo "${YELLOW}Press Ctrl+C to stop the server${NC}"
 	@echo ""
-	@cd docs && npm run dev -- --host 0.0.0.0
+	@cd docs && unset NODE_OPTIONS && npm run dev -- --host 0.0.0.0
 
 docs-build: ## Build static documentation site for production
 	@echo "${YELLOW}Building documentation site...${NC}"
 	@if [ ! -d "docs/node_modules" ]; then \
 		echo "${YELLOW}Installing documentation dependencies...${NC}"; \
-		cd docs && npm install; \
+		cd docs && unset NODE_OPTIONS && npm install; \
 	fi
-	@cd docs && npm run build
+	@cd docs && unset NODE_OPTIONS && npm run build
 	@echo "${GREEN}Documentation built successfully!${NC}"
 	@echo "${YELLOW}Output:${NC} docs/dist/"
 	@echo "${YELLOW}To preview locally:${NC} cd docs && npm run preview"

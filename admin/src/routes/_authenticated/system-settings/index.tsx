@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { monitoringApi, apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 import { OverridableSwitch } from '@/components/admin/overridable-switch'
+import { AIProvidersTab } from '@/components/system-settings/ai-providers-tab'
 
 const systemSettingsSearchSchema = z.object({
   tab: z.string().optional().catch('features'),
@@ -74,10 +75,12 @@ interface FeatureSettings {
   enable_realtime: boolean
   enable_storage: boolean
   enable_functions: boolean
+  enable_ai: boolean
   _overrides?: {
     enable_realtime?: { is_overridden: boolean; env_var: string }
     enable_storage?: { is_overridden: boolean; env_var: string }
     enable_functions?: { is_overridden: boolean; env_var: string }
+    enable_ai?: { is_overridden: boolean; env_var: string }
   }
 }
 
@@ -90,15 +93,17 @@ function SystemSettingsPage() {
   const { data: features, isLoading: featuresLoading } = useQuery<FeatureSettings>({
     queryKey: ['feature-settings'],
     queryFn: async () => {
-      const [realtime, storage, functions] = await Promise.all([
+      const [realtime, storage, functions, ai] = await Promise.all([
         apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_realtime'),
         apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_storage'),
         apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_functions'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_ai'),
       ])
       return {
         enable_realtime: realtime.data.value.value,
         enable_storage: storage.data.value.value,
         enable_functions: functions.data.value.value,
+        enable_ai: ai.data.value.value,
         _overrides: {
           enable_realtime: realtime.data.is_overridden ? {
             is_overridden: true,
@@ -111,6 +116,10 @@ function SystemSettingsPage() {
           enable_functions: functions.data.is_overridden ? {
             is_overridden: true,
             env_var: functions.data.override_source || '',
+          } : undefined,
+          enable_ai: ai.data.is_overridden ? {
+            is_overridden: true,
+            env_var: ai.data.override_source || '',
           } : undefined,
         },
       }
@@ -190,7 +199,7 @@ function SystemSettingsPage() {
   }
 
   return (
-    <div className='flex flex-col gap-6 p-6'>
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <div className='flex items-center justify-between'>
         <div>
           <h1 className='text-3xl font-bold tracking-tight flex items-center gap-2'>
@@ -206,11 +215,12 @@ function SystemSettingsPage() {
       </div>
 
       <Tabs value={search.tab || 'features'} onValueChange={(tab) => navigate({ search: { tab } })} className='w-full'>
-        <TabsList className='grid w-full grid-cols-5'>
+        <TabsList className='grid w-full grid-cols-6'>
           <TabsTrigger value='features'>Features</TabsTrigger>
           <TabsTrigger value='database'>Database</TabsTrigger>
           <TabsTrigger value='email'>Email</TabsTrigger>
           <TabsTrigger value='storage'>Storage</TabsTrigger>
+          <TabsTrigger value='ai-providers'>AI Providers</TabsTrigger>
           <TabsTrigger value='backup'>Backup</TabsTrigger>
         </TabsList>
 
@@ -273,6 +283,21 @@ function SystemSettingsPage() {
                       })
                     }}
                     override={features?._overrides?.enable_functions}
+                    disabled={updateFeatureMutation.isPending}
+                  />
+
+                  <OverridableSwitch
+                    id='enable-ai'
+                    label='Enable AI Chatbots'
+                    description='AI-powered chatbots with database query capabilities'
+                    checked={features?.enable_ai || false}
+                    onCheckedChange={(checked) => {
+                      updateFeatureMutation.mutate({
+                        key: 'app.features.enable_ai',
+                        value: checked,
+                      })
+                    }}
+                    override={features?._overrides?.enable_ai}
                     disabled={updateFeatureMutation.isPending}
                   />
 
@@ -573,6 +598,11 @@ function SystemSettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Providers Tab */}
+        <TabsContent value='ai-providers' className='space-y-4'>
+          <AIProvidersTab />
         </TabsContent>
 
         {/* Backup & Restore Tab */}

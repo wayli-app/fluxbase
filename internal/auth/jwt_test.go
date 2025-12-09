@@ -58,9 +58,10 @@ func TestGenerateRefreshToken(t *testing.T) {
 
 	userID := "user123"
 	email := "test@example.com"
+	role := "authenticated"
 	sessionID := "session123"
 
-	token, claims, err := manager.GenerateRefreshToken(userID, email, sessionID, nil, nil)
+	token, claims, err := manager.GenerateRefreshToken(userID, email, role, sessionID, nil, nil)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
@@ -69,6 +70,7 @@ func TestGenerateRefreshToken(t *testing.T) {
 	// Verify claims
 	assert.Equal(t, userID, claims.UserID)
 	assert.Equal(t, email, claims.Email)
+	assert.Equal(t, role, claims.Role)
 	assert.Equal(t, sessionID, claims.SessionID)
 	assert.Equal(t, "refresh", claims.TokenType)
 	assert.Equal(t, "fluxbase", claims.Issuer)
@@ -194,7 +196,7 @@ func TestValidateAccessToken_Success(t *testing.T) {
 func TestValidateAccessToken_RefreshTokenFails(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123", nil, nil)
+	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "authenticated", "session123", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateAccessToken(token)
@@ -207,7 +209,7 @@ func TestValidateAccessToken_RefreshTokenFails(t *testing.T) {
 func TestValidateRefreshToken_Success(t *testing.T) {
 	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
 
-	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "session123", nil, nil)
+	token, _, err := manager.GenerateRefreshToken("user123", "test@example.com", "authenticated", "session123", nil, nil)
 	require.NoError(t, err)
 
 	claims, err := manager.ValidateRefreshToken(token)

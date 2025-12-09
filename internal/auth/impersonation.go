@@ -302,7 +302,7 @@ func (s *ImpersonationService) StartImpersonation(
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(targetUser.ID, targetUser.Email, "", targetUser.UserMetadata, targetUser.AppMetadata)
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(targetUser.ID, targetUser.Email, targetUser.Role, "", targetUser.UserMetadata, targetUser.AppMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -370,7 +370,7 @@ func (s *ImpersonationService) StartAnonImpersonation(
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(anonID, "anonymous@fluxbase.local", "", nil, nil)
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(anonID, "anonymous@fluxbase.local", "anon", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -445,7 +445,7 @@ func (s *ImpersonationService) StartServiceImpersonation(
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(serviceID, "service@fluxbase.local", "", nil, nil)
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(serviceID, "service@fluxbase.local", "service_role", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}

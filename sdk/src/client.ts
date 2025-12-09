@@ -47,6 +47,7 @@ import { FluxbaseJobs } from "./jobs";
 import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
+import { FluxbaseAI } from "./ai";
 import { QueryBuilder } from "./query-builder";
 import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
@@ -85,6 +86,9 @@ export class FluxbaseClient<
 
   /** Settings module for reading public application settings (respects RLS policies) */
   public settings: SettingsClient;
+
+  /** AI module for chatbots and conversation history */
+  public ai: FluxbaseAI;
 
   /**
    * Create a new Fluxbase client instance
@@ -159,6 +163,12 @@ export class FluxbaseClient<
 
     // Initialize settings module (public read-only access with RLS)
     this.settings = new SettingsClient(this.fetch);
+
+    // Initialize AI module
+    // Convert HTTP URL to WebSocket URL (http(s) -> ws(s))
+    const wsProtocol = fluxbaseUrl.startsWith('https') ? 'wss' : 'ws';
+    const wsBaseUrl = fluxbaseUrl.replace(/^https?:/, wsProtocol + ':');
+    this.ai = new FluxbaseAI(this.fetch, wsBaseUrl);
 
     // Subscribe to auth changes to update realtime token
     this.setupAuthSync();

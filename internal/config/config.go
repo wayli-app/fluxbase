@@ -27,6 +27,8 @@ type Config struct {
 	Migrations MigrationsConfig `mapstructure:"migrations"`
 	Jobs       JobsConfig       `mapstructure:"jobs"`
 	Tracing    TracingConfig    `mapstructure:"tracing"`
+	AI         AIConfig         `mapstructure:"ai"`
+	RPC        RPCConfig        `mapstructure:"rpc"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
 }
@@ -209,6 +211,53 @@ type MigrationsConfig struct {
 	Enabled           bool     `mapstructure:"enabled"`             // Enable migrations API (enabled by default)
 	AllowedIPRanges   []string `mapstructure:"allowed_ip_ranges"`   // IP CIDR ranges allowed to access migrations API
 	RequireServiceKey bool     `mapstructure:"require_service_key"` // Require service key authentication (always true for security)
+}
+
+// AIConfig contains AI chatbot settings
+type AIConfig struct {
+	Enabled             bool          `mapstructure:"enabled"`               // Enable AI chatbot functionality
+	ChatbotsDir         string        `mapstructure:"chatbots_dir"`          // Directory for chatbot definitions
+	AutoLoadOnBoot      bool          `mapstructure:"auto_load_on_boot"`     // Load chatbots from filesystem at boot
+	DefaultMaxTokens    int           `mapstructure:"default_max_tokens"`    // Default max tokens per request
+	DefaultModel        string        `mapstructure:"default_model"`         // Default AI model
+	QueryTimeout        time.Duration `mapstructure:"query_timeout"`         // SQL query execution timeout
+	MaxRowsPerQuery     int           `mapstructure:"max_rows_per_query"`    // Max rows returned per query
+	ConversationCacheTTL time.Duration `mapstructure:"conversation_cache_ttl"` // TTL for conversation cache
+	MaxConversationTurns int          `mapstructure:"max_conversation_turns"` // Max turns per conversation
+	EncryptionKey       string        `mapstructure:"encryption_key"`        // Key for encrypting API keys (32 bytes)
+	SyncAllowedIPRanges []string      `mapstructure:"sync_allowed_ip_ranges"` // IP CIDR ranges allowed to sync chatbots
+
+	// Provider Configuration (read-only in dashboard when set)
+	ProviderType         string `mapstructure:"provider_type"`          // Provider type: openai, azure, ollama
+	ProviderEnabled      bool   `mapstructure:"provider_enabled"`       // Enable config-based provider
+	ProviderName         string `mapstructure:"provider_name"`          // Display name for config provider
+	ProviderModel        string `mapstructure:"provider_model"`         // Default model for config provider
+
+	// OpenAI Settings
+	OpenAIAPIKey         string `mapstructure:"openai_api_key"`
+	OpenAIOrganizationID string `mapstructure:"openai_organization_id"`
+	OpenAIBaseURL        string `mapstructure:"openai_base_url"`
+
+	// Azure Settings
+	AzureAPIKey         string `mapstructure:"azure_api_key"`
+	AzureEndpoint       string `mapstructure:"azure_endpoint"`
+	AzureDeploymentName string `mapstructure:"azure_deployment_name"`
+	AzureAPIVersion     string `mapstructure:"azure_api_version"`
+
+	// Ollama Settings
+	OllamaEndpoint string `mapstructure:"ollama_endpoint"`
+	OllamaModel    string `mapstructure:"ollama_model"`
+}
+
+// RPCConfig contains RPC (Remote Procedure Call) configuration
+type RPCConfig struct {
+	Enabled                 bool          `mapstructure:"enabled"`                   // Enable RPC functionality
+	ProceduresDir           string        `mapstructure:"procedures_dir"`            // Directory for RPC procedure definitions
+	AutoLoadOnBoot          bool          `mapstructure:"auto_load_on_boot"`         // Load procedures from filesystem at boot
+	DefaultMaxExecutionTime time.Duration `mapstructure:"default_max_execution_time"` // Default max execution time
+	MaxMaxExecutionTime     time.Duration `mapstructure:"max_max_execution_time"`    // Maximum allowed execution time
+	DefaultMaxRows          int           `mapstructure:"default_max_rows"`          // Default max rows returned
+	SyncAllowedIPRanges     []string      `mapstructure:"sync_allowed_ip_ranges"`    // IP CIDR ranges allowed to sync procedures
 }
 
 // Load loads configuration from file and environment variables
@@ -415,7 +464,7 @@ func setDefaults() {
 	viper.SetDefault("jobs.max_concurrent_per_namespace", 20) // Max concurrent jobs per namespace
 	viper.SetDefault("jobs.default_max_duration", "5m")       // 5 minutes default job timeout
 	viper.SetDefault("jobs.max_max_duration", "1h")           // 1 hour maximum job timeout
-	viper.SetDefault("jobs.default_progress_timeout", "300s") // 60 seconds progress timeout
+	viper.SetDefault("jobs.default_progress_timeout", "300s") // 5 minutes progress timeout
 	viper.SetDefault("jobs.poll_interval", "1s")              // Worker polls every 1 second
 	viper.SetDefault("jobs.worker_heartbeat_interval", "10s") // Worker heartbeat every 10 seconds
 	viper.SetDefault("jobs.worker_timeout", "30s")            // Worker considered dead after 30 seconds
@@ -433,6 +482,53 @@ func setDefaults() {
 	viper.SetDefault("tracing.environment", "development") // Default environment
 	viper.SetDefault("tracing.sample_rate", 1.0)           // 100% sampling by default (reduce in production)
 	viper.SetDefault("tracing.insecure", true)             // Use insecure connection by default (for local dev)
+
+	// AI defaults
+	viper.SetDefault("ai.enabled", true)                    // Enabled by default (controlled by feature flag at runtime)
+	viper.SetDefault("ai.chatbots_dir", "./chatbots")       // Default chatbots directory
+	viper.SetDefault("ai.auto_load_on_boot", true)          // Auto-load chatbots by default for better DX
+	viper.SetDefault("ai.default_max_tokens", 4096)         // Default max tokens per request
+	viper.SetDefault("ai.default_model", "gpt-4-turbo")     // Default AI model
+	viper.SetDefault("ai.query_timeout", "30s")             // 30 second query timeout
+	viper.SetDefault("ai.max_rows_per_query", 1000)         // Max 1000 rows per query
+	viper.SetDefault("ai.conversation_cache_ttl", "30m")    // 30 minute cache TTL
+	viper.SetDefault("ai.max_conversation_turns", 50)       // Max 50 turns per conversation
+	viper.SetDefault("ai.encryption_key", "")               // Must be set if providers are configured
+	viper.SetDefault("ai.sync_allowed_ip_ranges", []string{
+		"172.16.0.0/12",  // Docker default bridge networks
+		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)
+		"192.168.0.0/16", // Private networks
+		"127.0.0.0/8",    // Loopback (localhost)
+	})
+
+	// AI Provider Configuration defaults
+	viper.SetDefault("ai.provider_enabled", false)       // Disabled by default
+	viper.SetDefault("ai.provider_type", "")             // No default type
+	viper.SetDefault("ai.provider_name", "")             // No default name
+	viper.SetDefault("ai.provider_model", "")            // No default model
+	viper.SetDefault("ai.openai_api_key", "")            // No default API key
+	viper.SetDefault("ai.openai_organization_id", "")    // No default org ID
+	viper.SetDefault("ai.openai_base_url", "")           // No default base URL
+	viper.SetDefault("ai.azure_api_key", "")             // No default API key
+	viper.SetDefault("ai.azure_endpoint", "")            // No default endpoint
+	viper.SetDefault("ai.azure_deployment_name", "")     // No default deployment
+	viper.SetDefault("ai.azure_api_version", "")         // No default version
+	viper.SetDefault("ai.ollama_endpoint", "")           // No default endpoint
+	viper.SetDefault("ai.ollama_model", "")              // No default model
+
+	// RPC defaults
+	viper.SetDefault("rpc.enabled", true)                        // Enabled by default (controlled by feature flag at runtime)
+	viper.SetDefault("rpc.procedures_dir", "./rpc")              // Default procedures directory
+	viper.SetDefault("rpc.auto_load_on_boot", true)              // Auto-load procedures by default
+	viper.SetDefault("rpc.default_max_execution_time", "30s")    // 30 second default timeout
+	viper.SetDefault("rpc.max_max_execution_time", "5m")         // 5 minute maximum timeout
+	viper.SetDefault("rpc.default_max_rows", 1000)               // Max 1000 rows per query
+	viper.SetDefault("rpc.sync_allowed_ip_ranges", []string{
+		"172.16.0.0/12",  // Docker default bridge networks
+		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)
+		"192.168.0.0/16", // Private networks
+		"127.0.0.0/8",    // Loopback (localhost)
+	})
 
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
@@ -496,6 +592,13 @@ func (c *Config) Validate() error {
 	if c.Tracing.Enabled {
 		if err := c.Tracing.Validate(); err != nil {
 			return fmt.Errorf("tracing configuration error: %w", err)
+		}
+	}
+
+	// Validate AI configuration if enabled
+	if c.AI.Enabled {
+		if err := c.AI.Validate(); err != nil {
+			return fmt.Errorf("ai configuration error: %w", err)
 		}
 	}
 
@@ -952,6 +1055,54 @@ func (tc *TracingConfig) Validate() error {
 	// Warn if sample rate is 100% in production
 	if tc.Environment == "production" && tc.SampleRate >= 1.0 {
 		log.Warn().Msg("Tracing sample_rate is 100% in production - consider reducing to lower overhead")
+	}
+
+	return nil
+}
+
+// Validate validates AI configuration
+func (ac *AIConfig) Validate() error {
+	// Validate chatbots directory
+	if ac.ChatbotsDir == "" {
+		return fmt.Errorf("chatbots_dir cannot be empty")
+	}
+
+	// Validate token settings
+	if ac.DefaultMaxTokens <= 0 {
+		return fmt.Errorf("default_max_tokens must be positive, got: %d", ac.DefaultMaxTokens)
+	}
+
+	// Validate query timeout
+	if ac.QueryTimeout <= 0 {
+		return fmt.Errorf("query_timeout must be positive, got: %v", ac.QueryTimeout)
+	}
+
+	// Validate max rows per query
+	if ac.MaxRowsPerQuery <= 0 {
+		return fmt.Errorf("max_rows_per_query must be positive, got: %d", ac.MaxRowsPerQuery)
+	}
+
+	// Validate conversation settings
+	if ac.ConversationCacheTTL <= 0 {
+		return fmt.Errorf("conversation_cache_ttl must be positive, got: %v", ac.ConversationCacheTTL)
+	}
+	if ac.MaxConversationTurns <= 0 {
+		return fmt.Errorf("max_conversation_turns must be positive, got: %d", ac.MaxConversationTurns)
+	}
+
+	// Validate encryption key if set (must be 32 bytes for AES-256)
+	if ac.EncryptionKey != "" && len(ac.EncryptionKey) != 32 {
+		return fmt.Errorf("encryption_key must be exactly 32 bytes for AES-256, got: %d bytes", len(ac.EncryptionKey))
+	}
+
+	// Warn if encryption key is not set (API keys will be stored in plaintext)
+	if ac.EncryptionKey == "" {
+		log.Warn().Msg("AI encryption_key is not set - provider API keys will be stored without encryption")
+	}
+
+	// Warn if max rows is very high
+	if ac.MaxRowsPerQuery > 10000 {
+		log.Warn().Int("max_rows_per_query", ac.MaxRowsPerQuery).Msg("max_rows_per_query is over 10000 - large result sets may impact performance")
 	}
 
 	return nil

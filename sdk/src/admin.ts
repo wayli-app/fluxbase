@@ -26,6 +26,8 @@ import { FluxbaseManagement } from "./management";
 import { FluxbaseAdminFunctions } from "./admin-functions";
 import { FluxbaseAdminMigrations } from "./admin-migrations";
 import { FluxbaseAdminJobs } from "./admin-jobs";
+import { FluxbaseAdminAI } from "./admin-ai";
+import { FluxbaseAdminRPC } from "./admin-rpc";
 
 /**
  * Admin client for managing Fluxbase instance
@@ -79,6 +81,16 @@ export class FluxbaseAdmin {
    */
   public migrations: FluxbaseAdminMigrations;
 
+  /**
+   * AI manager for chatbot and provider management (create, update, delete, sync)
+   */
+  public ai: FluxbaseAdminAI;
+
+  /**
+   * RPC manager for procedure management (create, update, delete, sync, execution monitoring)
+   */
+  public rpc: FluxbaseAdminRPC;
+
   constructor(fetch: FluxbaseFetch) {
     this.fetch = fetch;
     this.settings = new FluxbaseSettings(fetch);
@@ -90,6 +102,8 @@ export class FluxbaseAdmin {
     this.functions = new FluxbaseAdminFunctions(fetch);
     this.jobs = new FluxbaseAdminJobs(fetch);
     this.migrations = new FluxbaseAdminMigrations(fetch);
+    this.ai = new FluxbaseAdminAI(fetch);
+    this.rpc = new FluxbaseAdminRPC(fetch);
   }
 
   /**

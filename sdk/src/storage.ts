@@ -7,6 +7,7 @@ import type {
   FileObject,
   UploadOptions,
   UploadProgress,
+  StreamUploadOptions,
   ListOptions,
   SignedUrlOptions,
   DownloadOptions,
@@ -170,6 +171,159 @@ export class StorageBucket {
 
       xhr.send(formData);
     });
+  }
+
+  /**
+   * Upload a file using streaming for reduced memory usage.
+   * This method bypasses FormData buffering and streams data directly to the server.
+   * Ideal for large files where memory efficiency is important.
+   *
+   * @param path - The path/key for the file
+   * @param stream - ReadableStream of the file data
+   * @param size - The size of the file in bytes (required for Content-Length header)
+   * @param options - Upload options
+   *
+   * @example
+   * ```typescript
+   * // Upload from a File's stream
+   * const file = new File([...], 'large-video.mp4');
+   * const { data, error } = await storage
+   *   .from('videos')
+   *   .uploadStream('video.mp4', file.stream(), file.size, {
+   *     contentType: 'video/mp4',
+   *   });
+   *
+   * // Upload from a fetch response stream
+   * const response = await fetch('https://example.com/data.zip');
+   * const size = parseInt(response.headers.get('content-length') || '0');
+   * const { data, error } = await storage
+   *   .from('files')
+   *   .uploadStream('data.zip', response.body!, size, {
+   *     contentType: 'application/zip',
+   *   });
+   * ```
+   */
+  async uploadStream(
+    path: string,
+    stream: ReadableStream<Uint8Array>,
+    size: number,
+    options?: StreamUploadOptions,
+  ): Promise<{ data: { id: string; path: string; fullPath: string } | null; error: Error | null }> {
+    try {
+      if (size <= 0) {
+        return { data: null, error: new Error('size must be a positive number') };
+      }
+
+      // Build headers for streaming upload
+      const headers: Record<string, string> = {
+        ...this.fetch["defaultHeaders"],
+        'Content-Length': String(size),
+      };
+
+      // Set content type
+      if (options?.contentType) {
+        headers['X-Storage-Content-Type'] = options.contentType;
+      }
+
+      // Set cache control
+      if (options?.cacheControl) {
+        headers['X-Storage-Cache-Control'] = options.cacheControl;
+      }
+
+      // Set metadata as JSON
+      if (options?.metadata && Object.keys(options.metadata).length > 0) {
+        headers['X-Storage-Metadata'] = JSON.stringify(options.metadata);
+      }
+
+      // Create a stream that tracks progress if callback provided
+      let bodyStream: ReadableStream<Uint8Array> = stream;
+
+      if (options?.onUploadProgress) {
+        let uploadedBytes = 0;
+        const progressCallback = options.onUploadProgress;
+        const totalSize = size;
+
+        const transformStream = new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            uploadedBytes += chunk.byteLength;
+            const percentage = Math.round((uploadedBytes / totalSize) * 100);
+            progressCallback({
+              loaded: uploadedBytes,
+              total: totalSize,
+              percentage,
+            });
+            controller.enqueue(chunk);
+          },
+        });
+
+        bodyStream = stream.pipeThrough(transformStream);
+      }
+
+      // Use fetch with streaming body
+      // Note: duplex: 'half' is required for streaming request bodies
+      const response = await fetch(
+        `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/stream/${path}`,
+        {
+          method: 'POST',
+          headers,
+          body: bodyStream,
+          signal: options?.signal,
+          // @ts-expect-error - duplex is not yet in TypeScript's RequestInit type
+          duplex: 'half',
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData.error || `Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      return {
+        data: {
+          id: result.key || path,
+          path: path,
+          fullPath: `${this.bucketName}/${path}`,
+        },
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Upload a large file using streaming for reduced memory usage.
+   * This is a convenience method that converts a File or Blob to a stream.
+   *
+   * @param path - The path/key for the file
+   * @param file - The File or Blob to upload
+   * @param options - Upload options
+   *
+   * @example
+   * ```typescript
+   * const file = new File([...], 'large-video.mp4');
+   * const { data, error } = await storage
+   *   .from('videos')
+   *   .uploadLargeFile('video.mp4', file, {
+   *     contentType: 'video/mp4',
+   *     onUploadProgress: (p) => console.log(`${p.percentage}% complete`),
+   *   });
+   * ```
+   */
+  async uploadLargeFile(
+    path: string,
+    file: File | Blob,
+    options?: StreamUploadOptions,
+  ): Promise<{ data: { id: string; path: string; fullPath: string } | null; error: Error | null }> {
+    // Use file's type if contentType not specified
+    const opts: StreamUploadOptions = {
+      ...options,
+      contentType: options?.contentType || file.type || 'application/octet-stream',
+    };
+
+    return this.uploadStream(path, file.stream(), file.size, opts);
   }
 
   /**

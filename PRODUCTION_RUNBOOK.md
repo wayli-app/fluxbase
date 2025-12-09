@@ -993,7 +993,7 @@ sudo systemctl start fluxbase
 
 **Documentation**: https://docs.fluxbase.io
 **GitHub Issues**: https://github.com/your-org/fluxbase/issues
-**Community Discord**: https://discord.gg/fluxbase
+**Community Discord**: https://discord.gg/BXPRHkQzkA
 
 ---
 

@@ -326,14 +326,53 @@ interface StorageFile {
 }
 
 /**
+ * User context for submitting jobs on behalf of another user.
+ * Only available when using fluxbaseService (service_role).
+ */
+interface OnBehalfOf {
+  /** User ID (UUID) to submit the job as */
+  user_id: string;
+  /** Optional email address of the user */
+  user_email?: string;
+  /** Optional role of the user (defaults to "authenticated") */
+  user_role?: string;
+}
+
+/**
  * Jobs client for submitting follow-up jobs
  */
 interface FluxbaseJobsClient {
-  /** Submit a new job */
+  /**
+   * Submit a new job
+   *
+   * @example
+   * ```typescript
+   * // Submit a job (inherits current user context)
+   * await fluxbase.jobs.submit('process-data', { items: [1, 2, 3] });
+   *
+   * // Submit on behalf of a user (service client only)
+   * await fluxbaseService.jobs.submit('user-task', payload, {
+   *   onBehalfOf: {
+   *     user_id: 'user-uuid',
+   *     user_email: 'user@example.com'
+   *   }
+   * });
+   * ```
+   */
   submit(
     jobName: string,
     payload?: Record<string, any>,
-    options?: { namespace?: string; priority?: number; scheduledAt?: Date }
+    options?: {
+      namespace?: string;
+      priority?: number;
+      scheduledAt?: Date;
+      /**
+       * Submit job on behalf of another user (fluxbaseService only).
+       * The job will be created with the specified user's identity,
+       * allowing them to see the job and its logs via RLS.
+       */
+      onBehalfOf?: OnBehalfOf;
+    }
   ): Promise<{ data: { id: string } | null; error: any }>;
 
   /** Get job status */

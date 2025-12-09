@@ -68,8 +68,8 @@ func NewCustomSettingsService(db *database.Connection) *CustomSettingsService {
 
 // CanEditSetting checks if the given role can edit a specific setting
 func CanEditSetting(editableBy []string, userRole string) bool {
-	// dashboard_admin can edit everything
-	if userRole == "dashboard_admin" {
+	// dashboard_admin, admin, and service_role can edit everything
+	if userRole == "dashboard_admin" || userRole == "admin" || userRole == "service_role" {
 		return true
 	}
 

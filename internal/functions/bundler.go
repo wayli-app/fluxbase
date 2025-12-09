@@ -171,20 +171,23 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build deno bundle command with optional global config
-	args := []string{"bundle"}
-
-	// Add global config if it exists
-	globalConfig := b.getGlobalDenoConfig()
-	if globalConfig != "" {
-		args = append(args, "--config", globalConfig)
-		log.Debug().Str("config", globalConfig).Msg("Using global deno config for bundling")
+	// Build esbuild command via Deno (replaces deprecated deno bundle)
+	args := []string{
+		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		inputPath,
+		"--bundle",
+		"--format=esm",
+		"--platform=neutral",
+		"--target=esnext",
+		"--outfile=" + outputPath,
+		// Mark Deno-specific imports as external - Deno resolves them at runtime
+		"--external:npm:*",
+		"--external:https://*",
+		"--external:http://*",
+		"--external:jsr:*",
 	}
 
-	args = append(args, inputPath, outputPath)
-
-	// Run deno bundle
-	// Note: deno bundle is deprecated in Deno 2.0+ but still works
+	// Run esbuild via Deno
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 
 	// Capture stdout and stderr
@@ -428,30 +431,32 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build deno bundle command with config
-	// If function has its own deno.json in tmpDir, use that
-	// Otherwise use global config
-	args := []string{"bundle"}
-
-	functionDenoConfigPath := fmt.Sprintf("%s/deno.json", tmpDir)
-	if _, err := os.Stat(functionDenoConfigPath); err == nil {
-		// Function has its own deno.json, use it (it was already merged with global)
-		args = append(args, "--config", functionDenoConfigPath)
-		log.Debug().Str("config", functionDenoConfigPath).Msg("Using function-specific deno config")
-	} else {
-		// No function-specific config, use global if available
-		globalConfig := b.getGlobalDenoConfig()
-		if globalConfig != "" {
-			args = append(args, "--config", globalConfig)
-			log.Debug().Str("config", globalConfig).Msg("Using global deno config for bundling")
-		}
+	// Build esbuild command via Deno (replaces deprecated deno bundle)
+	args := []string{
+		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		mainPath,
+		"--bundle",
+		"--format=esm",
+		"--platform=neutral",
+		"--target=esnext",
+		"--outfile=" + outputPath,
+		// Mark Deno-specific imports as external - Deno resolves them at runtime
+		"--external:npm:*",
+		"--external:https://*",
+		"--external:http://*",
+		"--external:jsr:*",
 	}
 
-	args = append(args, mainPath, outputPath)
+	log.Debug().
+		Str("command", b.denoPath).
+		Strs("args", args).
+		Str("dir", tmpDir).
+		Msg("Running esbuild for multi-file bundle")
 
-	// Run deno bundle on the main file (index.ts)
-	// Deno will automatically resolve local imports from the directory
+	// Run esbuild via Deno on the main file (index.ts)
+	// esbuild will automatically resolve local imports from the directory
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
+	cmd.Dir = tmpDir
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
@@ -796,6 +801,57 @@ func inlineAllImports(mainCode string, sharedModules map[string]string, denoJSON
 	}
 
 	return result.String(), nil
+}
+
+// bundleWithEsbuild uses esbuild via Deno to bundle code
+// This replaces deno bundle which is broken in Deno 2.x
+func (b *Bundler) bundleWithEsbuild(ctx context.Context, tmpDir, mainPath, outputPath string) error {
+	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	args := []string{
+		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		mainPath,
+		"--bundle",
+		"--format=esm",
+		"--platform=neutral",
+		"--target=esnext",
+		"--outfile=" + outputPath,
+		// Mark Deno-specific imports as external - Deno resolves them at runtime
+		"--external:npm:*",
+		"--external:https://*",
+		"--external:http://*",
+		"--external:jsr:*",
+	}
+
+	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
+	cmd.Dir = tmpDir
+
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Debug().
+		Str("command", b.denoPath).
+		Strs("args", args).
+		Str("dir", tmpDir).
+		Msg("Running esbuild")
+
+	if err := cmd.Run(); err != nil {
+		if bundleCtx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("esbuild timeout after 30s")
+		}
+		errMsg := stderr.String()
+		if errMsg == "" {
+			errMsg = stdout.String()
+		}
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		return fmt.Errorf("esbuild failed: %s", cleanBundleError(errMsg))
+	}
+
+	return nil
 }
 
 // extractExportNames extracts exported names from ES6 export statements

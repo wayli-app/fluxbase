@@ -82,12 +82,13 @@ func (m *JWTManager) GenerateAccessToken(userID, email, role string, userMetadat
 }
 
 // GenerateRefreshToken generates a new refresh token
-func (m *JWTManager) GenerateRefreshToken(userID, email, sessionID string, userMetadata, appMetadata any) (string, *TokenClaims, error) {
+func (m *JWTManager) GenerateRefreshToken(userID, email, role, sessionID string, userMetadata, appMetadata any) (string, *TokenClaims, error) {
 	now := time.Now()
 
 	claims := &TokenClaims{
 		UserID:       userID,
 		Email:        email,
+		Role:         role,
 		SessionID:    sessionID,
 		TokenType:    "refresh",
 		UserMetadata: userMetadata,
@@ -121,8 +122,8 @@ func (m *JWTManager) GenerateTokenPair(userID, email, role string, userMetadata,
 
 	sessionID = claims.SessionID
 
-	// Generate refresh token with the same session ID
-	refreshToken, _, err = m.GenerateRefreshToken(userID, email, sessionID, userMetadata, appMetadata)
+	// Generate refresh token with the same session ID and role
+	refreshToken, _, err = m.GenerateRefreshToken(userID, email, role, sessionID, userMetadata, appMetadata)
 	if err != nil {
 		return "", "", "", err
 	}

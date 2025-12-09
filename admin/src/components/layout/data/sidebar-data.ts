@@ -18,6 +18,8 @@ import {
   Mail,
   ShieldCheck,
   ListTodo,
+  Bot,
+  Terminal,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -92,6 +94,16 @@ export const sidebarData: SidebarData = {
           title: 'Jobs',
           url: '/jobs',
           icon: ListTodo,
+        },
+        {
+          title: 'RPC',
+          url: '/rpc',
+          icon: Terminal,
+        },
+        {
+          title: 'AI Chatbots',
+          url: '/chatbots',
+          icon: Bot,
         },
       ],
     },

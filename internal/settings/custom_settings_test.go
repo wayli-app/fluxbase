@@ -26,10 +26,16 @@ func TestCanEditSetting(t *testing.T) {
 			expected:   true,
 		},
 		{
-			name:       "admin cannot edit if not in list",
+			name:       "admin can always edit",
 			editableBy: []string{"dashboard_admin"},
 			userRole:   "admin",
-			expected:   false,
+			expected:   true,
+		},
+		{
+			name:       "service_role can always edit",
+			editableBy: []string{"dashboard_admin"},
+			userRole:   "service_role",
+			expected:   true,
 		},
 		{
 			name:       "unknown role cannot edit",
@@ -44,10 +50,10 @@ func TestCanEditSetting(t *testing.T) {
 			expected:   true,
 		},
 		{
-			name:       "empty editableBy list, admin cannot edit",
+			name:       "empty editableBy list, admin can still edit",
 			editableBy: []string{},
 			userRole:   "admin",
-			expected:   false,
+			expected:   true,
 		},
 	}
 

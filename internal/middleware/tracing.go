@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
@@ -179,29 +180,14 @@ func StartChildSpan(c *fiber.Ctx, name string, opts ...trace.SpanStartOption) (t
 	tracer := otel.Tracer("fluxbase-http")
 
 	// Get parent context from Fiber locals
-	var parentCtx interface{}
-	if ctx := c.Locals("trace_ctx"); ctx != nil {
-		parentCtx = ctx
-	}
-
-	// If we have a parent context, use it
-	if pctx, ok := parentCtx.(interface{ Done() <-chan struct{} }); ok {
-		_, span := tracer.Start(pctx.(interface {
-			Done() <-chan struct{}
-			Err() error
-			Value(key interface{}) interface{}
-			Deadline() (interface{}, bool)
-		}).(interface {
-			Done() <-chan struct{}
-			Err() error
-			Value(key interface{}) interface{}
-		}), name, opts...)
-		return span, span.End
+	if ctx, ok := c.Locals("trace_ctx").(context.Context); ok {
+		_, span := tracer.Start(ctx, name, opts...)
+		return span, func() { span.End() }
 	}
 
 	// Otherwise create a new span
 	_, span := tracer.Start(c.Context(), name, opts...)
-	return span, span.End
+	return span, func() { span.End() }
 }
 
 // AddSpanEvent adds an event to the current span

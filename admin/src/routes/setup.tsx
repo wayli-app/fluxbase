@@ -9,7 +9,6 @@ import { PasswordInput } from '@/components/password-input'
 import { adminAuthAPI } from '@/lib/api'
 import { setTokens } from '@/lib/auth'
 import { setAuthToken } from '@/lib/fluxbase-client'
-import { Command } from 'lucide-react'
 
 export const Route = createFileRoute('/setup')({
   component: SetupPage,
@@ -111,9 +110,11 @@ function SetupPage() {
       <div className='w-full max-w-md space-y-8'>
         {/* Logo and Title */}
         <div className='text-center'>
-          <div className='mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary'>
-            <Command className='h-8 w-8 text-primary-foreground' />
-          </div>
+          <img
+            src='/admin/images/logo-icon.svg'
+            alt='Fluxbase'
+            className='mx-auto h-16 w-16'
+          />
           <h1 className='mt-6 text-3xl font-bold tracking-tight'>Welcome to Fluxbase</h1>
           <p className='mt-2 text-sm text-muted-foreground'>
             Set up your admin account to get started

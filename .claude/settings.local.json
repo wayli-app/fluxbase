@@ -58,7 +58,10 @@
       "Bash(timeout 120 npm run build:*)",
       "Bash(npm uninstall:*)",
       "Bash(git check-ignore:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(wc:*)",
+      "Bash(go get:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

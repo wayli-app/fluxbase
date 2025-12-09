@@ -26,8 +26,8 @@ func quoteIdentifier(s string) string {
 	if !isValidIdentifier(s) {
 		return ""
 	}
-	// Double-quote the identifier to handle reserved words and ensure safety
-	return `"` + s + `"`
+	// Escape any embedded double quotes and wrap in double quotes
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }
 
 // QueryParams represents parsed query parameters for REST API

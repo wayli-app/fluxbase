@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   Play,
@@ -11,6 +11,12 @@ import {
   Clock,
   HardDrive,
   Zap,
+  Activity,
+  Search,
+  Filter,
+  CheckCircle,
+  XCircle,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -62,6 +68,7 @@ import {
   functionsApi,
   type EdgeFunction,
   type EdgeFunctionExecution,
+  type FunctionExecutionLog,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
@@ -70,7 +77,7 @@ export const Route = createFileRoute('/_authenticated/functions/')({
 
 function FunctionsPage() {
   return (
-    <div className='flex flex-col gap-6 p-6'>
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <ImpersonationBanner />
 
       <div className='flex items-center justify-between'>
@@ -142,8 +149,14 @@ function HeadersEditor({ headers, onChange }: HeadersEditorProps) {
   )
 }
 
+const EXECUTIONS_PAGE_SIZE = 50
+
 // Edge Functions Component
 function EdgeFunctionsTab() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'executions' | 'functions'>('executions')
+
+  // Existing state
   const [edgeFunctions, setEdgeFunctions] = useState<EdgeFunction[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -156,6 +169,18 @@ function EdgeFunctionsTab() {
   )
   const [executions, setExecutions] = useState<EdgeFunctionExecution[]>([])
   const [invoking, setInvoking] = useState(false)
+
+  // All executions state (for admin executions tab)
+  const [allExecutions, setAllExecutions] = useState<EdgeFunctionExecution[]>([])
+  const [executionsLoading, setExecutionsLoading] = useState(false)
+  const [executionsOffset, setExecutionsOffset] = useState(0)
+  const [hasMoreExecutions, setHasMoreExecutions] = useState(true)
+  const [loadingMoreExecutions, setLoadingMoreExecutions] = useState(false)
+  const [totalExecutions, setTotalExecutions] = useState(0)
+
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [invokeResult, setInvokeResult] = useState<{
     success: boolean
     data: string
@@ -167,6 +192,16 @@ function EdgeFunctionsTab() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
+
+  // Execution detail dialog state
+  const [showExecutionDetailDialog, setShowExecutionDetailDialog] = useState(false)
+  const [selectedExecution, setSelectedExecution] = useState<EdgeFunctionExecution | null>(null)
+  const [executionLogs, setExecutionLogs] = useState<FunctionExecutionLog[]>([])
+  const [executionLogsLoading, setExecutionLogsLoading] = useState(false)
+  const [logLevelFilter, setLogLevelFilter] = useState<string>('all')
+
+  // Ref to track initial fetch (prevents debounced search from re-fetching on mount)
+  const hasInitialFetch = useRef(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -267,6 +302,102 @@ async function handler(req: Request) {
     }
   }, [selectedNamespace])
 
+  // Fetch all executions for the executions tab
+  const fetchAllExecutions = useCallback(async (reset = true) => {
+    const isReset = reset
+    if (isReset) {
+      setExecutionsLoading(true)
+      setExecutionsOffset(0)
+    } else {
+      setLoadingMoreExecutions(true)
+    }
+
+    try {
+      const offset = isReset ? 0 : executionsOffset
+      const result = await functionsApi.listAllExecutions({
+        namespace: selectedNamespace !== 'all' ? selectedNamespace : undefined,
+        function_name: searchQuery || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        limit: EXECUTIONS_PAGE_SIZE,
+        offset,
+      })
+
+      const execList = result.executions || []
+      if (isReset) {
+        setAllExecutions(execList)
+        setExecutionsOffset(EXECUTIONS_PAGE_SIZE)
+      } else {
+        setAllExecutions((prev) => [...prev, ...execList])
+        setExecutionsOffset((prev) => prev + EXECUTIONS_PAGE_SIZE)
+      }
+
+      setTotalExecutions(result.count || 0)
+      setHasMoreExecutions(execList.length >= EXECUTIONS_PAGE_SIZE)
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching executions:', error)
+      toast.error('Failed to fetch executions')
+    } finally {
+      setExecutionsLoading(false)
+      setLoadingMoreExecutions(false)
+    }
+  // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNamespace, searchQuery, statusFilter])
+
+  // Filter executions from past 24 hours (for stats display only)
+  const executions24h = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    return allExecutions.filter((exec) => {
+      const execTime = new Date(exec.executed_at).getTime()
+      return execTime >= cutoff
+    })
+  }, [allExecutions])
+
+  // Calculate stats from past 24 hours
+  const executionStats = useMemo(() => {
+    const success = executions24h.filter((e) => e.status === 'success').length
+    const failed = executions24h.filter((e) => e.status === 'error' || e.status === 'failed').length
+    const total = executions24h.length
+    const avgDuration = executions24h.length > 0
+      ? Math.round(executions24h.reduce((sum, e) => sum + (e.duration_ms || 0), 0) / executions24h.length)
+      : 0
+    return { success, failed, total, avgDuration }
+  }, [executions24h])
+
+  // Filter logs by level
+  const filteredLogs = useMemo(() => {
+    if (logLevelFilter === 'all') return executionLogs
+    return executionLogs.filter((log) => log.level === logLevelFilter)
+  }, [executionLogs, logLevelFilter])
+
+  // Open execution detail dialog
+  const openExecutionDetail = async (exec: EdgeFunctionExecution) => {
+    setSelectedExecution(exec)
+    setShowExecutionDetailDialog(true)
+    setExecutionLogs([])
+    setLogLevelFilter('all')
+    setExecutionLogsLoading(true)
+
+    try {
+      const result = await functionsApi.getExecutionLogs(exec.id)
+      setExecutionLogs(result.logs || [])
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching execution logs:', error)
+      // If there are no structured logs, the execution might be old (before the new table)
+      // The dialog will show the blob logs from exec.logs instead
+    } finally {
+      setExecutionLogsLoading(false)
+    }
+  }
+
+  // Copy to clipboard helper
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied to clipboard`)
+  }
+
   // Fetch namespaces on mount
   useEffect(() => {
     const fetchNamespaces = async () => {
@@ -287,6 +418,28 @@ async function handler(req: Request) {
   useEffect(() => {
     fetchEdgeFunctions()
   }, [fetchEdgeFunctions, selectedNamespace])
+
+  // Fetch executions when tab changes to executions or filters change
+  useEffect(() => {
+    if (activeTab === 'executions') {
+      hasInitialFetch.current = true
+      fetchAllExecutions(true)
+    }
+  }, [activeTab, selectedNamespace, statusFilter, fetchAllExecutions])
+
+  // Debounced search - skip initial mount to prevent double-fetch
+  useEffect(() => {
+    if (activeTab !== 'executions') return
+    // Skip the first render - the main effect above handles initial fetch
+    if (!hasInitialFetch.current) return
+    const timer = setTimeout(() => {
+      fetchAllExecutions(true)
+    }, 300)
+    return () => clearTimeout(timer)
+  // activeTab and fetchAllExecutions intentionally excluded - activeTab is checked inside,
+  // and fetchAllExecutions is memoized based on filters which trigger separate effects
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   const createFunction = async () => {
     try {
@@ -476,88 +629,279 @@ async function handler(req: Request) {
 
   return (
     <>
-      <div className='flex items-center justify-between'>
-        <div>
-          <h2 className='text-2xl font-bold'>Edge Functions</h2>
-          <p className='text-muted-foreground text-sm'>
-            Deploy and run TypeScript/JavaScript functions with Deno runtime
-          </p>
+      {/* Stats (Past 24 hours) */}
+      <Card className='!gap-0 !py-0'>
+        <CardContent className='px-4 py-2'>
+          <div className='flex items-center gap-4'>
+            <span className='text-muted-foreground text-xs'>(Past 24 hours)</span>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Success:</span>
+              <span className='text-sm font-semibold'>
+                {executionStats.success}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Failed:</span>
+              <span className='text-sm font-semibold'>
+                {executionStats.failed}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Total:</span>
+              <span className='text-sm font-semibold'>
+                {executionStats.total}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Success Rate:</span>
+              {(() => {
+                const total = executionStats.success + executionStats.failed
+                const successRate =
+                  total > 0
+                    ? ((executionStats.success / total) * 100).toFixed(0)
+                    : '0'
+                return (
+                  <span className='text-sm font-semibold'>
+                    {successRate}%
+                  </span>
+                )
+              })()}
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Avg. Duration:</span>
+              <span className='text-sm font-semibold'>
+                {executionStats.avgDuration}ms
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as 'executions' | 'functions')}
+        className='flex min-h-0 flex-1 flex-col'
+      >
+        <div className='flex items-center justify-between mb-4'>
+          <TabsList className='grid w-full max-w-md grid-cols-2'>
+            <TabsTrigger value='executions'>
+              <Activity className='mr-2 h-4 w-4' />
+              Execution Logs
+            </TabsTrigger>
+            <TabsTrigger value='functions'>
+              <Zap className='mr-2 h-4 w-4' />
+              Functions
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='edge-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
-              Namespace:
-            </Label>
-            <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
-              <SelectTrigger id='edge-namespace-select' className='w-[180px]'>
-                <SelectValue placeholder='Select namespace' />
+
+        {/* Executions Tab */}
+        <TabsContent value='executions' className='flex-1 mt-0'>
+          {/* Executions Filters */}
+          <div className='flex items-center gap-3 mb-4'>
+            <div className='flex items-center gap-2'>
+              <Label htmlFor='exec-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
+                Namespace:
+              </Label>
+              <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
+                <SelectTrigger id='exec-namespace-select' className='w-[150px]'>
+                  <SelectValue placeholder='Select namespace' />
+                </SelectTrigger>
+                <SelectContent>
+                  {namespaces.map((ns) => (
+                    <SelectItem key={ns} value={ns}>
+                      {ns}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='relative flex-1 max-w-xs'>
+              <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+              <Input
+                placeholder='Search by function name...'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className='pl-9'
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className='w-[150px]'>
+                <Filter className='mr-2 h-4 w-4' />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {namespaces.map((ns) => (
-                  <SelectItem key={ns} value={ns}>
-                    {ns}
-                  </SelectItem>
-                ))}
+                <SelectItem value='all'>All Status</SelectItem>
+                <SelectItem value='success'>Success</SelectItem>
+                <SelectItem value='error'>Error</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              onClick={() => fetchAllExecutions(true)}
+              variant='outline'
+              size='sm'
+            >
+              <RefreshCw className='mr-2 h-4 w-4' />
+              Refresh
+            </Button>
           </div>
-          <Button
-            onClick={handleReloadClick}
-            variant='outline'
-            size='sm'
-            disabled={reloading}
-          >
-            {reloading ? (
-              <>
-                <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
-                Reloading...
-              </>
+
+          {/* Executions List */}
+          <ScrollArea className='h-[calc(100vh-24rem)]'>
+            {executionsLoading ? (
+              <div className='flex h-48 items-center justify-center'>
+                <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+              </div>
+            ) : allExecutions.length === 0 ? (
+              <Card>
+                <CardContent className='p-12 text-center'>
+                  <Activity className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
+                  <p className='mb-2 text-lg font-medium'>No executions found</p>
+                  <p className='text-muted-foreground text-sm'>
+                    Execute some functions to see their logs here
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              <>
-                <HardDrive className='mr-2 h-4 w-4' />
-                Reload from Filesystem
-              </>
+              <div className='grid gap-1'>
+                {allExecutions.map((exec) => (
+                  <div
+                    key={exec.id}
+                    className='flex items-center justify-between gap-2 px-3 py-2 rounded-md border hover:border-primary/50 transition-colors bg-card cursor-pointer'
+                    onClick={() => openExecutionDetail(exec)}
+                  >
+                    <div className='flex items-center gap-3 min-w-0 flex-1'>
+                      {exec.status === 'success' ? (
+                        <CheckCircle className='h-4 w-4 text-green-500 shrink-0' />
+                      ) : (
+                        <XCircle className='h-4 w-4 text-red-500 shrink-0' />
+                      )}
+                      <span className='text-sm font-medium truncate'>
+                        {exec.function_name || 'Unknown'}
+                      </span>
+                      <Badge variant={exec.status === 'success' ? 'secondary' : 'destructive'} className='shrink-0 text-[10px] px-1.5 py-0 h-4'>
+                        {exec.status}
+                      </Badge>
+                      {exec.status_code && (
+                        <Badge variant='outline' className='shrink-0 text-[10px] px-1.5 py-0 h-4'>
+                          {exec.status_code}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className='flex items-center gap-3 shrink-0'>
+                      <span className='text-xs text-muted-foreground'>
+                        {exec.duration_ms ? `${exec.duration_ms}ms` : '-'}
+                      </span>
+                      <span className='text-xs text-muted-foreground'>
+                        {new Date(exec.executed_at).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {hasMoreExecutions && (
+                  <div className='mt-4 flex flex-col items-center gap-2'>
+                    <span className='text-xs text-muted-foreground'>
+                      Showing {allExecutions.length} of {totalExecutions} executions
+                    </span>
+                    <Button
+                      variant='outline'
+                      onClick={() => fetchAllExecutions(false)}
+                      disabled={loadingMoreExecutions}
+                    >
+                      {loadingMoreExecutions ? (
+                        <>
+                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                          Loading...
+                        </>
+                      ) : (
+                        'Load More'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
-          </Button>
-          <Button
-            onClick={() => fetchEdgeFunctions()}
-            variant='outline'
-            size='sm'
-          >
-            <RefreshCw className='mr-2 h-4 w-4' />
-            Refresh
-          </Button>
-          <Button onClick={() => setShowCreateDialog(true)} size='sm'>
-            <Plus className='mr-2 h-4 w-4' />
-            New Function
-          </Button>
-        </div>
-      </div>
+          </ScrollArea>
+        </TabsContent>
 
-      {/* Stats - Compact inline design */}
-      <div className='flex gap-4 text-sm'>
-        <div className='flex items-center gap-1.5'>
-          <span className='text-muted-foreground'>Total:</span>
-          <Badge variant='secondary' className='h-5 px-2'>
-            {edgeFunctions.length}
-          </Badge>
-        </div>
-        <div className='flex items-center gap-1.5'>
-          <span className='text-muted-foreground'>Active:</span>
-          <Badge variant='secondary' className='h-5 px-2 bg-green-500/10 text-green-600 dark:text-green-400'>
-            {edgeFunctions.filter((f) => f.enabled).length}
-          </Badge>
-        </div>
-        <div className='flex items-center gap-1.5'>
-          <span className='text-muted-foreground'>Scheduled:</span>
-          <Badge variant='secondary' className='h-5 px-2'>
-            {edgeFunctions.filter((f) => f.cron_schedule).length}
-          </Badge>
-        </div>
-      </div>
+        {/* Functions Tab */}
+        <TabsContent value='functions' className='flex-1 mt-0'>
+          {/* Functions Controls */}
+          <div className='flex items-center justify-end gap-2 mb-4'>
+            <div className='flex items-center gap-2'>
+              <Label htmlFor='func-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
+                Namespace:
+              </Label>
+              <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
+                <SelectTrigger id='func-namespace-select' className='w-[180px]'>
+                  <SelectValue placeholder='Select namespace' />
+                </SelectTrigger>
+                <SelectContent>
+                  {namespaces.map((ns) => (
+                    <SelectItem key={ns} value={ns}>
+                      {ns}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleReloadClick}
+              variant='outline'
+              size='sm'
+              disabled={reloading}
+            >
+              {reloading ? (
+                <>
+                  <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                  Reloading...
+                </>
+              ) : (
+                <>
+                  <HardDrive className='mr-2 h-4 w-4' />
+                  Reload from Filesystem
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => fetchEdgeFunctions()}
+              variant='outline'
+              size='sm'
+            >
+              <RefreshCw className='mr-2 h-4 w-4' />
+              Refresh
+            </Button>
+            <Button onClick={() => setShowCreateDialog(true)} size='sm'>
+              <Plus className='mr-2 h-4 w-4' />
+              New Function
+            </Button>
+          </div>
 
-      {/* Functions List */}
-      <ScrollArea className='h-[calc(100vh-16rem)]'>
+          {/* Functions Stats */}
+          <div className='flex gap-4 text-sm mb-4'>
+            <div className='flex items-center gap-1.5'>
+              <span className='text-muted-foreground'>Total:</span>
+              <Badge variant='secondary' className='h-5 px-2'>
+                {edgeFunctions.length}
+              </Badge>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              <span className='text-muted-foreground'>Active:</span>
+              <Badge variant='secondary' className='h-5 px-2 bg-green-500/10 text-green-600 dark:text-green-400'>
+                {edgeFunctions.filter((f) => f.enabled).length}
+              </Badge>
+            </div>
+            <div className='flex items-center gap-1.5'>
+              <span className='text-muted-foreground'>Scheduled:</span>
+              <Badge variant='secondary' className='h-5 px-2'>
+                {edgeFunctions.filter((f) => f.cron_schedule).length}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Functions List */}
+          <ScrollArea className='h-[calc(100vh-20rem)]'>
         <div className='grid gap-1'>
           {edgeFunctions.length === 0 ? (
             <Card>
@@ -656,7 +1000,9 @@ async function handler(req: Request) {
             ))
           )}
         </div>
-      </ScrollArea>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
@@ -1212,6 +1558,165 @@ async function handler(req: Request) {
               Copy
             </Button>
             <Button onClick={() => setShowResultDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Execution Detail Dialog */}
+      <Dialog open={showExecutionDetailDialog} onOpenChange={setShowExecutionDetailDialog}>
+        <DialogContent className='max-h-[90vh] w-[90vw] max-w-[1600px] overflow-hidden flex flex-col sm:max-w-none'>
+          <DialogHeader>
+            <DialogTitle>Execution Details</DialogTitle>
+            <DialogDescription>
+              {selectedExecution?.function_name || 'Unknown Function'} - {selectedExecution?.id?.slice(0, 8)}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedExecution && (
+            <div className='flex flex-col gap-4 overflow-y-auto flex-1 pr-2'>
+              {/* Status and Metadata */}
+              <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Status</Label>
+                  <div className='mt-1'>
+                    <Badge variant={selectedExecution.status === 'success' ? 'secondary' : 'destructive'}>
+                      {selectedExecution.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Status Code</Label>
+                  <p className='font-mono text-sm'>{selectedExecution.status_code ?? '-'}</p>
+                </div>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Duration</Label>
+                  <p className='font-mono text-sm'>
+                    {selectedExecution.duration_ms ? `${selectedExecution.duration_ms}ms` : '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Trigger</Label>
+                  <p className='font-mono text-sm'>{selectedExecution.trigger_type}</p>
+                </div>
+              </div>
+
+              <div className='grid grid-cols-2 gap-4'>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Started</Label>
+                  <p className='font-mono text-sm'>
+                    {new Date(selectedExecution.executed_at).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Completed</Label>
+                  <p className='font-mono text-sm'>
+                    {selectedExecution.completed_at
+                      ? new Date(selectedExecution.completed_at).toLocaleString()
+                      : '-'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Result */}
+              {selectedExecution.result && (
+                <div>
+                  <div className='flex items-center justify-between mb-2'>
+                    <Label>Result</Label>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => copyToClipboard(selectedExecution.result || '', 'Result')}
+                    >
+                      <Copy className='h-3 w-3' />
+                    </Button>
+                  </div>
+                  <pre className='bg-muted rounded-md p-3 text-xs overflow-auto max-h-32'>
+                    {selectedExecution.result}
+                  </pre>
+                </div>
+              )}
+
+              {/* Error */}
+              {selectedExecution.error_message && (
+                <div>
+                  <Label className='text-destructive'>Error</Label>
+                  <pre className='bg-destructive/10 text-destructive rounded-md p-3 text-xs overflow-auto max-h-32 mt-2'>
+                    {selectedExecution.error_message}
+                  </pre>
+                </div>
+              )}
+
+              {/* Logs Section */}
+              <div className='flex-1 min-h-0'>
+                <div className='flex items-center justify-between mb-2'>
+                  <Label>Logs</Label>
+                  <div className='flex items-center gap-2'>
+                    <Select value={logLevelFilter} onValueChange={setLogLevelFilter}>
+                      <SelectTrigger className='w-[120px] h-8 text-xs'>
+                        <SelectValue placeholder='Filter level' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='all'>All Levels</SelectItem>
+                        <SelectItem value='debug'>Debug</SelectItem>
+                        <SelectItem value='info'>Info</SelectItem>
+                        <SelectItem value='warn'>Warn</SelectItem>
+                        <SelectItem value='error'>Error</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => {
+                        const logsText = filteredLogs.length > 0
+                          ? filteredLogs.map((l) => `[${l.level.toUpperCase()}] ${l.message}`).join('\n')
+                          : selectedExecution.logs || ''
+                        copyToClipboard(logsText, 'Logs')
+                      }}
+                    >
+                      <Copy className='h-3 w-3' />
+                    </Button>
+                  </div>
+                </div>
+
+                {executionLogsLoading ? (
+                  <div className='flex items-center justify-center h-48'>
+                    <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+                  </div>
+                ) : filteredLogs.length > 0 ? (
+                  <ScrollArea className='h-64 bg-muted rounded-md'>
+                    <div className='p-3 space-y-1'>
+                      {filteredLogs.map((log) => (
+                        <div key={log.id} className='flex gap-2 text-xs font-mono'>
+                          <Badge
+                            variant={
+                              log.level === 'error' ? 'destructive' :
+                              log.level === 'warn' ? 'secondary' :
+                              log.level === 'debug' ? 'outline' : 'default'
+                            }
+                            className='text-[10px] px-1 py-0 h-4 shrink-0'
+                          >
+                            {log.level.toUpperCase()}
+                          </Badge>
+                          <span className='break-all'>{log.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : selectedExecution.logs ? (
+                  <pre className='bg-muted rounded-md p-3 text-xs overflow-auto h-64'>
+                    {selectedExecution.logs}
+                  </pre>
+                ) : (
+                  <div className='flex items-center justify-center h-48 text-muted-foreground text-sm'>
+                    No logs available
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className='mt-4'>
+            <Button onClick={() => setShowExecutionDetailDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -11,7 +11,20 @@ import type {
   EdgeFunctionExecution,
   SyncFunctionsOptions,
   SyncFunctionsResult,
+  FunctionSpec,
 } from "./types";
+import {
+  bundleCode,
+  loadEsbuild,
+  loadImportMap,
+  denoExternalPlugin,
+  type BundleOptions,
+  type BundleResult,
+} from "./bundling";
+
+// Re-export bundling utilities for direct use
+export { denoExternalPlugin, loadImportMap };
+export type { BundleOptions, BundleResult };
 
 /**
  * Admin Functions manager for managing edge functions
@@ -282,5 +295,124 @@ export class FluxbaseAdminFunctions {
     } catch (error) {
       return { data: null, error: error as Error };
     }
+  }
+
+  /**
+   * Sync edge functions with automatic client-side bundling
+   *
+   * This is a convenience method that bundles all function code using esbuild
+   * before sending to the server. Requires esbuild as a peer dependency.
+   *
+   * @param options - Sync options including namespace and functions array
+   * @param bundleOptions - Optional bundling configuration
+   * @returns Promise resolving to { data, error } tuple with sync results
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.functions.syncWithBundling({
+   *   namespace: 'default',
+   *   functions: [
+   *     { name: 'hello', code: helloCode },
+   *     { name: 'goodbye', code: goodbyeCode },
+   *   ],
+   *   options: { delete_missing: true }
+   * })
+   * ```
+   */
+  async syncWithBundling(
+    options: SyncFunctionsOptions,
+    bundleOptions?: Partial<BundleOptions>,
+  ): Promise<{ data: SyncFunctionsResult | null; error: Error | null }> {
+    if (!options.functions || options.functions.length === 0) {
+      return this.sync(options);
+    }
+
+    // Check if esbuild is available
+    const hasEsbuild = await loadEsbuild();
+    if (!hasEsbuild) {
+      return {
+        data: null,
+        error: new Error(
+          "esbuild is required for client-side bundling. Install it with: npm install esbuild",
+        ),
+      };
+    }
+
+    try {
+      // Bundle each function
+      const bundledFunctions: FunctionSpec[] = await Promise.all(
+        options.functions.map(async (fn) => {
+          // Skip if already pre-bundled
+          if (fn.is_pre_bundled) {
+            return fn;
+          }
+
+          const bundled = await FluxbaseAdminFunctions.bundleCode({
+            // Apply global bundle options first
+            ...bundleOptions,
+            // Then override with per-function values (these take priority)
+            code: fn.code,
+            // Use function's sourceDir for resolving relative imports
+            baseDir: fn.sourceDir || bundleOptions?.baseDir,
+            // Use function's nodePaths for additional module resolution
+            nodePaths: fn.nodePaths || bundleOptions?.nodePaths,
+          });
+
+          return {
+            ...fn,
+            code: bundled.code,
+            original_code: fn.code,
+            is_pre_bundled: true,
+          };
+        }),
+      );
+
+      // Sync with pre-bundled code
+      return this.sync({
+        ...options,
+        functions: bundledFunctions,
+      });
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Bundle function code using esbuild (client-side)
+   *
+   * Transforms and bundles TypeScript/JavaScript code into a single file
+   * that can be executed by the Fluxbase edge functions runtime.
+   *
+   * Requires esbuild as a peer dependency.
+   *
+   * @param options - Bundle options including source code
+   * @returns Promise resolving to bundled code
+   * @throws Error if esbuild is not available
+   *
+   * @example
+   * ```typescript
+   * const bundled = await FluxbaseAdminFunctions.bundleCode({
+   *   code: `
+   *     import { helper } from './utils'
+   *     export default async function handler(req) {
+   *       return helper(req.body)
+   *     }
+   *   `,
+   *   minify: true,
+   * })
+   *
+   * // Use bundled code in sync
+   * await client.admin.functions.sync({
+   *   namespace: 'default',
+   *   functions: [{
+   *     name: 'my-function',
+   *     code: bundled.code,
+   *     is_pre_bundled: true,
+   *   }]
+   * })
+   * ```
+   */
+  static async bundleCode(options: BundleOptions): Promise<BundleResult> {
+    return bundleCode(options);
   }
 }

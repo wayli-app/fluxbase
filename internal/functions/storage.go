@@ -112,6 +112,16 @@ type SharedModule struct {
 	CreatedBy   *uuid.UUID `json:"created_by"`
 }
 
+// ExecutionLog represents a single log entry for a function execution
+type ExecutionLog struct {
+	ID          int64     `json:"id"`
+	ExecutionID uuid.UUID `json:"execution_id"`
+	LineNumber  int       `json:"line_number"`
+	Level       string    `json:"level"` // debug, info, warn, error
+	Message     string    `json:"message"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // Storage manages edge function persistence
 type Storage struct {
 	db *database.Connection
@@ -407,6 +417,46 @@ func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution)
 	return nil
 }
 
+// CreateExecution creates a new execution record with "running" status
+// This should be called BEFORE execution to enable real-time logging
+func (s *Storage) CreateExecution(ctx context.Context, id uuid.UUID, functionID uuid.UUID, triggerType string) error {
+	query := `
+		INSERT INTO functions.edge_executions (id, function_id, trigger_type, status)
+		VALUES ($1, $2, $3, 'running')
+	`
+
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, id, functionID, triggerType)
+		return err
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create execution: %w", err)
+	}
+
+	return nil
+}
+
+// CompleteExecution updates an execution record when finished
+func (s *Storage) CompleteExecution(ctx context.Context, id uuid.UUID, status string, statusCode *int, durationMs *int, result *string, logs *string, errorMessage *string) error {
+	query := `
+		UPDATE functions.edge_executions
+		SET status = $2, status_code = $3, duration_ms = $4, result = $5, logs = $6, error_message = $7, completed_at = NOW()
+		WHERE id = $1
+	`
+
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, id, status, statusCode, durationMs, result, logs, errorMessage)
+		return err
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to complete execution: %w", err)
+	}
+
+	return nil
+}
+
 // GetExecutions returns execution history for a function
 func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit int) ([]EdgeFunctionExecution, error) {
 	query := `
@@ -448,6 +498,120 @@ func (s *Storage) GetExecutions(ctx context.Context, functionName string, limit 
 	}
 
 	return executions, nil
+}
+
+// AdminExecution extends EdgeFunctionExecution with function name for admin listings
+type AdminExecution struct {
+	EdgeFunctionExecution
+	FunctionName string `json:"function_name"`
+	Namespace    string `json:"namespace"`
+}
+
+// AdminExecutionFilters defines filter parameters for listing all executions
+type AdminExecutionFilters struct {
+	Namespace    string
+	FunctionName string
+	Status       string
+	Limit        int
+	Offset       int
+}
+
+// ListAllExecutions returns execution history across all functions with filters (admin only)
+func (s *Storage) ListAllExecutions(ctx context.Context, filters AdminExecutionFilters) ([]AdminExecution, int, error) {
+	// Build count query
+	countQuery := `
+		SELECT COUNT(*)
+		FROM functions.edge_executions e
+		JOIN functions.edge_functions f ON e.function_id = f.id
+		WHERE 1=1
+	`
+	countArgs := []interface{}{}
+	argIdx := 1
+
+	if filters.Namespace != "" {
+		countQuery += fmt.Sprintf(" AND f.namespace = $%d", argIdx)
+		countArgs = append(countArgs, filters.Namespace)
+		argIdx++
+	}
+	if filters.FunctionName != "" {
+		countQuery += fmt.Sprintf(" AND f.name ILIKE $%d", argIdx)
+		countArgs = append(countArgs, "%"+filters.FunctionName+"%")
+		argIdx++
+	}
+	if filters.Status != "" {
+		countQuery += fmt.Sprintf(" AND e.status = $%d", argIdx)
+		countArgs = append(countArgs, filters.Status)
+		argIdx++
+	}
+
+	// Build main query
+	query := `
+		SELECT e.id, e.function_id, e.trigger_type, e.status, e.status_code,
+		       e.duration_ms, e.result, e.logs, e.error_message,
+		       e.started_at, e.completed_at, f.name, f.namespace
+		FROM functions.edge_executions e
+		JOIN functions.edge_functions f ON e.function_id = f.id
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argIdx = 1
+
+	if filters.Namespace != "" {
+		query += fmt.Sprintf(" AND f.namespace = $%d", argIdx)
+		args = append(args, filters.Namespace)
+		argIdx++
+	}
+	if filters.FunctionName != "" {
+		query += fmt.Sprintf(" AND f.name ILIKE $%d", argIdx)
+		args = append(args, "%"+filters.FunctionName+"%")
+		argIdx++
+	}
+	if filters.Status != "" {
+		query += fmt.Sprintf(" AND e.status = $%d", argIdx)
+		args = append(args, filters.Status)
+		argIdx++
+	}
+
+	query += " ORDER BY e.started_at DESC"
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	args = append(args, filters.Limit, filters.Offset)
+
+	var executions []AdminExecution
+	var total int
+
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		// Get total count
+		if err := tx.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+			return fmt.Errorf("failed to count executions: %w", err)
+		}
+
+		// Get executions
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			exec := AdminExecution{}
+			err := rows.Scan(
+				&exec.ID, &exec.FunctionID, &exec.TriggerType, &exec.Status, &exec.StatusCode,
+				&exec.DurationMs, &exec.Result, &exec.Logs, &exec.ErrorMessage,
+				&exec.ExecutedAt, &exec.CompletedAt, &exec.FunctionName, &exec.Namespace,
+			)
+			if err != nil {
+				return err
+			}
+			executions = append(executions, exec)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list executions: %w", err)
+	}
+
+	return executions, total, nil
 }
 
 // CreateSharedModule creates a new shared module
@@ -639,4 +803,131 @@ func (s *Storage) GetFunctionFiles(ctx context.Context, functionID uuid.UUID) ([
 	}
 
 	return files, nil
+}
+
+// ============================================================================
+// EXECUTION LOG OPERATIONS
+// ============================================================================
+
+// AppendExecutionLog adds a single log entry for a function execution
+func (s *Storage) AppendExecutionLog(ctx context.Context, executionID uuid.UUID, lineNumber int, level, message string) error {
+	query := `
+		INSERT INTO functions.execution_logs (execution_id, line_number, level, message, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, executionID, lineNumber, level, message, time.Now())
+		return err
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to append execution log: %w", err)
+	}
+
+	return nil
+}
+
+// AppendExecutionLogs adds multiple log entries for a function execution (batch insert)
+func (s *Storage) AppendExecutionLogs(ctx context.Context, executionID uuid.UUID, logs []ExecutionLog) error {
+	if len(logs) == 0 {
+		return nil
+	}
+
+	query := `
+		INSERT INTO functions.execution_logs (execution_id, line_number, level, message, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		for _, log := range logs {
+			_, err := tx.Exec(ctx, query, executionID, log.LineNumber, log.Level, log.Message, time.Now())
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to append execution logs: %w", err)
+	}
+
+	return nil
+}
+
+// GetExecutionLogs retrieves all logs for a function execution
+func (s *Storage) GetExecutionLogs(ctx context.Context, executionID uuid.UUID) ([]ExecutionLog, error) {
+	query := `
+		SELECT id, execution_id, line_number, level, message, created_at
+		FROM functions.execution_logs
+		WHERE execution_id = $1
+		ORDER BY line_number ASC
+	`
+
+	var logs []ExecutionLog
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, executionID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			log := ExecutionLog{}
+			err := rows.Scan(
+				&log.ID, &log.ExecutionID, &log.LineNumber,
+				&log.Level, &log.Message, &log.CreatedAt,
+			)
+			if err != nil {
+				return err
+			}
+			logs = append(logs, log)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution logs: %w", err)
+	}
+
+	return logs, nil
+}
+
+// GetExecutionLogsSince retrieves logs for an execution after a specific line number (for streaming/pagination)
+func (s *Storage) GetExecutionLogsSince(ctx context.Context, executionID uuid.UUID, afterLine int) ([]ExecutionLog, error) {
+	query := `
+		SELECT id, execution_id, line_number, level, message, created_at
+		FROM functions.execution_logs
+		WHERE execution_id = $1 AND line_number > $2
+		ORDER BY line_number ASC
+	`
+
+	var logs []ExecutionLog
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, executionID, afterLine)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			log := ExecutionLog{}
+			err := rows.Scan(
+				&log.ID, &log.ExecutionID, &log.LineNumber,
+				&log.Level, &log.Message, &log.CreatedAt,
+			)
+			if err != nil {
+				return err
+			}
+			logs = append(logs, log)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get execution logs: %w", err)
+	}
+
+	return logs, nil
 }

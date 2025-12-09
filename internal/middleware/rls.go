@@ -68,8 +68,12 @@ func RLSMiddleware(config RLSConfig) fiber.Handler {
 		c.Locals("rls_role", "authenticated")
 
 		// Also check for admin/superuser role if present
+		// Important: Check for both non-nil AND non-empty string to avoid
+		// overwriting "authenticated" default with empty string (which maps to "anon")
 		if role := c.Locals("user_role"); role != nil {
-			c.Locals("rls_role", role)
+			if roleStr, ok := role.(string); ok && roleStr != "" {
+				c.Locals("rls_role", roleStr)
+			}
 		}
 
 		log.Debug().

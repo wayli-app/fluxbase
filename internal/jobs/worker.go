@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/runtime"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
@@ -19,9 +20,10 @@ type Worker struct {
 	Name                  string
 	Config                *config.JobsConfig
 	Storage               *Storage
-	Runtime               *JobRuntime
+	Runtime               *runtime.DenoRuntime
 	MaxConcurrent         int
-	currentJobs           sync.Map // jobID -> *CancelSignal
+	publicURL             string
+	currentJobs           sync.Map // jobID -> *runtime.CancelSignal
 	jobLogCounters        sync.Map // jobID -> *int (line counter)
 	jobStartTimes         sync.Map // jobID -> time.Time (for ETA calculation)
 	currentJobCount       int
@@ -37,11 +39,12 @@ func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL st
 	hostname, _ := os.Hostname()
 
 	// Create runtime with SDK credentials
-	runtime := NewJobRuntime(
-		cfg.DefaultMaxDuration,
-		128, // Default memory limit
+	jobRuntime := runtime.NewRuntime(
+		runtime.RuntimeTypeJob,
 		jwtSecret,
 		publicURL,
+		runtime.WithTimeout(cfg.DefaultMaxDuration),
+		runtime.WithMemoryLimit(128), // Default memory limit
 	)
 
 	worker := &Worker{
@@ -49,15 +52,16 @@ func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL st
 		Name:             fmt.Sprintf("worker-%s@%s", workerID.String()[:8], hostname),
 		Config:           cfg,
 		Storage:          storage,
-		Runtime:          runtime,
+		Runtime:          jobRuntime,
 		MaxConcurrent:    cfg.MaxConcurrentPerWorker,
+		publicURL:        publicURL,
 		shutdownChan:     make(chan struct{}),
 		shutdownComplete: make(chan struct{}),
 	}
 
 	// Set up runtime callbacks
-	runtime.SetProgressCallback(worker.handleProgressUpdate)
-	runtime.SetLogCallback(worker.handleLogMessage)
+	jobRuntime.SetProgressCallback(worker.handleProgressUpdate)
+	jobRuntime.SetLogCallback(worker.handleLogMessage)
 
 	return worker
 }
@@ -298,7 +302,7 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	defer w.decrementJobCount()
 
 	// Create cancel signal
-	cancelSignal := NewCancelSignal()
+	cancelSignal := runtime.NewCancelSignal()
 	w.currentJobs.Store(job.ID, cancelSignal)
 	defer w.currentJobs.Delete(job.ID)
 
@@ -347,7 +351,7 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	}
 
 	// Build permissions
-	permissions := Permissions{
+	permissions := runtime.Permissions{
 		AllowNet:      jobFunction.AllowNet,
 		AllowEnv:      jobFunction.AllowEnv,
 		AllowRead:     jobFunction.AllowRead,
@@ -355,8 +359,11 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		MemoryLimitMB: jobFunction.MemoryLimitMB,
 	}
 
+	// Build execution request from job
+	execReq := jobToExecutionRequest(job, w.publicURL)
+
 	// Execute job in runtime
-	result, err := w.Runtime.Execute(ctx, job, *jobFunction.Code, permissions, cancelSignal)
+	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal)
 
 	// Check if job was cancelled
 	if cancelSignal.IsCancelled() {
@@ -414,7 +421,7 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 }
 
 // handleProgressUpdate is called when a job reports progress
-func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *Progress) {
+func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *runtime.Progress) {
 	// Calculate ETA if we have valid progress (between 1-99%)
 	if progress.Percent > 0 && progress.Percent < 100 {
 		if startTimeVal, ok := w.jobStartTimes.Load(jobID); ok {
@@ -485,7 +492,7 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string)
 // cancelJob cancels a running job
 func (w *Worker) cancelJob(jobID uuid.UUID) {
 	if signal, ok := w.currentJobs.Load(jobID); ok {
-		if cancelSignal, ok := signal.(*CancelSignal); ok {
+		if cancelSignal, ok := signal.(*runtime.CancelSignal); ok {
 			cancelSignal.Cancel()
 			log.Info().Str("job_id", jobID.String()).Msg("Job cancelled")
 		}
@@ -495,7 +502,7 @@ func (w *Worker) cancelJob(jobID uuid.UUID) {
 // cancelAllJobs cancels all running jobs
 func (w *Worker) cancelAllJobs() {
 	w.currentJobs.Range(func(key, value interface{}) bool {
-		if cancelSignal, ok := value.(*CancelSignal); ok {
+		if cancelSignal, ok := value.(*runtime.CancelSignal); ok {
 			cancelSignal.Cancel()
 		}
 		return true
@@ -526,4 +533,36 @@ func (w *Worker) decrementJobCount() {
 	w.currentJobCountMutex.Lock()
 	defer w.currentJobCountMutex.Unlock()
 	w.currentJobCount--
+}
+
+// jobToExecutionRequest converts a Job to a runtime.ExecutionRequest
+func jobToExecutionRequest(job *Job, publicURL string) runtime.ExecutionRequest {
+	req := runtime.ExecutionRequest{
+		ID:         job.ID,
+		Name:       job.JobName,
+		Namespace:  job.Namespace,
+		RetryCount: job.RetryCount,
+		BaseURL:    publicURL,
+	}
+
+	// Parse payload if present
+	if job.Payload != nil {
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(*job.Payload), &payload); err == nil {
+			req.Payload = payload
+		}
+	}
+
+	// Add user context if available
+	if job.CreatedBy != nil {
+		req.UserID = job.CreatedBy.String()
+	}
+	if job.UserEmail != nil {
+		req.UserEmail = *job.UserEmail
+	}
+	if job.UserRole != nil {
+		req.UserRole = *job.UserRole
+	}
+
+	return req
 }

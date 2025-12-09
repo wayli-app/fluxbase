@@ -66,7 +66,28 @@ export { FluxbaseAdminFunctions } from "./admin-functions";
 
 // Admin Jobs module
 export { FluxbaseAdminJobs } from "./admin-jobs";
-export type { BundleOptions, BundleResult } from "./admin-jobs";
+
+// Shared bundling module (for both functions and jobs)
+export {
+  bundleCode,
+  loadImportMap,
+  denoExternalPlugin,
+  type BundleOptions,
+  type BundleResult,
+} from "./bundling";
+
+// Admin AI module
+export { FluxbaseAdminAI } from "./admin-ai";
+
+// RPC module
+export { FluxbaseRPC } from "./rpc";
+
+// Admin RPC module
+export { FluxbaseAdminRPC } from "./admin-rpc";
+
+// AI module
+export { FluxbaseAI, FluxbaseAIChat } from "./ai";
+export type { AIChatOptions, AIChatEvent, AIChatEventType } from "./ai";
 
 // Admin Migrations module
 export { FluxbaseAdminMigrations } from "./admin-migrations";
@@ -153,6 +174,7 @@ export type {
   StorageObject, // Deprecated alias for FileObject
   UploadOptions,
   UploadProgress,
+  StreamUploadOptions,
   ListOptions,
   SignedUrlOptions,
   DownloadOptions,
@@ -292,6 +314,45 @@ export type {
   GetImpersonationResponse,
   ListImpersonationSessionsOptions,
   ListImpersonationSessionsResponse,
+
+  // AI types
+  AIProviderType,
+  AIProvider,
+  CreateAIProviderRequest,
+  AIChatbotSummary,
+  AIChatbot,
+  ChatbotSpec,
+  SyncChatbotsOptions,
+  SyncChatbotsResult,
+  AIChatMessageRole,
+  AIChatClientMessage,
+  AIChatServerMessage,
+  AIUsageStats,
+  AIConversation,
+  AIConversationMessage,
+
+  // AI User Conversation History types
+  AIUserConversationSummary,
+  AIUserConversationDetail,
+  AIUserMessage,
+  AIUserQueryResult,
+  AIUserUsageStats,
+  ListConversationsOptions,
+  ListConversationsResult,
+  UpdateConversationOptions,
+
+  // RPC types
+  RPCProcedureSummary,
+  RPCProcedure,
+  RPCExecutionStatus,
+  RPCExecution,
+  RPCInvokeResponse,
+  RPCExecutionLog,
+  RPCProcedureSpec,
+  SyncRPCOptions,
+  SyncRPCResult,
+  UpdateRPCProcedureRequest,
+  RPCExecutionFilters,
 
   // HTTP types
   FluxbaseError,

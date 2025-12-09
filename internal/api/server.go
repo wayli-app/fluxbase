@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/adminui"
+	"github.com/fluxbase-eu/fluxbase/internal/ai"
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -19,6 +20,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/migrations"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/fluxbase-eu/fluxbase/internal/realtime"
+	"github.com/fluxbase-eu/fluxbase/internal/rpc"
 	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/fluxbase-eu/fluxbase/internal/webhook"
@@ -67,6 +69,11 @@ type Server struct {
 	realtimeHandler       *realtime.RealtimeHandler
 	realtimeListener      *realtime.Listener
 	webhookTriggerService *webhook.TriggerService
+	aiHandler             *ai.Handler
+	aiChatHandler         *ai.ChatHandler
+	aiConversations       *ai.ConversationManager
+	aiMetrics             *observability.Metrics
+	rpcHandler            *rpc.Handler
 }
 
 // NewServer creates a new HTTP server
@@ -163,8 +170,14 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db)
 	sqlHandler := NewSQLHandler(db.Pool())
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS)
-	functionsScheduler := functions.NewScheduler(db)
+
+	// Determine public URL for functions SDK client (same pattern as jobs)
+	functionsPublicURL := cfg.BaseURL
+	if functionsPublicURL == "" {
+		functionsPublicURL = "http://localhost" + cfg.Server.Address
+	}
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL)
+	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsPublicURL)
 	functionsHandler.SetScheduler(functionsScheduler)
 
 	// Only create jobs components if jobs are enabled
@@ -194,6 +207,55 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	}
 
 	migrationsHandler := migrations.NewHandler(db)
+
+	// Create AI components (only if AI is enabled)
+	var aiHandler *ai.Handler
+	var aiChatHandler *ai.ChatHandler
+	var aiConversations *ai.ConversationManager
+	var aiMetrics *observability.Metrics
+	if cfg.AI.Enabled {
+		// Create AI metrics
+		aiMetrics = observability.NewMetrics()
+
+		// Create AI storage
+		aiStorage := ai.NewStorage(db)
+		aiStorage.SetConfig(&cfg.AI)
+
+		// Create AI loader
+		aiLoader := ai.NewLoader(cfg.AI.ChatbotsDir)
+
+		// Create conversation manager
+		aiConversations = ai.NewConversationManager(db, cfg.AI.ConversationCacheTTL, cfg.AI.MaxConversationTurns)
+
+		// Create AI handler for admin endpoints
+		aiHandler = ai.NewHandler(aiStorage, aiLoader, &cfg.AI)
+
+		// Create AI chat handler for WebSocket
+		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI)
+
+		log.Info().
+			Str("chatbots_dir", cfg.AI.ChatbotsDir).
+			Bool("auto_load", cfg.AI.AutoLoadOnBoot).
+			Bool("provider_enabled", cfg.AI.ProviderEnabled).
+			Str("provider_type", cfg.AI.ProviderType).
+			Str("provider_name", cfg.AI.ProviderName).
+			Str("provider_model", cfg.AI.ProviderModel).
+			Msg("AI components initialized")
+	}
+
+	// Create RPC components (only if RPC is enabled)
+	var rpcHandler *rpc.Handler
+	if cfg.RPC.Enabled {
+		rpcStorage := rpc.NewStorage(db)
+		rpcLoader := rpc.NewLoader(cfg.RPC.ProceduresDir)
+		rpcMetrics := observability.NewMetrics()
+		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC)
+
+		log.Info().
+			Str("procedures_dir", cfg.RPC.ProceduresDir).
+			Bool("auto_load", cfg.RPC.AutoLoadOnBoot).
+			Msg("RPC components initialized")
+	}
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
@@ -241,6 +303,11 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		realtimeHandler:       realtimeHandler,
 		realtimeListener:      realtimeListener,
 		webhookTriggerService: webhookTriggerService,
+		aiHandler:             aiHandler,
+		aiChatHandler:         aiChatHandler,
+		aiConversations:       aiConversations,
+		aiMetrics:             aiMetrics,
+		rpcHandler:            rpcHandler,
 	}
 
 	// Start realtime listener
@@ -275,6 +342,15 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	// Start webhook trigger service
 	if err := webhookTriggerService.Start(context.Background()); err != nil {
 		log.Error().Err(err).Msg("Failed to start webhook trigger service")
+	}
+
+	// Auto-load AI chatbots if enabled
+	if cfg.AI.Enabled && cfg.AI.AutoLoadOnBoot && aiHandler != nil {
+		if err := aiHandler.AutoLoadChatbots(context.Background()); err != nil {
+			log.Error().Err(err).Msg("Failed to auto-load AI chatbots")
+		} else {
+			log.Info().Msg("AI chatbots auto-loaded successfully")
+		}
 	}
 
 	// Setup middlewares
@@ -457,6 +533,84 @@ func (s *Server) setupRoutes() {
 		s.handleRealtimeBroadcast,
 	)
 
+	// AI WebSocket endpoint (require AI enabled and authentication)
+	if s.aiChatHandler != nil {
+		s.app.Get("/ai/ws",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiChatHandler.HandleWebSocket,
+		)
+
+		// Public AI chatbot list endpoint
+		s.app.Get("/api/v1/ai/chatbots",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.ListPublicChatbots,
+		)
+
+		s.app.Get("/api/v1/ai/chatbots/:id",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.GetPublicChatbot,
+		)
+
+		// User conversation history endpoints (require authentication)
+		s.app.Get("/api/v1/ai/conversations",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.ListUserConversations,
+		)
+
+		s.app.Get("/api/v1/ai/conversations/:id",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.GetUserConversation,
+		)
+
+		s.app.Delete("/api/v1/ai/conversations/:id",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.DeleteUserConversation,
+		)
+
+		s.app.Patch("/api/v1/ai/conversations/:id",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.UpdateUserConversation,
+		)
+	}
+
+	// Public RPC endpoints (only if RPC is enabled)
+	if s.rpcHandler != nil {
+		// List public procedures
+		s.app.Get("/api/v1/rpc/procedures",
+			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.rpcHandler.ListPublicProcedures,
+		)
+
+		// Invoke RPC procedure
+		s.app.Post("/api/v1/rpc/:namespace/:name",
+			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.rpcHandler.Invoke,
+		)
+
+		// Get execution status (public - users can see their own)
+		s.app.Get("/api/v1/rpc/executions/:id",
+			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.rpcHandler.GetPublicExecution,
+		)
+
+		// Get execution logs (public - users can see their own)
+		s.app.Get("/api/v1/rpc/executions/:id/logs",
+			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.rpcHandler.GetPublicExecutionLogs,
+		)
+	}
+
 	// Admin routes and UI (only enabled if setup token is configured)
 	if s.config.Security.SetupToken != "" {
 		admin := v1.Group("/admin")
@@ -584,6 +738,9 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	// Signed URLs (for S3-compatible storage, must come before /:bucket/*)
 	router.Post("/:bucket/sign/*", s.storageHandler.GenerateSignedURL)
 
+	// Streaming upload (must come before /:bucket/*)
+	router.Post("/:bucket/stream/*", s.storageHandler.StreamUpload)
+
 	// File operations (generic wildcard routes - must come LAST)
 	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file
 	router.Get("/:bucket/*", s.storageHandler.DownloadFile)  // Download file
@@ -634,12 +791,12 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Put("/system/settings/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.UpdateSetting)
 	router.Delete("/system/settings/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.DeleteSetting)
 
-	// Custom settings routes (require admin or dashboard_admin role)
-	router.Post("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.CreateSetting)
-	router.Get("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.ListSettings)
-	router.Get("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.GetSetting)
-	router.Put("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.UpdateSetting)
-	router.Delete("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.customSettingsHandler.DeleteSetting)
+	// Custom settings routes (require admin, dashboard_admin, or service_role)
+	router.Post("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.CreateSetting)
+	router.Get("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.ListSettings)
+	router.Get("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.GetSetting)
+	router.Put("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.UpdateSetting)
+	router.Delete("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.DeleteSetting)
 
 	// App settings routes (require admin or dashboard_admin role)
 	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)
@@ -677,6 +834,10 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		RequireRole("admin", "dashboard_admin", "service_role"),
 		s.functionsHandler.SyncFunctions,
 	)
+	// Functions executions - admin endpoint to list all executions
+	router.Get("/functions/executions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ListAllExecutions)
+	// Functions execution logs - admin endpoint to get logs for a specific execution
+	router.Get("/functions/executions/:executionId/logs", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.GetExecutionLogs)
 
 	// Jobs management routes (require admin, dashboard_admin, or service_role)
 	// Only register if jobs are enabled
@@ -702,6 +863,67 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Post("/jobs/queue/:id/cancel", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.CancelJobAdmin)
 		router.Post("/jobs/queue/:id/retry", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.RetryJobAdmin)
 		router.Post("/jobs/queue/:id/resubmit", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ResubmitJobAdmin)
+	}
+
+	// AI management routes (require admin, dashboard_admin, or service_role)
+	// Only register if AI is enabled
+	if s.aiHandler != nil {
+		// Feature flag check for all AI routes
+		requireAI := middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache())
+
+		// Chatbot management
+		router.Get("/ai/chatbots", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ListChatbots)
+		router.Get("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetChatbot)
+		router.Post("/ai/chatbots/sync",
+			requireAI,
+			middleware.RequireSyncIPAllowlist(s.config.AI.SyncAllowedIPRanges, "ai"),
+			unifiedAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.aiHandler.SyncChatbots,
+		)
+		router.Put("/ai/chatbots/:id/toggle", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ToggleChatbot)
+		router.Put("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.UpdateChatbot)
+		router.Delete("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteChatbot)
+
+		// Metrics
+		router.Get("/ai/metrics", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetAIMetrics)
+
+		// Conversations & Audit
+		router.Get("/ai/conversations", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetConversations)
+		router.Get("/ai/conversations/:id/messages", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetConversationMessages)
+		router.Get("/ai/audit", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetAuditLog)
+
+		// Provider management
+		router.Get("/ai/providers", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ListProviders)
+		router.Get("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetProvider)
+		router.Post("/ai/providers", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.CreateProvider)
+		router.Put("/ai/providers/:id/default", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.SetDefaultProvider)
+		router.Delete("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteProvider)
+	}
+
+	// RPC management routes (require admin, dashboard_admin, or service_role)
+	// Only register if RPC is enabled
+	if s.rpcHandler != nil {
+		requireRPC := middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache())
+
+		// Procedure management
+		router.Get("/rpc/namespaces", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.ListNamespaces)
+		router.Get("/rpc/procedures", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.ListProcedures)
+		router.Get("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetProcedure)
+		router.Put("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.UpdateProcedure)
+		router.Delete("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.DeleteProcedure)
+		router.Post("/rpc/sync",
+			requireRPC,
+			middleware.RequireSyncIPAllowlist(s.config.RPC.SyncAllowedIPRanges, "rpc"),
+			unifiedAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.rpcHandler.SyncProcedures,
+		)
+
+		// Execution management
+		router.Get("/rpc/executions", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.ListExecutions)
+		router.Get("/rpc/executions/:id", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetExecution)
+		router.Get("/rpc/executions/:id/logs", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetExecutionLogs)
 	}
 
 	// Migrations routes (require service key authentication with enhanced security)
@@ -926,6 +1148,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.webhookTriggerService.Stop()
 	}
 
+	// Close AI conversation manager
+	if s.aiConversations != nil {
+		s.aiConversations.Close()
+	}
+
 	// Shutdown OpenTelemetry tracer (flush remaining spans)
 	if s.tracer != nil {
 		if err := s.tracer.Shutdown(ctx); err != nil {
@@ -980,6 +1207,15 @@ func (s *Server) LoadJobsFromFilesystem(ctx context.Context) error {
 	}
 	// Use "default" as the namespace for jobs loaded at boot
 	return s.jobsHandler.LoadFromFilesystem(ctx, "default")
+}
+
+// LoadAIChatbotsFromFilesystem loads AI chatbots from the filesystem
+// This is called at boot time if auto_load_on_boot is enabled
+func (s *Server) LoadAIChatbotsFromFilesystem(ctx context.Context) error {
+	if s.aiHandler == nil {
+		return fmt.Errorf("AI handler not initialized")
+	}
+	return s.aiHandler.AutoLoadChatbots(ctx)
 }
 
 // customErrorHandler handles errors globally

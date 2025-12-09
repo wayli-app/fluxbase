@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/runtime"
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog/log"
 )
@@ -15,7 +17,7 @@ import (
 type Scheduler struct {
 	cron          *cron.Cron
 	storage       *Storage
-	runtime       *DenoRuntime
+	runtime       *runtime.DenoRuntime
 	maxConcurrent int
 	activeMu      sync.Mutex
 	activeCount   int
@@ -23,20 +25,59 @@ type Scheduler struct {
 	jobsMu        sync.RWMutex
 	ctx           context.Context
 	cancel        context.CancelFunc
+	jwtSecret     string
+	publicURL     string
+	logCounters   sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
 }
 
 // NewScheduler creates a new scheduler for edge functions
-func NewScheduler(db *database.Connection) *Scheduler {
+func NewScheduler(db *database.Connection, jwtSecret, publicURL string) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Scheduler{
+	s := &Scheduler{
 		cron:          cron.New(cron.WithSeconds()),
 		storage:       NewStorage(db),
-		runtime:       NewDenoRuntime(),
+		runtime:       runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
 		maxConcurrent: 10,
 		functionJobs:  make(map[string]cron.EntryID),
 		ctx:           ctx,
 		cancel:        cancel,
+		jwtSecret:     jwtSecret,
+		publicURL:     publicURL,
+	}
+
+	// Set up log callback to capture console.log output
+	s.runtime.SetLogCallback(s.handleLogMessage)
+
+	return s
+}
+
+// handleLogMessage is called when a scheduled function outputs a log message
+func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, message string) {
+	// Get and increment the line counter for this execution
+	counterVal, ok := s.logCounters.Load(executionID)
+	if !ok {
+		log.Debug().
+			Str("execution_id", executionID.String()).
+			Str("level", level).
+			Str("message", message).
+			Msg("Scheduled function log (no counter)")
+		return
+	}
+
+	counterPtr, ok := counterVal.(*int)
+	if !ok {
+		log.Warn().Str("execution_id", executionID.String()).Msg("Invalid log counter type")
+		return
+	}
+
+	lineNumber := *counterPtr
+	*counterPtr = lineNumber + 1
+
+	// Insert log line into database
+	ctx := context.Background()
+	if err := s.storage.AppendExecutionLog(ctx, executionID, lineNumber, level, message); err != nil {
+		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to insert execution log")
 	}
 }
 
@@ -202,47 +243,53 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 
 	start := time.Now()
 
-	// Create execution record
-	exec := &EdgeFunctionExecution{
-		FunctionID:  fn.ID,
-		TriggerType: "cron",
-		Status:      "running",
-		ExecutedAt:  start,
+	// Prepare execution request (empty for cron triggers)
+	executionID := uuid.New()
+	req := runtime.ExecutionRequest{
+		ID:        executionID,
+		Name:      fn.Name,
+		Namespace: fn.Namespace,
+		Method:    "POST",
+		URL:       "/scheduled",
+		Headers:   make(map[string]string),
+		Body:      "{}",
 	}
 
-	// Prepare execution request (empty for cron triggers)
-	req := ExecutionRequest{
-		Method:  "POST",
-		URL:     "/scheduled",
-		Headers: make(map[string]string),
-		Body:    "{}",
+	// Create execution record BEFORE running to enable real-time logging
+	if err := s.storage.CreateExecution(s.ctx, executionID, fn.ID, "cron"); err != nil {
+		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
+		// Continue anyway - logging will still work via stderr fallback
 	}
+
+	// Initialize log counter for this execution
+	lineCounter := 0
+	s.logCounters.Store(executionID, &lineCounter)
+	defer s.logCounters.Delete(executionID)
 
 	// Build permissions from function config
-	perms := Permissions{
+	perms := runtime.Permissions{
 		AllowNet:   fn.AllowNet,
 		AllowEnv:   fn.AllowEnv,
 		AllowRead:  fn.AllowRead,
 		AllowWrite: fn.AllowWrite,
 	}
 
-	// Execute with timeout
+	// Execute with timeout (nil cancel signal for scheduled executions)
 	ctx, cancel := context.WithTimeout(s.ctx, time.Duration(fn.TimeoutSeconds)*time.Second)
 	defer cancel()
 
-	result, err := s.runtime.Execute(ctx, fn.Code, req, perms)
+	result, err := s.runtime.Execute(ctx, fn.Code, req, perms, nil)
 	duration := time.Since(start)
 
-	// Update execution record
-	completedAt := time.Now()
-	exec.CompletedAt = &completedAt
+	// Determine final status
+	status := "success"
+	var errorMessage *string
 	durationMs := int(duration.Milliseconds())
-	exec.DurationMs = &durationMs
 
 	if err != nil {
-		exec.Status = "error"
+		status = "error"
 		errorMsg := err.Error()
-		exec.ErrorMessage = &errorMsg
+		errorMessage = &errorMsg
 		log.Error().
 			Err(err).
 			Str("function", fn.Name).
@@ -250,35 +297,34 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 			Msg("Scheduled function execution failed")
 	} else {
 		if result.Error != "" {
-			exec.Status = "error"
-			exec.ErrorMessage = &result.Error
-		} else {
-			exec.Status = "success"
+			status = "error"
+			errorMessage = &result.Error
 		}
-		exec.StatusCode = &result.Status
-
-		// Serialize result to JSON
-		if resultJSON, err := json.Marshal(result); err == nil {
-			resultStr := string(resultJSON)
-			exec.Result = &resultStr
-		}
-		exec.Logs = &result.Logs
-
 		log.Info().
 			Str("function", fn.Name).
-			Str("status", exec.Status).
+			Str("status", status).
 			Int("status_code", result.Status).
 			Dur("duration", duration).
 			Msg("Scheduled function execution completed")
 	}
 
-	// Save execution log asynchronously
+	// Serialize result to JSON
+	var resultStr *string
+	if result != nil {
+		if resultJSON, jsonErr := json.Marshal(result); jsonErr == nil {
+			rs := string(resultJSON)
+			resultStr = &rs
+		}
+	}
+
+	// Complete execution record asynchronously
 	go func() {
-		if err := s.storage.LogExecution(context.Background(), exec); err != nil {
+		if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
 			log.Error().
-				Err(err).
+				Err(updateErr).
 				Str("function", fn.Name).
-				Msg("Failed to log scheduled execution")
+				Str("execution_id", executionID.String()).
+				Msg("Failed to complete scheduled execution record")
 		}
 	}()
 }

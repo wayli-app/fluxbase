@@ -150,7 +150,13 @@ func (s *SystemSettingsService) GetSetting(ctx context.Context, key string) (*Sy
 	}
 
 	if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
-		return nil, err
+		// Handle legacy format where value is stored as raw primitive
+		var rawValue interface{}
+		if rawErr := json.Unmarshal(valueJSON, &rawValue); rawErr == nil {
+			setting.Value = map[string]interface{}{"value": rawValue}
+		} else {
+			return nil, err
+		}
 	}
 
 	return &setting, nil
@@ -190,7 +196,13 @@ func (s *SystemSettingsService) GetSettings(ctx context.Context, keys []string) 
 		}
 
 		if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
-			return nil, err
+			// Handle legacy format where value is stored as raw primitive
+			var rawValue interface{}
+			if rawErr := json.Unmarshal(valueJSON, &rawValue); rawErr == nil {
+				setting.Value = map[string]interface{}{"value": rawValue}
+			} else {
+				return nil, err
+			}
 		}
 
 		settings[setting.Key] = &setting
@@ -283,7 +295,14 @@ func (s *SystemSettingsService) ListSettings(ctx context.Context) ([]SystemSetti
 		}
 
 		if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
-			return nil, err
+			// Handle legacy format where value is stored as raw primitive (e.g., "true", "false")
+			// instead of the expected {"value": <primitive>} format
+			var rawValue interface{}
+			if rawErr := json.Unmarshal(valueJSON, &rawValue); rawErr == nil {
+				setting.Value = map[string]interface{}{"value": rawValue}
+			} else {
+				return nil, err
+			}
 		}
 
 		settings = append(settings, setting)

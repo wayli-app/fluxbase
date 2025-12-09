@@ -71,7 +71,7 @@ function LoginPage() {
         {/* Logo and Title */}
         <div className='text-center'>
           <img
-            src='/images/logo-icon.svg'
+            src='/admin/images/logo-icon.svg'
             alt='Fluxbase'
             className='mx-auto h-16 w-16'
           />

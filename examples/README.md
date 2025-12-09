@@ -5,23 +5,25 @@ This directory contains examples ranging from simple quickstart demos to complet
 ## 📚 What's Included
 
 ### 🚀 Quick Start Examples
+
 Simple examples to get you started quickly:
 
-| Example | Description | Time |
-|---------|-------------|------|
-| [Vanilla JS](./quickstart/vanilla-js/) | Pure JavaScript without frameworks | 5 min |
-| [React App](./quickstart/react-app/) | Basic React application (coming soon) | 10 min |
-| [SQL Scripts](./sql-scripts/) | Sample database schemas and RPC functions | 5 min |
+| Example                                | Description                               | Time   |
+| -------------------------------------- | ----------------------------------------- | ------ |
+| [Vanilla JS](./quickstart/vanilla-js/) | Pure JavaScript without frameworks        | 5 min  |
+| [React App](./quickstart/react-app/)   | Basic React application (coming soon)     | 10 min |
+| [SQL Scripts](./sql-scripts/)          | Sample database schemas and RPC functions | 5 min  |
 
 ### 🏗️ Full Applications
+
 Complete, production-ready applications:
 
-| Example | Tech Stack | Features | Difficulty |
-|---------|------------|----------|------------|
-| [Todo App](./todo-app/) | React + TypeScript | CRUD, RLS, Auth | Beginner |
+| Example                           | Tech Stack           | Features           | Difficulty   |
+| --------------------------------- | -------------------- | ------------------ | ------------ |
+| [Todo App](./todo-app/)           | React + TypeScript   | CRUD, RLS, Auth    | Beginner     |
 | [Blog Platform](./blog-platform/) | Next.js + TypeScript | SSR, Auth, Storage | Intermediate |
-| [Chat Application](./chat-app/) | React + TypeScript | Realtime, Presence | Intermediate |
-| [Admin Setup](./admin-setup/) | TypeScript + SDK | All Admin Features | Advanced |
+| [Chat Application](./chat-app/)   | React + TypeScript   | Realtime, Presence | Intermediate |
+| [Admin Setup](./admin-setup/)     | TypeScript + SDK     | All Admin Features | Advanced     |
 
 ## 🚀 Quick Start
 
@@ -70,6 +72,7 @@ npm run dev
 **Demo**: [todo.fluxbase.io](https://todo.fluxbase.io)
 
 A simple todo list application demonstrating:
+
 - ✅ User authentication (signup, signin, signout)
 - ✅ CRUD operations (create, read, update, delete)
 - ✅ Row-Level Security (users see only their tasks)
@@ -77,6 +80,7 @@ A simple todo list application demonstrating:
 - ✅ Responsive design (mobile-first)
 
 **Tech Stack**:
+
 - React 18
 - TypeScript
 - Tailwind CSS
@@ -90,6 +94,7 @@ A simple todo list application demonstrating:
 **Demo**: [blog.fluxbase.io](https://blog.fluxbase.io)
 
 A full-featured blog with:
+
 - ✅ Server-side rendering (SEO-friendly)
 - ✅ User authentication
 - ✅ Post creation with rich text editor
@@ -100,6 +105,7 @@ A full-featured blog with:
 - ✅ Admin dashboard
 
 **Tech Stack**:
+
 - Next.js 14 (App Router)
 - TypeScript
 - Tailwind CSS
@@ -114,6 +120,7 @@ A full-featured blog with:
 **Demo**: [chat.fluxbase.io](https://chat.fluxbase.io)
 
 A real-time chat application featuring:
+
 - ✅ WebSocket real-time messaging
 - ✅ Multiple chat rooms
 - ✅ Presence tracking (who's online)
@@ -123,6 +130,7 @@ A real-time chat application featuring:
 - ✅ User profiles
 
 **Tech Stack**:
+
 - React 18
 - TypeScript
 - Tailwind CSS
@@ -136,6 +144,7 @@ A real-time chat application featuring:
 **Description**: Complete admin workflow example
 
 A comprehensive example demonstrating all advanced admin features:
+
 - ✅ Admin authentication and token management
 - ✅ OAuth provider configuration (GitHub, Google, custom)
 - ✅ Authentication settings (password policies, sessions)
@@ -147,6 +156,7 @@ A comprehensive example demonstrating all advanced admin features:
 - ✅ User impersonation for debugging
 
 **Tech Stack**:
+
 - TypeScript
 - @fluxbase/sdk
 - Node.js 18+
@@ -154,6 +164,7 @@ A comprehensive example demonstrating all advanced admin features:
 **Time to Complete**: ~30 minutes
 
 **Use Cases**:
+
 - Setting up a new Fluxbase instance
 - Configuring multi-tenant SaaS architecture
 - Understanding all admin SDK features
@@ -162,16 +173,19 @@ A comprehensive example demonstrating all advanced admin features:
 ## 🎓 Learning Path
 
 ### Beginners
+
 1. Start with **Todo App** - Learn basics of CRUD, auth, and RLS
 2. Read [API Cookbook](../docs/API_COOKBOOK.md)
 3. Explore [Advanced Guides](../docs/ADVANCED_GUIDES.md)
 
 ### Intermediate
+
 1. Build **Blog Platform** - Learn SSR, storage, and advanced queries
 2. Study the codebase structure
 3. Customize for your use case
 
 ### Advanced
+
 1. Create **Chat Application** - Master realtime, presence, and state management
 2. Run **Admin Setup** - Learn all admin features and multi-tenancy
 3. Add features (voice chat, video calls, etc.)
@@ -180,6 +194,7 @@ A comprehensive example demonstrating all advanced admin features:
 ## 🔧 Customization
 
 All examples are MIT licensed and free to use in your projects. Feel free to:
+
 - Use as starter templates
 - Copy specific features
 - Adapt to your use case
@@ -189,6 +204,7 @@ All examples are MIT licensed and free to use in your projects. Feel free to:
 ## 📦 Deployment
 
 Each example includes deployment configurations for:
+
 - **Vercel** - Zero-config deployment
 - **Netlify** - Continuous deployment
 - **Docker** - Containerized deployment
@@ -203,6 +219,7 @@ See individual example READMEs for deployment instructions.
 **Issue**: "Connection refused" when connecting to Fluxbase
 
 **Solution**: Ensure Fluxbase is running:
+
 ```bash
 # Check if Fluxbase is running
 curl http://localhost:8080/health
@@ -215,6 +232,7 @@ cd ../..  # Back to repo root
 **Issue**: Authentication not working
 
 **Solution**: Verify API keys in `.env.local`:
+
 ```bash
 # Generate new keys
 ./fluxbase generate-key --role anon
@@ -227,11 +245,12 @@ NEXT_PUBLIC_FLUXBASE_ANON_KEY=<your-key>
 **Issue**: Real-time not receiving updates
 
 **Solution**: Check WebSocket connection:
+
 ```typescript
 // Add debug logging
-fluxbase.channel('test').subscribe((status) => {
-  console.log('Connection status:', status)
-})
+fluxbase.channel("test").subscribe((status) => {
+  console.log("Connection status:", status);
+});
 ```
 
 ## 🤝 Contributing
@@ -239,6 +258,7 @@ fluxbase.channel('test').subscribe((status) => {
 Want to add an example? We'd love your contribution!
 
 **Example Ideas**:
+
 - E-commerce store
 - Social media feed
 - Dashboard with analytics
@@ -247,6 +267,7 @@ Want to add an example? We'd love your contribution!
 - Video streaming platform
 
 **Contribution Process**:
+
 1. Fork repository
 2. Create example in `/examples/<your-example>`
 3. Include complete README with setup instructions
@@ -258,7 +279,7 @@ Want to add an example? We'd love your contribution!
 - [Fluxbase Documentation](../docs/)
 - [API Reference](https://docs.fluxbase.io/api)
 - [SDK Documentation](https://docs.fluxbase.io/sdk)
-- [Community Discord](https://discord.gg/fluxbase)
+- [Community Discord](https://discord.gg/BXPRHkQzkA)
 
 ## 📝 License
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
   ListTodo,
@@ -12,27 +12,12 @@ import {
   Loader2,
   Filter,
   HardDrive,
-  TrendingUp,
   Timer,
   Target,
-  ChevronDown,
-  ChevronUp,
   Play,
   Copy,
+  ChevronDown,
 } from 'lucide-react'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from 'recharts'
 import { toast } from 'sonner'
 import {
   jobsApi,
@@ -40,6 +25,7 @@ import {
   type Job,
   type JobWorker,
   type ExecutionLog,
+  type LogLevel,
 } from '@/lib/api'
 import { fluxbaseClient } from '@/lib/fluxbase-client'
 import { Badge } from '@/components/ui/badge'
@@ -74,7 +60,7 @@ export const Route = createFileRoute('/_authenticated/jobs/')({
   component: JobsPage,
 })
 
-const JOBS_PAGE_SIZE = 25
+const JOBS_PAGE_SIZE = 50
 
 function JobsPage() {
   const [activeTab, setActiveTab] = useState<'functions' | 'queue'>('queue')
@@ -84,11 +70,9 @@ function JobsPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [timeRange, setTimeRange] = useState<string>('1h')
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [showJobDetails, setShowJobDetails] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [statsExpanded, setStatsExpanded] = useState(false)
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
@@ -109,6 +93,7 @@ function JobsPage() {
   // Execution logs state (fetched from separate table)
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
+  const [logLevelFilter, setLogLevelFilter] = useState<LogLevel | 'all'>('all')
 
   // Ref for auto-scrolling logs
   const logsContainerRef = useRef<HTMLDivElement>(null)
@@ -263,7 +248,9 @@ function JobsPage() {
       }
       setExecutionLogs([])
     }
-  }, [showJobDetails, selectedJob])
+  // selectedJob is accessed via selectedJob?.id which is in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showJobDetails, selectedJob?.id])
 
   // Subscribe to job updates via Realtime when modal is open and job is running/pending
   useEffect(() => {
@@ -478,6 +465,7 @@ function JobsPage() {
     try {
       const data = await jobsApi.getJob(job.id)
       setSelectedJob(data)
+      setLogLevelFilter('all') // Reset filter when opening new job
       setShowJobDetails(true)
     } catch {
       toast.error('Failed to fetch job details')
@@ -619,29 +607,88 @@ function JobsPage() {
     return JSON.stringify(value, null, 2)
   }
 
+  // Log level priority for filtering
+  const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
+    debug: 0,
+    info: 1,
+    warning: 2,
+    error: 3,
+    fatal: 4,
+  }
+
+  // Log level colors for display
+  const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
+    debug: 'text-gray-400',
+    info: 'text-green-400',
+    warning: 'text-yellow-400',
+    error: 'text-red-400',
+    fatal: 'text-red-600 font-bold',
+  }
+
+  // Log level badge variants
+  const LOG_LEVEL_BADGE_COLORS: Record<LogLevel, string> = {
+    debug: 'bg-gray-600',
+    info: 'bg-green-600',
+    warning: 'bg-yellow-600',
+    error: 'bg-red-600',
+    fatal: 'bg-red-800',
+  }
+
   // Collapse consecutive duplicate log messages with count prefix
-  const collapseConsecutiveLogs = (logs: ExecutionLog[]): string[] => {
+  type CollapsedLog = {
+    id: string
+    level: LogLevel
+    message: string
+    count: number
+  }
+
+  const collapseConsecutiveLogs = (logs: ExecutionLog[]): CollapsedLog[] => {
     if (logs.length === 0) return []
 
-    const result: string[] = []
-    let currentMessage = logs[0].message
+    const result: CollapsedLog[] = []
+    let currentLog = logs[0]
     let count = 1
 
     for (let i = 1; i < logs.length; i++) {
-      if (logs[i].message === currentMessage) {
+      if (logs[i].message === currentLog.message && logs[i].level === currentLog.level) {
         count++
       } else {
-        result.push(
-          count > 1 ? `(${count}x) ${currentMessage}` : currentMessage
-        )
-        currentMessage = logs[i].message
+        result.push({
+          id: `log-${currentLog.id}-${count}`,
+          level: currentLog.level || 'info',
+          message: currentLog.message,
+          count,
+        })
+        currentLog = logs[i]
         count = 1
       }
     }
     // Push the last group
-    result.push(count > 1 ? `(${count}x) ${currentMessage}` : currentMessage)
+    result.push({
+      id: `log-${currentLog.id}-${count}`,
+      level: currentLog.level || 'info',
+      message: currentLog.message,
+      count,
+    })
 
     return result
+  }
+
+  // Filter logs by level
+  const filterLogsByLevel = (logs: ExecutionLog[]): ExecutionLog[] => {
+    if (logLevelFilter === 'all') return logs
+    const minPriority = LOG_LEVEL_PRIORITY[logLevelFilter]
+    return logs.filter((log) => LOG_LEVEL_PRIORITY[log.level || 'info'] >= minPriority)
+  }
+
+  // Format logs for clipboard (plain text)
+  const formatLogsForClipboard = (logs: ExecutionLog[]): string => {
+    return collapseConsecutiveLogs(logs)
+      .map((log) => {
+        const prefix = log.count > 1 ? `(${log.count}x) ` : ''
+        return `[${log.level.toUpperCase()}] ${prefix}${log.message}`
+      })
+      .join('\n')
   }
 
   // Copy text to clipboard with toast feedback
@@ -703,41 +750,35 @@ function JobsPage() {
     copyToClipboard(parts.join('\n'), 'All job details')
   }
 
-  // Parse time range to milliseconds
-  const getTimeRangeMs = (range: string): number => {
-    const value = parseInt(range.slice(0, -1))
-    const unit = range.slice(-1)
-    switch (unit) {
-      case 'm':
-        return value * 60 * 1000
-      case 'h':
-        return value * 60 * 60 * 1000
-      default:
-        return 0
-    }
-  }
+  // Memoize filtered and collapsed logs to prevent re-renders
+  const filteredAndCollapsedLogs = useMemo(() => {
+    const filtered = filterLogsByLevel(executionLogs)
+    return collapseConsecutiveLogs(filtered)
+  // filterLogsByLevel and collapseConsecutiveLogs are stable functions defined in component
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executionLogs, logLevelFilter])
 
-  // Filter jobs by time range
-  const timeRangeMs = getTimeRangeMs(timeRange)
-  const timeRangeStart = Date.now() - timeRangeMs
-  const filteredByTimeJobs = jobs.filter((job) => {
-    const jobTime = new Date(job.created_at).getTime()
-    return jobTime >= timeRangeStart
-  })
+  // Filter jobs from past 24 hours (for stats display only)
+  const jobs24h = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    return jobs.filter((job) => {
+      const jobTime = new Date(job.created_at).getTime()
+      return jobTime >= cutoff
+    })
+  }, [jobs])
 
-  // Recalculate stats based on time-filtered jobs
-  const filteredStats = {
-    pending: filteredByTimeJobs.filter((j) => j.status === 'pending').length,
-    running: filteredByTimeJobs.filter((j) => j.status === 'running').length,
-    completed: filteredByTimeJobs.filter((j) => j.status === 'completed')
-      .length,
-    failed: filteredByTimeJobs.filter((j) => j.status === 'failed').length,
-    cancelled: filteredByTimeJobs.filter((j) => j.status === 'cancelled')
-      .length,
-    total: filteredByTimeJobs.length,
-  }
+  // Stats based on past 24 hours
+  const filteredStats = useMemo(() => ({
+    pending: jobs24h.filter((j) => j.status === 'pending').length,
+    running: jobs24h.filter((j) => j.status === 'running').length,
+    completed: jobs24h.filter((j) => j.status === 'completed').length,
+    failed: jobs24h.filter((j) => j.status === 'failed').length,
+    cancelled: jobs24h.filter((j) => j.status === 'cancelled').length,
+    total: jobs24h.length,
+  }), [jobs24h])
 
-  const filteredJobs = filteredByTimeJobs.filter((job) => {
+  // Filter by search query only (no time filter for display)
+  const filteredJobs = jobs.filter((job) => {
     if (
       searchQuery &&
       !job.job_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -756,7 +797,7 @@ function JobsPage() {
   }
 
   return (
-    <div className='flex flex-col gap-6 p-6'>
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <ImpersonationBanner />
 
       <div className='flex items-center justify-between'>
@@ -775,299 +816,91 @@ function JobsPage() {
         </div>
       </div>
 
-      {/* Time Range Selector */}
-      <div className='flex items-center gap-2'>
-        <span className='text-muted-foreground text-sm'>Time range:</span>
-        {['1m', '5m', '30m', '1h', '6h', '12h', '24h'].map((range) => (
-          <Button
-            key={range}
-            variant={timeRange === range ? 'default' : 'outline'}
-            size='sm'
-            onClick={() => setTimeRange(range)}
-            className='h-7 px-3 text-xs'
-          >
-            {range}
-          </Button>
-        ))}
-      </div>
-
-      {/* Collapsible Metrics */}
+      {/* Stats (Past 24 hours) */}
       <Card className='!gap-0 !py-0'>
         <CardContent className='px-4 py-2'>
-          {/* Collapsed View - Single Line with Key Figures */}
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-4'>
-              <div className='flex items-center gap-1'>
-                <span className='text-muted-foreground text-xs'>Pending:</span>
-                <span className='text-sm font-semibold'>
-                  {filteredStats.pending}
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='text-muted-foreground text-xs'>Running:</span>
-                <span className='text-sm font-semibold'>
-                  {filteredStats.running}
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='text-muted-foreground text-xs'>
-                  Completed:
-                </span>
-                <span className='text-sm font-semibold'>
-                  {filteredStats.completed}
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='text-muted-foreground text-xs'>Failed:</span>
-                <span className='text-sm font-semibold'>
-                  {filteredStats.failed}
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='text-muted-foreground text-xs'>Workers:</span>
-                <span className='text-sm font-semibold'>
-                  {workers.filter((w) => w.status === 'active').length}
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <Target className='text-muted-foreground h-3 w-3' />
-                <span className='text-muted-foreground text-xs'>Success:</span>
-                {(() => {
-                  const total = filteredStats.completed + filteredStats.failed
-                  const successRate =
-                    total > 0
-                      ? ((filteredStats.completed / total) * 100).toFixed(0)
-                      : '0'
-                  return (
-                    <span className='text-sm font-semibold'>
-                      {successRate}%
-                    </span>
-                  )
-                })()}
-              </div>
-              <div className='flex items-center gap-1'>
-                <Timer className='text-muted-foreground h-3 w-3' />
-                <span className='text-muted-foreground text-xs'>
-                  Avg. Wait:
-                </span>
-                {(() => {
-                  const pendingJobs = filteredByTimeJobs.filter(
-                    (j) => j.status === 'pending'
-                  )
-                  const waitTimes = pendingJobs.map(
-                    (j) => Date.now() - new Date(j.created_at).getTime()
-                  )
-                  const avgWaitMs =
-                    waitTimes.length > 0
-                      ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length
-                      : 0
-                  const avgWaitSec = Math.round(avgWaitMs / 1000)
-                  const displayTime =
-                    avgWaitSec < 60
-                      ? `${avgWaitSec}s`
-                      : avgWaitSec < 3600
-                        ? `${Math.round(avgWaitSec / 60)}m`
-                        : `${Math.round(avgWaitSec / 3600)}h`
-                  return (
-                    <span className='text-sm font-semibold'>{displayTime}</span>
-                  )
-                })()}
-              </div>
+          <div className='flex items-center gap-4'>
+            <span className='text-muted-foreground text-xs'>(Past 24 hours)</span>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Pending:</span>
+              <span className='text-sm font-semibold'>
+                {filteredStats.pending}
+              </span>
             </div>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => setStatsExpanded(!statsExpanded)}
-              className='h-8 w-8 p-0'
-            >
-              {statsExpanded ? (
-                <ChevronUp className='h-4 w-4' />
-              ) : (
-                <ChevronDown className='h-4 w-4' />
-              )}
-            </Button>
-          </div>
-
-          {/* Expanded View - Charts */}
-          {statsExpanded && (
-            <div className='mt-4 space-y-4'>
-              <Separator />
-
-              {/* Distribution Chart */}
-              <div>
-                <div className='mb-2 flex items-center gap-2'>
-                  <TrendingUp className='text-muted-foreground h-4 w-4' />
-                  <span className='text-sm font-medium'>
-                    Status Distribution
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Running:</span>
+              <span className='text-sm font-semibold'>
+                {filteredStats.running}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Completed:</span>
+              <span className='text-sm font-semibold'>
+                {filteredStats.completed}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Failed:</span>
+              <span className='text-sm font-semibold'>
+                {filteredStats.failed}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <span className='text-muted-foreground text-xs'>Workers:</span>
+              <span className='text-sm font-semibold'>
+                {workers.filter((w) => w.status === 'active').length}
+              </span>
+            </div>
+            <div className='flex items-center gap-1'>
+              <Target className='text-muted-foreground h-3 w-3' />
+              <span className='text-muted-foreground text-xs'>Success:</span>
+              {(() => {
+                const total = filteredStats.completed + filteredStats.failed
+                const successRate =
+                  total > 0
+                    ? ((filteredStats.completed / total) * 100).toFixed(0)
+                    : '0'
+                return (
+                  <span className='text-sm font-semibold'>
+                    {successRate}%
                   </span>
-                </div>
-                {(() => {
-                  const chartData = [
-                    {
-                      name: 'Completed',
-                      value: filteredStats.completed,
-                      color: '#22c55e',
-                    },
-                    {
-                      name: 'Running',
-                      value: filteredStats.running,
-                      color: '#3b82f6',
-                    },
-                    {
-                      name: 'Pending',
-                      value: filteredStats.pending,
-                      color: '#eab308',
-                    },
-                    {
-                      name: 'Failed',
-                      value: filteredStats.failed,
-                      color: '#ef4444',
-                    },
-                  ].filter((item) => item.value > 0)
-
-                  const total = chartData.reduce(
-                    (sum, item) => sum + item.value,
-                    0
-                  )
-
-                  if (total === 0) {
-                    return (
-                      <div className='text-muted-foreground flex h-[120px] items-center justify-center text-sm'>
-                        No jobs in range
-                      </div>
-                    )
-                  }
-
-                  return (
-                    <ResponsiveContainer width='100%' height={120}>
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx='50%'
-                          cy='50%'
-                          innerRadius={30}
-                          outerRadius={50}
-                          paddingAngle={2}
-                          dataKey='value'
-                        >
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--background))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                          }}
-                          formatter={(value: number, name: string) => [
-                            `${value}`,
-                            name,
-                          ]}
-                        />
-                        <Legend
-                          verticalAlign='bottom'
-                          height={36}
-                          iconType='circle'
-                          formatter={(value) => (
-                            <span className='text-muted-foreground text-xs'>
-                              {value}
-                            </span>
-                          )}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )
-                })()}
-              </div>
-
-              {/* Worker Activity Chart */}
-              <div>
-                <div className='mb-2 flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Activity className='text-muted-foreground h-4 w-4' />
-                    <span className='text-sm font-medium'>Worker Activity</span>
-                  </div>
-                  <Badge variant='outline' className='text-xs'>
-                    {workers.length} workers
-                  </Badge>
-                </div>
-                {(() => {
-                  if (workers.length === 0) {
-                    return (
-                      <div className='text-muted-foreground flex h-[120px] items-center justify-center text-sm'>
-                        No workers available
-                      </div>
-                    )
-                  }
-
-                  const workerData = workers.map((worker) => ({
-                    id: worker.id.substring(0, 8),
-                    current: worker.current_jobs,
-                    completed: worker.total_completed,
-                    status: worker.status,
-                  }))
-
-                  return (
-                    <ResponsiveContainer width='100%' height={120}>
-                      <BarChart data={workerData}>
-                        <CartesianGrid
-                          strokeDasharray='3 3'
-                          stroke='hsl(var(--border))'
-                        />
-                        <XAxis
-                          dataKey='id'
-                          tick={{
-                            fill: 'hsl(var(--muted-foreground))',
-                            fontSize: 10,
-                          }}
-                        />
-                        <YAxis
-                          tick={{
-                            fill: 'hsl(var(--muted-foreground))',
-                            fontSize: 10,
-                          }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--background))',
-                            border: '1px solid hsl(--border))',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                          }}
-                          cursor={{ fill: 'hsl(var(--muted) / 0.2)' }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: '10px' }}
-                          iconType='circle'
-                          iconSize={8}
-                        />
-                        <Bar
-                          dataKey='current'
-                          name='Current'
-                          fill='#3b82f6'
-                          radius={[3, 3, 0, 0]}
-                        />
-                        <Bar
-                          dataKey='completed'
-                          name='Completed'
-                          fill='#22c55e'
-                          radius={[3, 3, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )
-                })()}
-              </div>
+                )
+              })()}
             </div>
-          )}
+            <div className='flex items-center gap-1'>
+              <Timer className='text-muted-foreground h-3 w-3' />
+              <span className='text-muted-foreground text-xs'>Avg. Wait:</span>
+              {(() => {
+                const pendingJobs = jobs24h.filter(
+                  (j) => j.status === 'pending'
+                )
+                const waitTimes = pendingJobs.map(
+                  (j) => Date.now() - new Date(j.created_at).getTime()
+                )
+                const avgWaitMs =
+                  waitTimes.length > 0
+                    ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length
+                    : 0
+                const avgWaitSec = Math.round(avgWaitMs / 1000)
+                const displayTime =
+                  avgWaitSec < 60
+                    ? `${avgWaitSec}s`
+                    : avgWaitSec < 3600
+                      ? `${Math.round(avgWaitSec / 60)}m`
+                      : `${Math.round(avgWaitSec / 3600)}h`
+                return (
+                  <span className='text-sm font-semibold'>{displayTime}</span>
+                )
+              })()}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as 'functions' | 'queue')}
+        className='flex min-h-0 flex-1 flex-col'
       >
         <TabsList className='grid w-full max-w-md grid-cols-2'>
           <TabsTrigger value='queue'>
@@ -1080,7 +913,7 @@ function JobsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value='queue' className='mt-6 space-y-6'>
+        <TabsContent value='queue' className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'>
           {/* Filters */}
           <div className='flex items-center gap-3'>
             <div className='flex items-center gap-2'>
@@ -1143,7 +976,7 @@ function JobsPage() {
           </div>
 
           {/* Jobs List */}
-          <ScrollArea className='h-[calc(100vh-32rem)]'>
+          <ScrollArea className='min-h-0 flex-1'>
             <div className='grid gap-4'>
               {filteredJobs.length === 0 ? (
                 <Card>
@@ -1281,7 +1114,7 @@ function JobsPage() {
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value='functions' className='mt-6 space-y-6'>
+        <TabsContent value='functions' className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'>
           {/* Namespace Selector and Sync */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -1358,7 +1191,7 @@ function JobsPage() {
             </Card>
           </div>
 
-          <ScrollArea className='h-[calc(100vh-32rem)]'>
+          <ScrollArea className='min-h-0 flex-1'>
             <div className='grid gap-4'>
               {jobFunctions.length === 0 ? (
                 <Card>
@@ -1589,13 +1422,24 @@ function JobsPage() {
                   <div className='mb-2 flex items-center justify-between'>
                     <Label>Logs</Label>
                     <div className='flex items-center gap-2'>
-                      {(selectedJob.status === 'running' ||
-                        selectedJob.status === 'pending') && (
-                        <div className='text-muted-foreground flex items-center gap-2 text-xs'>
-                          <Loader2 className='h-3 w-3 animate-spin' />
-                          <span>Live updating...</span>
-                        </div>
-                      )}
+                      <Select
+                        value={logLevelFilter}
+                        onValueChange={(value) =>
+                          setLogLevelFilter(value as LogLevel | 'all')
+                        }
+                      >
+                        <SelectTrigger className='h-6 w-24 text-xs'>
+                          <SelectValue placeholder='Level' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='all'>All</SelectItem>
+                          <SelectItem value='debug'>Debug</SelectItem>
+                          <SelectItem value='info'>Info</SelectItem>
+                          <SelectItem value='warning'>Warning</SelectItem>
+                          <SelectItem value='error'>Error</SelectItem>
+                          <SelectItem value='fatal'>Fatal</SelectItem>
+                        </SelectContent>
+                      </Select>
                       {executionLogs.length > 0 && (
                         <Button
                           variant='ghost'
@@ -1603,7 +1447,7 @@ function JobsPage() {
                           className='h-6 px-2'
                           onClick={() =>
                             copyToClipboard(
-                              collapseConsecutiveLogs(executionLogs).join('\n'),
+                              formatLogsForClipboard(filterLogsByLevel(executionLogs)),
                               'Logs'
                             )
                           }
@@ -1625,9 +1469,32 @@ function JobsPage() {
                         Loading logs...
                       </span>
                     ) : executionLogs.length > 0 ? (
-                      <pre className='text-xs break-words whitespace-pre-wrap text-green-400'>
-                        {collapseConsecutiveLogs(executionLogs).join('\n')}
-                      </pre>
+                      <div className='flex flex-col gap-0.5'>
+                        {filteredAndCollapsedLogs.map(
+                          (log) => (
+                            <div
+                              key={log.id}
+                              className='flex items-start gap-2 text-xs'
+                            >
+                              <span
+                                className={`w-12 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-medium uppercase text-white ${LOG_LEVEL_BADGE_COLORS[log.level]}`}
+                              >
+                                {log.level}
+                              </span>
+                              <span
+                                className={`break-words ${LOG_LEVEL_COLORS[log.level]}`}
+                              >
+                                {log.count > 1 && (
+                                  <span className='text-gray-500'>
+                                    ({log.count}x){' '}
+                                  </span>
+                                )}
+                                {log.message}
+                              </span>
+                            </div>
+                          )
+                        )}
+                      </div>
                     ) : (
                       <span className='text-muted-foreground text-xs italic'>
                         No logs available

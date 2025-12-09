@@ -116,17 +116,18 @@ export const impersonationApi = {
   },
 
   /**
-   * List users available for impersonation (non-admin users)
+   * List users available for impersonation
    */
   async listUsers(
     search?: string,
-    limit = 20
+    limit = 20,
+    excludeAdmins = false
   ): Promise<ListUsersResponse> {
     const response = await apiClient.get<ListUsersResponse>(
       '/api/v1/admin/users',
       {
         params: {
-          exclude_admins: true,
+          exclude_admins: excludeAdmins,
           search,
           limit,
         },

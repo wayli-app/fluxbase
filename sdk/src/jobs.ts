@@ -19,7 +19,7 @@
  */
 
 import type { FluxbaseFetch } from "./fetch";
-import type { Job, SubmitJobRequest } from "./types";
+import type { Job, OnBehalfOf, SubmitJobRequest } from "./types";
 
 /**
  * Jobs client for submitting and monitoring background jobs
@@ -41,7 +41,7 @@ export class FluxbaseJobs {
    *
    * @param jobName - Name of the job function to execute
    * @param payload - Job input data
-   * @param options - Additional options (priority, namespace, scheduled time)
+   * @param options - Additional options (priority, namespace, scheduled time, onBehalfOf)
    * @returns Promise resolving to { data, error } tuple with submitted job details
    *
    * @example
@@ -67,6 +67,14 @@ export class FluxbaseJobs {
    * const { data } = await client.jobs.submit('scheduled-task', payload, {
    *   scheduled: '2025-01-01T00:00:00Z'
    * })
+   *
+   * // Submit on behalf of a user (service_role only)
+   * const { data } = await serviceClient.jobs.submit('user-task', payload, {
+   *   onBehalfOf: {
+   *     user_id: 'user-uuid',
+   *     user_email: 'user@example.com'
+   *   }
+   * })
    * ```
    */
   async submit(
@@ -76,13 +84,22 @@ export class FluxbaseJobs {
       priority?: number;
       namespace?: string;
       scheduled?: string;
+      /**
+       * Submit job on behalf of another user (service_role only).
+       * The job will be created with the specified user's identity,
+       * allowing them to see the job and its logs via RLS.
+       */
+      onBehalfOf?: OnBehalfOf;
     },
   ): Promise<{ data: Job | null; error: Error | null }> {
     try {
       const request: SubmitJobRequest = {
         job_name: jobName,
         payload,
-        ...options,
+        priority: options?.priority,
+        namespace: options?.namespace,
+        scheduled: options?.scheduled,
+        on_behalf_of: options?.onBehalfOf,
       };
 
       const data = await this.fetch.post<Job>("/api/v1/jobs/submit", request);

@@ -78,6 +78,12 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      // Proxy AI WebSocket for chatbot testing
+      '/ai/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 })

@@ -350,10 +350,17 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			})
 		}
 
-		// Try JWT authentication via Authorization Bearer header
+		// Try JWT authentication via Authorization Bearer header or token query param
+		// The token query param is used by WebSocket connections (browsers can't set headers)
 		// Check user JWT first (most common case), then service role JWT
+		token := ""
 		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if queryToken := c.Query("token"); queryToken != "" {
+			token = queryToken
+		}
+
+		if token != "" {
 
 			// First, try to validate as a user JWT token (most common case)
 			claims, err := authService.ValidateToken(token)

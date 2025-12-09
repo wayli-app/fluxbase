@@ -4,9 +4,17 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
+import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle, Bot, MessageSquare, FileText } from 'lucide-react'
 import { useState } from 'react'
-import { monitoringApi, type SystemMetrics, type SystemHealth } from '@/lib/api'
+import { monitoringApi, type SystemMetrics, type SystemHealth, aiMetricsApi, type AIMetrics, conversationsApi, auditLogApi } from '@/lib/api'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 const monitoringSearchSchema = z.object({
   tab: z.string().optional().catch('overview'),
@@ -37,6 +45,29 @@ function MonitoringPage() {
     queryFn: monitoringApi.getHealth,
     refetchInterval: autoRefresh ? 10000 : false,
   })
+
+  // Fetch AI metrics
+  const { data: aiMetrics } = useQuery<AIMetrics>({
+    queryKey: ['ai-metrics'],
+    queryFn: aiMetricsApi.getMetrics,
+    refetchInterval: autoRefresh ? 10000 : false,
+  })
+
+  // Fetch conversations
+  const { data: conversationsData } = useQuery({
+    queryKey: ['ai-conversations'],
+    queryFn: () => conversationsApi.list(),
+    refetchInterval: autoRefresh ? 15000 : false,
+  })
+  const conversations = conversationsData?.conversations || []
+
+  // Fetch audit log
+  const { data: auditLogData } = useQuery({
+    queryKey: ['ai-audit-log'],
+    queryFn: () => auditLogApi.list(),
+    refetchInterval: autoRefresh ? 15000 : false,
+  })
+  const auditLog = auditLogData?.entries || []
 
   // Format uptime
   const formatUptime = (seconds: number) => {
@@ -78,7 +109,7 @@ function MonitoringPage() {
   }
 
   return (
-    <div className='flex flex-col gap-6 p-6'>
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <div className='flex items-center justify-between'>
         <div>
           <h1 className='text-3xl font-bold'>System Monitoring</h1>
@@ -154,6 +185,9 @@ function MonitoringPage() {
           <TabsTrigger value='database'>Database</TabsTrigger>
           <TabsTrigger value='realtime'>Realtime</TabsTrigger>
           {metrics?.storage && <TabsTrigger value='storage'>Storage</TabsTrigger>}
+          <TabsTrigger value='ai'>AI Chatbots</TabsTrigger>
+          <TabsTrigger value='conversations'>Conversations</TabsTrigger>
+          <TabsTrigger value='audit'>Audit Log</TabsTrigger>
           <TabsTrigger value='health'>Health Checks</TabsTrigger>
         </TabsList>
 
@@ -347,6 +381,270 @@ function MonitoringPage() {
             </Card>
           </TabsContent>
         )}
+
+        {/* AI Chatbots Tab */}
+        <TabsContent value='ai' className='space-y-4'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+            <Card>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-medium text-muted-foreground'>Total Requests</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{aiMetrics?.total_requests?.toLocaleString() || 0}</div>
+                <p className='text-xs text-muted-foreground mt-1'>AI chat requests</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-medium text-muted-foreground'>Total Tokens</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{aiMetrics?.total_tokens?.toLocaleString() || 0}</div>
+                <p className='text-xs text-muted-foreground mt-1'>
+                  {aiMetrics?.total_prompt_tokens?.toLocaleString() || 0} prompt + {aiMetrics?.total_completion_tokens?.toLocaleString() || 0} completion
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-medium text-muted-foreground'>Active Conversations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>{aiMetrics?.active_conversations || 0}</div>
+                <p className='text-xs text-muted-foreground mt-1'>
+                  of {aiMetrics?.total_conversations || 0} total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-medium text-muted-foreground'>Error Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold'>
+                  {aiMetrics?.error_rate ? aiMetrics.error_rate.toFixed(2) : '0.00'}%
+                </div>
+                <p className='text-xs text-muted-foreground mt-1'>
+                  Avg: {aiMetrics?.avg_response_time_ms ? aiMetrics.avg_response_time_ms.toFixed(0) : '0'}ms
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Chatbot Breakdown */}
+          {aiMetrics?.chatbot_stats && aiMetrics.chatbot_stats.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className='flex items-center gap-2'>
+                  <Bot className='h-5 w-5' />
+                  Chatbot Usage Breakdown
+                </CardTitle>
+                <CardDescription>Request counts, token usage, and errors by chatbot</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Chatbot</TableHead>
+                      <TableHead className='text-right'>Requests</TableHead>
+                      <TableHead className='text-right'>Tokens</TableHead>
+                      <TableHead className='text-right'>Errors</TableHead>
+                      <TableHead className='text-right'>Error Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {aiMetrics.chatbot_stats.map((stat) => {
+                      const errorRate = stat.requests > 0 ? (stat.error_count / stat.requests) * 100 : 0
+                      return (
+                        <TableRow key={stat.chatbot_id}>
+                          <TableCell className='font-medium'>{stat.chatbot_name}</TableCell>
+                          <TableCell className='text-right font-mono'>{stat.requests.toLocaleString()}</TableCell>
+                          <TableCell className='text-right font-mono'>{stat.tokens.toLocaleString()}</TableCell>
+                          <TableCell className='text-right font-mono'>
+                            {stat.error_count > 0 ? (
+                              <span className='text-destructive'>{stat.error_count}</span>
+                            ) : (
+                              stat.error_count
+                            )}
+                          </TableCell>
+                          <TableCell className='text-right font-mono'>
+                            {errorRate > 0 ? (
+                              <Badge variant={errorRate > 5 ? 'destructive' : 'secondary'}>
+                                {errorRate.toFixed(2)}%
+                              </Badge>
+                            ) : (
+                              <span className='text-muted-foreground'>0.00%</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No Data State */}
+          {(!aiMetrics?.chatbot_stats || aiMetrics.chatbot_stats.length === 0) && (
+            <Card>
+              <CardContent className='p-8 text-center'>
+                <Bot className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
+                <p className='text-lg font-medium mb-1'>No AI activity yet</p>
+                <p className='text-sm text-muted-foreground'>
+                  AI chatbot metrics will appear here once they start receiving requests
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Conversations Tab */}
+        <TabsContent value='conversations' className='space-y-4'>
+          <Card>
+            <CardHeader>
+              <CardTitle className='flex items-center gap-2'>
+                <MessageSquare className='h-5 w-5' />
+                Conversation History
+              </CardTitle>
+              <CardDescription>Active and past AI chatbot conversations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {conversations && conversations.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Conversation ID</TableHead>
+                      <TableHead>Chatbot</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className='text-right'>Messages</TableHead>
+                      <TableHead className='text-right'>Tokens</TableHead>
+                      <TableHead className='text-right'>Started</TableHead>
+                      <TableHead className='text-right'>Last Activity</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {conversations.map((conv) => (
+                      <TableRow key={conv.id}>
+                        <TableCell className='font-mono text-xs'>{conv.id.substring(0, 8)}...</TableCell>
+                        <TableCell className='font-medium'>{conv.chatbot_name}</TableCell>
+                        <TableCell className='text-sm text-muted-foreground'>{conv.user_id ? conv.user_id.substring(0, 8) + '...' : 'Anonymous'}</TableCell>
+                        <TableCell>
+                          <Badge variant={conv.status === 'active' ? 'default' : 'secondary'}>
+                            {conv.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className='text-right font-mono'>{conv.turn_count}</TableCell>
+                        <TableCell className='text-right font-mono'>
+                          {(conv.total_prompt_tokens + conv.total_completion_tokens).toLocaleString()}
+                          <span className='text-xs text-muted-foreground ml-1'>
+                            ({conv.total_prompt_tokens}+{conv.total_completion_tokens})
+                          </span>
+                        </TableCell>
+                        <TableCell className='text-right text-sm'>
+                          {new Date(conv.created_at).toLocaleDateString()} {new Date(conv.created_at).toLocaleTimeString()}
+                        </TableCell>
+                        <TableCell className='text-right text-sm'>
+                          {new Date(conv.updated_at).toLocaleDateString()} {new Date(conv.updated_at).toLocaleTimeString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className='p-8 text-center'>
+                  <MessageSquare className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
+                  <p className='text-lg font-medium mb-1'>No conversations yet</p>
+                  <p className='text-sm text-muted-foreground'>
+                    Conversations will appear here once users start chatting with AI chatbots
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Audit Log Tab */}
+        <TabsContent value='audit' className='space-y-4'>
+          <Card>
+            <CardHeader>
+              <CardTitle className='flex items-center gap-2'>
+                <FileText className='h-5 w-5' />
+                Query Audit Log
+              </CardTitle>
+              <CardDescription>SQL queries generated and executed by AI chatbots</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {auditLog && auditLog.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Chatbot</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Query</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className='text-right'>Rows</TableHead>
+                      <TableHead className='text-right'>Duration</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {auditLog.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className='text-sm'>
+                          {new Date(entry.created_at).toLocaleDateString()}<br />
+                          <span className='text-xs text-muted-foreground'>
+                            {new Date(entry.created_at).toLocaleTimeString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className='font-medium'>{entry.chatbot_name || '-'}</TableCell>
+                        <TableCell className='text-sm text-muted-foreground'>
+                          {entry.user_id ? entry.user_id.substring(0, 8) + '...' : 'Anonymous'}
+                        </TableCell>
+                        <TableCell className='font-mono text-xs max-w-md'>
+                          <div className='truncate' title={entry.generated_sql}>
+                            {entry.generated_sql}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {entry.success ? (
+                            <Badge variant='outline' className='border-green-500 text-green-500'>
+                              <CheckCircle2 className='mr-1 h-3 w-3' />
+                              Success
+                            </Badge>
+                          ) : (
+                            <Badge variant='outline' className='border-red-500 text-red-500'>
+                              <XCircle className='mr-1 h-3 w-3' />
+                              Error
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className='text-right font-mono'>
+                          {entry.rows_returned !== undefined && entry.rows_returned !== null ? entry.rows_returned : '-'}
+                        </TableCell>
+                        <TableCell className='text-right font-mono'>
+                          {entry.execution_duration_ms !== undefined && entry.execution_duration_ms !== null ? `${entry.execution_duration_ms.toFixed(2)}ms` : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className='p-8 text-center'>
+                  <FileText className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
+                  <p className='text-lg font-medium mb-1'>No audit entries yet</p>
+                  <p className='text-sm text-muted-foreground'>
+                    SQL queries executed by AI chatbots will be logged here for auditing
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Health Checks Tab */}
         <TabsContent value='health' className='space-y-4'>

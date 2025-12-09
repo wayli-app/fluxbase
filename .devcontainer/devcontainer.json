@@ -20,14 +20,22 @@
         "go.gopath": "/go",
         "go.goroot": "/usr/local/go",
         "go.lintTool": "golangci-lint",
-        "go.lintFlags": ["--fast"],
+        "go.lintFlags": [
+          "--fast"
+        ],
         "go.formatTool": "gofmt",
-        "go.testFlags": ["-v", "-race"],
+        "go.testFlags": [
+          "-v",
+          "-race"
+        ],
         "go.coverOnSave": false,
         "go.coverOnTestPackage": true,
         "editor.formatOnSave": true,
         "editor.formatOnPaste": false,
-        "editor.rulers": [80, 120],
+        "editor.rulers": [
+          80,
+          120
+        ],
         "editor.bracketPairColorization.enabled": true,
         "editor.guides.bracketPairs": true,
         "editor.inlineSuggest.enabled": true,
@@ -92,7 +100,16 @@
       ]
     }
   },
-  "forwardPorts": [8080, 5050, 4321, 6379, 8025, 1025, 9000, 9001],
+  "forwardPorts": [
+    8080,
+    5050,
+    4321,
+    6379,
+    8025,
+    1025,
+    9000,
+    9001
+  ],
   "portsAttributes": {
     "4000": {
       "label": "External Service",

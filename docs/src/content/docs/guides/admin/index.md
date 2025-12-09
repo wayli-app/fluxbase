@@ -172,5 +172,5 @@ Explore detailed guides for specific admin features:
 Need help with the admin dashboard?
 
 - 📖 Check the [documentation](https://docs.fluxbase.io)
-- 💬 Join our [Discord community](https://discord.gg/fluxbase)
+- 💬 Join our [Discord community](https://discord.gg/BXPRHkQzkA)
 - 🐛 Report issues on [GitHub](https://github.com/fluxbase-eu/fluxbase/issues)

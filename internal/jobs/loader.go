@@ -480,7 +480,7 @@ func parseAnnotations(code string) JobAnnotations {
 		TimeoutSeconds:         300,  // 5 minutes default
 		MemoryLimitMB:          256,  // 256MB default
 		MaxRetries:             0,    // No retries by default
-		ProgressTimeoutSeconds: 60,   // 1 minute default
+		ProgressTimeoutSeconds: 300,  // 5 minutes default (matches config default)
 		Enabled:                true, // Enabled by default
 		AllowNet:               true,
 		AllowEnv:               true,
@@ -541,6 +541,7 @@ func parseAnnotations(code string) JobAnnotations {
 	if match := regexp.MustCompile(`@fluxbase:progress-timeout\s+(\d+)`).FindStringSubmatch(code); match != nil {
 		if timeout, err := strconv.Atoi(match[1]); err == nil {
 			annotations.ProgressTimeoutSeconds = timeout
+			log.Debug().Int("progress_timeout_seconds", timeout).Msg("Parsed progress-timeout annotation")
 		}
 	}
 

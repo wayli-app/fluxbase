@@ -262,6 +262,8 @@ export type FilterOperator =
   | 'st_touches'    // geometries touch
   | 'st_crosses'    // geometries cross
   | 'st_overlaps'   // geometries overlap
+  | 'between'       // inclusive range filter (value >= min AND value <= max)
+  | 'not.between'   // exclusive range filter (value < min OR value > max)
 
 export interface QueryFilter {
   column: string
@@ -461,6 +463,24 @@ export interface UploadOptions {
   metadata?: Record<string, string>
   cacheControl?: string
   upsert?: boolean
+  /** Optional callback to track upload progress */
+  onUploadProgress?: (progress: UploadProgress) => void
+}
+
+/**
+ * Options for streaming uploads (memory-efficient for large files)
+ */
+export interface StreamUploadOptions {
+  /** MIME type of the file */
+  contentType?: string
+  /** Custom metadata to attach to the file */
+  metadata?: Record<string, string>
+  /** Cache-Control header value */
+  cacheControl?: string
+  /** If true, overwrite existing file at this path */
+  upsert?: boolean
+  /** AbortSignal to cancel the upload */
+  signal?: AbortSignal
   /** Optional callback to track upload progress */
   onUploadProgress?: (progress: UploadProgress) => void
 }
@@ -1731,6 +1751,14 @@ export interface FunctionSpec {
   name: string
   description?: string
   code: string
+  /** If true, code is already bundled and server will skip bundling */
+  is_pre_bundled?: boolean
+  /** Original source code (for debugging when pre-bundled) */
+  original_code?: string
+  /** Source directory for resolving relative imports during bundling (used by syncWithBundling) */
+  sourceDir?: string
+  /** Additional paths to search for node_modules during bundling (used by syncWithBundling) */
+  nodePaths?: string[]
   enabled?: boolean
   timeout_seconds?: number
   memory_limit_mb?: number
@@ -1922,6 +1950,19 @@ export interface Job {
 }
 
 /**
+ * User context for submitting jobs on behalf of another user.
+ * Only available when using service_role authentication.
+ */
+export interface OnBehalfOf {
+  /** User ID (UUID) to submit the job as */
+  user_id: string
+  /** Optional email address of the user */
+  user_email?: string
+  /** Optional role of the user (defaults to "authenticated") */
+  user_role?: string
+}
+
+/**
  * Request to submit a new job
  */
 export interface SubmitJobRequest {
@@ -1930,6 +1971,13 @@ export interface SubmitJobRequest {
   payload?: any
   priority?: number
   scheduled?: string
+  /**
+   * Submit job on behalf of another user.
+   * Only available when using service_role authentication.
+   * The job will be created with the specified user's identity,
+   * allowing them to see the job and its logs via RLS.
+   */
+  on_behalf_of?: OnBehalfOf
 }
 
 /**
@@ -2146,6 +2194,318 @@ export interface SyncMigrationsResult {
 }
 
 // ============================================================================
+// AI Chatbot Types
+// ============================================================================
+
+/**
+ * AI provider type
+ */
+export type AIProviderType = 'openai' | 'azure' | 'ollama'
+
+/**
+ * AI provider configuration
+ */
+export interface AIProvider {
+  id: string
+  name: string
+  display_name: string
+  provider_type: AIProviderType
+  is_default: boolean
+  enabled: boolean
+  config?: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to create an AI provider
+ */
+export interface CreateAIProviderRequest {
+  name: string
+  display_name: string
+  provider_type: AIProviderType
+  is_default?: boolean
+  enabled?: boolean
+  config: Record<string, string>
+}
+
+/**
+ * AI chatbot summary (list view)
+ */
+export interface AIChatbotSummary {
+  id: string
+  name: string
+  namespace: string
+  description?: string
+  enabled: boolean
+  is_public: boolean
+  allowed_tables: string[]
+  allowed_operations: string[]
+  allowed_schemas: string[]
+  version: number
+  source: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * AI chatbot full details
+ */
+export interface AIChatbot extends AIChatbotSummary {
+  code: string
+  original_code?: string
+  max_tokens: number
+  temperature: number
+  provider_id?: string
+  persist_conversations: boolean
+  conversation_ttl_hours: number
+  max_conversation_turns: number
+  rate_limit_per_minute: number
+  daily_request_limit: number
+  daily_token_budget: number
+  allow_unauthenticated: boolean
+}
+
+/**
+ * Chatbot specification for sync operations
+ */
+export interface ChatbotSpec {
+  name: string
+  description?: string
+  code: string
+  original_code?: string
+  is_pre_bundled?: boolean
+  enabled?: boolean
+  allowed_tables?: string[]
+  allowed_operations?: string[]
+  allowed_schemas?: string[]
+  max_tokens?: number
+  temperature?: number
+  persist_conversations?: boolean
+  conversation_ttl_hours?: number
+  max_conversation_turns?: number
+  rate_limit_per_minute?: number
+  daily_request_limit?: number
+  daily_token_budget?: number
+  allow_unauthenticated?: boolean
+  is_public?: boolean
+}
+
+/**
+ * Options for syncing chatbots
+ */
+export interface SyncChatbotsOptions {
+  namespace?: string
+  chatbots?: ChatbotSpec[]
+  options?: {
+    delete_missing?: boolean
+    dry_run?: boolean
+  }
+}
+
+/**
+ * Result of a chatbot sync operation
+ */
+export interface SyncChatbotsResult {
+  message: string
+  namespace: string
+  summary: {
+    created: number
+    updated: number
+    deleted: number
+    unchanged: number
+    errors: number
+  }
+  details: {
+    created: string[]
+    updated: string[]
+    deleted: string[]
+    unchanged: string[]
+  }
+  errors: SyncError[]
+  dry_run: boolean
+}
+
+/**
+ * AI chat message role
+ */
+export type AIChatMessageRole = 'user' | 'assistant' | 'system' | 'tool'
+
+/**
+ * AI chat message for WebSocket
+ */
+export interface AIChatClientMessage {
+  type: 'start_chat' | 'message' | 'cancel'
+  chatbot?: string
+  namespace?: string
+  conversation_id?: string
+  content?: string
+  impersonate_user_id?: string // Admin-only: test as this user
+}
+
+/**
+ * AI chat server message
+ */
+export interface AIChatServerMessage {
+  type: 'chat_started' | 'progress' | 'content' | 'query_result' | 'done' | 'error' | 'cancelled'
+  conversation_id?: string
+  message_id?: string
+  chatbot?: string
+  step?: string
+  message?: string
+  delta?: string
+  query?: string
+  summary?: string
+  row_count?: number
+  data?: Record<string, any>[]
+  usage?: AIUsageStats
+  error?: string
+  code?: string
+}
+
+/**
+ * AI token usage statistics
+ */
+export interface AIUsageStats {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens?: number
+}
+
+/**
+ * AI conversation summary
+ */
+export interface AIConversation {
+  id: string
+  chatbot_id: string
+  user_id?: string
+  session_id?: string
+  title?: string
+  status: 'active' | 'archived'
+  turn_count: number
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  created_at: string
+  updated_at: string
+  last_message_at: string
+  expires_at?: string
+}
+
+/**
+ * AI conversation message
+ */
+export interface AIConversationMessage {
+  id: string
+  conversation_id: string
+  role: AIChatMessageRole
+  content: string
+  tool_call_id?: string
+  tool_name?: string
+  executed_sql?: string
+  sql_result_summary?: string
+  sql_row_count?: number
+  sql_error?: string
+  sql_duration_ms?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  created_at: string
+  sequence_number: number
+}
+
+// ============================================================================
+// AI User Conversation History Types
+// ============================================================================
+
+/**
+ * User's conversation summary (list view)
+ */
+export interface AIUserConversationSummary {
+  id: string
+  chatbot: string
+  namespace: string
+  title?: string
+  preview: string
+  message_count: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Query result data in a user message
+ */
+export interface AIUserQueryResult {
+  query?: string
+  summary: string
+  row_count: number
+  data?: Record<string, unknown>[]
+}
+
+/**
+ * Token usage stats in a user message
+ */
+export interface AIUserUsageStats {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens?: number
+}
+
+/**
+ * User's message in conversation detail view
+ */
+export interface AIUserMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  query_results?: AIUserQueryResult[] // Array of query results for assistant messages
+  usage?: AIUserUsageStats
+}
+
+/**
+ * User's conversation detail with messages
+ */
+export interface AIUserConversationDetail {
+  id: string
+  chatbot: string
+  namespace: string
+  title?: string
+  created_at: string
+  updated_at: string
+  messages: AIUserMessage[]
+}
+
+/**
+ * Options for listing user conversations
+ */
+export interface ListConversationsOptions {
+  /** Filter by chatbot name */
+  chatbot?: string
+  /** Filter by namespace */
+  namespace?: string
+  /** Number of conversations to return (default: 50, max: 100) */
+  limit?: number
+  /** Offset for pagination */
+  offset?: number
+}
+
+/**
+ * Result of listing user conversations
+ */
+export interface ListConversationsResult {
+  conversations: AIUserConversationSummary[]
+  total: number
+  has_more: boolean
+}
+
+/**
+ * Options for updating a conversation
+ */
+export interface UpdateConversationOptions {
+  /** New title for the conversation */
+  title: string
+}
+
+// ============================================================================
 // Fluxbase Response Types (Supabase-compatible)
 // ============================================================================
 
@@ -2291,6 +2651,166 @@ export interface GeoJSONFeature<P = Record<string, unknown>> {
 export interface GeoJSONFeatureCollection<P = Record<string, unknown>> {
   type: 'FeatureCollection'
   features: Array<GeoJSONFeature<P>>
+}
+
+// ============================================================================
+// RPC (Remote Procedure Call) Types
+// ============================================================================
+
+/**
+ * RPC procedure summary for listings
+ */
+export interface RPCProcedureSummary {
+  id: string
+  name: string
+  namespace: string
+  description?: string
+  allowed_tables: string[]
+  allowed_schemas: string[]
+  max_execution_time_seconds: number
+  require_role?: string
+  is_public: boolean
+  enabled: boolean
+  version: number
+  source: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Full RPC procedure details
+ */
+export interface RPCProcedure extends RPCProcedureSummary {
+  sql_query: string
+  original_code?: string
+  input_schema?: Record<string, string>
+  output_schema?: Record<string, string>
+  created_by?: string
+}
+
+/**
+ * RPC execution status
+ */
+export type RPCExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+
+/**
+ * RPC execution record
+ */
+export interface RPCExecution {
+  id: string
+  procedure_id?: string
+  procedure_name: string
+  namespace: string
+  status: RPCExecutionStatus
+  input_params?: Record<string, unknown>
+  result?: unknown
+  error_message?: string
+  rows_returned?: number
+  duration_ms?: number
+  user_id?: string
+  user_role?: string
+  user_email?: string
+  is_async: boolean
+  created_at: string
+  started_at?: string
+  completed_at?: string
+}
+
+/**
+ * RPC invocation response
+ */
+export interface RPCInvokeResponse<T = unknown> {
+  execution_id: string
+  status: RPCExecutionStatus
+  result?: T
+  rows_returned?: number
+  duration_ms?: number
+  error?: string
+}
+
+/**
+ * RPC execution log entry
+ */
+export interface RPCExecutionLog {
+  id: number
+  execution_id: string
+  line_number: number
+  level: string
+  message: string
+  created_at: string
+}
+
+/**
+ * RPC procedure specification for sync operations
+ */
+export interface RPCProcedureSpec {
+  name: string
+  code: string
+  description?: string
+  enabled?: boolean
+}
+
+/**
+ * Options for syncing RPC procedures
+ */
+export interface SyncRPCOptions {
+  namespace?: string
+  procedures?: RPCProcedureSpec[]
+  options?: {
+    delete_missing?: boolean
+    dry_run?: boolean
+  }
+}
+
+/**
+ * Result of RPC sync operation
+ */
+export interface SyncRPCResult {
+  message: string
+  namespace: string
+  summary: {
+    created: number
+    updated: number
+    deleted: number
+    unchanged: number
+    errors: number
+  }
+  details: {
+    created: string[]
+    updated: string[]
+    deleted: string[]
+    unchanged: string[]
+  }
+  errors: Array<{
+    procedure: string
+    error: string
+  }>
+  dry_run: boolean
+}
+
+/**
+ * Options for updating an RPC procedure
+ */
+export interface UpdateRPCProcedureRequest {
+  description?: string
+  enabled?: boolean
+  is_public?: boolean
+  require_role?: string
+  max_execution_time_seconds?: number
+  allowed_tables?: string[]
+  allowed_schemas?: string[]
+}
+
+/**
+ * Filters for listing RPC executions
+ */
+export interface RPCExecutionFilters {
+  namespace?: string
+  procedure?: string
+  status?: RPCExecutionStatus
+  user_id?: string
+  limit?: number
+  offset?: number
 }
 
 // ============================================================================

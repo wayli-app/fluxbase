@@ -87,6 +87,17 @@ JavaScript/TypeScript function execution:
 - Database webhook triggers
 - Deno runtime
 
+### AI Chatbots
+
+WebSocket-based AI chatbot integration:
+
+- SQL query assistants with natural language
+- Streaming responses via WebSocket
+- Custom chatbot creation with TypeScript
+- Provider management (OpenAI, Anthropic, etc.)
+- Rate limiting and token budgets
+- Conversation persistence
+
 ## Quick Comparison
 
 | Feature             | Fluxbase              | Supabase                 | Firebase           |
@@ -194,6 +205,7 @@ graph TB
 
 - [Installation Guide](getting-started/installation) - Set up Fluxbase in your environment
 - [Quick Start Tutorial](getting-started/quick-start) - Build your first application
+- [AI Chatbots Guide](guides/ai-chatbots) - Build natural language interfaces to your database
 - [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
 - [SDK Documentation](api/sdk) - TypeScript SDK API reference
 - [SDK Guides](/docs/category/sdks) - Learn how to use the TypeScript SDK
@@ -201,7 +213,7 @@ graph TB
 ## Community & Support
 
 - **GitHub**: [github.com/fluxbase-eu/fluxbase](https://github.com/fluxbase-eu/fluxbase)
-- **Discord**: [discord.gg/fluxbase](https://discord.gg/fluxbase)
+- **Discord**: [discord.gg/BXPRHkQzkA](https://discord.gg/BXPRHkQzkA)
 - **Twitter**: [@fluxbase](https://twitter.com/fluxbase)
 
 ## License

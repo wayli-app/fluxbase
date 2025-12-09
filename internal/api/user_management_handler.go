@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 )
@@ -33,6 +35,11 @@ func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 		})
 	}
 
+	// Ensure we never return null (nil slice serializes to null in JSON)
+	if users == nil {
+		users = []*auth.EnrichedUser{}
+	}
+
 	// Filter users based on query parameters
 	filteredUsers := users
 
@@ -47,13 +54,13 @@ func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 		filteredUsers = nonAdminUsers
 	}
 
-	// Search by email if provided
+	// Search by email if provided (case-insensitive)
 	if search != "" {
+		searchLower := strings.ToLower(search)
 		searchResults := make([]*auth.EnrichedUser, 0)
 		for _, user := range filteredUsers {
-			if len(user.Email) >= len(search) && user.Email[:len(search)] == search {
-				searchResults = append(searchResults, user)
-			} else if contains(user.Email, search) {
+			emailLower := strings.ToLower(user.Email)
+			if strings.Contains(emailLower, searchLower) {
 				searchResults = append(searchResults, user)
 			}
 		}
@@ -89,19 +96,6 @@ func (h *UserManagementHandler) GetUserByID(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(user)
-}
-
-// contains is a simple case-insensitive substring check
-func contains(s, substr string) bool {
-	if len(substr) > len(s) {
-		return false
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // InviteUser invites a new user

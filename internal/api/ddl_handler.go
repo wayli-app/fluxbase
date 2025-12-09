@@ -8,6 +8,7 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
 
@@ -102,10 +103,15 @@ func (h *DDLHandler) CreateSchema(c *fiber.Ctx) error {
 	}
 
 	// Create schema (using quoted identifier for safety)
+	// Use admin role to ensure full DDL access (superuser privileges)
 	query := fmt.Sprintf("CREATE SCHEMA %s", quoteIdentifier(req.Name))
 	log.Info().Str("schema", req.Name).Str("query", query).Msg("Creating schema")
 
-	if _, err := h.db.Pool().Exec(ctx, query); err != nil {
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
 		log.Error().Err(err).Str("schema", req.Name).Msg("Failed to create schema")
 		return c.Status(500).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to create schema: %v", err),
@@ -194,8 +200,12 @@ func (h *DDLHandler) CreateTable(c *fiber.Ctx) error {
 		Int("columns", len(req.Columns)).
 		Msg("Creating table")
 
-	// Execute CREATE TABLE
-	if _, err := h.db.Pool().Exec(ctx, query); err != nil {
+	// Execute CREATE TABLE with admin role for full DDL access (superuser privileges)
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
 		log.Error().Err(err).Str("table", req.Schema+"."+req.Name).Msg("Failed to create table")
 		return c.Status(500).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to create table: %v", err),
@@ -248,8 +258,12 @@ func (h *DDLHandler) DeleteTable(c *fiber.Ctx) error {
 	query := fmt.Sprintf("DROP TABLE %s.%s", quoteIdentifier(schema), quoteIdentifier(table))
 	log.Info().Str("table", schema+"."+table).Str("query", query).Msg("Dropping table")
 
-	// Execute DROP TABLE
-	if _, err := h.db.Pool().Exec(ctx, query); err != nil {
+	// Execute DROP TABLE with admin role for full DDL access (superuser privileges)
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
 		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to drop table")
 		return c.Status(500).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to drop table: %v", err),
@@ -287,11 +301,6 @@ func validateIdentifier(name, entityType string) error {
 	return nil
 }
 
-// quoteIdentifier safely quotes a PostgreSQL identifier
-func quoteIdentifier(name string) string {
-	// Use double quotes to preserve case and handle special characters
-	return fmt.Sprintf(`"%s"`, strings.ReplaceAll(name, `"`, `""`))
-}
 
 // schemaExists checks if a schema exists
 func (h *DDLHandler) schemaExists(ctx context.Context, schema string) (bool, error) {
