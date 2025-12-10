@@ -86,6 +86,7 @@ export function RecordEditDialog({
       try {
         await insertMutation.mutateAsync(data)
         queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
+        queryClient.invalidateQueries({ queryKey: ['table-count', tableDisplayName] })
         toast.success('Record created successfully')
         onClose()
       } catch (error) {
@@ -97,6 +98,7 @@ export function RecordEditDialog({
       insertMutation.mutateAsync(data)
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ['table-data', tableDisplayName] })
+          queryClient.invalidateQueries({ queryKey: ['table-count', tableDisplayName] })
           toast.success('Record created successfully')
           onClose()
         })

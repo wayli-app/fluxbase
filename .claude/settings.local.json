@@ -61,7 +61,8 @@
       "Bash(xxd:*)",
       "Bash(wc:*)",
       "Bash(go get:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

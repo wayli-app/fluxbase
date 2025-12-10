@@ -11,16 +11,6 @@ import {
 // Use empty string (relative URLs) to work with both dev server proxy and production
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
-// Helper to get impersonation token if active
-const getImpersonationToken = (): string | null => {
-  return localStorage.getItem('fluxbase_impersonation_token')
-}
-
-// Helper to get active token (impersonation takes precedence)
-const getActiveToken = (): string | null => {
-  return getImpersonationToken() || getAccessToken()
-}
-
 // Create axios instance with default config
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -30,11 +20,12 @@ const api: AxiosInstance = axios.create({
   timeout: 30000, // 30 seconds
 })
 
-// Request interceptor to add auth token (with impersonation support)
+// Request interceptor to add auth token
+// NOTE: This client uses admin token ONLY. Impersonation tokens are handled
+// separately by the Fluxbase SDK (fluxbase-client.ts) for table data requests.
 api.interceptors.request.use(
   (config) => {
-    // Use impersonation token if active, otherwise use admin token
-    const accessToken = getActiveToken()
+    const accessToken = getAccessToken()
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
@@ -363,6 +354,7 @@ export const authApi = {
 export interface TableInfo {
   schema: string
   name: string
+  type: 'table' | 'view' | 'materialized_view'
   rest_path?: string
   columns: Array<{
     name: string

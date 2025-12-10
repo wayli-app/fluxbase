@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/rs/zerolog/log"
@@ -320,6 +321,7 @@ func (s *SchemaBuilder) BuildSystemPrompt(ctx context.Context, chatbot *Chatbot,
 	sb.WriteString("\n")
 	sb.WriteString(fmt.Sprintf("Allowed operations: %s\n", strings.Join(chatbot.AllowedOperations, ", ")))
 	sb.WriteString(fmt.Sprintf("Current user ID: %s\n", userID))
+	sb.WriteString(fmt.Sprintf("Current date and time: %s\n", time.Now().UTC().Format("Monday, January 2, 2006 at 3:04 PM MST")))
 
 	return sb.String(), nil
 }

@@ -13,10 +13,11 @@ type SchemaInspector struct {
 	conn *Connection
 }
 
-// TableInfo represents metadata about a database table
+// TableInfo represents metadata about a database table, view, or materialized view
 type TableInfo struct {
 	Schema      string       `json:"schema"`
 	Name        string       `json:"name"`
+	Type        string       `json:"type"` // "table", "view", or "materialized_view"
 	RESTPath    string       `json:"rest_path,omitempty"` // The REST API path for this table (e.g., "/auth/users")
 	Columns     []ColumnInfo `json:"columns"`
 	PrimaryKey  []string     `json:"primary_key"`
@@ -109,6 +110,7 @@ func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) 
 			continue
 		}
 
+		tableInfo.Type = "table"
 		tableInfo.RLSEnabled = rlsEnabled
 		tables = append(tables, *tableInfo)
 	}
@@ -174,8 +176,9 @@ func (si *SchemaInspector) GetTableInfo(ctx context.Context, schema, table strin
 	return tableInfo, nil
 }
 
-// getColumns retrieves column information for a table
+// getColumns retrieves column information for a table, view, or materialized view
 func (si *SchemaInspector) getColumns(ctx context.Context, schema, table string) ([]ColumnInfo, error) {
+	// First try information_schema.columns (works for tables and regular views)
 	query := `
 		SELECT
 			column_name,
@@ -222,6 +225,65 @@ func (si *SchemaInspector) getColumns(ctx context.Context, schema, table string)
 			col.MaxLength = &length
 		}
 
+		columns = append(columns, col)
+	}
+
+	// If no columns found, it might be a materialized view
+	// Materialized views are NOT in information_schema.columns, use pg_attribute instead
+	if len(columns) == 0 {
+		columns, err = si.getMaterializedViewColumns(ctx, schema, table)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return columns, nil
+}
+
+// getMaterializedViewColumns retrieves column information for a materialized view using pg_catalog
+func (si *SchemaInspector) getMaterializedViewColumns(ctx context.Context, schema, table string) ([]ColumnInfo, error) {
+	query := `
+		SELECT
+			a.attname AS column_name,
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+			NOT a.attnotnull AS is_nullable,
+			pg_get_expr(d.adbin, d.adrelid) AS column_default,
+			a.attnum AS ordinal_position
+		FROM pg_catalog.pg_attribute a
+		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+		WHERE n.nspname = $1
+		  AND c.relname = $2
+		  AND c.relkind = 'm'  -- 'm' = materialized view
+		  AND a.attnum > 0     -- skip system columns
+		  AND NOT a.attisdropped
+		ORDER BY a.attnum
+	`
+
+	rows, err := si.conn.Query(ctx, query, schema, table)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var columns []ColumnInfo
+	for rows.Next() {
+		var col ColumnInfo
+		var isNullable bool
+
+		err := rows.Scan(
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&col.Position,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable
 		columns = append(columns, col)
 	}
 
@@ -421,11 +483,59 @@ func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) (
 		}
 
 		// Mark as read-only (view)
+		viewInfo.Type = "view"
 		viewInfo.RLSEnabled = false
 		views = append(views, *viewInfo)
 	}
 
 	return views, nil
+}
+
+// GetAllMaterializedViews retrieves information about all materialized views in the specified schemas
+func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
+	if len(schemas) == 0 {
+		schemas = []string{"public"}
+	}
+
+	var matviews []TableInfo
+
+	// Query to get all materialized views from specified schemas
+	query := `
+		SELECT
+			schemaname,
+			matviewname
+		FROM pg_matviews
+		WHERE schemaname = ANY($1)
+			AND schemaname NOT IN ('information_schema', 'pg_catalog')
+		ORDER BY schemaname, matviewname
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query materialized views: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, name string
+
+		if err := rows.Scan(&schema, &name); err != nil {
+			return nil, fmt.Errorf("failed to scan materialized view: %w", err)
+		}
+
+		matviewInfo, err := si.GetTableInfo(ctx, schema, name)
+		if err != nil {
+			log.Warn().Err(err).Str("materialized_view", fmt.Sprintf("%s.%s", schema, name)).Msg("Failed to get materialized view info")
+			continue
+		}
+
+		// Mark as read-only (materialized view)
+		matviewInfo.Type = "materialized_view"
+		matviewInfo.RLSEnabled = false
+		matviews = append(matviews, *matviewInfo)
+	}
+
+	return matviews, nil
 }
 
 // FunctionInfo represents metadata about a database function

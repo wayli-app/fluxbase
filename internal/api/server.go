@@ -683,6 +683,16 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 				s.rest.RegisterViewRoutes(router, view)
 			}
 		}
+
+		// Get all materialized views and register as read-only endpoints
+		matviews, err := s.db.Inspector().GetAllMaterializedViews(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get materialized views from schema")
+		} else {
+			for _, matview := range matviews {
+				s.rest.RegisterViewRoutes(router, matview)
+			}
+		}
 	}
 
 	// Metadata endpoint
@@ -1024,19 +1034,35 @@ func (s *Server) handleGetTables(c *fiber.Ctx) error {
 		}
 	}
 
-	// Collect tables from requested schema(s)
-	var allTables []database.TableInfo
+	// Collect tables, views, and materialized views from requested schema(s)
+	var allItems []database.TableInfo
 	for _, schema := range schemasToQuery {
+		// Get tables
 		tables, err := s.db.Inspector().GetAllTables(ctx, schema)
 		if err != nil {
 			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
-			continue
+		} else {
+			allItems = append(allItems, tables...)
 		}
 
-		allTables = append(allTables, tables...)
+		// Get views
+		views, err := s.db.Inspector().GetAllViews(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get views from schema")
+		} else {
+			allItems = append(allItems, views...)
+		}
+
+		// Get materialized views
+		matviews, err := s.db.Inspector().GetAllMaterializedViews(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get materialized views from schema")
+		} else {
+			allItems = append(allItems, matviews...)
+		}
 	}
 
-	return c.JSON(allTables)
+	return c.JSON(allItems)
 }
 
 func (s *Server) handleGetTableSchema(c *fiber.Ctx) error {

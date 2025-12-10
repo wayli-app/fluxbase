@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Database, MoreVertical, Pencil, Trash2, Plus } from 'lucide-react'
+import { Database, MoreVertical, Pencil, Trash2, Plus, Table2, Eye, Layers } from 'lucide-react'
 import { toast } from 'sonner'
-import { databaseApi } from '@/lib/api'
+import { databaseApi, type TableInfo } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -192,7 +192,20 @@ export function TableSelector({
   const filteredTables = (tables || []).map((table) => ({
     full: `${table.schema}.${table.name}`,
     name: table.name,
+    type: table.type || 'table',
   }))
+
+  // Helper to get icon for table type
+  const getTypeIcon = (type: TableInfo['type']) => {
+    switch (type) {
+      case 'view':
+        return <Eye className='mr-2 h-4 w-4 shrink-0 text-blue-500' />
+      case 'materialized_view':
+        return <Layers className='mr-2 h-4 w-4 shrink-0 text-purple-500' />
+      default:
+        return <Table2 className='mr-2 h-4 w-4 shrink-0 text-muted-foreground' />
+    }
+  }
 
   return (
     <div className='flex h-full flex-col border-r'>
@@ -238,7 +251,7 @@ export function TableSelector({
             Create Table
           </Button>
           <div className='space-y-1'>
-            {filteredTables.map(({ full, name }) => (
+            {filteredTables.map(({ full, name, type }) => (
               <div key={full} className='group relative flex items-center'>
                 <Button
                   variant={selectedTable === full ? 'secondary' : 'ghost'}
@@ -248,6 +261,7 @@ export function TableSelector({
                   )}
                   onClick={() => onTableSelect(full)}
                 >
+                  {getTypeIcon(type as TableInfo['type'])}
                   {name}
                 </Button>
                 <DropdownMenu>

@@ -9,6 +9,17 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
+)
+
+// Well-known UUIDs for synthetic users (anon/service role impersonation)
+// These are valid UUIDs that don't conflict with real user IDs
+const (
+	// AnonUserID is the UUID used for anonymous user impersonation
+	// Using a nil UUID variant to indicate a synthetic/anonymous user
+	AnonUserID = "00000000-0000-0000-0000-000000000000"
+	// ServiceUserID is the UUID used for service role impersonation
+	ServiceUserID = "00000000-0000-0000-0000-000000000001"
 )
 
 var (
@@ -207,6 +218,7 @@ type ImpersonationService struct {
 	repo       *ImpersonationRepository
 	userRepo   *UserRepository
 	jwtManager *JWTManager
+	db         *database.Connection
 }
 
 // NewImpersonationService creates a new impersonation service
@@ -214,12 +226,51 @@ func NewImpersonationService(
 	repo *ImpersonationRepository,
 	userRepo *UserRepository,
 	jwtManager *JWTManager,
+	db *database.Connection,
 ) *ImpersonationService {
 	return &ImpersonationService{
 		repo:       repo,
 		userRepo:   userRepo,
 		jwtManager: jwtManager,
+		db:         db,
 	}
+}
+
+// verifyAdminUser checks if the user is a dashboard admin
+// Returns nil if the user is a valid dashboard admin, error otherwise
+// Checks both dashboard.users and auth.users tables
+func (s *ImpersonationService) verifyAdminUser(ctx context.Context, adminUserID string) error {
+	// First, check if user exists in dashboard.users (they are always admins)
+	var count int
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT COUNT(*) FROM dashboard.users
+			WHERE id = $1 AND deleted_at IS NULL AND is_active = true
+		`, adminUserID).Scan(&count)
+	})
+
+	if err != nil {
+		log.Debug().Err(err).Str("admin_user_id", adminUserID).Msg("Failed to check dashboard.users, falling back to auth.users")
+	} else if count > 0 {
+		// User exists in dashboard.users and is active
+		log.Debug().Str("admin_user_id", adminUserID).Msg("Admin verified via dashboard.users")
+		return nil
+	}
+
+	// Fall back to checking auth.users for users with dashboard_admin role
+	adminUser, err := s.userRepo.GetByID(ctx, adminUserID)
+	if err != nil {
+		log.Debug().Err(err).Str("admin_user_id", adminUserID).Msg("Admin user not found in auth.users either")
+		return fmt.Errorf("admin user not found: %w", err)
+	}
+
+	if adminUser.Role != "dashboard_admin" {
+		log.Debug().Str("admin_user_id", adminUserID).Str("role", adminUser.Role).Msg("User is not a dashboard_admin")
+		return ErrNotAdmin
+	}
+
+	log.Debug().Str("admin_user_id", adminUserID).Msg("Admin verified via auth.users with dashboard_admin role")
+	return nil
 }
 
 // StartImpersonationRequest represents a request to start impersonating a user
@@ -245,14 +296,9 @@ func (s *ImpersonationService) StartImpersonation(
 	adminUserID string,
 	req StartImpersonationRequest,
 ) (*StartImpersonationResponse, error) {
-	// Verify admin user exists and is admin
-	adminUser, err := s.userRepo.GetByID(ctx, adminUserID)
-	if err != nil {
-		return nil, fmt.Errorf("admin user not found: %w", err)
-	}
-
-	if adminUser.Role != "dashboard_admin" {
-		return nil, ErrNotAdmin
+	// Verify admin user exists and is admin (checks both dashboard.users and auth.users)
+	if err := s.verifyAdminUser(ctx, adminUserID); err != nil {
+		return nil, err
 	}
 
 	// Verify target user exists
@@ -324,14 +370,9 @@ func (s *ImpersonationService) StartAnonImpersonation(
 	ipAddress string,
 	userAgent string,
 ) (*StartImpersonationResponse, error) {
-	// Verify admin user exists and is admin
-	adminUser, err := s.userRepo.GetByID(ctx, adminUserID)
-	if err != nil {
-		return nil, fmt.Errorf("admin user not found: %w", err)
-	}
-
-	if adminUser.Role != "dashboard_admin" {
-		return nil, ErrNotAdmin
+	// Verify admin user exists and is admin (checks both dashboard.users and auth.users)
+	if err := s.verifyAdminUser(ctx, adminUserID); err != nil {
+		return nil, err
 	}
 
 	// Check if admin already has an active impersonation session
@@ -364,20 +405,20 @@ func (s *ImpersonationService) StartAnonImpersonation(
 	}
 
 	// Generate JWT tokens for anonymous user (no metadata for anonymous users)
-	anonID := "anonymous-" + uuid.New().String()
-	accessToken, _, err := s.jwtManager.GenerateAccessToken(anonID, "anonymous@fluxbase.local", "anon", nil, nil)
+	// Use well-known nil UUID for anonymous users
+	accessToken, _, err := s.jwtManager.GenerateAccessToken(AnonUserID, "anonymous@fluxbase.local", "anon", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(anonID, "anonymous@fluxbase.local", "anon", "", nil, nil)
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(AnonUserID, "anonymous@fluxbase.local", "anon", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
 	// Create a synthetic user object for response
 	targetUser := &User{
-		ID:    anonID,
+		ID:    AnonUserID,
 		Email: "anonymous@fluxbase.local",
 		Role:  "anon",
 	}
@@ -399,14 +440,9 @@ func (s *ImpersonationService) StartServiceImpersonation(
 	ipAddress string,
 	userAgent string,
 ) (*StartImpersonationResponse, error) {
-	// Verify admin user exists and is admin
-	adminUser, err := s.userRepo.GetByID(ctx, adminUserID)
-	if err != nil {
-		return nil, fmt.Errorf("admin user not found: %w", err)
-	}
-
-	if adminUser.Role != "dashboard_admin" {
-		return nil, ErrNotAdmin
+	// Verify admin user exists and is admin (checks both dashboard.users and auth.users)
+	if err := s.verifyAdminUser(ctx, adminUserID); err != nil {
+		return nil, err
 	}
 
 	// Check if admin already has an active impersonation session
@@ -439,22 +475,22 @@ func (s *ImpersonationService) StartServiceImpersonation(
 	}
 
 	// Generate JWT tokens for service role (no metadata for service role)
-	serviceID := "service-" + uuid.New().String()
-	accessToken, _, err := s.jwtManager.GenerateAccessToken(serviceID, "service@fluxbase.local", "service", nil, nil)
+	// Use well-known UUID for service role users
+	accessToken, _, err := s.jwtManager.GenerateAccessToken(ServiceUserID, "service@fluxbase.local", "service_role", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(serviceID, "service@fluxbase.local", "service_role", "", nil, nil)
+	refreshToken, _, err := s.jwtManager.GenerateRefreshToken(ServiceUserID, "service@fluxbase.local", "service_role", "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
 	// Create a synthetic user object for response
 	targetUser := &User{
-		ID:    serviceID,
+		ID:    ServiceUserID,
 		Email: "service@fluxbase.local",
-		Role:  "service",
+		Role:  "service_role",
 	}
 
 	return &StartImpersonationResponse{

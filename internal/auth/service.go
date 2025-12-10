@@ -88,7 +88,7 @@ func NewService(
 	tokenBlacklistService := NewTokenBlacklistService(tokenBlacklistRepo, jwtManager)
 
 	impersonationRepo := NewImpersonationRepository(db)
-	impersonationService := NewImpersonationService(impersonationRepo, userRepo, jwtManager)
+	impersonationService := NewImpersonationService(impersonationRepo, userRepo, jwtManager, db)
 
 	// OTP service for passwordless authentication
 	otpExpiry := cfg.MagicLinkExpiry // Reuse magic link expiry for OTP (typically 10-15 minutes)

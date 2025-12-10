@@ -294,6 +294,30 @@ var ExecuteSQLTool = Tool{
 	},
 }
 
+// HttpRequestTool is the standard tool definition for HTTP requests to external APIs
+var HttpRequestTool = Tool{
+	Type: "function",
+	Function: ToolFunction{
+		Name:        "http_request",
+		Description: "Make an HTTP GET request to an external API. Only whitelisted domains configured for this chatbot are allowed.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"url": map[string]interface{}{
+					"type":        "string",
+					"description": "The full URL to request (must be HTTPS and on an allowed domain)",
+				},
+				"method": map[string]interface{}{
+					"type":        "string",
+					"description": "HTTP method - only GET is currently supported",
+					"enum":        []string{"GET"},
+				},
+			},
+			"required": []string{"url", "method"},
+		},
+	},
+}
+
 // ReadCloserWrapper wraps an io.Reader with a no-op Close method
 type ReadCloserWrapper struct {
 	io.Reader

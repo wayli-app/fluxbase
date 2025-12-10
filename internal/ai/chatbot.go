@@ -19,9 +19,10 @@ type Chatbot struct {
 	BundleError  string `json:"bundle_error,omitempty"`
 
 	// Parsed from annotations
-	AllowedTables     []string `json:"allowed_tables"`
-	AllowedOperations []string `json:"allowed_operations"`
-	AllowedSchemas    []string `json:"allowed_schemas"`
+	AllowedTables      []string `json:"allowed_tables"`
+	AllowedOperations  []string `json:"allowed_operations"`
+	AllowedSchemas     []string `json:"allowed_schemas"`
+	HTTPAllowedDomains []string `json:"http_allowed_domains"`
 
 	// Runtime config
 	Enabled     bool    `json:"enabled"`
@@ -54,9 +55,10 @@ type Chatbot struct {
 // ChatbotConfig represents the parsed configuration from annotations
 type ChatbotConfig struct {
 	// Data access
-	AllowedTables     []string
-	AllowedOperations []string
-	AllowedSchemas    []string
+	AllowedTables      []string
+	AllowedOperations  []string
+	AllowedSchemas     []string
+	HTTPAllowedDomains []string
 
 	// Model settings
 	MaxTokens   int
@@ -87,6 +89,7 @@ func DefaultChatbotConfig() ChatbotConfig {
 		AllowedTables:        []string{},
 		AllowedOperations:    []string{"SELECT"},
 		AllowedSchemas:       []string{"public"},
+		HTTPAllowedDomains:   []string{},
 		MaxTokens:            4096,
 		Temperature:          0.7,
 		PersistConversations: false,
@@ -111,6 +114,9 @@ var (
 
 	// @fluxbase:allowed-schemas public,app
 	allowedSchemasPattern = regexp.MustCompile(`@fluxbase:allowed-schemas\s+([^\n*]+)`)
+
+	// @fluxbase:http-allowed-domains pelias.wayli.app,api.example.com
+	httpAllowedDomainsPattern = regexp.MustCompile(`@fluxbase:http-allowed-domains\s+([^\n*]+)`)
 
 	// @fluxbase:max-tokens 4096
 	maxTokensPattern = regexp.MustCompile(`@fluxbase:max-tokens\s+(\d+)`)
@@ -172,6 +178,11 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 	// Parse allowed schemas
 	if matches := allowedSchemasPattern.FindStringSubmatch(code); len(matches) > 1 {
 		config.AllowedSchemas = parseCSV(matches[1])
+	}
+
+	// Parse HTTP allowed domains
+	if matches := httpAllowedDomainsPattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.HTTPAllowedDomains = parseCSV(matches[1])
 	}
 
 	// Parse max tokens
@@ -287,6 +298,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.AllowedTables = config.AllowedTables
 	c.AllowedOperations = config.AllowedOperations
 	c.AllowedSchemas = config.AllowedSchemas
+	c.HTTPAllowedDomains = config.HTTPAllowedDomains
 	c.MaxTokens = config.MaxTokens
 	c.Temperature = config.Temperature
 	c.Model = config.Model

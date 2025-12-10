@@ -52,18 +52,18 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 	query := `
 		INSERT INTO ai.chatbots (
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
-			allowed_tables, allowed_operations, allowed_schemas,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, version, source, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
-			$9, $10, $11,
-			$12, $13, $14, $15,
-			$16, $17, $18,
-			$19, $20, $21,
-			$22, $23, $24, $25, $26, $27, $28
+			$9, $10, $11, $12,
+			$13, $14, $15, $16,
+			$17, $18, $19,
+			$20, $21, $22,
+			$23, $24, $25, $26, $27, $28, $29
 		)
 	`
 
@@ -78,7 +78,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 	_, err := s.db.Exec(ctx, query,
 		chatbot.ID, chatbot.Name, chatbot.Namespace, chatbot.Description,
 		chatbot.Code, chatbot.OriginalCode, chatbot.IsBundled, chatbot.BundleError,
-		chatbot.AllowedTables, chatbot.AllowedOperations, chatbot.AllowedSchemas,
+		chatbot.AllowedTables, chatbot.AllowedOperations, chatbot.AllowedSchemas, chatbot.HTTPAllowedDomains,
 		chatbot.Enabled, chatbot.MaxTokens, chatbot.Temperature, chatbot.ProviderID,
 		chatbot.PersistConversations, chatbot.ConversationTTLHours, chatbot.MaxConversationTurns,
 		chatbot.RateLimitPerMinute, chatbot.DailyRequestLimit, chatbot.DailyTokenBudget,
@@ -111,20 +111,21 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			allowed_tables = $7,
 			allowed_operations = $8,
 			allowed_schemas = $9,
-			enabled = $10,
-			max_tokens = $11,
-			temperature = $12,
-			provider_id = $13,
-			persist_conversations = $14,
-			conversation_ttl_hours = $15,
-			max_conversation_turns = $16,
-			rate_limit_per_minute = $17,
-			daily_request_limit = $18,
-			daily_token_budget = $19,
-			allow_unauthenticated = $20,
-			is_public = $21,
+			http_allowed_domains = $10,
+			enabled = $11,
+			max_tokens = $12,
+			temperature = $13,
+			provider_id = $14,
+			persist_conversations = $15,
+			conversation_ttl_hours = $16,
+			max_conversation_turns = $17,
+			rate_limit_per_minute = $18,
+			daily_request_limit = $19,
+			daily_token_budget = $20,
+			allow_unauthenticated = $21,
+			is_public = $22,
 			version = version + 1,
-			updated_at = $22
+			updated_at = $23
 		WHERE id = $1
 	`
 
@@ -140,6 +141,7 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.AllowedTables,
 		chatbot.AllowedOperations,
 		chatbot.AllowedSchemas,
+		chatbot.HTTPAllowedDomains,
 		chatbot.Enabled,
 		chatbot.MaxTokens,
 		chatbot.Temperature,
@@ -176,7 +178,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 	query := `
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
-			allowed_tables, allowed_operations, allowed_schemas,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -189,7 +191,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 	err := s.db.QueryRow(ctx, query, id).Scan(
 		&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 		&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
-		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas,
+		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -213,7 +215,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 	query := `
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
-			allowed_tables, allowed_operations, allowed_schemas,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -226,7 +228,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 	err := s.db.QueryRow(ctx, query, namespace, name).Scan(
 		&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 		&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
-		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas,
+		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -250,7 +252,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 	query := `
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
-			allowed_tables, allowed_operations, allowed_schemas,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -276,7 +278,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 		err := rows.Scan(
 			&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 			&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
-			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas,
+			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -298,7 +300,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 	query := `
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
-			allowed_tables, allowed_operations, allowed_schemas,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -320,7 +322,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 		err := rows.Scan(
 			&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 			&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
-			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas,
+			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,

@@ -18,6 +18,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -47,6 +48,30 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
 	poolConfig.MaxConnIdleTime = cfg.MaxConnIdleTime
 	poolConfig.HealthCheckPeriod = cfg.HealthCheck
+
+	// Register custom types for PostgreSQL-specific types that pgx doesn't handle by default
+	// This allows scanning tsvector, tsquery, and other types into interface{}
+	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		// Register tsvector (OID 3614) as text
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "tsvector",
+			OID:   3614,
+			Codec: pgtype.TextCodec{},
+		})
+		// Register tsquery (OID 3615) as text
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "tsquery",
+			OID:   3615,
+			Codec: pgtype.TextCodec{},
+		})
+		// Register regclass (OID 2205) as text - used in some system views
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "regclass",
+			OID:   2205,
+			Codec: pgtype.TextCodec{},
+		})
+		return nil
+	}
 
 	// Create connection pool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

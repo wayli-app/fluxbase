@@ -23,6 +23,7 @@ type ChatHandler struct {
 	conversations *ConversationManager
 	schemaBuilder *SchemaBuilder
 	executor      *Executor
+	httpHandler   *HttpRequestHandler
 	auditLogger   *AuditLogger
 	metrics       *observability.Metrics
 	config        *config.AIConfig
@@ -43,6 +44,7 @@ func NewChatHandler(
 		conversations: conversations,
 		schemaBuilder: NewSchemaBuilder(db),
 		executor:      NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
+		httpHandler:   NewHttpRequestHandler(),
 		auditLogger:   NewAuditLogger(db),
 		metrics:       metrics,
 		config:        cfg,
@@ -344,12 +346,18 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	maxIterations := 5                        // Prevent infinite loops
 
 	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Build tools list based on chatbot configuration
+		tools := []Tool{ExecuteSQLTool}
+		if len(chatbot.HTTPAllowedDomains) > 0 {
+			tools = append(tools, HttpRequestTool)
+		}
+
 		// Create chat request
 		chatReq := &ChatRequest{
 			Messages:    messages,
 			MaxTokens:   chatbot.MaxTokens,
 			Temperature: chatbot.Temperature,
-			Tools:       []Tool{ExecuteSQLTool},
+			Tools:       tools,
 			Stream:      true,
 		}
 
@@ -370,15 +378,18 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 			case "tool_call":
 				// Collect tool calls to execute after streaming completes
-				if event.ToolCall != nil && event.ToolCall.FunctionName == "execute_sql" {
-					pendingToolCalls = append(pendingToolCalls, ToolCall{
-						ID:   event.ToolCall.ID,
-						Type: "function",
-						Function: FunctionCall{
-							Name:      event.ToolCall.FunctionName,
-							Arguments: event.ToolCall.ArgumentsDelta,
-						},
-					})
+				if event.ToolCall != nil {
+					toolName := event.ToolCall.FunctionName
+					if toolName == "execute_sql" || toolName == "http_request" {
+						pendingToolCalls = append(pendingToolCalls, ToolCall{
+							ID:   event.ToolCall.ID,
+							Type: "function",
+							Function: FunctionCall{
+								Name:      toolName,
+								Arguments: event.ToolCall.ArgumentsDelta,
+							},
+						})
+					}
 				}
 
 			case "done":
@@ -472,8 +483,21 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 // executeToolCall executes a tool call and returns:
 // - the result as a string for the AI
-// - the QueryResult for persistence (nil if query failed)
+// - the QueryResult for persistence (nil if query failed or not a SQL query)
 func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
+	// Dispatch based on tool name
+	switch toolCall.Function.Name {
+	case "execute_sql":
+		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID)
+	case "http_request":
+		return h.executeHttpTool(ctx, chatCtx, conversationID, chatbot, toolCall)
+	default:
+		return fmt.Sprintf("Error: Unknown tool '%s'", toolCall.Function.Name), nil
+	}
+}
+
+// executeSQLTool handles the execute_sql tool call
+func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
 	// Parse arguments
 	var args struct {
 		SQL         string `json:"sql"`
@@ -481,7 +505,7 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 	}
 
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse tool call arguments")
+		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse SQL tool call arguments")
 		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
 	}
 
@@ -553,6 +577,58 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 	}
 
 	return resultStr, queryResult
+}
+
+// executeHttpTool handles the http_request tool call
+func (h *ChatHandler) executeHttpTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall) (string, *QueryResult) {
+	// Parse arguments
+	var args struct {
+		URL    string `json:"url"`
+		Method string `json:"method"`
+	}
+
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse HTTP tool call arguments")
+		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
+	}
+
+	// Send progress
+	h.sendProgress(chatCtx, conversationID, "http_request", fmt.Sprintf("Making HTTP request to %s", args.URL))
+
+	// Execute HTTP request
+	result := h.httpHandler.Execute(ctx, args.URL, args.Method, chatbot.HTTPAllowedDomains)
+
+	// Log to audit (domain + path only, no query params for privacy)
+	logPath := args.URL
+	if parsedURL, err := parseURLForLogging(args.URL); err == nil {
+		logPath = parsedURL
+	}
+
+	log.Info().
+		Str("chatbot_id", chatbot.ID).
+		Str("conversation_id", conversationID).
+		Str("request_path", logPath).
+		Bool("success", result.Success).
+		Int("status", result.Status).
+		Str("error", result.Error).
+		Msg("HTTP request tool executed")
+
+	// Return result as JSON string for AI
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Sprintf("Error: Failed to serialize result: %v", err), nil
+	}
+
+	return string(resultJSON), nil
+}
+
+// parseURLForLogging extracts domain and path from URL for safe logging (no query params)
+func parseURLForLogging(rawURL string) (string, error) {
+	// Simple extraction of scheme + host + path without query params
+	if idx := strings.Index(rawURL, "?"); idx != -1 {
+		return rawURL[:idx], nil
+	}
+	return rawURL, nil
 }
 
 // handleCancel handles cancellation of a generation
