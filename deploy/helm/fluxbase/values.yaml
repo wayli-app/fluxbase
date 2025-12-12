@@ -881,3 +881,22 @@ metrics:
     honorLabels: false
     additionalLabels: {}
     selector: {}
+
+## @section OpenTelemetry Tracing Parameters
+
+## OpenTelemetry tracing configuration
+## Traces are exported via OTLP gRPC to any compatible collector (Jaeger, Grafana Tempo, etc.)
+## @param tracing.enabled Enable OpenTelemetry tracing
+## @param tracing.endpoint OTLP gRPC endpoint (e.g., jaeger:4317, tempo:4317)
+## @param tracing.serviceName Service name for traces
+## @param tracing.environment Environment name (development, staging, production)
+## @param tracing.sampleRate Sample rate (0.0-1.0, where 1.0 = 100% of traces)
+## @param tracing.insecure Use insecure connection (set to false in production with TLS)
+##
+tracing:
+  enabled: false
+  endpoint: "localhost:4317"
+  serviceName: "fluxbase"
+  environment: "production"
+  sampleRate: 0.1
+  insecure: false

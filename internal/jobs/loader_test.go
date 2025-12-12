@@ -135,12 +135,12 @@ func TestParseAnnotations_MaxRetries(t *testing.T) {
 
 func TestParseAnnotations_Permissions(t *testing.T) {
 	tests := []struct {
-		name          string
-		code          string
-		allowNet      bool
-		allowEnv      bool
-		allowRead     bool
-		allowWrite    bool
+		name       string
+		code       string
+		allowNet   bool
+		allowEnv   bool
+		allowRead  bool
+		allowWrite bool
 	}{
 		{
 			name:       "defaults",

@@ -31,6 +31,7 @@ type DashboardUser struct {
 	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
+	Role          string     `json:"role,omitempty"` // Set from JWT claims, not stored in DB
 }
 
 // DashboardSession represents an active dashboard session

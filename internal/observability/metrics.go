@@ -54,15 +54,15 @@ type Metrics struct {
 	rateLimitHitsTotal *prometheus.CounterVec
 
 	// AI Chatbot metrics
-	aiChatRequestsTotal      *prometheus.CounterVec
-	aiChatRequestDuration    *prometheus.HistogramVec
-	aiTokensUsedTotal        *prometheus.CounterVec
-	aiSQLQueriesTotal        *prometheus.CounterVec
-	aiSQLQueryDuration       *prometheus.HistogramVec
-	aiActiveConversations    prometheus.Gauge
-	aiWebSocketConnections   prometheus.Gauge
-	aiProviderRequestsTotal  *prometheus.CounterVec
-	aiProviderLatency        *prometheus.HistogramVec
+	aiChatRequestsTotal     *prometheus.CounterVec
+	aiChatRequestDuration   *prometheus.HistogramVec
+	aiTokensUsedTotal       *prometheus.CounterVec
+	aiSQLQueriesTotal       *prometheus.CounterVec
+	aiSQLQueryDuration      *prometheus.HistogramVec
+	aiActiveConversations   prometheus.Gauge
+	aiWebSocketConnections  prometheus.Gauge
+	aiProviderRequestsTotal *prometheus.CounterVec
+	aiProviderLatency       *prometheus.HistogramVec
 
 	// System metrics
 	systemUptime prometheus.Gauge

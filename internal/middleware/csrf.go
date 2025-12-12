@@ -78,6 +78,14 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 			return c.Next()
 		}
 
+		// Skip CSRF for Bearer token or API key authentication
+		// CSRF protection is for cookie-based sessions, not token-based auth
+		authHeader := c.Get("Authorization")
+		apiKey := c.Get("apikey")
+		if (authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer ") || apiKey != "" {
+			return c.Next()
+		}
+
 		// Get token from cookie
 		cookieToken := c.Cookies(cfg.CookieName)
 

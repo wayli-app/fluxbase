@@ -5,7 +5,7 @@ title: "User Impersonation"
 User impersonation allows admins to view the database explorer as different user types to debug issues, test Row Level Security (RLS) policies, and provide customer support.
 
 :::note[Admin Dashboard Feature]
-This is an **admin dashboard feature** designed for debugging and support. It is **not available in the SDK** - you can only use impersonation through the Fluxbase admin UI or by directly calling the REST API with an admin token.
+This guide covers the **admin dashboard** impersonation feature. For programmatic access via the SDK, see the [SDK Impersonation Guide](/docs/sdk/impersonation).
 :::
 
 ## Overview

@@ -40,13 +40,13 @@ func NewExecutor(db *database.Connection, storage *Storage, metrics *observabili
 
 // ExecuteContext contains the context for an RPC execution
 type ExecuteContext struct {
-	Procedure   *Procedure
-	Params      map[string]interface{}
-	UserID      string
-	UserRole    string
-	UserEmail   string
-	Claims      *auth.TokenClaims
-	IsAsync     bool
+	Procedure *Procedure
+	Params    map[string]interface{}
+	UserID    string
+	UserRole  string
+	UserEmail string
+	Claims    *auth.TokenClaims
+	IsAsync   bool
 }
 
 // ExecuteResult represents the result of an RPC execution

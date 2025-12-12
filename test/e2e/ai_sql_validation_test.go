@@ -53,10 +53,10 @@ func TestSQLValidatorBlocksDisallowedOperations(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name           string
-		sql            string
-		expectedOp     string
-		expectedError  string
+		name          string
+		sql           string
+		expectedOp    string
+		expectedError string
 	}{
 		{"insert", "INSERT INTO users (name) VALUES ('test')", "INSERT", "Operation not allowed: INSERT"},
 		{"update", "UPDATE users SET name = 'test' WHERE id = 1", "UPDATE", "Operation not allowed: UPDATE"},

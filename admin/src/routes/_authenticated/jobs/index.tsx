@@ -430,6 +430,43 @@ function JobsPage() {
     loadInitialData()
   }, []) // Empty deps - only run once on mount
 
+  // Refetch jobs when namespace or status filter changes (after initial load)
+  const isInitialMount = useRef(true)
+  useEffect(() => {
+    // Skip initial mount since loadInitialData already fetches jobs
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    // Refetch jobs and functions when namespace or status filter changes
+    const refetchData = async () => {
+      setLoading(true)
+      setJobsOffset(0)
+      setHasMoreJobs(true)
+      try {
+        const [functionsData, jobsData] = await Promise.all([
+          jobsApi.listFunctions(selectedNamespace),
+          jobsApi.listJobs({
+            namespace: selectedNamespace,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+            limit: JOBS_PAGE_SIZE,
+            offset: 0,
+          }),
+        ])
+        setJobFunctions(functionsData || [])
+        setJobs(jobsData || [])
+        setJobsOffset(JOBS_PAGE_SIZE)
+        setHasMoreJobs((jobsData || []).length >= JOBS_PAGE_SIZE)
+      } catch {
+        toast.error('Failed to fetch jobs')
+      } finally {
+        setLoading(false)
+      }
+    }
+    refetchData()
+  }, [selectedNamespace, statusFilter])
+
   const handleSync = async () => {
     setSyncing(true)
     try {
@@ -1021,12 +1058,12 @@ function JobsPage() {
                       >
                         {job.status}
                       </Badge>
-                      {(job.user_name || job.user_email) && (
+                      {job.user_email && (
                         <span
                           className='text-muted-foreground max-w-[120px] shrink-0 truncate text-[10px]'
-                          title={job.user_email}
+                          title={job.user_name ? `${job.user_name} (${job.user_email})` : job.user_email}
                         >
-                          {job.user_name || job.user_email}
+                          {job.user_email}
                         </span>
                       )}
                       {job.retry_count > 0 && (
@@ -1304,9 +1341,9 @@ function JobsPage() {
                 <Badge variant={getStatusBadgeVariant(selectedJob.status)}>
                   {selectedJob.status}
                 </Badge>
-                {(selectedJob.user_name || selectedJob.user_email) && (
-                  <Badge variant='outline' title={selectedJob.user_email}>
-                    {selectedJob.user_name || selectedJob.user_email}
+                {selectedJob.user_email && (
+                  <Badge variant='outline' title={selectedJob.user_name ? `${selectedJob.user_name} (${selectedJob.user_email})` : selectedJob.user_email}>
+                    {selectedJob.user_email}
                   </Badge>
                 )}
                 {selectedJob.user_role && (

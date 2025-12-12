@@ -277,7 +277,7 @@ func (p *ollamaProvider) convertResponse(resp *ollamaResponse) *ChatResponse {
 		Content: resp.Message.Content,
 	}
 
-	// Convert tool calls
+	// Convert native tool calls
 	if len(resp.Message.ToolCalls) > 0 {
 		msg.ToolCalls = make([]ToolCall, len(resp.Message.ToolCalls))
 		for i, tc := range resp.Message.ToolCalls {
@@ -292,6 +292,23 @@ func (p *ollamaProvider) convertResponse(resp *ollamaResponse) *ChatResponse {
 				},
 			}
 		}
+	} else if tc := tryParseToolCallFromContent(msg.Content); tc != nil {
+		// Fallback: try to parse tool call from content
+		// (for models that don't support native tool calling)
+		argsJSON, _ := json.Marshal(tc.Function.Arguments)
+		msg.ToolCalls = []ToolCall{{
+			ID:   "call_0",
+			Type: "function",
+			Function: FunctionCall{
+				Name:      tc.Function.Name,
+				Arguments: string(argsJSON),
+			},
+		}}
+		// Clear content since it was actually a tool call
+		msg.Content = ""
+		log.Debug().
+			Str("tool", tc.Function.Name).
+			Msg("Parsed tool call from content (model lacks native tool calling support)")
 	}
 
 	// Calculate token usage from durations (approximate)
@@ -328,6 +345,10 @@ func (p *ollamaProvider) processStream(ctx context.Context, reader io.Reader, ca
 	scanner := bufio.NewScanner(reader)
 
 	var lastUsage *UsageStats
+	var accumulatedContent strings.Builder
+	var pendingToolCallBuffer strings.Builder // Buffer for potential JSON tool call
+	hasNativeToolCalls := false
+	bufferingToolCall := false // Currently buffering a potential tool call
 
 	for scanner.Scan() {
 		select {
@@ -359,6 +380,36 @@ func (p *ollamaProvider) processStream(ctx context.Context, reader io.Reader, ca
 
 		// Check if done
 		if chunk.Done {
+			// Check if buffered content is a tool call
+			if !hasNativeToolCalls && pendingToolCallBuffer.Len() > 0 {
+				if tc := tryParseToolCallFromContent(pendingToolCallBuffer.String()); tc != nil {
+					argsJSON, _ := json.Marshal(tc.Function.Arguments)
+					if err := callback(StreamEvent{
+						Type: "tool_call",
+						ToolCall: &ToolCallDelta{
+							Index:          0,
+							ID:             "call_0",
+							Type:           "function",
+							FunctionName:   tc.Function.Name,
+							ArgumentsDelta: string(argsJSON),
+						},
+					}); err != nil {
+						return err
+					}
+					log.Debug().
+						Str("tool", tc.Function.Name).
+						Msg("Parsed tool call from content (model lacks native tool calling support)")
+				} else {
+					// Not a tool call after all - flush buffered content
+					if err := callback(StreamEvent{
+						Type:  "content",
+						Delta: pendingToolCallBuffer.String(),
+					}); err != nil {
+						return err
+					}
+				}
+			}
+
 			event := StreamEvent{
 				Type:         "done",
 				FinishReason: "stop",
@@ -370,18 +421,33 @@ func (p *ollamaProvider) processStream(ctx context.Context, reader io.Reader, ca
 			return callback(event)
 		}
 
-		// Send content delta
+		// Handle content
 		if chunk.Message.Content != "" {
-			if err := callback(StreamEvent{
-				Type:  "content",
-				Delta: chunk.Message.Content,
-			}); err != nil {
-				return err
+			accumulatedContent.WriteString(chunk.Message.Content)
+
+			// Check if we should start buffering (content chunk starts with '{')
+			trimmed := strings.TrimSpace(chunk.Message.Content)
+			if !bufferingToolCall && strings.HasPrefix(trimmed, "{") {
+				bufferingToolCall = true
+			}
+
+			if bufferingToolCall {
+				// Buffer content that might be a tool call
+				pendingToolCallBuffer.WriteString(chunk.Message.Content)
+			} else {
+				// Stream content immediately
+				if err := callback(StreamEvent{
+					Type:  "content",
+					Delta: chunk.Message.Content,
+				}); err != nil {
+					return err
+				}
 			}
 		}
 
-		// Handle tool calls
+		// Handle native tool calls
 		for i, tc := range chunk.Message.ToolCalls {
+			hasNativeToolCalls = true
 			argsJSON, _ := json.Marshal(tc.Function.Arguments)
 			if err := callback(StreamEvent{
 				Type: "tool_call",
@@ -403,4 +469,40 @@ func (p *ollamaProvider) processStream(ctx context.Context, reader io.Reader, ca
 	}
 
 	return nil
+}
+
+// tryParseToolCallFromContent attempts to extract a tool call from content text.
+// Some Ollama models don't support native tool calling and instead output JSON
+// in the content field. This function detects and parses such responses.
+// Returns the tool call if found, or nil if content is not a tool call.
+func tryParseToolCallFromContent(content string) *ollamaToolCall {
+	content = strings.TrimSpace(content)
+	if !strings.HasPrefix(content, "{") || !strings.HasSuffix(content, "}") {
+		return nil
+	}
+
+	// Try to parse as a tool call
+	var tc struct {
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal([]byte(content), &tc); err != nil {
+		return nil
+	}
+
+	// Validate it's a known tool with required fields
+	if tc.Name == "" || tc.Arguments == nil {
+		return nil
+	}
+	if tc.Name != "execute_sql" && tc.Name != "http_request" {
+		return nil
+	}
+
+	return &ollamaToolCall{
+		Function: ollamaFunctionCall{
+			Name:      tc.Name,
+			Arguments: tc.Arguments,
+		},
+	}
 }

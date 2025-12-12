@@ -121,41 +121,58 @@ Environment variables take precedence over configuration file values.
 
 ### Database
 
-| Variable                  | Description                  | Default         | Example                                  |
-| ------------------------- | ---------------------------- | --------------- | ---------------------------------------- |
-| `DATABASE_URL`            | PostgreSQL connection string | **(required)**  | `postgres://user:pass@localhost:5432/db` |
-| `DB_MAX_CONNECTIONS`      | Max connection pool size     | `100`           | `100`                                    |
-| `DB_IDLE_CONNECTIONS`     | Idle connections in pool     | `10`            | `10`                                     |
-| `DB_CONNECTION_LIFETIME`  | Connection max lifetime      | `60m`           | `60m`                                    |
-| `DB_CONNECTION_TIMEOUT`   | Connection timeout           | `10s`           | `10s`                                    |
-| `DB_USER_MIGRATIONS_PATH` | Path to user migrations      | `""` (disabled) | `/migrations/user`                       |
-
-**Connection String Format:**
-
-```
-postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=100
-```
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_DATABASE_HOST` | PostgreSQL host | `localhost` | `localhost` |
+| `FLUXBASE_DATABASE_PORT` | PostgreSQL port | `5432` | `5432` |
+| `FLUXBASE_DATABASE_USER` | Runtime database user | `postgres` | `fluxbase` |
+| `FLUXBASE_DATABASE_PASSWORD` | Runtime user password | `postgres` | `your-password` |
+| `FLUXBASE_DATABASE_DATABASE` | Database name | `fluxbase` | `fluxbase` |
+| `FLUXBASE_DATABASE_SSL_MODE` | SSL mode | `disable` | `require` |
+| `FLUXBASE_DATABASE_MAX_CONNECTIONS` | Max connection pool size | `25` | `100` |
+| `FLUXBASE_DATABASE_MIN_CONNECTIONS` | Min connections in pool | `5` | `5` |
+| `FLUXBASE_DATABASE_MAX_CONN_LIFETIME` | Connection max lifetime | `1h` | `1h` |
+| `FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME` | Connection max idle time | `30m` | `30m` |
+| `FLUXBASE_DATABASE_HEALTH_CHECK_PERIOD` | Health check interval | `1m` | `1m` |
+| `FLUXBASE_DATABASE_ADMIN_USER` | Admin user for migrations (defaults to USER) | `""` | `postgres` |
+| `FLUXBASE_DATABASE_ADMIN_PASSWORD` | Admin user password (defaults to PASSWORD) | `""` | `admin-password` |
+| `FLUXBASE_DATABASE_USER_MIGRATIONS_PATH` | Path to user-provided migrations | `/migrations/user` | `/app/migrations` |
 
 **SSL Modes:**
 
 - `disable` - No SSL (development only)
-- `require` - Require SSL
-- `verify-ca` - Verify CA certificate
-- `verify-full` - Verify CA and hostname
+- `allow` - Prefer SSL if available
+- `prefer` - Use SSL if available (default for many clients)
+- `require` - Require SSL connection
+- `verify-ca` - Require SSL and verify CA certificate
+- `verify-full` - Require SSL and verify CA + hostname
 
-### JWT Authentication
+### Authentication
 
-| Variable                   | Description              | Default         | Example           |
-| -------------------------- | ------------------------ | --------------- | ----------------- |
-| `JWT_SECRET`               | JWT signing key          | **(required)**  | `your-secret-key` |
-| `JWT_ACCESS_TOKEN_EXPIRY`  | Access token expiration  | `15m`           | `15m`, `1h`       |
-| `JWT_REFRESH_TOKEN_EXPIRY` | Refresh token expiration | `7d`            | `7d`, `30d`       |
-| `JWT_ISSUER`               | JWT issuer               | `fluxbase`      | `myapp`           |
-| `JWT_AUDIENCE`             | JWT audience             | `authenticated` | `authenticated`   |
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AUTH_JWT_SECRET` | JWT signing key (min 32 chars) | **(required)** | `openssl rand -base64 32` |
+| `FLUXBASE_AUTH_JWT_EXPIRY` | Access token expiration | `15m` | `15m`, `1h` |
+| `FLUXBASE_AUTH_REFRESH_EXPIRY` | Refresh token expiration | `168h` (7 days) | `168h`, `720h` |
+| `FLUXBASE_AUTH_MAGIC_LINK_EXPIRY` | Magic link expiration | `15m` | `15m` |
+| `FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY` | Password reset expiration | `1h` | `1h` |
+| `FLUXBASE_AUTH_PASSWORD_MIN_LENGTH` | Minimum password length | `8` | `8` |
+| `FLUXBASE_AUTH_BCRYPT_COST` | Bcrypt cost factor (4-31) | `10` | `10` |
+| `FLUXBASE_AUTH_ENABLE_SIGNUP` | Enable user registration | `true` | `true`, `false` |
+| `FLUXBASE_AUTH_ENABLE_MAGIC_LINK` | Enable magic link auth | `true` | `true`, `false` |
+| `FLUXBASE_AUTH_TOTP_ISSUER` | 2FA TOTP issuer name | `Fluxbase` | `MyApp` |
+
+**OAuth/OIDC Providers:**
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AUTH_GOOGLE_CLIENT_ID` | Google OAuth client ID | `""` | Your Google client ID |
+| `FLUXBASE_AUTH_APPLE_CLIENT_ID` | Apple Sign In client ID | `""` | Your Apple Services ID |
+| `FLUXBASE_AUTH_MICROSOFT_CLIENT_ID` | Microsoft/Azure AD client ID | `""` | Your Microsoft client ID |
 
 **Security Best Practices:**
 
-- Use a strong, random JWT secret (min 32 characters)
+- Use a strong, random JWT secret (min 32 characters): `openssl rand -base64 32`
 - Rotate JWT secrets periodically
 - Use short access token expiry (15-30 minutes)
 - Use longer refresh token expiry (7-30 days)
@@ -217,13 +234,117 @@ postgres://username:password@host:port/database?sslmode=disable&pool_max_conns=1
 | `CORS_ALLOW_CREDENTIALS` | Allow credentials                 | `true`  | `true`, `false`                         |
 | `CORS_MAX_AGE`           | Preflight cache time (seconds)    | `86400` | `86400`                                 |
 
-### Rate Limiting (Upcoming)
+### Security
 
-| Variable                         | Description          | Default | Example         |
-| -------------------------------- | -------------------- | ------- | --------------- |
-| `RATE_LIMIT_ENABLED`             | Enable rate limiting | `false` | `true`, `false` |
-| `RATE_LIMIT_REQUESTS_PER_MINUTE` | Requests per minute  | `100`   | `100`           |
-| `RATE_LIMIT_BURST`               | Burst allowance      | `200`   | `200`           |
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for admin dashboard setup (required to enable dashboard) | `""` | `openssl rand -base64 32` |
+| `FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT` | Enable global API rate limiting | `false` | `true`, `false` |
+| `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT` | Max attempts for admin setup | `5` | `5` |
+| `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW` | Time window for admin setup rate limit | `15m` | `15m` |
+| `FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT` | Max attempts for auth login | `10` | `10` |
+| `FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW` | Time window for auth login rate limit | `1m` | `1m` |
+| `FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT` | Max attempts for admin login | `10` | `10` |
+| `FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW` | Time window for admin login rate limit | `1m` | `1m` |
+
+:::caution[Required for Admin Dashboard]
+`FLUXBASE_SECURITY_SETUP_TOKEN` must be set to enable the admin dashboard. Generate a secure token with `openssl rand -base64 32`.
+:::
+
+### AI Chatbots
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AI_ENABLED` | Enable AI chatbot functionality | `true` | `true`, `false` |
+| `FLUXBASE_AI_CHATBOTS_DIR` | Directory for chatbot definitions | `./chatbots` | `./chatbots` |
+| `FLUXBASE_AI_AUTO_LOAD_ON_BOOT` | Load chatbots from filesystem at boot | `true` | `true`, `false` |
+| `FLUXBASE_AI_DEFAULT_MAX_TOKENS` | Default max tokens per request | `4096` | `4096` |
+| `FLUXBASE_AI_QUERY_TIMEOUT` | SQL query execution timeout | `30s` | `30s` |
+| `FLUXBASE_AI_MAX_ROWS_PER_QUERY` | Max rows returned per query | `1000` | `1000` |
+| `FLUXBASE_AI_CONVERSATION_CACHE_TTL` | TTL for conversation cache | `30m` | `1h` |
+| `FLUXBASE_AI_MAX_CONVERSATION_TURNS` | Max turns per conversation | `50` | `50` |
+| `FLUXBASE_AI_ENCRYPTION_KEY` | Key for encrypting provider API keys (32 bytes) | `""` | 32-char string |
+
+**AI Provider Configuration:**
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AI_PROVIDER_ENABLED` | Enable config-based provider | `false` | `true`, `false` |
+| `FLUXBASE_AI_PROVIDER_TYPE` | Provider type | `""` | `openai`, `azure`, `ollama` |
+| `FLUXBASE_AI_PROVIDER_NAME` | Display name for provider | `""` | `Default Provider` |
+| `FLUXBASE_AI_PROVIDER_MODEL` | Default model | `""` | `gpt-4-turbo` |
+
+**OpenAI Settings:**
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AI_OPENAI_API_KEY` | OpenAI API key | `""` | `sk-...` |
+| `FLUXBASE_AI_OPENAI_ORGANIZATION_ID` | OpenAI organization ID | `""` | `org-...` |
+| `FLUXBASE_AI_OPENAI_BASE_URL` | Custom base URL (for compatible APIs) | `""` | `https://api.openai.com/v1` |
+
+**Azure OpenAI Settings:**
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AI_AZURE_API_KEY` | Azure OpenAI API key | `""` | Your API key |
+| `FLUXBASE_AI_AZURE_ENDPOINT` | Azure OpenAI endpoint | `""` | `https://your-resource.openai.azure.com` |
+| `FLUXBASE_AI_AZURE_DEPLOYMENT_NAME` | Azure deployment name | `""` | `gpt-4-deployment` |
+| `FLUXBASE_AI_AZURE_API_VERSION` | Azure API version | `""` | `2024-02-15-preview` |
+
+**Ollama Settings:**
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_AI_OLLAMA_ENDPOINT` | Ollama endpoint | `""` | `http://localhost:11434` |
+| `FLUXBASE_AI_OLLAMA_MODEL` | Ollama model name | `""` | `llama2`, `mistral` |
+
+### RPC (Remote Procedures)
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_RPC_ENABLED` | Enable RPC functionality | `true` | `true`, `false` |
+| `FLUXBASE_RPC_PROCEDURES_DIR` | Directory for RPC procedure definitions | `./rpc` | `./rpc` |
+| `FLUXBASE_RPC_AUTO_LOAD_ON_BOOT` | Load procedures from filesystem at boot | `true` | `true`, `false` |
+| `FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME` | Default max execution time | `30s` | `30s` |
+| `FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME` | Maximum allowed execution time | `5m` | `5m` |
+| `FLUXBASE_RPC_DEFAULT_MAX_ROWS` | Default max rows returned | `1000` | `1000` |
+
+### Background Jobs
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_JOBS_ENABLED` | Enable background jobs | `true` | `true`, `false` |
+| `FLUXBASE_JOBS_DIR` | Directory for job definitions | `./jobs` | `./jobs` |
+| `FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT` | Load jobs from filesystem at boot | `true` | `true`, `false` |
+| `FLUXBASE_JOBS_WORKER_MODE` | Worker mode | `embedded` | `embedded`, `standalone`, `disabled` |
+| `FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT` | Number of embedded workers | `4` | `4` |
+| `FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER` | Max concurrent jobs per worker | `5` | `5` |
+| `FLUXBASE_JOBS_MAX_CONCURRENT_PER_NAMESPACE` | Max concurrent jobs per namespace | `20` | `20` |
+| `FLUXBASE_JOBS_DEFAULT_MAX_DURATION` | Default job timeout | `5m` | `5m` |
+| `FLUXBASE_JOBS_MAX_MAX_DURATION` | Maximum allowed job timeout | `1h` | `1h` |
+| `FLUXBASE_JOBS_DEFAULT_PROGRESS_TIMEOUT` | Progress reporting timeout | `5m` | `5m` |
+| `FLUXBASE_JOBS_POLL_INTERVAL` | Worker poll interval | `1s` | `1s` |
+| `FLUXBASE_JOBS_WORKER_HEARTBEAT_INTERVAL` | Worker heartbeat interval | `10s` | `10s` |
+| `FLUXBASE_JOBS_WORKER_TIMEOUT` | Worker considered dead after | `30s` | `30s` |
+
+### OpenTelemetry Tracing
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_TRACING_ENABLED` | Enable OpenTelemetry tracing | `false` | `true`, `false` |
+| `FLUXBASE_TRACING_ENDPOINT` | OTLP gRPC endpoint | `localhost:4317` | `jaeger:4317` |
+| `FLUXBASE_TRACING_SERVICE_NAME` | Service name for traces | `fluxbase` | `fluxbase` |
+| `FLUXBASE_TRACING_ENVIRONMENT` | Environment name | `development` | `production` |
+| `FLUXBASE_TRACING_SAMPLE_RATE` | Sample rate (0.0-1.0) | `1.0` | `0.1` (10%) |
+| `FLUXBASE_TRACING_INSECURE` | Use insecure connection | `true` | `false` |
+
+### API Pagination
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_API_MAX_PAGE_SIZE` | Max rows per request (-1 = unlimited) | `1000` | `1000` |
+| `FLUXBASE_API_MAX_TOTAL_RESULTS` | Max total retrievable rows (-1 = unlimited) | `10000` | `10000` |
+| `FLUXBASE_API_DEFAULT_PAGE_SIZE` | Auto-applied limit when not specified (-1 = no default) | `1000` | `100` |
 
 ### TLS/HTTPS (Upcoming)
 

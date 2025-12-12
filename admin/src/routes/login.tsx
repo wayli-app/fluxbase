@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { dashboardAuthAPI } from '@/lib/api'
 import { setAuthToken } from '@/lib/fluxbase-client'
+import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -15,6 +16,7 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const navigate = useNavigate()
+  const { auth } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -39,10 +41,13 @@ function LoginPage() {
         password: formData.password,
       })
 
-      // Store access token and refresh token in localStorage
-      localStorage.setItem('access_token', response.access_token)
+      // Store access token in Zustand auth store (also sets cookie and syncs SDK)
+      auth.setAccessToken(response.access_token)
+
+      // Store tokens and user in localStorage (for route guards and persistence)
+      localStorage.setItem('fluxbase_admin_access_token', response.access_token)
       localStorage.setItem('fluxbase_admin_refresh_token', response.refresh_token)
-      localStorage.setItem('user', JSON.stringify(response.user))
+      localStorage.setItem('fluxbase_admin_user', JSON.stringify(response.user))
 
       // Also set token in Fluxbase SDK
       setAuthToken(response.access_token)

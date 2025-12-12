@@ -130,24 +130,77 @@ make build
 
 ## Configuration
 
-**Environment variables:**
+### Required Environment Variables
+
+Fluxbase requires these environment variables to be set:
+
+| Variable | Description | How to Generate |
+|----------|-------------|-----------------|
+| `FLUXBASE_AUTH_JWT_SECRET` | Secret key for signing JWT tokens (min 32 characters) | `openssl rand -base64 32` |
+| `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for initial admin setup (min 32 characters) | `openssl rand -base64 32` |
+| `FLUXBASE_DATABASE_*` | Database connection settings | See below |
+
+:::caution[Security Warning]
+Never use default or weak secrets in production. Both `JWT_SECRET` and `SETUP_TOKEN` should be strong, random strings.
+:::
+
+**Generate secure secrets:**
 
 ```bash
-export DATABASE_URL=postgres://fluxbase:password@localhost:5432/fluxbase
-export JWT_SECRET=your-secret-key
-export PORT=8080
+# Generate JWT secret
+openssl rand -base64 32
+# Example output: K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=
+
+# Generate setup token
+openssl rand -base64 32
+# Example output: 8mHBJQTVx2XUd7s4ZKrqMWJB5sGhYm9kP3nXcLfRabc=
+```
+
+**Minimal environment variables:**
+
+```bash
+# Required: Database connection
+export FLUXBASE_DATABASE_HOST=localhost
+export FLUXBASE_DATABASE_PORT=5432
+export FLUXBASE_DATABASE_USER=fluxbase
+export FLUXBASE_DATABASE_PASSWORD=your-db-password
+export FLUXBASE_DATABASE_DATABASE=fluxbase
+
+# Required: JWT secret for authentication (min 32 chars)
+export FLUXBASE_AUTH_JWT_SECRET=your-secure-jwt-secret-min-32-chars
+
+# Required: Setup token for admin dashboard access
+export FLUXBASE_SECURITY_SETUP_TOKEN=your-secure-setup-token-min-32-chars
+
+# Optional: Server port (default: 8080)
+export FLUXBASE_SERVER_ADDRESS=:8080
+
+# Optional: Base URL for callbacks (magic links, OAuth)
+export FLUXBASE_BASE_URL=http://localhost:8080
 ```
 
 **Or create `fluxbase.yaml`:**
 
 ```yaml
 database:
-  url: postgres://fluxbase:password@localhost:5432/fluxbase
-jwt:
-  secret: your-secret-key
+  host: localhost
+  port: 5432
+  user: fluxbase
+  password: your-db-password
+  database: fluxbase
+  ssl_mode: disable
+
+auth:
+  jwt_secret: your-secure-jwt-secret-min-32-chars
+
+security:
+  setup_token: your-secure-setup-token-min-32-chars
+
 storage:
   provider: local
   local_path: ./storage
+
+base_url: http://localhost:8080
 ```
 
 ## Initialize Database
@@ -201,22 +254,62 @@ Expected response:
 }
 ```
 
-### 2. Access Admin UI
+### 2. Create First Admin Account
 
-Open http://localhost:8080/admin in your browser.
+:::note[Important First Step]
+Before using Fluxbase, you must create the first admin account through the setup wizard.
+:::
 
-### 3. Create First User
+**Navigate to the Admin Setup page:**
+
+Open `http://localhost:8080/admin/setup` in your browser.
+
+You will be prompted to:
+
+1. **Enter the Setup Token** - This is the `FLUXBASE_SECURITY_SETUP_TOKEN` you configured
+2. **Create Admin Account** - Enter email and password for the first admin user
+
+```text
+┌─────────────────────────────────────────┐
+│         Fluxbase Admin Setup            │
+├─────────────────────────────────────────┤
+│  Setup Token: [________________]        │
+│                                         │
+│  Admin Email: [________________]        │
+│  Admin Password: [________________]     │
+│                                         │
+│  [Create Admin Account]                 │
+└─────────────────────────────────────────┘
+```
+
+After successful setup, you'll be redirected to the admin login page.
+
+### 3. Access Admin Dashboard
+
+Once the admin account is created:
+
+1. Navigate to `http://localhost:8080/admin`
+2. Log in with the admin credentials you just created
+3. Explore the dashboard: Tables, Users, Storage, Functions, Jobs, etc.
+
+### 4. Create Application Users
+
+Regular application users can sign up via the API:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@example.com",
+    "email": "user@example.com",
     "password": "SecurePassword123"
   }'
 ```
 
-### 4. Test REST API
+:::tip
+Admin accounts (created via `/admin/setup`) are separate from application users. Admin accounts can access the dashboard, while application users interact with your app's data via the API.
+:::
+
+### 5. Test REST API
 
 Create a table:
 

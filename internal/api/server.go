@@ -779,7 +779,8 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// Protected admin routes (require authentication from either auth.users or dashboard.users)
 	// UnifiedAuthMiddleware accepts tokens from both authentication systems
-	unifiedAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager)
+	// The db pool is passed to allow real-time role checking from auth.users
+	unifiedAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
 
 	router.Post("/logout", unifiedAuth, s.adminAuthHandler.AdminLogout)
 	router.Get("/me", unifiedAuth, s.adminAuthHandler.GetCurrentAdmin)
@@ -920,6 +921,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Post("/ai/providers", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.CreateProvider)
 		router.Put("/ai/providers/:id/default", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.SetDefaultProvider)
 		router.Delete("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteProvider)
+		router.Put("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.UpdateProvider)
 	}
 
 	// RPC management routes (require admin, dashboard_admin, or service_role)

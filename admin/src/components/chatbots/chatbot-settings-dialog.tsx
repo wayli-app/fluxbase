@@ -8,6 +8,7 @@ import {
   type AIChatbotSummary,
   type AIProvider,
 } from '@/lib/api'
+import { getAccessToken } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -349,7 +350,7 @@ export function ChatbotSettingsDialog({
     queryFn: async () => {
       const response = await fetch('/api/v1/admin/ai/providers', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
       })
       if (!response.ok) throw new Error('Failed to fetch providers')

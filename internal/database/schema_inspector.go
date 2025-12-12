@@ -17,7 +17,7 @@ type SchemaInspector struct {
 type TableInfo struct {
 	Schema      string       `json:"schema"`
 	Name        string       `json:"name"`
-	Type        string       `json:"type"` // "table", "view", or "materialized_view"
+	Type        string       `json:"type"`                // "table", "view", or "materialized_view"
 	RESTPath    string       `json:"rest_path,omitempty"` // The REST API path for this table (e.g., "/auth/users")
 	Columns     []ColumnInfo `json:"columns"`
 	PrimaryKey  []string     `json:"primary_key"`

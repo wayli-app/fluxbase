@@ -1562,6 +1562,7 @@ export interface DashboardUser {
   last_login_at: string | null
   created_at: string
   updated_at: string
+  role?: string
 }
 
 export interface DashboardSignupRequest {
@@ -1839,6 +1840,12 @@ export interface AIProvider {
   created_at: string
   updated_at: string
   created_by?: string
+}
+
+export interface UpdateAIProviderRequest {
+  display_name?: string
+  config?: Record<string, string>
+  enabled?: boolean
 }
 
 // AI Chatbots API

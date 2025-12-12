@@ -319,6 +319,7 @@ export type {
   AIProviderType,
   AIProvider,
   CreateAIProviderRequest,
+  UpdateAIProviderRequest,
   AIChatbotSummary,
   AIChatbot,
   ChatbotSpec,

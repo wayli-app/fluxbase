@@ -30,7 +30,7 @@ func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 		// Admin UI has its own relaxed policy via AdminUISecurityHeaders()
 		ContentSecurityPolicy: "default-src 'self'; " +
 			"script-src 'self'; " + // No unsafe-inline/eval for API
-			"style-src 'self'; " +  // No unsafe-inline for API
+			"style-src 'self'; " + // No unsafe-inline for API
 			"img-src 'self' data: blob:; " +
 			"font-src 'self' data:; " +
 			"connect-src 'self' ws: wss:; " + // Allow WebSocket connections

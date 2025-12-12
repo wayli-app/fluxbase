@@ -716,7 +716,38 @@ func (s *Storage) CreateJob(ctx context.Context, job *Job) error {
 
 // GetJobByIDAdmin retrieves a job by ID (admin access, bypasses RLS)
 func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, error) {
-	return s.GetJob(ctx, jobID)
+	query := `
+		SELECT q.id, q.namespace, q.function_id, q.job_name, q.status, q.payload, q.result, q.progress,
+		       q.priority, q.max_duration_seconds, q.progress_timeout_seconds, q.max_retries,
+		       q.retry_count, q.error_message, q.worker_id, q.created_by, q.user_role, q.user_email,
+		       COALESCE(u.user_metadata->>'name', u.user_metadata->>'full_name') as user_name,
+		       q.created_at, q.scheduled_at, q.started_at, q.last_progress_at, q.completed_at
+		FROM jobs.queue q
+		LEFT JOIN auth.users u ON q.created_by = u.id
+		WHERE q.id = $1
+	`
+
+	var job Job
+
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, jobID).Scan(
+			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+			&job.Payload, &job.Result, &job.Progress, &job.Priority,
+			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+			&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+			&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+		)
+	})
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("job not found: %s", jobID)
+		}
+		return nil, err
+	}
+
+	return &job, nil
 }
 
 // ListJobsAdmin lists jobs with optional filters (admin access, bypasses RLS)
@@ -795,156 +826,180 @@ func (s *Storage) ListJobsAdmin(ctx context.Context, filters *JobFilters) ([]*Jo
 		}
 	}
 
-	rows, err := s.conn.Pool().Query(ctx, query, args...)
+	var jobs []*Job
+
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var job Job
+			var scanErr error
+			if includeResult {
+				// Scan with result field included
+				scanErr = rows.Scan(
+					&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+					&job.Result, &job.Progress, &job.Priority,
+					&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+					&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+					&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+				)
+			} else {
+				// Scan without result field (payload, result are nil for performance)
+				scanErr = rows.Scan(
+					&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
+					&job.Progress, &job.Priority,
+					&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
+					&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
+					&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
+				)
+			}
+			if scanErr != nil {
+				return scanErr
+			}
+			jobs = append(jobs, &job)
+		}
+
+		return rows.Err()
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var jobs []*Job
-	for rows.Next() {
-		var job Job
-		var scanErr error
-		if includeResult {
-			// Scan with result field included
-			scanErr = rows.Scan(
-				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-				&job.Result, &job.Progress, &job.Priority,
-				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
-				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
-			)
-		} else {
-			// Scan without result field (payload, result are nil for performance)
-			scanErr = rows.Scan(
-				&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
-				&job.Progress, &job.Priority,
-				&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
-				&job.RetryCount, &job.ErrorMessage, &job.WorkerID, &job.CreatedBy, &job.UserRole, &job.UserEmail, &job.UserName,
-				&job.CreatedAt, &job.ScheduledAt, &job.StartedAt, &job.LastProgressAt, &job.CompletedAt,
-			)
-		}
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		jobs = append(jobs, &job)
-	}
-
-	return jobs, rows.Err()
+	return jobs, nil
 }
 
-// GetJobStats retrieves aggregate statistics about jobs
+// GetJobStats retrieves aggregate statistics about jobs (admin access, bypasses RLS)
 func (s *Storage) GetJobStats(ctx context.Context, namespace *string) (*JobStats, error) {
 	stats := &JobStats{}
 
-	// Basic counts query
-	countQuery := `
-		SELECT
-			COUNT(*) AS total,
-			COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-			COUNT(*) FILTER (WHERE status = 'running') AS running,
-			COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-			COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-			COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
-			COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) FILTER (WHERE completed_at IS NOT NULL AND started_at IS NOT NULL), 0) AS avg_duration
-		FROM jobs.queue
-	`
-
+	// Build args for namespace filter
 	var args []interface{}
-	argCount := 1
 	if namespace != nil {
-		countQuery += fmt.Sprintf(" WHERE namespace = $%d", argCount)
 		args = append(args, *namespace)
-		argCount++
 	}
 
-	err := s.conn.Pool().QueryRow(ctx, countQuery, args...).Scan(
-		&stats.TotalJobs, &stats.PendingJobs, &stats.RunningJobs,
-		&stats.CompletedJobs, &stats.FailedJobs, &stats.CancelledJobs,
-		&stats.AvgDurationSeconds,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Jobs by status
-	statusQuery := `
-		SELECT status, COUNT(*) as count
-		FROM jobs.queue
-	`
-	if namespace != nil {
-		statusQuery += " WHERE namespace = $1"
-	}
-	statusQuery += " GROUP BY status ORDER BY count DESC"
-
-	rows, err := s.conn.Pool().Query(ctx, statusQuery, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var sc JobStatusCount
-		if err := rows.Scan(&sc.Status, &sc.Count); err != nil {
-			return nil, err
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		// Basic counts query
+		countQuery := `
+			SELECT
+				COUNT(*) AS total,
+				COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+				COUNT(*) FILTER (WHERE status = 'running') AS running,
+				COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+				COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+				COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+				COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) FILTER (WHERE completed_at IS NOT NULL AND started_at IS NOT NULL), 0) AS avg_duration
+			FROM jobs.queue
+		`
+		if namespace != nil {
+			countQuery += " WHERE namespace = $1"
 		}
-		stats.JobsByStatus = append(stats.JobsByStatus, sc)
-	}
-	rows.Close()
 
-	// Jobs by day (last 7 days)
-	dayQuery := `
-		SELECT DATE(created_at) as date, COUNT(*) as count
-		FROM jobs.queue
-		WHERE created_at >= NOW() - INTERVAL '7 days'
-	`
-	if namespace != nil {
-		dayQuery += " AND namespace = $1"
-	}
-	dayQuery += " GROUP BY DATE(created_at) ORDER BY date DESC"
+		err := tx.QueryRow(ctx, countQuery, args...).Scan(
+			&stats.TotalJobs, &stats.PendingJobs, &stats.RunningJobs,
+			&stats.CompletedJobs, &stats.FailedJobs, &stats.CancelledJobs,
+			&stats.AvgDurationSeconds,
+		)
+		if err != nil {
+			return err
+		}
 
-	rows, err = s.conn.Pool().Query(ctx, dayQuery, args...)
+		// Jobs by status
+		statusQuery := `
+			SELECT status, COUNT(*) as count
+			FROM jobs.queue
+		`
+		if namespace != nil {
+			statusQuery += " WHERE namespace = $1"
+		}
+		statusQuery += " GROUP BY status ORDER BY count DESC"
+
+		rows, err := tx.Query(ctx, statusQuery, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var sc JobStatusCount
+			if err := rows.Scan(&sc.Status, &sc.Count); err != nil {
+				return err
+			}
+			stats.JobsByStatus = append(stats.JobsByStatus, sc)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+
+		// Jobs by day (last 7 days)
+		dayQuery := `
+			SELECT DATE(created_at) as date, COUNT(*) as count
+			FROM jobs.queue
+			WHERE created_at >= NOW() - INTERVAL '7 days'
+		`
+		if namespace != nil {
+			dayQuery += " AND namespace = $1"
+		}
+		dayQuery += " GROUP BY DATE(created_at) ORDER BY date DESC"
+
+		rows, err = tx.Query(ctx, dayQuery, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var dc JobDayCount
+			var date time.Time
+			if err := rows.Scan(&date, &dc.Count); err != nil {
+				return err
+			}
+			dc.Date = date.Format("2006-01-02")
+			stats.JobsByDay = append(stats.JobsByDay, dc)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+
+		// Jobs by function (top 10)
+		funcQuery := `
+			SELECT job_name, COUNT(*) as count
+			FROM jobs.queue
+		`
+		if namespace != nil {
+			funcQuery += " WHERE namespace = $1"
+		}
+		funcQuery += " GROUP BY job_name ORDER BY count DESC LIMIT 10"
+
+		rows, err = tx.Query(ctx, funcQuery, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var fc JobFunctionCount
+			if err := rows.Scan(&fc.Name, &fc.Count); err != nil {
+				return err
+			}
+			stats.JobsByFunction = append(stats.JobsByFunction, fc)
+		}
+
+		return rows.Err()
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var dc JobDayCount
-		var date time.Time
-		if err := rows.Scan(&date, &dc.Count); err != nil {
-			return nil, err
-		}
-		dc.Date = date.Format("2006-01-02")
-		stats.JobsByDay = append(stats.JobsByDay, dc)
-	}
-	rows.Close()
-
-	// Jobs by function (top 10)
-	funcQuery := `
-		SELECT job_name, COUNT(*) as count
-		FROM jobs.queue
-	`
-	if namespace != nil {
-		funcQuery += " WHERE namespace = $1"
-	}
-	funcQuery += " GROUP BY job_name ORDER BY count DESC LIMIT 10"
-
-	rows, err = s.conn.Pool().Query(ctx, funcQuery, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fc JobFunctionCount
-		if err := rows.Scan(&fc.Name, &fc.Count); err != nil {
-			return nil, err
-		}
-		stats.JobsByFunction = append(stats.JobsByFunction, fc)
-	}
-
-	return stats, rows.Err()
+	return stats, nil
 }
 
 // ========== Workers ==========
@@ -1014,7 +1069,7 @@ func (s *Storage) GetWorker(ctx context.Context, workerID uuid.UUID) (*WorkerRec
 	return &worker, nil
 }
 
-// ListWorkers lists all workers
+// ListWorkers lists all workers (admin access, bypasses RLS)
 func (s *Storage) ListWorkers(ctx context.Context) ([]*WorkerRecord, error) {
 	query := `
 		SELECT id, name, hostname, status, max_concurrent_jobs, current_job_count,
@@ -1023,27 +1078,37 @@ func (s *Storage) ListWorkers(ctx context.Context) ([]*WorkerRecord, error) {
 		ORDER BY started_at DESC
 	`
 
-	rows, err := s.conn.Pool().Query(ctx, query)
+	var workers []*WorkerRecord
+
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var worker WorkerRecord
+			err := rows.Scan(
+				&worker.ID, &worker.Name, &worker.Hostname, &worker.Status,
+				&worker.MaxConcurrentJobs, &worker.CurrentJobCount,
+				&worker.LastHeartbeatAt, &worker.StartedAt, &worker.Metadata,
+			)
+			if err != nil {
+				return err
+			}
+			workers = append(workers, &worker)
+		}
+
+		return rows.Err()
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var workers []*WorkerRecord
-	for rows.Next() {
-		var worker WorkerRecord
-		err := rows.Scan(
-			&worker.ID, &worker.Name, &worker.Hostname, &worker.Status,
-			&worker.MaxConcurrentJobs, &worker.CurrentJobCount,
-			&worker.LastHeartbeatAt, &worker.StartedAt, &worker.Metadata,
-		)
-		if err != nil {
-			return nil, err
-		}
-		workers = append(workers, &worker)
-	}
-
-	return workers, rows.Err()
+	return workers, nil
 }
 
 // CleanupStaleWorkers removes workers that haven't sent a heartbeat in a while
@@ -1063,24 +1128,35 @@ func (s *Storage) CleanupStaleWorkers(ctx context.Context, timeout time.Duration
 
 // ========== Namespace Functions ==========
 
-// ListJobNamespaces returns all unique namespaces that have job functions
+// ListJobNamespaces returns all unique namespaces that have job functions (admin access, bypasses RLS)
 func (s *Storage) ListJobNamespaces(ctx context.Context) ([]string, error) {
 	query := `SELECT DISTINCT namespace FROM jobs.functions ORDER BY namespace`
-	rows, err := s.conn.Pool().Query(ctx, query)
+
+	var namespaces []string
+
+	// Use service role to bypass RLS (admin endpoint)
+	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var ns string
+			if err := rows.Scan(&ns); err != nil {
+				return err
+			}
+			namespaces = append(namespaces, ns)
+		}
+		return rows.Err()
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var namespaces []string
-	for rows.Next() {
-		var ns string
-		if err := rows.Scan(&ns); err != nil {
-			return nil, err
-		}
-		namespaces = append(namespaces, ns)
-	}
-	return namespaces, rows.Err()
+	return namespaces, nil
 }
 
 // ========== Helper Functions ==========

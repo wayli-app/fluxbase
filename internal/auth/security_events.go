@@ -12,26 +12,26 @@ type SecurityEventType string
 
 const (
 	// Login events
-	SecurityEventLoginSuccess     SecurityEventType = "login_success"
-	SecurityEventLoginFailed      SecurityEventType = "login_failed"
-	SecurityEventAccountLocked    SecurityEventType = "account_locked"
-	SecurityEventAccountUnlocked  SecurityEventType = "account_unlocked"
-	SecurityEventLogout           SecurityEventType = "logout"
+	SecurityEventLoginSuccess    SecurityEventType = "login_success"
+	SecurityEventLoginFailed     SecurityEventType = "login_failed"
+	SecurityEventAccountLocked   SecurityEventType = "account_locked"
+	SecurityEventAccountUnlocked SecurityEventType = "account_unlocked"
+	SecurityEventLogout          SecurityEventType = "logout"
 
 	// Token events
-	SecurityEventTokenRefresh     SecurityEventType = "token_refresh"
-	SecurityEventTokenRevoked     SecurityEventType = "token_revoked"
-	SecurityEventInvalidToken     SecurityEventType = "invalid_token"
+	SecurityEventTokenRefresh SecurityEventType = "token_refresh"
+	SecurityEventTokenRevoked SecurityEventType = "token_revoked"
+	SecurityEventInvalidToken SecurityEventType = "invalid_token"
 
 	// Password events
-	SecurityEventPasswordReset    SecurityEventType = "password_reset_requested"
-	SecurityEventPasswordChanged  SecurityEventType = "password_changed"
+	SecurityEventPasswordReset   SecurityEventType = "password_reset_requested"
+	SecurityEventPasswordChanged SecurityEventType = "password_changed"
 
 	// 2FA events
-	SecurityEvent2FAEnabled       SecurityEventType = "2fa_enabled"
-	SecurityEvent2FADisabled      SecurityEventType = "2fa_disabled"
-	SecurityEvent2FAVerified      SecurityEventType = "2fa_verified"
-	SecurityEvent2FAFailed        SecurityEventType = "2fa_failed"
+	SecurityEvent2FAEnabled  SecurityEventType = "2fa_enabled"
+	SecurityEvent2FADisabled SecurityEventType = "2fa_disabled"
+	SecurityEvent2FAVerified SecurityEventType = "2fa_verified"
+	SecurityEvent2FAFailed   SecurityEventType = "2fa_failed"
 
 	// Impersonation events
 	SecurityEventImpersonationStart SecurityEventType = "impersonation_start"

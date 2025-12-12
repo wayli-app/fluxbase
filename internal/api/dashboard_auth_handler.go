@@ -191,6 +191,9 @@ func (h *DashboardAuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusNotFound, "User not found")
 	}
 
+	// Set role from JWT (RequireDashboardAuth middleware validates this is "dashboard_admin")
+	user.Role = "dashboard_admin"
+
 	return c.JSON(user)
 }
 

@@ -274,11 +274,15 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		AllowWrite: fn.AllowWrite,
 	}
 
-	// Execute with timeout (nil cancel signal for scheduled executions)
-	ctx, cancel := context.WithTimeout(s.ctx, time.Duration(fn.TimeoutSeconds)*time.Second)
-	defer cancel()
+	// Build timeout override from function settings
+	var timeoutOverride *time.Duration
+	if fn.TimeoutSeconds > 0 {
+		timeout := time.Duration(fn.TimeoutSeconds) * time.Second
+		timeoutOverride = &timeout
+	}
 
-	result, err := s.runtime.Execute(ctx, fn.Code, req, perms, nil)
+	// Execute (nil cancel signal for scheduled executions)
+	result, err := s.runtime.Execute(s.ctx, fn.Code, req, perms, nil, timeoutOverride)
 	duration := time.Since(start)
 
 	// Determine final status

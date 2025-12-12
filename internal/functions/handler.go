@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
@@ -746,8 +747,15 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	h.logCounters.Store(executionID, &lineCounter)
 	defer h.logCounters.Delete(executionID)
 
+	// Build timeout override from function settings
+	var timeoutOverride *time.Duration
+	if fn.TimeoutSeconds > 0 {
+		timeout := time.Duration(fn.TimeoutSeconds) * time.Second
+		timeoutOverride = &timeout
+	}
+
 	// Execute function (nil cancel signal for basic invocation - streaming endpoint will use actual signal)
-	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil)
+	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil, timeoutOverride)
 
 	// Complete execution record
 	durationMs := int(result.DurationMs)

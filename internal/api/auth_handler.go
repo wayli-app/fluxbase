@@ -17,7 +17,7 @@ const (
 
 // AuthHandler handles authentication HTTP requests
 type AuthHandler struct {
-	authService *auth.Service
+	authService  *auth.Service
 	secureCookie bool // Whether to set Secure flag on cookies (true in production)
 }
 
@@ -51,7 +51,7 @@ func (h *AuthHandler) setAuthCookies(c *fiber.Ctx, accessToken, refreshToken str
 	c.Cookie(&fiber.Cookie{
 		Name:     RefreshTokenCookieName,
 		Value:    refreshToken,
-		Path:     "/api/v1/auth", // Only sent to auth endpoints
+		Path:     "/api/v1/auth",   // Only sent to auth endpoints
 		MaxAge:   7 * 24 * 60 * 60, // 7 days
 		Secure:   h.secureCookie,
 		HTTPOnly: true,

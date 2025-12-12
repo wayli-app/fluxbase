@@ -23,12 +23,12 @@ func NewLoader(proceduresDir string) *Loader {
 
 // LoadedProcedure represents a procedure loaded from the filesystem
 type LoadedProcedure struct {
-	Name         string
-	Namespace    string
-	FilePath     string
-	Code         string
-	SQLQuery     string
-	Annotations  *Annotations
+	Name        string
+	Namespace   string
+	FilePath    string
+	Code        string
+	SQLQuery    string
+	Annotations *Annotations
 }
 
 // LoadProcedures loads all RPC procedures from the filesystem

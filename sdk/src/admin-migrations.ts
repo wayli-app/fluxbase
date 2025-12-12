@@ -264,11 +264,12 @@ export class FluxbaseAdminMigrations {
         warnings: results.flatMap(r => r.warnings || []),
       }
 
-      // Refresh schema cache after migration sync (unless dry run or no changes)
-      // Only restart if migrations were actually created or updated
-      // The server will restart to refresh routes, so we need to wait and handle connection drops
-      const hasChanges = combined.summary.created > 0 || combined.summary.updated > 0
-      if (!combined.dry_run && hasChanges) {
+      // Refresh schema cache after migration sync - ONLY if migrations succeeded
+      // Server will restart to refresh routes, so we need to wait and handle connection drops
+      // Only trigger restart if migrations were applied successfully (no errors)
+      const migrationsAppliedSuccessfully =
+        combined.summary.applied > 0 && combined.summary.errors === 0
+      if (!combined.dry_run && migrationsAppliedSuccessfully) {
         try {
           await this.triggerSchemaRefreshWithRestart()
         } catch (refreshError) {

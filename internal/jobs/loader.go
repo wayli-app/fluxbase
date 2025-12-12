@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +16,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
+
+//go:embed builtin/*.ts
+var builtinJobsFS embed.FS
 
 // Loader handles loading and syncing job functions
 type Loader struct {
@@ -251,7 +255,7 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 	}
 
 	// Delete job functions that no longer exist on the filesystem
-	// Only delete filesystem-sourced functions, preserve API-created ones
+	// Only delete filesystem-sourced functions, preserve API-created and builtin ones
 	deleteCount := 0
 	for name, fn := range existingByName {
 		if !foundNames[name] && fn.Source == "filesystem" {
@@ -277,6 +281,95 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 		Int("deleted", deleteCount).
 		Int("errors", errorCount).
 		Msg("Finished loading job functions from filesystem")
+
+	return nil
+}
+
+// LoadBuiltinJobs loads built-in job functions that ship with Fluxbase.
+// These jobs are embedded in the binary and are marked with source="builtin".
+// Built-in jobs are not deleted during filesystem sync.
+func (l *Loader) LoadBuiltinJobs(ctx context.Context, namespace string) error {
+	entries, err := builtinJobsFS.ReadDir("builtin")
+	if err != nil {
+		log.Warn().Err(err).Msg("No builtin jobs found")
+		return nil
+	}
+
+	successCount := 0
+	errorCount := 0
+
+	for _, entry := range entries {
+		if entry.IsDir() || (!strings.HasSuffix(entry.Name(), ".ts") && !strings.HasSuffix(entry.Name(), ".js")) {
+			continue
+		}
+
+		// Get job name (without extension)
+		jobName := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+
+		// Read embedded job code
+		code, err := builtinJobsFS.ReadFile("builtin/" + entry.Name())
+		if err != nil {
+			log.Error().Err(err).Str("job", jobName).Msg("Failed to read builtin job")
+			errorCount++
+			continue
+		}
+
+		codeStr := string(code)
+
+		// Parse annotations from code
+		annotations := parseAnnotations(codeStr)
+
+		// Bundle the job code
+		bundledCode, bundleErr := l.bundleJob(ctx, codeStr, nil, nil)
+
+		// Create job function with source="builtin"
+		jobFunction := &JobFunction{
+			ID:                     uuid.New(),
+			Name:                   jobName,
+			Namespace:              namespace,
+			OriginalCode:           &codeStr,
+			Enabled:                annotations.Enabled,
+			TimeoutSeconds:         annotations.TimeoutSeconds,
+			MemoryLimitMB:          annotations.MemoryLimitMB,
+			MaxRetries:             annotations.MaxRetries,
+			ProgressTimeoutSeconds: annotations.ProgressTimeoutSeconds,
+			AllowNet:               annotations.AllowNet,
+			AllowEnv:               annotations.AllowEnv,
+			AllowRead:              annotations.AllowRead,
+			AllowWrite:             annotations.AllowWrite,
+			RequireRole:            annotations.RequireRole,
+			Schedule:               annotations.Schedule,
+			Version:                1,
+			Source:                 "builtin",
+		}
+
+		if bundleErr != nil {
+			jobFunction.IsBundled = false
+			errMsg := bundleErr.Error()
+			jobFunction.BundleError = &errMsg
+			log.Warn().Err(bundleErr).Str("job", jobName).Msg("Failed to bundle builtin job, storing original code")
+		} else {
+			jobFunction.IsBundled = true
+			jobFunction.Code = &bundledCode
+		}
+
+		// Upsert job function
+		if err := l.storage.UpsertJobFunction(ctx, jobFunction); err != nil {
+			log.Error().Err(err).Str("job", jobName).Msg("Failed to upsert builtin job function")
+			errorCount++
+			continue
+		}
+
+		log.Info().Str("job", jobName).Bool("enabled", annotations.Enabled).Msg("Loaded builtin job function")
+		successCount++
+	}
+
+	if successCount > 0 || errorCount > 0 {
+		log.Info().
+			Int("success", successCount).
+			Int("errors", errorCount).
+			Msg("Finished loading builtin job functions")
+	}
 
 	return nil
 }

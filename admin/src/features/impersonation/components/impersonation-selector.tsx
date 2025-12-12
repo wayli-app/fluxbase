@@ -128,8 +128,10 @@ export function ImpersonationSelector() {
 
   // Only show impersonation button to dashboard_admin users
   const isDashboardAdmin =
-    user && 'role' in user && Array.isArray(user.role)
-      ? user.role.includes('dashboard_admin')
+    user && 'role' in user
+      ? Array.isArray(user.role)
+        ? user.role.includes('dashboard_admin')
+        : user.role === 'dashboard_admin'
       : false
   if (!isDashboardAdmin) {
     return null

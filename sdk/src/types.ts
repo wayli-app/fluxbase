@@ -1152,6 +1152,9 @@ export interface FeatureSettings {
   enable_realtime: boolean
   enable_storage: boolean
   enable_functions: boolean
+  enable_ai: boolean
+  enable_jobs: boolean
+  enable_rpc: boolean
 }
 
 /**
@@ -2227,6 +2230,15 @@ export interface CreateAIProviderRequest {
   is_default?: boolean
   enabled?: boolean
   config: Record<string, string>
+}
+
+/**
+ * Request to update an AI provider
+ */
+export interface UpdateAIProviderRequest {
+  display_name?: string
+  config?: Record<string, string>
+  enabled?: boolean
 }
 
 /**

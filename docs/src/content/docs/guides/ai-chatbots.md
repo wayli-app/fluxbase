@@ -11,7 +11,7 @@ AI chatbots in Fluxbase enable:
 - **Natural Language Queries**: Users can ask questions in plain English instead of writing SQL
 - **Streaming Responses**: Real-time streaming of AI responses via WebSocket
 - **Custom Chatbots**: Create domain-specific assistants with TypeScript
-- **Provider Management**: Support for OpenAI, Anthropic, and other LLM providers
+- **Provider Management**: Support for OpenAI, Azure OpenAI, and Ollama
 - **Built-in Security**: Rate limiting, token budgets, and row-level security
 - **Conversation History**: Optional persistence of chat sessions
 
@@ -22,7 +22,7 @@ Common use cases include SQL assistants, customer support bots, data exploration
 ```mermaid
 graph LR
     A[Client App] -->|WebSocket| B[Fluxbase Server]
-    B -->|HTTP| C[LLM Provider<br/>OpenAI/Anthropic]
+    B -->|HTTP| C[LLM Provider<br/>OpenAI/Azure/Ollama]
     B -->|SQL| D[(PostgreSQL)]
     C -->|Streaming Response| B
     B -->|Stream to Client| A
@@ -280,6 +280,49 @@ Available metadata annotations:
 | `@fluxbase:token-budget` | Max tokens per day | `50000` |
 | `@fluxbase:allow-unauthenticated` | Allow anonymous access | `false` |
 | `@fluxbase:public` | Show in public chatbot list | `true` |
+| `@fluxbase:http-allowed-domains` | Domains chatbot can fetch (comma-separated) | `""` (disabled) |
+
+### HTTP Tool
+
+Chatbots can make HTTP requests to external APIs using the HTTP tool. This is useful for fetching external data, calling webhooks, or integrating with third-party services.
+
+**Enable HTTP requests by specifying allowed domains:**
+
+```typescript
+/**
+ * @fluxbase:http-allowed-domains api.example.com,data.weather.gov
+ */
+```
+
+**Security restrictions:**
+
+- Only GET requests are supported
+- HTTPS is required for non-localhost domains
+- Maximum response size: 1MB
+- Request timeout: 10 seconds
+- URLs containing credentials (basic auth) are blocked
+- Only explicitly listed domains are allowed
+
+**Example chatbot with HTTP tool:**
+
+```typescript
+/**
+ * Weather Assistant
+ *
+ * @fluxbase:description Answers questions about weather using external API
+ * @fluxbase:http-allowed-domains api.openweathermap.org
+ * @fluxbase:allowed-tables locations
+ */
+
+export default `You can query weather data from the OpenWeatherMap API.
+
+Use the http_get tool to fetch weather data:
+- Endpoint: https://api.openweathermap.org/data/2.5/weather
+- Parameters: lat, lon, appid (API key is provided automatically)
+
+Current user ID: {{user_id}}
+`
+```
 
 ### System Prompt Best Practices
 
@@ -353,7 +396,7 @@ if (data) {
 
 ### Provider Management
 
-Configure AI providers (OpenAI, Anthropic, etc.):
+Configure AI providers (OpenAI, Azure OpenAI, or Ollama):
 
 ```typescript
 // List providers

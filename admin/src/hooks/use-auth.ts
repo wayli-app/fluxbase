@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { useImpersonationStore } from '@/stores/impersonation-store'
 import { syncAuthToken } from '@/lib/fluxbase-client'
+import { dashboardAuthAPI } from '@/lib/api'
 
 export function useAuth() {
   const { auth } = useAuthStore()
@@ -13,19 +14,19 @@ export function useAuth() {
   const navigate = useNavigate()
   const client = useFluxbaseClient()
 
-  // Fetch current user data
-  const { data: userResponse, isLoading: isLoadingUser } = useQuery({
+  // Fetch current user data from dashboard auth endpoint
+  const { data: dashboardUser, isLoading: isLoadingUser } = useQuery({
     queryKey: ['auth', 'user'],
     queryFn: async () => {
-      return await client.auth.getCurrentUser()
+      return await dashboardAuthAPI.me()
     },
     enabled: !!auth.accessToken,
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
-  // Extract user from response
-  const user = userResponse?.data?.user || auth.user
+  // Use dashboard user (with role) or fall back to Zustand store
+  const user = dashboardUser || auth.user
 
   // Sign in mutation
   const signInMutation = useMutation({

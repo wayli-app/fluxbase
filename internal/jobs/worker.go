@@ -362,8 +362,15 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	// Build execution request from job
 	execReq := jobToExecutionRequest(job, w.publicURL)
 
+	// Build timeout override from job settings
+	var timeoutOverride *time.Duration
+	if job.MaxDurationSeconds != nil && *job.MaxDurationSeconds > 0 {
+		timeout := time.Duration(*job.MaxDurationSeconds) * time.Second
+		timeoutOverride = &timeout
+	}
+
 	// Execute job in runtime
-	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal)
+	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride)
 
 	// Check if job was cancelled
 	if cancelSignal.IsCancelled() {

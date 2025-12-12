@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
@@ -190,8 +193,10 @@ func GetUserRole(c *fiber.Ctx) (string, bool) {
 }
 
 // UnifiedAuthMiddleware creates a middleware that accepts both auth.users and dashboard.users authentication
-// This allows both application users with admin role AND dashboard admins to access admin endpoints
-func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManager) fiber.Handler {
+// This allows both application users with admin role AND dashboard admins to access admin endpoints.
+// The db parameter is used to check the actual role from auth.users when JWT role is "authenticated",
+// allowing role changes to take effect immediately without requiring re-login.
+func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManager, db *pgxpool.Pool) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Try to get token from cookie first (httpOnly cookie)
 		token := c.Cookies(AccessTokenCookieName)
@@ -231,13 +236,28 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 			// Store user information in context
 			c.Locals("user_id", claims.UserID)
 			c.Locals("user_email", claims.Email)
-			c.Locals("user_role", claims.Role)
 			c.Locals("session_id", claims.SessionID)
 			c.Locals("jwt_claims", claims) // Store full claims for Supabase compatibility
 
+			// Check actual role from database if JWT role is "authenticated"
+			// This allows role changes to take effect immediately without re-login
+			effectiveRole := claims.Role
+			if claims.Role == "authenticated" && db != nil {
+				dbRole, err := getUserRoleFromDB(c.Context(), db, claims.UserID)
+				if err == nil && (dbRole == "admin" || dbRole == "service_role") {
+					effectiveRole = dbRole
+					log.Debug().
+						Str("user_id", claims.UserID).
+						Str("jwt_role", claims.Role).
+						Str("db_role", dbRole).
+						Msg("Elevated role from database")
+				}
+			}
+			c.Locals("user_role", effectiveRole)
+
 			log.Debug().
 				Str("user_id", claims.UserID).
-				Str("role", claims.Role).
+				Str("role", effectiveRole).
 				Msg("Authenticated as auth.users")
 
 			return c.Next()
@@ -274,4 +294,41 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 
 		return c.Next()
 	}
+}
+
+// getUserRoleFromDB fetches user's role from auth.users table.
+// Also checks app_metadata.role as fallback.
+// This allows role changes to take effect immediately without re-login.
+func getUserRoleFromDB(ctx context.Context, db *pgxpool.Pool, userID string) (string, error) {
+	var role string
+	var appMetadata []byte
+
+	err := db.QueryRow(ctx, `
+		SELECT role, app_metadata
+		FROM auth.users
+		WHERE id = $1
+	`, userID).Scan(&role, &appMetadata)
+
+	if err != nil {
+		return "", err
+	}
+
+	// If role column is admin or service_role, return it
+	if role == "admin" || role == "service_role" {
+		return role, nil
+	}
+
+	// Check app_metadata.role as fallback
+	if len(appMetadata) > 0 {
+		var metadata map[string]interface{}
+		if json.Unmarshal(appMetadata, &metadata) == nil {
+			if metaRole, ok := metadata["role"].(string); ok {
+				if metaRole == "admin" || metaRole == "service_role" {
+					return metaRole, nil
+				}
+			}
+		}
+	}
+
+	return role, nil
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import { setAuthToken as setFluxbaseAuthToken } from '@/lib/fluxbase-client'
 
-const ACCESS_TOKEN = 'thisisjustarandomstring'
+const AUTH_COOKIE_NAME = 'fluxbase_admin_token'
 
 interface AuthUser {
   accountNo: string
@@ -23,7 +23,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()((set) => {
-  const cookieState = getCookie(ACCESS_TOKEN)
+  const cookieState = getCookie(AUTH_COOKIE_NAME)
   const initToken = cookieState ? JSON.parse(cookieState) : ''
 
   // Initialize Fluxbase client with the stored token
@@ -39,19 +39,19 @@ export const useAuthStore = create<AuthState>()((set) => {
       accessToken: initToken,
       setAccessToken: (accessToken) =>
         set((state) => {
-          setCookie(ACCESS_TOKEN, JSON.stringify(accessToken))
+          setCookie(AUTH_COOKIE_NAME, JSON.stringify(accessToken))
           setFluxbaseAuthToken(accessToken) // Sync with Fluxbase client
           return { ...state, auth: { ...state.auth, accessToken } }
         }),
       resetAccessToken: () =>
         set((state) => {
-          removeCookie(ACCESS_TOKEN)
+          removeCookie(AUTH_COOKIE_NAME)
           setFluxbaseAuthToken(null) // Clear Fluxbase client token
           return { ...state, auth: { ...state.auth, accessToken: '' } }
         }),
       reset: () =>
         set((state) => {
-          removeCookie(ACCESS_TOKEN)
+          removeCookie(AUTH_COOKIE_NAME)
           setFluxbaseAuthToken(null) // Clear Fluxbase client token
           return {
             ...state,

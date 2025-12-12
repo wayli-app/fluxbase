@@ -113,9 +113,9 @@ export default ` + "`" + `You help with user data.` + "`" + `;
 // TestParseDescription tests description extraction from JSDoc
 func TestParseDescription(t *testing.T) {
 	testCases := []struct {
-		name        string
-		code        string
-		expected    string
+		name     string
+		code     string
+		expected string
 	}{
 		{
 			name: "simple_description",
@@ -177,8 +177,8 @@ func TestParseSystemPrompt(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "simple_prompt",
-			code: `export default ` + "`" + `You are a helpful assistant.` + "`" + `;`,
+			name:     "simple_prompt",
+			code:     `export default ` + "`" + `You are a helpful assistant.` + "`" + `;`,
 			expected: "You are a helpful assistant.",
 		},
 		{
@@ -196,13 +196,13 @@ func TestParseSystemPrompt(t *testing.T) {
 2. Be accurate`,
 		},
 		{
-			name: "prompt_with_variable",
-			code: `export default ` + "`" + `You help user {{user_id}} with queries.` + "`" + `;`,
+			name:     "prompt_with_variable",
+			code:     `export default ` + "`" + `You help user {{user_id}} with queries.` + "`" + `;`,
 			expected: "You help user {{user_id}} with queries.",
 		},
 		{
-			name: "no_export_default",
-			code: `const prompt = "Hello"`,
+			name:     "no_export_default",
+			code:     `const prompt = "Hello"`,
 			expected: "",
 		},
 	}

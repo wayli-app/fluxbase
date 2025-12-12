@@ -1473,6 +1473,13 @@ func (h *Handler) ListAllJobs(c *fiber.Ctx) error {
 
 // LoadFromFilesystem loads jobs from filesystem at boot time
 func (h *Handler) LoadFromFilesystem(ctx context.Context, namespace string) error {
+	// Load builtin jobs first (these ship with Fluxbase and are disabled by default)
+	if err := h.loader.LoadBuiltinJobs(ctx, namespace); err != nil {
+		log.Warn().Err(err).Msg("Failed to load builtin jobs")
+		// Don't fail boot if builtin jobs fail to load
+	}
+
+	// Then load user jobs from filesystem
 	if err := h.loader.LoadFromFilesystem(ctx, namespace); err != nil {
 		return err
 	}

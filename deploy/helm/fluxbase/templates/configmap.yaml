@@ -46,3 +46,11 @@ data:
         format: "json"
       metrics:
         enabled: {{ .Values.metrics.enabled }}
+
+    tracing:
+      enabled: {{ .Values.tracing.enabled }}
+      endpoint: {{ .Values.tracing.endpoint | quote }}
+      service_name: {{ .Values.tracing.serviceName | quote }}
+      environment: {{ .Values.tracing.environment | quote }}
+      sample_rate: {{ .Values.tracing.sampleRate }}
+      insecure: {{ .Values.tracing.insecure }}

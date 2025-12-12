@@ -17,8 +17,13 @@ A todo list application with:
 
 - Fluxbase installed and running ([Installation Guide](./installation.md))
 - PostgreSQL database set up
+- **Admin account created** via `http://localhost:8080/admin/setup` (see [Installation Guide](./installation.md#2-create-first-admin-account))
 - Node.js 16+ and npm/yarn
 - Basic knowledge of SQL and TypeScript
+
+:::note[First Time Setup]
+Before starting this tutorial, ensure you've completed the [Installation Guide](./installation.md), including setting `FLUXBASE_AUTH_JWT_SECRET` and `FLUXBASE_SECURITY_SETUP_TOKEN`, and creating your first admin account at `/admin/setup`.
+:::
 
 ## Step 1: Create the Database Schema
 

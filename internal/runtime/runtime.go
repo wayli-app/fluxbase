@@ -115,17 +115,22 @@ func (r *DenoRuntime) RuntimeType() RuntimeType {
 }
 
 // Execute runs user code with the given request context
+// timeoutOverride allows callers to specify a custom timeout; if nil, defaultTimeout is used
 func (r *DenoRuntime) Execute(
 	ctx context.Context,
 	code string,
 	req ExecutionRequest,
 	permissions Permissions,
 	cancelSignal *CancelSignal,
+	timeoutOverride *time.Duration,
 ) (*ExecutionResult, error) {
 	start := time.Now()
 
-	// Get timeout
+	// Get timeout - use override if provided, otherwise use default
 	timeout := r.defaultTimeout
+	if timeoutOverride != nil && *timeoutOverride > 0 {
+		timeout = *timeoutOverride
+	}
 
 	// Create context with timeout that's also cancelled by the cancel signal
 	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, timeout)

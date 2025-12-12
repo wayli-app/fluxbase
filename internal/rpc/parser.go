@@ -10,17 +10,17 @@ import (
 
 // Annotation patterns for parsing SQL comments
 var (
-	namePattern            = regexp.MustCompile(`(?m)^--\s*@fluxbase:name\s+(.+)$`)
-	descriptionPattern     = regexp.MustCompile(`(?m)^--\s*@fluxbase:description\s+(.+)$`)
-	inputPattern           = regexp.MustCompile(`(?m)^--\s*@fluxbase:input\s+(.+)$`)
-	outputPattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:output\s+(.+)$`)
-	allowedTablesPattern   = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-tables\s+(.+)$`)
-	allowedSchemasPattern  = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-schemas\s+(.+)$`)
-	maxExecTimePattern     = regexp.MustCompile(`(?m)^--\s*@fluxbase:max-execution-time\s+(.+)$`)
-	requireRolePattern     = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
-	publicPattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
-	versionPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
-	annotationLinePattern  = regexp.MustCompile(`(?m)^--\s*@fluxbase:.+$`)
+	namePattern           = regexp.MustCompile(`(?m)^--\s*@fluxbase:name\s+(.+)$`)
+	descriptionPattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:description\s+(.+)$`)
+	inputPattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:input\s+(.+)$`)
+	outputPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:output\s+(.+)$`)
+	allowedTablesPattern  = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-tables\s+(.+)$`)
+	allowedSchemasPattern = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-schemas\s+(.+)$`)
+	maxExecTimePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:max-execution-time\s+(.+)$`)
+	requireRolePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
+	publicPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
+	versionPattern        = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
+	annotationLinePattern = regexp.MustCompile(`(?m)^--\s*@fluxbase:.+$`)
 )
 
 // ParseAnnotations parses annotations from SQL code and returns the annotations and cleaned SQL query

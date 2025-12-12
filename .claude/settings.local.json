@@ -62,7 +62,8 @@
       "Bash(wc:*)",
       "Bash(go get:*)",
       "Bash(xargs:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(timeout 60 npm run type-check)"
     ],
     "deny": [],
     "ask": []

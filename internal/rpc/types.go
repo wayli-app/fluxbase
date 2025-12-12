@@ -50,18 +50,18 @@ type Procedure struct {
 
 // ProcedureSummary is a lightweight version for listings
 type ProcedureSummary struct {
-	ID                      string   `json:"id"`
-	Name                    string   `json:"name"`
-	Namespace               string   `json:"namespace"`
-	Description             string   `json:"description,omitempty"`
-	AllowedTables           []string `json:"allowed_tables"`
-	AllowedSchemas          []string `json:"allowed_schemas"`
-	MaxExecutionTimeSeconds int      `json:"max_execution_time_seconds"`
-	RequireRole             *string  `json:"require_role,omitempty"`
-	IsPublic                bool     `json:"is_public"`
-	Enabled                 bool     `json:"enabled"`
-	Version                 int      `json:"version"`
-	Source                  string   `json:"source"`
+	ID                      string    `json:"id"`
+	Name                    string    `json:"name"`
+	Namespace               string    `json:"namespace"`
+	Description             string    `json:"description,omitempty"`
+	AllowedTables           []string  `json:"allowed_tables"`
+	AllowedSchemas          []string  `json:"allowed_schemas"`
+	MaxExecutionTimeSeconds int       `json:"max_execution_time_seconds"`
+	RequireRole             *string   `json:"require_role,omitempty"`
+	IsPublic                bool      `json:"is_public"`
+	Enabled                 bool      `json:"enabled"`
+	Version                 int       `json:"version"`
+	Source                  string    `json:"source"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -153,16 +153,16 @@ type InvokeResponse struct {
 
 // Annotations represents the parsed annotations from an RPC SQL file
 type Annotations struct {
-	Name                    string            `json:"name,omitempty"`
-	Description             string            `json:"description,omitempty"`
-	InputSchema             map[string]string `json:"input,omitempty"`
-	OutputSchema            map[string]string `json:"output,omitempty"`
-	AllowedTables           []string          `json:"allowed_tables,omitempty"`
-	AllowedSchemas          []string          `json:"allowed_schemas,omitempty"`
-	MaxExecutionTime        time.Duration     `json:"max_execution_time,omitempty"`
-	RequireRole             string            `json:"require_role,omitempty"`
-	IsPublic                bool              `json:"is_public,omitempty"`
-	Version                 int               `json:"version,omitempty"`
+	Name             string            `json:"name,omitempty"`
+	Description      string            `json:"description,omitempty"`
+	InputSchema      map[string]string `json:"input,omitempty"`
+	OutputSchema     map[string]string `json:"output,omitempty"`
+	AllowedTables    []string          `json:"allowed_tables,omitempty"`
+	AllowedSchemas   []string          `json:"allowed_schemas,omitempty"`
+	MaxExecutionTime time.Duration     `json:"max_execution_time,omitempty"`
+	RequireRole      string            `json:"require_role,omitempty"`
+	IsPublic         bool              `json:"is_public,omitempty"`
+	Version          int               `json:"version,omitempty"`
 }
 
 // ProcedureSpec is used for syncing procedures from filesystem or SDK

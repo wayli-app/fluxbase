@@ -301,7 +301,6 @@ func validateIdentifier(name, entityType string) error {
 	return nil
 }
 
-
 // schemaExists checks if a schema exists
 func (h *DDLHandler) schemaExists(ctx context.Context, schema string) (bool, error) {
 	var exists bool

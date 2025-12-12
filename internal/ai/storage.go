@@ -433,6 +433,43 @@ func (s *Storage) CreateProvider(ctx context.Context, provider *ProviderRecord) 
 	return nil
 }
 
+// UpdateProvider updates an existing AI provider
+func (s *Storage) UpdateProvider(ctx context.Context, provider *ProviderRecord) error {
+	query := `
+		UPDATE ai.providers SET
+			display_name = $2,
+			config = $3,
+			enabled = $4,
+			updated_at = $5
+		WHERE id = $1
+	`
+
+	provider.UpdatedAt = time.Now()
+
+	result, err := s.db.Exec(ctx, query,
+		provider.ID,
+		provider.DisplayName,
+		provider.Config,
+		provider.Enabled,
+		provider.UpdatedAt,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update provider: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("provider not found: %s", provider.ID)
+	}
+
+	log.Info().
+		Str("id", provider.ID).
+		Str("display_name", provider.DisplayName).
+		Msg("Updated AI provider")
+
+	return nil
+}
+
 // GetProvider retrieves a provider by ID
 func (s *Storage) GetProvider(ctx context.Context, id string) (*ProviderRecord, error) {
 	query := `
@@ -530,7 +567,10 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 	switch providerType {
 	case "openai":
 		if s.config.OpenAIAPIKey == "" {
-			log.Warn().Msg("OpenAI provider enabled in config but api_key is empty")
+			log.Error().
+				Str("provider_type", "openai").
+				Str("required_env_var", "FLUXBASE_AI_OPENAI_API_KEY").
+				Msg("OpenAI provider enabled but FLUXBASE_AI_OPENAI_API_KEY is not set. Provider will NOT appear in the list")
 			return nil
 		}
 		log.Debug().Msg("buildConfigBasedProvider: OpenAI provider configured")
@@ -544,7 +584,20 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 
 	case "azure":
 		if s.config.AzureAPIKey == "" || s.config.AzureEndpoint == "" || s.config.AzureDeploymentName == "" {
-			log.Warn().Msg("Azure provider enabled in config but required fields are empty")
+			var missing []string
+			if s.config.AzureAPIKey == "" {
+				missing = append(missing, "FLUXBASE_AI_AZURE_API_KEY")
+			}
+			if s.config.AzureEndpoint == "" {
+				missing = append(missing, "FLUXBASE_AI_AZURE_ENDPOINT")
+			}
+			if s.config.AzureDeploymentName == "" {
+				missing = append(missing, "FLUXBASE_AI_AZURE_DEPLOYMENT_NAME")
+			}
+			log.Error().
+				Str("provider_type", "azure").
+				Strs("missing_env_vars", missing).
+				Msg("Azure provider enabled but required environment variables are not set. Provider will NOT appear in the list")
 			return nil
 		}
 		configMap["api_key"] = s.config.AzureAPIKey
@@ -558,7 +611,10 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 
 	case "ollama":
 		if s.config.OllamaModel == "" {
-			log.Warn().Msg("Ollama provider enabled in config but model is empty")
+			log.Error().
+				Str("provider_type", "ollama").
+				Str("required_env_var", "FLUXBASE_AI_OLLAMA_MODEL").
+				Msg("Ollama provider enabled but FLUXBASE_AI_OLLAMA_MODEL is not set. Provider will NOT appear in the list. Set this env var (e.g., llama2, mistral, codellama)")
 			return nil
 		}
 		if s.config.OllamaEndpoint != "" {

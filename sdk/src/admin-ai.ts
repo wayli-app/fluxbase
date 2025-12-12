@@ -9,6 +9,7 @@ import type {
   AIChatbotSummary,
   AIProvider,
   CreateAIProviderRequest,
+  UpdateAIProviderRequest,
   SyncChatbotsOptions,
   SyncChatbotsResult,
 } from "./types";
@@ -277,6 +278,40 @@ export class FluxbaseAdminAI {
       const data = await this.fetch.post<AIProvider>(
         "/api/v1/admin/ai/providers",
         request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Update an existing AI provider
+   *
+   * @param id - Provider ID
+   * @param updates - Fields to update
+   * @returns Promise resolving to { data, error } tuple with updated provider
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.updateProvider('uuid', {
+   *   display_name: 'Updated Name',
+   *   config: {
+   *     api_key: 'new-key',
+   *     model: 'gpt-4-turbo',
+   *   },
+   *   enabled: true,
+   * })
+   * ```
+   */
+  async updateProvider(
+    id: string,
+    updates: UpdateAIProviderRequest,
+  ): Promise<{ data: AIProvider | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.put<AIProvider>(
+        `/api/v1/admin/ai/providers/${id}`,
+        updates,
       );
       return { data, error: null };
     } catch (error) {

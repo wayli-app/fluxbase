@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bot, Plus, Trash2, Star } from 'lucide-react'
+import { Bot, Plus, Trash2, Star, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
+import { getAccessToken } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { AIProvider } from '@/lib/api'
+import type { AIProvider, UpdateAIProviderRequest } from '@/lib/api'
 
 interface CreateProviderRequest {
   name: string
@@ -52,6 +53,7 @@ interface CreateProviderRequest {
 export function AIProvidersTab() {
   const queryClient = useQueryClient()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editProvider, setEditProvider] = useState<AIProvider | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<AIProvider | null>(null)
 
   // Fetch providers
@@ -60,7 +62,7 @@ export function AIProvidersTab() {
     queryFn: async () => {
       const response = await fetch('/api/v1/admin/ai/providers', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
       })
       if (!response.ok) throw new Error('Failed to fetch providers')
@@ -76,7 +78,7 @@ export function AIProvidersTab() {
       const response = await fetch(`/api/v1/admin/ai/providers/${id}/default`, {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
       })
       if (!response.ok) {
@@ -100,7 +102,7 @@ export function AIProvidersTab() {
       const response = await fetch(`/api/v1/admin/ai/providers/${id}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
       })
       if (!response.ok) {
@@ -126,7 +128,7 @@ export function AIProvidersTab() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
         body: JSON.stringify(data),
       })
@@ -140,6 +142,33 @@ export function AIProvidersTab() {
       toast.success('Provider created')
       queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
       setCreateDialogOpen(false)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Update provider mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateAIProviderRequest }) => {
+      const response = await fetch(`/api/v1/admin/ai/providers/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAccessToken()}`,
+        },
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update provider')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      toast.success('Provider updated')
+      queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+      setEditProvider(null)
     },
     onError: (error: Error) => {
       toast.error(error.message)
@@ -233,22 +262,38 @@ export function AIProvidersTab() {
                     </TableCell>
                     <TableCell className='text-right'>
                       <div className='flex items-center justify-end gap-2'>
-                        {!provider.from_config && !provider.is_default && (
+                        {/* Default toggle - always visible for non-config providers */}
+                        {!provider.from_config && (
                           <Button
                             size='sm'
                             variant='ghost'
-                            onClick={() => setDefaultMutation.mutate(provider.id)}
-                            disabled={setDefaultMutation.isPending}
+                            onClick={() => !provider.is_default && setDefaultMutation.mutate(provider.id)}
+                            disabled={setDefaultMutation.isPending || provider.is_default}
+                            title={provider.is_default ? 'Current default' : 'Set as default'}
+                            className={provider.is_default ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}
                           >
-                            <Star className='h-4 w-4' />
+                            <Star className={`h-4 w-4 ${provider.is_default ? 'fill-current' : ''}`} />
                           </Button>
                         )}
+                        {/* Edit button */}
+                        {!provider.from_config && (
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            onClick={() => setEditProvider(provider)}
+                            title='Edit provider'
+                          >
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                        )}
+                        {/* Delete button */}
                         {!provider.from_config && (
                           <Button
                             size='sm'
                             variant='ghost'
                             onClick={() => setDeleteConfirm(provider)}
                             className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                            title='Delete provider'
                           >
                             <Trash2 className='h-4 w-4' />
                           </Button>
@@ -270,6 +315,17 @@ export function AIProvidersTab() {
         onSubmit={(data) => createMutation.mutate(data)}
         isPending={createMutation.isPending}
       />
+
+      {/* Edit Provider Dialog */}
+      {editProvider && (
+        <EditProviderDialog
+          provider={editProvider}
+          open={editProvider !== null}
+          onOpenChange={(open) => !open && setEditProvider(null)}
+          onSubmit={(data) => updateMutation.mutate({ id: editProvider.id, data })}
+          isPending={updateMutation.isPending}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
@@ -513,6 +569,222 @@ function CreateProviderDialog({
             </Button>
             <Button type='submit' disabled={isPending}>
               {isPending ? 'Creating...' : 'Create Provider'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface EditProviderDialogProps {
+  provider: AIProvider
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: UpdateAIProviderRequest) => void
+  isPending: boolean
+}
+
+function EditProviderDialog({
+  provider,
+  open,
+  onOpenChange,
+  onSubmit,
+  isPending,
+}: EditProviderDialogProps) {
+  const [displayName, setDisplayName] = useState(provider.display_name)
+  const [apiKey, setApiKey] = useState(provider.config.api_key || '')
+  const [endpoint, setEndpoint] = useState(provider.config.endpoint || provider.config.base_url || '')
+  const [model, setModel] = useState(provider.config.model || '')
+  const [organizationId, setOrganizationId] = useState(provider.config.organization_id || '')
+  const [deploymentName, setDeploymentName] = useState(provider.config.deployment_name || '')
+  const [enabled, setEnabled] = useState(provider.enabled)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const config: Record<string, string> = {}
+
+    if (provider.provider_type === 'openai') {
+      if (apiKey) config.api_key = apiKey
+      if (organizationId) config.organization_id = organizationId
+      if (endpoint) config.base_url = endpoint
+    } else if (provider.provider_type === 'azure') {
+      if (apiKey) config.api_key = apiKey
+      if (endpoint) config.endpoint = endpoint
+      if (deploymentName) config.deployment_name = deploymentName
+    } else if (provider.provider_type === 'ollama') {
+      if (endpoint) config.endpoint = endpoint
+    }
+
+    if (model) config.model = model
+
+    onSubmit({
+      display_name: displayName,
+      config,
+      enabled,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='max-w-md'>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit AI Provider</DialogTitle>
+            <DialogDescription>
+              Update the configuration for {provider.display_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4 py-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='edit-displayName'>Display Name</Label>
+              <Input
+                id='edit-displayName'
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder='My OpenAI Provider'
+                required
+              />
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='edit-enabled'>Status</Label>
+              <Select
+                value={enabled ? 'enabled' : 'disabled'}
+                onValueChange={(value) => setEnabled(value === 'enabled')}
+              >
+                <SelectTrigger id='edit-enabled'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='enabled'>Enabled</SelectItem>
+                  <SelectItem value='disabled'>Disabled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {provider.provider_type === 'openai' && (
+              <>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-apiKey'>API Key</Label>
+                  <Input
+                    id='edit-apiKey'
+                    type='password'
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder='sk-... (leave masked to keep existing)'
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Leave as masked value to keep existing key
+                  </p>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-organizationId'>Organization ID (optional)</Label>
+                  <Input
+                    id='edit-organizationId'
+                    value={organizationId}
+                    onChange={(e) => setOrganizationId(e.target.value)}
+                    placeholder='org-...'
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-endpoint'>Custom Base URL (optional)</Label>
+                  <Input
+                    id='edit-endpoint'
+                    value={endpoint}
+                    onChange={(e) => setEndpoint(e.target.value)}
+                    placeholder='https://api.openai.com/v1'
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-model'>Model (optional)</Label>
+                  <Input
+                    id='edit-model'
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder='gpt-4-turbo'
+                  />
+                </div>
+              </>
+            )}
+
+            {provider.provider_type === 'azure' && (
+              <>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-apiKey'>API Key</Label>
+                  <Input
+                    id='edit-apiKey'
+                    type='password'
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder='Leave masked to keep existing'
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Leave as masked value to keep existing key
+                  </p>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-endpoint'>Endpoint</Label>
+                  <Input
+                    id='edit-endpoint'
+                    value={endpoint}
+                    onChange={(e) => setEndpoint(e.target.value)}
+                    placeholder='https://your-resource.openai.azure.com'
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-deploymentName'>Deployment Name</Label>
+                  <Input
+                    id='edit-deploymentName'
+                    value={deploymentName}
+                    onChange={(e) => setDeploymentName(e.target.value)}
+                    placeholder='gpt-4'
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-model'>Model (optional)</Label>
+                  <Input
+                    id='edit-model'
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder='gpt-4'
+                  />
+                </div>
+              </>
+            )}
+
+            {provider.provider_type === 'ollama' && (
+              <>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-endpoint'>Endpoint (optional)</Label>
+                  <Input
+                    id='edit-endpoint'
+                    value={endpoint}
+                    onChange={(e) => setEndpoint(e.target.value)}
+                    placeholder='http://localhost:11434'
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='edit-model'>Model</Label>
+                  <Input
+                    id='edit-model'
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder='llama2'
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type='submit' disabled={isPending}>
+              {isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>

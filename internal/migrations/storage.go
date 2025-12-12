@@ -146,7 +146,7 @@ func (s *Storage) ListMigrations(ctx context.Context, namespace string, status *
 	return migrations, nil
 }
 
-// UpdateMigration updates a migration (only allowed if status is pending)
+// UpdateMigration updates a migration (only allowed if status is pending or failed)
 func (s *Storage) UpdateMigration(ctx context.Context, namespace, name string, updates map[string]interface{}) error {
 	// Build dynamic UPDATE query
 	query := "UPDATE migrations.app SET updated_at = NOW()"
@@ -157,18 +157,26 @@ func (s *Storage) UpdateMigration(ctx context.Context, namespace, name string, u
 		"description": true,
 		"up_sql":      true,
 		"down_sql":    true,
+		"status":      true, // Allow status reset for failed migrations
 	}
 
 	for key, value := range updates {
 		if !allowedFields[key] {
 			continue
 		}
+		// Validate status - can only reset to 'pending'
+		if key == "status" {
+			if value != "pending" {
+				return fmt.Errorf("can only reset status to 'pending'")
+			}
+		}
 		query += fmt.Sprintf(", %s = $%d", key, argCount)
 		args = append(args, value)
 		argCount++
 	}
 
-	query += fmt.Sprintf(" WHERE namespace = $%d AND name = $%d AND status = 'pending'", argCount, argCount+1)
+	// Allow updating both pending and failed migrations
+	query += fmt.Sprintf(" WHERE namespace = $%d AND name = $%d AND status IN ('pending', 'failed')", argCount, argCount+1)
 	args = append(args, namespace, name)
 
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
@@ -177,7 +185,7 @@ func (s *Storage) UpdateMigration(ctx context.Context, namespace, name string, u
 			return err
 		}
 		if result.RowsAffected() == 0 {
-			return fmt.Errorf("migration not found or already applied")
+			return fmt.Errorf("migration not found or already applied/rolled back")
 		}
 		return nil
 	})

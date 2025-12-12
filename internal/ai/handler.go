@@ -19,10 +19,56 @@ type Handler struct {
 
 // NewHandler creates a new AI handler
 func NewHandler(storage *Storage, loader *Loader, cfg *config.AIConfig) *Handler {
-	return &Handler{
+	h := &Handler{
 		storage: storage,
 		loader:  loader,
 		config:  cfg,
+	}
+
+	// Validate config at startup
+	h.ValidateConfig()
+
+	return h
+}
+
+// ValidateConfig checks AI configuration and logs any issues at startup
+func (h *Handler) ValidateConfig() {
+	if h.config == nil || !h.config.ProviderEnabled {
+		return
+	}
+
+	switch h.config.ProviderType {
+	case "ollama":
+		if h.config.OllamaModel == "" {
+			log.Warn().
+				Str("issue", "missing_ollama_model").
+				Str("provider_type", "ollama").
+				Msg("AI provider configured as Ollama but FLUXBASE_AI_OLLAMA_MODEL is not set. The Ollama provider will NOT appear in the provider list until a model is configured.")
+		}
+	case "openai":
+		if h.config.OpenAIAPIKey == "" {
+			log.Warn().
+				Str("issue", "missing_openai_api_key").
+				Str("provider_type", "openai").
+				Msg("AI provider configured as OpenAI but FLUXBASE_AI_OPENAI_API_KEY is not set. The OpenAI provider will NOT appear in the provider list.")
+		}
+	case "azure":
+		var missing []string
+		if h.config.AzureAPIKey == "" {
+			missing = append(missing, "FLUXBASE_AI_AZURE_API_KEY")
+		}
+		if h.config.AzureEndpoint == "" {
+			missing = append(missing, "FLUXBASE_AI_AZURE_ENDPOINT")
+		}
+		if h.config.AzureDeploymentName == "" {
+			missing = append(missing, "FLUXBASE_AI_AZURE_DEPLOYMENT_NAME")
+		}
+		if len(missing) > 0 {
+			log.Warn().
+				Strs("missing_vars", missing).
+				Str("provider_type", "azure").
+				Msg("AI provider configured as Azure but some required environment variables are not set. The Azure provider will NOT appear in the provider list.")
+		}
 	}
 }
 
@@ -793,6 +839,86 @@ func (h *Handler) DeleteProvider(c *fiber.Ctx) error {
 	})
 }
 
+// UpdateProviderRequest represents the request to update a provider
+type UpdateProviderRequest struct {
+	DisplayName *string           `json:"display_name"`
+	Config      map[string]string `json:"config"`
+	Enabled     *bool             `json:"enabled"`
+}
+
+// UpdateProvider updates an AI provider
+// PUT /api/v1/admin/ai/providers/:id
+func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
+	ctx := c.Context()
+	id := c.Params("id")
+
+	// Prevent modifying config-based provider
+	if id == "FROM_CONFIG" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Cannot modify config-based provider. This provider is configured via environment variables or fluxbase.yaml and is read-only.",
+		})
+	}
+
+	var req UpdateProviderRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Get existing provider
+	provider, err := h.storage.GetProvider(ctx, id)
+	if err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to get provider")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get provider",
+		})
+	}
+
+	if provider == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Provider not found",
+		})
+	}
+
+	// Apply updates
+	if req.DisplayName != nil {
+		provider.DisplayName = *req.DisplayName
+	}
+	if req.Config != nil {
+		// Merge config - only update fields that are provided
+		if provider.Config == nil {
+			provider.Config = make(map[string]string)
+		}
+		for k, v := range req.Config {
+			// Skip masked api_key - keep existing value
+			if k == "api_key" && v == "***masked***" {
+				continue
+			}
+			provider.Config[k] = v
+		}
+	}
+	if req.Enabled != nil {
+		provider.Enabled = *req.Enabled
+	}
+
+	if err := h.storage.UpdateProvider(ctx, provider); err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to update provider")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update provider",
+		})
+	}
+
+	// Mask API key in response
+	if provider.Config != nil {
+		if _, ok := provider.Config["api_key"]; ok {
+			provider.Config["api_key"] = "***masked***"
+		}
+	}
+
+	return c.JSON(provider)
+}
+
 // ============================================================================
 // PUBLIC CHATBOT ENDPOINTS
 // ============================================================================
@@ -1131,19 +1257,19 @@ func (h *Handler) GetConversations(c *fiber.Ctx) error {
 
 // MessageDetail represents a message within a conversation
 type MessageDetail struct {
-	ID               string  `json:"id"`
-	ConversationID   string  `json:"conversation_id"`
-	Role             string  `json:"role"`
-	Content          string  `json:"content"`
-	ToolCallID       *string `json:"tool_call_id"`
-	ToolName         *string `json:"tool_name"`
-	ExecutedSQL      *string `json:"executed_sql"`
-	SQLResultSummary *string `json:"sql_result_summary"`
-	SQLRowCount      *int    `json:"sql_row_count"`
-	SQLError         *string `json:"sql_error"`
-	SQLDurationMS    *int    `json:"sql_duration_ms"`
-	PromptTokens     *int    `json:"prompt_tokens"`
-	CompletionTokens *int    `json:"completion_tokens"`
+	ID               string    `json:"id"`
+	ConversationID   string    `json:"conversation_id"`
+	Role             string    `json:"role"`
+	Content          string    `json:"content"`
+	ToolCallID       *string   `json:"tool_call_id"`
+	ToolName         *string   `json:"tool_name"`
+	ExecutedSQL      *string   `json:"executed_sql"`
+	SQLResultSummary *string   `json:"sql_result_summary"`
+	SQLRowCount      *int      `json:"sql_row_count"`
+	SQLError         *string   `json:"sql_error"`
+	SQLDurationMS    *int      `json:"sql_duration_ms"`
+	PromptTokens     *int      `json:"prompt_tokens"`
+	CompletionTokens *int      `json:"completion_tokens"`
 	CreatedAt        time.Time `json:"created_at"`
 	SequenceNumber   int       `json:"sequence_number"`
 }
@@ -1220,24 +1346,24 @@ func (h *Handler) GetConversationMessages(c *fiber.Ctx) error {
 
 // AuditLogEntry represents an audit log entry
 type AuditLogEntry struct {
-	ID                  string   `json:"id"`
-	ChatbotID           *string  `json:"chatbot_id"`
-	ChatbotName         *string  `json:"chatbot_name"`
-	ConversationID      *string  `json:"conversation_id"`
-	MessageID           *string  `json:"message_id"`
-	UserID              *string  `json:"user_id"`
-	UserEmail           *string  `json:"user_email"`
-	GeneratedSQL        string   `json:"generated_sql"`
-	SanitizedSQL        *string  `json:"sanitized_sql"`
-	Executed            bool     `json:"executed"`
-	ValidationPassed    *bool    `json:"validation_passed"`
-	ValidationErrors    []string `json:"validation_errors"`
-	Success             *bool    `json:"success"`
-	ErrorMessage        *string  `json:"error_message"`
-	RowsReturned        *int     `json:"rows_returned"`
-	ExecutionDurationMS *int     `json:"execution_duration_ms"`
-	TablesAccessed      []string `json:"tables_accessed"`
-	OperationsUsed      []string `json:"operations_used"`
+	ID                  string    `json:"id"`
+	ChatbotID           *string   `json:"chatbot_id"`
+	ChatbotName         *string   `json:"chatbot_name"`
+	ConversationID      *string   `json:"conversation_id"`
+	MessageID           *string   `json:"message_id"`
+	UserID              *string   `json:"user_id"`
+	UserEmail           *string   `json:"user_email"`
+	GeneratedSQL        string    `json:"generated_sql"`
+	SanitizedSQL        *string   `json:"sanitized_sql"`
+	Executed            bool      `json:"executed"`
+	ValidationPassed    *bool     `json:"validation_passed"`
+	ValidationErrors    []string  `json:"validation_errors"`
+	Success             *bool     `json:"success"`
+	ErrorMessage        *string   `json:"error_message"`
+	RowsReturned        *int      `json:"rows_returned"`
+	ExecutionDurationMS *int      `json:"execution_duration_ms"`
+	TablesAccessed      []string  `json:"tables_accessed"`
+	OperationsUsed      []string  `json:"operations_used"`
 	IPAddress           *string   `json:"ip_address"`
 	UserAgent           *string   `json:"user_agent"`
 	CreatedAt           time.Time `json:"created_at"`
