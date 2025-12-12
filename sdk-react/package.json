@@ -1,6 +1,6 @@
 {
   "name": "@fluxbase/sdk-react",
-  "version": "0.0.1-rc.46",
+  "version": "0.0.1-rc.47",
   "description": "React hooks for Fluxbase SDK",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
