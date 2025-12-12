@@ -108,10 +108,11 @@ WebSocket-based AI chatbot integration:
 | **REST API**        | ✅ Auto-generated     | ✅ PostgREST             | ✅ Auto-generated  |
 | **Authentication**  | ✅ Built-in           | ✅ GoTrue                | ✅ Built-in        |
 | **Realtime**        | ✅ WebSocket          | ✅ WebSocket             | ✅ WebSocket       |
-| **Storage**         | ✅ Local/S3           | ✅ S3                    | ✅ Cloud Storage   |
+| **Storage**         | ✅ S3 or local        | ✅ S3 or local           | ✅ Cloud Storage   |
 | **Functions**       | ✅ Deno               | ✅ Deno                  | ✅ Cloud Functions |
+| **AI Chatbots**     | ✅ Built-in           | ❌ No                    | ❌ No              |
 | **Background Jobs** | ✅ Built-in           | ✅ pg_cron (ext)         | ❌ No              |
-| **Open Source**     | ✅ MIT                | ✅ Apache 2.0            | ❌ Proprietary     |
+| **Open Source**     | ✅ ELv2               | ✅ Apache 2.0            | ❌ Proprietary     |
 
 ## Getting Started
 
@@ -218,4 +219,4 @@ graph TB
 
 ## License
 
-Fluxbase is open source and released under the MIT License.
+Fluxbase is open source and released under the [Elastic License 2.0 (ELv2)](https://github.com/fluxbase-eu/fluxbase/blob/main/LICENSE).

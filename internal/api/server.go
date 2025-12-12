@@ -131,6 +131,8 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 
 	// Initialize webhook service
 	webhookService := webhook.NewWebhookService(db)
+	// Allow private IPs in debug mode (for local testing with localhost webhooks)
+	webhookService.AllowPrivateIPs = cfg.Debug
 
 	// Initialize webhook trigger service (4 workers)
 	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)

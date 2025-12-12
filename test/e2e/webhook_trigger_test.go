@@ -19,16 +19,13 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean tables before each test (batched for performance)
-	tc.ExecuteSQL(`
-		TRUNCATE TABLE
-			auth.webhook_events,
-			auth.webhook_deliveries,
-			auth.webhooks,
-			auth.users,
-			auth.sessions
-		CASCADE
-	`)
+	// Clean only test-specific data to avoid affecting other parallel tests
+	// Delete webhook-related test data
+	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%'")
+	// Delete only test users (those with test email patterns)
+	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
 	// Enable webhook trigger on users table for these tests
 	tc.ExecuteSQL("SELECT auth.create_webhook_trigger('auth', 'users')")
@@ -319,10 +316,17 @@ func TestWebhookTriggerRetry(t *testing.T) {
 	require.GreaterOrEqual(t, finalAttemptCount, 3, "Webhook should have been retried at least 3 times")
 
 	// Verify the event was eventually marked as processed
-	results := tc.QuerySQL("SELECT processed FROM auth.webhook_events ORDER BY created_at DESC LIMIT 1")
-	require.Greater(t, len(results), 0, "Should have query results")
-	processed := results[0]["processed"].(bool)
-	require.True(t, processed, "Event should eventually be marked as processed after successful delivery")
+	// Wait a bit for the database update to complete (processing is async)
+	var processed bool
+	processedSuccess := tc.WaitForCondition(5*time.Second, 200*time.Millisecond, func() bool {
+		results := tc.QuerySQL("SELECT processed FROM auth.webhook_events ORDER BY created_at DESC LIMIT 1")
+		if len(results) == 0 {
+			return false
+		}
+		processed = results[0]["processed"].(bool)
+		return processed
+	})
+	require.True(t, processedSuccess, "Event should eventually be marked as processed after successful delivery")
 }
 
 // TestWebhookTriggerMultipleWebhooks tests that multiple webhooks can be triggered for the same event

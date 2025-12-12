@@ -15,23 +15,22 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	tc.EnsureAuthSchema()
 	tc.EnsureRLSTestTables()
 
-	// Clean all tables before each test to ensure isolation
-	// Using CASCADE will clean related tables automatically
-	// Batched into single statement for performance (reduces 11 round trips to 1)
-	// Must use superuser because RLS test user doesn't have TRUNCATE permission
+	// Clean only test-specific data to avoid affecting other parallel tests
+	// Must use superuser because RLS test user doesn't have DELETE permission on some tables
 	tc.ExecuteSQLAsSuperuser(`
-		TRUNCATE TABLE
-			auth.users,
-			auth.sessions,
-			auth.api_keys,
-			auth.api_key_usage,
-			auth.impersonation_sessions,
-			auth.magic_links,
-			auth.password_reset_tokens,
-			dashboard.oauth_providers,
-			dashboard.activity_log,
-			tasks
-		CASCADE;
+		-- Delete only test users (those with test email patterns)
+		DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com';
+		-- Clean test-specific api_keys
+		DELETE FROM auth.api_keys WHERE name LIKE '%Test%' OR name LIKE '%test%';
+		-- Clean impersonation sessions for deleted users (will cascade)
+		DELETE FROM auth.impersonation_sessions WHERE admin_user_id NOT IN (SELECT id FROM auth.users);
+		-- Clean magic_links for deleted users
+		DELETE FROM auth.magic_links WHERE email LIKE '%@example.com' OR email LIKE '%@test.com';
+		-- Clean password_reset_tokens for deleted users (will cascade)
+		DELETE FROM auth.password_reset_tokens WHERE user_id NOT IN (SELECT id FROM auth.users);
+		-- Clean tasks table used for RLS tests
+		DELETE FROM tasks WHERE user_id IS NOT NULL;
+		-- Clean test auth settings
 		DELETE FROM app.settings WHERE category = 'auth';
 	`)
 
@@ -774,20 +773,20 @@ func TestRLSImpersonationSessionsAdminOnly(t *testing.T) {
 
 	// Insert an impersonation session as superuser
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.impersonation_sessions (id, admin_user_id, impersonated_user_id, reason, started_at)
+		INSERT INTO auth.impersonation_sessions (id, admin_user_id, target_user_id, reason, started_at)
 		VALUES (gen_random_uuid(), $1, $2, 'Testing impersonation', NOW())
 	`, adminUserID, userID)
 
 	// Test: Regular user cannot see impersonation sessions
 	sessions := tc.QuerySQLAsRLSUser(`
-		SELECT * FROM auth.impersonation_sessions WHERE impersonated_user_id = $1
+		SELECT * FROM auth.impersonation_sessions WHERE target_user_id = $1
 	`, userID, userID)
 
 	require.Len(t, sessions, 0, "Regular user should NOT see impersonation_sessions (dashboard admin only)")
 
 	// Verify superuser/admin CAN access
 	sessionsSuper := tc.QuerySQLAsSuperuser(`
-		SELECT * FROM auth.impersonation_sessions WHERE impersonated_user_id = $1
+		SELECT * FROM auth.impersonation_sessions WHERE target_user_id = $1
 	`, userID)
 	require.Len(t, sessionsSuper, 1, "Dashboard admin/service role should see impersonation_sessions")
 
@@ -912,8 +911,8 @@ func TestRLSPerformanceIndexes(t *testing.T) {
 		{"auth", "api_key_usage", "idx_api_key_usage_api_key_id"},
 		{"auth", "sessions", "idx_auth_sessions_user_id"},
 		{"auth", "webhook_deliveries", "idx_webhook_deliveries_webhook_id"},
-		{"auth", "impersonation_sessions", "idx_impersonation_sessions_admin_user_id"},
-		{"auth", "impersonation_sessions", "idx_impersonation_sessions_impersonated_user_id"},
+		{"auth", "impersonation_sessions", "idx_auth_impersonation_admin_user_id"},
+		{"auth", "impersonation_sessions", "idx_impersonation_sessions_target_user_id"},
 	}
 
 	for _, expected := range expectedIndexes {

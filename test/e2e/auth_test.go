@@ -15,8 +15,9 @@ func setupAuthTest(t *testing.T) *test.TestContext {
 	tc := test.NewTestContext(t)
 	tc.EnsureAuthSchema()
 
-	// Clean auth tables before each test to ensure isolation (batched for performance)
-	tc.ExecuteSQL("TRUNCATE TABLE auth.users, auth.sessions CASCADE")
+	// Clean only test-specific users to avoid affecting other parallel tests
+	// Delete users created by auth tests (test@example.com pattern)
+	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
 	// Enable signup for tests (default is now false for security)
 	tc.Config.Auth.EnableSignup = true

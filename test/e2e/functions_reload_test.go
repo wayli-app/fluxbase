@@ -360,18 +360,31 @@ func TestFunctionsPriorityPattern(t *testing.T) {
 
 	t.Logf("Reload result: %+v", result)
 
-	// Verify only one function was created (flat file should take precedence)
-	created, ok := result["created"].([]interface{})
-	require.True(t, ok, "Created should be an array")
+	// Verify only one function was loaded (flat file should take precedence over directory)
+	// Check "total" field which represents the number of functions found on disk
+	// The function may be in "created" (new) or "updated" (already existed) or neither (unchanged)
+	total, ok := result["total"].(float64)
+	require.True(t, ok, "Total should be a number")
+	require.Equal(t, float64(1), total, "Should only load one function, not both patterns (flat file takes precedence)")
 
-	// Count how many functions named "priority-test" were created
+	// Also verify the function name appears in created OR updated (not both patterns loaded)
+	created, _ := result["created"].([]interface{})
+	updated, _ := result["updated"].([]interface{})
+
+	// Count total occurrences of our function name across created and updated
 	priorityTestCount := 0
 	for _, item := range created {
 		if item == functionName {
 			priorityTestCount++
 		}
 	}
+	for _, item := range updated {
+		if item == functionName {
+			priorityTestCount++
+		}
+	}
 
-	require.Equal(t, 1, priorityTestCount, "Should only create one function, not both patterns")
+	// Either it was created/updated once, or it already existed unchanged (count=0 but total=1 is valid)
+	require.LessOrEqual(t, priorityTestCount, 1, "Should not have duplicate function entries")
 	t.Log("Correctly prioritized flat file over directory-based function")
 }

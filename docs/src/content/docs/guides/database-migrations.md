@@ -105,7 +105,7 @@ stateDiagram-v2
 
 User migrations follow the standard golang-migrate format:
 
-```
+```text
 001_create_users_table.up.sql
 001_create_users_table.down.sql
 002_add_timestamps.up.sql

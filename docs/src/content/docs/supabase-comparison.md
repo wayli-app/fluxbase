@@ -12,14 +12,15 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 | **REST API**           | PostgREST                 | Compatible                    |
 | **Authentication**     | GoTrue (JWT)              | Compatible                    |
 | **Realtime**           | WebSocket                 | Compatible                    |
-| **Storage**            | S3-compatible             | Compatible                    |
+| **Storage**            | S3 or local               | S3 or local                   |
+| **AI Chatbots**        | ❌ No                     | ✅ Built-in                   |
 | **Edge Functions**     | Deno runtime              | Deno runtime                  |
 | **Database**           | PostgreSQL 15+            | PostgreSQL 15+                |
-| **Row-Level Security** | Yes (auth.uid())          | Yes (current_setting())       |
+| **Row-Level Security** | Yes (auth.uid())          | Yes (auth.uid() / current_setting()) |
 | **Client SDK**         | TypeScript/JS             | TypeScript/JS (compatible)    |
 | **Horizontal Scaling** | Yes (read replicas)       | Yes (with configuration)\*    |
 | **Hosted Service**     | Yes (free tier available) | No                            |
-| **Pricing**            | Free/$25+/month           | Open source (MIT)             |
+| **Pricing**            | Free/$25+/month           | Open source (ELv2)            |
 
 ## SDK Compatibility
 

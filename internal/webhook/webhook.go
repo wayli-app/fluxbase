@@ -75,8 +75,9 @@ type WebhookPayload struct {
 
 // WebhookService manages webhooks
 type WebhookService struct {
-	db     *database.Connection
-	client *http.Client
+	db              *database.Connection
+	client          *http.Client
+	AllowPrivateIPs bool // Allow private IPs for testing purposes (SSRF protection bypass)
 }
 
 // isPrivateIP checks if an IP address is in a private range
@@ -232,9 +233,11 @@ func NewWebhookService(db *database.Connection) *WebhookService {
 
 // Create creates a new webhook
 func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
-	// Validate webhook URL to prevent SSRF attacks
-	if err := validateWebhookURL(webhook.URL); err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
+	if !s.AllowPrivateIPs {
+		if err := validateWebhookURL(webhook.URL); err != nil {
+			return fmt.Errorf("invalid webhook URL: %w", err)
+		}
 	}
 
 	// Validate custom headers to prevent header injection

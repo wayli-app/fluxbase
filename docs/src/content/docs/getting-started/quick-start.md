@@ -2,211 +2,100 @@
 title: "Quick Start"
 ---
 
-Build your first application with Fluxbase in 10 minutes. This tutorial walks you through creating a simple todo list application.
-
-## What We'll Build
-
-A todo list application with:
-
-- ✅ REST API for CRUD operations
-- ✅ Real-time updates via WebSockets
-- ✅ User authentication
-- ✅ File attachments (storage)
+Get Fluxbase running in under 5 minutes using Docker.
 
 ## Prerequisites
 
-- Fluxbase installed and running ([Installation Guide](./installation.md))
-- PostgreSQL database set up
-- **Admin account created** via `http://localhost:8080/admin/setup` (see [Installation Guide](./installation.md#2-create-first-admin-account))
-- Node.js 16+ and npm/yarn
-- Basic knowledge of SQL and TypeScript
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed
 
-:::note[First Time Setup]
-Before starting this tutorial, ensure you've completed the [Installation Guide](./installation.md), including setting `FLUXBASE_AUTH_JWT_SECRET` and `FLUXBASE_SECURITY_SETUP_TOKEN`, and creating your first admin account at `/admin/setup`.
+## 1. Create docker-compose.yml
+
+Create a `docker-compose.yml` file with the following content:
+
+```yaml
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: fluxbase
+      POSTGRES_USER: fluxbase
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  fluxbase:
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
+    depends_on:
+      - postgres
+    environment:
+      FLUXBASE_DATABASE_HOST: postgres
+      FLUXBASE_DATABASE_PORT: 5432
+      FLUXBASE_DATABASE_USER: fluxbase
+      FLUXBASE_DATABASE_PASSWORD: postgres
+      FLUXBASE_DATABASE_DATABASE: fluxbase
+      FLUXBASE_DATABASE_SSL_MODE: disable
+      FLUXBASE_AUTH_JWT_SECRET: change-this-to-a-secure-random-string-min-32-chars
+      FLUXBASE_SECURITY_SETUP_TOKEN: change-this-to-another-secure-random-string
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+```
+
+## 2. Set Secure Secrets
+
+Generate secure values for the secrets:
+
+```bash
+# Generate JWT secret (copy output to FLUXBASE_AUTH_JWT_SECRET)
+openssl rand -base64 32
+
+# Generate setup token (copy output to FLUXBASE_SECURITY_SETUP_TOKEN)
+openssl rand -base64 32
+```
+
+Update `docker-compose.yml` with your generated secrets.
+
+:::caution[Security Warning]
+Never use the example secrets in production. Both secrets should be strong, random strings of at least 32 characters.
 :::
 
-## Step 1: Create the Database Schema
-
-Connect to your PostgreSQL database:
+## 3. Start Fluxbase
 
 ```bash
-psql postgres://fluxbase:password@localhost:5432/fluxbase
+docker compose up -d
 ```
 
-Create the todos table:
-
-```sql
-CREATE TABLE todos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  completed BOOLEAN DEFAULT false,
-  priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
-  due_date TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create index for faster queries
-CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
-CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
-
--- Enable realtime for this table
-SELECT enable_realtime('todos');
-```
-
-Exit psql:
-
-```sql
-\q
-```
-
-## Step 2: Install the TypeScript SDK
-
-Install the Fluxbase SDK in your project:
+Wait a few seconds for the services to start. Check logs with:
 
 ```bash
-npm install @fluxbase/sdk
-# or
-yarn add @fluxbase/sdk
+docker compose logs fluxbase
 ```
 
-Create a new file `app.ts` to get started.
+## 4. Complete Setup
 
-## Step 3: Generate Anon Key
+1. Open [http://localhost:8080/admin/setup](http://localhost:8080/admin/setup) in your browser
+2. Enter your **Setup Token** (the `FLUXBASE_SECURITY_SETUP_TOKEN` value)
+3. Create your admin account (email and password)
+4. You'll be redirected to the admin dashboard
 
-Fluxbase uses anon keys (JWT tokens) for client initialization, just like Supabase. Generate one first:
+## 5. Explore the Admin Dashboard
 
-```bash
-./scripts/generate-keys.sh
-# Select option 3: "Generate Anon Key"
-# Copy the generated JWT token
-```
+After logging in at [http://localhost:8080/admin](http://localhost:8080/admin), you can:
 
-This creates a JWT token with the "anon" role that respects Row-Level Security policies.
-
-## Step 4: Initialize Client and Sign Up
-
-Set up the Fluxbase client and create a user account:
-
-```typescript
-import { createClient } from "@fluxbase/sdk";
-
-// Initialize client (identical to Supabase)
-const client = createClient(
-  "http://localhost:8080",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." // Your anon key from step 3
-);
-
-// Sign up a new user
-const { data, error: signUpError } = await client.auth.signUp({
-  email: "user@example.com",
-  password: "SecurePassword123",
-});
-
-if (signUpError) {
-  console.error("Sign up failed:", signUpError);
-} else {
-  console.log("Signed up as:", data.user.email);
-}
-```
-
-The SDK automatically manages authentication tokens for you. After sign-up or sign-in, the user's JWT token replaces the anon key for authenticated requests.
-
-## Step 5: CRUD Operations
-
-```typescript
-interface Todo {
-  title: string;
-  priority: "low" | "medium" | "high";
-  completed?: boolean;
-}
-
-// Create
-const { data: newTodo } = await client
-  .from<Todo>("todos")
-  .insert({ title: "Learn Fluxbase", priority: "high" })
-  .execute();
-
-// Read (query)
-const { data: todos } = await client
-  .from<Todo>("todos")
-  .select("*")
-  .eq("completed", false)
-  .order("created_at", { ascending: false })
-  .execute();
-
-// Update
-await client
-  .from<Todo>("todos")
-  .update({ completed: true })
-  .eq("id", newTodo?.id)
-  .execute();
-
-// Delete
-await client.from<Todo>("todos").delete().eq("id", newTodo?.id).execute();
-```
-
-## Step 6: Real-time Subscriptions
-
-```typescript
-const channel = client.realtime.channel("table:public.todos");
-
-channel
-  .on("INSERT", (payload) => console.log("Created:", payload.new_record))
-  .on("UPDATE", (payload) => console.log("Updated:", payload.new_record))
-  .on("DELETE", (payload) => console.log("Deleted:", payload.old_record))
-  .subscribe();
-```
-
-## Step 7: Run Your Application
-
-```bash
-npm install -D typescript tsx
-npx tsx app.ts
-```
-
-## Step 8: Explore Admin UI
-
-Open http://localhost:8080/admin for:
-
-- Tables Browser - View/edit data
-- API Explorer - Test endpoints
-- Realtime Dashboard - Monitor WebSockets
-- Storage Browser - Manage files
-- Authentication - Manage users
-- System Monitoring - View logs/metrics
+- **Tables Browser** - Create tables and manage data
+- **Authentication** - View and manage users
+- **Storage** - Upload and manage files
+- **Functions** - Deploy edge functions
+- **Realtime** - Monitor WebSocket connections
 
 ## Next Steps
 
-**Add file attachments:**
-
-```typescript
-await client.storage.createBucket({ name: "todo-attachments" });
-await client.storage.from("todo-attachments").upload("file.pdf", file);
-```
-
-**Add Row-Level Security:**
-
-```sql
-ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY todos_select_policy ON todos
-  FOR SELECT
-  USING (user_id = current_setting('app.user_id', true)::uuid);
-```
-
-**Custom RPC functions:**
-
-```typescript
-const { data } = await client.rpc("get_todo_stats", { user_uuid: user?.id });
-```
-
-## Learn More
-
-- [Database Operations](../guides/typescript-sdk/database.md)
-- [Authentication](../guides/authentication.md)
-- [Realtime](../guides/realtime.md)
-- [Storage](../guides/storage.md)
-- [TypeScript SDK](../api/sdk/)
+- [TypeScript SDK Guide](/docs/sdk/getting-started) - Build applications with the SDK
+- [Authentication Guide](/docs/guides/authentication) - Set up user authentication
+- [Row-Level Security](/docs/guides/row-level-security) - Secure your data
+- [AI Chatbots](/docs/guides/ai-chatbots) - Build natural language interfaces
+- [Configuration Reference](/docs/reference/configuration) - All configuration options
