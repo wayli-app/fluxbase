@@ -18,7 +18,8 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	// Clean all tables before each test to ensure isolation
 	// Using CASCADE will clean related tables automatically
 	// Batched into single statement for performance (reduces 11 round trips to 1)
-	tc.ExecuteSQL(`
+	// Must use superuser because RLS test user doesn't have TRUNCATE permission
+	tc.ExecuteSQLAsSuperuser(`
 		TRUNCATE TABLE
 			auth.users,
 			auth.sessions,
@@ -1008,21 +1009,16 @@ func TestRLSRoleMapping(t *testing.T) {
 // TestRLSRequestJWTClaimsContainsOriginalRole verifies that request.jwt.claims
 // contains the original application role (not the mapped database role)
 func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
-	t.Skip("TODO: This test requires dynamic table registration which is not currently supported. " +
-		"REST API endpoints are registered at server startup based on existing tables. " +
-		"Tables created during test execution don't get REST endpoints automatically. " +
-		"This test should be rewritten to use direct SQL operations instead of REST API calls.")
-
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
 	// Create admin user (admin app role maps to authenticated DB role)
 	adminEmail := "admin@example.com"
-	adminID, adminToken := tc.CreateTestUserWithRole(adminEmail, "password123", "admin")
+	adminID, _ := tc.CreateTestUserWithRole(adminEmail, "password123", "admin")
 
 	// Create regular user
 	userEmail := "user@example.com"
-	userID, userToken := tc.CreateTestUserWithRole(userEmail, "password123", "user")
+	userID, _ := tc.CreateTestUserWithRole(userEmail, "password123", "user")
 
 	// Create test function that returns the current role from request.jwt.claims
 	tc.ExecuteSQLAsSuperuser(`
@@ -1035,7 +1031,6 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 	`)
 
 	// Create test table for checking JWT claims (cleanup first in case it exists from previous failed run)
-	// Drop policies explicitly first, then table
 	tc.ExecuteSQLAsSuperuser(`DROP POLICY IF EXISTS role_check_insert ON public.role_check`)
 	tc.ExecuteSQLAsSuperuser(`DROP POLICY IF EXISTS role_check_select ON public.role_check`)
 	tc.ExecuteSQLAsSuperuser(`DROP TABLE IF EXISTS public.role_check CASCADE`)
@@ -1048,7 +1043,6 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 		);
 
 		ALTER TABLE public.role_check ENABLE ROW LEVEL SECURITY;
-		-- Note: Not using FORCE RLS - regular RLS is sufficient when using SET LOCAL ROLE
 
 		-- Grant permissions to roles
 		GRANT SELECT, INSERT ON public.role_check TO authenticated;
@@ -1070,55 +1064,38 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 		tc.ExecuteSQLAsSuperuser("DROP POLICY IF EXISTS role_check_insert ON public.role_check")
 		tc.ExecuteSQLAsSuperuser("DROP POLICY IF EXISTS role_check_select ON public.role_check")
 		tc.ExecuteSQLAsSuperuser("DROP TABLE IF EXISTS public.role_check CASCADE")
+		tc.ExecuteSQLAsSuperuser("DROP FUNCTION IF EXISTS auth.get_current_jwt_role()")
 	}()
 
-	// Admin inserts a record with 'admin' role
-	tc.NewRequest("POST", "/api/v1/tables/role_check").
-		WithAuth(adminToken).
-		WithBody(map[string]interface{}{
-			"user_id":      adminID,
-			"claimed_role": "admin", // Should match JWT claim
-		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
+	// Admin inserts a record with 'admin' role using direct SQL with RLS context
+	tc.ExecuteSQLWithRLSContext(adminID, "admin", `
+		INSERT INTO public.role_check (user_id, claimed_role)
+		VALUES ($1::uuid, 'admin')
+	`, adminID)
 
-	// User inserts a record with 'user' role
-	tc.NewRequest("POST", "/api/v1/tables/role_check").
-		WithAuth(userToken).
-		WithBody(map[string]interface{}{
-			"user_id":      userID,
-			"claimed_role": "user", // Should match JWT claim
-		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
+	// User inserts a record with 'user' role using direct SQL with RLS context
+	tc.ExecuteSQLWithRLSContext(userID, "user", `
+		INSERT INTO public.role_check (user_id, claimed_role)
+		VALUES ($1::uuid, 'user')
+	`, userID)
 
 	// Verify admin's record has 'admin' role (not 'authenticated')
-	resp := tc.NewRequest("GET", "/api/v1/tables/role_check").
-		WithAuth(adminToken).
-		Send().
-		AssertStatus(fiber.StatusOK)
+	adminRecords := tc.QuerySQLWithRLSContext(adminID, "admin", `
+		SELECT claimed_role FROM public.role_check WHERE user_id = $1::uuid
+	`, adminID)
 
-	var adminRecords []map[string]interface{}
-	resp.JSON(&adminRecords)
 	require.Len(t, adminRecords, 1)
 	require.Equal(t, "admin", adminRecords[0]["claimed_role"],
 		"JWT claims should contain original 'admin' role, not mapped 'authenticated' role")
 
 	// Verify user's record has 'user' role (not 'authenticated')
-	resp = tc.NewRequest("GET", "/api/v1/tables/role_check").
-		WithAuth(userToken).
-		Send().
-		AssertStatus(fiber.StatusOK)
+	userRecords := tc.QuerySQLWithRLSContext(userID, "user", `
+		SELECT claimed_role FROM public.role_check WHERE user_id = $1::uuid
+	`, userID)
 
-	var userRecords []map[string]interface{}
-	resp.JSON(&userRecords)
 	require.Len(t, userRecords, 1)
 	require.Equal(t, "user", userRecords[0]["claimed_role"],
 		"JWT claims should contain original 'user' role, not mapped 'authenticated' role")
-
-	// Cleanup
-	tc.ExecuteSQLAsSuperuser("DROP TABLE IF EXISTS public.role_check CASCADE")
-	tc.ExecuteSQLAsSuperuser("DROP FUNCTION IF EXISTS auth.get_current_jwt_role()")
 
 	t.Log("✓ request.jwt.claims correctly contains original application roles")
 }
@@ -1126,17 +1103,12 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 // TestRLSHybridApproachDefenseInDepth tests that the hybrid approach
 // (SET ROLE + request.jwt.claims) provides defense-in-depth security
 func TestRLSHybridApproachDefenseInDepth(t *testing.T) {
-	t.Skip("TODO: This test requires dynamic table registration which is not currently supported. " +
-		"REST API endpoints are registered at server startup based on existing tables. " +
-		"Tables created during test execution don't get REST endpoints automatically. " +
-		"This test should be rewritten to use direct SQL operations instead of REST API calls.")
-
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
 	// Create admin and regular user
-	adminID, adminToken := tc.CreateTestUserWithRole("admin@example.com", "password123", "admin")
-	userID, userToken := tc.CreateTestUserWithRole("user@example.com", "password123", "user")
+	adminID, _ := tc.CreateTestUserWithRole("admin@example.com", "password123", "admin")
+	userID, _ := tc.CreateTestUserWithRole("user@example.com", "password123", "user")
 
 	// Create a test table that requires both database-level role AND app-level role check
 	// (cleanup first in case it exists from previous failed run)
@@ -1165,35 +1137,31 @@ func TestRLSHybridApproachDefenseInDepth(t *testing.T) {
 	`)
 
 	// Admin should be able to insert (both layers pass: authenticated role + admin JWT claim)
-	tc.NewRequest("POST", "/api/v1/tables/sensitive_data").
-		WithAuth(adminToken).
-		WithBody(map[string]interface{}{
-			"user_id": adminID,
-			"data":    "Admin data",
-		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
+	err := tc.TryExecuteSQLWithRLSContext(adminID, "admin", `
+		INSERT INTO public.sensitive_data (user_id, data) VALUES ($1::uuid, 'Admin data')
+	`, adminID)
+	require.NoError(t, err, "Admin insert should succeed with both defense layers passing")
 
 	// Regular user should NOT be able to insert (first layer passes: authenticated role, but second layer fails: not admin)
-	tc.NewRequest("POST", "/api/v1/tables/sensitive_data").
-		WithAuth(userToken).
-		WithBody(map[string]interface{}{
-			"user_id": userID,
-			"data":    "User data",
-		}).
-		Send().
-		AssertStatus(fiber.StatusInternalServerError) // RLS violation
+	err = tc.TryExecuteSQLWithRLSContext(userID, "user", `
+		INSERT INTO public.sensitive_data (user_id, data) VALUES ($1::uuid, 'User data')
+	`, userID)
+	require.Error(t, err, "User insert should fail due to RLS policy requiring admin role")
+	require.Contains(t, err.Error(), "violates row-level security policy",
+		"Error should indicate RLS violation")
 
-	// Verify only admin data exists
-	resp := tc.NewRequest("GET", "/api/v1/tables/sensitive_data").
-		WithAuth(adminToken).
-		Send().
-		AssertStatus(fiber.StatusOK)
-
-	var records []map[string]interface{}
-	resp.JSON(&records)
+	// Verify only admin data exists (query as admin who has SELECT permission)
+	records := tc.QuerySQLWithRLSContext(adminID, "admin", `
+		SELECT data FROM public.sensitive_data
+	`)
 	require.Len(t, records, 1, "Only admin should have records in sensitive_data")
 	require.Equal(t, "Admin data", records[0]["data"])
+
+	// Regular user should not be able to see any records (SELECT policy also requires admin)
+	userRecords := tc.QuerySQLWithRLSContext(userID, "user", `
+		SELECT data FROM public.sensitive_data
+	`)
+	require.Len(t, userRecords, 0, "User should not see any records due to RLS policy")
 
 	// Cleanup
 	tc.ExecuteSQLAsSuperuser("DROP POLICY IF EXISTS sensitive_data_admin_only ON public.sensitive_data")

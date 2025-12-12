@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/email"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -16,6 +17,7 @@ import (
 type InvitationHandler struct {
 	invitationService *auth.InvitationService
 	dashboardAuth     *auth.DashboardAuthService
+	emailService      email.Service
 	baseURL           string
 }
 
@@ -23,11 +25,13 @@ type InvitationHandler struct {
 func NewInvitationHandler(
 	invitationService *auth.InvitationService,
 	dashboardAuth *auth.DashboardAuthService,
+	emailService email.Service,
 	baseURL string,
 ) *InvitationHandler {
 	return &InvitationHandler{
 		invitationService: invitationService,
 		dashboardAuth:     dashboardAuth,
+		emailService:      emailService,
 		baseURL:           baseURL,
 	}
 }
@@ -120,10 +124,22 @@ func (h *InvitationHandler) CreateInvitation(c *fiber.Ctx) error {
 	// Generate invite link using base URL from config
 	inviteLink := fmt.Sprintf("%s/invite/%s", h.baseURL, invitation.Token)
 
-	// TODO: Send email notification
-	// For now, we'll just return the link
+	// Send email notification
 	emailSent := false
-	emailStatus := "Email notification not configured. Share the invite link manually."
+	emailStatus := ""
+
+	if h.emailService != nil {
+		inviterName := "An administrator"
+		if err := h.emailService.SendInvitationEmail(ctx, req.Email, inviterName, inviteLink); err != nil {
+			log.Warn().Err(err).Str("email", req.Email).Msg("Failed to send invitation email")
+			emailStatus = fmt.Sprintf("Failed to send email: %v. Share the invite link manually.", err)
+		} else {
+			emailSent = true
+			emailStatus = "Invitation email sent successfully"
+		}
+	} else {
+		emailStatus = "Email service not configured. Share the invite link manually."
+	}
 
 	return c.Status(http.StatusCreated).JSON(CreateInvitationResponse{
 		Invitation:  invitation,

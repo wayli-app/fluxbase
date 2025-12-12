@@ -3,24 +3,29 @@ package api
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
 // SQLHandler handles SQL query execution for the admin SQL editor
 type SQLHandler struct {
-	db *pgxpool.Pool
+	db          *pgxpool.Pool
+	authService *auth.Service
 }
 
 // NewSQLHandler creates a new SQL handler
-func NewSQLHandler(db *pgxpool.Pool) *SQLHandler {
+func NewSQLHandler(db *pgxpool.Pool, authService *auth.Service) *SQLHandler {
 	return &SQLHandler{
-		db: db,
+		db:          db,
+		authService: authService,
 	}
 }
 
@@ -83,16 +88,178 @@ func (h *SQLHandler) ExecuteSQL(c *fiber.Ctx) error {
 	userID, _ := GetUserID(c)
 	userEmail, _ := GetUserEmail(c)
 
+	// Split query into statements (basic split by semicolon)
+	statements := splitSQLStatements(req.Query)
+
+	// Check for impersonation token in custom header
+	// This allows the admin to stay authenticated while executing queries as another user
+	impersonationToken := c.Get("X-Impersonation-Token")
+
+	// Log whether impersonation header was received (INFO level for visibility)
+	log.Info().
+		Str("user_id", userID).
+		Bool("has_impersonation_token", impersonationToken != "").
+		Int("token_length", len(impersonationToken)).
+		Msg("SQL query execution - checking impersonation")
+
+	if impersonationToken != "" {
+		// Trim any whitespace
+		impersonationToken = strings.TrimSpace(impersonationToken)
+
+		// Debug: Log token preview
+		tokenPreview := impersonationToken
+		if len(tokenPreview) > 30 {
+			tokenPreview = tokenPreview[:30] + "..."
+		}
+		log.Debug().
+			Str("token_preview", tokenPreview).
+			Bool("starts_with_ey", strings.HasPrefix(impersonationToken, "ey")).
+			Msg("Validating SQL impersonation token")
+
+		// Validate the impersonation token
+		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("user_id", userID).
+				Str("token_preview", tokenPreview).
+				Msg("Invalid impersonation token in SQL query")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid impersonation token",
+			})
+		}
+
+		log.Info().
+			Str("audit_user_id", userID).
+			Str("audit_user_email", userEmail).
+			Str("impersonated_user_id", impersonationClaims.UserID).
+			Str("impersonated_role", impersonationClaims.Role).
+			Str("query_preview", truncateString(req.Query, 100)).
+			Msg("SQL query execution with impersonation token")
+
+		// Use impersonation claims for RLS context
+		return h.executeWithRLSContext(c, req.Query, statements, impersonationClaims, userID)
+	}
+
+	// No impersonation - check if JWT claims indicate a known database role
+	claims, hasClaims := c.Locals("jwt_claims").(*auth.TokenClaims)
+
 	// Log query execution attempt
 	log.Info().
 		Str("user_id", userID).
 		Str("user_email", userEmail).
+		Bool("has_claims", hasClaims).
 		Str("query_preview", truncateString(req.Query, 100)).
 		Msg("SQL query execution attempt")
 
-	// Split query into statements (basic split by semicolon)
-	statements := splitSQLStatements(req.Query)
+	// Only use RLS context for known database roles (direct token, not impersonation)
+	// Dashboard admins (role like "dashboard_admin") get service_role access
+	if hasClaims && claims != nil && isKnownDatabaseRole(claims.Role) {
+		return h.executeWithRLSContext(c, req.Query, statements, claims, userID)
+	}
+
+	// Admin mode: execute with service_role for full access
+	return h.executeAsServiceRole(c, req.Query, statements, userID)
+}
+
+// executeWithRLSContext executes SQL statements with Row Level Security context
+// This is used when impersonating a user to test RLS policies
+func (h *SQLHandler) executeWithRLSContext(c *fiber.Ctx, fullQuery string, statements []string, claims *auth.TokenClaims, auditUserID string) error {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	// Acquire a dedicated connection for setting session variables
+	conn, err := h.db.Acquire(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to acquire database connection: %v", err),
+		})
+	}
+	defer conn.Release()
+
+	// Build JWT claims JSON for request.jwt.claims setting
+	// This mirrors what Supabase/PostgREST does
+	claimsMap := map[string]any{
+		"sub":          claims.UserID,
+		"role":         claims.Role,
+		"email":        claims.Email,
+		"is_anonymous": claims.IsAnonymous,
+	}
+	if claims.SessionID != "" {
+		claimsMap["session_id"] = claims.SessionID
+	}
+	if claims.UserMetadata != nil {
+		claimsMap["user_metadata"] = claims.UserMetadata
+	}
+	if claims.AppMetadata != nil {
+		claimsMap["app_metadata"] = claims.AppMetadata
+	}
+
+	claimsJSON, err := json.Marshal(claimsMap)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to serialize JWT claims: %v", err),
+		})
+	}
+
+	// Determine the database role to use
+	// Map application roles to PostgreSQL database roles
+	// Valid database roles: authenticated, anon, service_role
+	// Any other role (like "admin") maps to "authenticated" since they're authenticated users
+	dbRole := claims.Role
+	if !isKnownDatabaseRole(dbRole) {
+		log.Debug().
+			Str("app_role", claims.Role).
+			Str("db_role", "authenticated").
+			Msg("Mapping application role to database role")
+		dbRole = "authenticated"
+	}
+	if dbRole == "" {
+		dbRole = "authenticated"
+	}
+
+	// Log the exact claims being set (INFO level for visibility)
+	log.Info().
+		Str("claims_json", string(claimsJSON)).
+		Str("db_role", dbRole).
+		Str("user_id", claims.UserID).
+		Msg("Setting RLS context for SQL execution")
+
+	log.Info().
+		Str("audit_user_id", auditUserID).
+		Str("impersonated_user_id", claims.UserID).
+		Str("impersonated_role", dbRole).
+		Str("query_preview", truncateString(fullQuery, 100)).
+		Msg("SQL query execution with RLS context")
+
+	// Execute all statements within a transaction to maintain RLS context
 	results := make([]SQLResult, 0, len(statements))
+
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to begin transaction: %v", err),
+		})
+	}
+	defer tx.Rollback(ctx) // Will be no-op if committed
+
+	// Set RLS session variables
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(claimsJSON))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to set JWT claims: %v", err),
+		})
+	}
+
+	// Set the role (use SET LOCAL to limit to current transaction)
+	// Note: We quote the role identifier to prevent SQL injection
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %q", dbRole))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to set role '%s': %v", dbRole, err),
+		})
+	}
 
 	// Execute each statement
 	for _, stmt := range statements {
@@ -101,24 +268,31 @@ func (h *SQLHandler) ExecuteSQL(c *fiber.Ctx) error {
 			continue
 		}
 
-		result := h.executeStatement(c.Context(), stmt)
+		result := h.executeStatementInTx(ctx, tx, stmt)
 		results = append(results, result)
 
 		// Log each query execution
 		if result.Error != nil {
 			log.Warn().
-				Str("user_id", userID).
+				Str("audit_user_id", auditUserID).
+				Str("impersonated_user_id", claims.UserID).
 				Str("statement", truncateString(stmt, 100)).
 				Str("error", *result.Error).
-				Msg("SQL query execution failed")
+				Msg("SQL query execution failed (RLS context)")
 		} else {
 			log.Info().
-				Str("user_id", userID).
+				Str("audit_user_id", auditUserID).
+				Str("impersonated_user_id", claims.UserID).
 				Str("statement", truncateString(stmt, 100)).
 				Int("row_count", result.RowCount).
 				Float64("execution_time_ms", result.ExecutionTimeMS).
-				Msg("SQL query executed successfully")
+				Msg("SQL query executed successfully (RLS context)")
 		}
+	}
+
+	// Commit the transaction (for read-only queries, this is just cleanup)
+	if err := tx.Commit(ctx); err != nil {
+		log.Warn().Err(err).Msg("Failed to commit RLS transaction (may be read-only)")
 	}
 
 	return c.JSON(ExecuteSQLResponse{
@@ -126,20 +300,99 @@ func (h *SQLHandler) ExecuteSQL(c *fiber.Ctx) error {
 	})
 }
 
-// executeStatement executes a single SQL statement and returns the result
-func (h *SQLHandler) executeStatement(ctx context.Context, statement string) SQLResult {
-	startTime := time.Now()
+// isKnownDatabaseRole checks if a role is a PostgreSQL database role
+// that can be used with SET ROLE for RLS policies
+func isKnownDatabaseRole(role string) bool {
+	switch role {
+	case "authenticated", "anon", "service_role":
+		return true
+	default:
+		return false
+	}
+}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+// executeAsServiceRole executes SQL with service_role (full admin access)
+// This is used for dashboard admins who are not impersonating anyone
+func (h *SQLHandler) executeAsServiceRole(c *fiber.Ctx, fullQuery string, statements []string, auditUserID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
+
+	conn, err := h.db.Acquire(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to acquire database connection: %v", err),
+		})
+	}
+	defer conn.Release()
+
+	log.Info().
+		Str("audit_user_id", auditUserID).
+		Str("role", "service_role").
+		Str("query_preview", truncateString(fullQuery, 100)).
+		Msg("SQL query execution with service_role")
+
+	results := make([]SQLResult, 0, len(statements))
+
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to begin transaction: %v", err),
+		})
+	}
+	defer tx.Rollback(ctx)
+
+	// Set service_role for full admin access
+	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to set service_role: %v", err),
+		})
+	}
+
+	// Execute each statement
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		result := h.executeStatementInTx(ctx, tx, stmt)
+		results = append(results, result)
+
+		// Log each query execution
+		if result.Error != nil {
+			log.Warn().
+				Str("audit_user_id", auditUserID).
+				Str("statement", truncateString(stmt, 100)).
+				Str("error", *result.Error).
+				Msg("SQL query execution failed (service_role)")
+		} else {
+			log.Info().
+				Str("audit_user_id", auditUserID).
+				Str("statement", truncateString(stmt, 100)).
+				Int("row_count", result.RowCount).
+				Float64("execution_time_ms", result.ExecutionTimeMS).
+				Msg("SQL query executed successfully (service_role)")
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Warn().Err(err).Msg("Failed to commit service_role transaction")
+	}
+
+	return c.JSON(ExecuteSQLResponse{Results: results})
+}
+
+// executeStatementInTx executes a single SQL statement within a transaction
+func (h *SQLHandler) executeStatementInTx(ctx context.Context, tx pgx.Tx, statement string) SQLResult {
+	startTime := time.Now()
 
 	result := SQLResult{
 		Statement: statement,
 	}
 
 	// Execute query
-	rows, err := h.db.Query(ctx, statement)
+	rows, err := tx.Query(ctx, statement)
 	if err != nil {
 		errorMsg := err.Error()
 		result.Error = &errorMsg
@@ -192,7 +445,6 @@ func (h *SQLHandler) executeStatement(ctx context.Context, statement string) SQL
 		result.RowCount = len(resultRows)
 	} else {
 		// For non-SELECT queries (INSERT, UPDATE, DELETE, etc.)
-		// We need to consume the rows (even though there are none) to get CommandTag
 		for rows.Next() {
 			// Should not happen for non-SELECT, but drain just in case
 		}
@@ -204,10 +456,9 @@ func (h *SQLHandler) executeStatement(ctx context.Context, statement string) SQL
 		result.Error = &errorMsg
 	}
 
-	// Get command tag for affected rows (works for all query types)
+	// Get command tag for affected rows
 	commandTag := rows.CommandTag()
 	if len(columns) == 0 {
-		// For non-SELECT queries, set affected rows
 		result.AffectedRows = commandTag.RowsAffected()
 		result.RowCount = int(commandTag.RowsAffected())
 	}

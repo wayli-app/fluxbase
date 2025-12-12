@@ -15,13 +15,14 @@ import {
   useTable as useFluxbaseTable,
   useUpdate,
   useDelete,
+  useFluxbaseClient,
 } from '@fluxbase/sdk-react'
-import { Plus, Trash2, User, X, ShieldAlert } from 'lucide-react'
+import { Plus, Trash2, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
-import { useImpersonationStore } from '@/stores/impersonation-store'
-import { UserSearch } from '@/features/impersonation/components/user-search'
-import { impersonationApi } from '@/lib/impersonation-api'
+import { syncAuthToken } from '@/lib/fluxbase-client'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { useImpersonation } from '@/features/impersonation/hooks/use-impersonation'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,7 @@ interface TableViewerProps {
 
 export function TableViewer({ tableName, schema }: TableViewerProps) {
   const queryClient = useQueryClient()
+  const fluxbaseClient = useFluxbaseClient()
   const [sorting, setSorting] = useState<SortingState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [editingRecord, setEditingRecord] = useState<Record<
@@ -60,120 +62,14 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   > | null>(null)
   const [isCreating, setIsCreating] = useState(false)
 
-  // Impersonation state - use global store directly
-  const [isStartingImpersonation, setIsStartingImpersonation] = useState(false)
+  // Impersonation state for access denied message
   const {
     isImpersonating,
     impersonationType,
-    impersonatedUser,
-    stopImpersonation: clearImpersonationStore,
-  } = useImpersonationStore()
-
-  // Handle starting user impersonation
-  const handleStartUserImpersonation = async (userId: string, userEmail: string) => {
-    try {
-      setIsStartingImpersonation(true)
-      const response = await impersonationApi.startUserImpersonation(
-        userId,
-        'Testing RLS policies in Tables view'
-      )
-
-      // Update global impersonation store
-      useImpersonationStore.getState().startImpersonation(
-        response.access_token,
-        response.refresh_token,
-        response.target_user,
-        response.session,
-        'user'
-      )
-
-      // Invalidate queries to refetch with new token
-      queryClient.invalidateQueries()
-      toast.success(`Now viewing as ${userEmail}`)
-    } catch {
-      toast.error('Failed to start impersonation')
-    } finally {
-      setIsStartingImpersonation(false)
-    }
-  }
-
-  // Handle starting anonymous impersonation
-  const handleStartAnonImpersonation = async () => {
-    try {
-      setIsStartingImpersonation(true)
-      const response = await impersonationApi.startAnonImpersonation(
-        'Testing anonymous access in Tables view'
-      )
-
-      useImpersonationStore.getState().startImpersonation(
-        response.access_token,
-        response.refresh_token,
-        response.target_user,
-        response.session,
-        'anon'
-      )
-
-      queryClient.invalidateQueries()
-      toast.success('Now viewing as Anonymous user')
-    } catch {
-      toast.error('Failed to start anonymous impersonation')
-    } finally {
-      setIsStartingImpersonation(false)
-    }
-  }
-
-  // Handle starting service role impersonation
-  const handleStartServiceImpersonation = async () => {
-    try {
-      setIsStartingImpersonation(true)
-      const response = await impersonationApi.startServiceImpersonation(
-        'Testing service role access in Tables view'
-      )
-
-      useImpersonationStore.getState().startImpersonation(
-        response.access_token,
-        response.refresh_token,
-        response.target_user,
-        response.session,
-        'service'
-      )
-
-      queryClient.invalidateQueries()
-      toast.success('Now viewing as Service Role')
-    } catch {
-      toast.error('Failed to start service role impersonation')
-    } finally {
-      setIsStartingImpersonation(false)
-    }
-  }
-
-  // Handle stopping impersonation
-  const handleStopImpersonation = async () => {
-    try {
-      await impersonationApi.stopImpersonation()
-      toast.success('Stopped impersonation')
-    } catch {
-      // Still clear local state so user can recover
-      toast.info('Cleared impersonation (session may have already expired)')
-    } finally {
-      // Always clear local state so user isn't stuck
-      clearImpersonationStore()
-      queryClient.invalidateQueries()
-    }
-  }
-
-  // Get display label for current impersonation
-  const getImpersonationLabel = () => {
-    if (!isImpersonating) return null
-    switch (impersonationType) {
-      case 'anon':
-        return 'Anonymous'
-      case 'service':
-        return 'Service Role'
-      default:
-        return impersonatedUser?.email || 'Unknown User'
-    }
-  }
+    stopImpersonation,
+  } = useImpersonation({
+    defaultReason: 'Testing RLS policies in Tables view',
+  })
 
   // Get table metadata from React Query cache (already fetched by TableSelector)
   // Fetch specific table schema to ensure columns are available even when table is empty
@@ -204,9 +100,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   })
   // Use schema/table format for REST API path to match backend expectations
   const tableApiPath =
-    schema === 'public'
+    tableInfo?.rest_path ||
+    (schema === 'public'
       ? tableInfo?.name || tableName.split('.')[1]
-      : `${schema}/${tableInfo?.name || tableName.split('.')[1]}`
+      : `${schema}/${tableInfo?.name || tableName.split('.')[1]}`)
 
   const {
     pagination,
@@ -242,26 +139,20 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     }
   )
 
-  // Fetch total count for pagination
+  // Fetch total count for pagination using Fluxbase SDK
+  // Using SDK instead of axios to avoid AxiosError triggering logout in queryCache.onError
   const { data: countData } = useQuery<number>({
     queryKey: ['table-count', tableName, tableApiPath],
     queryFn: async () => {
-      const response = await apiClient.get(
-        `/rest/v1/${tableApiPath}?select=count&count=exact`,
-        { headers: { 'Prefer': 'count=exact' } }
-      )
-      // Parse count from Content-Range header: "0-0/123" -> 123
-      const contentRange = response.headers['content-range']
-      if (contentRange) {
-        const match = contentRange.match(/\/(\d+)$/)
-        if (match && match[1]) {
-          return parseInt(match[1], 10)
-        }
-      }
-      // Fallback to data length if no header
-      return Array.isArray(response.data) ? response.data.length : 0
+      const { count, error } = await fluxbaseClient
+        .from(tableApiPath)
+        .select('*', { count: 'exact', head: true })
+        .execute()
+
+      if (error) throw error
+      return count ?? 0
     },
-    enabled: !!tableName,
+    enabled: !!tableName && !!tableInfo,
     staleTime: 30000, // Cache for 30 seconds
   })
 
@@ -269,11 +160,38 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const totalRowCount = countData ?? 0
   const calculatedPageCount = Math.ceil(totalRowCount / pagination.pageSize)
 
-  // Check if error is a 403 Forbidden (RLS/permission issue)
-  const isForbidden = tableError &&
-    typeof tableError === 'object' &&
-    'status' in tableError &&
-    (tableError as { status?: number }).status === 403
+  // Check if error is a 403/500 or permission denied (RLS/permission issue)
+  // Note: Database permission errors often return 500 instead of 403
+  const isForbidden = (() => {
+    if (!tableError) return false
+
+    // Check HTTP status codes
+    if (typeof tableError === 'object' && 'status' in tableError) {
+      const status = (tableError as { status?: number }).status ?? 0
+      if ([403, 500].includes(status)) return true
+    }
+
+    // Check error message field (e.g., {"error": "Failed to fetch records"})
+    if (typeof tableError === 'object' && 'error' in tableError) {
+      const errorMsg = (tableError as { error?: string }).error
+      if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('failed to fetch')) {
+        return true
+      }
+    }
+
+    // Check message field for permission denied
+    if (typeof tableError === 'object' && 'message' in tableError) {
+      const msg = (tableError as { message?: string }).message
+      if (typeof msg === 'string') {
+        const lowerMsg = msg.toLowerCase()
+        if (lowerMsg.includes('permission denied') || lowerMsg.includes('failed to fetch')) {
+          return true
+        }
+      }
+    }
+
+    return false
+  })()
 
   // Update mutation using Fluxbase SDK
   const updateFluxbase = useUpdate(tableApiPath)
@@ -512,66 +430,12 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
           </div>
 
           {/* Impersonation selector */}
-          <div className='flex-1 max-w-md'>
-            <div className='flex items-center gap-2'>
-              <User className='h-4 w-4 text-muted-foreground shrink-0' />
-              {isImpersonating ? (
-                <div className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm flex-1',
-                  'bg-amber-50 border border-amber-200 dark:bg-amber-950 dark:border-amber-800'
-                )}>
-                  <span className='truncate'>
-                    Viewing as: <strong>{getImpersonationLabel()}</strong>
-                  </span>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-6 w-6 p-0 shrink-0'
-                    onClick={handleStopImpersonation}
-                    title='Stop impersonation'
-                  >
-                    <X className='h-3 w-3' />
-                  </Button>
-                </div>
-              ) : (
-                <div className='flex items-center gap-2 flex-1'>
-                  <div className='flex-1 min-w-[180px]'>
-                    <UserSearch
-                      onSelect={handleStartUserImpersonation}
-                      disabled={isStartingImpersonation}
-                    />
-                  </div>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={handleStartAnonImpersonation}
-                    disabled={isStartingImpersonation}
-                    title='Test as anonymous user'
-                  >
-                    Anon
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={handleStartServiceImpersonation}
-                    disabled={isStartingImpersonation}
-                    title='Test with service role'
-                  >
-                    Service
-                  </Button>
-                </div>
-              )}
-            </div>
-            {isImpersonating && (
-              <p className='text-xs text-muted-foreground mt-1 ml-6'>
-                {impersonationType === 'service'
-                  ? 'Viewing with full service role access (bypasses RLS)'
-                  : impersonationType === 'anon'
-                    ? 'Viewing as anonymous user (anon key)'
-                    : 'Data filtered by this user\'s RLS policies'}
-              </p>
-            )}
-          </div>
+          <ImpersonationPopover
+            contextLabel="Viewing as"
+            defaultReason="Testing RLS policies in Tables view"
+            onImpersonationStart={() => syncAuthToken()}
+            onImpersonationStop={() => syncAuthToken()}
+          />
 
           <div className='flex gap-2 shrink-0'>
             {selectedCount > 0 && (
@@ -592,7 +456,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
           </div>
         </div>
 
-        <div className='overflow-hidden rounded-md border'>
+        <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
           <Table>
             {hasColumns && (
               <TableHeader>
@@ -633,7 +497,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                         <Button
                           variant='outline'
                           size='sm'
-                          onClick={handleStopImpersonation}
+                          onClick={stopImpersonation}
                         >
                           Stop Impersonation
                         </Button>

@@ -54,6 +54,13 @@ func (s *MailgunService) SendPasswordReset(ctx context.Context, to, token, link 
 	return s.Send(ctx, to, subject, body)
 }
 
+// SendInvitationEmail sends an invitation email via Mailgun
+func (s *MailgunService) SendInvitationEmail(ctx context.Context, to, inviterName, inviteLink string) error {
+	subject := "You've been invited!"
+	body := renderInvitationHTML(inviterName, inviteLink)
+	return s.Send(ctx, to, subject, body)
+}
+
 // Send sends a generic email via Mailgun
 func (s *MailgunService) Send(ctx context.Context, to, subject, body string) error {
 	message := s.client.NewMessage(

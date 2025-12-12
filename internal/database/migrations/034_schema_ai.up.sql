@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS ai.chatbots (
     allow_unauthenticated BOOLEAN DEFAULT false,
     is_public BOOLEAN DEFAULT true,
 
+    -- HTTP request tool config
+    http_allowed_domains TEXT[] DEFAULT ARRAY[]::TEXT[],
+
     version INTEGER DEFAULT 1,
     source TEXT NOT NULL DEFAULT 'filesystem',
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -109,11 +112,13 @@ CREATE INDEX IF NOT EXISTS idx_ai_chatbots_name ON ai.chatbots(name);
 CREATE INDEX IF NOT EXISTS idx_ai_chatbots_namespace ON ai.chatbots(namespace);
 CREATE INDEX IF NOT EXISTS idx_ai_chatbots_enabled ON ai.chatbots(enabled);
 CREATE INDEX IF NOT EXISTS idx_ai_chatbots_source ON ai.chatbots(source);
+CREATE INDEX IF NOT EXISTS idx_ai_chatbots_http_domains ON ai.chatbots USING GIN (http_allowed_domains);
 
 COMMENT ON TABLE ai.chatbots IS 'AI chatbot definitions with system prompts and tool configurations';
 COMMENT ON COLUMN ai.chatbots.allowed_tables IS 'Tables the chatbot can query (from @fluxbase:allowed-tables annotation)';
 COMMENT ON COLUMN ai.chatbots.allowed_operations IS 'SQL operations allowed (SELECT, INSERT, UPDATE, DELETE)';
 COMMENT ON COLUMN ai.chatbots.rate_limit_per_minute IS 'Max requests per minute per user (from @fluxbase:rate-limit annotation)';
+COMMENT ON COLUMN ai.chatbots.http_allowed_domains IS 'Allowed domains for HTTP requests (from @fluxbase:http-allowed-domains annotation)';
 
 -- ============================================================================
 -- CONVERSATIONS

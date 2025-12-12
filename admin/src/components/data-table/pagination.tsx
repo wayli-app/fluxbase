@@ -118,7 +118,7 @@ export function DataTablePagination<TData>({
             variant='outline'
             className='size-8 p-0 @max-md/content:hidden'
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={totalPages <= 0 || currentPage >= totalPages}
+            disabled={!table.getCanNextPage()}
           >
             <span className='sr-only'>Go to last page</span>
             <DoubleArrowRightIcon className='h-4 w-4' />

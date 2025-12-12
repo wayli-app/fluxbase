@@ -12,18 +12,23 @@ import (
 // AuthMiddleware creates a middleware for JWT authentication
 func AuthMiddleware(authService *auth.Service) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get token from Authorization header
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing authorization header",
-			})
-		}
+		// Try to get token from cookie first (httpOnly cookie)
+		token := c.Cookies(AccessTokenCookieName)
 
-		// Extract token from "Bearer <token>" format
-		token := authHeader
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			token = strings.TrimPrefix(authHeader, "Bearer ")
+		// Fall back to Authorization header for API clients
+		if token == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Missing authentication",
+				})
+			}
+
+			// Extract token from "Bearer <token>" format
+			token = authHeader
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
 		}
 
 		// Validate token
@@ -63,24 +68,30 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 // Useful for endpoints that work both authenticated and unauthenticated
 func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get token from Authorization header
+		// Try to get token from cookie first (httpOnly cookie)
+		token := c.Cookies(AccessTokenCookieName)
+
+		// Fall back to Authorization header for API clients
 		authHeader := c.Get("Authorization")
 
 		log.Debug().
 			Str("path", c.Path()).
-			Bool("has_auth", authHeader != "").
+			Bool("has_cookie", token != "").
+			Bool("has_auth_header", authHeader != "").
 			Msg("OptionalAuthMiddleware: Processing request")
 
-		if authHeader == "" {
+		if token == "" && authHeader == "" {
 			// No token provided, continue without authentication
-			log.Debug().Str("path", c.Path()).Msg("OptionalAuthMiddleware: No auth header, continuing")
+			log.Debug().Str("path", c.Path()).Msg("OptionalAuthMiddleware: No auth, continuing")
 			return c.Next()
 		}
 
-		// Extract token from "Bearer <token>" format
-		token := authHeader
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			token = strings.TrimPrefix(authHeader, "Bearer ")
+		// If no cookie token, use header token
+		if token == "" {
+			token = authHeader
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
 		}
 
 		// Validate token
@@ -182,18 +193,23 @@ func GetUserRole(c *fiber.Ctx) (string, bool) {
 // This allows both application users with admin role AND dashboard admins to access admin endpoints
 func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get token from Authorization header
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing authorization header",
-			})
-		}
+		// Try to get token from cookie first (httpOnly cookie)
+		token := c.Cookies(AccessTokenCookieName)
 
-		// Extract token from "Bearer <token>" format
-		token := authHeader
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			token = strings.TrimPrefix(authHeader, "Bearer ")
+		// Fall back to Authorization header for API clients
+		if token == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Missing authentication",
+				})
+			}
+
+			// Extract token from "Bearer <token>" format
+			token = authHeader
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
 		}
 
 		// First, try to validate as auth.users token

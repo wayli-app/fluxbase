@@ -111,6 +111,22 @@ func loadAndRenderTemplate(templatePath string, data map[string]string) string {
 	return buf.String()
 }
 
+// renderInvitationHTML renders the invitation email template
+func renderInvitationHTML(inviterName, inviteLink string) string {
+	data := map[string]string{
+		"InviterName": inviterName,
+		"InviteLink":  inviteLink,
+	}
+
+	// Use default template
+	tmpl := template.Must(template.New("invitation").Parse(defaultInvitationTemplate))
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fallbackInvitationHTML(inviteLink)
+	}
+	return buf.String()
+}
+
 // Fallback HTML templates (simple versions)
 func fallbackMagicLinkHTML(link string) string {
 	return `<html><body><h2>Your Login Link</h2><p>Click the link below to log in:</p><p><a href="` + link + `">Log In</a></p><p>This link will expire soon</p></body></html>`
@@ -122,4 +138,8 @@ func fallbackVerificationHTML(link string) string {
 
 func fallbackPasswordResetHTML(link string) string {
 	return `<html><body><h2>Reset Your Password</h2><p>Click the link below to reset your password:</p><p><a href="` + link + `">Reset Password</a></p><p>This link will expire soon</p></body></html>`
+}
+
+func fallbackInvitationHTML(link string) string {
+	return `<html><body><h2>You've Been Invited!</h2><p>Click the link below to accept your invitation:</p><p><a href="` + link + `">Accept Invitation</a></p><p>This invitation expires in 7 days</p></body></html>`
 }

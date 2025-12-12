@@ -82,6 +82,22 @@ type AuthConfig struct {
 	EnableSignup        bool          `mapstructure:"enable_signup"`
 	EnableMagicLink     bool          `mapstructure:"enable_magic_link"`
 	TOTPIssuer          string        `mapstructure:"totp_issuer"` // Issuer name displayed in authenticator apps for 2FA (e.g., "MyApp")
+
+	// OIDC Provider Configuration for ID Token authentication
+	// Well-known providers (use their standard issuer URLs)
+	GoogleClientID    string `mapstructure:"google_client_id"`    // Google OAuth client ID
+	AppleClientID     string `mapstructure:"apple_client_id"`     // Apple Sign In client ID (Services ID)
+	MicrosoftClientID string `mapstructure:"microsoft_client_id"` // Microsoft/Azure AD client ID
+
+	// Custom OIDC providers (e.g., Authelia, Keycloak, Auth0, Okta)
+	OIDCProviders []OIDCProviderConfig `mapstructure:"oidc_providers"`
+}
+
+// OIDCProviderConfig represents a custom OIDC provider configuration
+type OIDCProviderConfig struct {
+	Name      string `mapstructure:"name"`       // Provider name (used in API calls, e.g., "keycloak", "authelia")
+	IssuerURL string `mapstructure:"issuer_url"` // OIDC issuer URL (e.g., "https://auth.example.com/realms/myrealm")
+	ClientID  string `mapstructure:"client_id"`  // OAuth client ID
 }
 
 // SecurityConfig contains security-related settings
@@ -389,7 +405,7 @@ func setDefaults() {
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080,https://pelias.wayli.app")
 	viper.SetDefault("cors.allowed_methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,Prefer,apikey,x-client-app")
+	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,X-Impersonation-Token,Prefer,apikey,x-client-app")
 	viper.SetDefault("cors.exposed_headers", "Content-Range,Content-Encoding,Content-Length,X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset")
 	viper.SetDefault("cors.allow_credentials", true) // Required for CSRF tokens
 	viper.SetDefault("cors.max_age", 300)

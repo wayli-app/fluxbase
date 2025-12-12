@@ -157,7 +157,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	invitationService := auth.NewInvitationService(db)
-	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, cfg.BaseURL)
+	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.BaseURL)
 	ddlHandler := NewDDLHandler(db)
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
@@ -168,15 +168,15 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	settingsHandler := NewSettingsHandler(db)
-	emailTemplateHandler := NewEmailTemplateHandler(db)
-	sqlHandler := NewSQLHandler(db.Pool())
+	emailTemplateHandler := NewEmailTemplateHandler(db, emailService)
+	sqlHandler := NewSQLHandler(db.Pool(), authService)
 
 	// Determine public URL for functions SDK client (same pattern as jobs)
 	functionsPublicURL := cfg.BaseURL
 	if functionsPublicURL == "" {
 		functionsPublicURL = "http://localhost" + cfg.Server.Address
 	}
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL)
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL, authService)
 	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsPublicURL)
 	functionsHandler.SetScheduler(functionsScheduler)
 
@@ -197,7 +197,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 			Msg("Initializing jobs manager with SDK credentials")
 		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsPublicURL)
 		var err error
-		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager)
+		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
 		}
@@ -249,7 +249,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		rpcStorage := rpc.NewStorage(db)
 		rpcLoader := rpc.NewLoader(cfg.RPC.ProceduresDir)
 		rpcMetrics := observability.NewMetrics()
-		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC)
+		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC, authService)
 
 		log.Info().
 			Str("procedures_dir", cfg.RPC.ProceduresDir).
@@ -468,8 +468,19 @@ func (s *Server) setupRoutes() {
 	)
 	s.setupRESTRoutes(rest)
 
-	// Auth routes
-	auth := v1.Group("/auth")
+	// Auth routes with CSRF protection
+	// CSRF middleware protects against cross-site request forgery attacks
+	csrfMiddleware := middleware.CSRF(middleware.CSRFConfig{
+		TokenLength:    32,
+		TokenLookup:    "header:X-CSRF-Token",
+		CookieName:     "csrf_token",
+		CookiePath:     "/",
+		CookieSecure:   s.config.Tracing.Environment == "production",
+		CookieHTTPOnly: true,
+		CookieSameSite: "Strict",
+		Expiration:     24 * time.Hour,
+	})
+	auth := v1.Group("/auth", csrfMiddleware)
 	s.setupAuthRoutes(auth)
 
 	// Public settings routes - optional authentication with RLS support

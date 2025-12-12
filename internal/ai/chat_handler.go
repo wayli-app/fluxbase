@@ -677,9 +677,47 @@ func (h *ChatHandler) sendProgress(chatCtx *ChatContext, conversationID, step, m
 }
 
 func (h *ChatHandler) getProvider(ctx context.Context, chatbot *Chatbot) (Provider, error) {
+	// Check if chatbot has a specific provider configured
+	if chatbot != nil && chatbot.ProviderID != nil && *chatbot.ProviderID != "" {
+		providerID := *chatbot.ProviderID
+
+		// Check cache first
+		h.providersMu.RLock()
+		if provider, ok := h.providers[providerID]; ok {
+			h.providersMu.RUnlock()
+			return provider, nil
+		}
+		h.providersMu.RUnlock()
+
+		// Load chatbot-specific provider from database
+		providerRecord, err := h.storage.GetProvider(ctx, providerID)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("chatbot", chatbot.Name).
+				Str("provider_id", providerID).
+				Msg("Failed to get chatbot's configured provider, falling back to default")
+		} else if providerRecord == nil {
+			log.Warn().
+				Str("chatbot", chatbot.Name).
+				Str("provider_id", providerID).
+				Msg("Chatbot's configured provider not found, falling back to default")
+		} else if !providerRecord.Enabled {
+			log.Warn().
+				Str("chatbot", chatbot.Name).
+				Str("provider_id", providerID).
+				Str("provider_name", providerRecord.Name).
+				Msg("Chatbot's configured provider is disabled, falling back to default")
+		} else {
+			// Create and cache the chatbot-specific provider
+			return h.createAndCacheProvider(providerRecord)
+		}
+		// Fall through to default provider logic if chatbot's provider is unavailable
+	}
+
+	// Check if we have any cached providers (use as default)
 	h.providersMu.RLock()
 	if len(h.providers) > 0 {
-		// Return first provider (TODO: handle chatbot-specific providers)
 		for _, p := range h.providers {
 			h.providersMu.RUnlock()
 			return p, nil
@@ -704,7 +742,11 @@ func (h *ChatHandler) getProvider(ctx context.Context, chatbot *Chatbot) (Provid
 		}
 	}
 
-	// Create provider
+	return h.createAndCacheProvider(providerRecord)
+}
+
+// createAndCacheProvider creates a provider from a record and caches it
+func (h *ChatHandler) createAndCacheProvider(providerRecord *ProviderRecord) (Provider, error) {
 	providerConfig := ProviderConfig{
 		Name:        providerRecord.Name,
 		DisplayName: providerRecord.DisplayName,
@@ -723,7 +765,7 @@ func (h *ChatHandler) getProvider(ctx context.Context, chatbot *Chatbot) (Provid
 		return nil, err
 	}
 
-	// Cache provider
+	// Cache provider by ID
 	h.providersMu.Lock()
 	h.providers[providerRecord.ID] = provider
 	h.providersMu.Unlock()

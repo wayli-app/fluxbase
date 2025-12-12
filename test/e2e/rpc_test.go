@@ -393,7 +393,7 @@ SELECT json_build_object('secret', 'admin-data');`,
 	})
 
 	t.Run("ServiceRoleAllowed", func(t *testing.T) {
-		serviceKey := tc.GenerateServiceKey()
+		serviceKey := tc.CreateServiceKey("test-service-key")
 
 		resp := tc.NewRequest("POST", "/api/v1/rpc/default/admin-only-proc").
 			WithAuth(serviceKey).

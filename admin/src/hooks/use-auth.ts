@@ -4,6 +4,8 @@ import type { SignInCredentials, SignUpCredentials } from '@fluxbase/sdk'
 import { useFluxbaseClient } from '@fluxbase/sdk-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { useImpersonationStore } from '@/stores/impersonation-store'
+import { syncAuthToken } from '@/lib/fluxbase-client'
 
 export function useAuth() {
   const { auth } = useAuthStore()
@@ -31,6 +33,9 @@ export function useAuth() {
       return await client.auth.signIn(data)
     },
     onSuccess: (response) => {
+      // Clear any stale impersonation state from previous session
+      useImpersonationStore.getState().stopImpersonation()
+
       // Check if 2FA is required
       if (
         response.data &&
@@ -70,6 +75,9 @@ export function useAuth() {
         role: [user.role],
         exp: Date.now() + session.expires_in * 1000,
       })
+
+      // Sync SDK token with new admin token
+      syncAuthToken()
 
       // Invalidate and refetch user query
       queryClient.invalidateQueries({ queryKey: ['auth', 'user'] })

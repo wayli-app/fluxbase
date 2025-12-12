@@ -17,7 +17,12 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react'
+import { getPageNumbers } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -63,7 +68,8 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
-import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { useImpersonationStore } from '@/stores/impersonation-store'
 import {
   functionsApi,
   type EdgeFunction,
@@ -87,7 +93,10 @@ function FunctionsPage() {
             Deploy and run TypeScript/JavaScript functions with Deno runtime
           </p>
         </div>
-        <ImpersonationSelector />
+        <ImpersonationPopover
+          contextLabel="Invoking as"
+          defaultReason="Testing function invocation"
+        />
       </div>
 
       <EdgeFunctionsTab />
@@ -149,8 +158,6 @@ function HeadersEditor({ headers, onChange }: HeadersEditorProps) {
   )
 }
 
-const EXECUTIONS_PAGE_SIZE = 50
-
 // Edge Functions Component
 function EdgeFunctionsTab() {
   // Tab state
@@ -173,10 +180,11 @@ function EdgeFunctionsTab() {
   // All executions state (for admin executions tab)
   const [allExecutions, setAllExecutions] = useState<EdgeFunctionExecution[]>([])
   const [executionsLoading, setExecutionsLoading] = useState(false)
-  const [executionsOffset, setExecutionsOffset] = useState(0)
-  const [hasMoreExecutions, setHasMoreExecutions] = useState(true)
-  const [loadingMoreExecutions, setLoadingMoreExecutions] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [totalExecutions, setTotalExecutions] = useState(0)
+  // Pagination state
+  const [executionsPage, setExecutionsPage] = useState(0)  // 0-indexed
+  const [executionsPageSize, setExecutionsPageSize] = useState(25)
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('')
@@ -202,6 +210,8 @@ function EdgeFunctionsTab() {
 
   // Ref to track initial fetch (prevents debounced search from re-fetching on mount)
   const hasInitialFetch = useRef(false)
+  // Ref to hold latest fetchAllExecutions to avoid it being a dependency in effects
+  const fetchAllExecutionsRef = useRef<(reset?: boolean) => Promise<void>>(() => Promise.resolve())
 
   // Form state
   const [formData, setFormData] = useState({
@@ -303,47 +313,42 @@ async function handler(req: Request) {
   }, [selectedNamespace])
 
   // Fetch all executions for the executions tab
-  const fetchAllExecutions = useCallback(async (reset = true) => {
-    const isReset = reset
-    if (isReset) {
+  const fetchAllExecutions = useCallback(async () => {
+    // Only show full loading spinner on initial load, not on refetches
+    if (isInitialLoad) {
       setExecutionsLoading(true)
-      setExecutionsOffset(0)
-    } else {
-      setLoadingMoreExecutions(true)
     }
 
     try {
-      const offset = isReset ? 0 : executionsOffset
+      const offset = executionsPage * executionsPageSize
       const result = await functionsApi.listAllExecutions({
         namespace: selectedNamespace !== 'all' ? selectedNamespace : undefined,
         function_name: searchQuery || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        limit: EXECUTIONS_PAGE_SIZE,
+        limit: executionsPageSize,
         offset,
       })
 
-      const execList = result.executions || []
-      if (isReset) {
-        setAllExecutions(execList)
-        setExecutionsOffset(EXECUTIONS_PAGE_SIZE)
-      } else {
-        setAllExecutions((prev) => [...prev, ...execList])
-        setExecutionsOffset((prev) => prev + EXECUTIONS_PAGE_SIZE)
-      }
-
+      setAllExecutions(result.executions || [])
       setTotalExecutions(result.count || 0)
-      setHasMoreExecutions(execList.length >= EXECUTIONS_PAGE_SIZE)
+
+      // Mark initial load as complete
+      if (isInitialLoad) {
+        setIsInitialLoad(false)
+      }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching executions:', error)
       toast.error('Failed to fetch executions')
     } finally {
       setExecutionsLoading(false)
-      setLoadingMoreExecutions(false)
     }
-  // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNamespace, searchQuery, statusFilter])
+  }, [selectedNamespace, searchQuery, statusFilter, executionsPage, executionsPageSize, isInitialLoad])
+
+  // Keep the ref updated with the latest fetchAllExecutions
+  useEffect(() => {
+    fetchAllExecutionsRef.current = fetchAllExecutions
+  }, [fetchAllExecutions])
 
   // Filter executions from past 24 hours (for stats display only)
   const executions24h = useMemo(() => {
@@ -405,39 +410,42 @@ async function handler(req: Request) {
         const data = await functionsApi.listNamespaces()
         setNamespaces(data.length > 0 ? data : ['default'])
         // If current namespace not in list, reset to first available
-        if (!data.includes(selectedNamespace)) {
-          setSelectedNamespace(data[0] || 'default')
-        }
+        // Use functional update to avoid dependency on selectedNamespace
+        setSelectedNamespace((current) =>
+          data.includes(current) ? current : (data[0] || 'default')
+        )
       } catch {
         setNamespaces(['default'])
       }
     }
     fetchNamespaces()
-  }, [selectedNamespace])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // Only run on mount - no dependencies needed
 
   useEffect(() => {
     fetchEdgeFunctions()
   }, [fetchEdgeFunctions, selectedNamespace])
 
-  // Fetch executions when tab changes to executions or filters change
+  // Fetch executions when tab changes or any fetch-related state changes
   useEffect(() => {
     if (activeTab === 'executions') {
       hasInitialFetch.current = true
-      fetchAllExecutions(true)
+      fetchAllExecutionsRef.current()
     }
-  }, [activeTab, selectedNamespace, statusFilter, fetchAllExecutions])
+  // Using ref to avoid fetchAllExecutions in dependencies which would cause double-fetches
+  // All filter/pagination changes will trigger this effect via their state changes
+  }, [activeTab, selectedNamespace, statusFilter, executionsPage, executionsPageSize])
 
-  // Debounced search - skip initial mount to prevent double-fetch
+  // Debounced search - resets page to 0 and fetches
   useEffect(() => {
     if (activeTab !== 'executions') return
     // Skip the first render - the main effect above handles initial fetch
     if (!hasInitialFetch.current) return
     const timer = setTimeout(() => {
-      fetchAllExecutions(true)
+      // Reset to page 0 when search changes - this will trigger the main effect
+      setExecutionsPage(0)
     }, 300)
     return () => clearTimeout(timer)
-  // activeTab and fetchAllExecutions intentionally excluded - activeTab is checked inside,
-  // and fetchAllExecutions is memoized based on filters which trigger separate effects
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
@@ -530,11 +538,22 @@ async function handler(req: Request) {
         .filter((h) => h.key.trim() !== '')
         .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {})
 
-      const result = await functionsApi.invoke(selectedFunction.name, {
-        method: invokeMethod,
-        headers: headersObj,
-        body: invokeBody,
-      })
+      // Build config with impersonation token if active
+      const { isImpersonating, impersonationToken } = useImpersonationStore.getState()
+      const config: { headers?: Record<string, string> } = {}
+      if (isImpersonating && impersonationToken) {
+        config.headers = { 'X-Impersonation-Token': impersonationToken }
+      }
+
+      const result = await functionsApi.invoke(
+        selectedFunction.name,
+        {
+          method: invokeMethod,
+          headers: headersObj,
+          body: invokeBody,
+        },
+        config
+      )
       toast.success('Function invoked successfully')
       setInvokeResult({ success: true, data: result })
       setShowInvokeDialog(false)
@@ -704,7 +723,13 @@ async function handler(req: Request) {
               <Label htmlFor='exec-namespace-select' className='text-sm text-muted-foreground whitespace-nowrap'>
                 Namespace:
               </Label>
-              <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
+              <Select
+                value={selectedNamespace}
+                onValueChange={(value) => {
+                  setSelectedNamespace(value)
+                  setExecutionsPage(0)
+                }}
+              >
                 <SelectTrigger id='exec-namespace-select' className='w-[150px]'>
                   <SelectValue placeholder='Select namespace' />
                 </SelectTrigger>
@@ -726,7 +751,13 @@ async function handler(req: Request) {
                 className='pl-9'
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value)
+                setExecutionsPage(0)
+              }}
+            >
               <SelectTrigger className='w-[150px]'>
                 <Filter className='mr-2 h-4 w-4' />
                 <SelectValue />
@@ -738,7 +769,7 @@ async function handler(req: Request) {
               </SelectContent>
             </Select>
             <Button
-              onClick={() => fetchAllExecutions(true)}
+              onClick={() => fetchAllExecutionsRef.current()}
               variant='outline'
               size='sm'
             >
@@ -748,8 +779,8 @@ async function handler(req: Request) {
           </div>
 
           {/* Executions List */}
-          <ScrollArea className='h-[calc(100vh-24rem)]'>
-            {executionsLoading ? (
+          <ScrollArea className='h-[calc(100vh-28rem)]'>
+            {executionsLoading && isInitialLoad ? (
               <div className='flex h-48 items-center justify-center'>
                 <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
               </div>
@@ -765,6 +796,13 @@ async function handler(req: Request) {
               </Card>
             ) : (
               <div className='grid gap-1'>
+                {/* Inline loading indicator for refetches */}
+                {executionsLoading && !isInitialLoad && (
+                  <div className='flex items-center justify-center py-2 text-muted-foreground'>
+                    <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                    <span className='text-xs'>Refreshing...</span>
+                  </div>
+                )}
                 {allExecutions.map((exec) => (
                   <div
                     key={exec.id}
@@ -799,30 +837,101 @@ async function handler(req: Request) {
                     </div>
                   </div>
                 ))}
-                {hasMoreExecutions && (
-                  <div className='mt-4 flex flex-col items-center gap-2'>
-                    <span className='text-xs text-muted-foreground'>
-                      Showing {allExecutions.length} of {totalExecutions} executions
-                    </span>
-                    <Button
-                      variant='outline'
-                      onClick={() => fetchAllExecutions(false)}
-                      disabled={loadingMoreExecutions}
-                    >
-                      {loadingMoreExecutions ? (
-                        <>
-                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                          Loading...
-                        </>
-                      ) : (
-                        'Load More'
-                      )}
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </ScrollArea>
+
+          {/* Pagination Controls */}
+          {allExecutions.length > 0 && (
+            <div className='flex items-center justify-between px-2 py-3 border-t'>
+              <div className='flex items-center gap-2'>
+                <span className='text-sm text-muted-foreground'>Rows per page</span>
+                <Select
+                  value={`${executionsPageSize}`}
+                  onValueChange={(value) => {
+                    setExecutionsPageSize(Number(value))
+                    setExecutionsPage(0)
+                  }}
+                >
+                  <SelectTrigger className='h-8 w-[70px]'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent side='top'>
+                    {[10, 25, 50, 100].map((size) => (
+                      <SelectItem key={size} value={`${size}`}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='flex items-center gap-2'>
+                <span className='text-sm text-muted-foreground'>
+                  Page {executionsPage + 1} of {Math.ceil(totalExecutions / executionsPageSize) || 1} ({totalExecutions} total)
+                </span>
+
+                {/* First page */}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 w-8 p-0'
+                  onClick={() => setExecutionsPage(0)}
+                  disabled={executionsPage === 0}
+                >
+                  <ChevronsLeft className='h-4 w-4' />
+                </Button>
+
+                {/* Previous page */}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 w-8 p-0'
+                  onClick={() => setExecutionsPage((p) => p - 1)}
+                  disabled={executionsPage === 0}
+                >
+                  <ChevronLeft className='h-4 w-4' />
+                </Button>
+
+                {/* Page numbers */}
+                {getPageNumbers(executionsPage + 1, Math.ceil(totalExecutions / executionsPageSize) || 1).map((pageNum, idx) => (
+                  pageNum === '...' ? (
+                    <span key={`ellipsis-${idx}`} className='px-1 text-muted-foreground'>...</span>
+                  ) : (
+                    <Button
+                      key={pageNum}
+                      variant={executionsPage + 1 === pageNum ? 'default' : 'outline'}
+                      size='sm'
+                      className='h-8 min-w-8 px-2'
+                      onClick={() => setExecutionsPage((pageNum as number) - 1)}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                ))}
+
+                {/* Next page */}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 w-8 p-0'
+                  onClick={() => setExecutionsPage((p) => p + 1)}
+                  disabled={executionsPage >= Math.ceil(totalExecutions / executionsPageSize) - 1}
+                >
+                  <ChevronRight className='h-4 w-4' />
+                </Button>
+
+                {/* Last page */}
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 w-8 p-0'
+                  onClick={() => setExecutionsPage(Math.ceil(totalExecutions / executionsPageSize) - 1)}
+                  disabled={executionsPage >= Math.ceil(totalExecutions / executionsPageSize) - 1}
+                >
+                  <ChevronsRight className='h-4 w-4' />
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Functions Tab */}

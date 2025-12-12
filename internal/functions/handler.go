@@ -24,6 +24,7 @@ type Handler struct {
 	storage      *Storage
 	runtime      *runtime.DenoRuntime
 	scheduler    *Scheduler
+	authService  *auth.Service
 	functionsDir string
 	corsConfig   config.CORSConfig
 	publicURL    string
@@ -31,10 +32,11 @@ type Handler struct {
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string) *Handler {
+func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string, authService *auth.Service) *Handler {
 	h := &Handler{
 		storage:      NewStorage(db),
 		runtime:      runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
+		authService:  authService,
 		functionsDir: functionsDir,
 		corsConfig:   corsConfig,
 		publicURL:    publicURL,
@@ -670,6 +672,49 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		if sid, ok := sessionID.(string); ok {
 			req.SessionID = sid
 		}
+	}
+
+	// Check for impersonation token - allows admin to invoke functions as another user
+	impersonationToken := c.Get("X-Impersonation-Token")
+	if impersonationToken != "" && h.authService != nil {
+		// Trim any whitespace that might have been added
+		impersonationToken = strings.TrimSpace(impersonationToken)
+
+		// Log token prefix for debugging (first 30 chars to see if it starts with "Bearer ")
+		tokenPreview := impersonationToken
+		if len(tokenPreview) > 30 {
+			tokenPreview = tokenPreview[:30] + "..."
+		}
+		log.Info().
+			Str("token_preview", tokenPreview).
+			Int("token_length", len(impersonationToken)).
+			Bool("starts_with_bearer", strings.HasPrefix(impersonationToken, "Bearer ")).
+			Bool("starts_with_ey", strings.HasPrefix(impersonationToken, "ey")).
+			Msg("Validating impersonation token")
+
+		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("token_preview", tokenPreview).
+				Int("token_length", len(impersonationToken)).
+				Msg("Invalid impersonation token in function invocation")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid impersonation token",
+			})
+		}
+
+		// Override user context with impersonated user
+		req.UserID = impersonationClaims.UserID
+		req.UserEmail = impersonationClaims.Email
+		req.UserRole = impersonationClaims.Role
+		req.SessionID = impersonationClaims.SessionID
+
+		log.Info().
+			Str("function_name", name).
+			Str("impersonated_user_id", impersonationClaims.UserID).
+			Str("impersonated_role", impersonationClaims.Role).
+			Msg("Function invocation with impersonation")
 	}
 
 	// Build permissions

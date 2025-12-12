@@ -18,19 +18,24 @@ var (
 	ErrUserAlreadyExists = errors.New("user with this email already exists")
 	// ErrInvalidCredentials is returned when login credentials are invalid
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	// ErrAccountLocked is returned when an account is locked due to too many failed login attempts
+	ErrAccountLocked = errors.New("account locked due to too many failed login attempts")
 )
 
 // User represents a user in the system
 type User struct {
-	ID            string    `json:"id" db:"id"`
-	Email         string    `json:"email" db:"email"`
-	PasswordHash  string    `json:"-" db:"password_hash"` // Never expose in JSON
-	EmailVerified bool      `json:"email_verified" db:"email_verified"`
-	Role          string    `json:"role,omitempty" db:"role"`
-	UserMetadata  any       `json:"user_metadata,omitempty" db:"user_metadata"` // User-editable metadata
-	AppMetadata   any       `json:"app_metadata,omitempty" db:"app_metadata"`   // Application/admin-only metadata
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+	ID                  string     `json:"id" db:"id"`
+	Email               string     `json:"email" db:"email"`
+	PasswordHash        string     `json:"-" db:"password_hash"` // Never expose in JSON
+	EmailVerified       bool       `json:"email_verified" db:"email_verified"`
+	Role                string     `json:"role,omitempty" db:"role"`
+	UserMetadata        any        `json:"user_metadata,omitempty" db:"user_metadata"` // User-editable metadata
+	AppMetadata         any        `json:"app_metadata,omitempty" db:"app_metadata"`   // Application/admin-only metadata
+	FailedLoginAttempts int        `json:"-" db:"failed_login_attempts"`               // Track failed logins for lockout
+	IsLocked            bool       `json:"-" db:"is_locked"`                           // Account locked status
+	LockedUntil         *time.Time `json:"-" db:"locked_until"`                        // Lock expiry time
+	CreatedAt           time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // CreateUserRequest represents a request to create a new user
@@ -125,7 +130,9 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at
+		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata,
+		       COALESCE(failed_login_attempts, 0), COALESCE(is_locked, false), locked_until,
+		       created_at, updated_at
 		FROM auth.users
 		WHERE id = $1
 	`
@@ -140,6 +147,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 			&user.Role,
 			&user.UserMetadata,
 			&user.AppMetadata,
+			&user.FailedLoginAttempts,
+			&user.IsLocked,
+			&user.LockedUntil,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -158,7 +168,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 // GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at
+		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata,
+		       COALESCE(failed_login_attempts, 0), COALESCE(is_locked, false), locked_until,
+		       created_at, updated_at
 		FROM auth.users
 		WHERE email = $1
 	`
@@ -173,6 +185,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 			&user.Role,
 			&user.UserMetadata,
 			&user.AppMetadata,
+			&user.FailedLoginAttempts,
+			&user.IsLocked,
+			&user.LockedUntil,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -186,6 +201,44 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 	}
 
 	return user, nil
+}
+
+// IncrementFailedLoginAttempts increments failed login attempts and locks account after threshold
+func (r *UserRepository) IncrementFailedLoginAttempts(ctx context.Context, userID string) error {
+	query := `
+		UPDATE auth.users
+		SET failed_login_attempts = COALESCE(failed_login_attempts, 0) + 1,
+		    is_locked = CASE WHEN COALESCE(failed_login_attempts, 0) >= 4 THEN true ELSE false END,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID)
+		return err
+	})
+}
+
+// ResetFailedLoginAttempts resets failed login attempts after successful login
+func (r *UserRepository) ResetFailedLoginAttempts(ctx context.Context, userID string) error {
+	query := `
+		UPDATE auth.users
+		SET failed_login_attempts = 0,
+		    is_locked = false,
+		    locked_until = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, userID)
+		return err
+	})
+}
+
+// UnlockUser unlocks a user account (admin operation)
+func (r *UserRepository) UnlockUser(ctx context.Context, userID string) error {
+	return r.ResetFailedLoginAttempts(ctx, userID)
 }
 
 // Update updates a user

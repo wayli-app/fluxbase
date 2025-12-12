@@ -1,10 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"html/template"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/email"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,13 +16,15 @@ import (
 
 // EmailTemplateHandler handles email template management
 type EmailTemplateHandler struct {
-	db *database.Connection
+	db           *database.Connection
+	emailService email.Service
 }
 
 // NewEmailTemplateHandler creates a new email template handler
-func NewEmailTemplateHandler(db *database.Connection) *EmailTemplateHandler {
+func NewEmailTemplateHandler(db *database.Connection, emailService email.Service) *EmailTemplateHandler {
 	return &EmailTemplateHandler{
-		db: db,
+		db:           db,
+		emailService: emailService,
 	}
 }
 
@@ -363,17 +368,96 @@ func (h *EmailTemplateHandler) TestTemplate(c *fiber.Ctx) error {
 		})
 	}
 
-	// TODO: Integrate with email service to send test email
-	// For now, return a success message
+	// Check if email service is available
+	if h.emailService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Email service not configured",
+		})
+	}
+
+	ctx := context.Background()
+
+	// Get template (custom or default)
+	var emailTemplate EmailTemplate
+	err := h.db.QueryRow(ctx, `
+		SELECT id, template_type, subject, html_body, text_body, is_custom, created_at, updated_at
+		FROM dashboard.email_templates
+		WHERE template_type = $1
+	`, templateType).Scan(
+		&emailTemplate.ID,
+		&emailTemplate.TemplateType,
+		&emailTemplate.Subject,
+		&emailTemplate.HTMLBody,
+		&emailTemplate.TextBody,
+		&emailTemplate.IsCustom,
+		&emailTemplate.CreatedAt,
+		&emailTemplate.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			// Use default template
+			emailTemplate = defaultTemplates[templateType]
+		} else {
+			log.Error().Err(err).Str("type", templateType).Msg("Failed to get email template")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to get email template",
+			})
+		}
+	}
+
+	// Create test data for rendering
+	testData := map[string]string{
+		"AppName":     "Test Application",
+		"Link":        "https://example.com/test-link",
+		"Token":       "test-token-12345",
+		"MagicLink":   "https://example.com/magic-link/test-token",
+		"ResetLink":   "https://example.com/reset/test-token",
+		"VerifyLink":  "https://example.com/verify/test-token",
+		"InviteLink":  "https://example.com/invite/test-token",
+		"InviterName": "Test Admin",
+		"Expiry":      "15 minutes",
+	}
+
+	// Render template with test data
+	renderedSubject := renderTemplateString(emailTemplate.Subject, testData)
+	renderedBody := renderTemplateString(emailTemplate.HTMLBody, testData)
+
+	// Send test email
+	if err := h.emailService.Send(ctx, req.RecipientEmail, renderedSubject, renderedBody); err != nil {
+		log.Error().Err(err).
+			Str("type", templateType).
+			Str("recipient", req.RecipientEmail).
+			Msg("Failed to send test email")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to send test email: " + err.Error(),
+		})
+	}
+
 	log.Info().
 		Str("type", templateType).
 		Str("recipient", req.RecipientEmail).
-		Msg("Test email requested")
+		Msg("Test email sent successfully")
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Test email functionality will be implemented with email service integration",
+		"message": "Test email sent successfully",
 	})
+}
+
+// renderTemplateString renders a template string with the given data
+func renderTemplateString(templateStr string, data map[string]string) string {
+	tmpl, err := template.New("email").Parse(templateStr)
+	if err != nil {
+		return templateStr // Return original if parsing fails
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return templateStr // Return original if execution fails
+	}
+
+	return buf.String()
 }
 
 // Helper function to create string pointers

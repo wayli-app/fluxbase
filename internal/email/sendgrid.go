@@ -51,6 +51,13 @@ func (s *SendGridService) SendPasswordReset(ctx context.Context, to, token, link
 	return s.Send(ctx, to, subject, body)
 }
 
+// SendInvitationEmail sends an invitation email via SendGrid
+func (s *SendGridService) SendInvitationEmail(ctx context.Context, to, inviterName, inviteLink string) error {
+	subject := "You've been invited!"
+	body := renderInvitationHTML(inviterName, inviteLink)
+	return s.Send(ctx, to, subject, body)
+}
+
 // Send sends a generic email via SendGrid
 func (s *SendGridService) Send(ctx context.Context, to, subject, body string) error {
 	from := mail.NewEmail(s.config.FromName, s.config.FromAddress)

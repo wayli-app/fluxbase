@@ -43,7 +43,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
-import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
 import {
   rpcApi,
   type RPCProcedure,
@@ -69,7 +69,10 @@ function RPCPage() {
             Execute SQL procedures securely via API
           </p>
         </div>
-        <ImpersonationSelector />
+        <ImpersonationPopover
+          contextLabel="Executing as"
+          defaultReason="Testing RPC procedure execution"
+        />
       </div>
 
       <RPCContent />

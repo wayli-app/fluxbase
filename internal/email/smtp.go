@@ -44,6 +44,14 @@ func (s *SMTPService) SendPasswordReset(ctx context.Context, to, token, link str
 	return s.Send(ctx, to, subject, body)
 }
 
+// SendInvitationEmail sends an invitation email
+func (s *SMTPService) SendInvitationEmail(ctx context.Context, to, inviterName, inviteLink string) error {
+	subject := "You've been invited!"
+	body := renderInvitationHTML(inviterName, inviteLink)
+
+	return s.Send(ctx, to, subject, body)
+}
+
 // Send sends an email via SMTP
 func (s *SMTPService) Send(ctx context.Context, to, subject, body string) error {
 	if !s.config.Enabled {
@@ -249,6 +257,34 @@ const defaultPasswordResetTemplate = `
 		</div>
 		<div class="footer">
 			<p>If you didn't request a password reset, your account is still secure. Someone may have entered your email address by mistake.</p>
+		</div>
+	</div>
+</body>
+</html>
+`
+
+const defaultInvitationTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+		.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+		.button { display: inline-block; padding: 12px 24px; background-color: #5c6bc0; color: white; text-decoration: none; border-radius: 4px; }
+		.footer { margin-top: 30px; font-size: 12px; color: #666; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h2>You've Been Invited!</h2>
+		<p>{{.InviterName}} has invited you to join. Click the button below to accept:</p>
+		<p><a href="{{.InviteLink}}" class="button">Accept Invitation</a></p>
+		<p>Or copy and paste this link into your browser:</p>
+		<p><code>{{.InviteLink}}</code></p>
+		<p><strong>This invitation expires in 7 days</strong></p>
+		<div class="footer">
+			<p>If you weren't expecting this invitation, you can safely ignore this email.</p>
 		</div>
 	</div>
 </body>

@@ -4,7 +4,15 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle, Bot, MessageSquare, FileText } from 'lucide-react'
+import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle, Bot, MessageSquare, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useState } from 'react'
 import { monitoringApi, type SystemMetrics, type SystemHealth, aiMetricsApi, type AIMetrics, conversationsApi, auditLogApi } from '@/lib/api'
 import {
@@ -32,6 +40,14 @@ function MonitoringPage() {
   const navigate = route.useNavigate()
   const [autoRefresh, setAutoRefresh] = useState(true)
 
+  // Pagination state for conversations
+  const [convPage, setConvPage] = useState(0)
+  const [convPageSize, setConvPageSize] = useState(25)
+
+  // Pagination state for audit log
+  const [auditPage, setAuditPage] = useState(0)
+  const [auditPageSize, setAuditPageSize] = useState(25)
+
   // Fetch metrics
   const { data: metrics } = useQuery<SystemMetrics>({
     queryKey: ['monitoring-metrics'],
@@ -55,19 +71,23 @@ function MonitoringPage() {
 
   // Fetch conversations
   const { data: conversationsData } = useQuery({
-    queryKey: ['ai-conversations'],
-    queryFn: () => conversationsApi.list(),
+    queryKey: ['ai-conversations', convPage, convPageSize],
+    queryFn: () => conversationsApi.list({ limit: convPageSize, offset: convPage * convPageSize }),
     refetchInterval: autoRefresh ? 15000 : false,
   })
   const conversations = conversationsData?.conversations || []
+  const convTotalCount = conversationsData?.total_count || 0
+  const convTotalPages = Math.ceil(convTotalCount / convPageSize)
 
   // Fetch audit log
   const { data: auditLogData } = useQuery({
-    queryKey: ['ai-audit-log'],
-    queryFn: () => auditLogApi.list(),
+    queryKey: ['ai-audit-log', auditPage, auditPageSize],
+    queryFn: () => auditLogApi.list({ limit: auditPageSize, offset: auditPage * auditPageSize }),
     refetchInterval: autoRefresh ? 15000 : false,
   })
   const auditLog = auditLogData?.entries || []
+  const auditTotalCount = auditLogData?.total_count || 0
+  const auditTotalPages = Math.ceil(auditTotalCount / auditPageSize)
 
   // Format uptime
   const formatUptime = (seconds: number) => {
@@ -514,6 +534,7 @@ function MonitoringPage() {
             </CardHeader>
             <CardContent>
               {conversations && conversations.length > 0 ? (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -555,6 +576,52 @@ function MonitoringPage() {
                     ))}
                   </TableBody>
                 </Table>
+                {/* Pagination Controls */}
+                <div className='flex items-center justify-between px-2 py-4'>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>Rows per page</span>
+                    <Select
+                      value={`${convPageSize}`}
+                      onValueChange={(value) => {
+                        setConvPageSize(Number(value))
+                        setConvPage(0)
+                      }}
+                    >
+                      <SelectTrigger className='h-8 w-[70px]'>
+                        <SelectValue placeholder={convPageSize} />
+                      </SelectTrigger>
+                      <SelectContent side='top'>
+                        {[10, 25, 50, 100].map((pageSize) => (
+                          <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>
+                      Page {convPage + 1} of {convTotalPages || 1} ({convTotalCount} total)
+                    </span>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => setConvPage((p) => Math.max(0, p - 1))}
+                      disabled={convPage === 0}
+                    >
+                      <ChevronLeft className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => setConvPage((p) => Math.min(convTotalPages - 1, p + 1))}
+                      disabled={convPage >= convTotalPages - 1}
+                    >
+                      <ChevronRight className='h-4 w-4' />
+                    </Button>
+                  </div>
+                </div>
+                </>
               ) : (
                 <div className='p-8 text-center'>
                   <MessageSquare className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
@@ -580,6 +647,7 @@ function MonitoringPage() {
             </CardHeader>
             <CardContent>
               {auditLog && auditLog.length > 0 ? (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -633,6 +701,52 @@ function MonitoringPage() {
                     ))}
                   </TableBody>
                 </Table>
+                {/* Pagination Controls */}
+                <div className='flex items-center justify-between px-2 py-4'>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>Rows per page</span>
+                    <Select
+                      value={`${auditPageSize}`}
+                      onValueChange={(value) => {
+                        setAuditPageSize(Number(value))
+                        setAuditPage(0)
+                      }}
+                    >
+                      <SelectTrigger className='h-8 w-[70px]'>
+                        <SelectValue placeholder={auditPageSize} />
+                      </SelectTrigger>
+                      <SelectContent side='top'>
+                        {[10, 25, 50, 100].map((pageSize) => (
+                          <SelectItem key={pageSize} value={`${pageSize}`}>
+                            {pageSize}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-sm text-muted-foreground'>
+                      Page {auditPage + 1} of {auditTotalPages || 1} ({auditTotalCount} total)
+                    </span>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => setAuditPage((p) => Math.max(0, p - 1))}
+                      disabled={auditPage === 0}
+                    >
+                      <ChevronLeft className='h-4 w-4' />
+                    </Button>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => setAuditPage((p) => Math.min(auditTotalPages - 1, p + 1))}
+                      disabled={auditPage >= auditTotalPages - 1}
+                    >
+                      <ChevronRight className='h-4 w-4' />
+                    </Button>
+                  </div>
+                </div>
+                </>
               ) : (
                 <div className='p-8 text-center'>
                   <FileText className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />

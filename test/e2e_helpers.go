@@ -749,6 +749,112 @@ func (tc *TestContext) ExecuteSQLAsSuperuser(sql string, args ...interface{}) {
 	require.NoError(tc.T, err, "Failed to execute SQL as superuser")
 }
 
+// ExecuteSQLWithRLSContext executes SQL with RLS context set up (role and JWT claims).
+// This simulates how the API handler sets up the RLS context for database operations.
+//
+// Parameters:
+//   - userID: The user's ID (used in request.jwt.claims)
+//   - role: The user's application role (e.g., "admin", "user", "authenticated")
+//   - sql: The SQL to execute
+//   - args: Arguments for the SQL query
+//
+// Example:
+//
+//	tc.ExecuteSQLWithRLSContext(userID, "admin", `
+//	    INSERT INTO tasks (user_id, title) VALUES ($1, 'My Task')
+//	`, userID)
+func (tc *TestContext) ExecuteSQLWithRLSContext(userID, role, sql string, args ...interface{}) {
+	err := tc.TryExecuteSQLWithRLSContext(userID, role, sql, args...)
+	require.NoError(tc.T, err, "Failed to execute SQL with RLS context")
+}
+
+// TryExecuteSQLWithRLSContext executes SQL with RLS context and returns any error.
+// This is useful for testing RLS violations where you expect the query to fail.
+func (tc *TestContext) TryExecuteSQLWithRLSContext(userID, role, sql string, args ...interface{}) error {
+	ctx := context.Background()
+
+	// Start a transaction
+	tx, err := tc.DB.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Set the database role to 'authenticated' (mapped from application role)
+	_, err = tx.Exec(ctx, "SET LOCAL ROLE authenticated")
+	if err != nil {
+		return fmt.Errorf("failed to SET LOCAL ROLE: %w", err)
+	}
+
+	// Set up JWT claims (simulating what the API does)
+	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"%s","user_id":"%s"}`, userID, role, userID)
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims)
+	if err != nil {
+		return fmt.Errorf("failed to set request.jwt.claims: %w", err)
+	}
+
+	// Execute the SQL
+	_, err = tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return err // Return the SQL error directly (e.g., RLS violation)
+	}
+
+	// Commit the transaction
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// QuerySQLWithRLSContext executes a query with RLS context set up and returns results.
+// This simulates how the API handler sets up the RLS context for database queries.
+//
+// Parameters:
+//   - userID: The user's ID (used in request.jwt.claims)
+//   - role: The user's application role (e.g., "admin", "user", "authenticated")
+//   - sql: The SQL query to execute
+//   - args: Arguments for the SQL query
+//
+// Returns a slice of maps representing the query results.
+func (tc *TestContext) QuerySQLWithRLSContext(userID, role, sql string, args ...interface{}) []map[string]interface{} {
+	ctx := context.Background()
+
+	// Start a transaction
+	tx, err := tc.DB.Pool().Begin(ctx)
+	require.NoError(tc.T, err, "Failed to begin transaction")
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Set the database role to 'authenticated'
+	_, err = tx.Exec(ctx, "SET LOCAL ROLE authenticated")
+	require.NoError(tc.T, err, "Failed to SET LOCAL ROLE")
+
+	// Set up JWT claims
+	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"%s","user_id":"%s"}`, userID, role, userID)
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims)
+	require.NoError(tc.T, err, "Failed to set request.jwt.claims")
+
+	// Execute the query
+	rows, err := tx.Query(ctx, sql, args...)
+	require.NoError(tc.T, err, "Failed to execute query with RLS context")
+	defer rows.Close()
+
+	results := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		values, err := rows.Values()
+		require.NoError(tc.T, err)
+
+		row := make(map[string]interface{})
+		for i, col := range rows.FieldDescriptions() {
+			row[string(col.Name)] = convertPgTypeToGoType(values[i])
+		}
+		results = append(results, row)
+	}
+
+	return results
+}
+
 // QuerySQL executes a SQL query and returns results with PostgreSQL types converted to Go types.
 //
 // PostgreSQL types are automatically converted:

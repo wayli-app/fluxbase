@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
@@ -8,16 +9,101 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Cookie names for authentication tokens
+const (
+	AccessTokenCookieName  = "fluxbase_access_token"
+	RefreshTokenCookieName = "fluxbase_refresh_token"
+)
+
 // AuthHandler handles authentication HTTP requests
 type AuthHandler struct {
 	authService *auth.Service
+	secureCookie bool // Whether to set Secure flag on cookies (true in production)
 }
 
 // NewAuthHandler creates a new authentication handler
 func NewAuthHandler(authService *auth.Service) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
+		authService:  authService,
+		secureCookie: false, // Will be set based on environment
 	}
+}
+
+// SetSecureCookie sets whether cookies should have the Secure flag
+func (h *AuthHandler) SetSecureCookie(secure bool) {
+	h.secureCookie = secure
+}
+
+// setAuthCookies sets httpOnly cookies for access and refresh tokens
+func (h *AuthHandler) setAuthCookies(c *fiber.Ctx, accessToken, refreshToken string, expiresIn int64) {
+	// Access token cookie - shorter expiry
+	c.Cookie(&fiber.Cookie{
+		Name:     AccessTokenCookieName,
+		Value:    accessToken,
+		Path:     "/",
+		MaxAge:   int(expiresIn), // seconds
+		Secure:   h.secureCookie,
+		HTTPOnly: true,
+		SameSite: "Strict",
+	})
+
+	// Refresh token cookie - longer expiry (7 days default)
+	c.Cookie(&fiber.Cookie{
+		Name:     RefreshTokenCookieName,
+		Value:    refreshToken,
+		Path:     "/api/v1/auth", // Only sent to auth endpoints
+		MaxAge:   7 * 24 * 60 * 60, // 7 days
+		Secure:   h.secureCookie,
+		HTTPOnly: true,
+		SameSite: "Strict",
+	})
+}
+
+// clearAuthCookies removes authentication cookies
+func (h *AuthHandler) clearAuthCookies(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     AccessTokenCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1, // Expire immediately
+		Secure:   h.secureCookie,
+		HTTPOnly: true,
+		SameSite: "Strict",
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     RefreshTokenCookieName,
+		Value:    "",
+		Path:     "/api/v1/auth",
+		MaxAge:   -1,
+		Secure:   h.secureCookie,
+		HTTPOnly: true,
+		SameSite: "Strict",
+	})
+}
+
+// getAccessToken gets the access token from cookie or Authorization header
+func (h *AuthHandler) getAccessToken(c *fiber.Ctx) string {
+	// First try cookie
+	if token := c.Cookies(AccessTokenCookieName); token != "" {
+		return token
+	}
+
+	// Fall back to Authorization header for API clients
+	token := c.Get("Authorization")
+	if len(token) > 7 && token[:7] == "Bearer " {
+		return token[7:]
+	}
+	return token
+}
+
+// getRefreshToken gets the refresh token from cookie or request body
+func (h *AuthHandler) getRefreshToken(c *fiber.Ctx) string {
+	// First try cookie
+	if token := c.Cookies(RefreshTokenCookieName); token != "" {
+		return token
+	}
+	return ""
 }
 
 // SignUp handles user registration
@@ -60,6 +146,9 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 		})
 	}
 
+	// Set httpOnly cookies for tokens
+	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken, resp.ExpiresIn)
+
 	return c.Status(fiber.StatusCreated).JSON(resp)
 }
 
@@ -84,6 +173,13 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 	// Authenticate user
 	resp, err := h.authService.SignIn(c.Context(), req)
 	if err != nil {
+		// Check for locked account
+		if errors.Is(err, auth.ErrAccountLocked) {
+			log.Warn().Str("email", req.Email).Msg("Login attempt on locked account")
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Account locked due to too many failed login attempts. Please contact support.",
+			})
+		}
 		log.Error().Err(err).Str("email", req.Email).Msg("Failed to sign in user")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid email or password",
@@ -95,6 +191,8 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 	if err != nil {
 		log.Error().Err(err).Str("user_id", resp.User.ID).Msg("Failed to check 2FA status")
 		// Continue with login - don't block if 2FA check fails
+		// Set httpOnly cookies for tokens
+		h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken, resp.ExpiresIn)
 		return c.Status(fiber.StatusOK).JSON(resp)
 	}
 
@@ -107,32 +205,35 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 		})
 	}
 
+	// Set httpOnly cookies for tokens
+	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken, resp.ExpiresIn)
+
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
 
 // SignOut handles user logout
 // POST /auth/signout
 func (h *AuthHandler) SignOut(c *fiber.Ctx) error {
-	// Get token from Authorization header
-	token := c.Get("Authorization")
+	// Get token from cookie or Authorization header
+	token := h.getAccessToken(c)
 	if token == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Authorization header is required",
+			"error": "No authentication token provided",
 		})
-	}
-
-	// Remove "Bearer " prefix if present
-	if len(token) > 7 && token[:7] == "Bearer " {
-		token = token[7:]
 	}
 
 	// Sign out user
 	if err := h.authService.SignOut(c.Context(), token); err != nil {
 		log.Error().Err(err).Msg("Failed to sign out user")
+		// Clear cookies even if sign out fails
+		h.clearAuthCookies(c)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to sign out",
 		})
 	}
+
+	// Clear authentication cookies
+	h.clearAuthCookies(c)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Successfully signed out",
@@ -144,10 +245,13 @@ func (h *AuthHandler) SignOut(c *fiber.Ctx) error {
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	var req auth.RefreshTokenRequest
 	if err := c.BodyParser(&req); err != nil {
-		log.Error().Err(err).Msg("Failed to parse refresh token request")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		// Body parsing failed, try to get refresh token from cookie
+		req.RefreshToken = h.getRefreshToken(c)
+	}
+
+	// If no refresh token in body, try cookie
+	if req.RefreshToken == "" {
+		req.RefreshToken = h.getRefreshToken(c)
 	}
 
 	// Validate required fields
@@ -161,10 +265,15 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	resp, err := h.authService.RefreshToken(c.Context(), req)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to refresh token")
+		// Clear cookies on refresh failure
+		h.clearAuthCookies(c)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid or expired refresh token",
 		})
 	}
+
+	// Set httpOnly cookies for new tokens
+	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken, resp.ExpiresIn)
 
 	return c.Status(fiber.StatusOK).JSON(resp)
 }
@@ -415,10 +524,14 @@ func (h *AuthHandler) VerifyPasswordResetToken(c *fiber.Ctx) error {
 func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[string]fiber.Handler) {
 	// Register routes directly on the provided router (which should already be /api/v1/auth or similar)
 
+	// CSRF token endpoint - clients should call this first to get a CSRF token
+	// The CSRF middleware will set the csrf_token cookie on this request
+	router.Get("/csrf", h.GetCSRFToken)
+
 	// Public routes with rate limiting
 	router.Post("/signup", rateLimiters["signup"], h.SignUp)
 	router.Post("/signin", rateLimiters["login"], h.SignIn)
-	router.Post("/signin/anonymous", h.SignInAnonymous) // No rate limit - creates unique user each time
+	// NOTE: Anonymous sign-in endpoint removed for security - reduces attack surface
 	router.Post("/refresh", rateLimiters["refresh"], h.RefreshToken)
 	router.Post("/magiclink", rateLimiters["magiclink"], h.SendMagicLink)
 	router.Post("/magiclink/verify", h.VerifyMagicLink) // No rate limit on verification
@@ -468,16 +581,25 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/reauthenticate", authMiddleware, h.Reauthenticate)
 }
 
-// SignInAnonymous creates JWT tokens for an anonymous user (no database record)
+// SignInAnonymous is deprecated and disabled for security reasons
+// Anonymous sign-in reduces security by allowing anyone to get tokens
+// Use regular signup/signin flow instead
 func (h *AuthHandler) SignInAnonymous(c *fiber.Ctx) error {
-	resp, err := h.authService.SignInAnonymous(c.Context())
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
+	return c.Status(fiber.StatusGone).JSON(fiber.Map{
+		"error": "Anonymous sign-in has been disabled for security reasons",
+	})
+}
 
-	return c.Status(fiber.StatusOK).JSON(resp)
+// GetCSRFToken returns the current CSRF token for the client
+// Clients should call this endpoint first, then include the token in the X-CSRF-Token header
+// GET /auth/csrf
+func (h *AuthHandler) GetCSRFToken(c *fiber.Ctx) error {
+	// The CSRF middleware has already set the cookie
+	// Return the token value so clients can use it in the X-CSRF-Token header
+	token := c.Cookies("csrf_token")
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"csrf_token": token,
+	})
 }
 
 // StartImpersonation starts an admin impersonation session
@@ -949,19 +1071,16 @@ func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get or create user
+	// Get existing user - auto-creation is disabled for security
+	// Users must register via signup endpoint first
 	var user *auth.User
 	if req.Email != nil && otpCode.Email != nil {
 		user, err = h.authService.GetUserByEmail(c.Context(), *otpCode.Email)
 		if err != nil {
-			// Create user if doesn't exist (for signup flow)
-			user, err = h.authService.CreateUser(c.Context(), *otpCode.Email, "")
-			if err != nil {
-				log.Error().Err(err).Msg("Failed to create user")
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to create user",
-				})
-			}
+			log.Warn().Str("email", *otpCode.Email).Msg("OTP verification for non-existent user")
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "No account found for this email - please sign up first",
+			})
 		}
 	}
 

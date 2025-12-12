@@ -32,13 +32,16 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
-  X,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { useTheme } from '@/context/theme-provider'
+import { useImpersonationStore } from '@/stores/impersonation-store'
+import { syncAuthToken } from '@/lib/fluxbase-client'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
 
 export const Route = createFileRoute('/_authenticated/sql-editor/')({
   component: SQLEditorPage,
@@ -124,9 +127,24 @@ function SQLEditorPage() {
 
     setIsExecuting(true)
     try {
-      const response = await api.post<SQLExecutionResponse>('/api/v1/admin/sql/execute', {
-        query: currentQuery,
-      })
+      // Build request config with optional impersonation context
+      // Note: We keep the admin token for auth, but pass impersonation token separately
+      // so the backend can set RLS context while still verifying admin permissions
+      // Use getState() to get fresh state at execution time (avoids stale closure issues)
+      const { isImpersonating: isImpersonatingNow, impersonationToken: tokenNow } =
+        useImpersonationStore.getState()
+      const config: { headers?: Record<string, string> } = {}
+      if (isImpersonatingNow && tokenNow) {
+        config.headers = {
+          'X-Impersonation-Token': tokenNow,
+        }
+      }
+
+      const response = await api.post<SQLExecutionResponse>(
+        '/api/v1/admin/sql/execute',
+        { query: currentQuery },
+        config
+      )
 
       // Add to history
       const historyItem: QueryHistory = {
@@ -333,6 +351,14 @@ function SQLEditorPage() {
             </p>
           </div>
         </div>
+
+        {/* Impersonation UI */}
+        <ImpersonationPopover
+          contextLabel="Executing as"
+          defaultReason="Testing RLS policies in SQL Editor"
+          onImpersonationStart={() => syncAuthToken()}
+          onImpersonationStop={() => syncAuthToken()}
+        />
 
         <div className="flex items-center gap-2">
           {queryHistory.length > 0 && (

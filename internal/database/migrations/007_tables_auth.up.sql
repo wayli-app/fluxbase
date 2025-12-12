@@ -317,19 +317,24 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON auth.webhook_events(cre
 COMMENT ON TABLE auth.webhook_events IS 'Queue for webhook events to be delivered. Processed events are kept for history.';
 
 -- Impersonation sessions table
+-- Note: admin_user_id has no FK because it can reference either dashboard.users OR auth.users
+-- Note: target_user_id is nullable for anon/service role impersonation (no actual target user)
 CREATE TABLE IF NOT EXISTS auth.impersonation_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    admin_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    impersonated_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    admin_user_id UUID NOT NULL,
+    target_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    target_role TEXT,
     impersonation_type TEXT NOT NULL DEFAULT 'full',
     reason TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
     started_at TIMESTAMPTZ DEFAULT NOW(),
     ended_at TIMESTAMPTZ,
     is_active BOOLEAN DEFAULT true
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_impersonation_admin_user_id ON auth.impersonation_sessions(admin_user_id);
-CREATE INDEX IF NOT EXISTS idx_auth_impersonation_impersonated_user_id ON auth.impersonation_sessions(impersonated_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_target_user_id ON auth.impersonation_sessions(target_user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_impersonation_is_active ON auth.impersonation_sessions(is_active);
 
 -- RLS audit log table for tracking access control violations and security events

@@ -23,12 +23,14 @@ type SecurityHeadersConfig struct {
 }
 
 // DefaultSecurityHeadersConfig returns secure default configuration
+// This is the STRICT configuration for API endpoints - no unsafe-inline or unsafe-eval
 func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 	return SecurityHeadersConfig{
-		// CSP: Only allow resources from same origin, except WebSocket for realtime
+		// CSP: Strict policy for API endpoints - no inline scripts or eval
+		// Admin UI has its own relaxed policy via AdminUISecurityHeaders()
 		ContentSecurityPolicy: "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // Needed for Admin UI
-			"style-src 'self' 'unsafe-inline'; " + // Needed for Admin UI
+			"script-src 'self'; " + // No unsafe-inline/eval for API
+			"style-src 'self'; " +  // No unsafe-inline for API
 			"img-src 'self' data: blob:; " +
 			"font-src 'self' data:; " +
 			"connect-src 'self' ws: wss:; " + // Allow WebSocket connections

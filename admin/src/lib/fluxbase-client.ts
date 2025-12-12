@@ -22,7 +22,7 @@ const getActiveToken = (): string | null => {
 // Create the Fluxbase client
 export const fluxbaseClient = createClient(API_BASE_URL, API_KEY, {
   auth: {
-    autoRefresh: true,
+    autoRefresh: false, // Disable auto-refresh since we manage tokens ourselves
     persist: false, // We manage persistence ourselves via localStorage
   },
   timeout: 30000, // 30 seconds
@@ -46,6 +46,12 @@ export function setAuthToken(token: string | null) {
 // Helper to get the auth token
 export function getAuthToken(): string | null {
   return fluxbaseClient.getAuthToken()
+}
+
+// Helper to sync SDK token with current active token (impersonation or admin)
+export function syncAuthToken() {
+  const activeToken = getActiveToken()
+  setAuthToken(activeToken)
 }
 
 export default fluxbaseClient

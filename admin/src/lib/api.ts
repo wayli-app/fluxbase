@@ -20,14 +20,17 @@ const api: AxiosInstance = axios.create({
   timeout: 30000, // 30 seconds
 })
 
-// Request interceptor to add auth token
-// NOTE: This client uses admin token ONLY. Impersonation tokens are handled
-// separately by the Fluxbase SDK (fluxbase-client.ts) for table data requests.
+// Request interceptor to add auth token (admin token only)
+// Note: If a custom Authorization header is already set (e.g., for impersonation),
+// we don't overwrite it - this allows components to pass their own token
 api.interceptors.request.use(
   (config) => {
-    const accessToken = getAccessToken()
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`
+    // Don't overwrite if Authorization header is already set (e.g., impersonation token)
+    if (!config.headers.Authorization) {
+      const accessToken = getAccessToken()
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`
+      }
     }
     return config
   },
@@ -758,7 +761,8 @@ export const functionsApi = {
   // Invoke edge function
   invoke: async (
     name: string,
-    options: EdgeFunctionInvokeOptions = {}
+    options: EdgeFunctionInvokeOptions = {},
+    config?: { headers?: Record<string, string> }
   ): Promise<string> => {
     const { method = 'POST', headers = {}, body = '' } = options
 
@@ -769,6 +773,7 @@ export const functionsApi = {
       headers: {
         'Content-Type': 'application/json',
         ...headers,
+        ...config?.headers,
       },
       transformResponse: [(data) => data], // Don't parse response, return as string
     })
@@ -1043,8 +1048,11 @@ export const jobsApi = {
   },
 
   // Submit job for execution
-  submitJob: async (data: SubmitJobRequest): Promise<Job> => {
-    const response = await api.post<Job>('/api/v1/jobs/submit', data)
+  submitJob: async (
+    data: SubmitJobRequest,
+    config?: { headers?: Record<string, string> }
+  ): Promise<Job> => {
+    const response = await api.post<Job>('/api/v1/jobs/submit', data, config)
     return response.data
   },
 
@@ -1998,7 +2006,7 @@ export const conversationsApi = {
     status?: string
     limit?: number
     offset?: number
-  }): Promise<{ conversations: ConversationSummary[]; total: number }> => {
+  }): Promise<{ conversations: ConversationSummary[]; total: number; total_count: number }> => {
     const queryParams = new URLSearchParams()
     if (params?.chatbot_id) queryParams.append('chatbot_id', params.chatbot_id)
     if (params?.user_id) queryParams.append('user_id', params.user_id)
@@ -2006,7 +2014,7 @@ export const conversationsApi = {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.offset) queryParams.append('offset', params.offset.toString())
 
-    const response = await api.get<{ conversations: ConversationSummary[]; total: number }>(
+    const response = await api.get<{ conversations: ConversationSummary[]; total: number; total_count: number }>(
       `/api/v1/admin/ai/conversations?${queryParams.toString()}`
     )
     return response.data
@@ -2052,7 +2060,7 @@ export const auditLogApi = {
     success?: boolean
     limit?: number
     offset?: number
-  }): Promise<{ entries: AuditLogEntry[]; total: number }> => {
+  }): Promise<{ entries: AuditLogEntry[]; total: number; total_count: number }> => {
     const queryParams = new URLSearchParams()
     if (params?.chatbot_id) queryParams.append('chatbot_id', params.chatbot_id)
     if (params?.user_id) queryParams.append('user_id', params.user_id)
@@ -2060,7 +2068,7 @@ export const auditLogApi = {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.offset) queryParams.append('offset', params.offset.toString())
 
-    const response = await api.get<{ entries: AuditLogEntry[]; total: number }>(
+    const response = await api.get<{ entries: AuditLogEntry[]; total: number; total_count: number }>(
       `/api/v1/admin/ai/audit?${queryParams.toString()}`
     )
     return response.data

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
@@ -27,6 +28,8 @@ type Service struct {
 	identityService       *IdentityService
 	systemSettings        *SystemSettingsService
 	settingsCache         *SettingsCache
+	nonceStore            *NonceStore
+	oidcVerifier          *OIDCVerifier
 	config                *config.AuthConfig
 }
 
@@ -117,6 +120,22 @@ func NewService(
 	// Wire up cache to settings service for cache invalidation on updates
 	systemSettingsService.SetCache(settingsCache)
 
+	// Create nonce store for reauthentication with periodic cleanup
+	nonceStore := NewNonceStore()
+	nonceStore.StartCleanup(1 * time.Minute)
+
+	// Create OIDC verifier for ID token authentication
+	oidcVerifier, err := NewOIDCVerifier(context.Background(), cfg)
+	if err != nil {
+		// Log warning but continue - OIDC is optional
+		// The error is already logged in NewOIDCVerifier
+		oidcVerifier = &OIDCVerifier{
+			verifiers: make(map[string]*oidc.IDTokenVerifier),
+			providers: make(map[string]*oidc.Provider),
+			clientIDs: make(map[string]string),
+		}
+	}
+
 	return &Service{
 		userRepo:              userRepo,
 		sessionRepo:           sessionRepo,
@@ -132,6 +151,8 @@ func NewService(
 		identityService:       identityService,
 		systemSettings:        systemSettingsService,
 		settingsCache:         settingsCache,
+		nonceStore:            nonceStore,
+		oidcVerifier:          oidcVerifier,
 		config:                cfg,
 	}
 }
@@ -177,10 +198,12 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 	}
 
 	// Create user with metadata
+	// NOTE: app_metadata is stripped from signup requests to prevent privilege escalation
+	// Only admins can set app_metadata via user management endpoints
 	user, err := s.userRepo.Create(ctx, CreateUserRequest{
 		Email:        req.Email,
 		UserMetadata: req.UserMetadata, // User-editable metadata
-		AppMetadata:  req.AppMetadata,  // Application/admin-only metadata
+		AppMetadata:  nil,              // Stripped for security - admin-only field
 	}, hashedPassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -233,15 +256,98 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
+			// Log failed login attempt for non-existent user
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:  SecurityEventLoginFailed,
+				Email: req.Email,
+				Details: map[string]interface{}{
+					"reason": "user_not_found",
+				},
+			})
 			return nil, fmt.Errorf("invalid email or password")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
+	// Check if account is locked
+	if user.IsLocked {
+		// Check if lock has expired (if locked_until is set)
+		if user.LockedUntil != nil && time.Now().After(*user.LockedUntil) {
+			// Lock expired, reset it
+			if err := s.userRepo.ResetFailedLoginAttempts(ctx, user.ID); err != nil {
+				// Log error but continue - worst case user stays locked
+				_ = err
+			}
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:   SecurityEventAccountUnlocked,
+				UserID: user.ID,
+				Email:  user.Email,
+				Details: map[string]interface{}{
+					"reason": "lock_expired",
+				},
+			})
+		} else {
+			// Log locked account access attempt
+			LogSecurityWarning(ctx, SecurityEvent{
+				Type:   SecurityEventLoginFailed,
+				UserID: user.ID,
+				Email:  user.Email,
+				Details: map[string]interface{}{
+					"reason": "account_locked",
+				},
+			})
+			return nil, ErrAccountLocked
+		}
+	}
+
 	// Verify password
 	if err := s.passwordHasher.ComparePassword(user.PasswordHash, req.Password); err != nil {
+		// Increment failed login attempts
+		if incErr := s.userRepo.IncrementFailedLoginAttempts(ctx, user.ID); incErr != nil {
+			// Log error but return generic invalid credentials
+			_ = incErr
+		}
+
+		// Check if account is now locked (after 5 failed attempts)
+		failedAttempts := user.FailedLoginAttempts + 1
+		if failedAttempts >= 5 {
+			LogSecurityWarning(ctx, SecurityEvent{
+				Type:   SecurityEventAccountLocked,
+				UserID: user.ID,
+				Email:  user.Email,
+				Details: map[string]interface{}{
+					"failed_attempts": failedAttempts,
+				},
+			})
+		} else {
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:   SecurityEventLoginFailed,
+				UserID: user.ID,
+				Email:  user.Email,
+				Details: map[string]interface{}{
+					"reason":          "invalid_password",
+					"failed_attempts": failedAttempts,
+				},
+			})
+		}
+
 		return nil, fmt.Errorf("invalid email or password")
 	}
+
+	// Reset failed login attempts on successful login
+	if user.FailedLoginAttempts > 0 {
+		if err := s.userRepo.ResetFailedLoginAttempts(ctx, user.ID); err != nil {
+			// Log error but continue with login
+			_ = err
+		}
+	}
+
+	// Log successful login
+	LogSecurityEvent(ctx, SecurityEvent{
+		Type:   SecurityEventLoginSuccess,
+		UserID: user.ID,
+		Email:  user.Email,
+	})
 
 	// Generate tokens with metadata
 	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
@@ -415,20 +521,14 @@ func (s *Service) VerifyMagicLink(ctx context.Context, token string) (*SignInRes
 		return nil, fmt.Errorf("failed to verify magic link: %w", err)
 	}
 
-	// Get or create user
+	// Get existing user - auto-creation is disabled for security
+	// Users must register via signup endpoint first
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			// Create new user for magic link (no metadata by default)
-			user, err = s.userRepo.Create(ctx, CreateUserRequest{
-				Email: email,
-			}, "") // No password for magic link users
-			if err != nil {
-				return nil, fmt.Errorf("failed to create user: %w", err)
-			}
-		} else {
-			return nil, fmt.Errorf("failed to get user: %w", err)
+			return nil, fmt.Errorf("no account found for this email - please sign up first")
 		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	// Generate tokens with metadata
@@ -836,7 +936,8 @@ func (s *Service) GenerateTokensForUser(ctx context.Context, userID string) (*Si
 	}, nil
 }
 
-// Reauthenticate generates a security nonce for sensitive operations
+// Reauthenticate generates a security nonce for sensitive operations.
+// The nonce is stored with a 5-minute TTL and can only be used once.
 func (s *Service) Reauthenticate(ctx context.Context, userID string) (string, error) {
 	// Verify user exists
 	_, err := s.userRepo.GetByID(ctx, userID)
@@ -844,35 +945,162 @@ func (s *Service) Reauthenticate(ctx context.Context, userID string) (string, er
 		return "", fmt.Errorf("user not found: %w", err)
 	}
 
-	// Generate a secure random nonce (32 bytes, base64 encoded)
+	// Generate a secure random nonce
 	nonce := uuid.New().String()
 
-	// TODO: Store nonce with expiry in cache/database for verification
-	// For now, we just return the nonce
-	// In production, you'd want to:
-	// 1. Store nonce with expiry (e.g., 5 minutes)
-	// 2. Verify nonce when used for sensitive operations
-	// 3. Invalidate nonce after use
+	// Store nonce with 5-minute expiry for later verification
+	s.nonceStore.Set(nonce, userID, 5*time.Minute)
 
 	return nonce, nil
 }
 
-// SignInWithIDToken signs in a user with an OAuth ID token (Google, Apple)
+// VerifyNonce validates a nonce for sensitive operations.
+// The nonce is single-use and will be invalidated after verification.
+// Returns true if the nonce is valid and belongs to the specified user.
+func (s *Service) VerifyNonce(ctx context.Context, nonce, userID string) bool {
+	return s.nonceStore.Validate(nonce, userID)
+}
+
+// SignInWithIDToken signs in a user with an OAuth ID token (Google, Apple, Microsoft, or custom OIDC)
 func (s *Service) SignInWithIDToken(ctx context.Context, provider, idToken, nonce string) (*SignInResponse, error) {
-	// TODO: Implement ID token verification
-	// This requires:
-	// 1. Verify ID token signature using provider's public keys
-	// 2. Validate token claims (issuer, audience, expiry)
-	// 3. Extract user information from token
-	// 4. Create or get existing user
-	// 5. Generate session tokens
+	// Check if the provider is configured
+	if !s.oidcVerifier.IsProviderConfigured(provider) {
+		return nil, fmt.Errorf("OIDC provider not configured: %s", provider)
+	}
 
-	// For now, return an error indicating it's not yet implemented
-	// You'll need to add libraries like:
-	// - google-auth-library for Google
-	// - Apple's JWT verification for Apple Sign In
+	// Verify the ID token and extract claims
+	claims, err := s.oidcVerifier.Verify(ctx, provider, idToken, nonce)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ID token: %w", err)
+	}
 
-	return nil, fmt.Errorf("signInWithIDToken not yet implemented for provider: %s", provider)
+	// Require email for user lookup/creation
+	if claims.Email == "" {
+		return nil, fmt.Errorf("ID token does not contain email claim")
+	}
+
+	// Look up existing user by email
+	user, err := s.userRepo.GetByEmail(ctx, claims.Email)
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
+		return nil, fmt.Errorf("failed to lookup user: %w", err)
+	}
+
+	if user == nil {
+		// Create new user from OIDC claims
+		user, err = s.createOIDCUser(ctx, provider, claims)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
+	} else {
+		// Update user info from OIDC claims if changed
+		if err := s.updateUserFromOIDCClaims(ctx, user, claims); err != nil {
+			// Log but don't fail the sign-in
+			fmt.Printf("warning: failed to update user from OIDC claims: %v\n", err)
+		}
+	}
+
+	// Generate JWT tokens
+	accessToken, refreshToken, _, err := s.jwtManager.GenerateTokenPair(
+		user.ID,
+		user.Email,
+		user.Role,
+		user.UserMetadata,
+		user.AppMetadata,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate tokens: %w", err)
+	}
+
+	return &SignInResponse{
+		User:         user,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
+	}, nil
+}
+
+// createOIDCUser creates a new user from OIDC claims
+func (s *Service) createOIDCUser(ctx context.Context, provider string, claims *IDTokenClaims) (*User, error) {
+	req := CreateUserRequest{
+		Email:    claims.Email,
+		Password: "", // No password for OIDC users
+		Role:     "authenticated",
+		UserMetadata: map[string]interface{}{
+			"name":    claims.Name,
+			"picture": claims.Picture,
+		},
+		AppMetadata: map[string]interface{}{
+			"provider":         provider,
+			"provider_user_id": claims.Subject,
+		},
+	}
+
+	// Create user with empty password hash (OIDC users don't have passwords)
+	user, err := s.userRepo.Create(ctx, req, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Update email_verified if the OIDC provider verified it
+	if claims.EmailVerified {
+		emailVerified := true
+		_, err = s.userRepo.Update(ctx, user.ID, UpdateUserRequest{
+			EmailVerified: &emailVerified,
+		})
+		if err != nil {
+			// Log but don't fail - user was created
+			fmt.Printf("warning: failed to update email_verified: %v\n", err)
+		}
+		user.EmailVerified = true
+	}
+
+	return user, nil
+}
+
+// updateUserFromOIDCClaims updates user info from OIDC claims if changed
+func (s *Service) updateUserFromOIDCClaims(ctx context.Context, user *User, claims *IDTokenClaims) error {
+	updateReq := UpdateUserRequest{}
+	needsUpdate := false
+
+	// Update email verification status if changed
+	if claims.EmailVerified && !user.EmailVerified {
+		emailVerified := true
+		updateReq.EmailVerified = &emailVerified
+		needsUpdate = true
+	}
+
+	// Update user metadata if name or picture changed
+	currentMetadata, _ := user.UserMetadata.(map[string]interface{})
+	if currentMetadata == nil {
+		currentMetadata = make(map[string]interface{})
+	}
+
+	newMetadata := make(map[string]interface{})
+	for k, v := range currentMetadata {
+		newMetadata[k] = v
+	}
+
+	if claims.Name != "" {
+		if currentName, _ := currentMetadata["name"].(string); currentName != claims.Name {
+			newMetadata["name"] = claims.Name
+			needsUpdate = true
+		}
+	}
+
+	if claims.Picture != "" {
+		if currentPic, _ := currentMetadata["picture"].(string); currentPic != claims.Picture {
+			newMetadata["picture"] = claims.Picture
+			needsUpdate = true
+		}
+	}
+
+	if needsUpdate {
+		updateReq.UserMetadata = newMetadata
+		_, err := s.userRepo.Update(ctx, user.ID, updateReq)
+		return err
+	}
+
+	return nil
 }
 
 // SendOTP sends an OTP code via email

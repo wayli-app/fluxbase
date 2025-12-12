@@ -163,11 +163,12 @@ Configure job behavior using @fluxbase: annotations in code comments:
 
 // Handler manages HTTP endpoints for jobs
 type Handler struct {
-	storage   *Storage
-	loader    *Loader
-	manager   *Manager
-	scheduler *Scheduler
-	config    *config.JobsConfig
+	storage     *Storage
+	loader      *Loader
+	manager     *Manager
+	scheduler   *Scheduler
+	config      *config.JobsConfig
+	authService *auth.Service
 }
 
 // SetScheduler sets the scheduler for the handler
@@ -203,7 +204,7 @@ func roleSatisfiesRequirement(userRole, requiredRole string) bool {
 }
 
 // NewHandler creates a new jobs handler
-func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manager) (*Handler, error) {
+func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manager, authService *auth.Service) (*Handler, error) {
 	storage := NewStorage(db)
 	loader, err := NewLoader(storage, cfg)
 	if err != nil {
@@ -211,10 +212,11 @@ func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manage
 	}
 
 	return &Handler{
-		storage: storage,
-		loader:  loader,
-		manager: manager,
-		config:  cfg,
+		storage:     storage,
+		loader:      loader,
+		manager:     manager,
+		config:      cfg,
+		authService: authService,
 	}, nil
 }
 
@@ -329,6 +331,31 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 			Str("target_user_id", parsed.String()).
 			Str("caller", "service_role").
 			Msg("Job submitted on behalf of user")
+	} else if impersonationToken := c.Get("X-Impersonation-Token"); impersonationToken != "" && h.authService != nil {
+		// Check for impersonation token - allows admin to submit jobs as another user
+		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		if err != nil {
+			log.Warn().Err(err).Msg("Invalid impersonation token in job submission")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid impersonation token",
+			})
+		}
+
+		// Override user context with impersonated user
+		parsed, err := uuid.Parse(impersonationClaims.UserID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid user_id in impersonation token",
+			})
+		}
+		userID = &parsed
+		userEmail = &impersonationClaims.Email
+		userRole = &impersonationClaims.Role
+
+		log.Info().
+			Str("target_user_id", parsed.String()).
+			Str("impersonated_role", impersonationClaims.Role).
+			Msg("Job submitted with impersonation")
 	} else {
 		// Standard flow: use caller's identity
 		if uid := c.Locals("user_id"); uid != nil {

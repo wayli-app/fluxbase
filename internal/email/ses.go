@@ -69,6 +69,13 @@ func (s *SESService) SendPasswordReset(ctx context.Context, to, token, link stri
 	return s.Send(ctx, to, subject, body)
 }
 
+// SendInvitationEmail sends an invitation email via AWS SES
+func (s *SESService) SendInvitationEmail(ctx context.Context, to, inviterName, inviteLink string) error {
+	subject := "You've been invited!"
+	body := renderInvitationHTML(inviterName, inviteLink)
+	return s.Send(ctx, to, subject, body)
+}
+
 // Send sends a generic email via AWS SES
 func (s *SESService) Send(ctx context.Context, to, subject, body string) error {
 	input := &ses.SendEmailInput{

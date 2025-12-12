@@ -54,7 +54,8 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
-import { ImpersonationSelector } from '@/features/impersonation/components/impersonation-selector'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { useImpersonationStore } from '@/stores/impersonation-store'
 
 export const Route = createFileRoute('/_authenticated/jobs/')({
   component: JobsPage,
@@ -520,11 +521,21 @@ function JobsPage() {
         }
       }
 
-      const job = await jobsApi.submitJob({
-        job_name: selectedFunction.name,
-        namespace: selectedNamespace,
-        payload,
-      })
+      // Build config with impersonation token if active
+      const { isImpersonating, impersonationToken } = useImpersonationStore.getState()
+      const config: { headers?: Record<string, string> } = {}
+      if (isImpersonating && impersonationToken) {
+        config.headers = { 'X-Impersonation-Token': impersonationToken }
+      }
+
+      const job = await jobsApi.submitJob(
+        {
+          job_name: selectedFunction.name,
+          namespace: selectedNamespace,
+          payload,
+        },
+        config
+      )
 
       toast.success(`Job submitted successfully (ID: ${job.id.slice(0, 8)}...)`)
       setShowRunDialog(false)
@@ -808,7 +819,10 @@ function JobsPage() {
           </p>
         </div>
         <div className='flex items-center gap-2'>
-          <ImpersonationSelector />
+          <ImpersonationPopover
+            contextLabel="Running as"
+            defaultReason="Testing job submission"
+          />
           <Button onClick={refreshAllData} variant='outline' size='sm'>
             <RefreshCw className='mr-2 h-4 w-4' />
             Refresh

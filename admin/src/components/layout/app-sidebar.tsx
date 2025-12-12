@@ -10,6 +10,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
+import { Badge } from '@/components/ui/badge'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
@@ -57,7 +58,12 @@ export function AppSidebar() {
                 className='size-8 rounded-lg'
               />
               <div className='grid flex-1 text-start text-sm leading-tight'>
-                <span className='truncate font-semibold'>Fluxbase</span>
+                <span className='flex items-center gap-2 truncate font-semibold'>
+                  Fluxbase
+                  <Badge variant='outline' className='text-[10px] px-1.5 py-0'>
+                    Beta
+                  </Badge>
+                </span>
                 <span className='truncate text-xs'>Backend-as-a-Service</span>
               </div>
             </SidebarMenuButton>

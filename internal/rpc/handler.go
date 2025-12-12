@@ -13,21 +13,23 @@ import (
 
 // Handler handles RPC-related HTTP endpoints
 type Handler struct {
-	storage   *Storage
-	loader    *Loader
-	executor  *Executor
-	validator *Validator
-	config    *config.RPCConfig
+	storage     *Storage
+	loader      *Loader
+	executor    *Executor
+	validator   *Validator
+	config      *config.RPCConfig
+	authService *auth.Service
 }
 
 // NewHandler creates a new RPC handler
-func NewHandler(db *database.Connection, storage *Storage, loader *Loader, metrics *observability.Metrics, cfg *config.RPCConfig) *Handler {
+func NewHandler(db *database.Connection, storage *Storage, loader *Loader, metrics *observability.Metrics, cfg *config.RPCConfig, authService *auth.Service) *Handler {
 	return &Handler{
-		storage:   storage,
-		loader:    loader,
-		executor:  NewExecutor(db, storage, metrics, cfg),
-		validator: NewValidator(),
-		config:    cfg,
+		storage:     storage,
+		loader:      loader,
+		executor:    NewExecutor(db, storage, metrics, cfg),
+		validator:   NewValidator(),
+		config:      cfg,
+		authService: authService,
 	}
 }
 
@@ -595,6 +597,31 @@ func (h *Handler) Invoke(c *fiber.Ctx) error {
 	}
 	if tc, ok := c.Locals("claims").(*auth.TokenClaims); ok {
 		claims = tc
+	}
+
+	// Check for impersonation token - allows admin to invoke RPC as another user
+	impersonationToken := c.Get("X-Impersonation-Token")
+	if impersonationToken != "" && h.authService != nil {
+		impersonationClaims, err := h.authService.ValidateToken(impersonationToken)
+		if err != nil {
+			log.Warn().Err(err).Msg("Invalid impersonation token in RPC invocation")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid impersonation token",
+			})
+		}
+
+		// Override user context with impersonated user
+		userID = impersonationClaims.UserID
+		userRole = impersonationClaims.Role
+		userEmail = impersonationClaims.Email
+		claims = impersonationClaims
+		isAuthenticated = true
+
+		log.Info().
+			Str("procedure", name).
+			Str("impersonated_user_id", impersonationClaims.UserID).
+			Str("impersonated_role", impersonationClaims.Role).
+			Msg("RPC invocation with impersonation")
 	}
 
 	// Validate access

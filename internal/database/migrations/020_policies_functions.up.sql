@@ -48,6 +48,6 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth.sessions(user_id);
 -- Index for auth.webhook_deliveries RLS policy (filtering by webhook_id)
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook_id ON auth.webhook_deliveries(webhook_id);
 
--- Indexes for auth.impersonation_sessions RLS policy (filtering by admin_user_id and impersonated_user_id)
+-- Indexes for auth.impersonation_sessions RLS policy (filtering by admin_user_id and target_user_id)
 CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_admin_user_id ON auth.impersonation_sessions(admin_user_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_impersonated_user_id ON auth.impersonation_sessions(impersonated_user_id);
+CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_target_user_id ON auth.impersonation_sessions(target_user_id);

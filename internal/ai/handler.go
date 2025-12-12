@@ -1053,6 +1053,37 @@ func (h *Handler) GetConversations(c *fiber.Ctx) error {
 		argIndex++
 	}
 
+	// Build count query with same filters (without LIMIT/OFFSET)
+	countQuery := `
+		SELECT COUNT(*)
+		FROM ai.conversations c
+		WHERE 1=1
+	`
+	countArgs := []interface{}{}
+	countArgIndex := 1
+
+	if chatbotID != "" {
+		countQuery += fmt.Sprintf(" AND c.chatbot_id = $%d", countArgIndex)
+		countArgs = append(countArgs, chatbotID)
+		countArgIndex++
+	}
+	if userID != "" {
+		countQuery += fmt.Sprintf(" AND c.user_id = $%d", countArgIndex)
+		countArgs = append(countArgs, userID)
+		countArgIndex++
+	}
+	if status != "" {
+		countQuery += fmt.Sprintf(" AND c.status = $%d", countArgIndex)
+		countArgs = append(countArgs, status)
+		countArgIndex++
+	}
+
+	var totalCount int
+	if err := h.storage.db.QueryRow(ctx, countQuery, countArgs...).Scan(&totalCount); err != nil {
+		log.Error().Err(err).Msg("Failed to count conversations")
+		totalCount = 0
+	}
+
 	query += fmt.Sprintf(" ORDER BY c.last_message_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -1094,6 +1125,7 @@ func (h *Handler) GetConversations(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"conversations": conversations,
 		"total":         len(conversations),
+		"total_count":   totalCount,
 	})
 }
 
@@ -1112,8 +1144,8 @@ type MessageDetail struct {
 	SQLDurationMS    *int    `json:"sql_duration_ms"`
 	PromptTokens     *int    `json:"prompt_tokens"`
 	CompletionTokens *int    `json:"completion_tokens"`
-	CreatedAt        string  `json:"created_at"`
-	SequenceNumber   int     `json:"sequence_number"`
+	CreatedAt        time.Time `json:"created_at"`
+	SequenceNumber   int       `json:"sequence_number"`
 }
 
 // GetConversationMessages returns all messages for a specific conversation
@@ -1206,9 +1238,9 @@ type AuditLogEntry struct {
 	ExecutionDurationMS *int     `json:"execution_duration_ms"`
 	TablesAccessed      []string `json:"tables_accessed"`
 	OperationsUsed      []string `json:"operations_used"`
-	IPAddress           *string  `json:"ip_address"`
-	UserAgent           *string  `json:"user_agent"`
-	CreatedAt           string   `json:"created_at"`
+	IPAddress           *string   `json:"ip_address"`
+	UserAgent           *string   `json:"user_agent"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 // GetAuditLog returns audit log entries with optional filters
@@ -1275,6 +1307,38 @@ func (h *Handler) GetAuditLog(c *fiber.Ctx) error {
 		argIndex++
 	}
 
+	// Build count query with same filters (without LIMIT/OFFSET)
+	countQuery := `
+		SELECT COUNT(*)
+		FROM ai.query_audit_log a
+		WHERE 1=1
+	`
+	countArgs := []interface{}{}
+	countArgIndex := 1
+
+	if chatbotID != "" {
+		countQuery += fmt.Sprintf(" AND a.chatbot_id = $%d", countArgIndex)
+		countArgs = append(countArgs, chatbotID)
+		countArgIndex++
+	}
+	if userID != "" {
+		countQuery += fmt.Sprintf(" AND a.user_id = $%d", countArgIndex)
+		countArgs = append(countArgs, userID)
+		countArgIndex++
+	}
+	if successStr != "" {
+		success := successStr == "true"
+		countQuery += fmt.Sprintf(" AND a.success = $%d", countArgIndex)
+		countArgs = append(countArgs, success)
+		countArgIndex++
+	}
+
+	var totalCount int
+	if err := h.storage.db.QueryRow(ctx, countQuery, countArgs...).Scan(&totalCount); err != nil {
+		log.Error().Err(err).Msg("Failed to count audit log entries")
+		totalCount = 0
+	}
+
 	query += fmt.Sprintf(" ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -1321,8 +1385,9 @@ func (h *Handler) GetAuditLog(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"entries": entries,
-		"total":   len(entries),
+		"entries":     entries,
+		"total":       len(entries),
+		"total_count": totalCount,
 	})
 }
 
