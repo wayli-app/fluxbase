@@ -242,7 +242,7 @@ func (h *SQLHandler) executeWithRLSContext(c *fiber.Ctx, fullQuery string, state
 			"error": fmt.Sprintf("Failed to begin transaction: %v", err),
 		})
 	}
-	defer tx.Rollback(ctx) // Will be no-op if committed
+	defer func() { _ = tx.Rollback(ctx) }() // Will be no-op if committed
 
 	// Set RLS session variables
 	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(claimsJSON))
@@ -339,7 +339,7 @@ func (h *SQLHandler) executeAsServiceRole(c *fiber.Ctx, fullQuery string, statem
 			"error": fmt.Sprintf("Failed to begin transaction: %v", err),
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set service_role for full admin access
 	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")

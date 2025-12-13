@@ -165,11 +165,12 @@ func (h *InvitationHandler) ValidateInvitation(c *fiber.Ctx) error {
 	invitation, err := h.invitationService.ValidateToken(ctx, token)
 	if err != nil {
 		errorMessage := "Invalid token"
-		if err == auth.ErrInvitationExpired {
+		switch err {
+		case auth.ErrInvitationExpired:
 			errorMessage = "Invitation has expired"
-		} else if err == auth.ErrInvitationAlreadyAccepted {
+		case auth.ErrInvitationAlreadyAccepted:
 			errorMessage = "Invitation has already been accepted"
-		} else if err == auth.ErrInvitationNotFound {
+		case auth.ErrInvitationNotFound:
 			errorMessage = "Invitation not found"
 		}
 
@@ -220,13 +221,14 @@ func (h *InvitationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	if err != nil {
 		errorMessage := "Invalid token"
 		statusCode := http.StatusBadRequest
-		if err == auth.ErrInvitationExpired {
+		switch err {
+		case auth.ErrInvitationExpired:
 			errorMessage = "Invitation has expired"
 			statusCode = http.StatusGone
-		} else if err == auth.ErrInvitationAlreadyAccepted {
+		case auth.ErrInvitationAlreadyAccepted:
 			errorMessage = "Invitation has already been accepted"
 			statusCode = http.StatusConflict
-		} else if err == auth.ErrInvitationNotFound {
+		case auth.ErrInvitationNotFound:
 			errorMessage = "Invitation not found"
 			statusCode = http.StatusNotFound
 		}

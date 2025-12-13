@@ -321,9 +321,7 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	}
 
 	// Add conversation history
-	for _, m := range state.Messages {
-		messages = append(messages, m)
-	}
+	messages = append(messages, state.Messages...)
 
 	// Add user message
 	userMsg := Message{Role: RoleUser, Content: msg.Content}

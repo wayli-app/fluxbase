@@ -52,7 +52,7 @@ func (h *StorageHandler) ShareObject(c *fiber.Ctx) error {
 			"error": "failed to share file",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
@@ -142,7 +142,7 @@ func (h *StorageHandler) RevokeShare(c *fiber.Ctx) error {
 			"error": "failed to revoke share",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
@@ -230,7 +230,7 @@ func (h *StorageHandler) ListShares(c *fiber.Ctx) error {
 			"error": "failed to list shares",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")

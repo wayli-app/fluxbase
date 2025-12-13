@@ -4,7 +4,6 @@ package realtime
 import (
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -288,12 +287,6 @@ func TestSubscriptionManager_MatchesFilter(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func setupTestDB(t *testing.T) *pgxpool.Pool {
-	// This would need actual database setup for integration tests
-	// For unit tests, we can use nil or a mock
-	return nil
 }
 
 func TestSubscriptionManager_Stats(t *testing.T) {

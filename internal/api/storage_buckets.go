@@ -38,7 +38,7 @@ func (h *StorageHandler) CreateBucket(c *fiber.Ctx) error {
 			"error": "failed to create bucket",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
@@ -143,7 +143,7 @@ func (h *StorageHandler) UpdateBucketSettings(c *fiber.Ctx) error {
 			"error": "failed to update bucket",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
@@ -279,7 +279,7 @@ func (h *StorageHandler) ListBuckets(c *fiber.Ctx) error {
 			"error": "failed to list buckets",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {

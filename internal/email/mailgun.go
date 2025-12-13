@@ -19,10 +19,10 @@ type MailgunService struct {
 // NewMailgunService creates a new Mailgun email service
 func NewMailgunService(cfg *config.EmailConfig) (*MailgunService, error) {
 	if cfg.MailgunAPIKey == "" {
-		return nil, fmt.Errorf("Mailgun API key is required")
+		return nil, fmt.Errorf("mailgun API key is required")
 	}
 	if cfg.MailgunDomain == "" {
-		return nil, fmt.Errorf("Mailgun domain is required")
+		return nil, fmt.Errorf("mailgun domain is required")
 	}
 
 	mg := mailgun.NewMailgun(cfg.MailgunDomain, cfg.MailgunAPIKey)
@@ -63,7 +63,7 @@ func (s *MailgunService) SendInvitationEmail(ctx context.Context, to, inviterNam
 
 // Send sends a generic email via Mailgun
 func (s *MailgunService) Send(ctx context.Context, to, subject, body string) error {
-	message := s.client.NewMessage(
+	message := mailgun.NewMessage(
 		fmt.Sprintf("%s <%s>", s.config.FromName, s.config.FromAddress),
 		subject,
 		"", // Plain text body (optional)
@@ -71,7 +71,7 @@ func (s *MailgunService) Send(ctx context.Context, to, subject, body string) err
 	)
 
 	// Set HTML body
-	message.SetHtml(body)
+	message.SetHTML(body)
 
 	// Set reply-to if configured
 	if s.config.ReplyToAddress != "" {

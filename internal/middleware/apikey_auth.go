@@ -37,11 +37,12 @@ func APIKeyAuth(apiKeyService *auth.APIKeyService) fiber.Handler {
 			log.Debug().Err(err).Msg("Invalid API key")
 
 			// Return specific error messages
-			if err == auth.ErrAPIKeyRevoked {
+			switch err {
+			case auth.ErrAPIKeyRevoked:
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"error": "API key has been revoked",
 				})
-			} else if err == auth.ErrAPIKeyExpired {
+			case auth.ErrAPIKeyExpired:
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"error": "API key has expired",
 				})

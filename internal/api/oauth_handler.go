@@ -313,7 +313,7 @@ func (h *OAuthHandler) getUserInfo(ctx context.Context, providerName string, con
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("user info endpoint returned status %d", resp.StatusCode)

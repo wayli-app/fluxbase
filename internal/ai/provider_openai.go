@@ -188,7 +188,7 @@ func (p *openAIProvider) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
@@ -240,7 +240,7 @@ func (p *openAIProvider) ChatStream(ctx context.Context, req *ChatRequest, callb
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status
 	if resp.StatusCode != http.StatusOK {

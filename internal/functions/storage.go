@@ -541,7 +541,6 @@ func (s *Storage) ListAllExecutions(ctx context.Context, filters AdminExecutionF
 	if filters.Status != "" {
 		countQuery += fmt.Sprintf(" AND e.status = $%d", argIdx)
 		countArgs = append(countArgs, filters.Status)
-		argIdx++
 	}
 
 	// Build main query

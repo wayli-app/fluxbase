@@ -20,7 +20,6 @@ var (
 	requireRolePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
 	publicPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
 	versionPattern        = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
-	annotationLinePattern = regexp.MustCompile(`(?m)^--\s*@fluxbase:.+$`)
 )
 
 // ParseAnnotations parses annotations from SQL code and returns the annotations and cleaned SQL query

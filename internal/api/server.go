@@ -1152,9 +1152,11 @@ func (s *Server) handleRefreshSchema(c *fiber.Ctx) error {
 
 	// Send response before shutting down
 	// Client should retry after a few seconds
-	c.Status(202).JSON(fiber.Map{
+	if err := c.Status(202).JSON(fiber.Map{
 		"message": "Server restart initiated to refresh schema cache. Reconnect in 3-5 seconds.",
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to send response")
+	}
 
 	// Trigger graceful shutdown in a goroutine to allow response to be sent
 	go func() {

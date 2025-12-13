@@ -47,7 +47,7 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 			"error": "failed to open uploaded file",
 		})
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	// Detect content type
 	contentType := file.Header.Get("Content-Type")
@@ -92,7 +92,7 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 			"error": "failed to save file metadata",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
@@ -210,7 +210,7 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 			"error": "failed to download file",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
@@ -334,7 +334,7 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 			"error": "failed to delete file",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
@@ -437,7 +437,7 @@ func (h *StorageHandler) GetFileInfo(c *fiber.Ctx) error {
 			"error": "failed to get file info",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")
@@ -540,7 +540,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 			"error": "failed to list files",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := h.setRLSContext(ctx, tx, c); err != nil {
 		log.Error().Err(err).Msg("Failed to set RLS context")

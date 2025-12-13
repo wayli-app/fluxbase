@@ -142,9 +142,7 @@ type SyncChatbotsRequest struct {
 // If chatbots array is empty, syncs from filesystem. Otherwise syncs provided chatbots.
 func (h *Handler) SyncChatbots(c *fiber.Ctx) error {
 	var req SyncChatbotsRequest
-	if err := c.BodyParser(&req); err != nil {
-		// Body is optional, continue with defaults
-	}
+	_ = c.BodyParser(&req) // Body is optional, continue with defaults
 
 	// Default namespace to "default" if not specified
 	namespace := req.Namespace
@@ -1201,7 +1199,6 @@ func (h *Handler) GetConversations(c *fiber.Ctx) error {
 	if status != "" {
 		countQuery += fmt.Sprintf(" AND c.status = $%d", countArgIndex)
 		countArgs = append(countArgs, status)
-		countArgIndex++
 	}
 
 	var totalCount int
@@ -1456,7 +1453,6 @@ func (h *Handler) GetAuditLog(c *fiber.Ctx) error {
 		success := successStr == "true"
 		countQuery += fmt.Sprintf(" AND a.success = $%d", countArgIndex)
 		countArgs = append(countArgs, success)
-		countArgIndex++
 	}
 
 	var totalCount int

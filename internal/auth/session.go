@@ -371,3 +371,57 @@ func (r *SessionRepository) ListAll(ctx context.Context, includeExpired bool) ([
 
 	return sessions, err
 }
+
+// ListAllPaginated returns paginated sessions with user info for admin views
+func (r *SessionRepository) ListAllPaginated(ctx context.Context, includeExpired bool, limit, offset int) ([]SessionWithUser, int, error) {
+	// Build the WHERE clause
+	whereClause := ""
+	if !includeExpired {
+		whereClause = " WHERE s.expires_at > NOW()"
+	}
+
+	// Count total
+	countQuery := `SELECT COUNT(*) FROM auth.sessions s` + whereClause
+	var total int
+
+	// Query with pagination
+	query := `
+		SELECT s.id, s.user_id, s.expires_at, s.created_at, u.email
+		FROM auth.sessions s
+		LEFT JOIN auth.users u ON s.user_id = u.id
+	` + whereClause + ` ORDER BY s.created_at DESC LIMIT $1 OFFSET $2`
+
+	sessions := []SessionWithUser{}
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		// Get total count
+		if err := tx.QueryRow(ctx, countQuery).Scan(&total); err != nil {
+			return err
+		}
+
+		// Get paginated results
+		rows, err := tx.Query(ctx, query, limit, offset)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var session SessionWithUser
+			err := rows.Scan(
+				&session.ID,
+				&session.UserID,
+				&session.ExpiresAt,
+				&session.CreatedAt,
+				&session.UserEmail,
+			)
+			if err != nil {
+				return err
+			}
+			sessions = append(sessions, session)
+		}
+
+		return rows.Err()
+	})
+
+	return sessions, total, err
+}

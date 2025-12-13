@@ -78,7 +78,7 @@ func uploadMultipartFile(c *fiber.Ctx, svc *storage.Service, bucket, key string,
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	contentType := file.Header.Get("Content-Type")
 	if contentType == "" {

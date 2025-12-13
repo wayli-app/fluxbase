@@ -626,9 +626,10 @@ func (h *AuthHandler) StartImpersonation(c *fiber.Ctx) error {
 	resp, err := h.authService.StartImpersonation(c.Context(), adminUserID.(string), req)
 	if err != nil {
 		statusCode := fiber.StatusInternalServerError
-		if err == auth.ErrNotAdmin {
+		switch err {
+		case auth.ErrNotAdmin:
 			statusCode = fiber.StatusForbidden
-		} else if err == auth.ErrSelfImpersonation {
+		case auth.ErrSelfImpersonation:
 			statusCode = fiber.StatusBadRequest
 		}
 		return c.Status(statusCode).JSON(fiber.Map{

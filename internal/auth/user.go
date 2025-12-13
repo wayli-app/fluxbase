@@ -275,7 +275,6 @@ func (r *UserRepository) Update(ctx context.Context, id string, req UpdateUserRe
 	if req.AppMetadata != nil {
 		updates = append(updates, formatPlaceholder("app_metadata", argCount))
 		args = append(args, req.AppMetadata)
-		argCount++
 	}
 
 	if len(updates) == 0 {

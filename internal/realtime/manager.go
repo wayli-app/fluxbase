@@ -62,7 +62,7 @@ func (m *Manager) RemoveConnection(id string) {
 	// Release manager lock before closing connection
 	m.mu.Unlock()
 
-	connection.Close()
+	_ = connection.Close()
 
 	log.Info().
 		Str("connection_id", id).
@@ -158,7 +158,7 @@ func (m *Manager) Shutdown() {
 
 	// Close connections after releasing the lock to avoid deadlock
 	for _, conn := range connsToClose {
-		conn.Close()
+		_ = conn.Close()
 		log.Info().Str("connection_id", conn.ID).Msg("Closed connection during shutdown")
 	}
 }

@@ -175,13 +175,13 @@ func (r *DenoRuntime) Execute(
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := tmpFile.WriteString(wrappedCode); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return nil, fmt.Errorf("failed to write code to temp file: %w", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Build Deno command
 	args := []string{"run"}

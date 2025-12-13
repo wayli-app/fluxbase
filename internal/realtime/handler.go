@@ -98,7 +98,7 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 	// Extract and validate JWT token from query parameter
 	token := c.Query("token")
 	var userID *string
-	var role string = "anon" // Default to anonymous role
+	var role = "anon" // Default to anonymous role
 
 	if token != "" && h.authService != nil {
 		claims, err := h.authService.ValidateToken(token)

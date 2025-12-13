@@ -490,7 +490,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 	// Parse CORS annotations
 	// Match @fluxbase:cors-origins with value
 	corsOriginsPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:cors-origins\s+(.+?)\s*$`)
-	if matches := corsOriginsPattern.FindStringSubmatch(code); matches != nil && len(matches) > 1 {
+	if matches := corsOriginsPattern.FindStringSubmatch(code); len(matches) > 1 {
 		value := strings.TrimSpace(matches[1])
 		config.CorsOrigins = &value
 		log.Debug().Str("origins", value).Msg("Found @fluxbase:cors-origins directive")
@@ -498,7 +498,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 
 	// Match @fluxbase:cors-methods with value
 	corsMethodsPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:cors-methods\s+(.+?)\s*$`)
-	if matches := corsMethodsPattern.FindStringSubmatch(code); matches != nil && len(matches) > 1 {
+	if matches := corsMethodsPattern.FindStringSubmatch(code); len(matches) > 1 {
 		value := strings.TrimSpace(matches[1])
 		config.CorsMethods = &value
 		log.Debug().Str("methods", value).Msg("Found @fluxbase:cors-methods directive")
@@ -506,7 +506,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 
 	// Match @fluxbase:cors-headers with value
 	corsHeadersPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:cors-headers\s+(.+?)\s*$`)
-	if matches := corsHeadersPattern.FindStringSubmatch(code); matches != nil && len(matches) > 1 {
+	if matches := corsHeadersPattern.FindStringSubmatch(code); len(matches) > 1 {
 		value := strings.TrimSpace(matches[1])
 		config.CorsHeaders = &value
 		log.Debug().Str("headers", value).Msg("Found @fluxbase:cors-headers directive")
@@ -514,7 +514,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 
 	// Match @fluxbase:cors-credentials with boolean value
 	corsCredentialsPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:cors-credentials\s+(true|false)\s*$`)
-	if matches := corsCredentialsPattern.FindStringSubmatch(code); matches != nil && len(matches) > 1 {
+	if matches := corsCredentialsPattern.FindStringSubmatch(code); len(matches) > 1 {
 		value := matches[1] == "true"
 		config.CorsCredentials = &value
 		log.Debug().Bool("credentials", value).Msg("Found @fluxbase:cors-credentials directive")
@@ -522,7 +522,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 
 	// Match @fluxbase:cors-max-age with integer value
 	corsMaxAgePattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:cors-max-age\s+(\d+)\s*$`)
-	if matches := corsMaxAgePattern.FindStringSubmatch(code); matches != nil && len(matches) > 1 {
+	if matches := corsMaxAgePattern.FindStringSubmatch(code); len(matches) > 1 {
 		if value, err := strconv.Atoi(matches[1]); err == nil {
 			config.CorsMaxAge = &value
 			log.Debug().Int("max_age", value).Msg("Found @fluxbase:cors-max-age directive")

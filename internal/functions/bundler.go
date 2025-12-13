@@ -149,14 +149,14 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 		return nil, fmt.Errorf("failed to create temp input file: %w", err)
 	}
 	inputPath := inputFile.Name()
-	defer os.Remove(inputPath)
+	defer func() { _ = os.Remove(inputPath) }()
 
 	// Write code to input file
 	if _, err := inputFile.WriteString(code); err != nil {
-		inputFile.Close()
+		_ = inputFile.Close()
 		return nil, fmt.Errorf("failed to write code to temp file: %w", err)
 	}
-	inputFile.Close()
+	_ = inputFile.Close()
 
 	// Create temporary output file
 	outputFile, err := os.CreateTemp("", "bundled-*.js")
@@ -164,8 +164,8 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 		return nil, fmt.Errorf("failed to create temp output file: %w", err)
 	}
 	outputPath := outputFile.Name()
-	outputFile.Close()
-	defer os.Remove(outputPath)
+	_ = outputFile.Close()
+	defer func() { _ = os.Remove(outputPath) }()
 
 	// Set timeout for bundling (30 seconds)
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -330,12 +330,9 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 				// Successfully inlined, use the inlined code
 				log.Info().Str("function", "unknown").Msg("Successfully inlined all imports, skipping deno bundle")
 				mainCode = inlinedCode
-				// Clear shared modules since they're now inlined
-				sharedModules = make(map[string]string)
 				// Remove deno.json from supporting files since imports are resolved
 				delete(supportingFiles, "deno.json")
 				delete(supportingFiles, "deno.jsonc")
-				functionDenoJSON = ""
 
 				// Return the inlined code directly without bundling
 				// (deno bundle doesn't work well with inlined code anyway in Deno 2.x)
@@ -351,7 +348,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Write main file (index.ts) with possibly inlined code
 	mainPath := fmt.Sprintf("%s/index.ts", tmpDir)
@@ -424,8 +421,8 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		return nil, fmt.Errorf("failed to create temp output file: %w", err)
 	}
 	outputPath := outputFile.Name()
-	outputFile.Close()
-	defer os.Remove(outputPath)
+	_ = outputFile.Close()
+	defer func() { _ = os.Remove(outputPath) }()
 
 	// Set timeout for bundling (30 seconds)
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -801,57 +798,6 @@ func inlineAllImports(mainCode string, sharedModules map[string]string, denoJSON
 	}
 
 	return result.String(), nil
-}
-
-// bundleWithEsbuild uses esbuild via Deno to bundle code
-// This replaces deno bundle which is broken in Deno 2.x
-func (b *Bundler) bundleWithEsbuild(ctx context.Context, tmpDir, mainPath, outputPath string) error {
-	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
-		mainPath,
-		"--bundle",
-		"--format=esm",
-		"--platform=neutral",
-		"--target=esnext",
-		"--outfile=" + outputPath,
-		// Mark Deno-specific imports as external - Deno resolves them at runtime
-		"--external:npm:*",
-		"--external:https://*",
-		"--external:http://*",
-		"--external:jsr:*",
-	}
-
-	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
-	cmd.Dir = tmpDir
-
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	log.Debug().
-		Str("command", b.denoPath).
-		Strs("args", args).
-		Str("dir", tmpDir).
-		Msg("Running esbuild")
-
-	if err := cmd.Run(); err != nil {
-		if bundleCtx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("esbuild timeout after 30s")
-		}
-		errMsg := stderr.String()
-		if errMsg == "" {
-			errMsg = stdout.String()
-		}
-		if errMsg == "" {
-			errMsg = err.Error()
-		}
-		return fmt.Errorf("esbuild failed: %s", cleanBundleError(errMsg))
-	}
-
-	return nil
 }
 
 // extractExportNames extracts exported names from ES6 export statements

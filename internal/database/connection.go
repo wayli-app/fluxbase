@@ -168,7 +168,7 @@ func (c *Connection) runSystemMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect as admin user: %w", err)
 	}
-	defer adminConn.Close(ctx)
+	defer func() { _ = adminConn.Close(ctx) }()
 
 	// Create migrations schema as admin (if not exists)
 	_, err = adminConn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS migrations")
@@ -207,7 +207,12 @@ func (c *Connection) runSystemMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		srcErr, dbErr := m.Close()
+		if srcErr != nil || dbErr != nil {
+			log.Debug().AnErr("srcErr", srcErr).AnErr("dbErr", dbErr).Msg("Migration close returned errors")
+		}
+	}()
 
 	// Run migrations with error handling
 	if err := c.applyMigrations(m, "system"); err != nil {
@@ -248,7 +253,7 @@ func (c *Connection) runUserMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect as admin user: %w", err)
 	}
-	defer adminConn.Close(ctx)
+	defer func() { _ = adminConn.Close(ctx) }()
 
 	// Scan filesystem for migration files
 	migrations, err := c.scanMigrationFiles(c.config.UserMigrationsPath)
@@ -501,7 +506,7 @@ func (c *Connection) grantRolesToRuntimeUser() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect as admin user: %w", err)
 	}
-	defer adminConn.Close(ctx)
+	defer func() { _ = adminConn.Close(ctx) }()
 
 	// Grant roles to runtime user
 	roles := []string{"anon", "authenticated", "service_role"}
@@ -686,7 +691,7 @@ func (c *Connection) ExecuteWithAdminRole(ctx context.Context, fn func(conn *pgx
 		log.Error().Err(err).Str("admin_user", adminUser).Msg("Failed to connect as admin user for migration")
 		return fmt.Errorf("failed to connect as admin: %w", err)
 	}
-	defer adminConn.Close(ctx)
+	defer func() { _ = adminConn.Close(ctx) }()
 
 	// Verify we're connected as the expected user
 	var currentUser string

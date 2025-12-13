@@ -83,11 +83,11 @@ func TracingMiddleware(cfg TracingConfig) fiber.Handler {
 		ctx, span := tracer.Start(ctx, spanName,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
-				semconv.HTTPMethod(c.Method()),
-				semconv.HTTPURL(c.OriginalURL()),
+				attribute.String("http.request.method", c.Method()),
+				attribute.String("url.full", c.OriginalURL()),
 				semconv.HTTPRoute(c.Route().Path),
-				semconv.HTTPScheme(c.Protocol()),
-				semconv.NetHostName(c.Hostname()),
+				attribute.String("url.scheme", c.Protocol()),
+				attribute.String("server.address", c.Hostname()),
 				attribute.String("http.user_agent", c.Get("User-Agent")),
 				attribute.String("http.request_id", c.Get("X-Request-ID")),
 				attribute.String("net.peer.ip", c.IP()),
@@ -115,7 +115,7 @@ func TracingMiddleware(cfg TracingConfig) fiber.Handler {
 		// Record response attributes
 		statusCode := c.Response().StatusCode()
 		span.SetAttributes(
-			semconv.HTTPStatusCode(statusCode),
+			attribute.Int("http.response.status_code", statusCode),
 			attribute.Int("http.response_size", len(c.Response().Body())),
 		)
 

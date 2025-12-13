@@ -452,9 +452,10 @@ func (qp *QueryParser) parseOrder(value string, params *QueryParams) error {
 
 		// Check for nulls first/last
 		if len(parts) > 2 {
-			if parts[2] == "nullsfirst" {
+			switch parts[2] {
+			case "nullsfirst":
 				orderBy.Nulls = "first"
-			} else if parts[2] == "nullslast" {
+			case "nullslast":
 				orderBy.Nulls = "last"
 			}
 		}
@@ -913,7 +914,7 @@ func needsNumericCast(column string, value interface{}) bool {
 	}
 
 	// Check if value is numeric
-	switch value.(type) {
+	switch v := value.(type) {
 	case int, int8, int16, int32, int64:
 		return true
 	case uint, uint8, uint16, uint32, uint64:
@@ -922,7 +923,7 @@ func needsNumericCast(column string, value interface{}) bool {
 		return true
 	case string:
 		// Try to parse as number
-		if _, err := strconv.ParseFloat(value.(string), 64); err == nil {
+		if _, err := strconv.ParseFloat(v, 64); err == nil {
 			return true
 		}
 	}

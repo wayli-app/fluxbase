@@ -113,7 +113,7 @@ func (h *StorageHandler) StreamUpload(c *fiber.Ctx) error {
 			"error": "failed to save file metadata",
 		})
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Set RLS context
 	if err := h.setRLSContext(ctx, tx, c); err != nil {

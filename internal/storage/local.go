@@ -67,7 +67,7 @@ func (ls *LocalStorage) Health(ctx context.Context) error {
 	}
 
 	// Clean up test file
-	os.Remove(testFile)
+	_ = os.Remove(testFile)
 
 	return nil
 }
@@ -155,7 +155,7 @@ func (ls *LocalStorage) Upload(ctx context.Context, bucket, key string, data io.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Calculate MD5 hash while writing
 	hash := md5.New()
@@ -164,7 +164,7 @@ func (ls *LocalStorage) Upload(ctx context.Context, bucket, key string, data io.
 	// Copy data to file
 	written, err := io.Copy(writer, data)
 	if err != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -279,13 +279,13 @@ func (ls *LocalStorage) Download(ctx context.Context, bucket, key string, opts *
 				end = totalSize - 1
 			}
 			if start > end || start >= totalSize {
-				file.Close()
+				_ = file.Close()
 				return nil, nil, fmt.Errorf("invalid range: requested range not satisfiable")
 			}
 
 			// Seek to start position
 			if _, err := file.Seek(start, io.SeekStart); err != nil {
-				file.Close()
+				_ = file.Close()
 				return nil, nil, fmt.Errorf("failed to seek: %w", err)
 			}
 
@@ -328,7 +328,7 @@ func (ls *LocalStorage) Delete(ctx context.Context, bucket, key string) error {
 
 	// Delete metadata file if it exists
 	metaPath := filePath + ".meta"
-	os.Remove(metaPath)
+	_ = os.Remove(metaPath)
 
 	log.Debug().
 		Str("bucket", bucket).
@@ -730,18 +730,18 @@ func (ls *LocalStorage) CopyObject(ctx context.Context, srcBucket, srcKey, destB
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	// Create destination file
 	dest, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dest.Close()
+	defer func() { _ = dest.Close() }()
 
 	// Copy data
 	if _, err := io.Copy(dest, src); err != nil {
-		os.Remove(destPath)
+		_ = os.Remove(destPath)
 		return fmt.Errorf("failed to copy file: %w", err)
 	}
 

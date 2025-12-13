@@ -150,7 +150,7 @@ func (h *HttpRequestHandler) Execute(ctx context.Context, requestURL string, met
 			Error:   fmt.Sprintf("Request failed: %v", err),
 		}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check content type is JSON before reading body
 	contentType := resp.Header.Get("Content-Type")
@@ -279,14 +279,17 @@ func validateNotPrivateIP(hostname string) error {
 	}
 
 	// Resolve and check IPs
-	ips, err := net.LookupIP(hostname)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resolver := net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, hostname)
 	if err != nil {
 		return fmt.Errorf("failed to resolve hostname: %w", err)
 	}
 
 	for _, ip := range ips {
-		if isPrivateIPAddress(ip) {
-			return fmt.Errorf("hostname resolves to private IP %s", ip.String())
+		if isPrivateIPAddress(ip.IP) {
+			return fmt.Errorf("hostname resolves to private IP %s", ip.IP.String())
 		}
 	}
 

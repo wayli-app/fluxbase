@@ -206,15 +206,18 @@ func validateWebhookURL(webhookURL string) error {
 	}
 
 	// Resolve the hostname and check if it resolves to a private IP
-	ips, err := net.LookupIP(hostname)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resolver := net.Resolver{}
+	ips, err := resolver.LookupIPAddr(ctx, hostname)
 	if err != nil {
 		// If DNS lookup fails, we can't verify - block it to be safe
 		return fmt.Errorf("failed to resolve hostname: %w", err)
 	}
 
 	for _, ip := range ips {
-		if isPrivateIP(ip) {
-			return fmt.Errorf("URL resolves to private IP address %s which is not allowed", ip.String())
+		if isPrivateIP(ip.IP) {
+			return fmt.Errorf("URL resolves to private IP address %s which is not allowed", ip.IP.String())
 		}
 	}
 
@@ -521,7 +524,7 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -566,7 +569,7 @@ func (s *WebhookService) sendWebhook(ctx context.Context, deliveryID uuid.UUID, 
 		s.markDeliveryFailed(ctx, deliveryID, 0, nil, fmt.Sprintf("failed to send request: %v", err))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response body
 	body, _ := io.ReadAll(resp.Body)

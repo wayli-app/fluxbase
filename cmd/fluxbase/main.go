@@ -112,7 +112,9 @@ func main() {
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to generate service role key")
 	} else {
-		os.Setenv("FLUXBASE_SERVICE_ROLE_KEY", serviceRoleKey)
+		if err := os.Setenv("FLUXBASE_SERVICE_ROLE_KEY", serviceRoleKey); err != nil {
+			log.Warn().Err(err).Msg("Failed to set FLUXBASE_SERVICE_ROLE_KEY")
+		}
 		log.Debug().Msg("Service role key generated for edge functions")
 	}
 
@@ -121,7 +123,9 @@ func main() {
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to generate anon key")
 	} else {
-		os.Setenv("FLUXBASE_ANON_KEY", anonKey)
+		if err := os.Setenv("FLUXBASE_ANON_KEY", anonKey); err != nil {
+			log.Warn().Err(err).Msg("Failed to set FLUXBASE_ANON_KEY")
+		}
 		log.Debug().Msg("Anon key generated for edge functions")
 	}
 
@@ -131,7 +135,9 @@ func main() {
 		if strings.HasPrefix(cfg.Server.Address, ":") {
 			baseURL = fmt.Sprintf("http://localhost%s", cfg.Server.Address)
 		}
-		os.Setenv("FLUXBASE_BASE_URL", baseURL)
+		if err := os.Setenv("FLUXBASE_BASE_URL", baseURL); err != nil {
+			log.Warn().Err(err).Msg("Failed to set FLUXBASE_BASE_URL")
+		}
 		log.Debug().Str("url", baseURL).Msg("Base URL set for edge functions")
 	}
 

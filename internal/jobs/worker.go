@@ -16,21 +16,20 @@ import (
 
 // Worker executes jobs from the queue
 type Worker struct {
-	ID                    uuid.UUID
-	Name                  string
-	Config                *config.JobsConfig
-	Storage               *Storage
-	Runtime               *runtime.DenoRuntime
-	MaxConcurrent         int
-	publicURL             string
-	currentJobs           sync.Map // jobID -> *runtime.CancelSignal
-	jobLogCounters        sync.Map // jobID -> *int (line counter)
-	jobStartTimes         sync.Map // jobID -> time.Time (for ETA calculation)
-	currentJobCount       int
-	currentJobCountMutex  sync.RWMutex
-	shutdownChan          chan struct{}
-	shutdownComplete      chan struct{}
-	progressTimeoutTicker *time.Ticker
+	ID                   uuid.UUID
+	Name                 string
+	Config               *config.JobsConfig
+	Storage              *Storage
+	Runtime              *runtime.DenoRuntime
+	MaxConcurrent        int
+	publicURL            string
+	currentJobs          sync.Map // jobID -> *runtime.CancelSignal
+	jobLogCounters       sync.Map // jobID -> *int (line counter)
+	jobStartTimes        sync.Map // jobID -> time.Time (for ETA calculation)
+	currentJobCount      int
+	currentJobCountMutex sync.RWMutex
+	shutdownChan         chan struct{}
+	shutdownComplete     chan struct{}
 }
 
 // NewWorker creates a new worker
@@ -175,7 +174,7 @@ func (w *Worker) pollLoop(ctx context.Context) {
 									Str("job_name", j.JobName).
 									Msg("Panic in job execution - recovered, marking job as failed")
 								// Mark job as failed (defers in executeJob will have already cleaned up job count)
-								w.Storage.FailJob(context.Background(), j.ID, fmt.Sprintf("Internal error: job execution panic: %v", rec))
+								_ = w.Storage.FailJob(context.Background(), j.ID, fmt.Sprintf("Internal error: job execution panic: %v", rec))
 							}
 						}()
 						w.executeJob(ctx, j)
@@ -323,7 +322,7 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		jobFunction, err = w.Storage.GetJobFunctionByID(ctx, *job.JobFunctionID)
 		if err != nil {
 			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to get job function")
-			w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
+			_ = w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
 			return
 		}
 	} else {
@@ -331,7 +330,7 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		jobFunction, err = w.Storage.GetJobFunction(ctx, job.Namespace, job.JobName)
 		if err != nil {
 			log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to get job function")
-			w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
+			_ = w.Storage.FailJob(ctx, job.ID, fmt.Sprintf("Job function not found: %v", err))
 			return
 		}
 	}
@@ -339,14 +338,14 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 	// Check if job function is enabled
 	if !jobFunction.Enabled {
 		log.Warn().Str("job_id", job.ID.String()).Str("job_name", job.JobName).Msg("Job function is disabled")
-		w.Storage.FailJob(ctx, job.ID, "Job function is disabled")
+		_ = w.Storage.FailJob(ctx, job.ID, "Job function is disabled")
 		return
 	}
 
 	// Check if code is available
 	if jobFunction.Code == nil || *jobFunction.Code == "" {
 		log.Error().Str("job_id", job.ID.String()).Msg("Job function has no code")
-		w.Storage.FailJob(ctx, job.ID, "Job function has no code")
+		_ = w.Storage.FailJob(ctx, job.ID, "Job function has no code")
 		return
 	}
 
@@ -400,11 +399,11 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 
 			if err := w.Storage.RequeueJob(ctx, job.ID); err != nil {
 				log.Error().Err(err).Str("job_id", job.ID.String()).Msg("Failed to requeue job")
-				w.Storage.FailJob(ctx, job.ID, errorMsg)
+				_ = w.Storage.FailJob(ctx, job.ID, errorMsg)
 			}
 		} else {
 			// Max retries reached, mark as failed
-			w.Storage.FailJob(ctx, job.ID, errorMsg)
+			_ = w.Storage.FailJob(ctx, job.ID, errorMsg)
 		}
 		return
 	}

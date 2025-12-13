@@ -29,7 +29,7 @@ type ValidationResult struct {
 
 // ValidateInput validates input parameters against a JSON schema
 func (v *Validator) ValidateInput(params map[string]interface{}, schemaBytes json.RawMessage) error {
-	if schemaBytes == nil || len(schemaBytes) == 0 {
+	if len(schemaBytes) == 0 {
 		// No schema defined, accept any input
 		return nil
 	}
