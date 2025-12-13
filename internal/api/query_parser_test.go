@@ -277,7 +277,7 @@ func TestQueryParams_ToSQL(t *testing.T) {
 				},
 				Limit: intPtr(10),
 			},
-			expectedSQL:  "ORDER BY created_at DESC LIMIT $1",
+			expectedSQL:  `ORDER BY "created_at" DESC LIMIT $1`,
 			expectedArgs: []interface{}{10},
 		},
 	}
@@ -439,7 +439,7 @@ func TestQueryParams_BuildSelectClause(t *testing.T) {
 					{Function: AggCountAll, Column: "", Alias: ""},
 				},
 			},
-			expectedSQL: "COUNT(*) AS count",
+			expectedSQL: `COUNT(*) AS "count"`,
 		},
 		{
 			name: "aggregation only - sum",
@@ -448,7 +448,7 @@ func TestQueryParams_BuildSelectClause(t *testing.T) {
 					{Function: AggSum, Column: "price", Alias: ""},
 				},
 			},
-			expectedSQL: "SUM(price) AS sum_price",
+			expectedSQL: `SUM("price") AS "sum_price"`,
 		},
 		{
 			name: "multiple aggregations",
@@ -459,7 +459,7 @@ func TestQueryParams_BuildSelectClause(t *testing.T) {
 					{Function: AggAvg, Column: "rating", Alias: ""},
 				},
 			},
-			expectedSQL: "COUNT(id) AS count_id, SUM(price) AS sum_price, AVG(rating) AS avg_rating",
+			expectedSQL: `COUNT("id") AS "count_id", SUM("price") AS "sum_price", AVG("rating") AS "avg_rating"`,
 		},
 		{
 			name: "fields with aggregations",
@@ -470,7 +470,7 @@ func TestQueryParams_BuildSelectClause(t *testing.T) {
 					{Function: AggSum, Column: "price", Alias: "total"},
 				},
 			},
-			expectedSQL: "category, COUNT(*) AS count, SUM(price) AS total",
+			expectedSQL: `"category", COUNT(*) AS "count", SUM("price") AS "total"`,
 		},
 	}
 
@@ -500,14 +500,14 @@ func TestQueryParams_BuildGroupByClause(t *testing.T) {
 			params: QueryParams{
 				GroupBy: []string{"category"},
 			},
-			expectedSQL: " GROUP BY category",
+			expectedSQL: ` GROUP BY "category"`,
 		},
 		{
 			name: "multiple group by",
 			params: QueryParams{
 				GroupBy: []string{"category", "status", "region"},
 			},
-			expectedSQL: " GROUP BY category, status, region",
+			expectedSQL: ` GROUP BY "category", "status", "region"`,
 		},
 	}
 
@@ -528,37 +528,37 @@ func TestAggregation_ToSQL(t *testing.T) {
 		{
 			name:        "COUNT(*)",
 			agg:         Aggregation{Function: AggCountAll, Column: "", Alias: ""},
-			expectedSQL: "COUNT(*) AS count",
+			expectedSQL: `COUNT(*) AS "count"`,
 		},
 		{
 			name:        "COUNT(column)",
 			agg:         Aggregation{Function: AggCount, Column: "id", Alias: ""},
-			expectedSQL: "COUNT(id) AS count_id",
+			expectedSQL: `COUNT("id") AS "count_id"`,
 		},
 		{
 			name:        "SUM",
 			agg:         Aggregation{Function: AggSum, Column: "price", Alias: ""},
-			expectedSQL: "SUM(price) AS sum_price",
+			expectedSQL: `SUM("price") AS "sum_price"`,
 		},
 		{
 			name:        "AVG",
 			agg:         Aggregation{Function: AggAvg, Column: "rating", Alias: ""},
-			expectedSQL: "AVG(rating) AS avg_rating",
+			expectedSQL: `AVG("rating") AS "avg_rating"`,
 		},
 		{
 			name:        "MIN",
 			agg:         Aggregation{Function: AggMin, Column: "price", Alias: ""},
-			expectedSQL: "MIN(price) AS min_price",
+			expectedSQL: `MIN("price") AS "min_price"`,
 		},
 		{
 			name:        "MAX",
 			agg:         Aggregation{Function: AggMax, Column: "price", Alias: ""},
-			expectedSQL: "MAX(price) AS max_price",
+			expectedSQL: `MAX("price") AS "max_price"`,
 		},
 		{
 			name:        "custom alias",
 			agg:         Aggregation{Function: AggSum, Column: "price", Alias: "total"},
-			expectedSQL: "SUM(price) AS total",
+			expectedSQL: `SUM("price") AS "total"`,
 		},
 	}
 

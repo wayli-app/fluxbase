@@ -277,8 +277,8 @@ func TestOrderByInjection(t *testing.T) {
 		{
 			name:          "Order by with injection attempt",
 			queryString:   "order=id%3BDROP%20TABLE%20users--.asc", // URL-encoded semicolon with valid suffix
-			expectedError: false,                                   // Parsed but would fail column validation
-			description:   "Injection in ORDER BY should be treated as column name",
+			expectedError: true,                                    // Invalid column name is rejected upfront
+			description:   "Injection in ORDER BY should be rejected as invalid column name",
 		},
 	}
 

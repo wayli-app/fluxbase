@@ -90,8 +90,6 @@ FLUXBASE_EMAIL_SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxx
 2. Settings → API Keys → Create API Key (Mail Send permission)
 3. Verify domain: Settings → Sender Authentication → Add DNS records
 
-**Free tier:** 100 emails/day
-
 ---
 
 ### Mailgun
@@ -107,8 +105,6 @@ FLUXBASE_EMAIL_MAILGUN_DOMAIN=mg.yourapp.com
 1. Sign up at [mailgun.com](https://www.mailgun.com)
 2. Add domain: Sending → Domains → Add DNS records
 3. Get API key: Settings → API Keys → Copy Private API key
-
-**Free tier:** 5,000 emails/month
 
 ---
 

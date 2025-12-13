@@ -243,7 +243,7 @@ func TestIsGeometryColumn(t *testing.T) {
 		{"geography type", "geography", true},
 		{"geometry with SRID", "geometry(Point,4326)", true},
 		{"geography with SRID", "geography(Polygon,4326)", true},
-		{"USER-DEFINED (PostGIS)", "USER-DEFINED", true},
+		{"USER-DEFINED (generic)", "USER-DEFINED", false}, // USER-DEFINED alone doesn't indicate geometry
 		{"text type", "text", false},
 		{"integer type", "integer", false},
 		{"jsonb type", "jsonb", false},
