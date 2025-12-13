@@ -25,12 +25,12 @@ All providers support:
 
 **Choose a provider:**
 
-| Provider     | Best For                    | Pricing                 |
-| ------------ | --------------------------- | ----------------------- |
-| **SMTP**     | Development, custom servers | Free                    |
-| **SendGrid** | Production, high volume     | 100 emails/day free     |
-| **Mailgun**  | Production, flexibility     | 5,000 emails/month free |
-| **AWS SES**  | AWS infrastructure          | Pay-as-you-go           |
+| Provider     | Best For                    |
+| ------------ | --------------------------- |
+| **SMTP**     | Development, custom servers |
+| **SendGrid** | Production, high volume     |
+| **Mailgun**  | Production, flexibility     |
+| **AWS SES**  | AWS infrastructure          |
 
 **Configure (environment variables):**
 
@@ -127,8 +127,6 @@ FLUXBASE_EMAIL_SES_REGION=us-east-1
 2. Verify email/domain
 3. Request production access (sandbox mode only sends to verified addresses)
 4. Create IAM user with `AmazonSESFullAccess` policy
-
-**Pricing:** $0.10 per 1,000 emails
 
 ---
 
