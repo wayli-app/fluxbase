@@ -32,6 +32,8 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 		DELETE FROM tasks WHERE user_id IS NOT NULL;
 		-- Clean test auth settings
 		DELETE FROM app.settings WHERE category = 'auth';
+		-- Clean test webhooks (webhook_deliveries and webhook_events cascade)
+		DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%';
 	`)
 
 	// Note: tasks table created by EnsureRLSTestTables with RLS enabled

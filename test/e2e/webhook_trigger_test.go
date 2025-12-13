@@ -285,6 +285,7 @@ func TestWebhookTriggerRetry(t *testing.T) {
 
 	var webhook map[string]interface{}
 	createWebhookResp.JSON(&webhook)
+	webhookID := webhook["id"].(string)
 
 	// Create a new user to trigger webhook
 	tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -317,9 +318,10 @@ func TestWebhookTriggerRetry(t *testing.T) {
 
 	// Verify the event was eventually marked as processed
 	// Wait a bit for the database update to complete (processing is async)
+	// Filter by this specific webhook's ID to avoid picking up events from other tests
 	var processed bool
 	processedSuccess := tc.WaitForCondition(5*time.Second, 200*time.Millisecond, func() bool {
-		results := tc.QuerySQL("SELECT processed FROM auth.webhook_events ORDER BY created_at DESC LIMIT 1")
+		results := tc.QuerySQL("SELECT processed FROM auth.webhook_events WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 1", webhookID)
 		if len(results) == 0 {
 			return false
 		}
