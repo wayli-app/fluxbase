@@ -321,3 +321,53 @@ func (r *SessionRepository) CountByUserID(ctx context.Context, userID string) (i
 	})
 	return count, err
 }
+
+// SessionWithUser represents a session with user info for admin views
+type SessionWithUser struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	UserEmail *string   `json:"user_email,omitempty"`
+}
+
+// ListAll returns all sessions with user info for admin views
+func (r *SessionRepository) ListAll(ctx context.Context, includeExpired bool) ([]SessionWithUser, error) {
+	query := `
+		SELECT s.id, s.user_id, s.expires_at, s.created_at, u.email
+		FROM auth.sessions s
+		LEFT JOIN auth.users u ON s.user_id = u.id
+	`
+	if !includeExpired {
+		query += ` WHERE s.expires_at > NOW()`
+	}
+	query += ` ORDER BY s.created_at DESC`
+
+	sessions := []SessionWithUser{}
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var session SessionWithUser
+			err := rows.Scan(
+				&session.ID,
+				&session.UserID,
+				&session.ExpiresAt,
+				&session.CreatedAt,
+				&session.UserEmail,
+			)
+			if err != nil {
+				return err
+			}
+			sessions = append(sessions, session)
+		}
+
+		return rows.Err()
+	})
+
+	return sessions, err
+}

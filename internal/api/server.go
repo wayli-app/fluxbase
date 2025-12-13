@@ -53,6 +53,7 @@ type Server struct {
 	ddlHandler            *DDLHandler
 	oauthProviderHandler  *OAuthProviderHandler
 	oauthHandler          *OAuthHandler
+	adminSessionHandler   *AdminSessionHandler
 	systemSettingsHandler *SystemSettingsHandler
 	customSettingsHandler *CustomSettingsHandler
 	appSettingsHandler    *AppSettingsHandler
@@ -176,6 +177,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
+	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
@@ -300,6 +302,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		ddlHandler:            ddlHandler,
 		oauthProviderHandler:  oauthProviderHandler,
 		oauthHandler:          oauthHandler,
+		adminSessionHandler:   adminSessionHandler,
 		systemSettingsHandler: systemSettingsHandler,
 		customSettingsHandler: customSettingsHandler,
 		appSettingsHandler:    appSettingsHandler,
@@ -822,6 +825,11 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// Auth settings routes (require admin or dashboard_admin role)
 	router.Get("/auth/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.GetAuthSettings)
 	router.Put("/auth/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.UpdateAuthSettings)
+
+	// Session management routes (require admin or dashboard_admin role)
+	router.Get("/auth/sessions", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.adminSessionHandler.ListSessions)
+	router.Delete("/auth/sessions/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.adminSessionHandler.RevokeSession)
+	router.Delete("/auth/sessions/user/:user_id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.adminSessionHandler.RevokeUserSessions)
 
 	// System settings routes (require admin or dashboard_admin role)
 	router.Get("/system/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.systemSettingsHandler.ListSettings)
