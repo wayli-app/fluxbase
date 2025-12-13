@@ -384,16 +384,11 @@ func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, 
 		issuer = s.totpIssuer
 	}
 
-	// Generate TOTP secret
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      issuer,
-		AccountName: email,
-	})
+	// Generate TOTP secret with QR code as data URI
+	secret, qrCodeDataURI, _, err := GenerateTOTPSecret(issuer, email)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate TOTP key: %w", err)
+		return "", "", fmt.Errorf("failed to generate TOTP secret: %w", err)
 	}
-
-	secret := key.Secret()
 
 	// Store secret (not yet enabled)
 	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
@@ -408,8 +403,8 @@ func (s *DashboardAuthService) SetupTOTP(ctx context.Context, userID uuid.UUID, 
 		return "", "", fmt.Errorf("failed to store TOTP secret: %w", err)
 	}
 
-	// Return secret and QR code URL
-	return secret, key.URL(), nil
+	// Return secret and QR code data URI
+	return secret, qrCodeDataURI, nil
 }
 
 // EnableTOTP enables 2FA after verifying the TOTP code

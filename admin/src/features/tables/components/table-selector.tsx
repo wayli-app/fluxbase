@@ -78,6 +78,15 @@ export function TableSelector({
     },
   ])
 
+  // Edit table state
+  const [showEditTable, setShowEditTable] = useState(false)
+  const [editingTable, setEditingTable] = useState<TableInfo | null>(null)
+  const [newColumnName, setNewColumnName] = useState('')
+  const [newColumnType, setNewColumnType] = useState('text')
+  const [newColumnNullable, setNewColumnNullable] = useState(true)
+  const [newColumnDefault, setNewColumnDefault] = useState('')
+  const [editTableName, setEditTableName] = useState('')
+
   const { data: schemas, isLoading: schemasLoading } = useQuery({
     queryKey: ['schemas'],
     queryFn: databaseApi.getSchemas,
@@ -171,6 +180,80 @@ export function TableSelector({
               ?.data?.error
           : undefined
       toast.error(errorMessage || 'Failed to delete table')
+    },
+  })
+
+  // Rename Table Mutation
+  const renameTableMutation = useMutation({
+    mutationFn: ({ schema, table, newName }: { schema: string; table: string; newName: string }) =>
+      databaseApi.renameTable(schema, table, newName),
+    onSuccess: (data, variables) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
+      // Update selection if this was the selected table
+      if (selectedTable === `${variables.schema}.${variables.table}`) {
+        onTableSelect(`${variables.schema}.${variables.newName}`)
+      }
+      setEditTableName('')
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
+      toast.error(errorMessage || 'Failed to rename table')
+    },
+  })
+
+  // Add Column Mutation
+  const addColumnMutation = useMutation({
+    mutationFn: ({ schema, table, column }: {
+      schema: string
+      table: string
+      column: { name: string; type: string; nullable: boolean; defaultValue?: string }
+    }) => databaseApi.addColumn(schema, table, column),
+    onSuccess: (data, variables) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
+      queryClient.invalidateQueries({ queryKey: ['table-schema', variables.schema, variables.table] })
+      // Reset form
+      setNewColumnName('')
+      setNewColumnType('text')
+      setNewColumnNullable(true)
+      setNewColumnDefault('')
+      // Refresh editing table info
+      if (editingTable) {
+        const updatedTable = tables?.find(t => t.name === editingTable.name && t.schema === editingTable.schema)
+        if (updatedTable) setEditingTable(updatedTable)
+      }
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
+      toast.error(errorMessage || 'Failed to add column')
+    },
+  })
+
+  // Drop Column Mutation
+  const dropColumnMutation = useMutation({
+    mutationFn: ({ schema, table, column }: { schema: string; table: string; column: string }) =>
+      databaseApi.dropColumn(schema, table, column),
+    onSuccess: (data, variables) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['tables', variables.schema] })
+      queryClient.invalidateQueries({ queryKey: ['table-schema', variables.schema, variables.table] })
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error
+          : undefined
+      toast.error(errorMessage || 'Failed to drop column')
     },
   })
 
@@ -279,7 +362,12 @@ export function TableSelector({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation()
-                        toast.info('Table editing UI coming soon')
+                        const tableInfo = tables?.find(t => `${t.schema}.${t.name}` === full)
+                        if (tableInfo) {
+                          setEditingTable(tableInfo)
+                          setEditTableName(tableInfo.name)
+                          setShowEditTable(true)
+                        }
                       }}
                     >
                       <Pencil className='mr-2 h-4 w-4' />
@@ -654,6 +742,204 @@ export function TableSelector({
               className='flex-1'
             >
               {createTableMutation.isPending ? 'Creating...' : 'Create Table'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Edit Table Sheet */}
+      <Sheet open={showEditTable} onOpenChange={setShowEditTable}>
+        <SheetContent className='flex w-full flex-col sm:max-w-lg'>
+          <SheetHeader>
+            <SheetTitle>Edit Table</SheetTitle>
+            <SheetDescription>
+              Modify table structure for {editingTable?.schema}.{editingTable?.name}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className='flex-1 space-y-6 overflow-y-auto py-4'>
+            {/* Rename Table */}
+            <div className='space-y-4'>
+              <div>
+                <Label className='text-base'>Rename Table</Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Change the table name
+                </p>
+              </div>
+              <div className='flex gap-2'>
+                <Input
+                  placeholder='New table name'
+                  value={editTableName}
+                  onChange={(e) => setEditTableName(e.target.value)}
+                  className='flex-1'
+                />
+                <Button
+                  variant='outline'
+                  disabled={
+                    !editTableName.trim() ||
+                    editTableName === editingTable?.name ||
+                    renameTableMutation.isPending
+                  }
+                  onClick={() => {
+                    if (editingTable && editTableName.trim()) {
+                      renameTableMutation.mutate({
+                        schema: editingTable.schema,
+                        table: editingTable.name,
+                        newName: editTableName.trim(),
+                      })
+                    }
+                  }}
+                >
+                  {renameTableMutation.isPending ? 'Renaming...' : 'Rename'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Current Columns */}
+            <div className='space-y-4'>
+              <div>
+                <Label className='text-base'>Columns</Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Current table columns
+                </p>
+              </div>
+              <div className='space-y-2'>
+                {editingTable?.columns?.map((col) => (
+                  <div
+                    key={col.name}
+                    className='flex items-center justify-between rounded-md border p-3'
+                  >
+                    <div>
+                      <div className='font-medium'>{col.name}</div>
+                      <div className='text-muted-foreground text-xs'>
+                        {col.data_type}
+                        {col.is_primary_key && ' • Primary Key'}
+                        {!col.is_nullable && ' • NOT NULL'}
+                      </div>
+                    </div>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='text-destructive hover:text-destructive'
+                      disabled={col.is_primary_key || dropColumnMutation.isPending}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Are you sure you want to drop column "${col.name}"? This will delete all data in this column.`
+                          )
+                        ) {
+                          dropColumnMutation.mutate({
+                            schema: editingTable.schema,
+                            table: editingTable.name,
+                            column: col.name,
+                          })
+                        }
+                      }}
+                      title={col.is_primary_key ? 'Cannot drop primary key' : 'Drop column'}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Add New Column */}
+            <div className='space-y-4'>
+              <div>
+                <Label className='text-base'>Add Column</Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Add a new column to the table
+                </p>
+              </div>
+              <div className='bg-muted/30 space-y-4 rounded-lg border p-4'>
+                <div className='space-y-2'>
+                  <Label>Column Name</Label>
+                  <Input
+                    placeholder='e.g., email, created_at'
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <Label>Data Type</Label>
+                  <Select value={newColumnType} onValueChange={setNewColumnType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='text'>text</SelectItem>
+                      <SelectItem value='varchar'>varchar</SelectItem>
+                      <SelectItem value='integer'>integer</SelectItem>
+                      <SelectItem value='bigint'>bigint</SelectItem>
+                      <SelectItem value='uuid'>uuid</SelectItem>
+                      <SelectItem value='boolean'>boolean</SelectItem>
+                      <SelectItem value='timestamp'>timestamp</SelectItem>
+                      <SelectItem value='timestamptz'>timestamptz</SelectItem>
+                      <SelectItem value='date'>date</SelectItem>
+                      <SelectItem value='jsonb'>jsonb</SelectItem>
+                      <SelectItem value='numeric'>numeric</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label>Default Value (optional)</Label>
+                  <Input
+                    placeholder='e.g., now(), 0'
+                    value={newColumnDefault}
+                    onChange={(e) => setNewColumnDefault(e.target.value)}
+                  />
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Checkbox
+                    id='new-column-nullable'
+                    checked={newColumnNullable}
+                    onCheckedChange={(checked) => setNewColumnNullable(checked === true)}
+                  />
+                  <Label htmlFor='new-column-nullable' className='cursor-pointer text-sm font-normal'>
+                    Nullable
+                  </Label>
+                </div>
+                <Button
+                  className='w-full'
+                  disabled={!newColumnName.trim() || addColumnMutation.isPending}
+                  onClick={() => {
+                    if (editingTable && newColumnName.trim()) {
+                      addColumnMutation.mutate({
+                        schema: editingTable.schema,
+                        table: editingTable.name,
+                        column: {
+                          name: newColumnName.trim(),
+                          type: newColumnType,
+                          nullable: newColumnNullable,
+                          defaultValue: newColumnDefault || undefined,
+                        },
+                      })
+                    }
+                  }}
+                >
+                  <Plus className='mr-2 h-4 w-4' />
+                  {addColumnMutation.isPending ? 'Adding...' : 'Add Column'}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter className='border-t pt-4'>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowEditTable(false)
+                setEditingTable(null)
+                setNewColumnName('')
+                setNewColumnType('text')
+                setNewColumnNullable(true)
+                setNewColumnDefault('')
+                setEditTableName('')
+              }}
+              className='w-full'
+            >
+              Close
             </Button>
           </SheetFooter>
         </SheetContent>

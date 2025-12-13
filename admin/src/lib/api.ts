@@ -425,6 +425,38 @@ export const databaseApi = {
     return response.data
   },
 
+  renameTable: async (
+    schema: string,
+    table: string,
+    newName: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.patch(`/api/v1/admin/tables/${schema}/${table}`, { newName })
+    return response.data
+  },
+
+  addColumn: async (
+    schema: string,
+    table: string,
+    column: {
+      name: string
+      type: string
+      nullable: boolean
+      defaultValue?: string
+    }
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/api/v1/admin/tables/${schema}/${table}/columns`, column)
+    return response.data
+  },
+
+  dropColumn: async (
+    schema: string,
+    table: string,
+    column: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/api/v1/admin/tables/${schema}/${table}/columns/${column}`)
+    return response.data
+  },
+
   getTableData: async <T = unknown>(
     table: string,
     params?: {

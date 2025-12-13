@@ -168,17 +168,23 @@ func (h *DashboardAuthHandler) VerifyTOTP(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "Invalid 2FA code")
 	}
 
-	// Generate token after successful 2FA
+	// Get user after successful 2FA
 	user, err := h.authService.GetUserByID(c.Context(), userID)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch user")
 	}
 
-	// Generate JWT token - need to get secret from config
-	// For now, return success
+	// Generate JWT tokens
+	accessToken, refreshToken, _, err := h.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", nil, nil)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to generate tokens")
+	}
+
 	return c.JSON(fiber.Map{
-		"message": "2FA verified successfully",
-		"user":    user,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"expires_in":    86400, // 24 hours
+		"user":          user,
 	})
 }
 

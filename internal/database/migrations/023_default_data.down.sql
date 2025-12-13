@@ -1,2 +1,0 @@
--- No default data to remove
--- Default data cleanup is handled in respective table down migrations

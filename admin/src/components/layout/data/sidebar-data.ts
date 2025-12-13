@@ -13,13 +13,13 @@ import {
   Shield,
   Webhook,
   Activity,
-  Server,
   Code,
   Mail,
   ShieldCheck,
   ListTodo,
   Bot,
   Terminal,
+  HardDrive,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -108,6 +108,36 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
+      title: 'Configuration',
+      items: [
+        {
+          title: 'Features',
+          url: '/features',
+          icon: Zap,
+        },
+        {
+          title: 'Database',
+          url: '/database-config',
+          icon: Database,
+        },
+        {
+          title: 'Email',
+          url: '/email-settings',
+          icon: Mail,
+        },
+        {
+          title: 'Storage',
+          url: '/storage-config',
+          icon: HardDrive,
+        },
+        {
+          title: 'AI Providers',
+          url: '/ai-providers',
+          icon: Bot,
+        },
+      ],
+    },
+    {
       title: 'Security',
       items: [
         {
@@ -129,21 +159,6 @@ export const sidebarData: SidebarData = {
           title: 'Webhooks',
           url: '/webhooks',
           icon: Webhook,
-        },
-      ],
-    },
-    {
-      title: 'Configuration',
-      items: [
-        {
-          title: 'System Settings',
-          url: '/system-settings',
-          icon: Server,
-        },
-        {
-          title: 'Email Settings',
-          url: '/email-settings',
-          icon: Mail,
         },
       ],
     },

@@ -53,7 +53,7 @@ try {
     globalName: '_FluxbaseSDK',
     platform: 'neutral', // Neutral platform for Deno compatibility
     target: 'es2020',
-    minify: false, // Keep readable for debugging
+    minify: true, // Minify for smaller binary size
     write: false,
     // Externalize node builtins and cross-fetch (Deno has native fetch)
     external: [

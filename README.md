@@ -374,6 +374,7 @@ MIT License - see LICENSE file for details.
 | Size           | ~80MB                   | 2+ GB                          |
 | REST API       | ✅ PostgREST-compatible | ✅ PostgREST                   |
 | Authentication | ✅ Built-in             | ✅ GoTrue                      |
+| Chatbots       | ✅ Built-in             | ❌                             |
 | Realtime       | ✅ Built-in             | ✅ Realtime                    |
 | Storage        | ✅ Built-in             | ✅ Storage API                 |
 | Edge Functions | ✅ Deno                 | ✅ Deno                        |
@@ -413,7 +414,3 @@ For issues, questions, and discussions:
 
 - GitHub Issues: [github.com/fluxbase-eu/fluxbase/issues](https://github.com/fluxbase-eu/fluxbase/issues)
 - Documentation: [docs.fluxbase.eu](https://docs.fluxbase.eu)
-
-## Acknowledgments
-
-Inspired by [Supabase](https://supabase.com) and [PostgREST](https://postgrest.org).

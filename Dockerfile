@@ -87,12 +87,10 @@ LABEL maintainer="Fluxbase Team" \
       commit="${COMMIT}" \
       build-date="${BUILD_DATE}"
 
-# Install runtime dependencies
+# Install minimal runtime dependencies
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
-    curl \
-    postgresql-client \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user
@@ -101,11 +99,8 @@ RUN addgroup -g 1000 -S fluxbase && \
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=go-builder /build/fluxbase /app/fluxbase
-
-# Copy migrations (embedded in binary but also available as files)
-COPY --from=go-builder /build/internal/database/migrations /app/migrations
+# Copy binary to PATH
+COPY --from=go-builder /build/fluxbase /usr/local/bin/fluxbase
 
 # Create necessary directories
 RUN mkdir -p /app/storage /app/config /app/data /app/logs && \
@@ -117,9 +112,9 @@ USER fluxbase
 # Expose HTTP port
 EXPOSE 8080
 
-# Health check using the /health endpoint
+# Health check using wget (included in alpine by default)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD wget -q --spider http://localhost:8080/health || exit 1
 
 # Environment variables with production defaults
 ENV FLUXBASE_SERVER_ADDRESS=:8080 \
@@ -132,4 +127,4 @@ ENV FLUXBASE_SERVER_ADDRESS=:8080 \
 VOLUME ["/app/storage", "/app/config", "/app/logs"]
 
 # Run the application
-ENTRYPOINT ["/app/fluxbase"]
+ENTRYPOINT ["fluxbase"]

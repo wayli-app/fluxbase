@@ -150,16 +150,6 @@ fluxbase admin create-user \
 fluxbase admin reset-password --email admin@example.com
 ```
 
-### Backing Up Admin Data
-
-Admin data is stored in your PostgreSQL database:
-
-```bash
-# Backup admin tables
-pg_dump -t 'dashboard_auth.*' \
-  $DATABASE_URL > admin_backup.sql
-```
-
 ## Guides
 
 Explore detailed guides for specific admin features:

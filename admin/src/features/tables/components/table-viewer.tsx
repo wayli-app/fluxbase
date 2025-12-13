@@ -17,7 +17,7 @@ import {
   useDelete,
   useFluxbaseClient,
 } from '@fluxbase/sdk-react'
-import { Plus, Trash2, ShieldAlert } from 'lucide-react'
+import { Plus, Trash2, ShieldAlert, Rows3, Rows4 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { syncAuthToken } from '@/lib/fluxbase-client'
@@ -35,6 +35,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  type TableDensity,
 } from '@/components/ui/table'
 import {
   DataTablePagination,
@@ -61,6 +62,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     unknown
   > | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [density, setDensity] = useState<TableDensity>('compact')
 
   // Impersonation state for access denied message
   const {
@@ -114,7 +116,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: 10 },
+    pagination: { defaultPage: 1, defaultPageSize: 25 },
     globalFilter: { enabled: true, key: 'filter' },
   })
 
@@ -449,6 +451,14 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                 {selectedCount === 1 ? 'record' : 'records'}
               </Button>
             )}
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={() => setDensity(d => d === 'compact' ? 'normal' : 'compact')}
+              title={density === 'compact' ? 'Switch to normal density' : 'Switch to compact density'}
+            >
+              {density === 'compact' ? <Rows4 className='size-4' /> : <Rows3 className='size-4' />}
+            </Button>
             <Button onClick={() => setIsCreating(true)}>
               <Plus className='mr-2 size-4' />
               Add Record
@@ -457,7 +467,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
         </div>
 
         <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-          <Table>
+          <Table density={density}>
             {hasColumns && (
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (

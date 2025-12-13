@@ -277,6 +277,251 @@ func (h *DDLHandler) DeleteTable(c *fiber.Ctx) error {
 	})
 }
 
+// AddColumnRequest represents a request to add a column to a table
+type AddColumnRequest struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Nullable     bool   `json:"nullable"`
+	DefaultValue string `json:"defaultValue,omitempty"`
+}
+
+// AddColumn adds a new column to an existing table
+func (h *DDLHandler) AddColumn(c *fiber.Ctx) error {
+	schema := c.Params("schema")
+	table := c.Params("table")
+
+	// Validate identifiers
+	if err := validateIdentifier(schema, "schema"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := validateIdentifier(table, "table"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var req AddColumnRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// Validate column name
+	if err := validateIdentifier(req.Name, "column"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Validate data type
+	dataType := strings.ToLower(strings.TrimSpace(req.Type))
+	if !validDataTypes[dataType] {
+		return c.Status(400).JSON(fiber.Map{
+			"error": fmt.Sprintf("Invalid data type '%s'", req.Type),
+		})
+	}
+
+	ctx := c.Context()
+
+	// Check if table exists
+	exists, err := h.tableExists(ctx, schema, table)
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+	}
+	if !exists {
+		return c.Status(404).JSON(fiber.Map{
+			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
+		})
+	}
+
+	// Check if column already exists
+	colExists, err := h.columnExists(ctx, schema, table, req.Name)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check column existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check column existence"})
+	}
+	if colExists {
+		return c.Status(409).JSON(fiber.Map{
+			"error": fmt.Sprintf("Column '%s' already exists in table '%s.%s'", req.Name, schema, table),
+		})
+	}
+
+	// Build ALTER TABLE ADD COLUMN statement
+	colDef := fmt.Sprintf("%s %s", quoteIdentifier(req.Name), dataType)
+	if !req.Nullable {
+		colDef += " NOT NULL"
+	}
+	if req.DefaultValue != "" {
+		defaultVal := strings.TrimSpace(req.DefaultValue)
+		if defaultVal == "gen_random_uuid()" || defaultVal == "now()" || defaultVal == "current_timestamp" {
+			colDef += fmt.Sprintf(" DEFAULT %s", defaultVal)
+		} else {
+			colDef += fmt.Sprintf(" DEFAULT %s", escapeLiteral(defaultVal))
+		}
+	}
+
+	query := fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s",
+		quoteIdentifier(schema), quoteIdentifier(table), colDef)
+
+	log.Info().Str("table", schema+"."+table).Str("column", req.Name).Str("query", query).Msg("Adding column")
+
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Str("column", req.Name).Msg("Failed to add column")
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to add column: %v", err),
+		})
+	}
+
+	log.Info().Str("table", schema+"."+table).Str("column", req.Name).Msg("Column added successfully")
+	return c.Status(201).JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Column '%s' added to table '%s.%s'", req.Name, schema, table),
+	})
+}
+
+// DropColumn removes a column from a table
+func (h *DDLHandler) DropColumn(c *fiber.Ctx) error {
+	schema := c.Params("schema")
+	table := c.Params("table")
+	column := c.Params("column")
+
+	// Validate identifiers
+	if err := validateIdentifier(schema, "schema"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := validateIdentifier(table, "table"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := validateIdentifier(column, "column"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	ctx := c.Context()
+
+	// Check if table exists
+	exists, err := h.tableExists(ctx, schema, table)
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+	}
+	if !exists {
+		return c.Status(404).JSON(fiber.Map{
+			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
+		})
+	}
+
+	// Check if column exists
+	colExists, err := h.columnExists(ctx, schema, table, column)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check column existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check column existence"})
+	}
+	if !colExists {
+		return c.Status(404).JSON(fiber.Map{
+			"error": fmt.Sprintf("Column '%s' does not exist in table '%s.%s'", column, schema, table),
+		})
+	}
+
+	query := fmt.Sprintf("ALTER TABLE %s.%s DROP COLUMN %s",
+		quoteIdentifier(schema), quoteIdentifier(table), quoteIdentifier(column))
+
+	log.Info().Str("table", schema+"."+table).Str("column", column).Str("query", query).Msg("Dropping column")
+
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Str("column", column).Msg("Failed to drop column")
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to drop column: %v", err),
+		})
+	}
+
+	log.Info().Str("table", schema+"."+table).Str("column", column).Msg("Column dropped successfully")
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Column '%s' dropped from table '%s.%s'", column, schema, table),
+	})
+}
+
+// RenameTableRequest represents a request to rename a table
+type RenameTableRequest struct {
+	NewName string `json:"newName"`
+}
+
+// RenameTable renames a table
+func (h *DDLHandler) RenameTable(c *fiber.Ctx) error {
+	schema := c.Params("schema")
+	table := c.Params("table")
+
+	// Validate identifiers
+	if err := validateIdentifier(schema, "schema"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := validateIdentifier(table, "table"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var req RenameTableRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	// Validate new table name
+	if err := validateIdentifier(req.NewName, "table"); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	ctx := c.Context()
+
+	// Check if source table exists
+	exists, err := h.tableExists(ctx, schema, table)
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+	}
+	if !exists {
+		return c.Status(404).JSON(fiber.Map{
+			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
+		})
+	}
+
+	// Check if target table name already exists
+	targetExists, err := h.tableExists(ctx, schema, req.NewName)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to check target table existence")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to check target table existence"})
+	}
+	if targetExists {
+		return c.Status(409).JSON(fiber.Map{
+			"error": fmt.Sprintf("Table '%s.%s' already exists", schema, req.NewName),
+		})
+	}
+
+	query := fmt.Sprintf("ALTER TABLE %s.%s RENAME TO %s",
+		quoteIdentifier(schema), quoteIdentifier(table), quoteIdentifier(req.NewName))
+
+	log.Info().Str("table", schema+"."+table).Str("newName", req.NewName).Str("query", query).Msg("Renaming table")
+
+	err = h.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, query)
+		return execErr
+	})
+	if err != nil {
+		log.Error().Err(err).Str("table", schema+"."+table).Str("newName", req.NewName).Msg("Failed to rename table")
+		return c.Status(500).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to rename table: %v", err),
+		})
+	}
+
+	log.Info().Str("table", schema+"."+table).Str("newName", req.NewName).Msg("Table renamed successfully")
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Table '%s.%s' renamed to '%s.%s'", schema, table, schema, req.NewName),
+	})
+}
+
 // Helper functions
 
 // validateIdentifier validates a PostgreSQL identifier (schema/table/column name)
@@ -314,6 +559,14 @@ func (h *DDLHandler) tableExists(ctx context.Context, schema, table string) (boo
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2)`
 	err := h.db.Pool().QueryRow(ctx, query, schema, table).Scan(&exists)
+	return exists, err
+}
+
+// columnExists checks if a column exists in a table
+func (h *DDLHandler) columnExists(ctx context.Context, schema, table, column string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3)`
+	err := h.db.Pool().QueryRow(ctx, query, schema, table, column).Scan(&exists)
 	return exists, err
 }
 

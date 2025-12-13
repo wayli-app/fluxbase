@@ -10,9 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SetupRouteImport } from './routes/setup'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as LoginOtpRouteImport } from './routes/login/otp'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -27,8 +28,8 @@ import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-p
 import { Route as AuthenticatedWebhooksIndexRouteImport } from './routes/_authenticated/webhooks/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTablesIndexRouteImport } from './routes/_authenticated/tables/index'
-import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedStorageIndexRouteImport } from './routes/_authenticated/storage/index'
+import { Route as AuthenticatedStorageConfigIndexRouteImport } from './routes/_authenticated/storage-config/index'
 import { Route as AuthenticatedSqlEditorIndexRouteImport } from './routes/_authenticated/sql-editor/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes/_authenticated/security-settings/index'
@@ -37,10 +38,13 @@ import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
 import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
+import { Route as AuthenticatedFeaturesIndexRouteImport } from './routes/_authenticated/features/index'
 import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_authenticated/email-settings/index'
+import { Route as AuthenticatedDatabaseConfigIndexRouteImport } from './routes/_authenticated/database-config/index'
 import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
 import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys/index'
+import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_authenticated/ai-providers/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedApiRestRouteImport } from './routes/_authenticated/api/rest'
@@ -50,19 +54,24 @@ const SetupRoute = SetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginIndexRoute = LoginIndexRouteImport.update({
+  id: '/login/',
+  path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const LoginOtpRoute = LoginOtpRouteImport.update({
+  id: '/login/otp',
+  path: '/login/otp',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const errors503Route = errors503RouteImport.update({
   id: '/(errors)/503',
@@ -136,16 +145,16 @@ const AuthenticatedTablesIndexRoute =
     path: '/tables/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedSystemSettingsIndexRoute =
-  AuthenticatedSystemSettingsIndexRouteImport.update({
-    id: '/system-settings/',
-    path: '/system-settings/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedStorageIndexRoute =
   AuthenticatedStorageIndexRouteImport.update({
     id: '/storage/',
     path: '/storage/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedStorageConfigIndexRoute =
+  AuthenticatedStorageConfigIndexRouteImport.update({
+    id: '/storage-config/',
+    path: '/storage-config/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSqlEditorIndexRoute =
@@ -194,10 +203,22 @@ const AuthenticatedFunctionsIndexRoute =
     path: '/functions/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFeaturesIndexRoute =
+  AuthenticatedFeaturesIndexRouteImport.update({
+    id: '/features/',
+    path: '/features/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedEmailSettingsIndexRoute =
   AuthenticatedEmailSettingsIndexRouteImport.update({
     id: '/email-settings/',
     path: '/email-settings/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDatabaseConfigIndexRoute =
+  AuthenticatedDatabaseConfigIndexRouteImport.update({
+    id: '/database-config/',
+    path: '/database-config/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedChatbotsIndexRoute =
@@ -216,6 +237,12 @@ const AuthenticatedApiKeysIndexRoute =
   AuthenticatedApiKeysIndexRouteImport.update({
     id: '/api-keys/',
     path: '/api-keys/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAiProvidersIndexRoute =
+  AuthenticatedAiProvidersIndexRouteImport.update({
+    id: '/ai-providers/',
+    path: '/ai-providers/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSettingsAppearanceRoute =
@@ -237,7 +264,6 @@ const AuthenticatedApiRestRoute = AuthenticatedApiRestRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/otp': typeof authOtpRoute
@@ -250,14 +276,19 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/login/otp': typeof LoginOtpRoute
   '/': typeof AuthenticatedIndexRoute
+  '/login': typeof LoginIndexRoute
   '/api/rest': typeof AuthenticatedApiRestRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
+  '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
+  '/features': typeof AuthenticatedFeaturesIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -266,14 +297,13 @@ export interface FileRoutesByFullPath {
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
+  '/storage-config': typeof AuthenticatedStorageConfigIndexRoute
   '/storage': typeof AuthenticatedStorageIndexRoute
-  '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/tables': typeof AuthenticatedTablesIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/webhooks': typeof AuthenticatedWebhooksIndexRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/otp': typeof authOtpRoute
@@ -286,14 +316,19 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/login/otp': typeof LoginOtpRoute
   '/': typeof AuthenticatedIndexRoute
+  '/login': typeof LoginIndexRoute
   '/api/rest': typeof AuthenticatedApiRestRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
   '/api-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
+  '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
+  '/features': typeof AuthenticatedFeaturesIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
@@ -302,8 +337,8 @@ export interface FileRoutesByTo {
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
+  '/storage-config': typeof AuthenticatedStorageConfigIndexRoute
   '/storage': typeof AuthenticatedStorageIndexRoute
-  '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/tables': typeof AuthenticatedTablesIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/webhooks': typeof AuthenticatedWebhooksIndexRoute
@@ -311,7 +346,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/otp': typeof authOtpRoute
@@ -324,14 +358,19 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/login/otp': typeof LoginOtpRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/login/': typeof LoginIndexRoute
   '/_authenticated/api/rest': typeof AuthenticatedApiRestRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
   '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
+  '/_authenticated/database-config/': typeof AuthenticatedDatabaseConfigIndexRoute
   '/_authenticated/email-settings/': typeof AuthenticatedEmailSettingsIndexRoute
+  '/_authenticated/features/': typeof AuthenticatedFeaturesIndexRoute
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
   '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
@@ -340,8 +379,8 @@ export interface FileRoutesById {
   '/_authenticated/security-settings/': typeof AuthenticatedSecuritySettingsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/sql-editor/': typeof AuthenticatedSqlEditorIndexRoute
+  '/_authenticated/storage-config/': typeof AuthenticatedStorageConfigIndexRoute
   '/_authenticated/storage/': typeof AuthenticatedStorageIndexRoute
-  '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/tables/': typeof AuthenticatedTablesIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/webhooks/': typeof AuthenticatedWebhooksIndexRoute
@@ -349,7 +388,6 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/login'
     | '/setup'
     | '/forgot-password'
     | '/otp'
@@ -362,14 +400,19 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/login/otp'
     | '/'
+    | '/login'
     | '/api/rest'
     | '/errors/$error'
     | '/settings/appearance'
+    | '/ai-providers'
     | '/api-keys'
     | '/authentication'
     | '/chatbots'
+    | '/database-config'
     | '/email-settings'
+    | '/features'
     | '/functions'
     | '/jobs'
     | '/monitoring'
@@ -378,14 +421,13 @@ export interface FileRouteTypes {
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
+    | '/storage-config'
     | '/storage'
-    | '/system-settings'
     | '/tables'
     | '/users'
     | '/webhooks'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
     | '/setup'
     | '/forgot-password'
     | '/otp'
@@ -398,14 +440,19 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/login/otp'
     | '/'
+    | '/login'
     | '/api/rest'
     | '/errors/$error'
     | '/settings/appearance'
+    | '/ai-providers'
     | '/api-keys'
     | '/authentication'
     | '/chatbots'
+    | '/database-config'
     | '/email-settings'
+    | '/features'
     | '/functions'
     | '/jobs'
     | '/monitoring'
@@ -414,15 +461,14 @@ export interface FileRouteTypes {
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
+    | '/storage-config'
     | '/storage'
-    | '/system-settings'
     | '/tables'
     | '/users'
     | '/webhooks'
   id:
     | '__root__'
     | '/_authenticated'
-    | '/login'
     | '/setup'
     | '/(auth)/forgot-password'
     | '/(auth)/otp'
@@ -435,14 +481,19 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/login/otp'
     | '/_authenticated/'
+    | '/login/'
     | '/_authenticated/api/rest'
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/appearance'
+    | '/_authenticated/ai-providers/'
     | '/_authenticated/api-keys/'
     | '/_authenticated/authentication/'
     | '/_authenticated/chatbots/'
+    | '/_authenticated/database-config/'
     | '/_authenticated/email-settings/'
+    | '/_authenticated/features/'
     | '/_authenticated/functions/'
     | '/_authenticated/jobs/'
     | '/_authenticated/monitoring/'
@@ -451,8 +502,8 @@ export interface FileRouteTypes {
     | '/_authenticated/security-settings/'
     | '/_authenticated/settings/'
     | '/_authenticated/sql-editor/'
+    | '/_authenticated/storage-config/'
     | '/_authenticated/storage/'
-    | '/_authenticated/system-settings/'
     | '/_authenticated/tables/'
     | '/_authenticated/users/'
     | '/_authenticated/webhooks/'
@@ -460,7 +511,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authOtpRoute: typeof authOtpRoute
@@ -473,6 +523,8 @@ export interface RootRouteChildren {
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
+  LoginOtpRoute: typeof LoginOtpRoute
+  LoginIndexRoute: typeof LoginIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -484,18 +536,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: ''
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login/': {
+      id: '/login/'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -504,6 +556,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/login/otp': {
+      id: '/login/otp'
+      path: '/login/otp'
+      fullPath: '/login/otp'
+      preLoaderRoute: typeof LoginOtpRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/(errors)/503': {
       id: '/(errors)/503'
@@ -603,18 +662,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTablesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/system-settings/': {
-      id: '/_authenticated/system-settings/'
-      path: '/system-settings'
-      fullPath: '/system-settings'
-      preLoaderRoute: typeof AuthenticatedSystemSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/storage/': {
       id: '/_authenticated/storage/'
       path: '/storage'
       fullPath: '/storage'
       preLoaderRoute: typeof AuthenticatedStorageIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/storage-config/': {
+      id: '/_authenticated/storage-config/'
+      path: '/storage-config'
+      fullPath: '/storage-config'
+      preLoaderRoute: typeof AuthenticatedStorageConfigIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/sql-editor/': {
@@ -673,11 +732,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFunctionsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/features/': {
+      id: '/_authenticated/features/'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof AuthenticatedFeaturesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/email-settings/': {
       id: '/_authenticated/email-settings/'
       path: '/email-settings'
       fullPath: '/email-settings'
       preLoaderRoute: typeof AuthenticatedEmailSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/database-config/': {
+      id: '/_authenticated/database-config/'
+      path: '/database-config'
+      fullPath: '/database-config'
+      preLoaderRoute: typeof AuthenticatedDatabaseConfigIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/chatbots/': {
@@ -699,6 +772,13 @@ declare module '@tanstack/react-router' {
       path: '/api-keys'
       fullPath: '/api-keys'
       preLoaderRoute: typeof AuthenticatedApiKeysIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ai-providers/': {
+      id: '/_authenticated/ai-providers/'
+      path: '/ai-providers'
+      fullPath: '/ai-providers'
+      preLoaderRoute: typeof AuthenticatedAiProvidersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings/appearance': {
@@ -730,10 +810,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApiRestRoute: typeof AuthenticatedApiRestRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedAiProvidersIndexRoute: typeof AuthenticatedAiProvidersIndexRoute
   AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
   AuthenticatedChatbotsIndexRoute: typeof AuthenticatedChatbotsIndexRoute
+  AuthenticatedDatabaseConfigIndexRoute: typeof AuthenticatedDatabaseConfigIndexRoute
   AuthenticatedEmailSettingsIndexRoute: typeof AuthenticatedEmailSettingsIndexRoute
+  AuthenticatedFeaturesIndexRoute: typeof AuthenticatedFeaturesIndexRoute
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
@@ -742,8 +825,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSecuritySettingsIndexRoute: typeof AuthenticatedSecuritySettingsIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSqlEditorIndexRoute: typeof AuthenticatedSqlEditorIndexRoute
+  AuthenticatedStorageConfigIndexRoute: typeof AuthenticatedStorageConfigIndexRoute
   AuthenticatedStorageIndexRoute: typeof AuthenticatedStorageIndexRoute
-  AuthenticatedSystemSettingsIndexRoute: typeof AuthenticatedSystemSettingsIndexRoute
   AuthenticatedTablesIndexRoute: typeof AuthenticatedTablesIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWebhooksIndexRoute: typeof AuthenticatedWebhooksIndexRoute
@@ -754,10 +837,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApiRestRoute: AuthenticatedApiRestRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+  AuthenticatedAiProvidersIndexRoute: AuthenticatedAiProvidersIndexRoute,
   AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
   AuthenticatedChatbotsIndexRoute: AuthenticatedChatbotsIndexRoute,
+  AuthenticatedDatabaseConfigIndexRoute: AuthenticatedDatabaseConfigIndexRoute,
   AuthenticatedEmailSettingsIndexRoute: AuthenticatedEmailSettingsIndexRoute,
+  AuthenticatedFeaturesIndexRoute: AuthenticatedFeaturesIndexRoute,
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
@@ -767,8 +853,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedSecuritySettingsIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSqlEditorIndexRoute: AuthenticatedSqlEditorIndexRoute,
+  AuthenticatedStorageConfigIndexRoute: AuthenticatedStorageConfigIndexRoute,
   AuthenticatedStorageIndexRoute: AuthenticatedStorageIndexRoute,
-  AuthenticatedSystemSettingsIndexRoute: AuthenticatedSystemSettingsIndexRoute,
   AuthenticatedTablesIndexRoute: AuthenticatedTablesIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWebhooksIndexRoute: AuthenticatedWebhooksIndexRoute,
@@ -779,7 +865,6 @@ const AuthenticatedRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
   authForgotPasswordRoute: authForgotPasswordRoute,
   authOtpRoute: authOtpRoute,
@@ -792,6 +877,8 @@ const rootRouteChildren: RootRouteChildren = {
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,
+  LoginOtpRoute: LoginOtpRoute,
+  LoginIndexRoute: LoginIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

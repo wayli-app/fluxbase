@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Mail, FileText, Send, RotateCcw, Loader2, AlertCircle } from 'lucide-react'
+import { Mail, FileText, Send, RotateCcw, Loader2, AlertCircle, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { useState } from 'react'
@@ -291,6 +291,45 @@ function EmailSettingsPage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5" />
+                SMTP Settings
+              </CardTitle>
+              <CardDescription>
+                Current SMTP configuration (read-only, configured via environment variables)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>SMTP Host</Label>
+                  <Input value="mailhog" disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>SMTP Port</Label>
+                  <Input value="1025" disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <Input value="(none)" disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>From Email</Label>
+                  <Input value="noreply@fluxbase.eu" disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>From Name</Label>
+                  <Input value="Fluxbase" disabled />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Configure via: SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, SMTP_FROM_NAME
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

@@ -91,6 +91,17 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		Prefork:               false,
 	})
 
+	// In debug mode, add no-cache headers to prevent browser from caching
+	// connection failures during server restarts
+	if cfg.Debug {
+		app.Use(func(c *fiber.Ctx) error {
+			c.Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+			c.Set("Pragma", "no-cache")
+			c.Set("Expires", "0")
+			return c.Next()
+		})
+	}
+
 	// Initialize OpenTelemetry tracer
 	tracerCfg := observability.TracerConfig{
 		Enabled:     cfg.Tracing.Enabled,
@@ -797,6 +808,9 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateSchema)
 	router.Post("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateTable)
 	router.Delete("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DeleteTable)
+	router.Patch("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.RenameTable)
+	router.Post("/tables/:schema/:table/columns", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.AddColumn)
+	router.Delete("/tables/:schema/:table/columns/:column", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DropColumn)
 
 	// OAuth provider management routes (require admin or dashboard_admin role)
 	router.Get("/oauth/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.ListOAuthProviders)

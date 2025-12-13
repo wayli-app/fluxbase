@@ -1,15 +1,26 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+type TableDensity = 'compact' | 'normal'
+
+interface TableProps extends React.ComponentProps<'table'> {
+  density?: TableDensity
+}
+
+function Table({ className, density = 'normal', ...props }: TableProps) {
   return (
     <div
       data-slot='table-container'
+      data-density={density}
       className='relative w-full overflow-x-auto'
     >
       <table
         data-slot='table'
-        className={cn('w-full caption-bottom text-sm', className)}
+        className={cn(
+          'w-full caption-bottom',
+          density === 'compact' ? 'text-xs' : 'text-sm',
+          className
+        )}
         {...props}
       />
     </div>
@@ -67,7 +78,11 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot='table-head'
       className={cn(
-        'text-foreground h-8 px-2 text-start align-middle font-medium whitespace-nowrap [&>[role=checkbox]]:translate-y-[2px]',
+        'text-foreground text-start align-middle font-medium whitespace-nowrap [&>[role=checkbox]]:translate-y-[2px]',
+        // Normal density (default)
+        'h-8 px-2',
+        // Compact density overrides
+        '[[data-density=compact]_&]:h-6 [[data-density=compact]_&]:px-1.5',
         className
       )}
       {...props}
@@ -80,7 +95,11 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot='table-cell'
       className={cn(
-        'px-2 py-1.5 align-middle whitespace-nowrap [&>[role=checkbox]]:translate-y-[2px]',
+        'align-middle whitespace-nowrap [&>[role=checkbox]]:translate-y-[2px]',
+        // Normal density (default)
+        'px-2 py-1.5',
+        // Compact density overrides
+        '[[data-density=compact]_&]:px-1.5 [[data-density=compact]_&]:py-0.5',
         className
       )}
       {...props}
@@ -111,3 +130,5 @@ export {
   TableCell,
   TableCaption,
 }
+
+export type { TableDensity }

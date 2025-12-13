@@ -12,7 +12,7 @@ export const Route = createRootRouteWithContext<{
 }>()({
   beforeLoad: async ({ location }) => {
     // Skip setup check for auth pages
-    if (location.pathname === '/setup' || location.pathname === '/login' || location.pathname === '/sign-up' || location.pathname === '/sign-in') {
+    if (location.pathname === '/setup' || location.pathname.startsWith('/login') || location.pathname === '/sign-up' || location.pathname === '/sign-in') {
       return
     }
   },

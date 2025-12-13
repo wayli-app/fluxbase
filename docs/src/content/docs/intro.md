@@ -102,7 +102,7 @@ WebSocket-based AI chatbot integration:
 
 | Feature             | Fluxbase              | Supabase                 | Firebase           |
 | ------------------- | --------------------- | ------------------------ | ------------------ |
-| **Deployment**      | Single binary (~40MB) | ~10 containers (~2GB)    | Cloud only         |
+| **Deployment**      | Single binary (~40MB) | ~13 containers (~2.5GB)  | Cloud only         |
 | **Dependencies**    | PostgreSQL only       | PostgreSQL + 5+ services | Proprietary        |
 | **Self-hosting**    | ✅ Easy               | ⚠️ Complex               | ❌ No              |
 | **REST API**        | ✅ Auto-generated     | ✅ PostgREST             | ✅ Auto-generated  |
@@ -118,8 +118,8 @@ WebSocket-based AI chatbot integration:
 
 ### Prerequisites
 
-- Go 1.22+ (for building from source)
-- PostgreSQL 14+
+- Go 1.25+ (for building from source)
+- PostgreSQL 15+
 
 ### Quick Install
 
@@ -143,7 +143,7 @@ make build
 1. Create a table in PostgreSQL:
 
 ```sql
-CREATE TABLE posts (
+CREATE TABLE public.posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     content TEXT,
