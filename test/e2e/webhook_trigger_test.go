@@ -78,7 +78,7 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 	authResp.JSON(&authResult)
 	adminToken := authResult["access_token"].(string)
 
-	// Create a webhook for user INSERT events
+	// Create a webhook for user INSERT events with global scope to see all signups
 	createWebhookResp := tc.NewRequest("POST", "/api/v1/webhooks").
 		WithAuth(adminToken).
 		WithBody(map[string]interface{}{
@@ -92,6 +92,7 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 			},
 			"secret":  "test-secret-key",
 			"enabled": true,
+			"scope":   "global", // Global scope needed to see other users' signups
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -280,7 +281,8 @@ func TestWebhookTriggerRetry(t *testing.T) {
 			"events":                []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":                "test-secret-key",
 			"enabled":               true,
-			"retry_backoff_seconds": 2, // Shorter backoff for faster test
+			"retry_backoff_seconds": 2,        // Shorter backoff for faster test
+			"scope":                 "global", // Global scope needed to see other users' signups
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -378,7 +380,7 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 	authResp.JSON(&authResult)
 	token := authResult["access_token"].(string)
 
-	// Create first webhook
+	// Create first webhook with global scope to see all signups
 	tc.NewRequest("POST", "/api/v1/webhooks").
 		WithAuth(token).
 		WithBody(map[string]interface{}{
@@ -387,11 +389,12 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":  "secret1",
 			"enabled": true,
+			"scope":   "global",
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
-	// Create second webhook
+	// Create second webhook with global scope to see all signups
 	tc.NewRequest("POST", "/api/v1/webhooks").
 		WithAuth(token).
 		WithBody(map[string]interface{}{
@@ -400,6 +403,7 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":  "secret2",
 			"enabled": true,
+			"scope":   "global",
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -484,7 +488,8 @@ func TestWebhookTriggerInactiveWebhook(t *testing.T) {
 			"url":     webhookServer.URL,
 			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":  "test-secret-key",
-			"enabled": false, // Inactive webhook
+			"enabled": false,    // Inactive webhook
+			"scope":   "global", // Global scope to watch for all signups
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -552,7 +557,7 @@ func TestWebhookTriggerCleanup(t *testing.T) {
 	token := authResult["access_token"].(string)
 	userID := authResult["user"].(map[string]interface{})["id"].(string)
 
-	// Create webhook
+	// Create webhook with global scope
 	createWebhookResp := tc.NewRequest("POST", "/api/v1/webhooks").
 		WithAuth(token).
 		WithBody(map[string]interface{}{
@@ -561,6 +566,7 @@ func TestWebhookTriggerCleanup(t *testing.T) {
 			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":  "test-secret-key",
 			"enabled": true,
+			"scope":   "global",
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -751,15 +757,23 @@ func TestWebhookScopingUserScope(t *testing.T) {
 	require.Greater(t, len(user2Payloads), 0, "User2's webhook should have received payload")
 	mu2.Unlock()
 
-	// Verify user 1's webhook count didn't increase from user 2's update
+	// Verify user 1's webhook did NOT receive user 2's update
+	// Check by examining payload content, not just count (more robust with parallel tests)
 	mu1.Lock()
-	user1FinalCount := len(user1Payloads)
+	user1PayloadsCopy := make([]map[string]interface{}, len(user1Payloads))
+	copy(user1PayloadsCopy, user1Payloads)
 	mu1.Unlock()
-	// User 1 should only have received their own update (1 payload total)
-	require.LessOrEqual(t, user1FinalCount, 1, "User1's webhook should NOT receive User2's update (scoping)")
+
+	for _, payload := range user1PayloadsCopy {
+		record := payload["record"].(map[string]interface{})
+		recordID, ok := record["id"].(string)
+		if ok && recordID == user2ID {
+			t.Fatalf("User1's webhook should NOT receive User2's update (scoping), but got payload for user2 ID: %s", user2ID)
+		}
+	}
 
 	// Log the IDs for debugging
-	t.Logf("User1 ID: %s, User2 ID: %s", user1ID, user2ID)
+	t.Logf("User1 ID: %s, User2 ID: %s, User1 payload count: %d", user1ID, user2ID, len(user1PayloadsCopy))
 }
 
 // TestWebhookScopingGlobalScope tests that global-scoped webhooks fire for all events
@@ -863,11 +877,11 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 	token := auth["access_token"].(string)
 
 	// Verify no triggers exist initially for auth.users in monitored tables
-	results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	results := tc.QuerySQL("SELECT COUNT(*)::bigint FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
 	require.Greater(t, len(results), 0)
 	initialCount := results[0]["count"].(int64)
 
-	// Create a webhook for users table
+	// Create a webhook for users table with global scope
 	createResp := tc.NewRequest("POST", "/api/v1/webhooks").
 		WithAuth(token).
 		WithBody(map[string]interface{}{
@@ -876,6 +890,7 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
 			"secret":  "test-secret",
 			"enabled": true,
+			"scope":   "global",
 		}).
 		Send().
 		AssertStatus(fiber.StatusCreated)
@@ -885,7 +900,7 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 	webhookID := webhook["id"].(string)
 
 	// Verify trigger was created (entry in monitored tables)
-	results = tc.QuerySQL("SELECT webhook_count FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	results = tc.QuerySQL("SELECT webhook_count::bigint FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
 	require.Greater(t, len(results), 0, "Monitored table entry should exist")
 	require.Greater(t, results[0]["webhook_count"].(int64), initialCount, "Webhook count should have increased")
 
@@ -896,7 +911,7 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 		AssertStatus(fiber.StatusOK)
 
 	// Verify trigger count decreased
-	results = tc.QuerySQL("SELECT webhook_count FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	results = tc.QuerySQL("SELECT webhook_count::bigint FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
 	if len(results) > 0 {
 		// If entry still exists, count should be back to initial
 		require.Equal(t, initialCount, results[0]["webhook_count"].(int64), "Webhook count should be back to initial after delete")

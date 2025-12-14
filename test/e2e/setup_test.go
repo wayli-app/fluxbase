@@ -348,7 +348,7 @@ func setupTestTables() bool {
 // fluxbase_app does not own the schemas and cannot grant permissions on them.
 //
 // Permissions Granted:
-//   - Schema USAGE and CREATE on: auth, dashboard, functions, storage, realtime, _fluxbase
+//   - Schema USAGE and CREATE on: auth, dashboard, functions, storage, realtime
 //   - ALL privileges on tables and sequences in those schemas
 //   - EXECUTE on all functions in functions schema
 //
@@ -359,7 +359,7 @@ func setupTestTables() bool {
 //
 // The fluxbase_app user needs these permissions to:
 //   - Run tests with BYPASSRLS
-//   - Access all schemas including _fluxbase for migration tracking
+//   - Access all schemas for testing and migration tracking
 func grantRLSTestPermissions() {
 	ctx := context.Background()
 
@@ -389,7 +389,6 @@ func grantRLSTestPermissions() {
 		GRANT USAGE, CREATE ON SCHEMA jobs TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
 		GRANT USAGE, CREATE ON SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
-		GRANT USAGE, CREATE ON SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
 	`, dbName))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to grant schema permissions to test users")
@@ -414,8 +413,6 @@ func grantRLSTestPermissions() {
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL TABLES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL TABLES IN SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
-		GRANT ALL ON ALL SEQUENCES IN SCHEMA _fluxbase TO fluxbase_rls_test, fluxbase_app;
 
 		-- Grant permissions on future tables/sequences (in case migrations add new ones)
 		ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO fluxbase_rls_test, fluxbase_app;

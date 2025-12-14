@@ -61,7 +61,7 @@ func TestWebhookTriggerDebug(t *testing.T) {
 	token := authResult["access_token"].(string)
 	t.Logf("Got auth token: %s...", token[:20])
 
-	// Create webhook
+	// Create webhook with global scope to see all user signups
 	webhookPayload := map[string]interface{}{
 		"name": "Debug Webhook",
 		"url":  webhookServer.URL,
@@ -73,6 +73,7 @@ func TestWebhookTriggerDebug(t *testing.T) {
 		},
 		"secret":  "debug-secret",
 		"enabled": true,
+		"scope":   "global", // Global scope needed to see other users' signups
 	}
 
 	webhookJSON, _ := json.MarshalIndent(webhookPayload, "", "  ")
