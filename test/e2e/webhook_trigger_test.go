@@ -21,14 +21,16 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 
 	// Clean only test-specific data to avoid affecting other parallel tests
 	// Delete webhook-related test data
-	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%'")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%'")
+	// Clean up webhook monitored tables (triggers are now automatically managed)
+	tc.ExecuteSQL("DELETE FROM auth.webhook_monitored_tables")
 	// Delete only test users (those with test email patterns)
 	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
-	// Enable webhook trigger on users table for these tests
-	tc.ExecuteSQL("SELECT auth.create_webhook_trigger('auth', 'users')")
+	// Note: Triggers are now automatically created when webhooks are created
+	// No need to manually call auth.create_webhook_trigger
 
 	// Enable signup for tests
 	tc.Config.Auth.EnableSignup = true
@@ -604,4 +606,300 @@ func TestWebhookTriggerCleanup(t *testing.T) {
 	require.Greater(t, len(results), 0, "Should have query results")
 	recentEventExists := results[0]["exists"].(bool)
 	require.True(t, recentEventExists, "Recent event should not be cleaned up")
+}
+
+// TestWebhookScopingUserScope tests that user-scoped webhooks only fire for the owner's events
+func TestWebhookScopingUserScope(t *testing.T) {
+	tc := setupWebhookTriggerTest(t)
+	defer tc.Close()
+
+	// Track payloads received by each user's webhook
+	var mu1, mu2 sync.Mutex
+	var user1Payloads []map[string]interface{}
+	var user2Payloads []map[string]interface{}
+
+	// Webhook server for user 1
+	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&p)
+		mu1.Lock()
+		user1Payloads = append(user1Payloads, p)
+		mu1.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server1.Close()
+
+	// Webhook server for user 2
+	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&p)
+		mu2.Lock()
+		user2Payloads = append(user2Payloads, p)
+		mu2.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server2.Close()
+
+	// Sign up user 1
+	authResp1 := tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    "user1@example.com",
+			"password": "password123",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var auth1 map[string]interface{}
+	authResp1.JSON(&auth1)
+	token1 := auth1["access_token"].(string)
+	user1ID := auth1["user"].(map[string]interface{})["id"].(string)
+
+	// Sign up user 2
+	authResp2 := tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    "user2@example.com",
+			"password": "password123",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var auth2 map[string]interface{}
+	authResp2.JSON(&auth2)
+	token2 := auth2["access_token"].(string)
+	user2ID := auth2["user"].(map[string]interface{})["id"].(string)
+
+	// Create user-scoped webhook for user 1 (default scope is "user")
+	tc.NewRequest("POST", "/api/v1/webhooks").
+		WithAuth(token1).
+		WithBody(map[string]interface{}{
+			"name":    "User1 Webhook",
+			"url":     server1.URL,
+			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"UPDATE"}}},
+			"secret":  "secret1",
+			"enabled": true,
+			"scope":   "user", // Explicitly set user scope
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	// Create user-scoped webhook for user 2
+	tc.NewRequest("POST", "/api/v1/webhooks").
+		WithAuth(token2).
+		WithBody(map[string]interface{}{
+			"name":    "User2 Webhook",
+			"url":     server2.URL,
+			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"UPDATE"}}},
+			"secret":  "secret2",
+			"enabled": true,
+			"scope":   "user",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	// User 1 updates their own profile
+	tc.NewRequest("PATCH", "/api/v1/auth/user").
+		WithAuth(token1).
+		WithBody(map[string]interface{}{
+			"user_metadata": map[string]interface{}{"name": "User One"},
+		}).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	// Wait for webhook delivery
+	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu1.Lock()
+		count := len(user1Payloads)
+		mu1.Unlock()
+		return count > 0
+	})
+	require.True(t, success, "User1's webhook should receive payload within 5 seconds")
+
+	// Verify user 1's webhook received the event
+	mu1.Lock()
+	require.Greater(t, len(user1Payloads), 0, "User1's webhook should have received payload")
+	payload1 := user1Payloads[len(user1Payloads)-1]
+	mu1.Unlock()
+	require.Equal(t, "UPDATE", payload1["event"])
+
+	// Verify user 2's webhook did NOT receive the event (scoping should prevent it)
+	// Wait briefly to ensure any incorrect delivery would have happened
+	time.Sleep(500 * time.Millisecond)
+	mu2.Lock()
+	user2PayloadCount := len(user2Payloads)
+	mu2.Unlock()
+	require.Equal(t, 0, user2PayloadCount, "User2's webhook should NOT receive User1's update (scoping)")
+
+	// Now user 2 updates their profile - only user 2's webhook should fire
+	tc.NewRequest("PATCH", "/api/v1/auth/user").
+		WithAuth(token2).
+		WithBody(map[string]interface{}{
+			"user_metadata": map[string]interface{}{"name": "User Two"},
+		}).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	// Wait for user 2's webhook
+	success = tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu2.Lock()
+		count := len(user2Payloads)
+		mu2.Unlock()
+		return count > 0
+	})
+	require.True(t, success, "User2's webhook should receive payload within 5 seconds")
+
+	mu2.Lock()
+	require.Greater(t, len(user2Payloads), 0, "User2's webhook should have received payload")
+	mu2.Unlock()
+
+	// Verify user 1's webhook count didn't increase from user 2's update
+	mu1.Lock()
+	user1FinalCount := len(user1Payloads)
+	mu1.Unlock()
+	// User 1 should only have received their own update (1 payload total)
+	require.LessOrEqual(t, user1FinalCount, 1, "User1's webhook should NOT receive User2's update (scoping)")
+
+	// Log the IDs for debugging
+	t.Logf("User1 ID: %s, User2 ID: %s", user1ID, user2ID)
+}
+
+// TestWebhookScopingGlobalScope tests that global-scoped webhooks fire for all events
+func TestWebhookScopingGlobalScope(t *testing.T) {
+	tc := setupWebhookTriggerTest(t)
+	defer tc.Close()
+
+	var mu sync.Mutex
+	var receivedPayloads []map[string]interface{}
+
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&p)
+		mu.Lock()
+		receivedPayloads = append(receivedPayloads, p)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer webhookServer.Close()
+
+	// Sign up admin user
+	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    "admin@example.com",
+			"password": "password123",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var auth map[string]interface{}
+	authResp.JSON(&auth)
+	adminToken := auth["access_token"].(string)
+
+	// Create global-scoped webhook
+	tc.NewRequest("POST", "/api/v1/webhooks").
+		WithAuth(adminToken).
+		WithBody(map[string]interface{}{
+			"name":    "Global Webhook",
+			"url":     webhookServer.URL,
+			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
+			"secret":  "global-secret",
+			"enabled": true,
+			"scope":   "global", // Global scope - receives all events
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	// Create a new user (should trigger the global webhook)
+	tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    "newuser@example.com",
+			"password": "password123",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	// Wait for webhook delivery
+	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+		mu.Lock()
+		count := len(receivedPayloads)
+		mu.Unlock()
+		return count > 0
+	})
+	require.True(t, success, "Global webhook should receive payload within 5 seconds")
+
+	// Verify global webhook received the event for the new user
+	mu.Lock()
+	require.Greater(t, len(receivedPayloads), 0, "Global webhook should have received payload")
+	payload := receivedPayloads[len(receivedPayloads)-1]
+	mu.Unlock()
+
+	require.Equal(t, "INSERT", payload["event"])
+	require.Equal(t, "users", payload["table"])
+
+	// Verify it's the new user's data (not the admin)
+	record := payload["record"].(map[string]interface{})
+	require.Equal(t, "newuser@example.com", record["email"])
+}
+
+// TestWebhookAutoTriggerCreation tests that triggers are automatically created when webhooks are created
+func TestWebhookAutoTriggerCreation(t *testing.T) {
+	tc := setupWebhookTriggerTest(t)
+	defer tc.Close()
+
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer webhookServer.Close()
+
+	// Sign up user
+	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
+		WithBody(map[string]interface{}{
+			"email":    "user@example.com",
+			"password": "password123",
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var auth map[string]interface{}
+	authResp.JSON(&auth)
+	token := auth["access_token"].(string)
+
+	// Verify no triggers exist initially for auth.users in monitored tables
+	results := tc.QuerySQL("SELECT COUNT(*) FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	require.Greater(t, len(results), 0)
+	initialCount := results[0]["count"].(int64)
+
+	// Create a webhook for users table
+	createResp := tc.NewRequest("POST", "/api/v1/webhooks").
+		WithAuth(token).
+		WithBody(map[string]interface{}{
+			"name":    "Auto Trigger Test",
+			"url":     webhookServer.URL,
+			"events":  []map[string]interface{}{{"table": "users", "operations": []string{"INSERT"}}},
+			"secret":  "test-secret",
+			"enabled": true,
+		}).
+		Send().
+		AssertStatus(fiber.StatusCreated)
+
+	var webhook map[string]interface{}
+	createResp.JSON(&webhook)
+	webhookID := webhook["id"].(string)
+
+	// Verify trigger was created (entry in monitored tables)
+	results = tc.QuerySQL("SELECT webhook_count FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	require.Greater(t, len(results), 0, "Monitored table entry should exist")
+	require.Greater(t, results[0]["webhook_count"].(int64), initialCount, "Webhook count should have increased")
+
+	// Delete the webhook
+	tc.NewRequest("DELETE", "/api/v1/webhooks/"+webhookID).
+		WithAuth(token).
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	// Verify trigger count decreased
+	results = tc.QuerySQL("SELECT webhook_count FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
+	if len(results) > 0 {
+		// If entry still exists, count should be back to initial
+		require.Equal(t, initialCount, results[0]["webhook_count"].(int64), "Webhook count should be back to initial after delete")
+	}
+	// If entry doesn't exist, that's also correct (count went to 0, entry was deleted)
 }

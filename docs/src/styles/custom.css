@@ -2,6 +2,22 @@
  * Fluxbase Documentation Theme for Starlight
  */
 
+/* Beta badge in header */
+.site-title::after {
+  content: 'Beta';
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background-color: #f59e0b;
+  color: #000;
+  vertical-align: middle;
+}
+
 /* Color scheme - Fluxbase brand blue theme */
 /* Primary: rgb(44,70,137) = #2c4689 */
 /* Dark: rgb(25,40,81) = #192851 */

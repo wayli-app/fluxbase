@@ -15,6 +15,12 @@ import {
   AlertCircle,
   Globe,
   Lock,
+  StopCircle,
+  Eye,
+  Code,
+  Shield,
+  Database,
+  Timer,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -112,6 +118,20 @@ function RPCContent() {
   const [executionLogs, setExecutionLogs] = useState<RPCExecutionLog[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
 
+  // Cancel execution state
+  const [cancellingExecutionId, setCancellingExecutionId] = useState<string | null>(null)
+
+  // Procedure detail dialog
+  const [selectedProcedure, setSelectedProcedure] = useState<RPCProcedure | null>(null)
+  const [showProcedureDetails, setShowProcedureDetails] = useState(false)
+  const [loadingProcedure, setLoadingProcedure] = useState(false)
+
+  // Request tracking to prevent race conditions
+  const executionsFetchIdRef = useRef(0)
+
+  // Track if namespaces have been loaded
+  const [namespacesLoaded, setNamespacesLoaded] = useState(false)
+
   // Fetch procedures
   const fetchProcedures = useCallback(async () => {
     setLoading(true)
@@ -128,6 +148,8 @@ function RPCContent() {
   // Fetch executions
   const fetchExecutions = useCallback(async (reset = true) => {
     const isReset = reset
+    const fetchId = ++executionsFetchIdRef.current
+
     if (isReset) {
       setExecutionsLoading(true)
       setExecutionsOffset(0)
@@ -145,6 +167,11 @@ function RPCContent() {
         offset,
       })
 
+      // Ignore stale responses from earlier requests
+      if (fetchId !== executionsFetchIdRef.current) {
+        return
+      }
+
       const execList = result.executions || []
       if (isReset) {
         setExecutions(execList)
@@ -157,13 +184,19 @@ function RPCContent() {
       setTotalExecutions(result.total || 0)
       setHasMoreExecutions(execList.length >= RPC_PAGE_SIZE)
     } catch {
-      toast.error('Failed to fetch executions')
+      // Only show error if this is still the current request
+      if (fetchId === executionsFetchIdRef.current) {
+        toast.error('Failed to fetch executions')
+      }
     } finally {
-      setExecutionsLoading(false)
-      setLoadingMoreExecutions(false)
+      // Only update loading state if this is still the current request
+      if (fetchId === executionsFetchIdRef.current) {
+        setExecutionsLoading(false)
+        setLoadingMoreExecutions(false)
+      }
     }
-  // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNamespace, searchQuery, statusFilter])
 
   // Fetch execution logs
@@ -184,6 +217,50 @@ function RPCContent() {
     setSelectedExecution(exec)
     setShowExecutionDetails(true)
     await fetchExecutionLogs(exec.id)
+  }
+
+  // Cancel execution
+  const cancelExecution = async (execId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation() // Prevent opening the details dialog when clicking cancel
+    setCancellingExecutionId(execId)
+    try {
+      await rpcApi.cancelExecution(execId)
+      toast.success('Execution cancelled')
+      // Update the execution in the list
+      setExecutions((prev) =>
+        prev.map((ex) =>
+          ex.id === execId ? { ...ex, status: 'cancelled' } : ex
+        )
+      )
+      // Update selected execution if it's the one being cancelled
+      if (selectedExecution?.id === execId) {
+        setSelectedExecution((prev) => prev ? { ...prev, status: 'cancelled' } : null)
+      }
+    } catch {
+      toast.error('Failed to cancel execution')
+    } finally {
+      setCancellingExecutionId(null)
+    }
+  }
+
+  // Check if execution can be cancelled
+  const canCancelExecution = (status: string) => {
+    return status === 'pending' || status === 'running'
+  }
+
+  // Open procedure detail dialog
+  const openProcedureDetails = async (proc: RPCProcedure) => {
+    setSelectedProcedure(proc) // Show immediately with partial data
+    setShowProcedureDetails(true)
+    setLoadingProcedure(true)
+    try {
+      const fullProcedure = await rpcApi.getProcedure(proc.namespace, proc.name)
+      setSelectedProcedure(fullProcedure)
+    } catch {
+      toast.error('Failed to fetch procedure details')
+    } finally {
+      setLoadingProcedure(false)
+    }
   }
 
   // Filter executions from past 24 hours (for stats display only)
@@ -257,6 +334,8 @@ function RPCContent() {
         }
       } catch {
         setNamespaces(['default'])
+      } finally {
+        setNamespacesLoaded(true)
       }
     }
     fetchNamespaces()
@@ -268,27 +347,25 @@ function RPCContent() {
   }, [fetchProcedures])
 
   // Fetch executions when tab changes or filters change
+  // Wait until namespaces are loaded to ensure we have the correct namespace
   useEffect(() => {
-    if (activeTab === 'executions') {
+    if (activeTab === 'executions' && namespacesLoaded) {
       hasInitialFetch.current = true
       fetchExecutions(true)
     }
-  // fetchExecutions changes on filter changes, so we only need activeTab here
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedNamespace, statusFilter])
+  }, [activeTab, selectedNamespace, statusFilter, namespacesLoaded, fetchExecutions])
 
-  // Debounced search - skip initial mount to prevent double-fetch
+  // Debounced search - only for search query changes
   useEffect(() => {
-    if (activeTab !== 'executions') return
+    if (activeTab !== 'executions' || !namespacesLoaded) return
     // Skip the first render - the main effect above handles initial fetch
     if (!hasInitialFetch.current) return
     const timer = setTimeout(() => {
       fetchExecutions(true)
     }, 300)
     return () => clearTimeout(timer)
-  // activeTab and fetchExecutions intentionally excluded - activeTab is checked inside,
-  // and fetchExecutions is memoized based on filters which trigger separate effects
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Only searchQuery triggers this debounced effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
   // Copy to clipboard helper
@@ -517,6 +594,22 @@ function RPCContent() {
                       <span className='text-xs text-muted-foreground'>
                         {new Date(exec.created_at).toLocaleString()}
                       </span>
+                      {canCancelExecution(exec.status) && (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10'
+                          onClick={(e) => cancelExecution(exec.id, e)}
+                          disabled={cancellingExecutionId === exec.id}
+                        >
+                          {cancellingExecutionId === exec.id ? (
+                            <Loader2 className='h-3 w-3 animate-spin' />
+                          ) : (
+                            <StopCircle className='h-3 w-3' />
+                          )}
+                          <span className='ml-1 text-xs'>Cancel</span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -640,7 +733,8 @@ function RPCContent() {
                 procedures.map((proc) => (
                   <div
                     key={proc.id}
-                    className='flex items-center justify-between gap-2 px-3 py-2 rounded-md border hover:border-primary/50 transition-colors bg-card'
+                    className='flex items-center justify-between gap-2 px-3 py-2 rounded-md border hover:border-primary/50 transition-colors bg-card cursor-pointer'
+                    onClick={() => openProcedureDetails(proc)}
                   >
                     <div className='flex items-center gap-3 min-w-0 flex-1'>
                       <span className='text-sm font-medium truncate'>{proc.name}</span>
@@ -666,6 +760,7 @@ function RPCContent() {
                       <Switch
                         checked={proc.enabled}
                         onCheckedChange={() => toggleProcedure(proc)}
+                        onClick={(e) => e.stopPropagation()}
                         className='scale-75'
                       />
                     </div>
@@ -678,6 +773,18 @@ function RPCContent() {
                           {proc.description}
                         </span>
                       )}
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 px-2'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openProcedureDetails(proc)
+                        }}
+                      >
+                        <Eye className='h-3 w-3' />
+                        <span className='ml-1 text-xs'>View</span>
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -703,7 +810,7 @@ function RPCContent() {
           {selectedExecution && (
             <div className='space-y-4'>
               {/* Status and Info */}
-              <div className='flex flex-wrap gap-2'>
+              <div className='flex flex-wrap items-center gap-2'>
                 <Badge variant={getStatusVariant(selectedExecution.status)}>
                   {selectedExecution.status}
                 </Badge>
@@ -715,6 +822,22 @@ function RPCContent() {
                 )}
                 {selectedExecution.is_async && (
                   <Badge variant='outline'>async</Badge>
+                )}
+                {canCancelExecution(selectedExecution.status) && (
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    className='ml-auto'
+                    onClick={() => cancelExecution(selectedExecution.id)}
+                    disabled={cancellingExecutionId === selectedExecution.id}
+                  >
+                    {cancellingExecutionId === selectedExecution.id ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <StopCircle className='mr-2 h-4 w-4' />
+                    )}
+                    Cancel Execution
+                  </Button>
                 )}
               </div>
 
@@ -831,9 +954,9 @@ function RPCContent() {
                         <div key={log.id} className='text-xs font-mono'>
                           <span className={
                             log.level === 'error' ? 'text-red-500' :
-                            log.level === 'warn' ? 'text-yellow-500' :
-                            log.level === 'info' ? 'text-blue-500' :
-                            'text-muted-foreground'
+                              log.level === 'warn' ? 'text-yellow-500' :
+                                log.level === 'info' ? 'text-blue-500' :
+                                  'text-muted-foreground'
                           }>
                             [{log.level}]
                           </span>
@@ -843,6 +966,197 @@ function RPCContent() {
                     </div>
                   )}
                 </ScrollArea>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Procedure Details Dialog */}
+      <Dialog open={showProcedureDetails} onOpenChange={setShowProcedureDetails}>
+        <DialogContent className='max-h-[90vh] max-w-5xl w-[90vw] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <Terminal className='h-5 w-5' />
+              Procedure Details
+            </DialogTitle>
+            <DialogDescription>
+              {selectedProcedure?.namespace}/{selectedProcedure?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedProcedure && (
+            <div className='space-y-4'>
+              {/* Status Badges */}
+              <div className='flex flex-wrap items-center gap-2'>
+                <Badge variant={selectedProcedure.enabled ? 'secondary' : 'outline'}>
+                  {selectedProcedure.enabled ? 'Enabled' : 'Disabled'}
+                </Badge>
+                <Badge variant='outline'>v{selectedProcedure.version}</Badge>
+                {selectedProcedure.is_public ? (
+                  <Badge variant='outline'>
+                    <Globe className='mr-1 h-3 w-3' />
+                    Public
+                  </Badge>
+                ) : (
+                  <Badge variant='outline'>
+                    <Lock className='mr-1 h-3 w-3' />
+                    Private
+                  </Badge>
+                )}
+                {selectedProcedure.require_role && (
+                  <Badge variant='outline'>
+                    <Shield className='mr-1 h-3 w-3' />
+                    Role: {selectedProcedure.require_role}
+                  </Badge>
+                )}
+                <Badge variant='outline'>
+                  <Timer className='mr-1 h-3 w-3' />
+                  {selectedProcedure.max_execution_time_seconds}s timeout
+                </Badge>
+              </div>
+
+              {/* Description */}
+              {selectedProcedure.description && (
+                <div>
+                  <Label className='text-muted-foreground text-xs'>Description</Label>
+                  <p className='text-sm mt-1'>{selectedProcedure.description}</p>
+                </div>
+              )}
+
+              {/* RPC Source Code */}
+              {loadingProcedure ? (
+                <div className='flex items-center justify-center py-8'>
+                  <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+                </div>
+              ) : selectedProcedure.original_code ? (
+                <div>
+                  <div className='flex items-center justify-between mb-2'>
+                    <Label className='flex items-center gap-1'>
+                      <Code className='h-3 w-3' />
+                      RPC Code
+                    </Label>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => copyToClipboard(selectedProcedure.original_code!, 'RPC code')}
+                    >
+                      <Copy className='h-3 w-3' />
+                    </Button>
+                  </div>
+                  <pre className='bg-muted rounded-md p-3 text-xs overflow-x-auto max-h-64 font-mono whitespace-pre-wrap'>
+                    {selectedProcedure.original_code}
+                  </pre>
+                </div>
+              ) : null}
+
+              {/* SDK Usage Example */}
+              <div>
+                <div className='flex items-center justify-between mb-2'>
+                  <Label className='flex items-center gap-1'>
+                    <Terminal className='h-3 w-3' />
+                    SDK Usage
+                  </Label>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => {
+                      const params = selectedProcedure.input_schema
+                        ? Object.keys(selectedProcedure.input_schema).map(k => `${k}: /* ${selectedProcedure.input_schema![k]} */`).join(', ')
+                        : ''
+                      const code = `const { data, error } = await client.rpc.invoke('${selectedProcedure.name}'${params ? `, { ${params} }` : ''})`
+                      copyToClipboard(code, 'SDK usage')
+                    }}
+                  >
+                    <Copy className='h-3 w-3' />
+                  </Button>
+                </div>
+                <pre className='bg-muted rounded-md p-3 text-xs overflow-x-auto font-mono whitespace-pre-wrap'>
+                  {`const { data, error } = await client.rpc.invoke('${selectedProcedure.name}'${selectedProcedure.input_schema && Object.keys(selectedProcedure.input_schema).length > 0
+                      ? `, {\n${Object.entries(selectedProcedure.input_schema).map(([k, v]) => `  ${k}: /* ${v} */`).join(',\n')}\n}`
+                      : ''
+                    })`}
+                </pre>
+              </div>
+
+              {/* Input/Output Schema */}
+              <div className='grid grid-cols-2 gap-4'>
+                {selectedProcedure.input_schema && Object.keys(selectedProcedure.input_schema).length > 0 && (
+                  <div>
+                    <Label className='text-muted-foreground text-xs'>Input Parameters</Label>
+                    <div className='mt-1 space-y-1'>
+                      {Object.entries(selectedProcedure.input_schema).map(([name, type]) => (
+                        <div key={name} className='flex items-center gap-2 text-sm'>
+                          <code className='bg-muted px-1 rounded text-xs'>{name}</code>
+                          <span className='text-muted-foreground text-xs'>{type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedProcedure.output_schema && Object.keys(selectedProcedure.output_schema).length > 0 && (
+                  <div>
+                    <Label className='text-muted-foreground text-xs'>Output Columns</Label>
+                    <div className='mt-1 space-y-1'>
+                      {Object.entries(selectedProcedure.output_schema).map(([name, type]) => (
+                        <div key={name} className='flex items-center gap-2 text-sm'>
+                          <code className='bg-muted px-1 rounded text-xs'>{name}</code>
+                          <span className='text-muted-foreground text-xs'>{type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Access Control */}
+              <div className='grid grid-cols-2 gap-4'>
+                {selectedProcedure.allowed_tables && selectedProcedure.allowed_tables.length > 0 && (
+                  <div>
+                    <Label className='flex items-center gap-1 text-muted-foreground text-xs'>
+                      <Database className='h-3 w-3' />
+                      Allowed Tables
+                    </Label>
+                    <div className='mt-1 flex flex-wrap gap-1'>
+                      {selectedProcedure.allowed_tables.map((table) => (
+                        <Badge key={table} variant='outline' className='text-xs'>
+                          {table}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedProcedure.allowed_schemas && selectedProcedure.allowed_schemas.length > 0 && (
+                  <div>
+                    <Label className='flex items-center gap-1 text-muted-foreground text-xs'>
+                      <Database className='h-3 w-3' />
+                      Allowed Schemas
+                    </Label>
+                    <div className='mt-1 flex flex-wrap gap-1'>
+                      {selectedProcedure.allowed_schemas.map((schema) => (
+                        <Badge key={schema} variant='outline' className='text-xs'>
+                          {schema}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className='grid grid-cols-3 gap-4 text-sm pt-2 border-t'>
+                <div>
+                  <span className='text-muted-foreground text-xs'>Source:</span>
+                  <p className='text-xs'>{selectedProcedure.source}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground text-xs'>Created:</span>
+                  <p className='text-xs'>{new Date(selectedProcedure.created_at).toLocaleString()}</p>
+                </div>
+                <div>
+                  <span className='text-muted-foreground text-xs'>Updated:</span>
+                  <p className='text-xs'>{new Date(selectedProcedure.updated_at).toLocaleString()}</p>
+                </div>
               </div>
             </div>
           )}

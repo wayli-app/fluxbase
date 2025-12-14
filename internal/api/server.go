@@ -84,6 +84,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		ServerHeader:          "Fluxbase",
 		AppName:               "Fluxbase v1.0.0",
 		BodyLimit:             cfg.Server.BodyLimit,
+		StreamRequestBody:     true, // Required for chunked upload streaming
 		ReadTimeout:           cfg.Server.ReadTimeout,
 		WriteTimeout:          cfg.Server.WriteTimeout,
 		IdleTimeout:           cfg.Server.IdleTimeout,
@@ -448,12 +449,9 @@ func (s *Server) setupMiddlewares() {
 	log.Debug().Msg("CORS middleware added")
 
 	// Global rate limiting - 100 requests per minute per IP
-	// Note: Global rate limiting is disabled by default. Enable via config if needed.
-	// To enable: Set ENABLE_GLOBAL_RATE_LIMIT=true in environment
-	if s.config.Security.EnableGlobalRateLimit {
-		log.Info().Msg("Enabling global rate limiter (100 req/min per IP)")
-		s.app.Use(middleware.GlobalAPILimiter())
-	}
+	// Uses dynamic limiter that checks settings cache on each request
+	// This allows toggling rate limiting via admin UI without server restart
+	s.app.Use(middleware.DynamicGlobalAPILimiter(s.authHandler.authService.GetSettingsCache()))
 
 	// Compression middleware
 	s.app.Use(compress.New(compress.Config{
@@ -496,8 +494,8 @@ func (s *Server) setupRoutes() {
 		CookieSameSite: "Strict",
 		Expiration:     24 * time.Hour,
 	})
-	auth := v1.Group("/auth", csrfMiddleware)
-	s.setupAuthRoutes(auth)
+	authRoutes := v1.Group("/auth", csrfMiddleware)
+	s.setupAuthRoutes(authRoutes)
 
 	// Public settings routes - optional authentication with RLS support
 	// These routes respect app.settings RLS policies based on is_public and is_secret flags
@@ -538,25 +536,29 @@ func (s *Server) setupRoutes() {
 
 	// Realtime WebSocket endpoint (not versioned as it's WebSocket)
 	// WebSocket validates auth internally, but make it required
-	// Protected by feature flag middleware
+	// Protected by feature flag middleware and realtime:connect scope
 	s.app.Get("/realtime",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireScope(auth.ScopeRealtimeConnect),
 		s.realtimeHandler.HandleWebSocket,
 	)
 
-	// Realtime stats endpoint - require authentication
+	// Realtime stats endpoint - require authentication and realtime:connect scope
 	// Protected by feature flag middleware
 	s.app.Get("/api/v1/realtime/stats",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireScope(auth.ScopeRealtimeConnect),
 		s.handleRealtimeStats,
 	)
 
-	// Realtime broadcast endpoint - require authentication
+	// Realtime broadcast endpoint - require authentication and realtime:broadcast scope
 	// Protected by feature flag middleware
 	s.app.Post("/api/v1/realtime/broadcast",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireScope(auth.ScopeRealtimeBroadcast),
 		s.handleRealtimeBroadcast,
 	)
 
@@ -607,33 +609,37 @@ func (s *Server) setupRoutes() {
 		)
 	}
 
-	// Public RPC endpoints (only if RPC is enabled)
+	// Public RPC endpoints (only if RPC is enabled) with scope enforcement
 	if s.rpcHandler != nil {
-		// List public procedures
+		// List public procedures - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/procedures",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
 			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.ListPublicProcedures,
 		)
 
-		// Invoke RPC procedure
+		// Invoke RPC procedure - requires execute:rpc scope
 		s.app.Post("/api/v1/rpc/:namespace/:name",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
 			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireScope(auth.ScopeRPCExecute),
 			s.rpcHandler.Invoke,
 		)
 
-		// Get execution status (public - users can see their own)
+		// Get execution status (public - users can see their own) - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/executions/:id",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
 			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.GetPublicExecution,
 		)
 
-		// Get execution logs (public - users can see their own)
+		// Get execution logs (public - users can see their own) - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/executions/:id/logs",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
 			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.GetPublicExecutionLogs,
 		)
 	}
@@ -722,8 +728,8 @@ func (s *Server) setupRESTRoutes(router fiber.Router) {
 		}
 	}
 
-	// Metadata endpoint
-	router.Get("/", s.rest.HandleGetTables)
+	// Metadata endpoint with scope enforcement
+	router.Get("/", middleware.RequireScope(auth.ScopeTablesRead), s.rest.HandleGetTables)
 
 }
 
@@ -755,34 +761,41 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	// Signed URL download (PUBLIC - no auth required, token provides authorization)
 	router.Get("/object", s.storageHandler.DownloadSignedObject)
 
-	// Bucket management
-	router.Get("/buckets", s.storageHandler.ListBuckets)
-	router.Post("/buckets/:bucket", s.storageHandler.CreateBucket)
-	router.Put("/buckets/:bucket", s.storageHandler.UpdateBucketSettings)
-	router.Delete("/buckets/:bucket", s.storageHandler.DeleteBucket)
+	// Bucket management with scope enforcement
+	router.Get("/buckets", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.ListBuckets)
+	router.Post("/buckets/:bucket", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.CreateBucket)
+	router.Put("/buckets/:bucket", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.UpdateBucketSettings)
+	router.Delete("/buckets/:bucket", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.DeleteBucket)
 
 	// List files in bucket (must come before /:bucket/*)
-	router.Get("/:bucket", s.storageHandler.ListFiles)
+	router.Get("/:bucket", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.ListFiles)
 
 	// Multipart upload (must come before /:bucket/*)
-	router.Post("/:bucket/multipart", s.storageHandler.MultipartUpload)
+	router.Post("/:bucket/multipart", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.MultipartUpload)
 
 	// File sharing (must come before /:bucket/* to avoid matching generic routes)
-	router.Post("/:bucket/*/share", s.storageHandler.ShareObject)            // Share file with user
-	router.Delete("/:bucket/*/share/:user_id", s.storageHandler.RevokeShare) // Revoke share
-	router.Get("/:bucket/*/shares", s.storageHandler.ListShares)             // List shares
+	router.Post("/:bucket/*/share", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.ShareObject)            // Share file with user
+	router.Delete("/:bucket/*/share/:user_id", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.RevokeShare) // Revoke share
+	router.Get("/:bucket/*/shares", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.ListShares)              // List shares
 
 	// Signed URLs (for S3-compatible storage, must come before /:bucket/*)
-	router.Post("/:bucket/sign/*", s.storageHandler.GenerateSignedURL)
+	router.Post("/:bucket/sign/*", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.GenerateSignedURL)
 
 	// Streaming upload (must come before /:bucket/*)
-	router.Post("/:bucket/stream/*", s.storageHandler.StreamUpload)
+	router.Post("/:bucket/stream/*", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.StreamUpload)
+
+	// Chunked upload routes (for resumable large file uploads, must come before /:bucket/*)
+	router.Post("/:bucket/chunked/init", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.InitChunkedUpload)
+	router.Put("/:bucket/chunked/:uploadId/:chunkIndex", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.UploadChunk)
+	router.Post("/:bucket/chunked/:uploadId/complete", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.CompleteChunkedUpload)
+	router.Get("/:bucket/chunked/:uploadId/status", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.GetChunkedUploadStatus)
+	router.Delete("/:bucket/chunked/:uploadId", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.AbortChunkedUpload)
 
 	// File operations (generic wildcard routes - must come LAST)
-	router.Post("/:bucket/*", s.storageHandler.UploadFile)   // Upload file
-	router.Get("/:bucket/*", s.storageHandler.DownloadFile)  // Download file
-	router.Head("/:bucket/*", s.storageHandler.DownloadFile) // HEAD delegates to GetFileInfo for Content-Length
-	router.Delete("/:bucket/*", s.storageHandler.DeleteFile) // Delete file
+	router.Post("/:bucket/*", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.UploadFile)   // Upload file
+	router.Get("/:bucket/*", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.DownloadFile)   // Download file
+	router.Head("/:bucket/*", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.DownloadFile)  // HEAD delegates to GetFileInfo for Content-Length
+	router.Delete("/:bucket/*", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.DeleteFile) // Delete file
 }
 
 // setupAdminRoutes sets up admin routes
@@ -971,6 +984,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Get("/rpc/executions", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.ListExecutions)
 		router.Get("/rpc/executions/:id", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetExecution)
 		router.Get("/rpc/executions/:id/logs", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetExecutionLogs)
+		router.Post("/rpc/executions/:id/cancel", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.CancelExecution)
 	}
 
 	// Migrations routes (require service key authentication with enhanced security)

@@ -105,3 +105,49 @@ type Provider interface {
 	Name() string
 	Health(ctx context.Context) error
 }
+
+// ChunkedUploadSession represents an in-progress chunked upload
+type ChunkedUploadSession struct {
+	UploadID        string            `json:"upload_id"`
+	Bucket          string            `json:"bucket"`
+	Key             string            `json:"key"`
+	TotalSize       int64             `json:"total_size"`
+	ChunkSize       int64             `json:"chunk_size"`
+	TotalChunks     int               `json:"total_chunks"`
+	CompletedChunks []int             `json:"completed_chunks"`
+	ContentType     string            `json:"content_type,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	CacheControl    string            `json:"cache_control,omitempty"`
+	OwnerID         string            `json:"owner_id,omitempty"`
+
+	// S3 multipart specific fields
+	S3UploadID  string         `json:"s3_upload_id,omitempty"`
+	S3PartETags map[int]string `json:"s3_part_etags,omitempty"`
+
+	// Session lifecycle
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// ChunkResult represents the result of uploading a chunk
+type ChunkResult struct {
+	ChunkIndex int    `json:"chunk_index"`
+	ETag       string `json:"etag,omitempty"`
+	Size       int64  `json:"size"`
+}
+
+// ChunkedUploader defines the interface for chunked upload operations
+type ChunkedUploader interface {
+	// InitChunkedUpload starts a new chunked upload session
+	InitChunkedUpload(ctx context.Context, bucket, key string, totalSize int64, chunkSize int64, opts *UploadOptions) (*ChunkedUploadSession, error)
+
+	// UploadChunk uploads a single chunk of data
+	UploadChunk(ctx context.Context, session *ChunkedUploadSession, chunkIndex int, data io.Reader, size int64) (*ChunkResult, error)
+
+	// CompleteChunkedUpload finalizes the upload and assembles the file
+	CompleteChunkedUpload(ctx context.Context, session *ChunkedUploadSession) (*Object, error)
+
+	// AbortChunkedUpload cancels the upload and cleans up chunks
+	AbortChunkedUpload(ctx context.Context, session *ChunkedUploadSession) error
+}

@@ -198,8 +198,9 @@ Submit a new job for execution
 | ------ | ------ | ------ |
 | `jobName` | `string` | Name of the job function to execute |
 | `payload`? | `any` | Job input data |
-| `options`? | `object` | Additional options (priority, namespace, scheduled time) |
+| `options`? | `object` | Additional options (priority, namespace, scheduled time, onBehalfOf) |
 | `options.namespace`? | `string` | - |
+| `options.onBehalfOf`? | `OnBehalfOf` | Submit job on behalf of another user (service_role only). The job will be created with the specified user's identity, allowing them to see the job and its logs via RLS. |
 | `options.priority`? | `number` | - |
 | `options.scheduled`? | `string` | - |
 
@@ -237,5 +238,13 @@ const { data } = await client.jobs.submit('high-priority-task', payload, {
 // Schedule for later
 const { data } = await client.jobs.submit('scheduled-task', payload, {
   scheduled: '2025-01-01T00:00:00Z'
+})
+
+// Submit on behalf of a user (service_role only)
+const { data } = await serviceClient.jobs.submit('user-task', payload, {
+  onBehalfOf: {
+    user_id: 'user-uuid',
+    user_email: 'user@example.com'
+  }
 })
 ```

@@ -569,6 +569,115 @@ export interface ResumableDownloadData {
   size: number | null
 }
 
+/** Options for resumable chunked uploads */
+export interface ResumableUploadOptions {
+  /**
+   * Chunk size in bytes for each upload request.
+   * @default 5242880 (5MB)
+   */
+  chunkSize?: number
+  /**
+   * Number of retry attempts per chunk on failure.
+   * @default 3
+   */
+  maxRetries?: number
+  /**
+   * Base delay in milliseconds for exponential backoff.
+   * @default 1000
+   */
+  retryDelayMs?: number
+  /**
+   * Timeout in milliseconds per chunk request.
+   * @default 60000 (1 minute)
+   */
+  chunkTimeout?: number
+  /** AbortSignal to cancel the upload */
+  signal?: AbortSignal
+  /** Callback for upload progress */
+  onProgress?: (progress: ResumableUploadProgress) => void
+  /** MIME type of the file */
+  contentType?: string
+  /** Custom metadata to attach to the file */
+  metadata?: Record<string, string>
+  /** Cache-Control header value */
+  cacheControl?: string
+  /** Existing upload session ID to resume (optional) */
+  resumeSessionId?: string
+}
+
+/** Upload progress information for resumable uploads */
+export interface ResumableUploadProgress {
+  /** Number of bytes uploaded so far */
+  loaded: number
+  /** Total file size in bytes */
+  total: number
+  /** Upload percentage (0-100) */
+  percentage: number
+  /** Current chunk being uploaded (1-indexed) */
+  currentChunk: number
+  /** Total number of chunks */
+  totalChunks: number
+  /** Transfer rate in bytes per second */
+  bytesPerSecond: number
+  /** Upload session ID (for resume capability) */
+  sessionId: string
+}
+
+/** Chunked upload session information */
+export interface ChunkedUploadSession {
+  /** Unique session identifier for resume */
+  sessionId: string
+  /** Target bucket */
+  bucket: string
+  /** Target file path */
+  path: string
+  /** Total file size */
+  totalSize: number
+  /** Chunk size used */
+  chunkSize: number
+  /** Total number of chunks */
+  totalChunks: number
+  /** Array of completed chunk indices (0-indexed) */
+  completedChunks: number[]
+  /** Session status */
+  status: 'active' | 'completing' | 'completed' | 'aborted' | 'expired'
+  /** Session expiration time */
+  expiresAt: string
+  /** Session creation time */
+  createdAt: string
+}
+
+/** Response from initializing a chunked upload */
+export interface InitChunkedUploadResponse {
+  session: ChunkedUploadSession
+}
+
+/** Response from uploading a chunk */
+export interface UploadChunkResponse {
+  /** Chunk index that was uploaded */
+  chunkIndex: number
+  /** ETag of the uploaded chunk */
+  etag?: string
+  /** Size of the uploaded chunk in bytes */
+  size: number
+  /** Updated session info */
+  session: ChunkedUploadSession
+}
+
+/** Response from completing a chunked upload */
+export interface CompleteChunkedUploadResponse {
+  /** Unique identifier for the uploaded file */
+  id: string
+  /** File path within the bucket */
+  path: string
+  /** Full path including bucket name */
+  fullPath: string
+  /** Total file size in bytes */
+  size: number
+  /** Content type of the file */
+  contentType?: string
+}
+
 // File Sharing Types (RLS)
 export interface ShareFileOptions {
   userId: string
@@ -1049,6 +1158,14 @@ export interface RevokeInvitationResponse {
 // ============================================================================
 
 /**
+ * Override information for a setting controlled by environment variable
+ */
+export interface SettingOverride {
+  is_overridden: boolean
+  env_var: string
+}
+
+/**
  * System setting with key-value storage
  */
 export interface SystemSetting {
@@ -1056,6 +1173,10 @@ export interface SystemSetting {
   key: string
   value: Record<string, unknown>
   description?: string
+  /** True if this setting is overridden by an environment variable */
+  is_overridden?: boolean
+  /** The environment variable name if overridden */
+  override_source?: string
   created_at: string
   updated_at: string
 }
@@ -1216,6 +1337,16 @@ export interface SecuritySettings {
 }
 
 /**
+ * Indicates which settings are overridden by environment variables (read-only)
+ */
+export interface SettingOverrides {
+  authentication?: Record<string, boolean>
+  features?: Record<string, boolean>
+  email?: Record<string, boolean>
+  security?: Record<string, boolean>
+}
+
+/**
  * Complete application settings structure
  */
 export interface AppSettings {
@@ -1223,6 +1354,8 @@ export interface AppSettings {
   features: FeatureSettings
   email: EmailSettings
   security: SecuritySettings
+  /** Settings overridden by environment variables (read-only, cannot be modified via API) */
+  overrides?: SettingOverrides
 }
 
 /**
@@ -1387,6 +1520,8 @@ export interface AuthSettings {
   password_require_special: boolean
   session_timeout_minutes: number
   max_sessions_per_user: number
+  /** Settings overridden by environment variables (read-only, cannot be modified via API) */
+  _overrides?: Record<string, SettingOverride>
 }
 
 /**
@@ -2216,6 +2351,8 @@ export interface AIProvider {
   is_default: boolean
   enabled: boolean
   config?: Record<string, string>
+  /** True if provider is read-only (configured via environment variables or fluxbase.yaml) */
+  read_only?: boolean
   created_at: string
   updated_at: string
 }

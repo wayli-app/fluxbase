@@ -390,3 +390,90 @@ Upload a file to the bucket
 | ------ | ------ |
 | `data` | `null` \| `object` |
 | `error` | `null` \| `Error` |
+
+***
+
+### uploadLargeFile()
+
+> **uploadLargeFile**(`path`, `file`, `options`?): `Promise`\<`object`\>
+
+Upload a large file using streaming for reduced memory usage.
+This is a convenience method that converts a File or Blob to a stream.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `path` | `string` | The path/key for the file |
+| `file` | `Blob` \| `File` | The File or Blob to upload |
+| `options`? | [`StreamUploadOptions`](/api/sdk/interfaces/streamuploadoptions/) | Upload options |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| `object` |
+| `error` | `null` \| `Error` |
+
+#### Example
+
+```typescript
+const file = new File([...], 'large-video.mp4');
+const { data, error } = await storage
+  .from('videos')
+  .uploadLargeFile('video.mp4', file, {
+    contentType: 'video/mp4',
+    onUploadProgress: (p) => console.log(`${p.percentage}% complete`),
+  });
+```
+
+***
+
+### uploadStream()
+
+> **uploadStream**(`path`, `stream`, `size`, `options`?): `Promise`\<`object`\>
+
+Upload a file using streaming for reduced memory usage.
+This method bypasses FormData buffering and streams data directly to the server.
+Ideal for large files where memory efficiency is important.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `path` | `string` | The path/key for the file |
+| `stream` | `ReadableStream`\<`Uint8Array`\> | ReadableStream of the file data |
+| `size` | `number` | The size of the file in bytes (required for Content-Length header) |
+| `options`? | [`StreamUploadOptions`](/api/sdk/interfaces/streamuploadoptions/) | Upload options |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| `object` |
+| `error` | `null` \| `Error` |
+
+#### Example
+
+```typescript
+// Upload from a File's stream
+const file = new File([...], 'large-video.mp4');
+const { data, error } = await storage
+  .from('videos')
+  .uploadStream('video.mp4', file.stream(), file.size, {
+    contentType: 'video/mp4',
+  });
+
+// Upload from a fetch response stream
+const response = await fetch('https://example.com/data.zip');
+const size = parseInt(response.headers.get('content-length') || '0');
+const { data, error } = await storage
+  .from('files')
+  .uploadStream('data.zip', response.body!, size, {
+    contentType: 'application/zip',
+  });
+```

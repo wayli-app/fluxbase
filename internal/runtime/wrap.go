@@ -280,8 +280,21 @@ const Fluxbase = _jobUtils;
 
     // Normalize result
     let finalResult = result;
-    if (result && typeof result === 'object' && result.status !== undefined) {
-      // HTTP response format from handler
+    if (result instanceof Response) {
+      // Native Response object - must await the body stream
+      try {
+        const bodyText = await result.text();
+        try {
+          finalResult = JSON.parse(bodyText);
+        } catch {
+          finalResult = { body: bodyText, status: result.status };
+        }
+      } catch (streamError) {
+        console.error('Failed to read Response body:', streamError.message);
+        finalResult = { error: 'Failed to read response body', status: result.status };
+      }
+    } else if (result && typeof result === 'object' && result.status !== undefined && typeof result.body === 'string') {
+      // Already serialized response format {status, headers, body}
       try {
         finalResult = JSON.parse(result.body);
       } catch {

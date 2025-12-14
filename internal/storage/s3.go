@@ -16,6 +16,7 @@ import (
 // S3Storage implements the Storage interface using S3-compatible storage (AWS S3, MinIO, etc.)
 type S3Storage struct {
 	client *minio.Client
+	core   *minio.Core // Core client for low-level operations like multipart upload
 	region string
 }
 
@@ -41,6 +42,9 @@ func NewS3Storage(endpoint, accessKey, secretKey, region string, useSSL bool, fo
 		return nil, fmt.Errorf("failed to create S3 client: %w", err)
 	}
 
+	// Create Core client for low-level operations (multipart upload)
+	core := &minio.Core{Client: client}
+
 	log.Info().
 		Str("endpoint", endpoint).
 		Str("region", region).
@@ -50,6 +54,7 @@ func NewS3Storage(endpoint, accessKey, secretKey, region string, useSSL bool, fo
 
 	return &S3Storage{
 		client: client,
+		core:   core,
 		region: region,
 	}, nil
 }
@@ -414,6 +419,167 @@ func (s3 *S3Storage) MoveObject(ctx context.Context, srcBucket, srcKey, destBuck
 		Str("dest_bucket", destBucket).
 		Str("dest_key", destKey).
 		Msg("Object moved in S3")
+
+	return nil
+}
+
+// InitChunkedUpload starts a new chunked upload session using S3 multipart upload
+func (s3s *S3Storage) InitChunkedUpload(ctx context.Context, bucket, key string, totalSize int64, chunkSize int64, opts *UploadOptions) (*ChunkedUploadSession, error) {
+	// Prepare multipart upload options
+	putOpts := minio.PutObjectOptions{}
+	if opts != nil {
+		putOpts.ContentType = opts.ContentType
+		putOpts.UserMetadata = opts.Metadata
+		putOpts.CacheControl = opts.CacheControl
+		putOpts.ContentEncoding = opts.ContentEncoding
+	}
+
+	// Start multipart upload using Core client
+	uploadID, err := s3s.core.NewMultipartUpload(ctx, bucket, key, putOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initiate multipart upload: %w", err)
+	}
+
+	totalChunks := int((totalSize + chunkSize - 1) / chunkSize)
+
+	session := &ChunkedUploadSession{
+		UploadID:        uploadID, // Use S3's uploadID directly as our session ID
+		Bucket:          bucket,
+		Key:             key,
+		TotalSize:       totalSize,
+		ChunkSize:       chunkSize,
+		TotalChunks:     totalChunks,
+		CompletedChunks: []int{},
+		S3UploadID:      uploadID,
+		S3PartETags:     make(map[int]string),
+		Status:          "active",
+		CreatedAt:       time.Now(),
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+	}
+
+	if opts != nil {
+		session.ContentType = opts.ContentType
+		session.Metadata = opts.Metadata
+		session.CacheControl = opts.CacheControl
+	}
+
+	log.Debug().
+		Str("uploadID", uploadID).
+		Str("bucket", bucket).
+		Str("key", key).
+		Int64("totalSize", totalSize).
+		Int("totalChunks", totalChunks).
+		Msg("S3 multipart upload session initialized")
+
+	return session, nil
+}
+
+// UploadChunk uploads a single chunk using S3 multipart upload
+func (s3s *S3Storage) UploadChunk(ctx context.Context, session *ChunkedUploadSession, chunkIndex int, data io.Reader, size int64) (*ChunkResult, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	if chunkIndex < 0 || chunkIndex >= session.TotalChunks {
+		return nil, fmt.Errorf("invalid chunk index: %d (total chunks: %d)", chunkIndex, session.TotalChunks)
+	}
+
+	// S3 part numbers are 1-indexed
+	partNumber := chunkIndex + 1
+
+	// Upload the part using Core client
+	objectPart, err := s3s.core.PutObjectPart(
+		ctx,
+		session.Bucket,
+		session.Key,
+		session.S3UploadID,
+		partNumber,
+		data,
+		size,
+		minio.PutObjectPartOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload part %d: %w", partNumber, err)
+	}
+
+	log.Debug().
+		Str("uploadID", session.S3UploadID).
+		Int("partNumber", partNumber).
+		Int64("size", objectPart.Size).
+		Str("etag", objectPart.ETag).
+		Msg("S3 chunk uploaded")
+
+	return &ChunkResult{
+		ChunkIndex: chunkIndex,
+		ETag:       objectPart.ETag,
+		Size:       objectPart.Size,
+	}, nil
+}
+
+// CompleteChunkedUpload finalizes the upload by completing the S3 multipart upload
+func (s3s *S3Storage) CompleteChunkedUpload(ctx context.Context, session *ChunkedUploadSession) (*Object, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	// Build list of completed parts
+	completeParts := make([]minio.CompletePart, 0, session.TotalChunks)
+	for i := 0; i < session.TotalChunks; i++ {
+		etag, ok := session.S3PartETags[i]
+		if !ok {
+			return nil, fmt.Errorf("missing ETag for chunk %d", i)
+		}
+		completeParts = append(completeParts, minio.CompletePart{
+			PartNumber: i + 1, // 1-indexed
+			ETag:       etag,
+		})
+	}
+
+	// Complete the multipart upload using Core client
+	uploadInfo, err := s3s.core.CompleteMultipartUpload(
+		ctx,
+		session.Bucket,
+		session.Key,
+		session.S3UploadID,
+		completeParts,
+		minio.PutObjectOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to complete multipart upload: %w", err)
+	}
+
+	log.Info().
+		Str("uploadID", session.S3UploadID).
+		Str("bucket", session.Bucket).
+		Str("key", session.Key).
+		Int64("size", session.TotalSize).
+		Msg("S3 multipart upload completed")
+
+	return &Object{
+		Key:          session.Key,
+		Bucket:       session.Bucket,
+		Size:         session.TotalSize,
+		ContentType:  session.ContentType,
+		LastModified: time.Now(),
+		ETag:         uploadInfo.ETag,
+		Metadata:     session.Metadata,
+	}, nil
+}
+
+// AbortChunkedUpload cancels the S3 multipart upload and cleans up
+func (s3s *S3Storage) AbortChunkedUpload(ctx context.Context, session *ChunkedUploadSession) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+
+	err := s3s.core.AbortMultipartUpload(ctx, session.Bucket, session.Key, session.S3UploadID)
+	if err != nil {
+		return fmt.Errorf("failed to abort multipart upload: %w", err)
+	}
+
+	log.Info().
+		Str("uploadID", session.S3UploadID).
+		Msg("S3 multipart upload aborted")
 
 	return nil
 }

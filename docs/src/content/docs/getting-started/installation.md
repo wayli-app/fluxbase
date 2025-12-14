@@ -8,7 +8,7 @@ This guide walks you through installing Fluxbase on your system.
 
 Before installing Fluxbase, ensure you have:
 
-- **PostgreSQL 14+** - Fluxbase requires PostgreSQL as its database
+- **PostgreSQL 15+** - Fluxbase requires PostgreSQL as its database
 - **64-bit Operating System** - Linux
 - **1GB RAM minimum** (2GB+ recommended for production)
 - **100MB disk space** (plus space for your data)
@@ -134,11 +134,11 @@ make build
 
 Fluxbase requires these environment variables to be set:
 
-| Variable | Description | How to Generate |
-|----------|-------------|-----------------|
-| `FLUXBASE_AUTH_JWT_SECRET` | Secret key for signing JWT tokens (min 32 characters) | `openssl rand -base64 32` |
-| `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for initial admin setup (min 32 characters) | `openssl rand -base64 32` |
-| `FLUXBASE_DATABASE_*` | Database connection settings | See below |
+| Variable                        | Description                                           | How to Generate           |
+| ------------------------------- | ----------------------------------------------------- | ------------------------- |
+| `FLUXBASE_AUTH_JWT_SECRET`      | Secret key for signing JWT tokens (min 32 characters) | `openssl rand -base64 32` |
+| `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for initial admin setup (min 32 characters)     | `openssl rand -base64 32` |
+| `FLUXBASE_DATABASE_*`           | Database connection settings                          | See below                 |
 
 :::caution[Security Warning]
 Never use default or weak secrets in production. Both `JWT_SECRET` and `SETUP_TOKEN` should be strong, random strings.

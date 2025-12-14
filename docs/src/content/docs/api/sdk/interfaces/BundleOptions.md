@@ -5,7 +5,7 @@ prev: false
 title: "BundleOptions"
 ---
 
-Options for bundling job code
+Options for bundling code
 
 ## Properties
 

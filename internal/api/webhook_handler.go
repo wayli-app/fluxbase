@@ -28,13 +28,16 @@ func (h *WebhookHandler) RegisterRoutes(app *fiber.App, authService *auth.Servic
 		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
-	webhooks.Post("/", h.CreateWebhook)
-	webhooks.Get("/", h.ListWebhooks)
-	webhooks.Get("/:id", h.GetWebhook)
-	webhooks.Patch("/:id", h.UpdateWebhook)
-	webhooks.Delete("/:id", h.DeleteWebhook)
-	webhooks.Post("/:id/test", h.TestWebhook)
-	webhooks.Get("/:id/deliveries", h.ListDeliveries)
+	// Read operations require read:webhooks scope
+	webhooks.Get("/", middleware.RequireScope(auth.ScopeWebhooksRead), h.ListWebhooks)
+	webhooks.Get("/:id", middleware.RequireScope(auth.ScopeWebhooksRead), h.GetWebhook)
+	webhooks.Get("/:id/deliveries", middleware.RequireScope(auth.ScopeWebhooksRead), h.ListDeliveries)
+
+	// Write operations require write:webhooks scope
+	webhooks.Post("/", middleware.RequireScope(auth.ScopeWebhooksWrite), h.CreateWebhook)
+	webhooks.Patch("/:id", middleware.RequireScope(auth.ScopeWebhooksWrite), h.UpdateWebhook)
+	webhooks.Delete("/:id", middleware.RequireScope(auth.ScopeWebhooksWrite), h.DeleteWebhook)
+	webhooks.Post("/:id/test", middleware.RequireScope(auth.ScopeWebhooksWrite), h.TestWebhook)
 }
 
 // CreateWebhook creates a new webhook
@@ -70,6 +73,18 @@ func (h *WebhookHandler) CreateWebhook(c *fiber.Ctx) error {
 	}
 	if req.Headers == nil {
 		req.Headers = make(map[string]string)
+	}
+	if req.Scope == "" {
+		req.Scope = "user"
+	}
+
+	// Set CreatedBy from authenticated user
+	if uid := c.Locals("user_id"); uid != nil {
+		if uidStr, ok := uid.(string); ok {
+			if parsed, err := uuid.Parse(uidStr); err == nil {
+				req.CreatedBy = &parsed
+			}
+		}
 	}
 
 	err := h.webhookService.Create(c.Context(), &req)

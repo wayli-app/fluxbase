@@ -3,11 +3,15 @@ package rpc
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v5"
 	"github.com/rs/zerolog/log"
 )
+
+// namedParamPattern matches $param_name style placeholders used in RPC SQL
+var namedParamPattern = regexp.MustCompile(`\$([a-zA-Z_][a-zA-Z0-9_]*)`)
 
 // Validator handles validation of RPC inputs and SQL queries
 type Validator struct {
@@ -110,6 +114,24 @@ func (v *Validator) validateType(fieldName string, value interface{}, expectedTy
 	return nil
 }
 
+// preprocessNamedParams replaces $param_name placeholders with dummy values
+// so pg_query can parse the SQL. Returns the preprocessed SQL and extracted param names.
+func (v *Validator) preprocessNamedParams(sql string) (string, []string) {
+	var paramNames []string
+	paramIndex := 1
+
+	processed := namedParamPattern.ReplaceAllStringFunc(sql, func(match string) string {
+		paramName := strings.TrimPrefix(match, "$")
+		paramNames = append(paramNames, paramName)
+		// Replace with PostgreSQL positional parameter ($1, $2, etc.)
+		placeholder := fmt.Sprintf("$%d", paramIndex)
+		paramIndex++
+		return placeholder
+	})
+
+	return processed, paramNames
+}
+
 // ValidateSQL validates a SQL query for safety and compliance
 func (v *Validator) ValidateSQL(sql string, allowedTables, allowedSchemas []string) *ValidationResult {
 	result := &ValidationResult{
@@ -152,8 +174,11 @@ func (v *Validator) ValidateSQL(sql string, allowedTables, allowedSchemas []stri
 		}
 	}
 
+	// Preprocess named parameters ($param_name -> $1, $2, etc.) for parsing
+	processedSQL, _ := v.preprocessNamedParams(sql)
+
 	// Parse the SQL
-	parseResult, err := pg_query.Parse(sql)
+	parseResult, err := pg_query.Parse(processedSQL)
 	if err != nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to parse SQL: %s", err.Error()))

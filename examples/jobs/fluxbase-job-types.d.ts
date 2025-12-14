@@ -28,6 +28,27 @@ interface FluxbaseClient {
    * Access the auth API (limited in job context)
    */
   auth: FluxbaseAuth;
+
+  /**
+   * Call PostgreSQL functions (RPC) - Supabase compatible
+   * Can be called directly or access methods like invoke(), list(), getStatus()
+   *
+   * @example
+   * ```typescript
+   * // Supabase-style direct call (uses 'default' namespace)
+   * const { data, error } = await fluxbase.rpc('get_user_orders', { user_id: '123' });
+   *
+   * // With full options
+   * const { data, error } = await fluxbase.rpc.invoke('get_user_orders', { user_id: '123' }, {
+   *   namespace: 'custom',
+   *   async: true
+   * });
+   *
+   * // List available procedures
+   * const { data: procedures } = await fluxbase.rpc.list();
+   * ```
+   */
+  rpc: FluxbaseRPCCallable;
 }
 
 /**
@@ -414,6 +435,115 @@ interface FluxbaseAuth {
 
   /** Get current user */
   getUser(): Promise<{ data: { user: any } | null; error: any }>;
+}
+
+/**
+ * Callable RPC - can be invoked directly (Supabase-style) or access methods
+ */
+interface FluxbaseRPCCallable {
+  /**
+   * Direct call (Supabase-style) - uses 'default' namespace
+   * @param fn - Function name
+   * @param params - Function parameters
+   */
+  <T = any>(fn: string, params?: Record<string, unknown>): Promise<{ data: T | null; error: Error | null }>;
+
+  /**
+   * Invoke with options (namespace, async)
+   * @param name - Procedure name
+   * @param params - Function parameters
+   * @param options - Invocation options
+   */
+  invoke<T = any>(
+    name: string,
+    params?: Record<string, unknown>,
+    options?: { namespace?: string; async?: boolean }
+  ): Promise<{ data: RPCInvokeResponse<T> | null; error: Error | null }>;
+
+  /**
+   * List available procedures
+   * @param namespace - Optional namespace filter
+   */
+  list(namespace?: string): Promise<{ data: RPCProcedureSummary[] | null; error: Error | null }>;
+
+  /**
+   * Get execution status
+   * @param executionId - The execution ID
+   */
+  getStatus(executionId: string): Promise<{ data: RPCExecution | null; error: Error | null }>;
+
+  /**
+   * Get execution logs
+   * @param executionId - The execution ID
+   * @param afterLine - Optional line number to get logs after
+   */
+  getLogs(executionId: string, afterLine?: number): Promise<{ data: RPCExecutionLog[] | null; error: Error | null }>;
+
+  /**
+   * Wait for execution completion with polling
+   * @param executionId - The execution ID to poll
+   * @param options - Polling options
+   */
+  waitForCompletion(
+    executionId: string,
+    options?: {
+      maxWaitMs?: number;
+      initialIntervalMs?: number;
+      maxIntervalMs?: number;
+      onProgress?: (execution: RPCExecution) => void;
+    }
+  ): Promise<{ data: RPCExecution | null; error: Error | null }>;
+}
+
+/**
+ * RPC invocation response
+ */
+interface RPCInvokeResponse<T = unknown> {
+  execution_id: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
+  result?: T;
+  rows_returned?: number;
+  duration_ms?: number;
+  error?: string;
+}
+
+/**
+ * RPC procedure summary
+ */
+interface RPCProcedureSummary {
+  id: string;
+  name: string;
+  namespace: string;
+  description?: string;
+}
+
+/**
+ * RPC execution record
+ */
+interface RPCExecution {
+  id: string;
+  procedure_id: string;
+  procedure_name: string;
+  namespace: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
+  params?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+  rows_returned?: number;
+  duration_ms?: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+/**
+ * RPC execution log entry
+ */
+interface RPCExecutionLog {
+  line_number: number;
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  timestamp: string;
 }
 
 /**

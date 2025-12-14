@@ -224,6 +224,14 @@ func (w *Worker) staleWorkerCleanupLoop(ctx context.Context) {
 			} else if deleted > 0 {
 				log.Info().Int64("deleted", deleted).Dur("timeout", w.Config.WorkerTimeout).Msg("Cleaned up stale workers")
 			}
+
+			// Reset any orphaned jobs (running but worker_id is NULL due to worker deletion)
+			reset, err := w.Storage.ResetOrphanedJobs(ctx)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to reset orphaned jobs")
+			} else if reset > 0 {
+				log.Info().Int64("reset", reset).Msg("Reset orphaned jobs to pending")
+			}
 		case <-w.shutdownChan:
 			return
 		}

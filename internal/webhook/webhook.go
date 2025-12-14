@@ -34,6 +34,7 @@ type Webhook struct {
 	RetryBackoffSeconds int               `json:"retry_backoff_seconds"`
 	TimeoutSeconds      int               `json:"timeout_seconds"`
 	Headers             map[string]string `json:"headers"`
+	Scope               string            `json:"scope"` // "user" or "global"
 	CreatedBy           *uuid.UUID        `json:"created_by,omitempty"`
 	CreatedAt           time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
@@ -234,6 +235,62 @@ func NewWebhookService(db *database.Connection) *WebhookService {
 	}
 }
 
+// parseTableReference splits a table reference into schema and table name
+// e.g., "auth.users" -> ("auth", "users"), "users" -> ("auth", "users")
+func parseTableReference(tableRef string) (schema, table string) {
+	if idx := strings.Index(tableRef, "."); idx > 0 {
+		return tableRef[:idx], tableRef[idx+1:]
+	}
+	// Default to auth schema since most webhook targets are auth tables
+	return "auth", tableRef
+}
+
+// ManageTriggersForWebhook ensures database triggers exist for all tables monitored by this webhook
+func (s *WebhookService) ManageTriggersForWebhook(ctx context.Context, events []EventConfig) error {
+	for _, event := range events {
+		if event.Table == "*" {
+			continue // Wildcard doesn't need specific trigger
+		}
+		schema, table := parseTableReference(event.Table)
+		if err := s.incrementTableCount(ctx, schema, table); err != nil {
+			return fmt.Errorf("failed to create trigger for %s.%s: %w", schema, table, err)
+		}
+	}
+	return nil
+}
+
+// CleanupTriggersForWebhook decrements reference counts for monitored tables
+func (s *WebhookService) CleanupTriggersForWebhook(ctx context.Context, events []EventConfig) error {
+	for _, event := range events {
+		if event.Table == "*" {
+			continue
+		}
+		schema, table := parseTableReference(event.Table)
+		if err := s.decrementTableCount(ctx, schema, table); err != nil {
+			log.Error().Err(err).Str("schema", schema).Str("table", table).Msg("Failed to decrement table count")
+		}
+	}
+	return nil
+}
+
+// incrementTableCount calls the database function to increment webhook count for a table
+func (s *WebhookService) incrementTableCount(ctx context.Context, schema, table string) error {
+	query := `SELECT auth.increment_webhook_table_count($1, $2)`
+	return database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, schema, table)
+		return err
+	})
+}
+
+// decrementTableCount calls the database function to decrement webhook count for a table
+func (s *WebhookService) decrementTableCount(ctx context.Context, schema, table string) error {
+	query := `SELECT auth.decrement_webhook_table_count($1, $2)`
+	return database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, schema, table)
+		return err
+	})
+}
+
 // Create creates a new webhook
 func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
@@ -248,6 +305,11 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 		return fmt.Errorf("invalid webhook headers: %w", err)
 	}
 
+	// Set default scope if not provided
+	if webhook.Scope == "" {
+		webhook.Scope = "user"
+	}
+
 	eventsJSON, err := json.Marshal(webhook.Events)
 	if err != nil {
 		return fmt.Errorf("failed to marshal events: %w", err)
@@ -259,8 +321,8 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 	}
 
 	query := `
-		INSERT INTO auth.webhooks (name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO auth.webhooks (name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, scope, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -276,6 +338,7 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 			webhook.RetryBackoffSeconds,
 			webhook.TimeoutSeconds,
 			headersJSON,
+			webhook.Scope,
 			webhook.CreatedBy,
 		).Scan(&webhook.ID, &webhook.CreatedAt, &webhook.UpdatedAt)
 	})
@@ -284,13 +347,21 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 		return fmt.Errorf("failed to create webhook: %w", err)
 	}
 
+	// Create triggers for monitored tables if webhook is enabled
+	if webhook.Enabled {
+		if err := s.ManageTriggersForWebhook(ctx, webhook.Events); err != nil {
+			log.Error().Err(err).Str("webhook_id", webhook.ID.String()).Msg("Failed to create triggers for webhook")
+			// Don't fail the webhook creation, just log the error
+		}
+	}
+
 	return nil
 }
 
 // List lists all webhooks
 func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 	query := `
-		SELECT id, name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, created_by, created_at, updated_at
+		SELECT id, name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, scope, created_by, created_at, updated_at
 		FROM auth.webhooks
 		ORDER BY created_at DESC
 	`
@@ -306,6 +377,7 @@ func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 		for rows.Next() {
 			var webhook Webhook
 			var eventsJSON, headersJSON []byte
+			var scope *string
 
 			err := rows.Scan(
 				&webhook.ID,
@@ -319,6 +391,7 @@ func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 				&webhook.RetryBackoffSeconds,
 				&webhook.TimeoutSeconds,
 				&headersJSON,
+				&scope,
 				&webhook.CreatedBy,
 				&webhook.CreatedAt,
 				&webhook.UpdatedAt,
@@ -333,6 +406,13 @@ func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 
 			if err := json.Unmarshal(headersJSON, &webhook.Headers); err != nil {
 				return err
+			}
+
+			// Handle NULL scope (legacy webhooks)
+			if scope != nil {
+				webhook.Scope = *scope
+			} else {
+				webhook.Scope = "user"
 			}
 
 			webhooks = append(webhooks, &webhook)
@@ -350,13 +430,14 @@ func (s *WebhookService) List(ctx context.Context) ([]*Webhook, error) {
 // Get retrieves a webhook by ID
 func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error) {
 	query := `
-		SELECT id, name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, created_by, created_at, updated_at
+		SELECT id, name, description, url, secret, enabled, events, max_retries, retry_backoff_seconds, timeout_seconds, headers, scope, created_by, created_at, updated_at
 		FROM auth.webhooks
 		WHERE id = $1
 	`
 
 	var webhook Webhook
 	var eventsJSON, headersJSON []byte
+	var scope *string
 
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, id).Scan(
@@ -371,6 +452,7 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 			&webhook.RetryBackoffSeconds,
 			&webhook.TimeoutSeconds,
 			&headersJSON,
+			&scope,
 			&webhook.CreatedBy,
 			&webhook.CreatedAt,
 			&webhook.UpdatedAt,
@@ -392,6 +474,13 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 		return nil, fmt.Errorf("failed to unmarshal headers: %w", err)
 	}
 
+	// Handle NULL scope (legacy webhooks)
+	if scope != nil {
+		webhook.Scope = *scope
+	} else {
+		webhook.Scope = "user"
+	}
+
 	return &webhook, nil
 }
 
@@ -407,6 +496,17 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 		return fmt.Errorf("invalid webhook headers: %w", err)
 	}
 
+	// Get the old webhook to compare events and enabled state
+	oldWebhook, err := s.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Set default scope if not provided
+	if webhook.Scope == "" {
+		webhook.Scope = "user"
+	}
+
 	eventsJSON, err := json.Marshal(webhook.Events)
 	if err != nil {
 		return fmt.Errorf("failed to marshal events: %w", err)
@@ -420,8 +520,8 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 	query := `
 		UPDATE auth.webhooks
 		SET name = $1, description = $2, url = $3, secret = $4, enabled = $5, events = $6,
-		    max_retries = $7, retry_backoff_seconds = $8, timeout_seconds = $9, headers = $10
-		WHERE id = $11
+		    max_retries = $7, retry_backoff_seconds = $8, timeout_seconds = $9, headers = $10, scope = $11
+		WHERE id = $12
 	`
 
 	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
@@ -436,6 +536,7 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 			webhook.RetryBackoffSeconds,
 			webhook.TimeoutSeconds,
 			headersJSON,
+			webhook.Scope,
 			id,
 		)
 
@@ -454,14 +555,72 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 		return fmt.Errorf("failed to update webhook: %w", err)
 	}
 
+	// Handle trigger changes
+	// If webhook was enabled and is now disabled, decrement counts
+	if oldWebhook.Enabled && !webhook.Enabled {
+		if err := s.CleanupTriggersForWebhook(ctx, oldWebhook.Events); err != nil {
+			log.Error().Err(err).Str("webhook_id", id.String()).Msg("Failed to cleanup triggers after disabling webhook")
+		}
+	}
+
+	// If webhook was disabled and is now enabled, increment counts
+	if !oldWebhook.Enabled && webhook.Enabled {
+		if err := s.ManageTriggersForWebhook(ctx, webhook.Events); err != nil {
+			log.Error().Err(err).Str("webhook_id", id.String()).Msg("Failed to create triggers after enabling webhook")
+		}
+	}
+
+	// If webhook was and is enabled, but events changed, handle the diff
+	if oldWebhook.Enabled && webhook.Enabled {
+		// Build maps of old and new tables
+		oldTables := make(map[string]bool)
+		for _, e := range oldWebhook.Events {
+			if e.Table != "*" {
+				oldTables[e.Table] = true
+			}
+		}
+		newTables := make(map[string]bool)
+		for _, e := range webhook.Events {
+			if e.Table != "*" {
+				newTables[e.Table] = true
+			}
+		}
+
+		// Decrement counts for tables no longer monitored
+		for t := range oldTables {
+			if !newTables[t] {
+				schema, table := parseTableReference(t)
+				if err := s.decrementTableCount(ctx, schema, table); err != nil {
+					log.Error().Err(err).Str("table", t).Msg("Failed to decrement table count")
+				}
+			}
+		}
+
+		// Increment counts for newly monitored tables
+		for t := range newTables {
+			if !oldTables[t] {
+				schema, table := parseTableReference(t)
+				if err := s.incrementTableCount(ctx, schema, table); err != nil {
+					log.Error().Err(err).Str("table", t).Msg("Failed to increment table count")
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
 // Delete deletes a webhook
 func (s *WebhookService) Delete(ctx context.Context, id uuid.UUID) error {
+	// Get the webhook first to cleanup triggers
+	webhook, err := s.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	query := `DELETE FROM auth.webhooks WHERE id = $1`
 
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		result, err := tx.Exec(ctx, query, id)
 		if err != nil {
 			return err
@@ -475,6 +634,13 @@ func (s *WebhookService) Delete(ctx context.Context, id uuid.UUID) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete webhook: %w", err)
+	}
+
+	// Cleanup triggers if webhook was enabled
+	if webhook.Enabled {
+		if err := s.CleanupTriggersForWebhook(ctx, webhook.Events); err != nil {
+			log.Error().Err(err).Str("webhook_id", id.String()).Msg("Failed to cleanup triggers after deleting webhook")
+		}
 	}
 
 	return nil

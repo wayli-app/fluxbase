@@ -73,9 +73,9 @@ func (s *APIKeyService) GenerateAPIKey(ctx context.Context, name string, descrip
 	// Extract prefix (first 12 chars: "fbk_" + 8 chars)
 	keyPrefix := plaintextKey[:12]
 
-	// Set default scopes if none provided
-	if len(scopes) == 0 {
-		scopes = []string{"read:tables", "write:tables", "read:storage", "write:storage", "read:functions", "execute:functions"}
+	// Validate scopes - at least one scope is required
+	if err := ValidateScopes(scopes); err != nil {
+		return nil, fmt.Errorf("invalid scopes: %w", err)
 	}
 
 	// Set default rate limit
@@ -258,6 +258,13 @@ func (s *APIKeyService) DeleteAPIKey(ctx context.Context, id uuid.UUID) error {
 
 // UpdateAPIKey updates an API key's metadata
 func (s *APIKeyService) UpdateAPIKey(ctx context.Context, id uuid.UUID, name *string, description *string, scopes []string, rateLimitPerMinute *int) error {
+	// Validate scopes if provided
+	if len(scopes) > 0 {
+		if err := ValidateScopes(scopes); err != nil {
+			return fmt.Errorf("invalid scopes: %w", err)
+		}
+	}
+
 	query := `
 		UPDATE auth.api_keys
 		SET name = COALESCE($2, name),

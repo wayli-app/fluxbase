@@ -390,7 +390,7 @@ type ProviderRecord struct {
 	IsDefault    bool              `json:"is_default"`
 	Config       map[string]string `json:"config"`
 	Enabled      bool              `json:"enabled"`
-	FromConfig   bool              `json:"from_config"` // True if configured via environment/YAML (read-only)
+	ReadOnly     bool              `json:"read_only"` // True if configured via environment/YAML (cannot be modified)
 	CreatedAt    time.Time         `json:"created_at"`
 	UpdatedAt    time.Time         `json:"updated_at"`
 	CreatedBy    *string           `json:"created_by,omitempty"`
@@ -658,7 +658,7 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 		IsDefault:    true,
 		Config:       configMap,
 		Enabled:      true,
-		FromConfig:   true,
+		ReadOnly:     true,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		CreatedBy:    nil,
@@ -670,7 +670,7 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 		Str("provider_type", provider.ProviderType).
 		Str("model", model).
 		Bool("is_default", provider.IsDefault).
-		Bool("from_config", provider.FromConfig).
+		Bool("read_only", provider.ReadOnly).
 		Msg("Config-based AI provider created successfully")
 
 	return provider
@@ -714,8 +714,8 @@ func (s *Storage) ListProviders(ctx context.Context, enabledOnly bool) ([]*Provi
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider row: %w", err)
 		}
-		// Set FromConfig to false for database providers
-		provider.FromConfig = false
+		// Set ReadOnly to false for database providers
+		provider.ReadOnly = false
 		providers = append(providers, provider)
 	}
 

@@ -36,9 +36,10 @@ func (h *MonitoringHandler) RegisterRoutes(app *fiber.App, authService *auth.Ser
 		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
-	monitoring.Get("/metrics", h.GetMetrics)
-	monitoring.Get("/health", h.GetHealth)
-	monitoring.Get("/logs", h.GetLogs)
+	// All monitoring routes require read:monitoring scope
+	monitoring.Get("/metrics", middleware.RequireScope(auth.ScopeMonitoringRead), h.GetMetrics)
+	monitoring.Get("/health", middleware.RequireScope(auth.ScopeMonitoringRead), h.GetHealth)
+	monitoring.Get("/logs", middleware.RequireScope(auth.ScopeMonitoringRead), h.GetLogs)
 }
 
 // SystemMetrics represents system-wide metrics

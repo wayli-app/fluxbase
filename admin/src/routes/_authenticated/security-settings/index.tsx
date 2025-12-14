@@ -112,28 +112,6 @@ function SecuritySettingsPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Additional Security Features</CardTitle>
-          <CardDescription>
-            Additional security configuration options
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg bg-muted p-4">
-            <div className="flex gap-2">
-              <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-              <div className="text-sm space-y-1">
-                <p className="font-medium">Coming Soon</p>
-                <p className="text-muted-foreground">
-                  Additional security features like IP allowlisting, CORS configuration, and advanced authentication options will be available in future releases.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

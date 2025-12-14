@@ -56,9 +56,9 @@ fluxbase/
 
 ## Technology Stack
 
-- **Language**: Go 1.22+
+- **Language**: Go 1.25+
 - **Web Framework**: Fiber v2 (FastHTTP-based)
-- **Database**: PostgreSQL 14+ with pgx/v5
+- **Database**: PostgreSQL 15+ with pgx/v5
 - **Migrations**: golang-migrate
 - **Config**: Viper
 - **Logging**: Zerolog

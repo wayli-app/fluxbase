@@ -54,8 +54,8 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ### Prerequisites
 
-- Go 1.22+
-- PostgreSQL 14+
+- Go 1.25+
+- PostgreSQL 15+
 - Node.js 20+ (for SDK development)
 - Make
 

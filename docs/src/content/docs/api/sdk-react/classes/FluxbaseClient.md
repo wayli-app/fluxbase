@@ -148,51 +148,6 @@ await client.from('users').insert({ name: 'John', email: 'john@example.com' }).e
 
 ***
 
-### rpc()
-
-> **rpc**\<`T`\>(`functionName`, `params`?): `Promise`\<`object`\>
-
-Call a PostgreSQL function (Remote Procedure Call)
-
-#### Type Parameters
-
-| Type Parameter | Default type |
-| ------ | ------ |
-| `T` | `any` |
-
-#### Parameters
-
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `functionName` | `string` | The name of the PostgreSQL function to call |
-| `params`? | `Record`\<`string`, `unknown`\> | Optional parameters to pass to the function |
-
-#### Returns
-
-`Promise`\<`object`\>
-
-Promise containing the function result or error
-
-| Name | Type |
-| ------ | ------ |
-| `data` | `null` \| `T` |
-| `error` | `null` \| `Error` |
-
-#### Example
-
-```typescript
-// Call a function without parameters
-const { data, error } = await client.rpc('get_total_users')
-
-// Call a function with parameters
-const { data, error } = await client.rpc('calculate_discount', {
-  product_id: 123,
-  coupon_code: 'SAVE20'
-})
-```
-
-***
-
 ### schema()
 
 > **schema**(`schemaName`): `SchemaQueryBuilder`
@@ -239,6 +194,14 @@ await client
 > **admin**: `FluxbaseAdmin`
 
 Admin module for instance management (requires admin authentication)
+
+***
+
+### ai
+
+> **ai**: `FluxbaseAI`
+
+AI module for chatbots and conversation history
 
 ***
 
@@ -295,6 +258,32 @@ Settings module for reading public application settings (respects RLS policies)
 > **storage**: `FluxbaseStorage`
 
 Storage module for file operations
+
+## RPC
+
+### rpc
+
+> **rpc**: `CallableRPC`
+
+RPC module for calling PostgreSQL functions - Supabase compatible
+
+Can be called directly (Supabase-style) or access methods like invoke(), list(), getStatus()
+
+#### Example
+
+```typescript
+// Supabase-style direct call (uses 'default' namespace)
+const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
+
+// With full options
+const { data, error } = await client.rpc.invoke('get_user_orders', { user_id: '123' }, {
+  namespace: 'custom',
+  async: true
+})
+
+// List available procedures
+const { data: procedures } = await client.rpc.list()
+```
 
 ## Realtime
 

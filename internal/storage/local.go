@@ -772,3 +772,297 @@ func (ls *LocalStorage) MoveObject(ctx context.Context, srcBucket, srcKey, destB
 
 	return nil
 }
+
+// getChunkedUploadDir returns the path to the chunked upload directory for a session
+func (ls *LocalStorage) getChunkedUploadDir(uploadID string) string {
+	return filepath.Join(ls.basePath, ".chunked", uploadID)
+}
+
+// getChunkPath returns the path to a specific chunk file
+func (ls *LocalStorage) getChunkPath(uploadID string, chunkIndex int) string {
+	return filepath.Join(ls.getChunkedUploadDir(uploadID), fmt.Sprintf("chunk_%06d", chunkIndex))
+}
+
+// InitChunkedUpload starts a new chunked upload session for local storage
+func (ls *LocalStorage) InitChunkedUpload(ctx context.Context, bucket, key string, totalSize int64, chunkSize int64, opts *UploadOptions) (*ChunkedUploadSession, error) {
+	// Validate bucket and key
+	if _, err := ls.getPath(bucket, key); err != nil {
+		return nil, fmt.Errorf("invalid path: %w", err)
+	}
+
+	// Generate unique upload ID
+	uploadID := fmt.Sprintf("%d-%s", time.Now().UnixNano(), key)
+	// Replace slashes with underscores to create a valid directory name
+	uploadID = strings.ReplaceAll(uploadID, "/", "_")
+	uploadID = strings.ReplaceAll(uploadID, "\\", "_")
+
+	// Create chunked upload directory
+	chunkDir := ls.getChunkedUploadDir(uploadID)
+	if err := os.MkdirAll(chunkDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create chunk directory: %w", err)
+	}
+
+	totalChunks := int((totalSize + chunkSize - 1) / chunkSize)
+
+	session := &ChunkedUploadSession{
+		UploadID:        uploadID,
+		Bucket:          bucket,
+		Key:             key,
+		TotalSize:       totalSize,
+		ChunkSize:       chunkSize,
+		TotalChunks:     totalChunks,
+		CompletedChunks: []int{},
+		Status:          "active",
+		CreatedAt:       time.Now(),
+		ExpiresAt:       time.Now().Add(24 * time.Hour),
+	}
+
+	if opts != nil {
+		session.ContentType = opts.ContentType
+		session.Metadata = opts.Metadata
+		session.CacheControl = opts.CacheControl
+	}
+
+	// Save session metadata to a file
+	sessionPath := filepath.Join(chunkDir, "session.json")
+	sessionData, err := json.Marshal(session)
+	if err != nil {
+		_ = os.RemoveAll(chunkDir)
+		return nil, fmt.Errorf("failed to marshal session: %w", err)
+	}
+	if err := os.WriteFile(sessionPath, sessionData, 0644); err != nil {
+		_ = os.RemoveAll(chunkDir)
+		return nil, fmt.Errorf("failed to save session: %w", err)
+	}
+
+	log.Debug().
+		Str("uploadID", uploadID).
+		Str("bucket", bucket).
+		Str("key", key).
+		Int64("totalSize", totalSize).
+		Int("totalChunks", totalChunks).
+		Msg("Chunked upload session initialized")
+
+	return session, nil
+}
+
+// UploadChunk uploads a single chunk of data for local storage
+func (ls *LocalStorage) UploadChunk(ctx context.Context, session *ChunkedUploadSession, chunkIndex int, data io.Reader, size int64) (*ChunkResult, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	if chunkIndex < 0 || chunkIndex >= session.TotalChunks {
+		return nil, fmt.Errorf("invalid chunk index: %d (total chunks: %d)", chunkIndex, session.TotalChunks)
+	}
+
+	// Verify session directory exists
+	chunkDir := ls.getChunkedUploadDir(session.UploadID)
+	if _, err := os.Stat(chunkDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("upload session not found")
+	}
+
+	// Create chunk file
+	chunkPath := ls.getChunkPath(session.UploadID, chunkIndex)
+	file, err := os.Create(chunkPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chunk file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	// Calculate MD5 hash while writing
+	hash := md5.New()
+	writer := io.MultiWriter(file, hash)
+
+	// Copy data to chunk file
+	written, err := io.Copy(writer, data)
+	if err != nil {
+		_ = os.Remove(chunkPath)
+		return nil, fmt.Errorf("failed to write chunk: %w", err)
+	}
+
+	etag := hex.EncodeToString(hash.Sum(nil))
+
+	log.Debug().
+		Str("uploadID", session.UploadID).
+		Int("chunkIndex", chunkIndex).
+		Int64("size", written).
+		Msg("Chunk uploaded")
+
+	return &ChunkResult{
+		ChunkIndex: chunkIndex,
+		ETag:       etag,
+		Size:       written,
+	}, nil
+}
+
+// CompleteChunkedUpload finalizes the upload and assembles the file for local storage
+func (ls *LocalStorage) CompleteChunkedUpload(ctx context.Context, session *ChunkedUploadSession) (*Object, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	chunkDir := ls.getChunkedUploadDir(session.UploadID)
+
+	// Verify all chunks exist
+	for i := 0; i < session.TotalChunks; i++ {
+		chunkPath := ls.getChunkPath(session.UploadID, i)
+		if _, err := os.Stat(chunkPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("missing chunk %d", i)
+		}
+	}
+
+	// Get destination path
+	destPath, err := ls.getPath(session.Bucket, session.Key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid destination path: %w", err)
+	}
+
+	// Create parent directories
+	destDir := filepath.Dir(destPath)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// Create destination file
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer func() { _ = destFile.Close() }()
+
+	// Calculate MD5 hash while assembling
+	hash := md5.New()
+	writer := io.MultiWriter(destFile, hash)
+
+	// Concatenate all chunks
+	var totalWritten int64
+	for i := 0; i < session.TotalChunks; i++ {
+		chunkPath := ls.getChunkPath(session.UploadID, i)
+		chunkFile, err := os.Open(chunkPath)
+		if err != nil {
+			_ = destFile.Close()
+			_ = os.Remove(destPath)
+			return nil, fmt.Errorf("failed to open chunk %d: %w", i, err)
+		}
+
+		written, err := io.Copy(writer, chunkFile)
+		_ = chunkFile.Close()
+		if err != nil {
+			_ = destFile.Close()
+			_ = os.Remove(destPath)
+			return nil, fmt.Errorf("failed to copy chunk %d: %w", i, err)
+		}
+		totalWritten += written
+	}
+
+	etag := hex.EncodeToString(hash.Sum(nil))
+
+	// Save metadata if present
+	if len(session.Metadata) > 0 || session.ContentType != "" {
+		metaPath := destPath + ".meta"
+		metaData := ""
+		for k, v := range session.Metadata {
+			metaData += fmt.Sprintf("%s=%s\n", k, v)
+		}
+		if session.ContentType != "" {
+			metaData += fmt.Sprintf("content-type=%s\n", session.ContentType)
+		}
+		_ = os.WriteFile(metaPath, []byte(metaData), 0644)
+	}
+
+	// Clean up chunk directory
+	if err := os.RemoveAll(chunkDir); err != nil {
+		log.Warn().Err(err).Str("uploadID", session.UploadID).Msg("Failed to clean up chunk directory")
+	}
+
+	// Get final file info
+	info, err := os.Stat(destPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat final file: %w", err)
+	}
+
+	log.Info().
+		Str("uploadID", session.UploadID).
+		Str("bucket", session.Bucket).
+		Str("key", session.Key).
+		Int64("size", totalWritten).
+		Msg("Chunked upload completed")
+
+	return &Object{
+		Key:          session.Key,
+		Bucket:       session.Bucket,
+		Size:         info.Size(),
+		ContentType:  session.ContentType,
+		LastModified: info.ModTime(),
+		ETag:         etag,
+		Metadata:     session.Metadata,
+	}, nil
+}
+
+// AbortChunkedUpload cancels the upload and cleans up chunks for local storage
+func (ls *LocalStorage) AbortChunkedUpload(ctx context.Context, session *ChunkedUploadSession) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+
+	chunkDir := ls.getChunkedUploadDir(session.UploadID)
+
+	// Remove the entire chunk directory
+	if err := os.RemoveAll(chunkDir); err != nil {
+		return fmt.Errorf("failed to remove chunk directory: %w", err)
+	}
+
+	log.Info().
+		Str("uploadID", session.UploadID).
+		Msg("Chunked upload aborted")
+
+	return nil
+}
+
+// GetChunkedUploadSession retrieves a chunked upload session from local storage
+func (ls *LocalStorage) GetChunkedUploadSession(uploadID string) (*ChunkedUploadSession, error) {
+	chunkDir := ls.getChunkedUploadDir(uploadID)
+	sessionPath := filepath.Join(chunkDir, "session.json")
+
+	sessionData, err := os.ReadFile(sessionPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("upload session not found")
+		}
+		return nil, fmt.Errorf("failed to read session: %w", err)
+	}
+
+	var session ChunkedUploadSession
+	if err := json.Unmarshal(sessionData, &session); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal session: %w", err)
+	}
+
+	// Update completed chunks by checking which chunk files exist
+	session.CompletedChunks = []int{}
+	for i := 0; i < session.TotalChunks; i++ {
+		chunkPath := ls.getChunkPath(uploadID, i)
+		if _, err := os.Stat(chunkPath); err == nil {
+			session.CompletedChunks = append(session.CompletedChunks, i)
+		}
+	}
+
+	return &session, nil
+}
+
+// UpdateChunkedUploadSession updates a session file after chunk upload
+func (ls *LocalStorage) UpdateChunkedUploadSession(session *ChunkedUploadSession) error {
+	chunkDir := ls.getChunkedUploadDir(session.UploadID)
+	sessionPath := filepath.Join(chunkDir, "session.json")
+
+	sessionData, err := json.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session: %w", err)
+	}
+
+	if err := os.WriteFile(sessionPath, sessionData, 0644); err != nil {
+		return fmt.Errorf("failed to save session: %w", err)
+	}
+
+	return nil
+}

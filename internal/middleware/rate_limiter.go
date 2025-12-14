@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/storage/memory/v2"
@@ -162,6 +163,26 @@ func GlobalAPILimiter() fiber.Handler {
 		},
 		Message: "API rate limit exceeded. Maximum 100 requests per minute allowed.",
 	})
+}
+
+// DynamicGlobalAPILimiter creates a rate limiter that respects the dynamic setting
+// It checks the settings cache on each request, allowing real-time toggling of rate limiting
+// without server restart
+func DynamicGlobalAPILimiter(settingsCache *auth.SettingsCache) fiber.Handler {
+	// Create the actual rate limiter once
+	rateLimiter := GlobalAPILimiter()
+
+	return func(c *fiber.Ctx) error {
+		// Check if rate limiting is enabled via settings cache
+		ctx := c.Context()
+		isEnabled := settingsCache.GetBool(ctx, "app.security.enable_global_rate_limit", false)
+
+		if !isEnabled {
+			return c.Next() // Skip rate limiting
+		}
+
+		return rateLimiter(c)
+	}
 }
 
 // AuthenticatedUserLimiter limits requests per authenticated user (higher limits than IP-based)

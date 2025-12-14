@@ -420,6 +420,27 @@ func (s *Storage) UpdateExecution(ctx context.Context, exec *Execution) error {
 	return nil
 }
 
+// CancelExecution cancels a pending or running execution
+func (s *Storage) CancelExecution(ctx context.Context, id string) error {
+	query := `
+		UPDATE rpc.executions SET
+			status = $2,
+			completed_at = NOW()
+		WHERE id = $1 AND status IN ($3, $4)
+	`
+
+	result, err := s.db.Exec(ctx, query, id, StatusCancelled, StatusPending, StatusRunning)
+	if err != nil {
+		return fmt.Errorf("failed to cancel execution: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("execution not found or cannot be cancelled: %s", id)
+	}
+
+	return nil
+}
+
 // GetExecution retrieves an execution by ID
 func (s *Storage) GetExecution(ctx context.Context, id string) (*Execution, error) {
 	query := `

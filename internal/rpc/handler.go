@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
@@ -297,6 +298,17 @@ func (h *Handler) SyncProcedures(c *fiber.Ctx) error {
 			proc.Source = "filesystem"
 		}
 
+		// Validate SQL before creating/updating
+		validationResult := h.validator.ValidateSQL(proc.SQLQuery, proc.AllowedTables, proc.AllowedSchemas)
+		if !validationResult.Valid {
+			result.Errors = append(result.Errors, SyncError{
+				Procedure: spec.Name,
+				Error:     fmt.Sprintf("SQL validation failed: %v", validationResult.Errors),
+			})
+			result.Summary.Errors++
+			continue
+		}
+
 		existingProc, exists := existingMap[spec.Name]
 
 		if !exists {
@@ -521,6 +533,49 @@ func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 	})
 }
 
+// CancelExecution cancels a pending or running execution
+// POST /api/v1/admin/rpc/executions/:id/cancel
+func (h *Handler) CancelExecution(c *fiber.Ctx) error {
+	ctx := c.Context()
+	id := c.Params("id")
+
+	// Get execution to check status
+	execution, err := h.storage.GetExecution(ctx, id)
+	if err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to get execution")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get execution",
+		})
+	}
+
+	if execution == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Execution not found",
+		})
+	}
+
+	// Can only cancel pending or running executions
+	if execution.Status != StatusPending && execution.Status != StatusRunning {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":  "Execution cannot be cancelled",
+			"status": execution.Status,
+		})
+	}
+
+	// Cancel the execution
+	if err := h.storage.CancelExecution(ctx, id); err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to cancel execution")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to cancel execution",
+		})
+	}
+
+	// Get the updated execution
+	execution, _ = h.storage.GetExecution(ctx, id)
+
+	return c.JSON(execution)
+}
+
 // ============================================================================
 // PUBLIC: PROCEDURE LISTING
 // ============================================================================
@@ -589,13 +644,22 @@ func (h *Handler) Invoke(c *fiber.Ctx) error {
 		userID = uid
 		isAuthenticated = true
 	}
-	if role, ok := c.Locals("role").(string); ok && role != "" {
+	// Check both "role" and "user_role" for compatibility with different auth middlewares
+	if role, ok := c.Locals("user_role").(string); ok && role != "" {
+		userRole = role
+	} else if role, ok := c.Locals("role").(string); ok && role != "" {
 		userRole = role
 	}
-	if email, ok := c.Locals("email").(string); ok {
+	// Check both "email" and "user_email" for compatibility
+	if email, ok := c.Locals("user_email").(string); ok {
+		userEmail = email
+	} else if email, ok := c.Locals("email").(string); ok {
 		userEmail = email
 	}
-	if tc, ok := c.Locals("claims").(*auth.TokenClaims); ok {
+	// Check both "jwt_claims" and "claims" for compatibility
+	if tc, ok := c.Locals("jwt_claims").(*auth.TokenClaims); ok {
+		claims = tc
+	} else if tc, ok := c.Locals("claims").(*auth.TokenClaims); ok {
 		claims = tc
 	}
 

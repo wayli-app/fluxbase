@@ -244,15 +244,20 @@ func (e *Executor) buildSQL(sqlTemplate string, params map[string]interface{}, e
 	// Use a regex to find all parameter placeholders
 	paramPattern := regexp.MustCompile(`\$([a-zA-Z_][a-zA-Z0-9_]*)`)
 
+	var missingParams []string
 	sql = paramPattern.ReplaceAllStringFunc(sql, func(match string) string {
 		paramName := strings.TrimPrefix(match, "$")
 		value, exists := allParams[paramName]
 		if !exists {
-			// Parameter not provided, keep as is (might be a positional parameter)
+			missingParams = append(missingParams, paramName)
 			return match
 		}
 		return e.formatValue(value)
 	})
+
+	if len(missingParams) > 0 {
+		return "", fmt.Errorf("missing required parameters: %v", missingParams)
+	}
 
 	return sql, nil
 }

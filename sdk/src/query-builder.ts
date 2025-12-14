@@ -13,6 +13,9 @@ import type {
   UpsertOptions,
 } from "./types";
 
+// Threshold for switching to POST-based queries (4KB)
+const URL_LENGTH_THRESHOLD = 4096;
+
 export class QueryBuilder<T = unknown>
   implements PromiseLike<PostgrestResponse<T>>
 {
@@ -822,6 +825,11 @@ export class QueryBuilder<T = unknown>
       }
 
       // Handle SELECT operation (default)
+      // Check if we should use POST-based query (for complex filters exceeding URL limits)
+      if (this.shouldUsePostQuery()) {
+        return this.executePostQuery();
+      }
+
       const queryString = this.buildQueryString();
       const path = `${this.buildTablePath()}${queryString}`;
 
@@ -1037,27 +1045,25 @@ export class QueryBuilder<T = unknown>
       );
     }
 
-    // OR Filters
+    // Collect all OR expressions that need to be ANDed together
+    // This includes explicit orFilters and negated betweenFilters
+    const orExpressions: string[] = [];
+
+    // OR Filters (explicit .or() calls)
     for (const orFilter of this.orFilters) {
-      params.append("or", `(${orFilter})`);
+      orExpressions.push(`or(${orFilter})`);
     }
 
-    // AND Filters
-    for (const andFilter of this.andFilters) {
-      params.append("and", `(${andFilter})`);
-    }
-
-    // Between Filters
+    // Between Filters - collect negated ones as OR expressions
     for (const bf of this.betweenFilters) {
       const minFormatted = this.formatValue(bf.min);
       const maxFormatted = this.formatValue(bf.max);
 
       if (bf.negated) {
-        // not.between: or=(column.lt.min,column.gt.max)
+        // not.between: or(column.lt.min,column.gt.max)
         // This generates: WHERE column < min OR column > max
-        params.append(
-          "or",
-          `(${bf.column}.lt.${minFormatted},${bf.column}.gt.${maxFormatted})`,
+        orExpressions.push(
+          `or(${bf.column}.lt.${minFormatted},${bf.column}.gt.${maxFormatted})`,
         );
       } else {
         // between: column=gte.min&column=lte.max (two separate filters ANDed)
@@ -1065,6 +1071,23 @@ export class QueryBuilder<T = unknown>
         params.append(bf.column, `gte.${minFormatted}`);
         params.append(bf.column, `lte.${maxFormatted}`);
       }
+    }
+
+    // Combine OR expressions efficiently
+    if (orExpressions.length === 1) {
+      // Single OR - use simple or= format (strip outer "or(" wrapper)
+      const expr = orExpressions[0]!;
+      const inner = expr.replace(/^or\(/, "(");
+      params.append("or", inner);
+    } else if (orExpressions.length > 1) {
+      // Multiple ORs - combine into single and= parameter with nested or() expressions
+      // This significantly reduces URL length for complex filter sets
+      params.append("and", `(${orExpressions.join(",")})`);
+    }
+
+    // AND Filters (explicit .and() calls)
+    for (const andFilter of this.andFilters) {
+      params.append("and", `(${andFilter})`);
     }
 
     // Group By
@@ -1169,4 +1192,207 @@ export class QueryBuilder<T = unknown>
     }
     return null;
   }
+
+  /**
+   * Check if the query should use POST-based query endpoint
+   * Returns true if the query string would exceed the URL length threshold
+   */
+  private shouldUsePostQuery(): boolean {
+    const queryString = this.buildQueryString();
+    return queryString.length > URL_LENGTH_THRESHOLD;
+  }
+
+  /**
+   * Execute a SELECT query using the POST /query endpoint
+   * Used when query parameters would exceed URL length limits
+   */
+  private async executePostQuery(): Promise<PostgrestResponse<T>> {
+    const body = this.buildQueryBody();
+    const path = `${this.buildTablePath()}/query`;
+
+    // When count is requested, use postWithHeaders to access Content-Range header
+    if (this.countType) {
+      const response = await this.fetch.postWithHeaders<T | T[]>(path, body);
+      const serverCount = this.parseContentRangeCount(response.headers);
+      const data = response.data;
+
+      // Handle head-only request (only return count, no data)
+      if (this.headOnly) {
+        return {
+          data: null,
+          error: null,
+          count: serverCount,
+          status: response.status,
+          statusText: "OK",
+        };
+      }
+
+      // Handle single row response with count
+      if (this.singleRow) {
+        if (Array.isArray(data) && data.length === 0) {
+          return {
+            data: null,
+            error: { message: "No rows found", code: "PGRST116" },
+            count: serverCount ?? 0,
+            status: 404,
+            statusText: "Not Found",
+          };
+        }
+        const singleData = Array.isArray(data) ? data[0] : data;
+        return {
+          data: singleData as T,
+          error: null,
+          count: serverCount ?? 1,
+          status: 200,
+          statusText: "OK",
+        };
+      }
+
+      // Handle maybeSingle row response with count
+      if (this.maybeSingleRow) {
+        if (Array.isArray(data) && data.length === 0) {
+          return {
+            data: null,
+            error: null,
+            count: serverCount ?? 0,
+            status: 200,
+            statusText: "OK",
+          };
+        }
+        const singleData = Array.isArray(data) ? data[0] : data;
+        return {
+          data: singleData as T,
+          error: null,
+          count: serverCount ?? 1,
+          status: 200,
+          statusText: "OK",
+        };
+      }
+
+      // Normal response with server count
+      return {
+        data: data as T,
+        error: null,
+        count: serverCount ?? (Array.isArray(data) ? data.length : null),
+        status: 200,
+        statusText: "OK",
+      };
+    }
+
+    // Standard path without count - use regular post
+    const data = await this.fetch.post<T | T[]>(path, body);
+
+    // Handle single row response
+    if (this.singleRow) {
+      if (Array.isArray(data) && data.length === 0) {
+        return {
+          data: null,
+          error: { message: "No rows found", code: "PGRST116" },
+          count: 0,
+          status: 404,
+          statusText: "Not Found",
+        };
+      }
+      const singleData = Array.isArray(data) ? data[0] : data;
+      return {
+        data: singleData as T,
+        error: null,
+        count: 1,
+        status: 200,
+        statusText: "OK",
+      };
+    }
+
+    // Handle maybeSingle row response
+    if (this.maybeSingleRow) {
+      if (Array.isArray(data) && data.length === 0) {
+        return {
+          data: null,
+          error: null,
+          count: 0,
+          status: 200,
+          statusText: "OK",
+        };
+      }
+      const singleData = Array.isArray(data) ? data[0] : data;
+      return {
+        data: singleData as T,
+        error: null,
+        count: 1,
+        status: 200,
+        statusText: "OK",
+      };
+    }
+
+    // Normal response
+    return {
+      data: data as T,
+      error: null,
+      count: Array.isArray(data) ? data.length : null,
+      status: 200,
+      statusText: "OK",
+    };
+  }
+
+  /**
+   * Build the request body for POST-based queries
+   * Used when query parameters would exceed URL length limits
+   */
+  private buildQueryBody(): PostQueryRequestBody {
+    return {
+      select: this.selectQuery !== "*" ? this.selectQuery : undefined,
+      filters: this.filters.map((f) => ({
+        column: f.column,
+        operator: f.operator,
+        value: f.value,
+      })),
+      orFilters: this.orFilters,
+      andFilters: this.andFilters,
+      betweenFilters: this.betweenFilters.map((bf) => ({
+        column: bf.column,
+        min: bf.min,
+        max: bf.max,
+        negated: bf.negated,
+      })),
+      order: this.orderBys.map((o) => ({
+        column: o.column,
+        direction: o.direction,
+        nulls: o.nulls,
+      })),
+      limit: this.limitValue,
+      offset: this.offsetValue,
+      count: this.countType,
+      groupBy: this.groupByColumns,
+    };
+  }
+}
+
+/**
+ * Request body structure for POST-based queries
+ * Mirrors the backend PostQueryRequest structure
+ */
+interface PostQueryRequestBody {
+  select?: string;
+  filters?: Array<{
+    column: string;
+    operator: string;
+    value: unknown;
+  }>;
+  orFilters?: string[];
+  andFilters?: string[];
+  betweenFilters?: Array<{
+    column: string;
+    min: unknown;
+    max: unknown;
+    negated: boolean;
+  }>;
+  order?: Array<{
+    column: string;
+    direction: string;
+    nulls?: string;
+  }>;
+  limit?: number;
+  offset?: number;
+  count?: string;
+  groupBy?: string[];
 }

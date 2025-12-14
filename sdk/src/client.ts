@@ -44,6 +44,7 @@ import { FluxbaseRealtime } from "./realtime";
 import { FluxbaseStorage } from "./storage";
 import { FluxbaseFunctions } from "./functions";
 import { FluxbaseJobs } from "./jobs";
+import { FluxbaseRPC } from "./rpc";
 import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
@@ -51,6 +52,30 @@ import { FluxbaseAI } from "./ai";
 import { QueryBuilder } from "./query-builder";
 import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
+
+/**
+ * Callable RPC type - can be called directly (Supabase-compatible) or access methods
+ * @category RPC
+ */
+export type CallableRPC = {
+  /**
+   * Call a PostgreSQL function (RPC) - Supabase compatible
+   * Uses 'default' namespace
+   *
+   * @param fn - Function name
+   * @param params - Function parameters
+   * @returns Promise with data or error
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
+   * ```
+   */
+  <T = any>(
+    fn: string,
+    params?: Record<string, unknown>,
+  ): Promise<{ data: T | null; error: Error | null }>;
+} & FluxbaseRPC;
 
 /**
  * Main Fluxbase client class
@@ -89,6 +114,30 @@ export class FluxbaseClient<
 
   /** AI module for chatbots and conversation history */
   public ai: FluxbaseAI;
+
+  /**
+   * RPC module for calling PostgreSQL functions - Supabase compatible
+   *
+   * Can be called directly (Supabase-style) or access methods like invoke(), list(), getStatus()
+   *
+   * @example
+   * ```typescript
+   * // Supabase-style direct call (uses 'default' namespace)
+   * const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
+   *
+   * // With full options
+   * const { data, error } = await client.rpc.invoke('get_user_orders', { user_id: '123' }, {
+   *   namespace: 'custom',
+   *   async: true
+   * })
+   *
+   * // List available procedures
+   * const { data: procedures } = await client.rpc.list()
+   * ```
+   *
+   * @category RPC
+   */
+  public rpc: CallableRPC;
 
   /**
    * Create a new Fluxbase client instance
@@ -166,9 +215,35 @@ export class FluxbaseClient<
 
     // Initialize AI module
     // Convert HTTP URL to WebSocket URL (http(s) -> ws(s))
-    const wsProtocol = fluxbaseUrl.startsWith('https') ? 'wss' : 'ws';
-    const wsBaseUrl = fluxbaseUrl.replace(/^https?:/, wsProtocol + ':');
+    const wsProtocol = fluxbaseUrl.startsWith("https") ? "wss" : "ws";
+    const wsBaseUrl = fluxbaseUrl.replace(/^https?:/, wsProtocol + ":");
     this.ai = new FluxbaseAI(this.fetch, wsBaseUrl);
+
+    // Initialize RPC module with callable wrapper (Supabase-compatible)
+    const rpcInstance = new FluxbaseRPC(this.fetch);
+
+    // Create callable function that wraps invoke() for Supabase-style calls
+    const rpcCallable = async <T = any>(
+      fn: string,
+      params?: Record<string, unknown>,
+    ): Promise<{ data: T | null; error: Error | null }> => {
+      const result = await rpcInstance.invoke<T>(fn, params);
+      return {
+        data: (result.data?.result as T) ?? null,
+        error: result.error,
+      };
+    };
+
+    // Attach FluxbaseRPC methods to callable function
+    Object.assign(rpcCallable, {
+      invoke: rpcInstance.invoke.bind(rpcInstance),
+      list: rpcInstance.list.bind(rpcInstance),
+      getStatus: rpcInstance.getStatus.bind(rpcInstance),
+      getLogs: rpcInstance.getLogs.bind(rpcInstance),
+      waitForCompletion: rpcInstance.waitForCompletion.bind(rpcInstance),
+    });
+
+    this.rpc = rpcCallable as CallableRPC;
 
     // Subscribe to auth changes to update realtime token
     this.setupAuthSync();
@@ -251,7 +326,10 @@ export class FluxbaseClient<
     this.realtime.setTokenRefreshCallback(async () => {
       const result = await this.auth.refreshSession();
       if (result.error || !result.data?.session) {
-        console.error("[Fluxbase] Failed to refresh token for realtime:", result.error);
+        console.error(
+          "[Fluxbase] Failed to refresh token for realtime:",
+          result.error,
+        );
         return null;
       }
       return result.data.session.access_token;

@@ -967,3 +967,141 @@ func TestNeedsNumericCast(t *testing.T) {
 		})
 	}
 }
+
+func TestQueryParser_NestedLogicalFilters(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	tests := []struct {
+		name           string
+		query          string
+		expectedCount  int
+		expectOrGroups bool
+	}{
+		{
+			name:           "simple or filter",
+			query:          "or=(name.eq.John,name.eq.Jane)",
+			expectedCount:  2,
+			expectOrGroups: false,
+		},
+		{
+			name:           "nested or in and filter",
+			query:          "and=(or(col.lt.10,col.gt.20),or(col.lt.30,col.gt.40))",
+			expectedCount:  4,
+			expectOrGroups: true,
+		},
+		{
+			name:           "complex nested expression",
+			query:          "and=(or(date.lt.2024-01-01,date.gt.2024-01-10),or(date.lt.2024-02-01,date.gt.2024-02-10),or(date.lt.2024-03-01,date.gt.2024-03-10))",
+			expectedCount:  6,
+			expectOrGroups: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			values, _ := url.ParseQuery(tt.query)
+			params, err := parser.Parse(values)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedCount, len(params.Filters))
+
+			if tt.expectOrGroups {
+				// Check that filters have OrGroupID set
+				groupIDs := make(map[int]bool)
+				for _, f := range params.Filters {
+					if f.OrGroupID > 0 {
+						groupIDs[f.OrGroupID] = true
+					}
+				}
+				assert.Greater(t, len(groupIDs), 0, "expected OR groups to be assigned")
+			}
+		})
+	}
+}
+
+func TestQueryParser_ParseNestedFilters(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	tests := []struct {
+		name     string
+		value    string
+		expected []string
+	}{
+		{
+			name:     "simple comma separated",
+			value:    "a.eq.1,b.eq.2",
+			expected: []string{"a.eq.1", "b.eq.2"},
+		},
+		{
+			name:     "nested parentheses",
+			value:    "or(a.eq.1,b.eq.2),or(c.eq.3,d.eq.4)",
+			expected: []string{"or(a.eq.1,b.eq.2)", "or(c.eq.3,d.eq.4)"},
+		},
+		{
+			name:     "single nested expression",
+			value:    "or(col.lt.10,col.gt.20)",
+			expected: []string{"or(col.lt.10,col.gt.20)"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parser.parseNestedFilters(tt.value)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestQueryParams_BuildWhereClause_OrGroups(t *testing.T) {
+	tests := []struct {
+		name           string
+		filters        []Filter
+		expectedParts  []string
+		unexpectedPart string
+	}{
+		{
+			name: "separate OR groups",
+			filters: []Filter{
+				{Column: "col", Operator: OpLessThan, Value: "10", IsOr: true, OrGroupID: 1},
+				{Column: "col", Operator: OpGreaterThan, Value: "20", IsOr: true, OrGroupID: 1},
+				{Column: "col", Operator: OpLessThan, Value: "30", IsOr: true, OrGroupID: 2},
+				{Column: "col", Operator: OpGreaterThan, Value: "40", IsOr: true, OrGroupID: 2},
+			},
+			expectedParts: []string{
+				`("col" < $1 OR "col" > $2)`,
+				`("col" < $3 OR "col" > $4)`,
+				" AND ",
+			},
+			unexpectedPart: "col" + ` < $1 OR "col" > $2 OR "col" < $3`, // Should NOT group all together
+		},
+		{
+			name: "mixed AND and OR groups",
+			filters: []Filter{
+				{Column: "status", Operator: OpEqual, Value: "active", IsOr: false},
+				{Column: "col", Operator: OpLessThan, Value: "10", IsOr: true, OrGroupID: 1},
+				{Column: "col", Operator: OpGreaterThan, Value: "20", IsOr: true, OrGroupID: 1},
+			},
+			expectedParts: []string{
+				`"status" = $1`,
+				`("col" < $2 OR "col" > $3)`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &QueryParams{Filters: tt.filters}
+			argCounter := 1
+			whereClause, _ := params.buildWhereClause(&argCounter)
+
+			for _, expected := range tt.expectedParts {
+				assert.Contains(t, whereClause, expected)
+			}
+
+			if tt.unexpectedPart != "" {
+				assert.NotContains(t, whereClause, tt.unexpectedPart)
+			}
+		})
+	}
+}

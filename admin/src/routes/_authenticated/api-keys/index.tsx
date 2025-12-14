@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import {
   Key,
   Plus,
@@ -13,17 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
-
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { apiKeysApi, type APIKey, type CreateAPIKeyRequest } from '@/lib/api'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,15 +25,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -52,8 +54,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Checkbox } from '@/components/ui/checkbox'
-import { apiKeysApi, type APIKey, type CreateAPIKeyRequest } from '@/lib/api'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export const Route = createFileRoute('/_authenticated/api-keys/')({
   component: APIKeysPage,
@@ -64,14 +69,106 @@ interface APIKeyWithPlaintext extends APIKey {
 }
 
 const AVAILABLE_SCOPES = [
-  { id: 'read:tables', name: 'Read Tables', description: 'Query database tables' },
-  { id: 'write:tables', name: 'Write Tables', description: 'Insert, update, delete records' },
+  // Tables
+  {
+    id: 'read:tables',
+    name: 'Read Tables',
+    description: 'Query database tables',
+  },
+  {
+    id: 'write:tables',
+    name: 'Write Tables',
+    description: 'Insert, update, delete records',
+  },
+  // Storage
   { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
-  { id: 'write:storage', name: 'Write Storage', description: 'Upload and delete files' },
-  { id: 'read:functions', name: 'Read Functions', description: 'View functions' },
-  { id: 'execute:functions', name: 'Execute Functions', description: 'Invoke Edge Functions' },
-  { id: 'read:auth', name: 'Read Auth', description: 'View auth data' },
-  { id: 'write:auth', name: 'Write Auth', description: 'Manage auth data' },
+  {
+    id: 'write:storage',
+    name: 'Write Storage',
+    description: 'Upload and delete files',
+  },
+  // Functions
+  {
+    id: 'read:functions',
+    name: 'Read Functions',
+    description: 'View functions',
+  },
+  {
+    id: 'execute:functions',
+    name: 'Execute Functions',
+    description: 'Invoke Edge Functions',
+  },
+  // Auth
+  { id: 'read:auth', name: 'Read Auth', description: 'View user profile' },
+  {
+    id: 'write:auth',
+    name: 'Write Auth',
+    description: 'Update user profile, manage 2FA',
+  },
+  // API Keys
+  { id: 'read:apikeys', name: 'Read API Keys', description: 'List API keys' },
+  {
+    id: 'write:apikeys',
+    name: 'Write API Keys',
+    description: 'Create, update, revoke API keys',
+  },
+  // Webhooks
+  {
+    id: 'read:webhooks',
+    name: 'Read Webhooks',
+    description: 'List webhooks and deliveries',
+  },
+  {
+    id: 'write:webhooks',
+    name: 'Write Webhooks',
+    description: 'Create, update, delete webhooks',
+  },
+  // Monitoring
+  {
+    id: 'read:monitoring',
+    name: 'Read Monitoring',
+    description: 'View metrics, health, logs',
+  },
+  // Realtime
+  {
+    id: 'realtime:connect',
+    name: 'Realtime Connect',
+    description: 'Connect to realtime channels',
+  },
+  {
+    id: 'realtime:broadcast',
+    name: 'Realtime Broadcast',
+    description: 'Broadcast messages',
+  },
+  // RPC
+  { id: 'read:rpc', name: 'Read RPC', description: 'List RPC procedures' },
+  {
+    id: 'execute:rpc',
+    name: 'Execute RPC',
+    description: 'Invoke RPC procedures',
+  },
+  // Jobs
+  {
+    id: 'read:jobs',
+    name: 'Read Jobs',
+    description: 'View job queues and status',
+  },
+  {
+    id: 'write:jobs',
+    name: 'Write Jobs',
+    description: 'Manage job queue entries',
+  },
+  // AI
+  {
+    id: 'read:ai',
+    name: 'Read AI',
+    description: 'View chatbots and conversations',
+  },
+  {
+    id: 'write:ai',
+    name: 'Write AI',
+    description: 'Manage conversations, send messages',
+  },
 ]
 
 function APIKeysPage() {
@@ -84,10 +181,7 @@ function APIKeysPage() {
   // Form state
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([
-    'read:tables',
-    'write:tables',
-  ])
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [rateLimit, setRateLimit] = useState(100)
   const [expiresAt, setExpiresAt] = useState('')
 
@@ -108,7 +202,7 @@ function APIKeysPage() {
       // Reset form
       setName('')
       setDescription('')
-      setSelectedScopes(['read:tables', 'write:tables'])
+      setSelectedScopes([])
       setRateLimit(100)
       setExpiresAt('')
     },
@@ -164,7 +258,9 @@ function APIKeysPage() {
 
   const toggleScope = (scopeId: string) => {
     setSelectedScopes((prev) =>
-      prev.includes(scopeId) ? prev.filter((s) => s !== scopeId) : [...prev, scopeId]
+      prev.includes(scopeId)
+        ? prev.filter((s) => s !== scopeId)
+        : [...prev, scopeId]
     )
   }
 
@@ -181,8 +277,10 @@ function APIKeysPage() {
   const isRevoked = (revokedAt?: string) => !!revokedAt
 
   const getKeyStatus = (key: APIKey) => {
-    if (isRevoked(key.revoked_at)) return { label: 'Revoked', variant: 'secondary' as const }
-    if (isExpired(key.expires_at)) return { label: 'Expired', variant: 'destructive' as const }
+    if (isRevoked(key.revoked_at))
+      return { label: 'Revoked', variant: 'secondary' as const }
+    if (isExpired(key.expires_at))
+      return { label: 'Expired', variant: 'destructive' as const }
     return { label: 'Active', variant: 'default' as const }
   }
 
@@ -195,13 +293,13 @@ function APIKeysPage() {
   )
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Key className="h-8 w-8" />
+        <h1 className='flex items-center gap-2 text-3xl font-bold tracking-tight'>
+          <Key className='h-8 w-8' />
           API Keys
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className='text-muted-foreground mt-2'>
           Generate and manage API keys for programmatic access
         </p>
       </div>
@@ -211,7 +309,7 @@ function APIKeysPage() {
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Total Keys</CardTitle>
-            <Key className='h-4 w-4 text-muted-foreground' />
+            <Key className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>{apiKeys?.length || 0}</div>
@@ -220,19 +318,20 @@ function APIKeysPage() {
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Active Keys</CardTitle>
-            <Check className='h-4 w-4 text-muted-foreground' />
+            <Check className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
-              {apiKeys?.filter((k) => !isRevoked(k.revoked_at) && !isExpired(k.expires_at))
-                .length || 0}
+              {apiKeys?.filter(
+                (k) => !isRevoked(k.revoked_at) && !isExpired(k.expires_at)
+              ).length || 0}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Revoked Keys</CardTitle>
-            <X className='h-4 w-4 text-muted-foreground' />
+            <X className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
@@ -248,7 +347,9 @@ function APIKeysPage() {
           <div className='flex items-center justify-between'>
             <div>
               <CardTitle>API Keys</CardTitle>
-              <CardDescription>Manage your API keys for service-to-service authentication</CardDescription>
+              <CardDescription>
+                Manage your API keys for service-to-service authentication
+              </CardDescription>
             </div>
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className='mr-2 h-4 w-4' />
@@ -260,7 +361,7 @@ function APIKeysPage() {
           {/* Search */}
           <div className='mb-4'>
             <div className='relative'>
-              <Search className='absolute left-2 top-2.5 h-4 w-4 text-muted-foreground' />
+              <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
               <Input
                 placeholder='Search by name, description, or key prefix...'
                 value={searchQuery}
@@ -284,27 +385,39 @@ function APIKeysPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Array(3).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <div className='space-y-1'>
-                        <Skeleton className='h-4 w-28' />
-                        <Skeleton className='h-3 w-20' />
-                      </div>
-                    </TableCell>
-                    <TableCell><Skeleton className='h-4 w-24' /></TableCell>
-                    <TableCell><Skeleton className='h-5 w-16' /></TableCell>
-                    <TableCell><Skeleton className='h-4 w-20' /></TableCell>
-                    <TableCell><Skeleton className='h-4 w-24' /></TableCell>
-                    <TableCell><Skeleton className='h-5 w-16' /></TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex justify-end gap-1'>
-                        <Skeleton className='h-8 w-8' />
-                        <Skeleton className='h-8 w-8' />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <div className='space-y-1'>
+                          <Skeleton className='h-4 w-28' />
+                          <Skeleton className='h-3 w-20' />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className='h-4 w-24' />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className='h-5 w-16' />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className='h-4 w-20' />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className='h-4 w-24' />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className='h-5 w-16' />
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex justify-end gap-1'>
+                          <Skeleton className='h-8 w-8' />
+                          <Skeleton className='h-8 w-8' />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           ) : filteredKeys && filteredKeys.length > 0 ? (
@@ -329,7 +442,9 @@ function APIKeysPage() {
                         <div>
                           <div className='font-medium'>{key.name}</div>
                           {key.description && (
-                            <div className='text-xs text-muted-foreground'>{key.description}</div>
+                            <div className='text-muted-foreground text-xs'>
+                              {key.description}
+                            </div>
                           )}
                         </div>
                       </TableCell>
@@ -339,7 +454,11 @@ function APIKeysPage() {
                       <TableCell>
                         <div className='flex flex-wrap gap-1'>
                           {key.scopes.slice(0, 2).map((scope) => (
-                            <Badge key={scope} variant='outline' className='text-xs'>
+                            <Badge
+                              key={scope}
+                              variant='outline'
+                              className='text-xs'
+                            >
                               {scope}
                             </Badge>
                           ))}
@@ -353,9 +472,11 @@ function APIKeysPage() {
                       <TableCell className='text-sm'>
                         {key.rate_limit_per_minute}/min
                       </TableCell>
-                      <TableCell className='text-sm text-muted-foreground'>
+                      <TableCell className='text-muted-foreground text-sm'>
                         {key.last_used_at
-                          ? formatDistanceToNow(new Date(key.last_used_at), { addSuffix: true })
+                          ? formatDistanceToNow(new Date(key.last_used_at), {
+                              addSuffix: true,
+                            })
                           : 'Never'}
                       </TableCell>
                       <TableCell>
@@ -396,9 +517,13 @@ function APIKeysPage() {
                             </Tooltip>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+                                <AlertDialogTitle>
+                                  Delete API Key
+                                </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete "{key.name}"? Any applications using this key will lose access immediately.
+                                  Are you sure you want to delete "{key.name}"?
+                                  Any applications using this key will lose
+                                  access immediately.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -421,12 +546,18 @@ function APIKeysPage() {
             </Table>
           ) : (
             <div className='flex flex-col items-center justify-center py-12 text-center'>
-              <Key className='mb-4 h-12 w-12 text-muted-foreground' />
+              <Key className='text-muted-foreground mb-4 h-12 w-12' />
               <p className='text-muted-foreground'>
-                {searchQuery ? 'No API keys match your search' : 'No API keys yet'}
+                {searchQuery
+                  ? 'No API keys match your search'
+                  : 'No API keys yet'}
               </p>
               {!searchQuery && (
-                <Button onClick={() => setShowCreateDialog(true)} variant='outline' className='mt-4'>
+                <Button
+                  onClick={() => setShowCreateDialog(true)}
+                  variant='outline'
+                  className='mt-4'
+                >
                   Create Your First API Key
                 </Button>
               )}
@@ -437,11 +568,12 @@ function APIKeysPage() {
 
       {/* Create API Key Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Create API Key</DialogTitle>
             <DialogDescription>
-              Generate a new API key for programmatic access. The key will be shown only once.
+              Generate a new API key for programmatic access. The key will be
+              shown only once.
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-4 py-4'>
@@ -480,11 +612,13 @@ function APIKeysPage() {
                     <div className='grid gap-1.5 leading-none'>
                       <label
                         htmlFor={scope.id}
-                        className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                        className='text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
                       >
                         {scope.name}
                       </label>
-                      <p className='text-xs text-muted-foreground'>{scope.description}</p>
+                      <p className='text-muted-foreground text-xs'>
+                        {scope.description}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -511,16 +645,22 @@ function APIKeysPage() {
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className='text-xs text-muted-foreground'>
+              <p className='text-muted-foreground text-xs'>
                 Leave empty for no expiration
               </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setShowCreateDialog(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setShowCreateDialog(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateKey} disabled={createMutation.isPending}>
+            <Button
+              onClick={handleCreateKey}
+              disabled={createMutation.isPending}
+            >
               {createMutation.isPending ? 'Creating...' : 'Generate API Key'}
             </Button>
           </DialogFooter>
@@ -537,7 +677,7 @@ function APIKeysPage() {
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
-            <div className='rounded-md bg-yellow-50 dark:bg-yellow-950 p-4'>
+            <div className='rounded-md bg-yellow-50 p-4 dark:bg-yellow-950'>
               <div className='flex'>
                 <AlertCircle className='h-5 w-5 text-yellow-600 dark:text-yellow-400' />
                 <div className='ml-3'>
@@ -546,7 +686,8 @@ function APIKeysPage() {
                   </h3>
                   <div className='mt-2 text-sm text-yellow-700 dark:text-yellow-300'>
                     <p>
-                      This is the only time you'll see the full API key. Store it securely.
+                      This is the only time you'll see the full API key. Store
+                      it securely.
                     </p>
                   </div>
                 </div>
@@ -585,7 +726,9 @@ function APIKeysPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowKeyDialog(false)}>I've Saved the Key</Button>
+            <Button onClick={() => setShowKeyDialog(false)}>
+              I've Saved the Key
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

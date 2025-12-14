@@ -47,12 +47,15 @@ func (h *APIKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service
 		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
 	)
 
-	apiKeys.Post("/", h.CreateAPIKey)
-	apiKeys.Get("/", h.ListAPIKeys)
-	apiKeys.Get("/:id", h.GetAPIKey)
-	apiKeys.Patch("/:id", h.UpdateAPIKey)
-	apiKeys.Delete("/:id", h.DeleteAPIKey)
-	apiKeys.Post("/:id/revoke", h.RevokeAPIKey)
+	// Read operations require read:apikeys scope
+	apiKeys.Get("/", middleware.RequireScope(auth.ScopeAPIKeysRead), h.ListAPIKeys)
+	apiKeys.Get("/:id", middleware.RequireScope(auth.ScopeAPIKeysRead), h.GetAPIKey)
+
+	// Write operations require write:apikeys scope
+	apiKeys.Post("/", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.CreateAPIKey)
+	apiKeys.Patch("/:id", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.UpdateAPIKey)
+	apiKeys.Delete("/:id", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.DeleteAPIKey)
+	apiKeys.Post("/:id/revoke", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.RevokeAPIKey)
 }
 
 // CreateAPIKey creates a new API key

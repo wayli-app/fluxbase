@@ -335,6 +335,7 @@ func (s *Storage) ClaimNextJob(ctx context.Context, workerID uuid.UUID) (*Job, e
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED
 		)
+		  AND EXISTS (SELECT 1 FROM jobs.workers WHERE id = $2)
 		RETURNING id, namespace, function_id, job_name, status, payload, result, progress,
 		          priority, max_duration_seconds, progress_timeout_seconds, max_retries,
 		          retry_count, error_message, worker_id, created_by, user_role, user_email, created_at,
@@ -1119,6 +1120,27 @@ func (s *Storage) CleanupStaleWorkers(ctx context.Context, timeout time.Duration
 	`
 
 	result, err := s.conn.Pool().Exec(ctx, query, timeout.String())
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected(), nil
+}
+
+// ResetOrphanedJobs resets jobs that are running but have no worker (worker was deleted)
+// Returns the number of jobs reset to pending status
+func (s *Storage) ResetOrphanedJobs(ctx context.Context) (int64, error) {
+	query := `
+		UPDATE jobs.queue
+		SET status = $1,
+		    worker_id = NULL,
+		    started_at = NULL,
+		    last_progress_at = NULL
+		WHERE status = $2
+		  AND worker_id IS NULL
+	`
+
+	result, err := s.conn.Pool().Exec(ctx, query, JobStatusPending, JobStatusRunning)
 	if err != nil {
 		return 0, err
 	}

@@ -14,6 +14,8 @@ import type {
   StreamDownloadData,
   ResumableDownloadOptions,
   ResumableDownloadData,
+  ResumableUploadOptions,
+  ChunkedUploadSession,
   ShareFileOptions,
   FileShare,
   BucketSettings,
@@ -647,6 +649,350 @@ export class StorageBucket {
 
       return {
         data: { stream, size: totalSize },
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Upload a large file with resumable chunked uploads.
+   *
+   * Features:
+   * - Uploads file in chunks for reliability
+   * - Automatically retries failed chunks with exponential backoff
+   * - Reports progress via callback with chunk-level granularity
+   * - Can resume interrupted uploads using session ID
+   *
+   * @param path - The file path within the bucket
+   * @param file - The File or Blob to upload
+   * @param options - Upload options including chunk size, retries, and progress callback
+   * @returns Upload result with file info
+   *
+   * @example
+   * const { data, error } = await storage.from('uploads').uploadResumable('large.zip', file, {
+   *   chunkSize: 5 * 1024 * 1024, // 5MB chunks
+   *   maxRetries: 3,
+   *   onProgress: (p) => {
+   *     console.log(`${p.percentage}% (chunk ${p.currentChunk}/${p.totalChunks})`);
+   *     console.log(`Speed: ${(p.bytesPerSecond / 1024 / 1024).toFixed(2)} MB/s`);
+   *     console.log(`Session ID (for resume): ${p.sessionId}`);
+   *   }
+   * });
+   *
+   * // To resume an interrupted upload:
+   * const { data, error } = await storage.from('uploads').uploadResumable('large.zip', file, {
+   *   resumeSessionId: 'previous-session-id',
+   * });
+   */
+  async uploadResumable(
+    path: string,
+    file: File | Blob,
+    options?: ResumableUploadOptions,
+  ): Promise<{
+    data: { id: string; path: string; fullPath: string } | null;
+    error: Error | null;
+  }> {
+    try {
+      const chunkSize = options?.chunkSize ?? 5 * 1024 * 1024; // 5MB default
+      const maxRetries = options?.maxRetries ?? 3;
+      const retryDelayMs = options?.retryDelayMs ?? 1000;
+      const chunkTimeout = options?.chunkTimeout ?? 60000; // 1 minute per chunk
+
+      const totalSize = file.size;
+      const totalChunks = Math.ceil(totalSize / chunkSize);
+
+      // Check if already aborted
+      if (options?.signal?.aborted) {
+        return { data: null, error: new Error("Upload aborted") };
+      }
+
+      const baseUrl = this.fetch["baseUrl"];
+      const headers = this.fetch["defaultHeaders"];
+
+      // 1. Initialize or resume session
+      let sessionId = options?.resumeSessionId;
+      let session: ChunkedUploadSession;
+      let completedChunks: number[] = [];
+
+      if (!sessionId) {
+        // Initialize new session
+        const initResponse = await fetch(
+          `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/init`,
+          {
+            method: "POST",
+            headers: {
+              ...headers,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              path,
+              total_size: totalSize,
+              chunk_size: chunkSize,
+              content_type: options?.contentType || file.type || "application/octet-stream",
+              metadata: options?.metadata,
+              cache_control: options?.cacheControl,
+            }),
+            signal: options?.signal,
+          },
+        );
+
+        if (!initResponse.ok) {
+          const errorData = await initResponse.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || `Failed to initialize upload: ${initResponse.statusText}`,
+          );
+        }
+
+        const initData = await initResponse.json();
+        session = {
+          sessionId: initData.session_id,
+          bucket: initData.bucket,
+          path: initData.path,
+          totalSize: initData.total_size,
+          chunkSize: initData.chunk_size,
+          totalChunks: initData.total_chunks,
+          completedChunks: initData.completed_chunks || [],
+          status: initData.status,
+          expiresAt: initData.expires_at,
+          createdAt: initData.created_at,
+        };
+        sessionId = session.sessionId;
+      } else {
+        // Resume existing session - get status
+        const statusResponse = await fetch(
+          `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}/status`,
+          {
+            method: "GET",
+            headers,
+            signal: options?.signal,
+          },
+        );
+
+        if (!statusResponse.ok) {
+          const errorData = await statusResponse.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || `Failed to get session status: ${statusResponse.statusText}`,
+          );
+        }
+
+        const statusData = await statusResponse.json();
+        session = statusData.session;
+        completedChunks = session.completedChunks || [];
+      }
+
+      // Calculate already uploaded bytes for progress
+      let uploadedBytes = 0;
+      for (const chunkIdx of completedChunks) {
+        const chunkStart = chunkIdx * chunkSize;
+        const chunkEnd = Math.min(chunkStart + chunkSize, totalSize);
+        uploadedBytes += chunkEnd - chunkStart;
+      }
+
+      let lastProgressTime = Date.now();
+      let lastProgressBytes = uploadedBytes;
+
+      // 2. Upload each chunk with retry logic
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        // Check if aborted
+        if (options?.signal?.aborted) {
+          return { data: null, error: new Error("Upload aborted") };
+        }
+
+        // Skip already completed chunks
+        if (completedChunks.includes(chunkIndex)) {
+          continue;
+        }
+
+        const start = chunkIndex * chunkSize;
+        const end = Math.min(start + chunkSize, totalSize);
+        const chunk = file.slice(start, end);
+        const chunkArrayBuffer = await chunk.arrayBuffer();
+
+        let retryCount = 0;
+        let chunkUploaded = false;
+
+        while (retryCount <= maxRetries && !chunkUploaded) {
+          try {
+            // Check abort before each attempt
+            if (options?.signal?.aborted) {
+              return { data: null, error: new Error("Upload aborted") };
+            }
+
+            // Create per-chunk timeout controller
+            const chunkController = new AbortController();
+            const timeoutId = setTimeout(() => chunkController.abort(), chunkTimeout);
+
+            // Forward external signal to chunk controller
+            if (options?.signal) {
+              options.signal.addEventListener(
+                "abort",
+                () => chunkController.abort(),
+                { once: true },
+              );
+            }
+
+            const chunkResponse = await fetch(
+              `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}/${chunkIndex}`,
+              {
+                method: "PUT",
+                headers: {
+                  ...headers,
+                  "Content-Type": "application/octet-stream",
+                  "Content-Length": String(chunkArrayBuffer.byteLength),
+                },
+                body: chunkArrayBuffer,
+                signal: chunkController.signal,
+              },
+            );
+
+            clearTimeout(timeoutId);
+
+            if (!chunkResponse.ok) {
+              const errorData = await chunkResponse.json().catch(() => ({}));
+              throw new Error(
+                errorData.error || `Chunk upload failed: ${chunkResponse.statusText}`,
+              );
+            }
+
+            chunkUploaded = true;
+          } catch (err) {
+            // Check if it was user abort
+            if (options?.signal?.aborted) {
+              return { data: null, error: new Error("Upload aborted") };
+            }
+
+            retryCount++;
+            if (retryCount > maxRetries) {
+              throw new Error(
+                `Failed to upload chunk ${chunkIndex} after ${maxRetries} retries: ${(err as Error).message}`,
+              );
+            }
+
+            // Exponential backoff: 1s, 2s, 4s...
+            const delay = retryDelayMs * Math.pow(2, retryCount - 1);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        }
+
+        // Update progress
+        uploadedBytes += end - start;
+
+        if (options?.onProgress) {
+          const now = Date.now();
+          const elapsed = (now - lastProgressTime) / 1000;
+          const bytesPerSecond =
+            elapsed > 0 ? (uploadedBytes - lastProgressBytes) / elapsed : 0;
+
+          lastProgressTime = now;
+          lastProgressBytes = uploadedBytes;
+
+          options.onProgress({
+            loaded: uploadedBytes,
+            total: totalSize,
+            percentage: Math.round((uploadedBytes / totalSize) * 100),
+            currentChunk: chunkIndex + 1,
+            totalChunks,
+            bytesPerSecond,
+            sessionId: sessionId!,
+          });
+        }
+      }
+
+      // 3. Complete the upload
+      const completeResponse = await fetch(
+        `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}/complete`,
+        {
+          method: "POST",
+          headers,
+          signal: options?.signal,
+        },
+      );
+
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to complete upload: ${completeResponse.statusText}`,
+        );
+      }
+
+      const result = await completeResponse.json();
+
+      return {
+        data: {
+          id: result.id,
+          path: result.path,
+          fullPath: result.full_path,
+        },
+        error: null,
+      };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Abort an in-progress resumable upload
+   * @param sessionId - The upload session ID to abort
+   */
+  async abortResumableUpload(
+    sessionId: string,
+  ): Promise<{ error: Error | null }> {
+    try {
+      const baseUrl = this.fetch["baseUrl"];
+      const headers = this.fetch["defaultHeaders"];
+
+      const response = await fetch(
+        `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}`,
+        {
+          method: "DELETE",
+          headers,
+        },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to abort upload: ${response.statusText}`,
+        );
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  /**
+   * Get the status of a resumable upload session
+   * @param sessionId - The upload session ID to check
+   */
+  async getResumableUploadStatus(
+    sessionId: string,
+  ): Promise<{ data: ChunkedUploadSession | null; error: Error | null }> {
+    try {
+      const baseUrl = this.fetch["baseUrl"];
+      const headers = this.fetch["defaultHeaders"];
+
+      const response = await fetch(
+        `${baseUrl}/api/v1/storage/${this.bucketName}/chunked/${sessionId}/status`,
+        {
+          method: "GET",
+          headers,
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to get upload status: ${response.statusText}`,
+        );
+      }
+
+      const data = await response.json();
+      return {
+        data: data.session,
         error: null,
       };
     } catch (error) {

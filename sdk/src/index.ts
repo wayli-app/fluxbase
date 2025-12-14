@@ -182,6 +182,9 @@ export type {
   ResumableDownloadOptions,
   DownloadProgress,
   ResumableDownloadData,
+  ResumableUploadOptions,
+  ResumableUploadProgress,
+  ChunkedUploadSession,
 
   // Functions types
   FunctionInvokeOptions,

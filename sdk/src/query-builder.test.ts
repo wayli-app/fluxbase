@@ -1121,23 +1121,18 @@ describe("QueryBuilder - Count Queries (Supabase-compatible)", () => {
     });
 
     describe("chained not.between filters", () => {
-      it("should AND together multiple not.between filters", async () => {
+      it("should AND together multiple not.between filters using combined and= parameter", async () => {
         await builder
           .filter("recorded_at", "not.between", ["2024-01-01", "2024-01-10"])
           .filter("recorded_at", "not.between", ["2024-02-15", "2024-02-20"])
           .execute();
 
-        const url = fetch.lastUrl;
-        // Should have two separate or= parameters
-        const orMatches = url.match(/or=/g);
-        expect(orMatches?.length).toBe(2);
-
-        // First range exclusion
-        expect(url).toContain("recorded_at.lt.2024-01-01");
-        expect(url).toContain("recorded_at.gt.2024-01-10");
-        // Second range exclusion
-        expect(url).toContain("recorded_at.lt.2024-02-15");
-        expect(url).toContain("recorded_at.gt.2024-02-20");
+        const url = decodeURIComponent(fetch.lastUrl);
+        // Multiple not.between filters should be combined into a single and= parameter
+        // with nested or() expressions to reduce URL length
+        expect(url).toContain("and=");
+        expect(url).toContain("or(recorded_at.lt.2024-01-01,recorded_at.gt.2024-01-10)");
+        expect(url).toContain("or(recorded_at.lt.2024-02-15,recorded_at.gt.2024-02-20)");
       });
     });
 
@@ -1228,6 +1223,46 @@ describe("QueryBuilder - Count Queries (Supabase-compatible)", () => {
         expect(() => {
           builder.filter("recorded_at", "not.between", "2024-01-01");
         }).toThrow("expected array of [min, max]");
+      });
+    });
+
+    describe("URL optimization", () => {
+      it("should combine multiple or() filters into single and= parameter", async () => {
+        // Multiple .or() calls should be combined
+        await builder
+          .or("status.eq.active,status.eq.pending")
+          .or("type.eq.A,type.eq.B")
+          .execute();
+
+        const url = decodeURIComponent(fetch.lastUrl);
+        expect(url).toContain("and=");
+        expect(url).toContain("or(status.eq.active,status.eq.pending)");
+        expect(url).toContain("or(type.eq.A,type.eq.B)");
+      });
+
+      it("should use simple or= format for single OR filter", async () => {
+        await builder
+          .filter("recorded_at", "not.between", ["2024-01-01", "2024-01-10"])
+          .execute();
+
+        const url = decodeURIComponent(fetch.lastUrl);
+        // Single OR should use simple format
+        expect(url).toContain("or=(");
+        expect(url).not.toContain("and=");
+      });
+
+      it("should handle many not.between filters efficiently", async () => {
+        // Add 10 not.between filters - should all be combined
+        for (let i = 0; i < 10; i++) {
+          builder.filter("date", "not.between", [`2024-0${i + 1}-01`, `2024-0${i + 1}-15`]);
+        }
+        await builder.execute();
+
+        const url = decodeURIComponent(fetch.lastUrl);
+        // Should have single and= parameter with all 10 or() expressions
+        expect(url).toContain("and=");
+        const orCount = (url.match(/or\(/g) || []).length;
+        expect(orCount).toBe(10);
       });
     });
   });

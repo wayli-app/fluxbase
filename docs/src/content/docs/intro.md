@@ -2,8 +2,8 @@
 title: Introduction
 ---
 
-:::caution[Pre-Release Software]
-Fluxbase is currently in active development and **pre-release phase**. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We recommend using Fluxbase for testing and development purposes, but exercise caution before deploying to production environments.
+:::caution[Beta Software]
+Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
 :::
 
 Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. It provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.

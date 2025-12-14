@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -555,10 +556,12 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	// Apply auth middleware to all routes below
 	authMiddleware := AuthMiddleware(h.authService)
 	router.Post("/signout", authMiddleware, h.SignOut)
-	router.Get("/user", authMiddleware, h.GetUser)
-	router.Patch("/user", authMiddleware, h.UpdateUser)
 
-	// Admin impersonation routes (admin only)
+	// User profile routes with scope enforcement
+	router.Get("/user", authMiddleware, middleware.RequireScope(auth.ScopeAuthRead), h.GetUser)
+	router.Patch("/user", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.UpdateUser)
+
+	// Admin impersonation routes (admin only) - no API key scope enforcement (admin-only feature)
 	router.Post("/impersonate", authMiddleware, h.StartImpersonation)
 	router.Post("/impersonate/anon", authMiddleware, h.StartAnonImpersonation)
 	router.Post("/impersonate/service", authMiddleware, h.StartServiceImpersonation)
@@ -566,19 +569,19 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Get("/impersonate", authMiddleware, h.GetActiveImpersonation)
 	router.Get("/impersonate/sessions", authMiddleware, h.ListImpersonationSessions)
 
-	// 2FA routes (protected - authentication required)
-	router.Post("/2fa/setup", authMiddleware, h.SetupTOTP)
-	router.Post("/2fa/enable", authMiddleware, h.EnableTOTP)
-	router.Post("/2fa/disable", authMiddleware, h.DisableTOTP)
-	router.Get("/2fa/status", authMiddleware, h.GetTOTPStatus)
+	// 2FA routes (protected - authentication required) with scope enforcement
+	router.Post("/2fa/setup", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.SetupTOTP)
+	router.Post("/2fa/enable", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.EnableTOTP)
+	router.Post("/2fa/disable", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.DisableTOTP)
+	router.Get("/2fa/status", authMiddleware, middleware.RequireScope(auth.ScopeAuthRead), h.GetTOTPStatus)
 
-	// Identity linking routes (protected - authentication required)
-	router.Get("/user/identities", authMiddleware, h.GetUserIdentities)
-	router.Post("/user/identities", authMiddleware, h.LinkIdentity)
-	router.Delete("/user/identities/:id", authMiddleware, h.UnlinkIdentity)
+	// Identity linking routes (protected - authentication required) with scope enforcement
+	router.Get("/user/identities", authMiddleware, middleware.RequireScope(auth.ScopeAuthRead), h.GetUserIdentities)
+	router.Post("/user/identities", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.LinkIdentity)
+	router.Delete("/user/identities/:id", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.UnlinkIdentity)
 
 	// Reauthentication route (protected - authentication required)
-	router.Post("/reauthenticate", authMiddleware, h.Reauthenticate)
+	router.Post("/reauthenticate", authMiddleware, middleware.RequireScope(auth.ScopeAuthWrite), h.Reauthenticate)
 }
 
 // SignInAnonymous is deprecated and disabled for security reasons

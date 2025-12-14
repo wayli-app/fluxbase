@@ -5,7 +5,7 @@ prev: false
 title: "BundleResult"
 ---
 
-Result of bundling job code
+Result of bundling code
 
 ## Properties
 

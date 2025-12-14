@@ -19,6 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const OUTPUT_FILE = path.join(__dirname, '..', '..', 'internal', 'jobs', 'embedded_sdk.js');
+const RUNTIME_OUTPUT_FILE = path.join(__dirname, '..', '..', 'internal', 'runtime', 'embedded_sdk.js');
 const ENTRY_FILE = path.join(__dirname, 'embedded-entry.js');
 
 // Read version info
@@ -112,10 +113,19 @@ const createClient = _FluxbaseSDK.createClient;
 
   fs.writeFileSync(OUTPUT_FILE, finalOutput, 'utf-8');
 
+  // Also write to runtime directory (used by functions and jobs runtime)
+  const runtimeOutputDir = path.dirname(RUNTIME_OUTPUT_FILE);
+  if (!fs.existsSync(runtimeOutputDir)) {
+    fs.mkdirSync(runtimeOutputDir, { recursive: true });
+  }
+  fs.writeFileSync(RUNTIME_OUTPUT_FILE, finalOutput, 'utf-8');
+
   // Clean up temp entry file
   fs.unlinkSync(ENTRY_FILE);
 
-  console.log('✅ Generated embedded SDK: ' + OUTPUT_FILE);
+  console.log('✅ Generated embedded SDK:');
+  console.log('   - ' + OUTPUT_FILE);
+  console.log('   - ' + RUNTIME_OUTPUT_FILE);
   console.log('   Size: ' + (finalOutput.length / 1024).toFixed(2) + ' KB');
   console.log('   Version: ' + packageJson.version);
 

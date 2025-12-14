@@ -1,5 +1,7 @@
 # Fluxbase
 
+> **⚠️ Beta Software**: Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
+
 A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. Fluxbase provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.
 
 ## Features
@@ -69,8 +71,8 @@ All tools pre-installed! See [.devcontainer/QUICK_START.md](.devcontainer/QUICK_
 
 #### Prerequisites
 
-- Go 1.22+
-- PostgreSQL 14+
+- Go 1.25+
+- PostgreSQL 15+
 
 #### Installation
 

@@ -158,30 +158,34 @@ func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiK
 		middleware.RequireFunctionsEnabled(authService.GetSettingsCache()),
 	)
 
-	// Management endpoints - require authentication
-	functions.Post("/", authMiddleware, h.CreateFunction)
-	functions.Get("/", authMiddleware, h.ListFunctions)
-	functions.Get("/:name", authMiddleware, h.GetFunction)
-	functions.Put("/:name", authMiddleware, h.UpdateFunction)
-	functions.Delete("/:name", authMiddleware, h.DeleteFunction)
+	// Management endpoints - require authentication and appropriate scopes
+	// Read operations require read:functions scope
+	functions.Get("/", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsRead), h.ListFunctions)
+	functions.Get("/:name", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsRead), h.GetFunction)
+
+	// Write operations require execute:functions scope (management)
+	functions.Post("/", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.CreateFunction)
+	functions.Put("/:name", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.UpdateFunction)
+	functions.Delete("/:name", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.DeleteFunction)
 
 	// Invocation endpoint - auth checked per-function in handler based on allow_unauthenticated
 	// We use OptionalAuthOrServiceKey so auth context is set if token provided (including anon key JWTs),
 	// but the handler will check the function's allow_unauthenticated setting
+	// Scope enforcement for execute:functions
 	optionalAuth := middleware.OptionalAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
-	functions.Post("/:name/invoke", optionalAuth, h.InvokeFunction)
-	functions.Get("/:name/invoke", optionalAuth, h.InvokeFunction) // Also support GET for health checks
+	functions.Post("/:name/invoke", optionalAuth, middleware.RequireScope(auth.ScopeFunctionsExecute), h.InvokeFunction)
+	functions.Get("/:name/invoke", optionalAuth, middleware.RequireScope(auth.ScopeFunctionsExecute), h.InvokeFunction) // Also support GET for health checks
 
-	// Execution history - require authentication
-	functions.Get("/:name/executions", authMiddleware, h.GetExecutions)
+	// Execution history - require authentication and read scope
+	functions.Get("/:name/executions", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsRead), h.GetExecutions)
 
-	// Shared modules endpoints - require authentication
+	// Shared modules endpoints - require authentication and appropriate scopes
 	shared := app.Group("/api/v1/functions/shared")
-	shared.Post("/", authMiddleware, h.CreateSharedModule)
-	shared.Get("/", authMiddleware, h.ListSharedModules)
-	shared.Get("/*", authMiddleware, h.GetSharedModule) // Use /* to capture full path
-	shared.Put("/*", authMiddleware, h.UpdateSharedModule)
-	shared.Delete("/*", authMiddleware, h.DeleteSharedModule)
+	shared.Get("/", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsRead), h.ListSharedModules)
+	shared.Get("/*", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsRead), h.GetSharedModule) // Use /* to capture full path
+	shared.Post("/", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.CreateSharedModule)
+	shared.Put("/*", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.UpdateSharedModule)
+	shared.Delete("/*", authMiddleware, middleware.RequireScope(auth.ScopeFunctionsExecute), h.DeleteSharedModule)
 
 	// Admin reload endpoint - handled separately in server.go under admin routes
 }

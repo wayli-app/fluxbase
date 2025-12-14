@@ -32,23 +32,25 @@ func quoteIdentifier(s string) string {
 
 // QueryParams represents parsed query parameters for REST API
 type QueryParams struct {
-	Select       []string           // Fields to select
-	Filters      []Filter           // WHERE conditions
-	Order        []OrderBy          // ORDER BY clauses
-	Limit        *int               // LIMIT clause
-	Offset       *int               // OFFSET clause
-	Embedded     []EmbeddedRelation // Relations to embed
-	Count        CountType          // Count preference
-	Aggregations []Aggregation      // Aggregation functions
-	GroupBy      []string           // GROUP BY columns
+	Select         []string           // Fields to select
+	Filters        []Filter           // WHERE conditions
+	Order          []OrderBy          // ORDER BY clauses
+	Limit          *int               // LIMIT clause
+	Offset         *int               // OFFSET clause
+	Embedded       []EmbeddedRelation // Relations to embed
+	Count          CountType          // Count preference
+	Aggregations   []Aggregation      // Aggregation functions
+	GroupBy        []string           // GROUP BY columns
+	orGroupCounter int                // Counter for assigning OR group IDs
 }
 
 // Filter represents a WHERE condition
 type Filter struct {
-	Column   string
-	Operator FilterOperator
-	Value    interface{}
-	IsOr     bool // OR instead of AND
+	Column    string
+	Operator  FilterOperator
+	Value     interface{}
+	IsOr      bool // OR instead of AND
+	OrGroupID int  // Groups OR filters together (filters with same non-zero ID are ORed)
 }
 
 // FilterOperator represents comparison operators
@@ -566,14 +568,52 @@ func (qp *QueryParser) parseFilter(key, value string, params *QueryParams) error
 	return fmt.Errorf("invalid filter format: %s", key)
 }
 
-// parseLogicalFilter parses or/and grouped filters
+// parseLogicalFilter parses or/and grouped filters with support for nested expressions
+// Supports formats like:
+//   - or=(name.eq.John,age.gt.30)
+//   - and=(or(col.lt.min1,col.gt.max1),or(col.lt.min2,col.gt.max2))
 func (qp *QueryParser) parseLogicalFilter(value string, params *QueryParams, isOr bool) error {
 	// Parse format: or=(name.eq.John,age.gt.30)
-	value = strings.Trim(value, "()")
-	filters := strings.Split(value, ",")
+	// Only remove one pair of outer parentheses (not all leading/trailing parens)
+	if strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")") {
+		value = value[1 : len(value)-1]
+	}
+
+	// Use parentheses-aware splitting to handle nested expressions
+	filters, err := qp.parseNestedFilters(value)
+	if err != nil {
+		return err
+	}
 
 	for _, filter := range filters {
-		// Parse each filter: column.operator.value
+		filter = strings.TrimSpace(filter)
+		if filter == "" {
+			continue
+		}
+
+		// Check for nested or() expression
+		if strings.HasPrefix(filter, "or(") && strings.HasSuffix(filter, ")") {
+			// Nested OR expression - parse recursively with new group ID
+			innerValue := strings.TrimPrefix(filter, "or(")
+			innerValue = strings.TrimSuffix(innerValue, ")")
+			if err := qp.parseNestedOrGroup(innerValue, params); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Check for nested and() expression
+		if strings.HasPrefix(filter, "and(") && strings.HasSuffix(filter, ")") {
+			// Nested AND expression - parse recursively
+			innerValue := strings.TrimPrefix(filter, "and(")
+			innerValue = strings.TrimSuffix(innerValue, ")")
+			if err := qp.parseLogicalFilter(innerValue, params, false); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Regular filter: column.operator.value
 		parts := strings.SplitN(filter, ".", 3)
 		if len(parts) != 3 {
 			return fmt.Errorf("invalid filter format in logical group: %s", filter)
@@ -588,6 +628,84 @@ func (qp *QueryParser) parseLogicalFilter(value string, params *QueryParams, isO
 	}
 
 	return nil
+}
+
+// parseNestedOrGroup parses an OR group and assigns a unique group ID to all filters
+func (qp *QueryParser) parseNestedOrGroup(value string, params *QueryParams) error {
+	// Increment group counter for this OR group
+	params.orGroupCounter++
+	groupID := params.orGroupCounter
+
+	// Split by comma (respecting parentheses)
+	filters, err := qp.parseNestedFilters(value)
+	if err != nil {
+		return err
+	}
+
+	for _, filter := range filters {
+		filter = strings.TrimSpace(filter)
+		if filter == "" {
+			continue
+		}
+
+		// Parse each filter: column.operator.value
+		parts := strings.SplitN(filter, ".", 3)
+		if len(parts) != 3 {
+			return fmt.Errorf("invalid filter format in OR group: %s", filter)
+		}
+
+		params.Filters = append(params.Filters, Filter{
+			Column:    parts[0],
+			Operator:  FilterOperator(parts[1]),
+			Value:     parts[2],
+			IsOr:      true,
+			OrGroupID: groupID,
+		})
+	}
+
+	return nil
+}
+
+// parseNestedFilters splits a filter string by commas while respecting parentheses nesting
+func (qp *QueryParser) parseNestedFilters(value string) ([]string, error) {
+	var filters []string
+	var current strings.Builder
+	depth := 0
+
+	for _, ch := range value {
+		switch ch {
+		case '(':
+			depth++
+			current.WriteRune(ch)
+		case ')':
+			depth--
+			current.WriteRune(ch)
+			if depth < 0 {
+				return nil, fmt.Errorf("unbalanced parentheses in filter expression")
+			}
+		case ',':
+			if depth == 0 {
+				if s := strings.TrimSpace(current.String()); s != "" {
+					filters = append(filters, s)
+				}
+				current.Reset()
+			} else {
+				current.WriteRune(ch)
+			}
+		default:
+			current.WriteRune(ch)
+		}
+	}
+
+	if depth != 0 {
+		return nil, fmt.Errorf("unbalanced parentheses in filter expression")
+	}
+
+	if s := strings.TrimSpace(current.String()); s != "" {
+		filters = append(filters, s)
+	}
+
+	return filters, nil
 }
 
 // parseArrayValue parses array values from string
@@ -758,35 +876,76 @@ func (agg *Aggregation) ToSQL() string {
 
 // buildWhereClause builds the WHERE clause from filters
 func (params *QueryParams) buildWhereClause(argCounter *int) (string, []interface{}) {
-	var conditions []string
 	var args []interface{}
 
-	for _, filter := range params.Filters {
+	// Build SQL for each filter and collect arguments
+	type filterSQL struct {
+		condition string
+		filter    Filter
+	}
+	filterSQLs := make([]filterSQL, len(params.Filters))
+
+	for i, filter := range params.Filters {
 		condition, arg := filter.toSQL(argCounter)
-		conditions = append(conditions, condition)
+		filterSQLs[i] = filterSQL{condition: condition, filter: filter}
 		if arg != nil {
 			args = append(args, arg)
 		}
 	}
 
-	// Group OR conditions
+	// Group OR conditions by OrGroupID
+	// Filters with OrGroupID > 0 are grouped together by their ID
+	// Filters with OrGroupID == 0 and IsOr == true use legacy consecutive grouping
+	// Filters with IsOr == false are ANDed directly
+	orGroups := make(map[int][]string) // OrGroupID -> conditions
+	var legacyOrGroup []string         // For backward compat with IsOr=true, OrGroupID=0
 	var finalConditions []string
-	var orGroup []string
+	lastWasLegacyOr := false
 
-	for i, condition := range conditions {
-		if params.Filters[i].IsOr {
-			orGroup = append(orGroup, condition)
+	for _, fs := range filterSQLs {
+		if fs.filter.OrGroupID > 0 {
+			// New-style OR group with explicit ID
+			orGroups[fs.filter.OrGroupID] = append(orGroups[fs.filter.OrGroupID], fs.condition)
+		} else if fs.filter.IsOr {
+			// Legacy OR (consecutive grouping for backward compatibility)
+			legacyOrGroup = append(legacyOrGroup, fs.condition)
+			lastWasLegacyOr = true
 		} else {
-			if len(orGroup) > 0 {
-				finalConditions = append(finalConditions, "("+strings.Join(orGroup, " OR ")+")")
-				orGroup = []string{}
+			// AND condition - flush any pending legacy OR group first
+			if lastWasLegacyOr && len(legacyOrGroup) > 0 {
+				finalConditions = append(finalConditions, "("+strings.Join(legacyOrGroup, " OR ")+")")
+				legacyOrGroup = nil
 			}
-			finalConditions = append(finalConditions, condition)
+			lastWasLegacyOr = false
+			finalConditions = append(finalConditions, fs.condition)
 		}
 	}
 
-	if len(orGroup) > 0 {
-		finalConditions = append(finalConditions, "("+strings.Join(orGroup, " OR ")+")")
+	// Flush remaining legacy OR group
+	if len(legacyOrGroup) > 0 {
+		finalConditions = append(finalConditions, "("+strings.Join(legacyOrGroup, " OR ")+")")
+	}
+
+	// Add new-style OR groups (each group becomes a parenthesized OR expression)
+	// Sort by group ID for deterministic output
+	groupIDs := make([]int, 0, len(orGroups))
+	for id := range orGroups {
+		groupIDs = append(groupIDs, id)
+	}
+	// Simple insertion sort for small number of groups
+	for i := 1; i < len(groupIDs); i++ {
+		for j := i; j > 0 && groupIDs[j] < groupIDs[j-1]; j-- {
+			groupIDs[j], groupIDs[j-1] = groupIDs[j-1], groupIDs[j]
+		}
+	}
+
+	for _, id := range groupIDs {
+		conditions := orGroups[id]
+		if len(conditions) == 1 {
+			finalConditions = append(finalConditions, conditions[0])
+		} else {
+			finalConditions = append(finalConditions, "("+strings.Join(conditions, " OR ")+")")
+		}
 	}
 
 	return strings.Join(finalConditions, " AND "), args

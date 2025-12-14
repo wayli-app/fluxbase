@@ -296,6 +296,48 @@ const { data, error } = await client.admin.functions.sync({
 
 ***
 
+### syncWithBundling()
+
+> **syncWithBundling**(`options`, `bundleOptions`?): `Promise`\<`object`\>
+
+Sync edge functions with automatic client-side bundling
+
+This is a convenience method that bundles all function code using esbuild
+before sending to the server. Requires esbuild as a peer dependency.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `options` | [`SyncFunctionsOptions`](/api/sdk/interfaces/syncfunctionsoptions/) | Sync options including namespace and functions array |
+| `bundleOptions`? | `Partial`\<[`BundleOptions`](/api/sdk/interfaces/bundleoptions/)\> | Optional bundling configuration |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+Promise resolving to { data, error } tuple with sync results
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| [`SyncFunctionsResult`](/api/sdk/interfaces/syncfunctionsresult/) |
+| `error` | `null` \| `Error` |
+
+#### Example
+
+```typescript
+const { data, error } = await client.admin.functions.syncWithBundling({
+  namespace: 'default',
+  functions: [
+    { name: 'hello', code: helloCode },
+    { name: 'goodbye', code: goodbyeCode },
+  ],
+  options: { delete_missing: true }
+})
+```
+
+***
+
 ### update()
 
 > **update**(`name`, `updates`): `Promise`\<`object`\>
@@ -326,5 +368,58 @@ Promise resolving to { data, error } tuple with updated function metadata
 const { data, error } = await client.admin.functions.update('my-function', {
   enabled: false,
   description: 'Updated description'
+})
+```
+
+***
+
+### bundleCode()
+
+> `static` **bundleCode**(`options`): `Promise`\<[`BundleResult`](/api/sdk/interfaces/bundleresult/)\>
+
+Bundle function code using esbuild (client-side)
+
+Transforms and bundles TypeScript/JavaScript code into a single file
+that can be executed by the Fluxbase edge functions runtime.
+
+Requires esbuild as a peer dependency.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `options` | [`BundleOptions`](/api/sdk/interfaces/bundleoptions/) | Bundle options including source code |
+
+#### Returns
+
+`Promise`\<[`BundleResult`](/api/sdk/interfaces/bundleresult/)\>
+
+Promise resolving to bundled code
+
+#### Throws
+
+Error if esbuild is not available
+
+#### Example
+
+```typescript
+const bundled = await FluxbaseAdminFunctions.bundleCode({
+  code: `
+    import { helper } from './utils'
+    export default async function handler(req) {
+      return helper(req.body)
+    }
+  `,
+  minify: true,
+})
+
+// Use bundled code in sync
+await client.admin.functions.sync({
+  namespace: 'default',
+  functions: [{
+    name: 'my-function',
+    code: bundled.code,
+    is_pre_bundled: true,
+  }]
 })
 ```

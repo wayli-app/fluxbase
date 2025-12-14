@@ -371,6 +371,37 @@ and('age.gte.18,age.lte.65')
 
 ***
 
+### between()
+
+> **between**(`column`, `min`, `max`): `this`
+
+Filter column value within an inclusive range (BETWEEN)
+Generates: AND (column >= min AND column <= max)
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `column` | `string` | Column name to filter |
+| `min` | `unknown` | Minimum value (inclusive) |
+| `max` | `unknown` | Maximum value (inclusive) |
+
+#### Returns
+
+`this`
+
+#### Examples
+
+```ts
+between('recorded_at', '2024-01-01', '2024-01-10')
+```
+
+```ts
+between('price', 10, 100)
+```
+
+***
+
 ### containedBy()
 
 > **containedBy**(`column`, `value`): `this`
@@ -510,6 +541,14 @@ filter('name', 'in', '("Han","Yoda")')
 
 ```ts
 filter('age', 'gte', '18')
+```
+
+```ts
+filter('recorded_at', 'between', ['2024-01-01', '2024-01-10'])
+```
+
+```ts
+filter('recorded_at', 'not.between', ['2024-01-01', '2024-01-10'])
 ```
 
 ***
@@ -822,6 +861,38 @@ not('status', 'eq', 'deleted')
 
 ```ts
 not('completed_at', 'is', null)
+```
+
+***
+
+### notBetween()
+
+> **notBetween**(`column`, `min`, `max`): `this`
+
+Filter column value outside an inclusive range (NOT BETWEEN)
+Generates: OR (column < min OR column > max)
+Multiple notBetween calls on the same column AND together
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `column` | `string` | Column name to filter |
+| `min` | `unknown` | Minimum value of excluded range |
+| `max` | `unknown` | Maximum value of excluded range |
+
+#### Returns
+
+`this`
+
+#### Examples
+
+```ts
+notBetween('recorded_at', '2024-01-01', '2024-01-10')
+```
+
+```ts
+notBetween('price', 0, 10) // Excludes items priced 0-10
 ```
 
 ***

@@ -27,6 +27,7 @@ Admin client for managing Fluxbase instance
 
 | Property | Modifier | Type | Description |
 | ------ | ------ | ------ | ------ |
+| `ai` | `public` | [`FluxbaseAdminAI`](/api/sdk/classes/fluxbaseadminai/) | AI manager for chatbot and provider management (create, update, delete, sync) |
 | `ddl` | `public` | [`DDLManager`](/api/sdk/classes/ddlmanager/) | DDL manager for database schema and table operations |
 | `emailTemplates` | `public` | [`EmailTemplateManager`](/api/sdk/classes/emailtemplatemanager/) | Email template manager for customizing authentication and notification emails |
 | `functions` | `public` | [`FluxbaseAdminFunctions`](/api/sdk/classes/fluxbaseadminfunctions/) | Functions manager for edge function management (create, update, delete, sync) |
@@ -35,6 +36,7 @@ Admin client for managing Fluxbase instance
 | `management` | `public` | [`FluxbaseManagement`](/api/sdk/classes/fluxbasemanagement/) | Management namespace for API keys, webhooks, and invitations |
 | `migrations` | `public` | [`FluxbaseAdminMigrations`](/api/sdk/classes/fluxbaseadminmigrations/) | Migrations manager for database migration operations (create, apply, rollback, sync) |
 | `oauth` | `public` | [`FluxbaseOAuth`](/api/sdk/classes/fluxbaseoauth/) | OAuth configuration manager for provider and auth settings |
+| `rpc` | `public` | [`FluxbaseAdminRPC`](/api/sdk/classes/fluxbaseadminrpc/) | RPC manager for procedure management (create, update, delete, sync, execution monitoring) |
 | `settings` | `public` | [`FluxbaseSettings`](/api/sdk/classes/fluxbasesettings/) | Settings manager for system and application settings |
 
 ## Methods

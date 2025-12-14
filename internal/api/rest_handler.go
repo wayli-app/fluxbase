@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -34,15 +36,21 @@ func (h *RESTHandler) RegisterTableRoutes(router fiber.Router, table database.Ta
 		Bool("rls_enabled", table.RLSEnabled).
 		Msg("Registering REST endpoints")
 
-	// Register routes
-	router.Get(basePath, h.makeGetHandler(table))
-	router.Get(basePath+"/:id", h.makeGetByIdHandler(table))
-	router.Post(basePath, h.makePostHandler(table))
-	router.Put(basePath+"/:id", h.makePutHandler(table))
-	router.Patch(basePath+"/:id", h.makePatchHandler(table))   // Single record update
-	router.Patch(basePath, h.makeBatchPatchHandler(table))     // Batch update with filters
-	router.Delete(basePath+"/:id", h.makeDeleteHandler(table)) // Single record delete
-	router.Delete(basePath, h.makeBatchDeleteHandler(table))   // Batch delete with filters
+	// Register routes with scope enforcement
+	// Read operations require read:tables scope
+	router.Get(basePath, middleware.RequireScope(auth.ScopeTablesRead), h.makeGetHandler(table))
+	router.Get(basePath+"/:id", middleware.RequireScope(auth.ScopeTablesRead), h.makeGetByIdHandler(table))
+
+	// POST-based query endpoint for complex filters (avoids URL length limits)
+	router.Post(basePath+"/query", middleware.RequireScope(auth.ScopeTablesRead), h.makePostQueryHandler(table))
+
+	// Write operations require write:tables scope
+	router.Post(basePath, middleware.RequireScope(auth.ScopeTablesWrite), h.makePostHandler(table))
+	router.Put(basePath+"/:id", middleware.RequireScope(auth.ScopeTablesWrite), h.makePutHandler(table))
+	router.Patch(basePath+"/:id", middleware.RequireScope(auth.ScopeTablesWrite), h.makePatchHandler(table))   // Single record update
+	router.Patch(basePath, middleware.RequireScope(auth.ScopeTablesWrite), h.makeBatchPatchHandler(table))     // Batch update with filters
+	router.Delete(basePath+"/:id", middleware.RequireScope(auth.ScopeTablesWrite), h.makeDeleteHandler(table)) // Single record delete
+	router.Delete(basePath, middleware.RequireScope(auth.ScopeTablesWrite), h.makeBatchDeleteHandler(table))   // Batch delete with filters
 }
 
 // RegisterViewRoutes registers read-only REST routes for a database view
@@ -55,9 +63,9 @@ func (h *RESTHandler) RegisterViewRoutes(router fiber.Router, view database.Tabl
 		Str("path", basePath).
 		Msg("Registering read-only view endpoints")
 
-	// Register only GET routes for views (read-only)
-	router.Get(basePath, h.makeGetHandler(view))
-	router.Get(basePath+"/:id", h.makeGetByIdHandler(view))
+	// Register only GET routes for views (read-only) with scope enforcement
+	router.Get(basePath, middleware.RequireScope(auth.ScopeTablesRead), h.makeGetHandler(view))
+	router.Get(basePath+"/:id", middleware.RequireScope(auth.ScopeTablesRead), h.makeGetByIdHandler(view))
 }
 
 // BuildTablePath builds the REST API path for a table (relative to router group)

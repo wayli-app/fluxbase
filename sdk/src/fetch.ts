@@ -246,6 +246,13 @@ export class FluxbaseFetch {
   }
 
   /**
+   * POST request that returns response with headers (for POST-based queries with count)
+   */
+  async postWithHeaders<T = unknown>(path: string, body?: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<FetchResponseWithHeaders<T>> {
+    return this.requestWithHeaders<T>(path, { ...options, method: 'POST', body })
+  }
+
+  /**
    * Make an HTTP request and return response with headers
    */
   async requestWithHeaders<T = unknown>(path: string, options: FetchOptions): Promise<FetchResponseWithHeaders<T>> {

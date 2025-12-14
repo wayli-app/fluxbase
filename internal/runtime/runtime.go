@@ -268,6 +268,10 @@ func (r *DenoRuntime) Execute(
 			wg.Done()
 		}()
 		scanner := bufio.NewScanner(stdoutPipe)
+		// Increase buffer size to handle large results (1MB max per line)
+		const maxLineSize = 1024 * 1024
+		scanner.Buffer(make([]byte, maxLineSize), maxLineSize)
+
 		for scanner.Scan() {
 			line := scanner.Text()
 			stdoutBuilder.WriteString(line + "\n")
@@ -288,6 +292,14 @@ func (r *DenoRuntime) Execute(
 				}
 			}
 		}
+
+		// Check for scanner errors
+		if err := scanner.Err(); err != nil {
+			log.Warn().
+				Err(err).
+				Str("id", req.ID.String()).
+				Msg("Scanner error while reading stdout - result line may be truncated")
+		}
 	}()
 
 	// Process stderr (logs)
@@ -300,6 +312,10 @@ func (r *DenoRuntime) Execute(
 			wg.Done()
 		}()
 		scanner := bufio.NewScanner(stderrPipe)
+		// Increase buffer size to handle large error messages (1MB max per line)
+		const maxLineSize = 1024 * 1024
+		scanner.Buffer(make([]byte, maxLineSize), maxLineSize)
+
 		for scanner.Scan() {
 			line := scanner.Text()
 			stderrBuilder.WriteString(line + "\n")
@@ -307,6 +323,14 @@ func (r *DenoRuntime) Execute(
 			if r.onLog != nil && line != "" {
 				r.onLog(req.ID, "error", line)
 			}
+		}
+
+		// Check for scanner errors
+		if err := scanner.Err(); err != nil {
+			log.Warn().
+				Err(err).
+				Str("id", req.ID.String()).
+				Msg("Scanner error while reading stderr")
 		}
 	}()
 
@@ -503,7 +527,11 @@ func (r *DenoRuntime) parseJobResult(resultLine, stdout, stderr string, lines []
 		return result, nil
 	}
 
-	// Fallback to legacy parsing
+	// Fallback to legacy parsing - log warning since __RESULT__:: prefix was not found
+	log.Warn().
+		Str("stdout_preview", truncateString(stdout, 200)).
+		Msg("Job result not found with __RESULT__:: prefix - handler may have exited early or returned non-serializable value")
+
 	var resultLines []string
 	for _, line := range lines {
 		if !strings.HasPrefix(line, "__PROGRESS__::") {
@@ -528,10 +556,9 @@ func (r *DenoRuntime) parseJobResult(resultLine, stdout, stderr string, lines []
 			result.Error = stderr
 			return result, nil
 		}
+		// Don't wrap stdout in {"output": ...} - just return nil result
 		result.Success = true
-		result.Result = map[string]interface{}{
-			"output": resultOutput,
-		}
+		result.Result = nil
 		return result, nil
 	}
 
@@ -542,4 +569,12 @@ func (r *DenoRuntime) parseJobResult(resultLine, stdout, stderr string, lines []
 	}
 
 	return result, nil
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
