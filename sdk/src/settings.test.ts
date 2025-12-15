@@ -35,7 +35,7 @@ describe('SystemSettingsManager', () => {
         },
         {
           id: 'setting-2',
-          key: 'app.features.enable_realtime',
+          key: 'app.realtime.enabled',
           value: { value: true },
           description: 'Enable realtime features',
           created_at: '2024-01-01T00:00:00Z',

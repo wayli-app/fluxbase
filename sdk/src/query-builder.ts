@@ -45,6 +45,7 @@ export class QueryBuilder<T = unknown>
   private operationType: "select" | "insert" | "update" | "delete" = "select";
   private countType?: CountType;
   private headOnly: boolean = false;
+  private isCountAggregation: boolean = false;
   private insertData?: Partial<T> | Array<Partial<T>>;
   private updateData?: Partial<T>;
 
@@ -585,6 +586,7 @@ export class QueryBuilder<T = unknown>
    */
   count(column: string = "*"): this {
     this.selectQuery = `count(${column})`;
+    this.isCountAggregation = true;
     return this;
   }
 
@@ -904,6 +906,33 @@ export class QueryBuilder<T = unknown>
 
       // Standard path without count - use regular get
       const data = await this.fetch.get<T | T[]>(path);
+
+      // Handle count aggregation response - extract count from data[0].count
+      // Skip if using groupBy (return full array instead)
+      if (this.isCountAggregation && !this.groupByColumns) {
+        if (Array.isArray(data) && data.length === 1) {
+          const countData = data[0] as { count?: number };
+          if (countData && typeof countData.count === "number") {
+            return {
+              data: data as T,
+              error: null,
+              count: countData.count,
+              status: 200,
+              statusText: "OK",
+            };
+          }
+        }
+        // Handle empty result for count aggregation
+        if (Array.isArray(data) && data.length === 0) {
+          return {
+            data: data as T,
+            error: null,
+            count: 0,
+            status: 200,
+            statusText: "OK",
+          };
+        }
+      }
 
       // Handle single row response
       if (this.singleRow) {

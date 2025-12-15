@@ -38,6 +38,7 @@ type Procedure struct {
 	MaxExecutionTimeSeconds int     `json:"max_execution_time_seconds"`
 	RequireRole             *string `json:"require_role,omitempty"`
 	IsPublic                bool    `json:"is_public"`
+	Schedule                *string `json:"schedule,omitempty"`
 
 	// Runtime config
 	Enabled   bool      `json:"enabled"`
@@ -59,6 +60,7 @@ type ProcedureSummary struct {
 	MaxExecutionTimeSeconds int       `json:"max_execution_time_seconds"`
 	RequireRole             *string   `json:"require_role,omitempty"`
 	IsPublic                bool      `json:"is_public"`
+	Schedule                *string   `json:"schedule,omitempty"`
 	Enabled                 bool      `json:"enabled"`
 	Version                 int       `json:"version"`
 	Source                  string    `json:"source"`
@@ -78,6 +80,7 @@ func (p *Procedure) ToSummary() ProcedureSummary {
 		MaxExecutionTimeSeconds: p.MaxExecutionTimeSeconds,
 		RequireRole:             p.RequireRole,
 		IsPublic:                p.IsPublic,
+		Schedule:                p.Schedule,
 		Enabled:                 p.Enabled,
 		Version:                 p.Version,
 		Source:                  p.Source,
@@ -163,6 +166,7 @@ type Annotations struct {
 	RequireRole      string            `json:"require_role,omitempty"`
 	IsPublic         bool              `json:"is_public,omitempty"`
 	Version          int               `json:"version,omitempty"`
+	Schedule         *string           `json:"schedule,omitempty"`
 }
 
 // ProcedureSpec is used for syncing procedures from filesystem or SDK

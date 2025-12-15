@@ -12,7 +12,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Webhook trigger function to queue webhook events
+-- Webhook trigger function to queue webhook events (with scoping support)
 CREATE OR REPLACE FUNCTION auth.queue_webhook_event()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -21,9 +21,10 @@ DECLARE
     old_data JSONB;
     new_data JSONB;
     record_id_value TEXT;
+    record_owner_id UUID;
     should_trigger BOOLEAN;
 BEGIN
-    -- Determine event type
+    -- Determine event type and prepare data
     IF TG_OP = 'INSERT' THEN
         event_type := 'INSERT';
         old_data := NULL;
@@ -43,11 +44,34 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    -- Find matching webhooks
+    -- Extract record owner for scoping
+    -- Check common ownership columns in order of precedence
+    BEGIN
+        record_owner_id := COALESCE(
+            ((CASE WHEN TG_OP = 'DELETE' THEN old_data ELSE new_data END)->>'user_id')::UUID,
+            ((CASE WHEN TG_OP = 'DELETE' THEN old_data ELSE new_data END)->>'owner_id')::UUID,
+            ((CASE WHEN TG_OP = 'DELETE' THEN old_data ELSE new_data END)->>'created_by')::UUID,
+            -- For auth.users table, use the record's own id as the owner
+            CASE WHEN TG_TABLE_SCHEMA = 'auth' AND TG_TABLE_NAME = 'users'
+                 THEN ((CASE WHEN TG_OP = 'DELETE' THEN old_data ELSE new_data END)->>'id')::UUID
+                 ELSE NULL END
+        );
+    EXCEPTION WHEN OTHERS THEN
+        -- If UUID parsing fails, set to NULL (unowned record)
+        record_owner_id := NULL;
+    END;
+
+    -- Find matching webhooks WITH SCOPING
     FOR webhook_record IN
-        SELECT id, events
+        SELECT id, events, created_by, scope
         FROM auth.webhooks
         WHERE enabled = TRUE
+          AND (
+              scope = 'global'                    -- Global webhooks see everything
+              OR created_by IS NULL              -- Legacy webhooks (no owner) see everything
+              OR record_owner_id IS NULL         -- Unowned records are visible to all
+              OR created_by = record_owner_id    -- User-scoped: owner matches
+          )
     LOOP
         -- Check if this webhook is interested in this event
         should_trigger := FALSE;
@@ -102,7 +126,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION auth.queue_webhook_event() IS 'Trigger function that queues webhook events when data changes occur';
+COMMENT ON FUNCTION auth.queue_webhook_event() IS 'Trigger function that queues webhook events when data changes occur, with user-based scoping support';
 
 -- Function to create webhook trigger on a table
 CREATE OR REPLACE FUNCTION auth.create_webhook_trigger(
@@ -151,6 +175,53 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 COMMENT ON FUNCTION auth.remove_webhook_trigger IS 'Removes a webhook trigger from a specified table';
+
+-- Helper function: Increment webhook count and create trigger if first
+CREATE OR REPLACE FUNCTION auth.increment_webhook_table_count(p_schema TEXT, p_table TEXT)
+RETURNS VOID AS $$
+DECLARE
+    v_count INTEGER;
+BEGIN
+    INSERT INTO auth.webhook_monitored_tables (schema_name, table_name, webhook_count)
+    VALUES (p_schema, p_table, 1)
+    ON CONFLICT (schema_name, table_name)
+    DO UPDATE SET webhook_count = auth.webhook_monitored_tables.webhook_count + 1;
+
+    -- Get the current count
+    SELECT webhook_count INTO v_count
+    FROM auth.webhook_monitored_tables
+    WHERE schema_name = p_schema AND table_name = p_table;
+
+    -- Create trigger if this is the first webhook monitoring this table
+    IF v_count = 1 THEN
+        PERFORM auth.create_webhook_trigger(p_schema, p_table);
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION auth.increment_webhook_table_count IS 'Increments the webhook count for a table and creates the trigger if this is the first webhook';
+
+-- Helper function: Decrement webhook count and remove trigger if zero
+CREATE OR REPLACE FUNCTION auth.decrement_webhook_table_count(p_schema TEXT, p_table TEXT)
+RETURNS VOID AS $$
+DECLARE
+    v_count INTEGER;
+BEGIN
+    UPDATE auth.webhook_monitored_tables
+    SET webhook_count = GREATEST(0, webhook_count - 1)
+    WHERE schema_name = p_schema AND table_name = p_table
+    RETURNING webhook_count INTO v_count;
+
+    -- Remove trigger and tracking row if no webhooks left
+    IF v_count IS NOT NULL AND v_count = 0 THEN
+        PERFORM auth.remove_webhook_trigger(p_schema, p_table);
+        DELETE FROM auth.webhook_monitored_tables
+        WHERE schema_name = p_schema AND table_name = p_table;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION auth.decrement_webhook_table_count IS 'Decrements the webhook count for a table and removes the trigger if no webhooks remain';
 
 -- Function to validate app_metadata updates (only admins can modify)
 CREATE OR REPLACE FUNCTION auth.validate_app_metadata_update()

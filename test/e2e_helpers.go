@@ -148,7 +148,7 @@ func NewTestContext(t *testing.T) *TestContext {
 	}
 
 	// Create server (REST API will now see all migrated tables)
-	server := api.NewServer(cfg, db)
+	server := api.NewServer(cfg, db, "test")
 
 	return &TestContext{
 		DB:     db,
@@ -230,7 +230,7 @@ func NewRLSTestContext(t *testing.T) *TestContext {
 	// by setup using fluxbase_app user
 
 	// Create server (REST API will see all migrated tables)
-	server := api.NewServer(cfg, db)
+	server := api.NewServer(cfg, db, "test")
 
 	return &TestContext{
 		DB:     db,

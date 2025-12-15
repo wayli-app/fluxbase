@@ -430,7 +430,10 @@ export const databaseApi = {
     table: string,
     newName: string
   ): Promise<{ success: boolean; message: string }> => {
-    const response = await api.patch(`/api/v1/admin/tables/${schema}/${table}`, { newName })
+    const response = await api.patch(
+      `/api/v1/admin/tables/${schema}/${table}`,
+      { newName }
+    )
     return response.data
   },
 
@@ -444,7 +447,10 @@ export const databaseApi = {
       defaultValue?: string
     }
   ): Promise<{ success: boolean; message: string }> => {
-    const response = await api.post(`/api/v1/admin/tables/${schema}/${table}/columns`, column)
+    const response = await api.post(
+      `/api/v1/admin/tables/${schema}/${table}/columns`,
+      column
+    )
     return response.data
   },
 
@@ -453,7 +459,9 @@ export const databaseApi = {
     table: string,
     column: string
   ): Promise<{ success: boolean; message: string }> => {
-    const response = await api.delete(`/api/v1/admin/tables/${schema}/${table}/columns/${column}`)
+    const response = await api.delete(
+      `/api/v1/admin/tables/${schema}/${table}/columns/${column}`
+    )
     return response.data
   },
 
@@ -851,13 +859,17 @@ export const functionsApi = {
   }): Promise<{ executions: EdgeFunctionExecution[]; count: number }> => {
     const params = new URLSearchParams()
     if (filters?.namespace) params.set('namespace', filters.namespace)
-    if (filters?.function_name) params.set('function_name', filters.function_name)
+    if (filters?.function_name)
+      params.set('function_name', filters.function_name)
     if (filters?.status) params.set('status', filters.status)
     if (filters?.limit) params.set('limit', filters.limit.toString())
     if (filters?.offset) params.set('offset', filters.offset.toString())
 
     const queryString = params.toString()
-    const response = await api.get<{ executions: EdgeFunctionExecution[]; count: number }>(
+    const response = await api.get<{
+      executions: EdgeFunctionExecution[]
+      count: number
+    }>(
       `/api/v1/admin/functions/executions${queryString ? `?${queryString}` : ''}`
     )
     return response.data
@@ -869,9 +881,10 @@ export const functionsApi = {
     afterLine?: number
   ): Promise<{ logs: FunctionExecutionLog[]; count: number }> => {
     const params = afterLine !== undefined ? `?after=${afterLine}` : ''
-    const response = await api.get<{ logs: FunctionExecutionLog[]; count: number }>(
-      `/api/v1/admin/functions/executions/${executionId}/logs${params}`
-    )
+    const response = await api.get<{
+      logs: FunctionExecutionLog[]
+      count: number
+    }>(`/api/v1/admin/functions/executions/${executionId}/logs${params}`)
     return response.data
   },
 }
@@ -1102,9 +1115,11 @@ export const jobsApi = {
     if (filters?.offset) params.append('offset', filters.offset.toString())
 
     const queryString = params.toString()
-    const response = await api.get<{ jobs: Job[]; limit: number; offset: number }>(
-      `/api/v1/admin/jobs/queue${queryString ? `?${queryString}` : ''}`
-    )
+    const response = await api.get<{
+      jobs: Job[]
+      limit: number
+      offset: number
+    }>(`/api/v1/admin/jobs/queue${queryString ? `?${queryString}` : ''}`)
     return response.data.jobs
   },
 
@@ -1115,7 +1130,10 @@ export const jobsApi = {
   },
 
   // Get job execution logs
-  getJobLogs: async (jobId: string, afterLine?: number): Promise<ExecutionLog[]> => {
+  getJobLogs: async (
+    jobId: string,
+    afterLine?: number
+  ): Promise<ExecutionLog[]> => {
     const params = afterLine !== undefined ? `?after=${afterLine}` : ''
     const response = await api.get<{ logs: ExecutionLog[] }>(
       `/api/v1/admin/jobs/queue/${jobId}/logs${params}`
@@ -1154,7 +1172,9 @@ export const jobsApi = {
   // Get job statistics
   getStats: async (namespace?: string): Promise<JobStats> => {
     const params = namespace ? `?namespace=${namespace}` : ''
-    const response = await api.get<JobStats>(`/api/v1/admin/jobs/stats${params}`)
+    const response = await api.get<JobStats>(
+      `/api/v1/admin/jobs/stats${params}`
+    )
     return response.data
   },
 
@@ -1917,9 +1937,10 @@ export const chatbotsApi = {
   // List all chatbots
   list: async (namespace?: string): Promise<AIChatbotSummary[]> => {
     const params = namespace ? `?namespace=${namespace}` : ''
-    const response = await api.get<{ chatbots: AIChatbotSummary[]; count: number }>(
-      `/api/v1/admin/ai/chatbots${params}`
-    )
+    const response = await api.get<{
+      chatbots: AIChatbotSummary[]
+      count: number
+    }>(`/api/v1/admin/ai/chatbots${params}`)
     return response.data.chatbots || []
   },
 
@@ -1940,7 +1961,10 @@ export const chatbotsApi = {
 
   // Update chatbot configuration
   update: async (id: string, data: Partial<AIChatbot>): Promise<AIChatbot> => {
-    const response = await api.put<AIChatbot>(`/api/v1/admin/ai/chatbots/${id}`, data)
+    const response = await api.put<AIChatbot>(
+      `/api/v1/admin/ai/chatbots/${id}`,
+      data
+    )
     return response.data
   },
 
@@ -2045,7 +2069,11 @@ export const conversationsApi = {
     status?: string
     limit?: number
     offset?: number
-  }): Promise<{ conversations: ConversationSummary[]; total: number; total_count: number }> => {
+  }): Promise<{
+    conversations: ConversationSummary[]
+    total: number
+    total_count: number
+  }> => {
     const queryParams = new URLSearchParams()
     if (params?.chatbot_id) queryParams.append('chatbot_id', params.chatbot_id)
     if (params?.user_id) queryParams.append('user_id', params.user_id)
@@ -2053,16 +2081,21 @@ export const conversationsApi = {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.offset) queryParams.append('offset', params.offset.toString())
 
-    const response = await api.get<{ conversations: ConversationSummary[]; total: number; total_count: number }>(
-      `/api/v1/admin/ai/conversations?${queryParams.toString()}`
-    )
+    const response = await api.get<{
+      conversations: ConversationSummary[]
+      total: number
+      total_count: number
+    }>(`/api/v1/admin/ai/conversations?${queryParams.toString()}`)
     return response.data
   },
 
-  getMessages: async (conversationId: string): Promise<{ messages: MessageDetail[]; total: number }> => {
-    const response = await api.get<{ messages: MessageDetail[]; total: number }>(
-      `/api/v1/admin/ai/conversations/${conversationId}/messages`
-    )
+  getMessages: async (
+    conversationId: string
+  ): Promise<{ messages: MessageDetail[]; total: number }> => {
+    const response = await api.get<{
+      messages: MessageDetail[]
+      total: number
+    }>(`/api/v1/admin/ai/conversations/${conversationId}/messages`)
     return response.data
   },
 }
@@ -2099,17 +2132,24 @@ export const auditLogApi = {
     success?: boolean
     limit?: number
     offset?: number
-  }): Promise<{ entries: AuditLogEntry[]; total: number; total_count: number }> => {
+  }): Promise<{
+    entries: AuditLogEntry[]
+    total: number
+    total_count: number
+  }> => {
     const queryParams = new URLSearchParams()
     if (params?.chatbot_id) queryParams.append('chatbot_id', params.chatbot_id)
     if (params?.user_id) queryParams.append('user_id', params.user_id)
-    if (params?.success !== undefined) queryParams.append('success', params.success.toString())
+    if (params?.success !== undefined)
+      queryParams.append('success', params.success.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.offset) queryParams.append('offset', params.offset.toString())
 
-    const response = await api.get<{ entries: AuditLogEntry[]; total: number; total_count: number }>(
-      `/api/v1/admin/ai/audit?${queryParams.toString()}`
-    )
+    const response = await api.get<{
+      entries: AuditLogEntry[]
+      total: number
+      total_count: number
+    }>(`/api/v1/admin/ai/audit?${queryParams.toString()}`)
     return response.data
   },
 }
@@ -2129,6 +2169,7 @@ export interface RPCProcedure {
   max_execution_time_seconds: number
   require_role?: string
   is_public: boolean
+  schedule?: string
   enabled: boolean
   version: number
   source: string
@@ -2137,7 +2178,13 @@ export interface RPCProcedure {
   updated_at: string
 }
 
-export type RPCExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+export type RPCExecutionStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
 
 export interface RPCExecution {
   id: string
@@ -2196,6 +2243,7 @@ export interface UpdateRPCProcedureRequest {
   max_execution_time_seconds?: number
   allowed_tables?: string[]
   allowed_schemas?: string[]
+  schedule?: string
 }
 
 // RPC API
@@ -2211,14 +2259,18 @@ export const rpcApi = {
   // List all procedures (optionally filtered by namespace)
   listProcedures: async (namespace?: string): Promise<RPCProcedure[]> => {
     const params = namespace ? `?namespace=${namespace}` : ''
-    const response = await api.get<{ procedures: RPCProcedure[]; count: number }>(
-      `/api/v1/admin/rpc/procedures${params}`
-    )
+    const response = await api.get<{
+      procedures: RPCProcedure[]
+      count: number
+    }>(`/api/v1/admin/rpc/procedures${params}`)
     return response.data.procedures || []
   },
 
   // Get procedure details
-  getProcedure: async (namespace: string, name: string): Promise<RPCProcedure> => {
+  getProcedure: async (
+    namespace: string,
+    name: string
+  ): Promise<RPCProcedure> => {
     const response = await api.get<RPCProcedure>(
       `/api/v1/admin/rpc/procedures/${namespace}/${name}`
     )
@@ -2245,10 +2297,9 @@ export const rpcApi = {
 
   // Sync procedures from filesystem
   sync: async (namespace: string): Promise<RPCSyncResult> => {
-    const response = await api.post<RPCSyncResult>(
-      '/api/v1/admin/rpc/sync',
-      { namespace }
-    )
+    const response = await api.post<RPCSyncResult>('/api/v1/admin/rpc/sync', {
+      namespace,
+    })
     return response.data
   },
 
@@ -2268,10 +2319,14 @@ export const rpcApi = {
     if (filters?.offset) params.set('offset', filters.offset.toString())
 
     const queryString = params.toString()
-    const response = await api.get<{ executions: RPCExecution[]; count: number }>(
-      `/api/v1/admin/rpc/executions${queryString ? `?${queryString}` : ''}`
-    )
-    return { executions: response.data.executions || [], total: response.data.count || 0 }
+    const response = await api.get<{
+      executions: RPCExecution[]
+      count: number
+    }>(`/api/v1/admin/rpc/executions${queryString ? `?${queryString}` : ''}`)
+    return {
+      executions: response.data.executions || [],
+      total: response.data.count || 0,
+    }
   },
 
   // Get execution details
@@ -2283,7 +2338,10 @@ export const rpcApi = {
   },
 
   // Get execution logs
-  getExecutionLogs: async (executionId: string, afterLine?: number): Promise<RPCExecutionLog[]> => {
+  getExecutionLogs: async (
+    executionId: string,
+    afterLine?: number
+  ): Promise<RPCExecutionLog[]> => {
     const params = afterLine !== undefined ? `?after=${afterLine}` : ''
     const response = await api.get<{ logs: RPCExecutionLog[]; count: number }>(
       `/api/v1/admin/rpc/executions/${executionId}/logs${params}`

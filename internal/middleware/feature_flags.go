@@ -27,30 +27,30 @@ func RequireFeatureEnabled(settingsCache *auth.SettingsCache, featureKey string)
 
 // RequireRealtimeEnabled returns a middleware that ensures realtime feature is enabled
 func RequireRealtimeEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_realtime")
+	return RequireFeatureEnabled(settingsCache, "app.realtime.enabled")
 }
 
 // RequireStorageEnabled returns a middleware that ensures storage feature is enabled
 func RequireStorageEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_storage")
+	return RequireFeatureEnabled(settingsCache, "app.storage.enabled")
 }
 
 // RequireFunctionsEnabled returns a middleware that ensures edge functions feature is enabled
 func RequireFunctionsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_functions")
+	return RequireFeatureEnabled(settingsCache, "app.functions.enabled")
 }
 
 // RequireJobsEnabled returns a middleware that ensures jobs feature is enabled
 func RequireJobsEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_jobs")
+	return RequireFeatureEnabled(settingsCache, "app.jobs.enabled")
 }
 
 // RequireAIEnabled returns a middleware that ensures AI chatbot feature is enabled
 func RequireAIEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_ai")
+	return RequireFeatureEnabled(settingsCache, "app.ai.enabled")
 }
 
 // RequireRPCEnabled returns a middleware that ensures RPC feature is enabled
 func RequireRPCEnabled(settingsCache *auth.SettingsCache) fiber.Handler {
-	return RequireFeatureEnabled(settingsCache, "app.features.enable_rpc")
+	return RequireFeatureEnabled(settingsCache, "app.rpc.enabled")
 }

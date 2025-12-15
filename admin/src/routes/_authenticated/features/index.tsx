@@ -28,11 +28,17 @@ interface FeatureSettings {
   enable_storage: boolean
   enable_functions: boolean
   enable_ai: boolean
+  enable_rpc: boolean
+  enable_jobs: boolean
+  enable_email: boolean
   _overrides?: {
     enable_realtime?: { is_overridden: boolean; env_var: string }
     enable_storage?: { is_overridden: boolean; env_var: string }
     enable_functions?: { is_overridden: boolean; env_var: string }
     enable_ai?: { is_overridden: boolean; env_var: string }
+    enable_rpc?: { is_overridden: boolean; env_var: string }
+    enable_jobs?: { is_overridden: boolean; env_var: string }
+    enable_email?: { is_overridden: boolean; env_var: string }
   }
 }
 
@@ -42,17 +48,23 @@ function FeaturesPage() {
   const { data: features, isLoading } = useQuery<FeatureSettings>({
     queryKey: ['feature-settings'],
     queryFn: async () => {
-      const [realtime, storage, functions, ai] = await Promise.all([
-        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_realtime'),
-        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_storage'),
-        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_functions'),
-        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.features.enable_ai'),
+      const [realtime, storage, functions, ai, rpc, jobs, email] = await Promise.all([
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.realtime.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.storage.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.functions.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.ai.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.rpc.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.jobs.enabled'),
+        apiClient.get<SystemSetting>('/api/v1/admin/system/settings/app.email.enabled'),
       ])
       return {
         enable_realtime: realtime.data.value.value,
         enable_storage: storage.data.value.value,
         enable_functions: functions.data.value.value,
         enable_ai: ai.data.value.value,
+        enable_rpc: rpc.data.value.value,
+        enable_jobs: jobs.data.value.value,
+        enable_email: email.data.value.value,
         _overrides: {
           enable_realtime: realtime.data.is_overridden ? {
             is_overridden: true,
@@ -69,6 +81,18 @@ function FeaturesPage() {
           enable_ai: ai.data.is_overridden ? {
             is_overridden: true,
             env_var: ai.data.override_source || '',
+          } : undefined,
+          enable_rpc: rpc.data.is_overridden ? {
+            is_overridden: true,
+            env_var: rpc.data.override_source || '',
+          } : undefined,
+          enable_jobs: jobs.data.is_overridden ? {
+            is_overridden: true,
+            env_var: jobs.data.override_source || '',
+          } : undefined,
+          enable_email: email.data.is_overridden ? {
+            is_overridden: true,
+            env_var: email.data.override_source || '',
           } : undefined,
         },
       }
@@ -129,7 +153,7 @@ function FeaturesPage() {
                 checked={features?.enable_realtime || false}
                 onCheckedChange={(checked) => {
                   updateFeatureMutation.mutate({
-                    key: 'app.features.enable_realtime',
+                    key: 'app.realtime.enabled',
                     value: checked,
                   })
                 }}
@@ -144,7 +168,7 @@ function FeaturesPage() {
                 checked={features?.enable_storage || false}
                 onCheckedChange={(checked) => {
                   updateFeatureMutation.mutate({
-                    key: 'app.features.enable_storage',
+                    key: 'app.storage.enabled',
                     value: checked,
                   })
                 }}
@@ -159,7 +183,7 @@ function FeaturesPage() {
                 checked={features?.enable_functions || false}
                 onCheckedChange={(checked) => {
                   updateFeatureMutation.mutate({
-                    key: 'app.features.enable_functions',
+                    key: 'app.functions.enabled',
                     value: checked,
                   })
                 }}
@@ -174,11 +198,56 @@ function FeaturesPage() {
                 checked={features?.enable_ai || false}
                 onCheckedChange={(checked) => {
                   updateFeatureMutation.mutate({
-                    key: 'app.features.enable_ai',
+                    key: 'app.ai.enabled',
                     value: checked,
                   })
                 }}
                 override={features?._overrides?.enable_ai}
+                disabled={updateFeatureMutation.isPending}
+              />
+
+              <OverridableSwitch
+                id='enable-rpc'
+                label='Enable RPC Procedures'
+                description='Remote procedure calls for custom database operations'
+                checked={features?.enable_rpc || false}
+                onCheckedChange={(checked) => {
+                  updateFeatureMutation.mutate({
+                    key: 'app.rpc.enabled',
+                    value: checked,
+                  })
+                }}
+                override={features?._overrides?.enable_rpc}
+                disabled={updateFeatureMutation.isPending}
+              />
+
+              <OverridableSwitch
+                id='enable-jobs'
+                label='Enable Background Jobs'
+                description='Long-running background jobs and scheduled tasks'
+                checked={features?.enable_jobs || false}
+                onCheckedChange={(checked) => {
+                  updateFeatureMutation.mutate({
+                    key: 'app.jobs.enabled',
+                    value: checked,
+                  })
+                }}
+                override={features?._overrides?.enable_jobs}
+                disabled={updateFeatureMutation.isPending}
+              />
+
+              <OverridableSwitch
+                id='enable-email'
+                label='Enable Email Service'
+                description='Email functionality for authentication and notifications'
+                checked={features?.enable_email || false}
+                onCheckedChange={(checked) => {
+                  updateFeatureMutation.mutate({
+                    key: 'app.email.enabled',
+                    value: checked,
+                  })
+                }}
+                override={features?._overrides?.enable_email}
                 disabled={updateFeatureMutation.isPending}
               />
 

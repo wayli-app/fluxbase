@@ -436,7 +436,7 @@ func setDefaults() {
 	viper.SetDefault("realtime.channel_buffer_size", 100)
 
 	// Email defaults
-	viper.SetDefault("email.enabled", false)
+	viper.SetDefault("email.enabled", true)
 	viper.SetDefault("email.provider", "smtp")
 	viper.SetDefault("email.from_address", "noreply@localhost")
 	viper.SetDefault("email.from_name", "Fluxbase")

@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS rpc.procedures (
     require_role TEXT,
     is_public BOOLEAN DEFAULT false,
 
+    -- Scheduling
+    schedule TEXT,
+
     -- Runtime config
     enabled BOOLEAN DEFAULT true,
     version INTEGER DEFAULT 1,
@@ -40,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_rpc_procedures_namespace ON rpc.procedures(namesp
 CREATE INDEX IF NOT EXISTS idx_rpc_procedures_enabled ON rpc.procedures(enabled);
 CREATE INDEX IF NOT EXISTS idx_rpc_procedures_source ON rpc.procedures(source);
 CREATE INDEX IF NOT EXISTS idx_rpc_procedures_is_public ON rpc.procedures(is_public);
+CREATE INDEX IF NOT EXISTS idx_rpc_procedures_schedule ON rpc.procedures(schedule) WHERE schedule IS NOT NULL;
 
 COMMENT ON TABLE rpc.procedures IS 'RPC procedure definitions with SQL queries and configuration';
 COMMENT ON COLUMN rpc.procedures.sql_query IS 'The SQL query to execute (with $param_name placeholders)';
@@ -47,6 +51,7 @@ COMMENT ON COLUMN rpc.procedures.input_schema IS 'JSON Schema for input validati
 COMMENT ON COLUMN rpc.procedures.output_schema IS 'JSON Schema for output validation (null for schemaless)';
 COMMENT ON COLUMN rpc.procedures.allowed_tables IS 'Tables the procedure can access (from @fluxbase:allowed-tables annotation)';
 COMMENT ON COLUMN rpc.procedures.require_role IS 'Role required to invoke (authenticated, admin, anon, or null for any)';
+COMMENT ON COLUMN rpc.procedures.schedule IS 'Cron expression for scheduled execution (e.g., "0 */5 * * * *" for every 5 minutes)';
 
 -- ============================================================================
 -- RPC EXECUTIONS

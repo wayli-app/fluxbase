@@ -272,12 +272,15 @@ CREATE TABLE IF NOT EXISTS auth.webhooks (
     timeout_seconds INTEGER DEFAULT 30,
     max_retries INTEGER DEFAULT 3,
     retry_backoff_seconds INTEGER DEFAULT 5,
+    scope TEXT DEFAULT 'user' CHECK (scope IN ('user', 'global')),
     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_webhooks_enabled ON auth.webhooks(enabled);
+
+COMMENT ON COLUMN auth.webhooks.scope IS 'Scope determines which events trigger the webhook: user = only events on records owned by created_by, global = all events (admin only)';
 
 -- Webhook deliveries table
 CREATE TABLE IF NOT EXISTS auth.webhook_deliveries (
@@ -389,3 +392,24 @@ CREATE INDEX IF NOT EXISTS idx_rls_audit_request_id ON auth.rls_audit_log(reques
 COMMENT ON TABLE auth.rls_audit_log IS 'Audit log for Row Level Security policy evaluations, primarily tracking access denials and violations for security monitoring and compliance';
 COMMENT ON COLUMN auth.rls_audit_log.allowed IS 'false indicates RLS policy blocked the operation (violation), true indicates policy allowed it';
 COMMENT ON COLUMN auth.rls_audit_log.details IS 'Flexible JSONB field for storing additional context like error messages, query hints, or policy names';
+
+-- Webhook monitored tables (reference counting for trigger management)
+CREATE TABLE IF NOT EXISTS auth.webhook_monitored_tables (
+    schema_name TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    webhook_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (schema_name, table_name)
+);
+
+COMMENT ON TABLE auth.webhook_monitored_tables IS 'Tracks which tables have webhook triggers installed and how many webhooks monitor each table';
+
+-- Enable RLS on webhook_monitored_tables
+ALTER TABLE auth.webhook_monitored_tables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth.webhook_monitored_tables FORCE ROW LEVEL SECURITY;
+
+-- Only service role can manage monitored tables (internal use only)
+CREATE POLICY webhook_monitored_tables_service_only ON auth.webhook_monitored_tables
+    FOR ALL
+    USING (auth.current_user_role() = 'service_role')
+    WITH CHECK (auth.current_user_role() = 'service_role');

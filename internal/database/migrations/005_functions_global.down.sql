@@ -8,6 +8,8 @@ DROP FUNCTION IF EXISTS storage.is_bucket_public(TEXT) CASCADE;
 DROP FUNCTION IF EXISTS storage.user_can_access_object(UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS auth.update_webhook_updated_at() CASCADE;
 DROP FUNCTION IF EXISTS auth.validate_app_metadata_update() CASCADE;
+DROP FUNCTION IF EXISTS auth.decrement_webhook_table_count(TEXT, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS auth.increment_webhook_table_count(TEXT, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS auth.remove_webhook_trigger(TEXT, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS auth.create_webhook_trigger(TEXT, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS auth.queue_webhook_event() CASCADE;

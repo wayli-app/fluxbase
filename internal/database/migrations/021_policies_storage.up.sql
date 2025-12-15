@@ -364,3 +364,42 @@ CREATE POLICY storage_objects_insert ON storage.objects
         auth.current_user_role() IN ('dashboard_admin', 'service_role')
         OR (auth.current_user_id() IS NOT NULL AND auth.current_user_id() = owner_id)
     );
+
+-- ============================================================================
+-- CHUNKED UPLOAD SESSIONS RLS
+-- ============================================================================
+-- These policies ensure users can only see and manage their own upload sessions.
+-- Admins and service role have full access for management purposes.
+-- ============================================================================
+
+ALTER TABLE storage.chunked_upload_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE storage.chunked_upload_sessions FORCE ROW LEVEL SECURITY;
+
+-- Admins and service roles can manage all upload sessions
+DROP POLICY IF EXISTS storage_chunked_sessions_admin ON storage.chunked_upload_sessions;
+CREATE POLICY storage_chunked_sessions_admin ON storage.chunked_upload_sessions
+    FOR ALL
+    USING (auth.current_user_role() IN ('dashboard_admin', 'service_role'))
+    WITH CHECK (auth.current_user_role() IN ('dashboard_admin', 'service_role'));
+
+COMMENT ON POLICY storage_chunked_sessions_admin ON storage.chunked_upload_sessions IS 'Dashboard admins and service role have full access to all upload sessions';
+
+-- Owners can manage their own upload sessions
+DROP POLICY IF EXISTS storage_chunked_sessions_owner ON storage.chunked_upload_sessions;
+CREATE POLICY storage_chunked_sessions_owner ON storage.chunked_upload_sessions
+    FOR ALL
+    USING (auth.current_user_id() = owner_id)
+    WITH CHECK (auth.current_user_id() = owner_id);
+
+COMMENT ON POLICY storage_chunked_sessions_owner ON storage.chunked_upload_sessions IS 'Users can fully manage their own upload sessions';
+
+-- Users can only insert sessions with their own owner_id
+DROP POLICY IF EXISTS storage_chunked_sessions_insert ON storage.chunked_upload_sessions;
+CREATE POLICY storage_chunked_sessions_insert ON storage.chunked_upload_sessions
+    FOR INSERT
+    WITH CHECK (
+        auth.current_user_role() IN ('dashboard_admin', 'service_role')
+        OR (auth.current_user_id() IS NOT NULL AND auth.current_user_id() = owner_id)
+    );
+
+COMMENT ON POLICY storage_chunked_sessions_insert ON storage.chunked_upload_sessions IS 'Users can only create upload sessions with their own owner_id';

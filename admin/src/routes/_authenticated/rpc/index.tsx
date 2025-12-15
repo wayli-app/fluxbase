@@ -757,6 +757,12 @@ function RPCContent() {
                           role: {proc.require_role}
                         </Badge>
                       )}
+                      {proc.schedule && (
+                        <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>
+                          <Timer className='mr-0.5 h-2.5 w-2.5' />
+                          scheduled
+                        </Badge>
+                      )}
                       <Switch
                         checked={proc.enabled}
                         onCheckedChange={() => toggleProcedure(proc)}
@@ -1014,10 +1020,16 @@ function RPCContent() {
                   <Timer className='mr-1 h-3 w-3' />
                   {selectedProcedure.max_execution_time_seconds}s timeout
                 </Badge>
+                {selectedProcedure.schedule && (
+                  <Badge variant='outline'>
+                    <Clock className='mr-1 h-3 w-3' />
+                    Schedule: {selectedProcedure.schedule}
+                  </Badge>
+                )}
               </div>
 
               {/* Description */}
-              {selectedProcedure.description && (
+              {selectedProcedure.description && ( 
                 <div>
                   <Label className='text-muted-foreground text-xs'>Description</Label>
                   <p className='text-sm mt-1'>{selectedProcedure.description}</p>

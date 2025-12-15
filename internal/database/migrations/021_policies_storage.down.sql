@@ -3,6 +3,11 @@ DROP FUNCTION IF EXISTS storage.foldername(TEXT);
 DROP FUNCTION IF EXISTS storage.has_object_permission(UUID, UUID, TEXT);
 DROP FUNCTION IF EXISTS storage.is_bucket_public(TEXT);
 
+-- Drop chunked upload sessions policies
+DROP POLICY IF EXISTS storage_chunked_sessions_insert ON storage.chunked_upload_sessions;
+DROP POLICY IF EXISTS storage_chunked_sessions_owner ON storage.chunked_upload_sessions;
+DROP POLICY IF EXISTS storage_chunked_sessions_admin ON storage.chunked_upload_sessions;
+
 -- Drop all storage schema RLS policies
 DROP POLICY IF EXISTS storage_object_permissions_view_shared ON storage.object_permissions;
 DROP POLICY IF EXISTS storage_object_permissions_owner_manage ON storage.object_permissions;

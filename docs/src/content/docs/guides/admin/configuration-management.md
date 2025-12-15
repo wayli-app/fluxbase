@@ -66,10 +66,11 @@ FLUXBASE_<CATEGORY>_<SETTING>
 Examples:
 
 - `app.auth.enable_signup` → `FLUXBASE_AUTH_ENABLE_SIGNUP`
-- `app.features.enable_realtime` → `FLUXBASE_FEATURES_REALTIME_ENABLED`
+- `app.realtime.enabled` → `FLUXBASE_REALTIME_ENABLED`
+- `app.email.enabled` → `FLUXBASE_EMAIL_ENABLED`
 - `app.email.provider` → `FLUXBASE_EMAIL_PROVIDER`
 
-**Rule**: Remove `app.` prefix, convert to uppercase, replace dots with underscores.
+**Rule**: Remove `app.` prefix, convert to uppercase, replace dots with underscores. Feature enabled flags follow the pattern `app.<feature>.enabled` → `FLUXBASE_<FEATURE>_ENABLED`.
 
 ## Common Scenarios
 

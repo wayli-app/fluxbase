@@ -34,8 +34,16 @@ type Scheduler struct {
 func NewScheduler(db *database.Connection, jwtSecret, publicURL string) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Use a parser that supports both standard 5-field cron expressions
+	// and 6-field expressions with optional seconds
+	// 5-field: "*/5 * * * *" (every 5 minutes)
+	// 6-field: "0 */5 * * * *" (every 5 minutes at second 0)
+	parser := cron.NewParser(
+		cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+	)
+
 	s := &Scheduler{
-		cron:          cron.New(cron.WithSeconds()),
+		cron:          cron.New(cron.WithParser(parser)),
 		storage:       NewStorage(db),
 		runtime:       runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
 		maxConcurrent: 10,

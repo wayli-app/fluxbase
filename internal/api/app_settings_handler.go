@@ -249,15 +249,15 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 			}
 
 		// Features
-		case "app.features.enable_realtime":
+		case "app.realtime.enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
 				appSettings.Features.EnableRealtime = val
 			}
-		case "app.features.enable_storage":
+		case "app.storage.enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
 				appSettings.Features.EnableStorage = val
 			}
-		case "app.features.enable_functions":
+		case "app.functions.enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
 				appSettings.Features.EnableFunctions = val
 			}
@@ -297,13 +297,13 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 		}
 
 		// Features overrides
-		if h.settingsCache.IsOverriddenByEnv("app.features.enable_realtime") {
+		if h.settingsCache.IsOverriddenByEnv("app.realtime.enabled") {
 			appSettings.Overrides.Features["enable_realtime"] = true
 		}
-		if h.settingsCache.IsOverriddenByEnv("app.features.enable_storage") {
+		if h.settingsCache.IsOverriddenByEnv("app.storage.enabled") {
 			appSettings.Overrides.Features["enable_storage"] = true
 		}
-		if h.settingsCache.IsOverriddenByEnv("app.features.enable_functions") {
+		if h.settingsCache.IsOverriddenByEnv("app.functions.enabled") {
 			appSettings.Overrides.Features["enable_functions"] = true
 		}
 
@@ -350,9 +350,9 @@ func (h *AppSettingsHandler) updateAuthSettings(ctx context.Context, auth *Authe
 
 func (h *AppSettingsHandler) updateFeatureSettings(ctx context.Context, features *FeatureSettings) error {
 	settingsMap := map[string]interface{}{
-		"app.features.enable_realtime":  features.EnableRealtime,
-		"app.features.enable_storage":   features.EnableStorage,
-		"app.features.enable_functions": features.EnableFunctions,
+		"app.realtime.enabled":  features.EnableRealtime,
+		"app.storage.enabled":   features.EnableStorage,
+		"app.functions.enabled": features.EnableFunctions,
 	}
 
 	for key, value := range settingsMap {

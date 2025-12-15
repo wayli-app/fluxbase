@@ -20,6 +20,7 @@ var (
 	requireRolePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
 	publicPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
 	versionPattern        = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
+	schedulePattern       = regexp.MustCompile(`(?m)^--\s*@fluxbase:schedule\s+(.+)$`)
 )
 
 // ParseAnnotations parses annotations from SQL code and returns the annotations and cleaned SQL query
@@ -97,6 +98,14 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 	if matches := versionPattern.FindStringSubmatch(code); len(matches) > 1 {
 		if v, err := strconv.Atoi(strings.TrimSpace(matches[1])); err == nil {
 			annotations.Version = v
+		}
+	}
+
+	// Parse schedule (cron expression)
+	if matches := schedulePattern.FindStringSubmatch(code); len(matches) > 1 {
+		schedule := strings.TrimSpace(matches[1])
+		if schedule != "" {
+			annotations.Schedule = &schedule
 		}
 	}
 
@@ -216,6 +225,9 @@ func ApplyAnnotations(proc *Procedure, annotations *Annotations) {
 	proc.IsPublic = annotations.IsPublic
 	if annotations.Version > 0 {
 		proc.Version = annotations.Version
+	}
+	if annotations.Schedule != nil {
+		proc.Schedule = annotations.Schedule
 	}
 
 	// Convert input/output schemas to JSON

@@ -253,7 +253,7 @@ func (c *SettingsCache) GetMany(ctx context.Context, keys []string) (map[string]
 
 // toViperKey converts app.* key format to viper config format
 // e.g., "app.auth.enable_signup" -> "auth.enable_signup"
-// e.g., "app.features.enable_realtime" -> "features.enable_realtime"
+// e.g., "app.realtime.enabled" -> "realtime.enabled"
 func (c *SettingsCache) toViperKey(key string) string {
 	if len(key) > 4 && key[:4] == "app." {
 		return key[4:] // Remove "app." prefix
@@ -269,15 +269,16 @@ func (c *SettingsCache) IsOverriddenByEnv(key string) bool {
 
 // GetEnvVarName returns the environment variable name for a given setting key
 // e.g., "app.auth.enable_signup" -> "FLUXBASE_AUTH_ENABLE_SIGNUP"
-// e.g., "app.features.enable_realtime" -> "FLUXBASE_FEATURES_REALTIME_ENABLED"
+// e.g., "app.realtime.enabled" -> "FLUXBASE_REALTIME_ENABLED"
 func (c *SettingsCache) GetEnvVarName(key string) string {
 	viperKey := c.toViperKey(key)
 
-	// Special handling for feature flags to match .env.example naming
-	// Convert "features.enable_X" to "FEATURES_X_ENABLED"
-	if strings.HasPrefix(viperKey, "features.enable_") {
-		featureName := strings.TrimPrefix(viperKey, "features.enable_")
-		return "FLUXBASE_FEATURES_" + strings.ToUpper(featureName) + "_ENABLED"
+	// Special handling for feature enabled flags
+	// Convert "<feature>.enabled" to "<FEATURE>_ENABLED"
+	if strings.HasSuffix(viperKey, ".enabled") {
+		// Extract feature name from "<feature>.enabled"
+		featureName := strings.TrimSuffix(viperKey, ".enabled")
+		return "FLUXBASE_" + strings.ToUpper(featureName) + "_ENABLED"
 	}
 
 	// Convert to uppercase and replace dots with underscores

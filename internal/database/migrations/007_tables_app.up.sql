@@ -38,36 +38,77 @@ COMMENT ON COLUMN app.settings.editable_by IS 'Array of roles that can edit this
 COMMENT ON COLUMN app.settings.metadata IS 'Additional metadata about the setting (validation rules, UI hints, etc.)';
 
 -- Insert default feature flag settings
+-- All features are enabled by default
 INSERT INTO app.settings (key, value, value_type, category, description, is_public, is_secret, editable_by)
 VALUES
     (
-        'app.features.enable_realtime',
+        'app.realtime.enabled',
         '{"value": true}'::JSONB,
         'boolean',
         'system',
         'Enable or disable realtime functionality (WebSocket connections, subscriptions)',
         false,
         false,
-        ARRAY['dashboard_admin']::TEXT[]
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
     ),
     (
-        'app.features.enable_storage',
+        'app.storage.enabled',
         '{"value": true}'::JSONB,
         'boolean',
         'system',
         'Enable or disable storage functionality (file uploads, downloads, management)',
         false,
         false,
-        ARRAY['dashboard_admin']::TEXT[]
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
     ),
     (
-        'app.features.enable_functions',
+        'app.functions.enabled',
         '{"value": true}'::JSONB,
         'boolean',
         'system',
         'Enable or disable edge functions (serverless function execution)',
         false,
         false,
-        ARRAY['dashboard_admin']::TEXT[]
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.ai.enabled',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable AI service functionality',
+        false,
+        false,
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.rpc.enabled',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable RPC procedure execution',
+        false,
+        false,
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.jobs.enabled',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable background job processing',
+        false,
+        false,
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
+    ),
+    (
+        'app.email.enabled',
+        '{"value": true}'::JSONB,
+        'boolean',
+        'system',
+        'Enable email service functionality',
+        false,
+        false,
+        ARRAY['admin', 'dashboard_admin']::TEXT[]
     )
 ON CONFLICT (key) DO NOTHING;

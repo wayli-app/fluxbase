@@ -20,6 +20,17 @@ type Handler struct {
 	validator   *Validator
 	config      *config.RPCConfig
 	authService *auth.Service
+	scheduler   *Scheduler
+}
+
+// SetScheduler sets the scheduler for procedure lifecycle management
+func (h *Handler) SetScheduler(scheduler *Scheduler) {
+	h.scheduler = scheduler
+}
+
+// GetExecutor returns the executor for external use (e.g., scheduler)
+func (h *Handler) GetExecutor() *Executor {
+	return h.executor
 }
 
 // NewHandler creates a new RPC handler
@@ -97,6 +108,7 @@ type UpdateProcedureRequest struct {
 	MaxExecutionTimeSeconds *int     `json:"max_execution_time_seconds,omitempty"`
 	AllowedTables           []string `json:"allowed_tables,omitempty"`
 	AllowedSchemas          []string `json:"allowed_schemas,omitempty"`
+	Schedule                *string  `json:"schedule,omitempty"`
 }
 
 // UpdateProcedure updates a procedure
@@ -150,12 +162,27 @@ func (h *Handler) UpdateProcedure(c *fiber.Ctx) error {
 	if req.AllowedSchemas != nil {
 		procedure.AllowedSchemas = req.AllowedSchemas
 	}
+	if req.Schedule != nil {
+		// Allow clearing schedule with empty string
+		if *req.Schedule == "" {
+			procedure.Schedule = nil
+		} else {
+			procedure.Schedule = req.Schedule
+		}
+	}
 
 	if err := h.storage.UpdateProcedure(ctx, procedure); err != nil {
 		log.Error().Err(err).Msg("Failed to update procedure")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update procedure",
 		})
+	}
+
+	// Reschedule if scheduler is available
+	if h.scheduler != nil {
+		if err := h.scheduler.RescheduleProcedure(procedure); err != nil {
+			log.Warn().Err(err).Str("procedure", procedure.Name).Msg("Failed to reschedule procedure")
+		}
 	}
 
 	return c.JSON(procedure)
@@ -167,6 +194,11 @@ func (h *Handler) DeleteProcedure(c *fiber.Ctx) error {
 	ctx := c.Context()
 	namespace := c.Params("namespace")
 	name := c.Params("name")
+
+	// Unschedule before deletion
+	if h.scheduler != nil {
+		h.scheduler.UnscheduleProcedure(namespace, name)
+	}
 
 	if err := h.storage.DeleteProcedureByName(ctx, namespace, name); err != nil {
 		log.Error().Err(err).Str("namespace", namespace).Str("name", name).Msg("Failed to delete procedure")
@@ -322,6 +354,12 @@ func (h *Handler) SyncProcedures(c *fiber.Ctx) error {
 					result.Summary.Errors++
 					continue
 				}
+				// Schedule if procedure has a schedule
+				if h.scheduler != nil && proc.Schedule != nil && *proc.Schedule != "" {
+					if err := h.scheduler.ScheduleProcedure(proc); err != nil {
+						log.Warn().Err(err).Str("procedure", proc.Name).Msg("Failed to schedule new procedure")
+					}
+				}
 			}
 			result.Details.Created = append(result.Details.Created, spec.Name)
 			result.Summary.Created++
@@ -338,6 +376,12 @@ func (h *Handler) SyncProcedures(c *fiber.Ctx) error {
 						result.Summary.Errors++
 						continue
 					}
+					// Reschedule if scheduler is available
+					if h.scheduler != nil {
+						if err := h.scheduler.RescheduleProcedure(proc); err != nil {
+							log.Warn().Err(err).Str("procedure", proc.Name).Msg("Failed to reschedule procedure")
+						}
+					}
 				}
 				result.Details.Updated = append(result.Details.Updated, spec.Name)
 				result.Summary.Updated++
@@ -353,6 +397,10 @@ func (h *Handler) SyncProcedures(c *fiber.Ctx) error {
 		for name, proc := range existingMap {
 			if !syncedNames[name] && proc.Source != "api" {
 				if !req.Options.DryRun {
+					// Unschedule before deletion
+					if h.scheduler != nil {
+						h.scheduler.UnscheduleProcedure(proc.Namespace, name)
+					}
 					if err := h.storage.DeleteProcedure(ctx, proc.ID); err != nil {
 						result.Errors = append(result.Errors, SyncError{
 							Procedure: name,
@@ -390,6 +438,13 @@ func (h *Handler) needsUpdate(existing, new *Procedure) bool {
 		return true
 	}
 	if existing.RequireRole != nil && new.RequireRole != nil && *existing.RequireRole != *new.RequireRole {
+		return true
+	}
+	// Compare schedule
+	if (existing.Schedule == nil) != (new.Schedule == nil) {
+		return true
+	}
+	if existing.Schedule != nil && new.Schedule != nil && *existing.Schedule != *new.Schedule {
 		return true
 	}
 	// Compare arrays

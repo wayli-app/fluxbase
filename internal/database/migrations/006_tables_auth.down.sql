@@ -1,4 +1,5 @@
 -- Drop auth tables in reverse dependency order
+DROP TABLE IF EXISTS auth.webhook_monitored_tables;
 DROP TABLE IF EXISTS auth.rls_audit_log;
 DROP TABLE IF EXISTS auth.impersonation_sessions;
 DROP TABLE IF EXISTS auth.webhook_events;

@@ -75,14 +75,15 @@ type Server struct {
 	aiConversations       *ai.ConversationManager
 	aiMetrics             *observability.Metrics
 	rpcHandler            *rpc.Handler
+	rpcScheduler          *rpc.Scheduler
 }
 
 // NewServer creates a new HTTP server
-func NewServer(cfg *config.Config, db *database.Connection) *Server {
+func NewServer(cfg *config.Config, db *database.Connection, version string) *Server {
 	// Create Fiber app with config
 	app := fiber.New(fiber.Config{
 		ServerHeader:          "Fluxbase",
-		AppName:               "Fluxbase v1.0.0",
+		AppName:               fmt.Sprintf("Fluxbase v%s", version),
 		BodyLimit:             cfg.Server.BodyLimit,
 		StreamRequestBody:     true, // Required for chunked upload streaming
 		ReadTimeout:           cfg.Server.ReadTimeout,
@@ -261,11 +262,16 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 
 	// Create RPC components (only if RPC is enabled)
 	var rpcHandler *rpc.Handler
+	var rpcScheduler *rpc.Scheduler
 	if cfg.RPC.Enabled {
 		rpcStorage := rpc.NewStorage(db)
 		rpcLoader := rpc.NewLoader(cfg.RPC.ProceduresDir)
 		rpcMetrics := observability.NewMetrics()
 		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC, authService)
+
+		// Create RPC scheduler and wire it to handler
+		rpcScheduler = rpc.NewScheduler(rpcStorage, rpcHandler.GetExecutor())
+		rpcHandler.SetScheduler(rpcScheduler)
 
 		log.Info().
 			Str("procedures_dir", cfg.RPC.ProceduresDir).
@@ -325,6 +331,7 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 		aiConversations:       aiConversations,
 		aiMetrics:             aiMetrics,
 		rpcHandler:            rpcHandler,
+		rpcScheduler:          rpcScheduler,
 	}
 
 	// Start realtime listener
@@ -353,6 +360,13 @@ func NewServer(cfg *config.Config, db *database.Connection) *Server {
 			if err := jobsScheduler.Start(); err != nil {
 				log.Error().Err(err).Msg("Failed to start jobs scheduler")
 			}
+		}
+	}
+
+	// Start RPC scheduler for cron-based procedure execution
+	if cfg.RPC.Enabled && rpcScheduler != nil {
+		if err := rpcScheduler.Start(); err != nil {
+			log.Error().Err(err).Msg("Failed to start RPC scheduler")
 		}
 	}
 
@@ -1220,6 +1234,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.jobsManager != nil {
 		s.jobsManager.Stop()
+	}
+
+	// Stop RPC scheduler
+	if s.rpcScheduler != nil {
+		s.rpcScheduler.Stop()
 	}
 
 	// Stop webhook trigger service

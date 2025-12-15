@@ -40,13 +40,14 @@ func NewExecutor(db *database.Connection, storage *Storage, metrics *observabili
 
 // ExecuteContext contains the context for an RPC execution
 type ExecuteContext struct {
-	Procedure *Procedure
-	Params    map[string]interface{}
-	UserID    string
-	UserRole  string
-	UserEmail string
-	Claims    *auth.TokenClaims
-	IsAsync   bool
+	Procedure   *Procedure
+	Params      map[string]interface{}
+	UserID      string
+	UserRole    string
+	UserEmail   string
+	Claims      *auth.TokenClaims
+	IsAsync     bool
+	ExecutionID string // If set, reuse this execution record instead of creating a new one
 }
 
 // ExecuteResult represents the result of an RPC execution
@@ -63,33 +64,65 @@ type ExecuteResult struct {
 func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*ExecuteResult, error) {
 	start := time.Now()
 
-	// Create execution record
-	exec := &Execution{
-		ID:            uuid.New().String(),
-		ProcedureID:   &execCtx.Procedure.ID,
-		ProcedureName: execCtx.Procedure.Name,
-		Namespace:     execCtx.Procedure.Namespace,
-		Status:        StatusRunning,
-		IsAsync:       execCtx.IsAsync,
-		UserID:        &execCtx.UserID,
-		UserRole:      &execCtx.UserRole,
-		UserEmail:     &execCtx.UserEmail,
-		CreatedAt:     time.Now(),
-	}
+	var exec *Execution
 
-	// Encode input params
-	if execCtx.Params != nil {
-		paramsJSON, _ := json.Marshal(execCtx.Params)
-		exec.InputParams = paramsJSON
-	}
+	// Check if we're continuing an existing execution (async case)
+	if execCtx.ExecutionID != "" {
+		// Reuse existing execution record - update it to running status
+		exec = &Execution{
+			ID:            execCtx.ExecutionID,
+			ProcedureID:   &execCtx.Procedure.ID,
+			ProcedureName: execCtx.Procedure.Name,
+			Namespace:     execCtx.Procedure.Namespace,
+			Status:        StatusRunning,
+			IsAsync:       execCtx.IsAsync,
+		}
 
-	// Set started time
-	now := time.Now()
-	exec.StartedAt = &now
+		// Set started time
+		now := time.Now()
+		exec.StartedAt = &now
 
-	// Save execution record
-	if err := e.storage.CreateExecution(ctx, exec); err != nil {
-		log.Error().Err(err).Msg("Failed to create execution record")
+		// Update the existing record to running status
+		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
+			log.Error().Err(err).Msg("Failed to update execution record to running")
+		}
+	} else {
+		// Create new execution record (sync case)
+		exec = &Execution{
+			ID:            uuid.New().String(),
+			ProcedureID:   &execCtx.Procedure.ID,
+			ProcedureName: execCtx.Procedure.Name,
+			Namespace:     execCtx.Procedure.Namespace,
+			Status:        StatusRunning,
+			IsAsync:       execCtx.IsAsync,
+			CreatedAt:     time.Now(),
+		}
+
+		// Set optional user fields (nil if empty, to store as NULL in database)
+		if execCtx.UserID != "" {
+			exec.UserID = &execCtx.UserID
+		}
+		if execCtx.UserRole != "" {
+			exec.UserRole = &execCtx.UserRole
+		}
+		if execCtx.UserEmail != "" {
+			exec.UserEmail = &execCtx.UserEmail
+		}
+
+		// Encode input params
+		if execCtx.Params != nil {
+			paramsJSON, _ := json.Marshal(execCtx.Params)
+			exec.InputParams = paramsJSON
+		}
+
+		// Set started time
+		now := time.Now()
+		exec.StartedAt = &now
+
+		// Save execution record
+		if err := e.storage.CreateExecution(ctx, exec); err != nil {
+			log.Error().Err(err).Msg("Failed to create execution record")
+		}
 	}
 
 	// Log start
@@ -187,10 +220,18 @@ func (e *Executor) ExecuteAsync(ctx context.Context, execCtx *ExecuteContext) (*
 		Namespace:     execCtx.Procedure.Namespace,
 		Status:        StatusPending,
 		IsAsync:       true,
-		UserID:        &execCtx.UserID,
-		UserRole:      &execCtx.UserRole,
-		UserEmail:     &execCtx.UserEmail,
 		CreatedAt:     time.Now(),
+	}
+
+	// Set optional user fields (nil if empty, to store as NULL in database)
+	if execCtx.UserID != "" {
+		exec.UserID = &execCtx.UserID
+	}
+	if execCtx.UserRole != "" {
+		exec.UserRole = &execCtx.UserRole
+	}
+	if execCtx.UserEmail != "" {
+		exec.UserEmail = &execCtx.UserEmail
 	}
 
 	// Encode input params
@@ -204,13 +245,15 @@ func (e *Executor) ExecuteAsync(ctx context.Context, execCtx *ExecuteContext) (*
 		return nil, fmt.Errorf("failed to create execution record: %w", err)
 	}
 
+	// Pass the execution ID so the background worker updates this record
+	execCtx.ExecutionID = exec.ID
+
 	// Start async execution in goroutine
 	go func() {
 		// Create new context for background execution
 		bgCtx := context.Background()
 
-		// Execute
-		execCtx.IsAsync = true
+		// Execute - will update the existing record instead of creating a new one
 		_, _ = e.Execute(bgCtx, execCtx)
 	}()
 

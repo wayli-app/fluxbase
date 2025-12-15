@@ -101,7 +101,7 @@ func main() {
 	log.Info().Msg("Database migrations completed successfully")
 
 	// Initialize API server
-	server := api.NewServer(cfg, db)
+	server := api.NewServer(cfg, db, Version)
 
 	// Generate and set service role and anon keys for edge functions
 	// These are JWT tokens that edge functions can use to call the Fluxbase API
