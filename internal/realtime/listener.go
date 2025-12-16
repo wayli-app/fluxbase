@@ -55,10 +55,48 @@ func (l *Listener) Start() error {
 
 // listen processes incoming PostgreSQL notifications
 func (l *Listener) listen() {
-	// Get a dedicated connection for LISTEN
-	conn, err := l.pool.Acquire(l.ctx)
+	// Retry connection acquisition with exponential backoff
+	var conn *pgxpool.Conn
+	var err error
+	maxRetries := 5
+	baseDelay := 1 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Check if context is cancelled before attempting
+		if l.ctx.Err() != nil {
+			log.Info().Msg("Listener context cancelled, stopping connection attempts")
+			return
+		}
+
+		// Use a timeout for connection acquisition
+		acquireCtx, cancel := context.WithTimeout(l.ctx, 10*time.Second)
+		conn, err = l.pool.Acquire(acquireCtx)
+		cancel()
+
+		if err == nil {
+			break // Successfully acquired connection
+		}
+
+		log.Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Int("max_retries", maxRetries).
+			Msg("Failed to acquire connection for LISTEN, retrying...")
+
+		if attempt < maxRetries {
+			// Exponential backoff: 1s, 2s, 4s, 8s
+			delay := baseDelay * time.Duration(1<<(attempt-1))
+			select {
+			case <-time.After(delay):
+			case <-l.ctx.Done():
+				log.Info().Msg("Listener context cancelled during retry backoff")
+				return
+			}
+		}
+	}
+
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to acquire connection for LISTEN")
+		log.Error().Err(err).Msg("Failed to acquire connection for LISTEN after all retries")
 		return
 	}
 	defer conn.Release()

@@ -435,7 +435,7 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 		// Execute each tool call and add results
 		for _, tc := range pendingToolCalls {
-			toolResult, queryResult := h.executeToolCall(ctx, chatCtx, msg.ConversationID, chatbot, &tc, userID)
+			toolResult, queryResult := h.executeToolCall(ctx, chatCtx, msg.ConversationID, chatbot, &tc, userID, msg.Content)
 
 			// Accumulate successful query results for persistence
 			if queryResult != nil {
@@ -482,11 +482,11 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 // executeToolCall executes a tool call and returns:
 // - the result as a string for the AI
 // - the QueryResult for persistence (nil if query failed or not a SQL query)
-func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
+func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string, userMessage string) (string, *QueryResult) {
 	// Dispatch based on tool name
 	switch toolCall.Function.Name {
 	case "execute_sql":
-		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID)
+		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID, userMessage)
 	case "http_request":
 		return h.executeHttpTool(ctx, chatCtx, conversationID, chatbot, toolCall)
 	default:
@@ -495,7 +495,7 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 }
 
 // executeSQLTool handles the execute_sql tool call
-func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
+func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string, userMessage string) (string, *QueryResult) {
 	// Parse arguments
 	var args struct {
 		SQL         string `json:"sql"`
@@ -505,6 +505,48 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse SQL tool call arguments")
 		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
+	}
+
+	// Intent validation (before execution)
+	if len(chatbot.IntentRules) > 0 || len(chatbot.RequiredColumns) > 0 {
+		intentValidator := NewIntentValidator(
+			chatbot.IntentRules,
+			chatbot.RequiredColumns,
+			chatbot.DefaultTable,
+		)
+
+		// Pre-validate SQL to get tables accessed
+		preValidator := NewSQLValidator(chatbot.AllowedSchemas, chatbot.AllowedTables, chatbot.AllowedOperations)
+		preResult := preValidator.Validate(args.SQL)
+
+		// Validate intent matches query
+		intentResult := intentValidator.ValidateIntent(userMessage, args.SQL, preResult.TablesAccessed)
+		if !intentResult.Valid {
+			errMsg := fmt.Sprintf("Intent validation failed: %s", strings.Join(intentResult.Errors, "; "))
+			if len(intentResult.Suggestions) > 0 {
+				errMsg += fmt.Sprintf(" Suggestions: %s", strings.Join(intentResult.Suggestions, "; "))
+			}
+			log.Warn().
+				Str("user_message", userMessage).
+				Str("sql", args.SQL).
+				Strs("errors", intentResult.Errors).
+				Msg("Intent validation failed")
+			return errMsg, nil
+		}
+
+		// Validate required columns
+		colResult := intentValidator.ValidateRequiredColumns(args.SQL, preResult.TablesAccessed)
+		if !colResult.Valid {
+			errMsg := fmt.Sprintf("Required columns missing: %s", strings.Join(colResult.Errors, "; "))
+			if len(colResult.Suggestions) > 0 {
+				errMsg += fmt.Sprintf(" Suggestions: %s", strings.Join(colResult.Suggestions, "; "))
+			}
+			log.Warn().
+				Str("sql", args.SQL).
+				Strs("errors", colResult.Errors).
+				Msg("Required columns validation failed")
+			return errMsg, nil
+		}
 	}
 
 	// Send progress

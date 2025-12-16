@@ -39,6 +39,7 @@ import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
 import { Route as AuthenticatedFeaturesIndexRouteImport } from './routes/_authenticated/features/index'
+import { Route as AuthenticatedExtensionsIndexRouteImport } from './routes/_authenticated/extensions/index'
 import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_authenticated/email-settings/index'
 import { Route as AuthenticatedDatabaseConfigIndexRouteImport } from './routes/_authenticated/database-config/index'
 import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
@@ -209,6 +210,12 @@ const AuthenticatedFeaturesIndexRoute =
     path: '/features/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedExtensionsIndexRoute =
+  AuthenticatedExtensionsIndexRouteImport.update({
+    id: '/extensions/',
+    path: '/extensions/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedEmailSettingsIndexRoute =
   AuthenticatedEmailSettingsIndexRouteImport.update({
     id: '/email-settings/',
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
+  '/extensions': typeof AuthenticatedExtensionsIndexRoute
   '/features': typeof AuthenticatedFeaturesIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
@@ -328,6 +336,7 @@ export interface FileRoutesByTo {
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
+  '/extensions': typeof AuthenticatedExtensionsIndexRoute
   '/features': typeof AuthenticatedFeaturesIndexRoute
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
@@ -370,6 +379,7 @@ export interface FileRoutesById {
   '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
   '/_authenticated/database-config/': typeof AuthenticatedDatabaseConfigIndexRoute
   '/_authenticated/email-settings/': typeof AuthenticatedEmailSettingsIndexRoute
+  '/_authenticated/extensions/': typeof AuthenticatedExtensionsIndexRoute
   '/_authenticated/features/': typeof AuthenticatedFeaturesIndexRoute
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
   '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
@@ -412,6 +422,7 @@ export interface FileRouteTypes {
     | '/chatbots'
     | '/database-config'
     | '/email-settings'
+    | '/extensions'
     | '/features'
     | '/functions'
     | '/jobs'
@@ -452,6 +463,7 @@ export interface FileRouteTypes {
     | '/chatbots'
     | '/database-config'
     | '/email-settings'
+    | '/extensions'
     | '/features'
     | '/functions'
     | '/jobs'
@@ -493,6 +505,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chatbots/'
     | '/_authenticated/database-config/'
     | '/_authenticated/email-settings/'
+    | '/_authenticated/extensions/'
     | '/_authenticated/features/'
     | '/_authenticated/functions/'
     | '/_authenticated/jobs/'
@@ -739,6 +752,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFeaturesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/extensions/': {
+      id: '/_authenticated/extensions/'
+      path: '/extensions'
+      fullPath: '/extensions'
+      preLoaderRoute: typeof AuthenticatedExtensionsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/email-settings/': {
       id: '/_authenticated/email-settings/'
       path: '/email-settings'
@@ -816,6 +836,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatbotsIndexRoute: typeof AuthenticatedChatbotsIndexRoute
   AuthenticatedDatabaseConfigIndexRoute: typeof AuthenticatedDatabaseConfigIndexRoute
   AuthenticatedEmailSettingsIndexRoute: typeof AuthenticatedEmailSettingsIndexRoute
+  AuthenticatedExtensionsIndexRoute: typeof AuthenticatedExtensionsIndexRoute
   AuthenticatedFeaturesIndexRoute: typeof AuthenticatedFeaturesIndexRoute
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
@@ -843,6 +864,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChatbotsIndexRoute: AuthenticatedChatbotsIndexRoute,
   AuthenticatedDatabaseConfigIndexRoute: AuthenticatedDatabaseConfigIndexRoute,
   AuthenticatedEmailSettingsIndexRoute: AuthenticatedEmailSettingsIndexRoute,
+  AuthenticatedExtensionsIndexRoute: AuthenticatedExtensionsIndexRoute,
   AuthenticatedFeaturesIndexRoute: AuthenticatedFeaturesIndexRoute,
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,

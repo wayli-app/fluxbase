@@ -252,6 +252,11 @@ type AIConfig struct {
 	ProviderName    string `mapstructure:"provider_name"`    // Display name for config provider
 	ProviderModel   string `mapstructure:"provider_model"`   // Default model for config provider
 
+	// Embedding Configuration (for vector search)
+	EmbeddingEnabled  bool   `mapstructure:"embedding_enabled"`  // Enable embedding generation for vector search
+	EmbeddingProvider string `mapstructure:"embedding_provider"` // Embedding provider: openai, azure, ollama (defaults to ProviderType)
+	EmbeddingModel    string `mapstructure:"embedding_model"`    // Embedding model: text-embedding-3-small, text-embedding-3-large, etc.
+
 	// OpenAI Settings
 	OpenAIAPIKey         string `mapstructure:"openai_api_key"`
 	OpenAIOrganizationID string `mapstructure:"openai_organization_id"`
@@ -262,6 +267,9 @@ type AIConfig struct {
 	AzureEndpoint       string `mapstructure:"azure_endpoint"`
 	AzureDeploymentName string `mapstructure:"azure_deployment_name"`
 	AzureAPIVersion     string `mapstructure:"azure_api_version"`
+
+	// Azure Embedding Settings (optional, falls back to Azure Settings)
+	AzureEmbeddingDeploymentName string `mapstructure:"azure_embedding_deployment_name"` // Separate deployment for embeddings
 
 	// Ollama Settings
 	OllamaEndpoint string `mapstructure:"ollama_endpoint"`
@@ -555,6 +563,12 @@ func setDefaults() {
 	viper.SetDefault("ai.azure_api_version", "")      // No default version
 	viper.SetDefault("ai.ollama_endpoint", "")        // No default endpoint
 	viper.SetDefault("ai.ollama_model", "")           // No default model
+
+	// AI Embedding Configuration defaults (for vector search)
+	viper.SetDefault("ai.embedding_enabled", false)                  // Disabled by default
+	viper.SetDefault("ai.embedding_provider", "")                    // Defaults to ai.provider_type if empty
+	viper.SetDefault("ai.embedding_model", "text-embedding-3-small") // Default OpenAI embedding model
+	viper.SetDefault("ai.azure_embedding_deployment_name", "")       // Optional separate Azure embedding deployment
 
 	// RPC defaults
 	viper.SetDefault("rpc.enabled", true)                     // Enabled by default (controlled by feature flag at runtime)

@@ -345,3 +345,34 @@ Promise resolving to status
 const channel = client.channel('room-1')
 await client.removeChannel(channel)
 ```
+
+## Vector Search
+
+### vector
+
+> **vector**: [`FluxbaseVector`](/api/sdk/classes/fluxbasevector/)
+
+Vector search module for pgvector similarity search
+
+Provides convenience methods for vector similarity search:
+- `embed()` - Generate embeddings from text
+- `search()` - Search for similar vectors with auto-embedding
+
+#### Example
+
+```typescript
+// Search with automatic embedding
+const { data } = await client.vector.search({
+  table: 'documents',
+  column: 'embedding',
+  query: 'How to use TypeScript?',
+  match_count: 10
+})
+
+// Generate embeddings
+const { data } = await client.vector.embed({ text: 'Hello world' })
+```
+
+Note: For more control, use the QueryBuilder methods:
+- `vectorSearch()` - Filter and order by vector similarity
+- `orderByVector()` - Order results by vector distance

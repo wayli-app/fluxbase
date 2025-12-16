@@ -70,6 +70,25 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 			OID:   2205,
 			Codec: pgtype.TextCodec{},
 		})
+
+		// Register pgvector 'vector' type if the extension is installed
+		// The OID is dynamic and assigned when the extension is created
+		// Use a separate context with timeout to avoid leaving connection in bad state
+		queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		var vectorOID uint32
+		err := conn.QueryRow(queryCtx, "SELECT oid FROM pg_type WHERE typname = 'vector'").Scan(&vectorOID)
+		if err == nil && vectorOID > 0 {
+			conn.TypeMap().RegisterType(&pgtype.Type{
+				Name:  "vector",
+				OID:   vectorOID,
+				Codec: pgtype.TextCodec{}, // Vectors are text-encoded as '[0.1,0.2,...]'
+			})
+			log.Debug().Uint32("oid", vectorOID).Msg("Registered pgvector type")
+		}
+		// If pgvector is not installed, the query will fail silently and we skip registration
+
 		return nil
 	}
 

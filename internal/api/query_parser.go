@@ -89,13 +89,20 @@ const (
 	OpSTTouches    FilterOperator = "st_touches"    // ST_Touches - geometries touch
 	OpSTCrosses    FilterOperator = "st_crosses"    // ST_Crosses - geometries cross
 	OpSTOverlaps   FilterOperator = "st_overlaps"   // ST_Overlaps - geometries overlap
+
+	// pgvector similarity operators
+	OpVectorL2     FilterOperator = "vec_l2"  // L2/Euclidean distance <-> (lower = more similar)
+	OpVectorCosine FilterOperator = "vec_cos" // Cosine distance <=> (lower = more similar)
+	OpVectorIP     FilterOperator = "vec_ip"  // Negative inner product <#> (lower = more similar)
 )
 
 // OrderBy represents an ORDER BY clause
 type OrderBy struct {
-	Column string
-	Desc   bool
-	Nulls  string // "first" or "last"
+	Column      string
+	Desc        bool
+	Nulls       string         // "first" or "last"
+	VectorOp    FilterOperator // Vector operator for similarity ordering (vec_l2, vec_cos, vec_ip)
+	VectorValue interface{}    // Vector value for similarity ordering
 }
 
 // EmbeddedRelation represents a relation to embed
@@ -433,10 +440,24 @@ func (qp *QueryParser) parseAggregation(field string) *Aggregation {
 // parseOrder parses the order parameter
 func (qp *QueryParser) parseOrder(value string, params *QueryParams) error {
 	// Parse format: order=name.asc,created_at.desc.nullslast
-	orders := strings.Split(value, ",")
+	// Vector ordering format: order=embedding.vec_cos.[0.1,0.2,...].asc
+	orders := splitOrderParams(value)
 
 	for _, order := range orders {
-		parts := strings.Split(strings.TrimSpace(order), ".")
+		order = strings.TrimSpace(order)
+		if order == "" {
+			continue
+		}
+
+		// Check for vector ordering format: column.vec_op.[vector].direction
+		// The vector is enclosed in brackets, so we need special parsing
+		if vectorOrder, ok := qp.parseVectorOrder(order); ok {
+			params.Order = append(params.Order, vectorOrder)
+			continue
+		}
+
+		// Standard ordering: column.direction.nulls
+		parts := strings.Split(order, ".")
 		if len(parts) < 2 {
 			return fmt.Errorf("invalid order format: %s", order)
 		}
@@ -466,6 +487,96 @@ func (qp *QueryParser) parseOrder(value string, params *QueryParams) error {
 	}
 
 	return nil
+}
+
+// splitOrderParams splits order parameters by comma, respecting brackets
+func splitOrderParams(value string) []string {
+	var orders []string
+	var current strings.Builder
+	bracketDepth := 0
+
+	for _, ch := range value {
+		switch ch {
+		case '[':
+			bracketDepth++
+			current.WriteRune(ch)
+		case ']':
+			bracketDepth--
+			current.WriteRune(ch)
+		case ',':
+			if bracketDepth == 0 {
+				if s := strings.TrimSpace(current.String()); s != "" {
+					orders = append(orders, s)
+				}
+				current.Reset()
+			} else {
+				current.WriteRune(ch)
+			}
+		default:
+			current.WriteRune(ch)
+		}
+	}
+
+	if s := strings.TrimSpace(current.String()); s != "" {
+		orders = append(orders, s)
+	}
+
+	return orders
+}
+
+// parseVectorOrder parses vector ordering format: column.vec_op.[vector].direction
+// Example: embedding.vec_cos.[0.1,0.2,0.3].asc
+func (qp *QueryParser) parseVectorOrder(order string) (OrderBy, bool) {
+	// Look for vector operator pattern
+	vectorOps := []string{".vec_l2.", ".vec_cos.", ".vec_ip."}
+	var opIdx int = -1
+	var opStr string
+
+	for _, op := range vectorOps {
+		if idx := strings.Index(order, op); idx > 0 {
+			opIdx = idx
+			opStr = strings.Trim(op, ".")
+			break
+		}
+	}
+
+	if opIdx < 0 {
+		return OrderBy{}, false
+	}
+
+	// Extract column name
+	colName := order[:opIdx]
+	if !isValidIdentifier(colName) {
+		return OrderBy{}, false
+	}
+
+	// Extract the rest after the operator
+	remainder := order[opIdx+len(opStr)+2:] // +2 for the dots
+
+	// Find the vector value in brackets
+	bracketStart := strings.Index(remainder, "[")
+	bracketEnd := strings.LastIndex(remainder, "]")
+
+	if bracketStart < 0 || bracketEnd < bracketStart {
+		return OrderBy{}, false
+	}
+
+	vectorStr := remainder[bracketStart : bracketEnd+1]
+
+	// Get direction if present (after the closing bracket)
+	var desc bool
+	afterVector := remainder[bracketEnd+1:]
+	if strings.Contains(afterVector, ".desc") {
+		desc = true
+	}
+	// Default is ASC (ascending) for distance-based ordering (lower = more similar)
+
+	return OrderBy{
+		Column:      colName,
+		Desc:        desc,
+		VectorOp:    FilterOperator(opStr),
+		VectorValue: vectorStr,
+	}, true
 }
 
 // parseFilter parses filter parameters
@@ -961,7 +1072,31 @@ func (params *QueryParams) buildOrderClause() string {
 		if quotedCol == "" {
 			continue // Skip invalid column names
 		}
-		part := quotedCol
+
+		var part string
+
+		// Check if this is a vector ordering
+		if order.VectorOp != "" && order.VectorValue != nil {
+			// Vector similarity ordering: column <=> '[0.1,0.2,...]'::vector
+			var opSQL string
+			switch order.VectorOp {
+			case OpVectorL2:
+				opSQL = "<->"
+			case OpVectorCosine:
+				opSQL = "<=>"
+			case OpVectorIP:
+				opSQL = "<#>"
+			default:
+				continue // Skip unknown vector operators
+			}
+
+			vectorVal := formatVectorValue(order.VectorValue)
+			part = fmt.Sprintf("%s %s '%s'::vector", quotedCol, opSQL, vectorVal)
+		} else {
+			// Standard column ordering
+			part = quotedCol
+		}
+
 		if order.Desc {
 			part += " DESC"
 		} else {
@@ -1321,9 +1456,90 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		*argCounter++
 		return sql, f.Value
 
+	// pgvector similarity operators
+	// These operators calculate distance - lower values = more similar
+	// Used for vector search with ORDER BY to find most similar vectors
+	case OpVectorL2:
+		// L2/Euclidean distance: <->
+		// Value should be a vector array formatted as '[0.1,0.2,...]'
+		vectorVal := formatVectorValue(f.Value)
+		sql := fmt.Sprintf("%s <-> $%d::vector", colExpr, *argCounter)
+		*argCounter++
+		return sql, vectorVal
+
+	case OpVectorCosine:
+		// Cosine distance: <=>
+		// Value should be a vector array formatted as '[0.1,0.2,...]'
+		vectorVal := formatVectorValue(f.Value)
+		sql := fmt.Sprintf("%s <=> $%d::vector", colExpr, *argCounter)
+		*argCounter++
+		return sql, vectorVal
+
+	case OpVectorIP:
+		// Negative inner product: <#>
+		// Value should be a vector array formatted as '[0.1,0.2,...]'
+		vectorVal := formatVectorValue(f.Value)
+		sql := fmt.Sprintf("%s <#> $%d::vector", colExpr, *argCounter)
+		*argCounter++
+		return sql, vectorVal
+
 	default:
 		sql := fmt.Sprintf("%s = $%d", colExpr, *argCounter)
 		*argCounter++
 		return sql, f.Value
+	}
+}
+
+// formatVectorValue converts a vector value to PostgreSQL vector literal format
+// Accepts []float32, []float64, []interface{}, or string (already formatted)
+func formatVectorValue(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		// Already a string - could be formatted like "[0.1,0.2]" or "0.1,0.2"
+		// Clean it up to ensure proper format
+		s := strings.TrimSpace(v)
+		if !strings.HasPrefix(s, "[") {
+			s = "[" + s
+		}
+		if !strings.HasSuffix(s, "]") {
+			s = s + "]"
+		}
+		return s
+
+	case []float32:
+		parts := make([]string, len(v))
+		for i, f := range v {
+			parts[i] = strconv.FormatFloat(float64(f), 'f', -1, 32)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+
+	case []float64:
+		parts := make([]string, len(v))
+		for i, f := range v {
+			parts[i] = strconv.FormatFloat(f, 'f', -1, 64)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+
+	case []interface{}:
+		parts := make([]string, len(v))
+		for i, item := range v {
+			switch num := item.(type) {
+			case float64:
+				parts[i] = strconv.FormatFloat(num, 'f', -1, 64)
+			case float32:
+				parts[i] = strconv.FormatFloat(float64(num), 'f', -1, 32)
+			case int:
+				parts[i] = strconv.Itoa(num)
+			case int64:
+				parts[i] = strconv.FormatInt(num, 10)
+			default:
+				parts[i] = fmt.Sprintf("%v", num)
+			}
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+
+	default:
+		// Try to convert to string
+		return fmt.Sprintf("%v", v)
 	}
 }

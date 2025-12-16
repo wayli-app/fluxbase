@@ -24,6 +24,28 @@ title: "StorageBucket"
 
 ## Methods
 
+### abortResumableUpload()
+
+> **abortResumableUpload**(`sessionId`): `Promise`\<`object`\>
+
+Abort an in-progress resumable upload
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `sessionId` | `string` | The upload session ID to abort |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+| Name | Type |
+| ------ | ------ |
+| `error` | `null` \| `Error` |
+
+***
+
 ### copy()
 
 > **copy**(`fromPath`, `toPath`): `Promise`\<`object`\>
@@ -222,6 +244,29 @@ Get a public URL for a file
 | ------ | ------ |
 | `data` | `object` |
 | `data.publicUrl` | `string` |
+
+***
+
+### getResumableUploadStatus()
+
+> **getResumableUploadStatus**(`sessionId`): `Promise`\<`object`\>
+
+Get the status of a resumable upload session
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `sessionId` | `string` | The upload session ID to check |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| [`ChunkedUploadSession`](/api/sdk/interfaces/chunkeduploadsession/) |
+| `error` | `null` \| `Error` |
 
 ***
 
@@ -427,6 +472,58 @@ const { data, error } = await storage
     contentType: 'video/mp4',
     onUploadProgress: (p) => console.log(`${p.percentage}% complete`),
   });
+```
+
+***
+
+### uploadResumable()
+
+> **uploadResumable**(`path`, `file`, `options`?): `Promise`\<`object`\>
+
+Upload a large file with resumable chunked uploads.
+
+Features:
+- Uploads file in chunks for reliability
+- Automatically retries failed chunks with exponential backoff
+- Reports progress via callback with chunk-level granularity
+- Can resume interrupted uploads using session ID
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `path` | `string` | The file path within the bucket |
+| `file` | `Blob` \| `File` | The File or Blob to upload |
+| `options`? | [`ResumableUploadOptions`](/api/sdk/interfaces/resumableuploadoptions/) | Upload options including chunk size, retries, and progress callback |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+Upload result with file info
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| `object` |
+| `error` | `null` \| `Error` |
+
+#### Example
+
+```ts
+const { data, error } = await storage.from('uploads').uploadResumable('large.zip', file, {
+  chunkSize: 5 * 1024 * 1024, // 5MB chunks
+  maxRetries: 3,
+  onProgress: (p) => {
+    console.log(`${p.percentage}% (chunk ${p.currentChunk}/${p.totalChunks})`);
+    console.log(`Speed: ${(p.bytesPerSecond / 1024 / 1024).toFixed(2)} MB/s`);
+    console.log(`Session ID (for resume): ${p.sessionId}`);
+  }
+});
+
+// To resume an interrupted upload:
+const { data, error } = await storage.from('uploads').uploadResumable('large.zip', file, {
+  resumeSessionId: 'previous-session-id',
+});
 ```
 
 ***

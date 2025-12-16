@@ -20,6 +20,7 @@ import {
   Bot,
   Terminal,
   HardDrive,
+  Puzzle,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -114,6 +115,11 @@ export const sidebarData: SidebarData = {
           title: 'Features',
           url: '/features',
           icon: Zap,
+        },
+        {
+          title: 'Extensions',
+          url: '/extensions',
+          icon: Puzzle,
         },
         {
           title: 'Database',

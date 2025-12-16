@@ -9,9 +9,10 @@ Complete application settings structure
 
 ## Properties
 
-| Property | Type |
-| ------ | ------ |
-| `authentication` | [`AuthenticationSettings`](/api/sdk/interfaces/authenticationsettings/) |
-| `email` | [`EmailSettings`](/api/sdk/interfaces/emailsettings/) |
-| `features` | [`FeatureSettings`](/api/sdk/interfaces/featuresettings/) |
-| `security` | [`SecuritySettings`](/api/sdk/interfaces/securitysettings/) |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| `authentication` | [`AuthenticationSettings`](/api/sdk/interfaces/authenticationsettings/) | - |
+| `email` | [`EmailSettings`](/api/sdk/interfaces/emailsettings/) | - |
+| `features` | [`FeatureSettings`](/api/sdk/interfaces/featuresettings/) | - |
+| `overrides?` | `SettingOverrides` | Settings overridden by environment variables (read-only, cannot be modified via API) |
+| `security` | [`SecuritySettings`](/api/sdk/interfaces/securitysettings/) | - |

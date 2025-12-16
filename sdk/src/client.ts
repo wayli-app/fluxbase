@@ -49,6 +49,7 @@ import { FluxbaseAdmin } from "./admin";
 import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
 import { FluxbaseAI } from "./ai";
+import { FluxbaseVector } from "./vector";
 import { QueryBuilder } from "./query-builder";
 import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
@@ -114,6 +115,35 @@ export class FluxbaseClient<
 
   /** AI module for chatbots and conversation history */
   public ai: FluxbaseAI;
+
+  /**
+   * Vector search module for pgvector similarity search
+   *
+   * Provides convenience methods for vector similarity search:
+   * - `embed()` - Generate embeddings from text
+   * - `search()` - Search for similar vectors with auto-embedding
+   *
+   * @example
+   * ```typescript
+   * // Search with automatic embedding
+   * const { data } = await client.vector.search({
+   *   table: 'documents',
+   *   column: 'embedding',
+   *   query: 'How to use TypeScript?',
+   *   match_count: 10
+   * })
+   *
+   * // Generate embeddings
+   * const { data } = await client.vector.embed({ text: 'Hello world' })
+   * ```
+   *
+   * Note: For more control, use the QueryBuilder methods:
+   * - `vectorSearch()` - Filter and order by vector similarity
+   * - `orderByVector()` - Order results by vector distance
+   *
+   * @category Vector Search
+   */
+  public vector: FluxbaseVector;
 
   /**
    * RPC module for calling PostgreSQL functions - Supabase compatible
@@ -218,6 +248,9 @@ export class FluxbaseClient<
     const wsProtocol = fluxbaseUrl.startsWith("https") ? "wss" : "ws";
     const wsBaseUrl = fluxbaseUrl.replace(/^https?:/, wsProtocol + ":");
     this.ai = new FluxbaseAI(this.fetch, wsBaseUrl);
+
+    // Initialize vector search module
+    this.vector = new FluxbaseVector(this.fetch);
 
     // Initialize RPC module with callable wrapper (Supabase-compatible)
     const rpcInstance = new FluxbaseRPC(this.fetch);

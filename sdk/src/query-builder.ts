@@ -11,6 +11,7 @@ import type {
   PostgrestResponse,
   SelectOptions,
   UpsertOptions,
+  VectorMetric,
 } from "./types";
 
 // Threshold for switching to POST-based queries (4KB)
@@ -473,6 +474,97 @@ export class QueryBuilder<T = unknown>
       direction: options?.ascending === false ? "desc" : "asc",
       nulls: options?.nullsFirst ? "first" : "last",
     });
+    return this;
+  }
+
+  /**
+   * Order results by vector similarity (pgvector)
+   * Results are ordered by distance (ascending = closest first)
+   *
+   * @example
+   * ```typescript
+   * // Order by cosine similarity (closest matches first)
+   * const { data } = await client
+   *   .from('documents')
+   *   .select('id, title, content')
+   *   .orderByVector('embedding', queryVector, 'cosine')
+   *   .limit(10)
+   * ```
+   *
+   * @param column - The vector column to order by
+   * @param vector - The query vector to compare against
+   * @param metric - Distance metric: 'l2' (euclidean), 'cosine', or 'inner_product'
+   * @param options - Optional: { ascending?: boolean } - defaults to true (closest first)
+   */
+  orderByVector(
+    column: string,
+    vector: number[],
+    metric: VectorMetric = "cosine",
+    options?: { ascending?: boolean },
+  ): this {
+    const opMap: Record<VectorMetric, "vec_l2" | "vec_cos" | "vec_ip"> = {
+      l2: "vec_l2",
+      cosine: "vec_cos",
+      inner_product: "vec_ip",
+    };
+
+    this.orderBys.push({
+      column,
+      direction: options?.ascending === false ? "desc" : "asc",
+      vectorOp: opMap[metric],
+      vectorValue: vector,
+    });
+    return this;
+  }
+
+  /**
+   * Filter by vector similarity (pgvector)
+   * This is a convenience method that adds a vector filter using the specified distance metric.
+   * Typically used with orderByVector() for similarity search.
+   *
+   * @example
+   * ```typescript
+   * // Find the 10 most similar documents
+   * const { data } = await client
+   *   .from('documents')
+   *   .select('id, title, content')
+   *   .vectorSearch('embedding', queryVector, 'cosine')
+   *   .limit(10)
+   *
+   * // Combine with other filters
+   * const { data } = await client
+   *   .from('documents')
+   *   .select('id, title, content')
+   *   .eq('status', 'published')
+   *   .vectorSearch('embedding', queryVector)
+   *   .limit(10)
+   * ```
+   *
+   * @param column - The vector column to search
+   * @param vector - The query vector
+   * @param metric - Distance metric: 'l2' (euclidean), 'cosine', or 'inner_product'
+   */
+  vectorSearch(
+    column: string,
+    vector: number[],
+    metric: VectorMetric = "cosine",
+  ): this {
+    const opMap: Record<VectorMetric, FilterOperator> = {
+      l2: "vec_l2",
+      cosine: "vec_cos",
+      inner_product: "vec_ip",
+    };
+
+    // Add the filter (this will be used to generate ORDER BY clause)
+    this.filters.push({
+      column,
+      operator: opMap[metric],
+      value: vector,
+    });
+
+    // Also add ordering by vector similarity (ascending - lower distance = more similar)
+    this.orderByVector(column, vector, metric, { ascending: true });
+
     return this;
   }
 
@@ -1127,10 +1219,15 @@ export class QueryBuilder<T = unknown>
     // Order
     if (this.orderBys.length > 0) {
       const orderStr = this.orderBys
-        .map(
-          (o) =>
-            `${o.column}.${o.direction}${o.nulls ? `.nulls${o.nulls}` : ""}`,
-        )
+        .map((o) => {
+          if (o.vectorOp && o.vectorValue) {
+            // Vector ordering: column.vec_op.[vector].direction
+            const vectorStr = `[${o.vectorValue.join(",")}]`;
+            return `${o.column}.${o.vectorOp}.${vectorStr}.${o.direction}`;
+          }
+          // Standard ordering: column.direction.nulls
+          return `${o.column}.${o.direction}${o.nulls ? `.nulls${o.nulls}` : ""}`;
+        })
         .join(",");
       params.append("order", orderStr);
     }
@@ -1387,6 +1484,8 @@ export class QueryBuilder<T = unknown>
         column: o.column,
         direction: o.direction,
         nulls: o.nulls,
+        vectorOp: o.vectorOp,
+        vectorValue: o.vectorValue,
       })),
       limit: this.limitValue,
       offset: this.offsetValue,
@@ -1419,6 +1518,8 @@ interface PostQueryRequestBody {
     column: string;
     direction: string;
     nulls?: string;
+    vectorOp?: string;
+    vectorValue?: number[];
   }>;
   limit?: number;
   offset?: number;

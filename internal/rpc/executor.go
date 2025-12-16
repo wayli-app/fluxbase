@@ -325,7 +325,17 @@ func (e *Executor) formatValue(value interface{}) string {
 		return "FALSE"
 	case json.Number:
 		return v.String()
+	case []float32:
+		// Format as PostgreSQL vector literal: '[0.1, 0.2, ...]'::vector
+		return formatVectorLiteral32(v)
+	case []float64:
+		// Format as PostgreSQL vector literal: '[0.1, 0.2, ...]'::vector
+		return formatVectorLiteral64(v)
 	case []interface{}:
+		// Check if it's a numeric array (potential vector from JSON)
+		if isNumericArray(v) {
+			return formatVectorLiteralInterface(v)
+		}
 		// Format as PostgreSQL array
 		var items []string
 		for _, item := range v {
@@ -343,6 +353,64 @@ func (e *Executor) formatValue(value interface{}) string {
 		escaped := strings.ReplaceAll(str, "'", "''")
 		return fmt.Sprintf("'%s'", escaped)
 	}
+}
+
+// isNumericArray checks if a []interface{} contains only numeric values
+func isNumericArray(arr []interface{}) bool {
+	if len(arr) == 0 {
+		return false
+	}
+	for _, item := range arr {
+		switch item.(type) {
+		case float64, float32, int, int64, int32, json.Number:
+			// Numeric type - continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// formatVectorLiteral32 formats a []float32 as PostgreSQL vector literal
+func formatVectorLiteral32(v []float32) string {
+	parts := make([]string, len(v))
+	for i, f := range v {
+		parts[i] = fmt.Sprintf("%g", f)
+	}
+	return fmt.Sprintf("'[%s]'::vector", strings.Join(parts, ","))
+}
+
+// formatVectorLiteral64 formats a []float64 as PostgreSQL vector literal
+func formatVectorLiteral64(v []float64) string {
+	parts := make([]string, len(v))
+	for i, f := range v {
+		parts[i] = fmt.Sprintf("%g", f)
+	}
+	return fmt.Sprintf("'[%s]'::vector", strings.Join(parts, ","))
+}
+
+// formatVectorLiteralInterface formats a []interface{} (numeric) as PostgreSQL vector literal
+func formatVectorLiteralInterface(v []interface{}) string {
+	parts := make([]string, len(v))
+	for i, item := range v {
+		switch num := item.(type) {
+		case float64:
+			parts[i] = fmt.Sprintf("%g", num)
+		case float32:
+			parts[i] = fmt.Sprintf("%g", num)
+		case int:
+			parts[i] = fmt.Sprintf("%d", num)
+		case int64:
+			parts[i] = fmt.Sprintf("%d", num)
+		case int32:
+			parts[i] = fmt.Sprintf("%d", num)
+		case json.Number:
+			parts[i] = num.String()
+		default:
+			parts[i] = fmt.Sprintf("%v", num)
+		}
+	}
+	return fmt.Sprintf("'[%s]'::vector", strings.Join(parts, ","))
 }
 
 // executeWithRLS executes the SQL query with RLS context set

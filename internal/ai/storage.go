@@ -53,6 +53,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		INSERT INTO ai.chatbots (
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -60,10 +61,11 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
 			$9, $10, $11, $12,
-			$13, $14, $15, $16,
-			$17, $18, $19,
+			$13, $14, $15,
+			$16, $17, $18, $19,
 			$20, $21, $22,
-			$23, $24, $25, $26, $27, $28, $29
+			$23, $24, $25,
+			$26, $27, $28, $29, $30, $31, $32
 		)
 	`
 
@@ -75,10 +77,27 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 	}
 	chatbot.UpdatedAt = time.Now()
 
-	_, err := s.db.Exec(ctx, query,
+	// Serialize intent rules and required columns to JSON
+	var intentRulesJSON, requiredColumnsJSON []byte
+	var err error
+	if len(chatbot.IntentRules) > 0 {
+		intentRulesJSON, err = json.Marshal(chatbot.IntentRules)
+		if err != nil {
+			return fmt.Errorf("failed to marshal intent_rules: %w", err)
+		}
+	}
+	if len(chatbot.RequiredColumns) > 0 {
+		requiredColumnsJSON, err = json.Marshal(chatbot.RequiredColumns)
+		if err != nil {
+			return fmt.Errorf("failed to marshal required_columns: %w", err)
+		}
+	}
+
+	_, err = s.db.Exec(ctx, query,
 		chatbot.ID, chatbot.Name, chatbot.Namespace, chatbot.Description,
 		chatbot.Code, chatbot.OriginalCode, chatbot.IsBundled, chatbot.BundleError,
 		chatbot.AllowedTables, chatbot.AllowedOperations, chatbot.AllowedSchemas, chatbot.HTTPAllowedDomains,
+		intentRulesJSON, requiredColumnsJSON, chatbot.DefaultTable,
 		chatbot.Enabled, chatbot.MaxTokens, chatbot.Temperature, chatbot.ProviderID,
 		chatbot.PersistConversations, chatbot.ConversationTTLHours, chatbot.MaxConversationTurns,
 		chatbot.RateLimitPerMinute, chatbot.DailyRequestLimit, chatbot.DailyTokenBudget,
@@ -112,24 +131,43 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			allowed_operations = $8,
 			allowed_schemas = $9,
 			http_allowed_domains = $10,
-			enabled = $11,
-			max_tokens = $12,
-			temperature = $13,
-			provider_id = $14,
-			persist_conversations = $15,
-			conversation_ttl_hours = $16,
-			max_conversation_turns = $17,
-			rate_limit_per_minute = $18,
-			daily_request_limit = $19,
-			daily_token_budget = $20,
-			allow_unauthenticated = $21,
-			is_public = $22,
+			intent_rules = $11,
+			required_columns = $12,
+			default_table = $13,
+			enabled = $14,
+			max_tokens = $15,
+			temperature = $16,
+			provider_id = $17,
+			persist_conversations = $18,
+			conversation_ttl_hours = $19,
+			max_conversation_turns = $20,
+			rate_limit_per_minute = $21,
+			daily_request_limit = $22,
+			daily_token_budget = $23,
+			allow_unauthenticated = $24,
+			is_public = $25,
 			version = version + 1,
-			updated_at = $23
+			updated_at = $26
 		WHERE id = $1
 	`
 
 	chatbot.UpdatedAt = time.Now()
+
+	// Serialize intent rules and required columns to JSON
+	var intentRulesJSON, requiredColumnsJSON []byte
+	var err error
+	if len(chatbot.IntentRules) > 0 {
+		intentRulesJSON, err = json.Marshal(chatbot.IntentRules)
+		if err != nil {
+			return fmt.Errorf("failed to marshal intent_rules: %w", err)
+		}
+	}
+	if len(chatbot.RequiredColumns) > 0 {
+		requiredColumnsJSON, err = json.Marshal(chatbot.RequiredColumns)
+		if err != nil {
+			return fmt.Errorf("failed to marshal required_columns: %w", err)
+		}
+	}
 
 	result, err := s.db.Exec(ctx, query,
 		chatbot.ID,
@@ -142,6 +180,9 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.AllowedOperations,
 		chatbot.AllowedSchemas,
 		chatbot.HTTPAllowedDomains,
+		intentRulesJSON,
+		requiredColumnsJSON,
+		chatbot.DefaultTable,
 		chatbot.Enabled,
 		chatbot.MaxTokens,
 		chatbot.Temperature,
@@ -179,6 +220,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -188,10 +230,13 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 	`
 
 	chatbot := &Chatbot{}
+	var intentRulesJSON, requiredColumnsJSON []byte
+	var defaultTable *string
 	err := s.db.QueryRow(ctx, query, id).Scan(
 		&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 		&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
 		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
+		&intentRulesJSON, &requiredColumnsJSON, &defaultTable,
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -206,6 +251,21 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 		return nil, fmt.Errorf("failed to get chatbot: %w", err)
 	}
 
+	// Deserialize JSON fields
+	if len(intentRulesJSON) > 0 {
+		if err := json.Unmarshal(intentRulesJSON, &chatbot.IntentRules); err != nil {
+			log.Warn().Err(err).Str("chatbot_id", id).Msg("Failed to unmarshal intent_rules")
+		}
+	}
+	if len(requiredColumnsJSON) > 0 {
+		if err := json.Unmarshal(requiredColumnsJSON, &chatbot.RequiredColumns); err != nil {
+			log.Warn().Err(err).Str("chatbot_id", id).Msg("Failed to unmarshal required_columns")
+		}
+	}
+	if defaultTable != nil {
+		chatbot.DefaultTable = *defaultTable
+	}
+
 	chatbot.PopulateDerivedFields()
 	return chatbot, nil
 }
@@ -216,6 +276,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -225,10 +286,13 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 	`
 
 	chatbot := &Chatbot{}
+	var intentRulesJSON, requiredColumnsJSON []byte
+	var defaultTable *string
 	err := s.db.QueryRow(ctx, query, namespace, name).Scan(
 		&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 		&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
 		&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
+		&intentRulesJSON, &requiredColumnsJSON, &defaultTable,
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -243,6 +307,21 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 		return nil, fmt.Errorf("failed to get chatbot by name: %w", err)
 	}
 
+	// Deserialize JSON fields
+	if len(intentRulesJSON) > 0 {
+		if err := json.Unmarshal(intentRulesJSON, &chatbot.IntentRules); err != nil {
+			log.Warn().Err(err).Str("chatbot_name", name).Msg("Failed to unmarshal intent_rules")
+		}
+	}
+	if len(requiredColumnsJSON) > 0 {
+		if err := json.Unmarshal(requiredColumnsJSON, &chatbot.RequiredColumns); err != nil {
+			log.Warn().Err(err).Str("chatbot_name", name).Msg("Failed to unmarshal required_columns")
+		}
+	}
+	if defaultTable != nil {
+		chatbot.DefaultTable = *defaultTable
+	}
+
 	chatbot.PopulateDerivedFields()
 	return chatbot, nil
 }
@@ -253,6 +332,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -275,10 +355,13 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 	var chatbots []*Chatbot
 	for rows.Next() {
 		chatbot := &Chatbot{}
+		var intentRulesJSON, requiredColumnsJSON []byte
+		var defaultTable *string
 		err := rows.Scan(
 			&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 			&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
 			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
+			&intentRulesJSON, &requiredColumnsJSON, &defaultTable,
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -288,6 +371,18 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan chatbot row: %w", err)
 		}
+
+		// Deserialize JSON fields
+		if len(intentRulesJSON) > 0 {
+			_ = json.Unmarshal(intentRulesJSON, &chatbot.IntentRules)
+		}
+		if len(requiredColumnsJSON) > 0 {
+			_ = json.Unmarshal(requiredColumnsJSON, &chatbot.RequiredColumns)
+		}
+		if defaultTable != nil {
+			chatbot.DefaultTable = *defaultTable
+		}
+
 		chatbot.PopulateDerivedFields()
 		chatbots = append(chatbots, chatbot)
 	}
@@ -301,6 +396,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 		SELECT
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
@@ -319,10 +415,13 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 	var chatbots []*Chatbot
 	for rows.Next() {
 		chatbot := &Chatbot{}
+		var intentRulesJSON, requiredColumnsJSON []byte
+		var defaultTable *string
 		err := rows.Scan(
 			&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
 			&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
 			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
+			&intentRulesJSON, &requiredColumnsJSON, &defaultTable,
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
@@ -332,6 +431,18 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan chatbot row: %w", err)
 		}
+
+		// Deserialize JSON fields
+		if len(intentRulesJSON) > 0 {
+			_ = json.Unmarshal(intentRulesJSON, &chatbot.IntentRules)
+		}
+		if len(requiredColumnsJSON) > 0 {
+			_ = json.Unmarshal(requiredColumnsJSON, &chatbot.RequiredColumns)
+		}
+		if defaultTable != nil {
+			chatbot.DefaultTable = *defaultTable
+		}
+
 		chatbot.PopulateDerivedFields()
 		chatbots = append(chatbots, chatbot)
 	}

@@ -173,6 +173,32 @@ POST request
 
 ***
 
+### postWithHeaders()
+
+> **postWithHeaders**\<`T`\>(`path`, `body`?, `options`?): `Promise`\<`FetchResponseWithHeaders`\<`T`\>\>
+
+POST request that returns response with headers (for POST-based queries with count)
+
+#### Type Parameters
+
+| Type Parameter | Default type |
+| ------ | ------ |
+| `T` | `unknown` |
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `path` | `string` |
+| `body`? | `unknown` |
+| `options`? | `Omit`\<`FetchOptions`, `"method"` \| `"body"`\> |
+
+#### Returns
+
+`Promise`\<`FetchResponseWithHeaders`\<`T`\>\>
+
+***
+
 ### put()
 
 > **put**\<`T`\>(`path`, `body`?, `options`?): `Promise`\<`T`\>

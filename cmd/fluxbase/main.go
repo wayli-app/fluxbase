@@ -100,6 +100,12 @@ func main() {
 	}
 	log.Info().Msg("Database migrations completed successfully")
 
+	// Reset the pool after migrations to clear any stale prepared statement cache
+	// Migrations can invalidate cached statement plans, causing panics in pgx
+	log.Debug().Msg("Resetting connection pool after migrations...")
+	db.Pool().Reset()
+	log.Debug().Msg("Connection pool reset complete")
+
 	// Initialize API server
 	server := api.NewServer(cfg, db, Version)
 
@@ -178,9 +184,9 @@ func main() {
 	go func() {
 		log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
 		if err := server.Start(); err != nil {
-			// Don't log.Fatal on graceful shutdown - the server returns nil or
-			// an error when ShutdownWithContext is called
-			log.Debug().Err(err).Msg("Server stopped")
+			// Log at ERROR level to make server startup failures visible
+			// This includes port binding errors, network issues, etc.
+			log.Error().Err(err).Msg("Server failed to start or stopped with error")
 		}
 	}()
 

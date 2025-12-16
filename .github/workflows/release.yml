@@ -21,6 +21,7 @@ name: Release
 #   - Publish NPM SDK packages: Publish TypeScript and React SDK packages to NPM
 #   - Publish Go module: Notify pkg.go.dev to index the new Go module version
 #   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
+#   - Publish Postgres images: Build and push fluxbase-postgres images for all supported versions
 #   Note: For release/tag push triggers, all components are published
 #
 # RC Release behavior:
@@ -90,6 +91,11 @@ on:
         default: true
       publish_helm:
         description: "Publish Helm chart"
+        required: false
+        type: boolean
+        default: true
+      publish_postgres:
+        description: "Publish Postgres Docker images"
         required: false
         type: boolean
         default: true
@@ -271,12 +277,16 @@ jobs:
           cd sdk && npm version ${VERSION} --no-git-tag-version && cd ..
           cd sdk-react && npm version ${VERSION} --no-git-tag-version && npm install && cd ..
 
+          # Update Helm chart postgres image tag with immutable reference
+          sed -i '/fluxbase-postgres/,/pullPolicy/{s/tag: "18\.[^"]*"/tag: "18.1-'"${VERSION}"'"/}' deploy/helm/fluxbase/values.yaml
+
       - name: Commit version updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add deploy/helm/fluxbase/Chart.yaml
+          git add deploy/helm/fluxbase/values.yaml
           git add deploy/docker-compose*.yml
           git add sdk/package.json sdk/package-lock.json
           git add sdk-react/package.json sdk-react/package-lock.json
@@ -703,3 +713,142 @@ jobs:
           git add index.yaml *.tgz
           git commit -m "Release Helm chart v${{ needs.get-version.outputs.version }}"
           git push origin gh-pages
+
+  # ==========================================================================
+  # Fluxbase Postgres Image
+  # ==========================================================================
+
+  get-postgres-versions:
+    name: Get Postgres Versions
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Generate build matrix from versions.json
+        id: set-matrix
+        run: |
+          MATRIX=$(cat postgres/versions.json | jq -c '{include: [.versions[] | {major: .major, version: .version, latest: (.latest // false)}]}')
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Generated matrix: $MATRIX"
+
+  publish-postgres-amd64:
+    name: Build Postgres Image (AMD64)
+    needs: [get-version, get-postgres-versions]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.get-postgres-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./postgres
+          file: ./postgres/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/fluxbase-postgres:${{ matrix.version }}-amd64
+          build-args: |
+            POSTGRES_VERSION=${{ matrix.version }}
+            POSTGRES_MAJOR=${{ matrix.major }}
+          cache-from: type=gha,scope=postgres-${{ matrix.major }}-amd64
+          cache-to: type=gha,mode=max,scope=postgres-${{ matrix.major }}-amd64
+
+  publish-postgres-arm64:
+    name: Build Postgres Image (ARM64)
+    needs: [get-version, get-postgres-versions]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix: ${{ fromJson(needs.get-postgres-versions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./postgres
+          file: ./postgres/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/fluxbase-postgres:${{ matrix.version }}-arm64
+          build-args: |
+            POSTGRES_VERSION=${{ matrix.version }}
+            POSTGRES_MAJOR=${{ matrix.major }}
+          cache-from: type=gha,scope=postgres-${{ matrix.major }}-arm64
+          cache-to: type=gha,mode=max,scope=postgres-${{ matrix.major }}-arm64
+
+  publish-postgres-manifests:
+    name: Create Postgres Multi-arch Manifests
+    needs: [get-version, get-postgres-versions, publish-postgres-amd64, publish-postgres-arm64]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.get-postgres-versions.outputs.matrix) }}
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          IMAGE="ghcr.io/${{ github.repository_owner }}/fluxbase-postgres"
+          VERSION="${{ matrix.version }}"
+          MAJOR="${{ matrix.major }}"
+          IS_LATEST="${{ matrix.latest }}"
+          FLUXBASE_VERSION="${{ needs.get-version.outputs.version }}"
+
+          # Create manifest with version tag (rolling)
+          docker buildx imagetools create \
+            -t ${IMAGE}:${VERSION} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
+
+          # Create manifest with immutable tag (postgres version + fluxbase version)
+          docker buildx imagetools create \
+            -t ${IMAGE}:${VERSION}-${FLUXBASE_VERSION} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
+
+          # Create manifest with major version tag (rolling)
+          docker buildx imagetools create \
+            -t ${IMAGE}:${MAJOR} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
+
+          # Create :latest tag if this version is marked as latest
+          if [ "$IS_LATEST" = "true" ]; then
+            docker buildx imagetools create \
+              -t ${IMAGE}:latest \
+              ${IMAGE}:${VERSION}-amd64 \
+              ${IMAGE}:${VERSION}-arm64
+          fi
+
+          echo "Created manifests for PostgreSQL ${VERSION} (immutable: ${VERSION}-${FLUXBASE_VERSION})"

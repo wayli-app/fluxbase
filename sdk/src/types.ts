@@ -264,6 +264,10 @@ export type FilterOperator =
   | 'st_overlaps'   // geometries overlap
   | 'between'       // inclusive range filter (value >= min AND value <= max)
   | 'not.between'   // exclusive range filter (value < min OR value > max)
+  // pgvector similarity operators
+  | 'vec_l2'    // L2/Euclidean distance <-> (lower = more similar)
+  | 'vec_cos'   // Cosine distance <=> (lower = more similar)
+  | 'vec_ip'    // Negative inner product <#> (lower = more similar)
 
 export interface QueryFilter {
   column: string
@@ -277,6 +281,10 @@ export interface OrderBy {
   column: string
   direction: OrderDirection
   nulls?: 'first' | 'last'
+  /** Vector operator for similarity ordering (vec_l2, vec_cos, vec_ip) */
+  vectorOp?: 'vec_l2' | 'vec_cos' | 'vec_ip'
+  /** Vector value for similarity ordering */
+  vectorValue?: number[]
 }
 
 /**
@@ -2960,6 +2968,93 @@ export interface RPCExecutionFilters {
   user_id?: string
   limit?: number
   offset?: number
+}
+
+// ============================================================================
+// Vector Search Types (pgvector)
+// ============================================================================
+
+/**
+ * Vector distance metric for similarity search
+ * - l2: Euclidean distance (L2 norm) - lower is more similar
+ * - cosine: Cosine distance - lower is more similar (1 - cosine similarity)
+ * - inner_product: Negative inner product - lower is more similar
+ */
+export type VectorMetric = 'l2' | 'cosine' | 'inner_product'
+
+/**
+ * Options for vector similarity ordering
+ */
+export interface VectorOrderOptions {
+  /** The vector to compare against */
+  vector: number[]
+  /** Distance metric to use */
+  metric?: VectorMetric
+}
+
+/**
+ * Request for vector embedding generation
+ */
+export interface EmbedRequest {
+  /** Text to embed (single) */
+  text?: string
+  /** Multiple texts to embed */
+  texts?: string[]
+  /** Embedding model to use (defaults to configured model) */
+  model?: string
+}
+
+/**
+ * Response from vector embedding generation
+ */
+export interface EmbedResponse {
+  /** Generated embeddings (one per input text) */
+  embeddings: number[][]
+  /** Model used for embedding */
+  model: string
+  /** Dimensions of the embeddings */
+  dimensions: number
+  /** Token usage information */
+  usage?: {
+    prompt_tokens: number
+    total_tokens: number
+  }
+}
+
+/**
+ * Options for vector search via the convenience endpoint
+ */
+export interface VectorSearchOptions {
+  /** Table to search in */
+  table: string
+  /** Vector column to search */
+  column: string
+  /** Text query to search for (will be auto-embedded) */
+  query?: string
+  /** Direct vector input (alternative to text query) */
+  vector?: number[]
+  /** Distance metric to use */
+  metric?: VectorMetric
+  /** Minimum similarity threshold (0-1 for cosine, varies for others) */
+  match_threshold?: number
+  /** Maximum number of results */
+  match_count?: number
+  /** Columns to select (default: all) */
+  select?: string
+  /** Additional filters to apply */
+  filters?: QueryFilter[]
+}
+
+/**
+ * Result from vector search
+ */
+export interface VectorSearchResult<T = Record<string, unknown>> {
+  /** Matched records */
+  data: T[]
+  /** Distance scores for each result */
+  distances: number[]
+  /** Embedding model used (if query text was embedded) */
+  model?: string
 }
 
 // ============================================================================

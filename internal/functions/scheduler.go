@@ -94,7 +94,11 @@ func (s *Scheduler) Start() error {
 	log.Info().Msg("Starting edge functions scheduler")
 
 	// Load all functions with cron schedules
-	functions, err := s.storage.ListFunctions(s.ctx)
+	// Use a timeout context to prevent indefinite hanging if database pool has issues
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	functions, err := s.storage.ListFunctions(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load functions for scheduler")
 		return err

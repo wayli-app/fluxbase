@@ -964,6 +964,40 @@ Order results
 
 ***
 
+### orderByVector()
+
+> **orderByVector**(`column`, `vector`, `metric`, `options`?): `this`
+
+Order results by vector similarity (pgvector)
+Results are ordered by distance (ascending = closest first)
+
+#### Parameters
+
+| Parameter | Type | Default value | Description |
+| ------ | ------ | ------ | ------ |
+| `column` | `string` | `undefined` | The vector column to order by |
+| `vector` | `number`[] | `undefined` | The query vector to compare against |
+| `metric` | [`VectorMetric`](/api/sdk/type-aliases/vectormetric/) | `"cosine"` | Distance metric: 'l2' (euclidean), 'cosine', or 'inner_product' |
+| `options`? | `object` | `undefined` | Optional: { ascending?: boolean } - defaults to true (closest first) |
+| `options.ascending`? | `boolean` | `undefined` | - |
+
+#### Returns
+
+`this`
+
+#### Example
+
+```typescript
+// Order by cosine similarity (closest matches first)
+const { data } = await client
+  .from('documents')
+  .select('id, title, content')
+  .orderByVector('embedding', queryVector, 'cosine')
+  .limit(10)
+```
+
+***
+
 ### overlaps()
 
 > **overlaps**(`column`, `value`): `this`
@@ -1264,6 +1298,47 @@ Upsert (insert or update) rows (Supabase-compatible)
 #### Returns
 
 `Promise`\<[`PostgrestResponse`](/api/sdk/interfaces/postgrestresponse/)\<`T`\>\>
+
+***
+
+### vectorSearch()
+
+> **vectorSearch**(`column`, `vector`, `metric`): `this`
+
+Filter by vector similarity (pgvector)
+This is a convenience method that adds a vector filter using the specified distance metric.
+Typically used with orderByVector() for similarity search.
+
+#### Parameters
+
+| Parameter | Type | Default value | Description |
+| ------ | ------ | ------ | ------ |
+| `column` | `string` | `undefined` | The vector column to search |
+| `vector` | `number`[] | `undefined` | The query vector |
+| `metric` | [`VectorMetric`](/api/sdk/type-aliases/vectormetric/) | `"cosine"` | Distance metric: 'l2' (euclidean), 'cosine', or 'inner_product' |
+
+#### Returns
+
+`this`
+
+#### Example
+
+```typescript
+// Find the 10 most similar documents
+const { data } = await client
+  .from('documents')
+  .select('id, title, content')
+  .vectorSearch('embedding', queryVector, 'cosine')
+  .limit(10)
+
+// Combine with other filters
+const { data } = await client
+  .from('documents')
+  .select('id, title, content')
+  .eq('status', 'published')
+  .vectorSearch('embedding', queryVector)
+  .limit(10)
+```
 
 ***
 

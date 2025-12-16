@@ -14,6 +14,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/email"
+	"github.com/fluxbase-eu/fluxbase/internal/extensions"
 	"github.com/fluxbase-eu/fluxbase/internal/functions"
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
@@ -76,6 +77,8 @@ type Server struct {
 	aiMetrics             *observability.Metrics
 	rpcHandler            *rpc.Handler
 	rpcScheduler          *rpc.Scheduler
+	extensionsHandler     *extensions.Handler
+	vectorHandler         *VectorHandler
 }
 
 // NewServer creates a new HTTP server
@@ -279,6 +282,25 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("RPC components initialized")
 	}
 
+	// Create vector search handler (for pgvector support)
+	var vectorHandler *VectorHandler
+	if cfg.AI.EmbeddingEnabled {
+		var err error
+		vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector())
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to initialize vector handler")
+		} else {
+			log.Info().
+				Str("provider", cfg.AI.EmbeddingProvider).
+				Str("model", cfg.AI.EmbeddingModel).
+				Msg("Vector handler initialized with embedding support")
+		}
+	} else {
+		// Create vector handler without embedding (still useful for capabilities endpoint)
+		vectorHandler, _ = NewVectorHandler(&cfg.AI, db.Inspector())
+		log.Info().Msg("Vector handler initialized (embedding disabled)")
+	}
+
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
@@ -332,6 +354,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		aiMetrics:             aiMetrics,
 		rpcHandler:            rpcHandler,
 		rpcScheduler:          rpcScheduler,
+		extensionsHandler:     extensions.NewHandler(extensions.NewService(db)),
+		vectorHandler:         vectorHandler,
 	}
 
 	// Start realtime listener
@@ -656,6 +680,27 @@ func (s *Server) setupRoutes() {
 			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.GetPublicExecutionLogs,
 		)
+	}
+
+	// Vector search endpoints (only if vector handler is initialized)
+	if s.vectorHandler != nil {
+		// Capabilities endpoint (public - no auth required)
+		// Returns information about pgvector installation status and embedding configuration
+		s.app.Get("/api/v1/capabilities/vector", s.vectorHandler.HandleGetCapabilities)
+
+		// Embedding endpoint (requires authentication)
+		s.app.Post("/api/v1/vector/embed",
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.vectorHandler.HandleEmbed,
+		)
+
+		// Vector search endpoint (requires authentication)
+		s.app.Post("/api/v1/vector/search",
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.vectorHandler.HandleSearch,
+		)
+
+		log.Info().Msg("Vector search routes registered")
 	}
 
 	// Admin routes and UI (only enabled if setup token is configured)
@@ -1000,6 +1045,13 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Get("/rpc/executions/:id/logs", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetExecutionLogs)
 		router.Post("/rpc/executions/:id/cancel", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.CancelExecution)
 	}
+
+	// Extensions management routes
+	router.Get("/extensions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.ListExtensions)
+	router.Get("/extensions/:name/status", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.GetExtensionStatus)
+	router.Post("/extensions/:name/enable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.EnableExtension)
+	router.Post("/extensions/:name/disable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.DisableExtension)
+	router.Post("/extensions/sync", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.SyncExtensions)
 
 	// Migrations routes (require service key authentication with enhanced security)
 	// Only registered if migrations API is enabled in config

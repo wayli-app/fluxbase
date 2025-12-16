@@ -318,6 +318,37 @@ func (s *SchemaBuilder) BuildSystemPrompt(ctx context.Context, chatbot *Chatbot,
 	sb.WriteString("5. You will receive a summary of results, not raw data.\n")
 	sb.WriteString("6. You can execute multiple queries if needed to answer complex questions.\n")
 	sb.WriteString("7. For questions spanning multiple tables, query each table separately and combine the insights in your response.\n")
+
+	// Add default table hint if configured
+	if chatbot.DefaultTable != "" {
+		sb.WriteString(fmt.Sprintf("\n**Default/Primary table**: %s - Use this table first unless the question specifically requires a different table.\n", chatbot.DefaultTable))
+	}
+
+	// Add intent rules hints if configured
+	if len(chatbot.IntentRules) > 0 {
+		sb.WriteString("\n## Table Selection Guidelines\n\n")
+		sb.WriteString("Use the correct table based on what the user is asking about:\n")
+		for _, rule := range chatbot.IntentRules {
+			if rule.RequiredTable != "" {
+				sb.WriteString(fmt.Sprintf("- For questions about %s → use **%s**\n",
+					strings.Join(rule.Keywords, ", "), rule.RequiredTable))
+			}
+			if rule.ForbiddenTable != "" {
+				sb.WriteString(fmt.Sprintf("- Do NOT use '%s' for queries about %s\n",
+					rule.ForbiddenTable, strings.Join(rule.Keywords, ", ")))
+			}
+		}
+	}
+
+	// Add required columns hints if configured
+	if len(chatbot.RequiredColumns) > 0 {
+		sb.WriteString("\n## Required Columns\n\n")
+		sb.WriteString("When querying these tables, always include these columns:\n")
+		for table, cols := range chatbot.RequiredColumns {
+			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", table, strings.Join(cols, ", ")))
+		}
+	}
+
 	sb.WriteString("\n")
 	sb.WriteString(fmt.Sprintf("Allowed operations: %s\n", strings.Join(chatbot.AllowedOperations, ", ")))
 	sb.WriteString(fmt.Sprintf("Current user ID: %s\n", userID))

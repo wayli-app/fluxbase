@@ -232,7 +232,7 @@ func (e *Executor) Execute(ctx context.Context, req *ExecuteRequest) (*ExecuteRe
 // buildSummary creates a summary for the LLM (not the raw data)
 func (e *Executor) buildSummary(req *ExecuteRequest, result *ExecuteResult) string {
 	if result.RowCount == 0 {
-		return fmt.Sprintf("Query returned no results. Tables accessed: %v",
+		return fmt.Sprintf("Query executed successfully but returned 0 rows - no data matches your query criteria. Tables accessed: %v",
 			result.TablesAccessed)
 	}
 

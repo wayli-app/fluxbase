@@ -694,3 +694,96 @@ func (si *SchemaInspector) BuildRESTPath(table TableInfo) string {
 	}
 	return fmt.Sprintf("/api/rest/%s", tableName)
 }
+
+// VectorColumnInfo represents metadata about a vector column (pgvector)
+type VectorColumnInfo struct {
+	SchemaName string `json:"schema_name"`
+	TableName  string `json:"table_name"`
+	ColumnName string `json:"column_name"`
+	Dimensions int    `json:"dimensions"` // -1 if variable/unspecified
+}
+
+// GetVectorColumns retrieves all vector columns in the specified schema and table
+// If table is empty, returns all vector columns in the schema
+// If both schema and table are empty, returns all vector columns in public schema
+func (si *SchemaInspector) GetVectorColumns(ctx context.Context, schema, table string) ([]VectorColumnInfo, error) {
+	if schema == "" {
+		schema = "public"
+	}
+
+	// First check if pgvector extension is installed
+	var hasVector bool
+	err := si.conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')").Scan(&hasVector)
+	if err != nil || !hasVector {
+		// pgvector not installed, return empty list
+		return []VectorColumnInfo{}, nil
+	}
+
+	// Query to find all vector columns
+	// The dimensions are stored in the typmod field of pg_attribute
+	query := `
+		SELECT
+			n.nspname as schema_name,
+			c.relname as table_name,
+			a.attname as column_name,
+			CASE
+				WHEN a.atttypmod = -1 THEN -1
+				ELSE a.atttypmod
+			END as dimensions
+		FROM pg_attribute a
+		JOIN pg_class c ON a.attrelid = c.oid
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		JOIN pg_type t ON a.atttypid = t.oid
+		WHERE t.typname = 'vector'
+			AND a.attnum > 0
+			AND NOT a.attisdropped
+			AND n.nspname = $1
+	`
+
+	args := []interface{}{schema}
+	if table != "" {
+		query += " AND c.relname = $2"
+		args = append(args, table)
+	}
+
+	query += " ORDER BY n.nspname, c.relname, a.attnum"
+
+	rows, err := si.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query vector columns: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []VectorColumnInfo
+	for rows.Next() {
+		var col VectorColumnInfo
+		if err := rows.Scan(&col.SchemaName, &col.TableName, &col.ColumnName, &col.Dimensions); err != nil {
+			return nil, fmt.Errorf("failed to scan vector column: %w", err)
+		}
+		columns = append(columns, col)
+	}
+
+	return columns, nil
+}
+
+// IsPgVectorInstalled checks if the pgvector extension is installed
+func (si *SchemaInspector) IsPgVectorInstalled(ctx context.Context) (bool, string, error) {
+	var version *string
+	err := si.conn.QueryRow(ctx, `
+		SELECT installed_version
+		FROM pg_available_extensions
+		WHERE name = 'vector'
+	`).Scan(&version)
+
+	if err != nil {
+		// Extension not in catalog
+		return false, "", nil
+	}
+
+	if version == nil {
+		// Extension available but not installed
+		return false, "", nil
+	}
+
+	return true, *version, nil
+}

@@ -16,9 +16,10 @@ version: "3.8"
 # ==============================================================================
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (with extensions for Fluxbase)
   postgres:
-    image: postgres:18-alpine
+    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
+    # Or build locally: build: ./postgres
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}

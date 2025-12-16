@@ -1,11 +1,22 @@
 package ai
 
 import (
+	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// IntentRule defines a mapping between user keywords and required/forbidden tables
+type IntentRule struct {
+	Keywords       []string `json:"keywords"`
+	RequiredTable  string   `json:"requiredTable,omitempty"`
+	ForbiddenTable string   `json:"forbiddenTable,omitempty"`
+}
+
+// RequiredColumnsMap maps table names to required column lists
+type RequiredColumnsMap map[string][]string
 
 // Chatbot represents an AI chatbot definition
 type Chatbot struct {
@@ -23,6 +34,11 @@ type Chatbot struct {
 	AllowedOperations  []string `json:"allowed_operations"`
 	AllowedSchemas     []string `json:"allowed_schemas"`
 	HTTPAllowedDomains []string `json:"http_allowed_domains"`
+
+	// Intent validation (parsed from annotations)
+	IntentRules     []IntentRule       `json:"intent_rules,omitempty"`
+	RequiredColumns RequiredColumnsMap `json:"required_columns,omitempty"`
+	DefaultTable    string             `json:"default_table,omitempty"`
 
 	// Runtime config
 	Enabled     bool    `json:"enabled"`
@@ -59,6 +75,11 @@ type ChatbotConfig struct {
 	AllowedOperations  []string
 	AllowedSchemas     []string
 	HTTPAllowedDomains []string
+
+	// Intent validation
+	IntentRules     []IntentRule
+	RequiredColumns RequiredColumnsMap
+	DefaultTable    string
 
 	// Model settings
 	MaxTokens   int
@@ -159,6 +180,16 @@ var (
 
 	// Extract system prompt from export default
 	systemPromptPattern = regexp.MustCompile("(?s)export\\s+default\\s+`([^`]+)`")
+
+	// @fluxbase:intent-rules [{"keywords":["restaurant"],"requiredTable":"my_places"}]
+	// Note: We just match the start and use extractBalancedJSON for the full array
+	intentRulesPattern = regexp.MustCompile(`@fluxbase:intent-rules\s+(\[)`)
+
+	// @fluxbase:required-columns my_trips=id,title,image_url
+	requiredColumnsPattern = regexp.MustCompile(`@fluxbase:required-columns\s+([^\n*]+)`)
+
+	// @fluxbase:default-table my_place_visits
+	defaultTablePattern = regexp.MustCompile(`@fluxbase:default-table\s+([^\n*\s]+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -261,6 +292,44 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		}
 	}
 
+	// Parse intent rules (JSON array) - supports multiple annotations, merges all rules
+	allIntentLocs := intentRulesPattern.FindAllStringIndex(code, -1)
+	for _, loc := range allIntentLocs {
+		// Find the opening bracket position
+		bracketIdx := strings.Index(code[loc[0]:], "[")
+		if bracketIdx >= 0 {
+			jsonStr := extractBalancedJSON(code, loc[0]+bracketIdx)
+			if jsonStr != "" {
+				var rules []IntentRule
+				if err := json.Unmarshal([]byte(jsonStr), &rules); err == nil {
+					config.IntentRules = append(config.IntentRules, rules...)
+				}
+			}
+		}
+	}
+
+	// Parse required columns (format: table1=col1,col2 table2=col1,col2,col3)
+	// Supports multiple annotations, merges all column requirements
+	allColMatches := requiredColumnsPattern.FindAllStringSubmatch(code, -1)
+	for _, matches := range allColMatches {
+		if len(matches) > 1 {
+			parsed := parseRequiredColumns(matches[1])
+			if len(parsed) > 0 {
+				if config.RequiredColumns == nil {
+					config.RequiredColumns = make(RequiredColumnsMap)
+				}
+				for table, cols := range parsed {
+					config.RequiredColumns[table] = cols
+				}
+			}
+		}
+	}
+
+	// Parse default table
+	if matches := defaultTablePattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.DefaultTable = strings.TrimSpace(matches[1])
+	}
+
 	return config
 }
 
@@ -293,12 +362,81 @@ func parseCSV(s string) []string {
 	return result
 }
 
+// parseRequiredColumns parses "table1=col1,col2 table2=col3,col4" format
+func parseRequiredColumns(s string) RequiredColumnsMap {
+	result := make(RequiredColumnsMap)
+
+	// Split by whitespace to get individual table=columns pairs
+	pairs := strings.Fields(s)
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) == 2 {
+			tableName := strings.TrimSpace(parts[0])
+			columns := parseCSV(parts[1])
+			if tableName != "" && len(columns) > 0 {
+				result[tableName] = columns
+			}
+		}
+	}
+
+	return result
+}
+
+// extractBalancedJSON extracts a balanced JSON array starting from the given position
+// startIdx should point to the opening bracket '['
+func extractBalancedJSON(s string, startIdx int) string {
+	if startIdx >= len(s) || s[startIdx] != '[' {
+		return ""
+	}
+
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := startIdx; i < len(s); i++ {
+		c := s[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if c == '\\' && inString {
+			escaped = true
+			continue
+		}
+
+		if c == '"' {
+			inString = !inString
+			continue
+		}
+
+		if inString {
+			continue
+		}
+
+		if c == '[' {
+			depth++
+		} else if c == ']' {
+			depth--
+			if depth == 0 {
+				return s[startIdx : i+1]
+			}
+		}
+	}
+
+	return "" // Unbalanced
+}
+
 // ApplyConfig applies a ChatbotConfig to a Chatbot
 func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.AllowedTables = config.AllowedTables
 	c.AllowedOperations = config.AllowedOperations
 	c.AllowedSchemas = config.AllowedSchemas
 	c.HTTPAllowedDomains = config.HTTPAllowedDomains
+	c.IntentRules = config.IntentRules
+	c.RequiredColumns = config.RequiredColumns
+	c.DefaultTable = config.DefaultTable
 	c.MaxTokens = config.MaxTokens
 	c.Temperature = config.Temperature
 	c.Model = config.Model

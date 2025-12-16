@@ -89,6 +89,9 @@ export { FluxbaseAdminRPC } from "./admin-rpc";
 export { FluxbaseAI, FluxbaseAIChat } from "./ai";
 export type { AIChatOptions, AIChatEvent, AIChatEventType } from "./ai";
 
+// Vector search module
+export { FluxbaseVector } from "./vector";
+
 // Admin Migrations module
 export { FluxbaseAdminMigrations } from "./admin-migrations";
 
@@ -372,6 +375,14 @@ export type {
   VoidResponse,
   UserResponse,
   SessionResponse,
+
+  // Vector search types
+  VectorMetric,
+  VectorOrderOptions,
+  EmbedRequest,
+  EmbedResponse,
+  VectorSearchOptions,
+  VectorSearchResult,
 
   // Deprecated Supabase-compatible aliases
   SupabaseResponse,
