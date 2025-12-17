@@ -230,22 +230,29 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	migrationsHandler := migrations.NewHandler(db)
 
 	// Create vector search handler (for pgvector support) - create early for embedding service sharing
+	// Embedding can be enabled explicitly (EmbeddingEnabled=true) or via fallback from AI provider
 	var vectorHandler *VectorHandler
-	if cfg.AI.EmbeddingEnabled {
-		var err error
-		vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector(), db)
-		if err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize vector handler")
-		} else {
-			log.Info().
-				Str("provider", cfg.AI.EmbeddingProvider).
-				Str("model", cfg.AI.EmbeddingModel).
-				Msg("Vector handler initialized with embedding support")
+	var err error
+	vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector(), db)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize vector handler")
+	} else if vectorHandler.IsEmbeddingConfigured() {
+		// Embedding is available (either explicitly configured or via AI provider fallback)
+		provider := cfg.AI.EmbeddingProvider
+		if provider == "" {
+			provider = cfg.AI.ProviderType
 		}
+		model := ""
+		if vectorHandler.GetEmbeddingService() != nil {
+			model = vectorHandler.GetEmbeddingService().DefaultModel()
+		}
+		log.Info().
+			Str("provider", provider).
+			Str("model", model).
+			Bool("explicit_config", cfg.AI.EmbeddingEnabled).
+			Msg("Vector handler initialized with embedding support")
 	} else {
-		// Create vector handler without embedding (still useful for capabilities endpoint)
-		vectorHandler, _ = NewVectorHandler(&cfg.AI, db.Inspector(), db)
-		log.Info().Msg("Vector handler initialized (embedding disabled)")
+		log.Info().Msg("Vector handler initialized (embedding not available)")
 	}
 
 	// Create AI components (only if AI is enabled)

@@ -31,7 +31,11 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 		db:              db,
 	}
 
-	// Initialize embedding service if enabled
+	// Initialize embedding service
+	// Priority:
+	// 1. If EmbeddingEnabled is true, use explicit embedding configuration
+	// 2. If EmbeddingEnabled is false but AI provider is configured (ProviderEnabled=true),
+	//    try to use AI provider credentials as fallback for embeddings
 	if cfg.EmbeddingEnabled {
 		embeddingCfg, err := buildEmbeddingConfig(cfg)
 		if err != nil {
@@ -43,6 +47,23 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 			log.Warn().Err(err).Msg("Failed to initialize embedding service")
 		} else {
 			handler.embeddingService = service
+			log.Info().Msg("Embedding service initialized from explicit configuration")
+		}
+	} else if cfg.ProviderEnabled && cfg.ProviderType != "" {
+		// Fallback: Try to use AI provider settings for embeddings
+		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
+		if err != nil {
+			log.Debug().Err(err).Msg("Could not initialize embedding from AI provider (fallback)")
+		} else {
+			service, err := ai.NewEmbeddingService(embeddingCfg)
+			if err != nil {
+				log.Debug().Err(err).Msg("Failed to initialize embedding service from AI provider fallback")
+			} else {
+				handler.embeddingService = service
+				log.Info().
+					Str("provider", cfg.ProviderType).
+					Msg("Embedding service initialized from AI provider settings (fallback)")
+			}
 		}
 	}
 
@@ -93,6 +114,79 @@ func buildEmbeddingConfig(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, erro
 	return ai.EmbeddingServiceConfig{
 		Provider:     providerCfg,
 		DefaultModel: cfg.EmbeddingModel,
+		CacheEnabled: true,
+	}, nil
+}
+
+// buildEmbeddingConfigFromAIProvider builds embedding config using AI provider settings as fallback
+// This allows embeddings to work when only the main AI provider is configured (e.g., OpenAI for chatbots)
+func buildEmbeddingConfigFromAIProvider(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, error) {
+	providerType := cfg.ProviderType
+
+	// Build provider config using the main AI provider credentials
+	providerCfg := ai.ProviderConfig{
+		Type:   ai.ProviderType(providerType),
+		Config: make(map[string]string),
+	}
+
+	// Determine default embedding model based on provider
+	var defaultModel string
+
+	switch providerType {
+	case "openai":
+		if cfg.OpenAIAPIKey == "" {
+			return ai.EmbeddingServiceConfig{}, fmt.Errorf("openai: api_key not configured")
+		}
+		providerCfg.Config["api_key"] = cfg.OpenAIAPIKey
+		if cfg.OpenAIOrganizationID != "" {
+			providerCfg.Config["organization_id"] = cfg.OpenAIOrganizationID
+		}
+		if cfg.OpenAIBaseURL != "" {
+			providerCfg.Config["base_url"] = cfg.OpenAIBaseURL
+		}
+		defaultModel = "text-embedding-3-small"
+
+	case "azure":
+		if cfg.AzureAPIKey == "" || cfg.AzureEndpoint == "" {
+			return ai.EmbeddingServiceConfig{}, fmt.Errorf("azure: api_key or endpoint not configured")
+		}
+		providerCfg.Config["api_key"] = cfg.AzureAPIKey
+		providerCfg.Config["endpoint"] = cfg.AzureEndpoint
+		// For Azure, we need a deployment name - try embedding-specific first, then fall back to main
+		deploymentName := cfg.AzureEmbeddingDeploymentName
+		if deploymentName == "" {
+			deploymentName = cfg.AzureDeploymentName
+		}
+		if deploymentName == "" {
+			return ai.EmbeddingServiceConfig{}, fmt.Errorf("azure: no deployment name configured for embeddings")
+		}
+		providerCfg.Config["deployment_name"] = deploymentName
+		if cfg.AzureAPIVersion != "" {
+			providerCfg.Config["api_version"] = cfg.AzureAPIVersion
+		}
+		defaultModel = "text-embedding-ada-002"
+
+	case "ollama":
+		endpoint := cfg.OllamaEndpoint
+		if endpoint == "" {
+			endpoint = "http://localhost:11434"
+		}
+		providerCfg.Config["endpoint"] = endpoint
+		defaultModel = "nomic-embed-text"
+
+	default:
+		return ai.EmbeddingServiceConfig{}, fmt.Errorf("unsupported provider type for embedding fallback: %s", providerType)
+	}
+
+	// Use explicit embedding model if configured, otherwise use provider default
+	if cfg.EmbeddingModel != "" {
+		defaultModel = cfg.EmbeddingModel
+	}
+	providerCfg.Model = defaultModel
+
+	return ai.EmbeddingServiceConfig{
+		Provider:     providerCfg,
+		DefaultModel: defaultModel,
 		CacheEnabled: true,
 	}, nil
 }
@@ -542,8 +636,11 @@ type VectorCapabilities struct {
 // HandleGetCapabilities handles GET /api/v1/capabilities/vector
 // Returns information about vector search capabilities
 func (h *VectorHandler) HandleGetCapabilities(c *fiber.Ctx) error {
+	// EmbeddingEnabled reflects actual service availability (including fallback)
+	embeddingAvailable := h.embeddingService != nil
+
 	caps := VectorCapabilities{
-		EmbeddingEnabled: h.config.EmbeddingEnabled,
+		EmbeddingEnabled: embeddingAvailable,
 	}
 
 	// Check pgvector installation status
@@ -558,16 +655,23 @@ func (h *VectorHandler) HandleGetCapabilities(c *fiber.Ctx) error {
 	}
 
 	// Set enabled if both pgvector is installed and embedding is available
-	caps.Enabled = caps.PgVectorInstalled && caps.EmbeddingEnabled
+	caps.Enabled = caps.PgVectorInstalled && embeddingAvailable
 
-	// Add embedding provider info if enabled
-	if caps.EmbeddingEnabled {
+	// Add embedding provider info if embedding is available
+	if embeddingAvailable {
+		// Determine actual provider being used
 		provider := h.config.EmbeddingProvider
 		if provider == "" {
 			provider = h.config.ProviderType
 		}
 		caps.EmbeddingProvider = provider
-		caps.EmbeddingModel = h.config.EmbeddingModel
+
+		// Get model from service if available
+		if h.embeddingService != nil {
+			caps.EmbeddingModel = h.embeddingService.DefaultModel()
+		} else if h.config.EmbeddingModel != "" {
+			caps.EmbeddingModel = h.config.EmbeddingModel
+		}
 	}
 
 	return c.JSON(caps)
