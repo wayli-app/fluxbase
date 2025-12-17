@@ -64,26 +64,35 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 ### Configuring Embedding Provider
 
-Set environment variables for your embedding provider:
+**Automatic Fallback**: If you already have an AI provider configured for chatbots (e.g., OpenAI API key set), embeddings will automatically work using those same credentials. No additional configuration is needed.
+
+**Explicit Configuration**: For fine-grained control or to use a different provider for embeddings, set these environment variables:
 
 ```bash
-# OpenAI
+# OpenAI (explicit configuration)
 FLUXBASE_AI_EMBEDDING_ENABLED=true
 FLUXBASE_AI_EMBEDDING_PROVIDER=openai
 FLUXBASE_AI_EMBEDDING_MODEL=text-embedding-3-small
 FLUXBASE_AI_OPENAI_API_KEY=sk-...
 
 # Or Azure OpenAI
+FLUXBASE_AI_EMBEDDING_ENABLED=true
 FLUXBASE_AI_EMBEDDING_PROVIDER=azure
 FLUXBASE_AI_AZURE_API_KEY=...
 FLUXBASE_AI_AZURE_ENDPOINT=https://your-resource.openai.azure.com
 FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME=text-embedding-ada-002
 
 # Or Ollama (local)
+FLUXBASE_AI_EMBEDDING_ENABLED=true
 FLUXBASE_AI_EMBEDDING_PROVIDER=ollama
 FLUXBASE_AI_OLLAMA_ENDPOINT=http://localhost:11434
 FLUXBASE_AI_EMBEDDING_MODEL=nomic-embed-text
 ```
+
+**Default Models** (when using AI provider fallback):
+- OpenAI: `text-embedding-3-small`
+- Azure: `text-embedding-ada-002`
+- Ollama: `nomic-embed-text`
 
 ## Creating Knowledge Bases
 
