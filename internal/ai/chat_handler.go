@@ -25,6 +25,7 @@ type ChatHandler struct {
 	executor      *Executor
 	httpHandler   *HttpRequestHandler
 	auditLogger   *AuditLogger
+	ragService    *RAGService
 	metrics       *observability.Metrics
 	config        *config.AIConfig
 	providers     map[string]Provider
@@ -38,7 +39,15 @@ func NewChatHandler(
 	conversations *ConversationManager,
 	metrics *observability.Metrics,
 	cfg *config.AIConfig,
+	embeddingService *EmbeddingService,
 ) *ChatHandler {
+	// Initialize RAG service if embedding is available
+	var ragService *RAGService
+	if embeddingService != nil {
+		kbStorage := NewKnowledgeBaseStorage(db)
+		ragService = NewRAGService(kbStorage, embeddingService)
+	}
+
 	return &ChatHandler{
 		storage:       storage,
 		conversations: conversations,
@@ -46,6 +55,7 @@ func NewChatHandler(
 		executor:      NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
 		httpHandler:   NewHttpRequestHandler(),
 		auditLogger:   NewAuditLogger(db),
+		ragService:    ragService,
 		metrics:       metrics,
 		config:        cfg,
 		providers:     make(map[string]Provider),
@@ -313,6 +323,22 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		log.Error().Err(err).Msg("Failed to build system prompt")
 		h.sendError(chatCtx, msg.ConversationID, "PROMPT_ERROR", "Failed to build prompt")
 		return
+	}
+
+	// Retrieve RAG context if available
+	if h.ragService != nil {
+		ragSection, err := h.ragService.BuildRAGSystemPromptSection(ctx, chatbot.ID, msg.Content)
+		if err != nil {
+			log.Warn().Err(err).Str("chatbot_id", chatbot.ID).Msg("Failed to retrieve RAG context")
+			// Continue without RAG - don't fail the request
+		} else if ragSection != "" {
+			systemPrompt = systemPrompt + "\n\n" + ragSection
+			log.Debug().
+				Str("chatbot_id", chatbot.ID).
+				Str("conversation_id", msg.ConversationID).
+				Int("rag_section_len", len(ragSection)).
+				Msg("RAG context added to system prompt")
+		}
 	}
 
 	// Build messages for LLM

@@ -1,12 +1,16 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/ai"
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -16,13 +20,15 @@ type VectorHandler struct {
 	embeddingService *ai.EmbeddingService
 	config           *config.AIConfig
 	schemaInspector  *database.SchemaInspector
+	db               *database.Connection
 }
 
 // NewVectorHandler creates a new vector handler
-func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInspector) (*VectorHandler, error) {
+func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInspector, db *database.Connection) (*VectorHandler, error) {
 	handler := &VectorHandler{
 		config:          cfg,
 		schemaInspector: schemaInspector,
+		db:              db,
 	}
 
 	// Initialize embedding service if enabled
@@ -195,6 +201,12 @@ func (h *VectorHandler) HandleEmbed(c *fiber.Ctx) error {
 // HandleSearch handles POST /api/v1/vector/search
 // This is a convenience endpoint that auto-embeds query text and performs vector similarity search
 func (h *VectorHandler) HandleSearch(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Database not configured",
+		})
+	}
+
 	var req VectorSearchRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -205,6 +217,13 @@ func (h *VectorHandler) HandleSearch(c *fiber.Ctx) error {
 	if req.Table == "" || req.Column == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "table and column are required",
+		})
+	}
+
+	// Validate table and column names (prevent SQL injection)
+	if !isValidIdentifier(req.Table) || !isValidIdentifier(req.Column) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid table or column name",
 		})
 	}
 
@@ -242,42 +261,272 @@ func (h *VectorHandler) HandleSearch(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate metric
-	metric := req.Metric
+	// Validate and normalize metric
+	metric := strings.ToLower(req.Metric)
 	if metric == "" {
 		metric = "cosine"
 	}
 
-	switch strings.ToLower(metric) {
-	case "l2", "euclidean", "cosine", "inner_product", "ip":
-		// Valid
+	var distanceOp string
+	switch metric {
+	case "l2", "euclidean":
+		distanceOp = "<->"
+	case "cosine":
+		distanceOp = "<=>"
+	case "inner_product", "ip":
+		distanceOp = "<#>"
 	default:
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid metric; use l2, cosine, or inner_product",
 		})
 	}
 
-	// For now, return an informational response indicating how to use vector search
-	// A full implementation would execute the query using the tables API internally
-	result := VectorSearchResponse{
-		Data:  []map[string]interface{}{},
-		Model: embeddingModel,
+	// Build select columns
+	selectCols := "*"
+	if req.Select != "" {
+		// Validate select columns
+		cols := strings.Split(req.Select, ",")
+		validCols := make([]string, 0, len(cols))
+		for _, col := range cols {
+			col = strings.TrimSpace(col)
+			if isValidIdentifier(col) {
+				validCols = append(validCols, col)
+			}
+		}
+		if len(validCols) > 0 {
+			selectCols = strings.Join(validCols, ", ")
+		}
 	}
 
-	// Log the request for debugging
+	// Set defaults
+	matchCount := 10
+	if req.MatchCount != nil && *req.MatchCount > 0 {
+		matchCount = *req.MatchCount
+		if matchCount > 1000 {
+			matchCount = 1000 // Cap at 1000
+		}
+	}
+
+	// Get user context for RLS
+	userID := ""
+	userRole := "anon"
+	var claims *auth.TokenClaims
+	if user, ok := c.Locals("user").(*auth.TokenClaims); ok && user != nil {
+		userID = user.Subject
+		userRole = user.Role
+		claims = user
+	}
+
+	// Execute vector search with RLS context
+	data, distances, err := h.executeVectorSearch(c.Context(), vectorSearchParams{
+		table:          req.Table,
+		column:         req.Column,
+		selectCols:     selectCols,
+		queryVector:    queryVector,
+		distanceOp:     distanceOp,
+		matchThreshold: req.MatchThreshold,
+		matchCount:     matchCount,
+		filters:        req.Filters,
+		userID:         userID,
+		userRole:       userRole,
+		claims:         claims,
+	})
+	if err != nil {
+		log.Error().Err(err).
+			Str("table", req.Table).
+			Str("column", req.Column).
+			Msg("Vector search failed")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Vector search failed: " + err.Error(),
+		})
+	}
+
+	result := VectorSearchResponse{
+		Data:      data,
+		Distances: distances,
+		Model:     embeddingModel,
+	}
+
 	log.Debug().
 		Str("table", req.Table).
 		Str("column", req.Column).
 		Str("metric", metric).
-		Int("vector_dimensions", len(queryVector)).
-		Msg("Vector search request")
+		Int("results", len(data)).
+		Msg("Vector search completed")
 
 	return c.JSON(result)
+}
+
+// vectorSearchParams holds parameters for vector search execution
+type vectorSearchParams struct {
+	table          string
+	column         string
+	selectCols     string
+	queryVector    []float64
+	distanceOp     string
+	matchThreshold *float64
+	matchCount     int
+	filters        []VectorQueryFilter
+	userID         string
+	userRole       string
+	claims         *auth.TokenClaims
+}
+
+// executeVectorSearch executes the vector similarity search with RLS context
+func (h *VectorHandler) executeVectorSearch(ctx context.Context, params vectorSearchParams) ([]map[string]interface{}, []float64, error) {
+	// Format the vector as PostgreSQL array literal
+	vectorStr := formatVectorLiteral(params.queryVector)
+
+	// Build the base query
+	// Using subquery to calculate distance once
+	query := fmt.Sprintf(`
+		SELECT %s, (%s %s '%s'::vector) as _distance
+		FROM %s
+		WHERE 1=1
+	`, params.selectCols, params.column, params.distanceOp, vectorStr, params.table)
+
+	// Add threshold filter if specified
+	if params.matchThreshold != nil {
+		query += fmt.Sprintf(" AND (%s %s '%s'::vector) < %f",
+			params.column, params.distanceOp, vectorStr, *params.matchThreshold)
+	}
+
+	// Add custom filters
+	for i, filter := range params.filters {
+		if !isValidIdentifier(filter.Column) {
+			continue
+		}
+		op := normalizeOperator(filter.Operator)
+		if op == "" {
+			continue
+		}
+		// Use parameter placeholder to prevent injection
+		query += fmt.Sprintf(" AND %s %s $%d", filter.Column, op, i+1)
+	}
+
+	// Add ordering and limit
+	query += fmt.Sprintf(" ORDER BY _distance LIMIT %d", params.matchCount)
+
+	// Collect filter values for parameterized query
+	filterValues := make([]interface{}, len(params.filters))
+	for i, filter := range params.filters {
+		filterValues[i] = filter.Value
+	}
+
+	// Execute with RLS context
+	tx, err := h.db.Pool().Begin(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Set RLS context
+	if err := middleware.SetRLSContext(ctx, tx, params.userID, params.userRole, params.claims); err != nil {
+		return nil, nil, fmt.Errorf("failed to set RLS context: %w", err)
+	}
+
+	// Execute query
+	rows, err := tx.Query(ctx, query, filterValues...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	// Collect results
+	var data []map[string]interface{}
+	var distances []float64
+
+	fieldDescs := rows.FieldDescriptions()
+	for rows.Next() {
+		values, err := rows.Values()
+		if err != nil {
+			continue
+		}
+
+		row := make(map[string]interface{})
+		var distance float64
+
+		for i, fd := range fieldDescs {
+			colName := string(fd.Name)
+			if colName == "_distance" {
+				if d, ok := values[i].(float64); ok {
+					distance = d
+				}
+			} else {
+				row[colName] = values[i]
+			}
+		}
+
+		data = append(data, row)
+		distances = append(distances, distance)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("error reading results: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, fmt.Errorf("failed to commit: %w", err)
+	}
+
+	return data, distances, nil
+}
+
+// isValidIdentifier checks if a string is a valid SQL identifier
+func isValidIdentifier(s string) bool {
+	if s == "" || len(s) > 128 {
+		return false
+	}
+	// Allow schema.table format
+	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`, s)
+	return matched
+}
+
+// formatVectorLiteral formats a float64 slice as PostgreSQL vector literal
+func formatVectorLiteral(v []float64) string {
+	parts := make([]string, len(v))
+	for i, f := range v {
+		parts[i] = fmt.Sprintf("%g", f)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// normalizeOperator converts filter operators to SQL operators
+func normalizeOperator(op string) string {
+	switch strings.ToLower(op) {
+	case "eq", "=":
+		return "="
+	case "neq", "!=", "<>":
+		return "!="
+	case "gt", ">":
+		return ">"
+	case "gte", ">=":
+		return ">="
+	case "lt", "<":
+		return "<"
+	case "lte", "<=":
+		return "<="
+	case "like":
+		return "LIKE"
+	case "ilike":
+		return "ILIKE"
+	case "is":
+		return "IS"
+	case "in":
+		return "IN"
+	default:
+		return ""
+	}
 }
 
 // IsEmbeddingConfigured returns whether the embedding service is available
 func (h *VectorHandler) IsEmbeddingConfigured() bool {
 	return h.embeddingService != nil
+}
+
+// GetEmbeddingService returns the embedding service (may be nil if not configured)
+func (h *VectorHandler) GetEmbeddingService() *ai.EmbeddingService {
+	return h.embeddingService
 }
 
 // VectorCapabilities represents the vector search capabilities of the system
