@@ -14,6 +14,7 @@ AI chatbots in Fluxbase enable:
 - **Provider Management**: Support for OpenAI, Azure OpenAI, and Ollama
 - **Built-in Security**: Rate limiting, token budgets, and row-level security
 - **Conversation History**: Optional persistence of chat sessions
+- **RAG Support**: Connect knowledge bases for context-aware responses
 
 Common use cases include SQL assistants, customer support bots, data exploration tools, and domain-specific query interfaces.
 
@@ -281,6 +282,9 @@ Available metadata annotations:
 | `@fluxbase:allow-unauthenticated` | Allow anonymous access | `false` |
 | `@fluxbase:public` | Show in public chatbot list | `true` |
 | `@fluxbase:http-allowed-domains` | Domains chatbot can fetch (comma-separated) | `""` (disabled) |
+| `@fluxbase:knowledge-base` | Name of knowledge base for RAG (can specify multiple) | - |
+| `@fluxbase:rag-max-chunks` | Maximum chunks to retrieve for RAG context | `5` |
+| `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0) | `0.7` |
 
 ### HTTP Tool
 
@@ -323,6 +327,49 @@ Use the http_get tool to fetch weather data:
 Current user ID: {{user_id}}
 `
 ```
+
+### RAG & Knowledge Bases
+
+Chatbots can use Retrieval-Augmented Generation (RAG) to provide context-aware responses based on your custom documentation, FAQs, or other content stored in knowledge bases.
+
+**Enable RAG by linking knowledge bases:**
+
+```typescript
+/**
+ * Support Assistant
+ *
+ * @fluxbase:description Customer support with knowledge base
+ * @fluxbase:knowledge-base product-docs
+ * @fluxbase:knowledge-base faq
+ * @fluxbase:rag-max-chunks 5
+ * @fluxbase:rag-similarity-threshold 0.7
+ */
+
+export default `You are a helpful customer support assistant.
+
+Use the provided context from the knowledge base to answer questions.
+If you can't find relevant information in the context, say so honestly.
+
+Current user ID: {{user_id}}
+`
+```
+
+**How RAG works:**
+
+1. When a user sends a message, the query is embedded using the same model as documents
+2. Similar chunks are retrieved from linked knowledge bases via vector similarity search
+3. Retrieved context is injected into the system prompt before the LLM call
+4. The LLM generates an informed response using the provided context
+
+**RAG configuration options:**
+
+| Annotation | Description | Default |
+|------------|-------------|---------|
+| `@fluxbase:knowledge-base` | Knowledge base name (can specify multiple) | - |
+| `@fluxbase:rag-max-chunks` | Maximum chunks to retrieve | `5` |
+| `@fluxbase:rag-similarity-threshold` | Minimum similarity (0.0-1.0) | `0.7` |
+
+For detailed documentation on creating knowledge bases, adding documents, and configuring RAG, see the [Knowledge Bases & RAG](/docs/guides/knowledge-bases) guide.
 
 ### System Prompt Best Practices
 
@@ -533,6 +580,7 @@ Restrict database operations to prevent data modification:
 
 ## Next Steps
 
+- [Knowledge Bases & RAG](/docs/guides/knowledge-bases) - Create knowledge bases for RAG-powered chatbots
 - [TypeScript SDK Reference](/docs/api/sdk) - Full SDK API documentation
 - [Row-Level Security](/docs/guides/row-level-security) - Secure your data access
 - [Authentication](/docs/guides/authentication) - User authentication setup

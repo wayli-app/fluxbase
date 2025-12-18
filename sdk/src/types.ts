@@ -2663,6 +2663,176 @@ export interface UpdateConversationOptions {
 }
 
 // ============================================================================
+// Knowledge Base Types (RAG)
+// ============================================================================
+
+/**
+ * Knowledge base summary
+ */
+export interface KnowledgeBaseSummary {
+  id: string
+  name: string
+  namespace: string
+  description: string
+  enabled: boolean
+  document_count: number
+  total_chunks: number
+  embedding_model: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Knowledge base full details
+ */
+export interface KnowledgeBase extends KnowledgeBaseSummary {
+  embedding_dimensions: number
+  chunk_size: number
+  chunk_overlap: number
+  chunk_strategy: string
+  source: string
+  created_by?: string
+}
+
+/**
+ * Request to create a knowledge base
+ */
+export interface CreateKnowledgeBaseRequest {
+  name: string
+  namespace?: string
+  description?: string
+  embedding_model?: string
+  embedding_dimensions?: number
+  chunk_size?: number
+  chunk_overlap?: number
+  chunk_strategy?: string
+}
+
+/**
+ * Request to update a knowledge base
+ */
+export interface UpdateKnowledgeBaseRequest {
+  name?: string
+  description?: string
+  embedding_model?: string
+  embedding_dimensions?: number
+  chunk_size?: number
+  chunk_overlap?: number
+  chunk_strategy?: string
+  enabled?: boolean
+}
+
+/**
+ * Document status
+ */
+export type DocumentStatus = 'pending' | 'processing' | 'indexed' | 'failed'
+
+/**
+ * Document in a knowledge base
+ */
+export interface KnowledgeBaseDocument {
+  id: string
+  knowledge_base_id: string
+  title: string
+  source_url?: string
+  source_type?: string
+  mime_type: string
+  content_hash: string
+  chunk_count: number
+  status: DocumentStatus
+  error_message?: string
+  metadata?: Record<string, string>
+  tags?: string[]
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to add a document
+ */
+export interface AddDocumentRequest {
+  title?: string
+  content: string
+  source?: string
+  mime_type?: string
+  metadata?: Record<string, string>
+}
+
+/**
+ * Response after adding a document
+ */
+export interface AddDocumentResponse {
+  document_id: string
+  status: string
+  message: string
+}
+
+/**
+ * Chatbot-knowledge base link
+ */
+export interface ChatbotKnowledgeBaseLink {
+  id: string
+  chatbot_id: string
+  knowledge_base_id: string
+  enabled: boolean
+  max_chunks: number
+  similarity_threshold: number
+  priority: number
+  created_at: string
+}
+
+/**
+ * Request to link a knowledge base to a chatbot
+ */
+export interface LinkKnowledgeBaseRequest {
+  knowledge_base_id: string
+  priority?: number
+  max_chunks?: number
+  similarity_threshold?: number
+}
+
+/**
+ * Request to update a chatbot-knowledge base link
+ */
+export interface UpdateChatbotKnowledgeBaseRequest {
+  priority?: number
+  max_chunks?: number
+  similarity_threshold?: number
+  enabled?: boolean
+}
+
+/**
+ * Search result from knowledge base
+ */
+export interface KnowledgeBaseSearchResult {
+  chunk_id: string
+  document_id: string
+  document_title: string
+  knowledge_base_name?: string
+  content: string
+  similarity: number
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Request to search a knowledge base
+ */
+export interface SearchKnowledgeBaseRequest {
+  query: string
+  max_chunks?: number
+  threshold?: number
+}
+
+/**
+ * Response from knowledge base search
+ */
+export interface SearchKnowledgeBaseResponse {
+  results: KnowledgeBaseSearchResult[]
+  count: number
+  query: string
+}
+
+// ============================================================================
 // Fluxbase Response Types (Supabase-compatible)
 // ============================================================================
 

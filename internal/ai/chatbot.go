@@ -100,6 +100,14 @@ type ChatbotConfig struct {
 	AllowUnauthenticated bool
 	IsPublic             bool
 
+	// RAG/Knowledge Base settings
+	KnowledgeBases         []string // Knowledge base names to link
+	RAGMaxChunks           int      // Max chunks to retrieve per query
+	RAGSimilarityThreshold float64  // Minimum similarity score (0-1)
+	RAGTable               string   // User table for vector search (optional)
+	RAGColumn              string   // Vector column in RAG table
+	RAGContentColumn       string   // Text content column in RAG table
+
 	// Metadata
 	Version int
 }
@@ -107,21 +115,24 @@ type ChatbotConfig struct {
 // DefaultChatbotConfig returns the default configuration for a chatbot
 func DefaultChatbotConfig() ChatbotConfig {
 	return ChatbotConfig{
-		AllowedTables:        []string{},
-		AllowedOperations:    []string{"SELECT"},
-		AllowedSchemas:       []string{"public"},
-		HTTPAllowedDomains:   []string{},
-		MaxTokens:            4096,
-		Temperature:          0.7,
-		PersistConversations: false,
-		ConversationTTL:      24 * time.Hour,
-		MaxTurns:             50,
-		RateLimitPerMinute:   20,
-		DailyRequestLimit:    500,
-		DailyTokenBudget:     100000,
-		AllowUnauthenticated: false,
-		IsPublic:             true,
-		Version:              1,
+		AllowedTables:          []string{},
+		AllowedOperations:      []string{"SELECT"},
+		AllowedSchemas:         []string{"public"},
+		HTTPAllowedDomains:     []string{},
+		MaxTokens:              4096,
+		Temperature:            0.7,
+		PersistConversations:   false,
+		ConversationTTL:        24 * time.Hour,
+		MaxTurns:               50,
+		RateLimitPerMinute:     20,
+		DailyRequestLimit:      500,
+		DailyTokenBudget:       100000,
+		AllowUnauthenticated:   false,
+		IsPublic:               true,
+		KnowledgeBases:         []string{},
+		RAGMaxChunks:           5,
+		RAGSimilarityThreshold: 0.7,
+		Version:                1,
 	}
 }
 
@@ -190,6 +201,25 @@ var (
 
 	// @fluxbase:default-table my_place_visits
 	defaultTablePattern = regexp.MustCompile(`@fluxbase:default-table\s+([^\n*\s]+)`)
+
+	// RAG/Knowledge Base annotations
+	// @fluxbase:knowledge-base support-docs,faq-base
+	knowledgeBasePattern = regexp.MustCompile(`@fluxbase:knowledge-base\s+([^\n*]+)`)
+
+	// @fluxbase:rag-max-chunks 5
+	ragMaxChunksPattern = regexp.MustCompile(`@fluxbase:rag-max-chunks\s+(\d+)`)
+
+	// @fluxbase:rag-similarity-threshold 0.7
+	ragThresholdPattern = regexp.MustCompile(`@fluxbase:rag-similarity-threshold\s+([\d.]+)`)
+
+	// @fluxbase:rag-table documents (for user-table RAG)
+	ragTablePattern = regexp.MustCompile(`@fluxbase:rag-table\s+([^\n*\s]+)`)
+
+	// @fluxbase:rag-column embedding (vector column in rag-table)
+	ragColumnPattern = regexp.MustCompile(`@fluxbase:rag-column\s+([^\n*\s]+)`)
+
+	// @fluxbase:rag-content-column content (text column to retrieve)
+	ragContentColumnPattern = regexp.MustCompile(`@fluxbase:rag-content-column\s+([^\n*\s]+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -328,6 +358,40 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 	// Parse default table
 	if matches := defaultTablePattern.FindStringSubmatch(code); len(matches) > 1 {
 		config.DefaultTable = strings.TrimSpace(matches[1])
+	}
+
+	// Parse RAG/Knowledge Base annotations
+	if matches := knowledgeBasePattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.KnowledgeBases = parseCSV(matches[1])
+	}
+
+	// Parse RAG max chunks
+	if matches := ragMaxChunksPattern.FindStringSubmatch(code); len(matches) > 1 {
+		if v, err := strconv.Atoi(matches[1]); err == nil && v > 0 {
+			config.RAGMaxChunks = v
+		}
+	}
+
+	// Parse RAG similarity threshold
+	if matches := ragThresholdPattern.FindStringSubmatch(code); len(matches) > 1 {
+		if v, err := strconv.ParseFloat(matches[1], 64); err == nil && v >= 0 && v <= 1 {
+			config.RAGSimilarityThreshold = v
+		}
+	}
+
+	// Parse RAG table (user-table RAG)
+	if matches := ragTablePattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.RAGTable = strings.TrimSpace(matches[1])
+	}
+
+	// Parse RAG column
+	if matches := ragColumnPattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.RAGColumn = strings.TrimSpace(matches[1])
+	}
+
+	// Parse RAG content column
+	if matches := ragContentColumnPattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.RAGContentColumn = strings.TrimSpace(matches[1])
 	}
 
 	return config

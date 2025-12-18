@@ -1,6 +1,6 @@
 /**
- * Admin AI module for managing AI chatbots and providers
- * Provides administrative operations for chatbot lifecycle management
+ * Admin AI module for managing AI chatbots, providers, and knowledge bases
+ * Provides administrative operations for chatbot lifecycle management and RAG
  */
 
 import type { FluxbaseFetch } from "./fetch";
@@ -12,6 +12,17 @@ import type {
   UpdateAIProviderRequest,
   SyncChatbotsOptions,
   SyncChatbotsResult,
+  KnowledgeBase,
+  KnowledgeBaseSummary,
+  CreateKnowledgeBaseRequest,
+  UpdateKnowledgeBaseRequest,
+  KnowledgeBaseDocument,
+  AddDocumentRequest,
+  AddDocumentResponse,
+  ChatbotKnowledgeBaseLink,
+  LinkKnowledgeBaseRequest,
+  UpdateChatbotKnowledgeBaseRequest,
+  SearchKnowledgeBaseResponse,
 } from "./types";
 
 /**
@@ -360,6 +371,429 @@ export class FluxbaseAdminAI {
   ): Promise<{ data: null; error: Error | null }> {
     try {
       await this.fetch.delete(`/api/v1/admin/ai/providers/${id}`);
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  // ============================================================================
+  // KNOWLEDGE BASE MANAGEMENT (RAG)
+  // ============================================================================
+
+  /**
+   * List all knowledge bases
+   *
+   * @returns Promise resolving to { data, error } tuple with array of knowledge base summaries
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.listKnowledgeBases()
+   * if (data) {
+   *   console.log('Knowledge bases:', data.map(kb => kb.name))
+   * }
+   * ```
+   */
+  async listKnowledgeBases(): Promise<{
+    data: KnowledgeBaseSummary[] | null;
+    error: Error | null;
+  }> {
+    try {
+      const response = await this.fetch.get<{
+        knowledge_bases: KnowledgeBaseSummary[];
+        count: number;
+      }>("/api/v1/admin/ai/knowledge-bases");
+      return { data: response.knowledge_bases || [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get a specific knowledge base
+   *
+   * @param id - Knowledge base ID
+   * @returns Promise resolving to { data, error } tuple with knowledge base details
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.getKnowledgeBase('uuid')
+   * if (data) {
+   *   console.log('Knowledge base:', data.name)
+   * }
+   * ```
+   */
+  async getKnowledgeBase(
+    id: string,
+  ): Promise<{ data: KnowledgeBase | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<KnowledgeBase>(
+        `/api/v1/admin/ai/knowledge-bases/${id}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Create a new knowledge base
+   *
+   * @param request - Knowledge base configuration
+   * @returns Promise resolving to { data, error } tuple with created knowledge base
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.createKnowledgeBase({
+   *   name: 'product-docs',
+   *   description: 'Product documentation',
+   *   chunk_size: 512,
+   *   chunk_overlap: 50,
+   * })
+   * ```
+   */
+  async createKnowledgeBase(
+    request: CreateKnowledgeBaseRequest,
+  ): Promise<{ data: KnowledgeBase | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.post<KnowledgeBase>(
+        "/api/v1/admin/ai/knowledge-bases",
+        request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Update an existing knowledge base
+   *
+   * @param id - Knowledge base ID
+   * @param updates - Fields to update
+   * @returns Promise resolving to { data, error } tuple with updated knowledge base
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.updateKnowledgeBase('uuid', {
+   *   description: 'Updated description',
+   *   enabled: true,
+   * })
+   * ```
+   */
+  async updateKnowledgeBase(
+    id: string,
+    updates: UpdateKnowledgeBaseRequest,
+  ): Promise<{ data: KnowledgeBase | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.put<KnowledgeBase>(
+        `/api/v1/admin/ai/knowledge-bases/${id}`,
+        updates,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Delete a knowledge base
+   *
+   * @param id - Knowledge base ID
+   * @returns Promise resolving to { data, error } tuple
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.deleteKnowledgeBase('uuid')
+   * ```
+   */
+  async deleteKnowledgeBase(
+    id: string,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.delete(`/api/v1/admin/ai/knowledge-bases/${id}`);
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  // ============================================================================
+  // DOCUMENT MANAGEMENT
+  // ============================================================================
+
+  /**
+   * List documents in a knowledge base
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @returns Promise resolving to { data, error } tuple with array of documents
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.listDocuments('kb-uuid')
+   * if (data) {
+   *   console.log('Documents:', data.map(d => d.title))
+   * }
+   * ```
+   */
+  async listDocuments(
+    knowledgeBaseId: string,
+  ): Promise<{ data: KnowledgeBaseDocument[] | null; error: Error | null }> {
+    try {
+      const response = await this.fetch.get<{
+        documents: KnowledgeBaseDocument[];
+        count: number;
+      }>(`/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/documents`);
+      return { data: response.documents || [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get a specific document
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param documentId - Document ID
+   * @returns Promise resolving to { data, error } tuple with document details
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.getDocument('kb-uuid', 'doc-uuid')
+   * ```
+   */
+  async getDocument(
+    knowledgeBaseId: string,
+    documentId: string,
+  ): Promise<{ data: KnowledgeBaseDocument | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<KnowledgeBaseDocument>(
+        `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Add a document to a knowledge base
+   *
+   * Document will be chunked and embedded asynchronously.
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param request - Document content and metadata
+   * @returns Promise resolving to { data, error } tuple with document ID
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.addDocument('kb-uuid', {
+   *   title: 'Getting Started Guide',
+   *   content: 'This is the content of the document...',
+   *   metadata: { category: 'guides' },
+   * })
+   * if (data) {
+   *   console.log('Document ID:', data.document_id)
+   * }
+   * ```
+   */
+  async addDocument(
+    knowledgeBaseId: string,
+    request: AddDocumentRequest,
+  ): Promise<{ data: AddDocumentResponse | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.post<AddDocumentResponse>(
+        `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/documents`,
+        request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Delete a document from a knowledge base
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param documentId - Document ID
+   * @returns Promise resolving to { data, error } tuple
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.deleteDocument('kb-uuid', 'doc-uuid')
+   * ```
+   */
+  async deleteDocument(
+    knowledgeBaseId: string,
+    documentId: string,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.delete(
+        `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`,
+      );
+      return { data: null, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Search a knowledge base
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Promise resolving to { data, error } tuple with search results
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.searchKnowledgeBase('kb-uuid', 'how to reset password', {
+   *   max_chunks: 5,
+   *   threshold: 0.7,
+   * })
+   * if (data) {
+   *   console.log('Results:', data.results.map(r => r.content))
+   * }
+   * ```
+   */
+  async searchKnowledgeBase(
+    knowledgeBaseId: string,
+    query: string,
+    options?: { max_chunks?: number; threshold?: number },
+  ): Promise<{ data: SearchKnowledgeBaseResponse | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.post<SearchKnowledgeBaseResponse>(
+        `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/search`,
+        {
+          query,
+          max_chunks: options?.max_chunks,
+          threshold: options?.threshold,
+        },
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  // ============================================================================
+  // CHATBOT KNOWLEDGE BASE LINKING
+  // ============================================================================
+
+  /**
+   * List knowledge bases linked to a chatbot
+   *
+   * @param chatbotId - Chatbot ID
+   * @returns Promise resolving to { data, error } tuple with linked knowledge bases
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.listChatbotKnowledgeBases('chatbot-uuid')
+   * if (data) {
+   *   console.log('Linked KBs:', data.map(l => l.knowledge_base_id))
+   * }
+   * ```
+   */
+  async listChatbotKnowledgeBases(
+    chatbotId: string,
+  ): Promise<{ data: ChatbotKnowledgeBaseLink[] | null; error: Error | null }> {
+    try {
+      const response = await this.fetch.get<{
+        knowledge_bases: ChatbotKnowledgeBaseLink[];
+        count: number;
+      }>(`/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases`);
+      return { data: response.knowledge_bases || [], error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Link a knowledge base to a chatbot
+   *
+   * @param chatbotId - Chatbot ID
+   * @param request - Link configuration
+   * @returns Promise resolving to { data, error } tuple with link details
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.linkKnowledgeBase('chatbot-uuid', {
+   *   knowledge_base_id: 'kb-uuid',
+   *   priority: 1,
+   *   max_chunks: 5,
+   *   similarity_threshold: 0.7,
+   * })
+   * ```
+   */
+  async linkKnowledgeBase(
+    chatbotId: string,
+    request: LinkKnowledgeBaseRequest,
+  ): Promise<{ data: ChatbotKnowledgeBaseLink | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.post<ChatbotKnowledgeBaseLink>(
+        `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases`,
+        request,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Update a chatbot-knowledge base link
+   *
+   * @param chatbotId - Chatbot ID
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param updates - Fields to update
+   * @returns Promise resolving to { data, error } tuple with updated link
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.updateChatbotKnowledgeBase(
+   *   'chatbot-uuid',
+   *   'kb-uuid',
+   *   { max_chunks: 10, enabled: true }
+   * )
+   * ```
+   */
+  async updateChatbotKnowledgeBase(
+    chatbotId: string,
+    knowledgeBaseId: string,
+    updates: UpdateChatbotKnowledgeBaseRequest,
+  ): Promise<{ data: ChatbotKnowledgeBaseLink | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.put<ChatbotKnowledgeBaseLink>(
+        `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases/${knowledgeBaseId}`,
+        updates,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Unlink a knowledge base from a chatbot
+   *
+   * @param chatbotId - Chatbot ID
+   * @param knowledgeBaseId - Knowledge base ID
+   * @returns Promise resolving to { data, error } tuple
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.unlinkKnowledgeBase('chatbot-uuid', 'kb-uuid')
+   * ```
+   */
+  async unlinkKnowledgeBase(
+    chatbotId: string,
+    knowledgeBaseId: string,
+  ): Promise<{ data: null; error: Error | null }> {
+    try {
+      await this.fetch.delete(
+        `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases/${knowledgeBaseId}`,
+      );
       return { data: null, error: null };
     } catch (error) {
       return { data: null, error: error as Error };

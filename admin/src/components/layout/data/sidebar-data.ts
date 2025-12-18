@@ -21,6 +21,7 @@ import {
   Terminal,
   HardDrive,
   Puzzle,
+  BookOpen,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -105,6 +106,11 @@ export const sidebarData: SidebarData = {
           title: 'AI Chatbots',
           url: '/chatbots',
           icon: Bot,
+        },
+        {
+          title: 'Knowledge Bases',
+          url: '/knowledge-bases',
+          icon: BookOpen,
         },
       ],
     },

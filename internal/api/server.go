@@ -75,6 +75,7 @@ type Server struct {
 	aiChatHandler         *ai.ChatHandler
 	aiConversations       *ai.ConversationManager
 	aiMetrics             *observability.Metrics
+	knowledgeBaseHandler  *ai.KnowledgeBaseHandler
 	rpcHandler            *rpc.Handler
 	rpcScheduler          *rpc.Scheduler
 	extensionsHandler     *extensions.Handler
@@ -228,6 +229,32 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	migrationsHandler := migrations.NewHandler(db)
 
+	// Create vector search handler (for pgvector support) - create early for embedding service sharing
+	// Embedding can be enabled explicitly (EmbeddingEnabled=true) or via fallback from AI provider
+	var vectorHandler *VectorHandler
+	var err error
+	vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector(), db)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize vector handler")
+	} else if vectorHandler.IsEmbeddingConfigured() {
+		// Embedding is available (either explicitly configured or via AI provider fallback)
+		provider := cfg.AI.EmbeddingProvider
+		if provider == "" {
+			provider = cfg.AI.ProviderType
+		}
+		model := ""
+		if vectorHandler.GetEmbeddingService() != nil {
+			model = vectorHandler.GetEmbeddingService().DefaultModel()
+		}
+		log.Info().
+			Str("provider", provider).
+			Str("model", model).
+			Bool("explicit_config", cfg.AI.EmbeddingEnabled).
+			Msg("Vector handler initialized with embedding support")
+	} else {
+		log.Info().Msg("Vector handler initialized (embedding not available)")
+	}
+
 	// Create AI components (only if AI is enabled)
 	var aiHandler *ai.Handler
 	var aiChatHandler *ai.ChatHandler
@@ -250,8 +277,14 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		// Create AI handler for admin endpoints
 		aiHandler = ai.NewHandler(aiStorage, aiLoader, &cfg.AI)
 
-		// Create AI chat handler for WebSocket
-		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI)
+		// Get embedding service from vector handler (if available) for RAG support
+		var embeddingService *ai.EmbeddingService
+		if vectorHandler != nil {
+			embeddingService = vectorHandler.GetEmbeddingService()
+		}
+
+		// Create AI chat handler for WebSocket with RAG support
+		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService)
 
 		log.Info().
 			Str("chatbots_dir", cfg.AI.ChatbotsDir).
@@ -260,7 +293,20 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Str("provider_type", cfg.AI.ProviderType).
 			Str("provider_name", cfg.AI.ProviderName).
 			Str("provider_model", cfg.AI.ProviderModel).
+			Bool("rag_enabled", embeddingService != nil).
 			Msg("AI components initialized")
+	}
+
+	// Create knowledge base handler for RAG management
+	var knowledgeBaseHandler *ai.KnowledgeBaseHandler
+	if cfg.AI.Enabled {
+		kbStorage := ai.NewKnowledgeBaseStorage(db)
+		var docProcessor *ai.DocumentProcessor
+		if vectorHandler != nil && vectorHandler.GetEmbeddingService() != nil {
+			docProcessor = ai.NewDocumentProcessor(kbStorage, vectorHandler.GetEmbeddingService())
+		}
+		knowledgeBaseHandler = ai.NewKnowledgeBaseHandler(kbStorage, docProcessor)
+		log.Info().Bool("processing_enabled", docProcessor != nil).Msg("Knowledge base handler initialized")
 	}
 
 	// Create RPC components (only if RPC is enabled)
@@ -280,25 +326,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Str("procedures_dir", cfg.RPC.ProceduresDir).
 			Bool("auto_load", cfg.RPC.AutoLoadOnBoot).
 			Msg("RPC components initialized")
-	}
-
-	// Create vector search handler (for pgvector support)
-	var vectorHandler *VectorHandler
-	if cfg.AI.EmbeddingEnabled {
-		var err error
-		vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector())
-		if err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize vector handler")
-		} else {
-			log.Info().
-				Str("provider", cfg.AI.EmbeddingProvider).
-				Str("model", cfg.AI.EmbeddingModel).
-				Msg("Vector handler initialized with embedding support")
-		}
-	} else {
-		// Create vector handler without embedding (still useful for capabilities endpoint)
-		vectorHandler, _ = NewVectorHandler(&cfg.AI, db.Inspector())
-		log.Info().Msg("Vector handler initialized (embedding disabled)")
 	}
 
 	// Create realtime components
@@ -352,6 +379,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		aiChatHandler:         aiChatHandler,
 		aiConversations:       aiConversations,
 		aiMetrics:             aiMetrics,
+		knowledgeBaseHandler:  knowledgeBaseHandler,
 		rpcHandler:            rpcHandler,
 		rpcScheduler:          rpcScheduler,
 		extensionsHandler:     extensions.NewHandler(extensions.NewService(db)),
@@ -1018,6 +1046,30 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Put("/ai/providers/:id/default", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.SetDefaultProvider)
 		router.Delete("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteProvider)
 		router.Put("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.UpdateProvider)
+
+		// Knowledge base management (RAG)
+		if s.knowledgeBaseHandler != nil {
+			router.Get("/ai/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.ListKnowledgeBases)
+			router.Get("/ai/knowledge-bases/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.GetKnowledgeBase)
+			router.Post("/ai/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.CreateKnowledgeBase)
+			router.Put("/ai/knowledge-bases/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UpdateKnowledgeBase)
+			router.Delete("/ai/knowledge-bases/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.DeleteKnowledgeBase)
+
+			// Documents within a knowledge base
+			router.Get("/ai/knowledge-bases/:id/documents", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.ListDocuments)
+			router.Post("/ai/knowledge-bases/:id/documents", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.AddDocument)
+			router.Get("/ai/knowledge-bases/:id/documents/:doc_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.GetDocument)
+			router.Delete("/ai/knowledge-bases/:id/documents/:doc_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.DeleteDocument)
+
+			// Search/test endpoint
+			router.Post("/ai/knowledge-bases/:id/search", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.SearchKnowledgeBase)
+
+			// Chatbot knowledge base linking
+			router.Get("/ai/chatbots/:id/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.ListChatbotKnowledgeBases)
+			router.Post("/ai/chatbots/:id/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.LinkKnowledgeBase)
+			router.Put("/ai/chatbots/:id/knowledge-bases/:kb_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UpdateChatbotKnowledgeBase)
+			router.Delete("/ai/chatbots/:id/knowledge-bases/:kb_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UnlinkKnowledgeBase)
+		}
 	}
 
 	// RPC management routes (require admin, dashboard_admin, or service_role)

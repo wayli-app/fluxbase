@@ -2354,3 +2354,265 @@ export const rpcApi = {
     await api.post(`/api/v1/admin/rpc/executions/${executionId}/cancel`)
   },
 }
+
+// ============================================================================
+// Knowledge Base Types and API
+// ============================================================================
+
+export interface KnowledgeBaseSummary {
+  id: string
+  name: string
+  namespace: string
+  description: string
+  enabled: boolean
+  document_count: number
+  total_chunks: number
+  embedding_model: string
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeBase extends KnowledgeBaseSummary {
+  embedding_dimensions: number
+  chunk_size: number
+  chunk_overlap: number
+  chunk_strategy: string
+  source: string
+  created_by?: string
+}
+
+export interface CreateKnowledgeBaseRequest {
+  name: string
+  namespace?: string
+  description?: string
+  embedding_model?: string
+  embedding_dimensions?: number
+  chunk_size?: number
+  chunk_overlap?: number
+  chunk_strategy?: string
+}
+
+export interface UpdateKnowledgeBaseRequest {
+  name?: string
+  description?: string
+  embedding_model?: string
+  embedding_dimensions?: number
+  chunk_size?: number
+  chunk_overlap?: number
+  chunk_strategy?: string
+  enabled?: boolean
+}
+
+export type DocumentStatus = 'pending' | 'processing' | 'indexed' | 'failed'
+
+export interface KnowledgeBaseDocument {
+  id: string
+  knowledge_base_id: string
+  title: string
+  source_url?: string
+  source_type?: string
+  mime_type: string
+  content_hash: string
+  chunk_count: number
+  status: DocumentStatus
+  error_message?: string
+  metadata?: Record<string, string>
+  tags?: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface AddDocumentRequest {
+  title?: string
+  content: string
+  source?: string
+  mime_type?: string
+  metadata?: Record<string, string>
+}
+
+export interface AddDocumentResponse {
+  document_id: string
+  status: string
+  message: string
+}
+
+export interface ChatbotKnowledgeBaseLink {
+  id: string
+  chatbot_id: string
+  knowledge_base_id: string
+  enabled: boolean
+  max_chunks: number
+  similarity_threshold: number
+  priority: number
+  created_at: string
+}
+
+export interface SearchResult {
+  chunk_id: string
+  document_id: string
+  document_title: string
+  knowledge_base_name?: string
+  content: string
+  similarity: number
+}
+
+export const knowledgeBasesApi = {
+  // List all knowledge bases
+  list: async (): Promise<KnowledgeBaseSummary[]> => {
+    const response = await api.get<{
+      knowledge_bases: KnowledgeBaseSummary[]
+      count: number
+    }>('/api/v1/admin/ai/knowledge-bases')
+    return response.data.knowledge_bases || []
+  },
+
+  // Get knowledge base details
+  get: async (id: string): Promise<KnowledgeBase> => {
+    const response = await api.get<KnowledgeBase>(
+      `/api/v1/admin/ai/knowledge-bases/${id}`
+    )
+    return response.data
+  },
+
+  // Create a new knowledge base
+  create: async (data: CreateKnowledgeBaseRequest): Promise<KnowledgeBase> => {
+    const response = await api.post<KnowledgeBase>(
+      '/api/v1/admin/ai/knowledge-bases',
+      data
+    )
+    return response.data
+  },
+
+  // Update knowledge base
+  update: async (
+    id: string,
+    data: UpdateKnowledgeBaseRequest
+  ): Promise<KnowledgeBase> => {
+    const response = await api.put<KnowledgeBase>(
+      `/api/v1/admin/ai/knowledge-bases/${id}`,
+      data
+    )
+    return response.data
+  },
+
+  // Delete knowledge base
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/admin/ai/knowledge-bases/${id}`)
+  },
+
+  // List documents in a knowledge base
+  listDocuments: async (kbId: string): Promise<KnowledgeBaseDocument[]> => {
+    const response = await api.get<{
+      documents: KnowledgeBaseDocument[]
+      count: number
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/documents`)
+    return response.data.documents || []
+  },
+
+  // Get document details
+  getDocument: async (
+    kbId: string,
+    docId: string
+  ): Promise<KnowledgeBaseDocument> => {
+    const response = await api.get<KnowledgeBaseDocument>(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`
+    )
+    return response.data
+  },
+
+  // Add a document
+  addDocument: async (
+    kbId: string,
+    data: AddDocumentRequest
+  ): Promise<AddDocumentResponse> => {
+    const response = await api.post<AddDocumentResponse>(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents`,
+      data
+    )
+    return response.data
+  },
+
+  // Delete document
+  deleteDocument: async (kbId: string, docId: string): Promise<void> => {
+    await api.delete(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`
+    )
+  },
+
+  // Search knowledge base
+  search: async (
+    kbId: string,
+    query: string,
+    options?: { max_chunks?: number; threshold?: number }
+  ): Promise<{ results: SearchResult[]; count: number; query: string }> => {
+    const response = await api.post<{
+      results: SearchResult[]
+      count: number
+      query: string
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/search`, {
+      query,
+      max_chunks: options?.max_chunks,
+      threshold: options?.threshold,
+    })
+    return response.data
+  },
+
+  // List chatbot knowledge base links
+  listChatbotLinks: async (
+    chatbotId: string
+  ): Promise<ChatbotKnowledgeBaseLink[]> => {
+    const response = await api.get<{
+      knowledge_bases: ChatbotKnowledgeBaseLink[]
+      count: number
+    }>(`/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases`)
+    return response.data.knowledge_bases || []
+  },
+
+  // Link knowledge base to chatbot
+  linkToChatbot: async (
+    chatbotId: string,
+    kbId: string,
+    options?: {
+      priority?: number
+      max_chunks?: number
+      similarity_threshold?: number
+    }
+  ): Promise<ChatbotKnowledgeBaseLink> => {
+    const response = await api.post<ChatbotKnowledgeBaseLink>(
+      `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases`,
+      {
+        knowledge_base_id: kbId,
+        ...options,
+      }
+    )
+    return response.data
+  },
+
+  // Update chatbot knowledge base link
+  updateChatbotLink: async (
+    chatbotId: string,
+    kbId: string,
+    data: {
+      priority?: number
+      max_chunks?: number
+      similarity_threshold?: number
+      enabled?: boolean
+    }
+  ): Promise<ChatbotKnowledgeBaseLink> => {
+    const response = await api.put<ChatbotKnowledgeBaseLink>(
+      `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases/${kbId}`,
+      data
+    )
+    return response.data
+  },
+
+  // Unlink knowledge base from chatbot
+  unlinkFromChatbot: async (
+    chatbotId: string,
+    kbId: string
+  ): Promise<void> => {
+    await api.delete(
+      `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases/${kbId}`
+    )
+  },
+}
