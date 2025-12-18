@@ -279,17 +279,6 @@ func (rl *embeddingRateLimiter) allow() bool {
 
 // EmbeddingServiceFromConfig creates an EmbeddingService from AI config
 func EmbeddingServiceFromConfig(aiCfg interface{}) (*EmbeddingService, error) {
-	// Type assert to get the relevant fields
-	type aiConfig interface {
-		GetProviderType() string
-		GetProviderEnabled() bool
-		GetEmbeddingModel() string
-		GetOpenAIConfig() OpenAIConfig
-		GetAzureConfig() AzureConfig
-		GetOllamaConfig() OllamaConfig
-	}
-
-	// Try direct field access via reflection or interface
 	// This is a simplified approach - in practice you'd pass the config directly
 	log.Debug().Msg("Creating embedding service from config")
 

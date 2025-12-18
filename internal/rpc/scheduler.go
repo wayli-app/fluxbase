@@ -47,32 +47,55 @@ func NewScheduler(storage *Storage, executor *Executor) *Scheduler {
 }
 
 // Start initializes the scheduler and loads all enabled scheduled procedures
+// It runs asynchronously to avoid blocking server startup and retries on database errors
 func (s *Scheduler) Start() error {
 	log.Info().Msg("Starting RPC scheduler")
 
-	// Load all scheduled procedures
-	procedures, err := s.storage.ListScheduledProcedures(s.ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to load scheduled procedures")
-		return err
-	}
-
-	// Schedule each procedure
-	for _, proc := range procedures {
-		if proc.Schedule != nil && *proc.Schedule != "" {
-			if err := s.ScheduleProcedure(proc); err != nil {
-				log.Error().
-					Err(err).
-					Str("procedure", proc.Name).
-					Str("schedule", *proc.Schedule).
-					Msg("Failed to schedule procedure")
-			}
-		}
-	}
-
-	// Start the cron scheduler
+	// Start the cron scheduler immediately
 	s.cron.Start()
-	log.Info().Int("scheduled_procedures", len(s.procedureJobs)).Msg("RPC scheduler started")
+
+	// Load procedures asynchronously with retry logic to handle race conditions during startup
+	go func() {
+		maxRetries := 5
+		retryDelay := 100 * time.Millisecond
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			// Load all scheduled procedures
+			procedures, err := s.storage.ListScheduledProcedures(s.ctx)
+			if err != nil {
+				if attempt < maxRetries {
+					log.Debug().
+						Err(err).
+						Int("attempt", attempt).
+						Int("max_retries", maxRetries).
+						Dur("retry_delay", retryDelay).
+						Msg("Failed to load scheduled procedures, retrying")
+					time.Sleep(retryDelay)
+					retryDelay *= 2 // Exponential backoff
+					continue
+				}
+				log.Error().Err(err).Msg("Failed to load scheduled procedures after all retries")
+				return
+			}
+
+			// Schedule each procedure
+			for _, proc := range procedures {
+				if proc.Schedule != nil && *proc.Schedule != "" {
+					if err := s.ScheduleProcedure(proc); err != nil {
+						log.Error().
+							Err(err).
+							Str("procedure", proc.Name).
+							Str("schedule", *proc.Schedule).
+							Msg("Failed to schedule procedure")
+					}
+				}
+			}
+
+			log.Info().Int("scheduled_procedures", len(s.procedureJobs)).Msg("RPC scheduler started successfully")
+			return
+		}
+	}()
+
 	return nil
 }
 

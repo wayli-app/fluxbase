@@ -21,26 +21,30 @@ func NewService(db *database.Connection) *Service {
 
 // ListExtensions returns all available extensions with their current status
 func (s *Service) ListExtensions(ctx context.Context) (*ListExtensionsResponse, error) {
-	// Query available extensions from catalog with their enabled status
+	// Query PostgreSQL's actual extension catalog as source of truth
+	// Left join our metadata table for display names, descriptions, and categories
 	query := `
 		SELECT
-			ae.id,
-			ae.name,
-			ae.display_name,
-			COALESCE(ae.description, '') as description,
-			ae.category,
-			ae.is_core,
-			ae.requires_restart,
-			COALESCE(ae.documentation_url, '') as documentation_url,
-			COALESCE(ee.is_active, false) as is_enabled,
+			COALESCE(meta.id, gen_random_uuid()) as id,
+			pg.name,
+			COALESCE(meta.display_name, pg.name) as display_name,
+			COALESCE(meta.description, pg.comment, '') as description,
+			COALESCE(meta.category, 'utilities') as category,
+			COALESCE(meta.is_core, false) as is_core,
+			COALESCE(meta.requires_restart, false) as requires_restart,
+			COALESCE(meta.documentation_url, '') as documentation_url,
+			pg.installed_version IS NOT NULL as is_installed,
+			pg.installed_version,
 			ee.enabled_at,
 			ee.enabled_by::text,
-			ae.created_at,
-			ae.updated_at
-		FROM dashboard.available_extensions ae
+			COALESCE(meta.created_at, NOW()) as created_at,
+			COALESCE(meta.updated_at, NOW()) as updated_at
+		FROM pg_available_extensions pg
+		LEFT JOIN dashboard.available_extensions meta
+			ON pg.name = meta.name
 		LEFT JOIN dashboard.enabled_extensions ee
-			ON ae.name = ee.extension_name AND ee.is_active = true
-		ORDER BY ae.category, ae.display_name
+			ON pg.name = ee.extension_name AND ee.is_active = true
+		ORDER BY COALESCE(meta.category, 'utilities'), COALESCE(meta.display_name, pg.name)
 	`
 
 	rows, err := s.db.Query(ctx, query)
@@ -54,6 +58,8 @@ func (s *Service) ListExtensions(ctx context.Context) (*ListExtensionsResponse, 
 
 	for rows.Next() {
 		var ext Extension
+		var installedVersion *string
+
 		err := rows.Scan(
 			&ext.ID,
 			&ext.Name,
@@ -63,7 +69,8 @@ func (s *Service) ListExtensions(ctx context.Context) (*ListExtensionsResponse, 
 			&ext.IsCore,
 			&ext.RequiresRestart,
 			&ext.DocumentationURL,
-			&ext.IsEnabled,
+			&ext.IsInstalled,
+			&installedVersion,
 			&ext.EnabledAt,
 			&ext.EnabledBy,
 			&ext.CreatedAt,
@@ -73,12 +80,16 @@ func (s *Service) ListExtensions(ctx context.Context) (*ListExtensionsResponse, 
 			return nil, fmt.Errorf("failed to scan extension: %w", err)
 		}
 
-		// Check if extension is installed in PostgreSQL
-		installed, version := s.checkExtensionInstalled(ctx, ext.Name)
-		ext.IsInstalled = installed
-		ext.InstalledVersion = version
+		// Set installed version if available
+		if installedVersion != nil {
+			ext.InstalledVersion = *installedVersion
+		}
 
-		// Core extensions are always enabled
+		// If extension is installed in PostgreSQL, it's enabled
+		// This reflects actual PostgreSQL state, not just our tracking table
+		ext.IsEnabled = ext.IsInstalled
+
+		// Core extensions are always shown as enabled
 		if ext.IsCore {
 			ext.IsEnabled = true
 		}
@@ -158,6 +169,18 @@ func (s *Service) EnableExtension(ctx context.Context, name string, userID *stri
 		return nil, err
 	}
 	if status.IsInstalled {
+		// Extension is already installed in PostgreSQL, but ensure it's tracked
+		// This handles cases where extensions were installed manually or tracking failed
+		_, err = s.db.Exec(ctx, `
+			INSERT INTO dashboard.enabled_extensions (extension_name, enabled_by, is_active)
+			VALUES ($1, $2, true)
+			ON CONFLICT (extension_name) WHERE is_active = true
+			DO UPDATE SET enabled_at = NOW(), enabled_by = $2, error_message = NULL
+		`, name, userID)
+		if err != nil {
+			return nil, fmt.Errorf("extension is installed but failed to record in tracking table: %w", err)
+		}
+
 		return &EnableExtensionResponse{
 			Name:    name,
 			Success: true,
@@ -202,7 +225,7 @@ func (s *Service) EnableExtension(ctx context.Context, name string, userID *stri
 		DO UPDATE SET enabled_at = NOW(), enabled_by = $2, error_message = NULL
 	`, name, userID)
 	if err != nil {
-		log.Warn().Err(err).Str("extension", name).Msg("Failed to record extension enablement")
+		return nil, fmt.Errorf("extension created successfully but failed to record in tracking table: %w", err)
 	}
 
 	log.Info().Str("extension", name).Str("version", version).Msg("Extension enabled successfully")

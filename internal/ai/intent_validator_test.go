@@ -213,6 +213,6 @@ func TestExtractSelectedColumns(t *testing.T) {
 	assert.True(t, cols["*"])
 
 	// Invalid SQL
-	cols, err = extractSelectedColumns("NOT VALID SQL")
+	_, err = extractSelectedColumns("NOT VALID SQL")
 	assert.Error(t, err)
 }

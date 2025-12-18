@@ -54,46 +54,68 @@ func NewScheduler(db *database.Connection) *Scheduler {
 }
 
 // Start initializes the scheduler and loads all enabled scheduled jobs
+// It runs asynchronously to avoid blocking server startup and retries on database errors
 func (s *Scheduler) Start() error {
 	log.Info().Msg("Starting job scheduler")
 
-	// Load all namespaces to get all job functions
-	namespaces, err := s.storage.ListJobNamespaces(s.ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to list job namespaces for scheduler")
-		return err
-	}
+	// Start the cron scheduler immediately
+	s.cron.Start()
 
-	// If no namespaces exist, try with "default"
-	if len(namespaces) == 0 {
-		namespaces = []string{"default"}
-	}
+	// Load jobs asynchronously with retry logic to handle race conditions during startup
+	go func() {
+		maxRetries := 5
+		retryDelay := 100 * time.Millisecond
 
-	// Load all job functions from each namespace
-	for _, ns := range namespaces {
-		functions, err := s.storage.ListJobFunctions(s.ctx, ns)
-		if err != nil {
-			log.Error().Err(err).Str("namespace", ns).Msg("Failed to load job functions for scheduler")
-			continue
-		}
-
-		// Schedule each function that has a cron schedule
-		for _, fn := range functions {
-			if fn.Enabled && fn.Schedule != nil && *fn.Schedule != "" {
-				if err := s.ScheduleJob(fn); err != nil {
-					log.Error().
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			// Load all namespaces to get all job functions
+			namespaces, err := s.storage.ListJobNamespaces(s.ctx)
+			if err != nil {
+				if attempt < maxRetries {
+					log.Debug().
 						Err(err).
-						Str("job", fn.Name).
-						Str("schedule", *fn.Schedule).
-						Msg("Failed to schedule job")
+						Int("attempt", attempt).
+						Int("max_retries", maxRetries).
+						Dur("retry_delay", retryDelay).
+						Msg("Failed to list job namespaces for scheduler, retrying")
+					time.Sleep(retryDelay)
+					retryDelay *= 2 // Exponential backoff
+					continue
+				}
+				log.Error().Err(err).Msg("Failed to list job namespaces for scheduler after all retries")
+				return
+			}
+
+			// If no namespaces exist, try with "default"
+			if len(namespaces) == 0 {
+				namespaces = []string{"default"}
+			}
+
+			// Load all job functions from each namespace
+			for _, ns := range namespaces {
+				functions, err := s.storage.ListJobFunctions(s.ctx, ns)
+				if err != nil {
+					log.Error().Err(err).Str("namespace", ns).Msg("Failed to load job functions for scheduler")
+					continue
+				}
+
+				// Schedule each function that has a cron schedule
+				for _, fn := range functions {
+					if fn.Enabled && fn.Schedule != nil && *fn.Schedule != "" {
+						if err := s.ScheduleJob(fn); err != nil {
+							log.Error().
+								Err(err).
+								Str("job", fn.Name).
+								Str("schedule", *fn.Schedule).
+								Msg("Failed to schedule job")
+						}
+					}
 				}
 			}
-		}
-	}
 
-	// Start the cron scheduler
-	s.cron.Start()
-	log.Info().Int("scheduled_jobs", len(s.jobEntries)).Msg("Job scheduler started")
+			log.Info().Int("scheduled_jobs", len(s.jobEntries)).Msg("Job scheduler started successfully")
+			return
+		}
+	}()
 
 	return nil
 }

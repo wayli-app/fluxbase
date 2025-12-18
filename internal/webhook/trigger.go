@@ -8,6 +8,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
@@ -115,18 +116,51 @@ func (s *TriggerService) Stop() {
 
 // listen listens for PostgreSQL notifications about new webhook events
 func (s *TriggerService) listen(ctx context.Context) {
-	conn, err := s.db.Pool().Acquire(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to acquire connection for webhook listener")
-		return
+	// Retry logic to handle race conditions during startup
+	maxRetries := 5
+	retryDelay := 100 * time.Millisecond
+
+	var conn *pgxpool.Conn
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		conn, err = s.db.Pool().Acquire(ctx)
+		if err != nil {
+			if attempt < maxRetries {
+				log.Debug().
+					Err(err).
+					Int("attempt", attempt).
+					Int("max_retries", maxRetries).
+					Dur("retry_delay", retryDelay).
+					Msg("Failed to acquire connection for webhook listener, retrying")
+				time.Sleep(retryDelay)
+				retryDelay *= 2 // Exponential backoff
+				continue
+			}
+			log.Error().Err(err).Msg("Failed to acquire connection for webhook listener after all retries")
+			return
+		}
+		break
 	}
 	defer conn.Release()
 
-	// Listen on webhook_event channel
-	_, err = conn.Exec(ctx, "LISTEN webhook_event")
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to LISTEN on webhook_event channel")
-		return
+	// Listen on webhook_event channel with retry
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		_, err = conn.Exec(ctx, "LISTEN webhook_event")
+		if err != nil {
+			if attempt < maxRetries {
+				log.Debug().
+					Err(err).
+					Int("attempt", attempt).
+					Int("max_retries", maxRetries).
+					Msg("Failed to LISTEN on webhook_event channel, retrying")
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			log.Error().Err(err).Msg("Failed to LISTEN on webhook_event channel after all retries")
+			return
+		}
+		break
 	}
 
 	log.Info().Msg("Webhook trigger service listening for events")

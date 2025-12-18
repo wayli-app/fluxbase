@@ -8,7 +8,7 @@
  * Source: sdk/src/*.ts
  *
  * SDK Version: 0.0.1-rc.48
- * Generated: 2025-12-16T21:59:17.765Z
+ * Generated: 2025-12-16T22:41:54.110Z
  *
  * @generated
  */

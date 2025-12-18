@@ -90,36 +90,58 @@ func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, messag
 }
 
 // Start initializes the scheduler and loads all enabled cron functions
+// It runs asynchronously to avoid blocking server startup and retries on database errors
 func (s *Scheduler) Start() error {
 	log.Info().Msg("Starting edge functions scheduler")
 
-	// Load all functions with cron schedules
-	// Use a timeout context to prevent indefinite hanging if database pool has issues
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
-	defer cancel()
-
-	functions, err := s.storage.ListFunctions(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to load functions for scheduler")
-		return err
-	}
-
-	// Schedule each function that has a cron schedule
-	for _, fn := range functions {
-		if fn.Enabled && fn.CronSchedule != nil && *fn.CronSchedule != "" {
-			if err := s.ScheduleFunction(fn); err != nil {
-				log.Error().
-					Err(err).
-					Str("function", fn.Name).
-					Str("schedule", *fn.CronSchedule).
-					Msg("Failed to schedule function")
-			}
-		}
-	}
-
-	// Start the cron scheduler
+	// Start the cron scheduler immediately
 	s.cron.Start()
-	log.Info().Int("scheduled_functions", len(s.functionJobs)).Msg("Edge functions scheduler started")
+
+	// Load functions asynchronously with retry logic to handle race conditions during startup
+	go func() {
+		maxRetries := 5
+		retryDelay := 100 * time.Millisecond
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			// Use a timeout context to prevent indefinite hanging if database pool has issues
+			ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+
+			functions, err := s.storage.ListFunctions(ctx)
+			cancel()
+
+			if err != nil {
+				if attempt < maxRetries {
+					log.Debug().
+						Err(err).
+						Int("attempt", attempt).
+						Int("max_retries", maxRetries).
+						Dur("retry_delay", retryDelay).
+						Msg("Failed to load functions for scheduler, retrying")
+					time.Sleep(retryDelay)
+					retryDelay *= 2 // Exponential backoff
+					continue
+				}
+				log.Error().Err(err).Msg("Failed to load functions for scheduler after all retries")
+				return
+			}
+
+			// Schedule each function that has a cron schedule
+			for _, fn := range functions {
+				if fn.Enabled && fn.CronSchedule != nil && *fn.CronSchedule != "" {
+					if err := s.ScheduleFunction(fn); err != nil {
+						log.Error().
+							Err(err).
+							Str("function", fn.Name).
+							Str("schedule", *fn.CronSchedule).
+							Msg("Failed to schedule function")
+					}
+				}
+			}
+
+			log.Info().Int("scheduled_functions", len(s.functionJobs)).Msg("Edge functions scheduler started successfully")
+			return
+		}
+	}()
 
 	return nil
 }

@@ -529,7 +529,7 @@ func splitOrderParams(value string) []string {
 func (qp *QueryParser) parseVectorOrder(order string) (OrderBy, bool) {
 	// Look for vector operator pattern
 	vectorOps := []string{".vec_l2.", ".vec_cos.", ".vec_ip."}
-	var opIdx int = -1
+	var opIdx = -1
 	var opStr string
 
 	for _, op := range vectorOps {

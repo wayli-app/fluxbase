@@ -479,9 +479,10 @@ func extractBalancedJSON(s string, startIdx int) string {
 			continue
 		}
 
-		if c == '[' {
+		switch c {
+		case '[':
 			depth++
-		} else if c == ']' {
+		case ']':
 			depth--
 			if depth == 0 {
 				return s[startIdx : i+1]
