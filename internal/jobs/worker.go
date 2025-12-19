@@ -475,13 +475,8 @@ func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *runtime.Progres
 }
 
 // handleLogMessage is called when a job outputs a log message
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string) {
-	log.Debug().
-		Str("job_id", jobID.String()).
-		Str("level", level).
-		Str("message", message).
-		Msg("Job log")
-
 	// Get and increment the line counter for this job
 	counterVal, ok := w.jobLogCounters.Load(jobID)
 	if !ok {
@@ -496,11 +491,13 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string)
 	lineNumber := *counterPtr
 	*counterPtr = lineNumber + 1
 
-	// Insert log line
-	ctx := context.Background()
-	if err := w.Storage.InsertExecutionLog(ctx, jobID, lineNumber, level, message); err != nil {
-		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to insert execution log")
-	}
+	// Log to zerolog - central logging service will capture this
+	log.Debug().
+		Str("job_id", jobID.String()).
+		Str("level", level).
+		Int("line_number", lineNumber).
+		Str("message", message).
+		Msg("Job execution log")
 }
 
 // cancelJob cancels a running job

@@ -3,10 +3,10 @@
  *
  * @example
  * ```typescript
- * // Query the jobs.execution_logs table
+ * // Query the logging.entries table
  * const { data } = await client
- *   .schema('jobs')
- *   .from('execution_logs')
+ *   .schema('logging')
+ *   .from('entries')
  *   .select('*')
  *   .execute();
  * ```

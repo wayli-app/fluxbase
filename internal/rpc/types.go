@@ -120,15 +120,7 @@ type Execution struct {
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
-// ExecutionLog represents a single log line from an execution
-type ExecutionLog struct {
-	ID          int64     `json:"id"`
-	ExecutionID string    `json:"execution_id"`
-	LineNumber  int       `json:"line_number"`
-	Level       string    `json:"level"`
-	Message     string    `json:"message"`
-	CreatedAt   time.Time `json:"created_at"`
-}
+// Note: ExecutionLog is now in the central logging schema (logging.entries)
 
 // CallerContext represents the context of the RPC caller
 type CallerContext struct {

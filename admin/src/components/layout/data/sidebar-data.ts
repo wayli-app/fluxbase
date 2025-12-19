@@ -22,6 +22,7 @@ import {
   HardDrive,
   Puzzle,
   BookOpen,
+  ScrollText,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -61,6 +62,11 @@ export const sidebarData: SidebarData = {
           title: 'Monitoring',
           url: '/monitoring',
           icon: Activity,
+        },
+        {
+          title: 'Log Stream',
+          url: '/logs',
+          icon: ScrollText,
         },
         {
           title: 'Users',

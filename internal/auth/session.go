@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"time"
 
@@ -9,6 +11,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+// hashToken creates a SHA-256 hash of a token and returns it as base64.
+// SECURITY: Session tokens are stored as hashes to prevent exposure if the database is breached.
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return base64.URLEncoding.EncodeToString(hash[:])
+}
 
 var (
 	// ErrSessionNotFound is returned when a session is not found
@@ -38,35 +47,42 @@ func NewSessionRepository(db *database.Connection) *SessionRepository {
 }
 
 // Create creates a new session
+// SECURITY: Tokens are hashed before storage. Plaintext tokens are returned to caller but never stored.
 func (r *SessionRepository) Create(ctx context.Context, userID, accessToken, refreshToken string, expiresAt time.Time) (*Session, error) {
+	// Hash tokens before storage
+	accessTokenHash := hashToken(accessToken)
+	var refreshTokenHash *string
+	if refreshToken != "" {
+		h := hashToken(refreshToken)
+		refreshTokenHash = &h
+	}
+
 	session := &Session{
 		ID:           uuid.New().String(),
 		UserID:       userID,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken:  accessToken,  // Return plaintext to caller
+		RefreshToken: refreshToken, // Return plaintext to caller
 		ExpiresAt:    expiresAt,
 		CreatedAt:    time.Now(),
 	}
 
 	query := `
-		INSERT INTO auth.sessions (id, user_id, access_token, refresh_token, expires_at, created_at)
+		INSERT INTO auth.sessions (id, user_id, access_token_hash, refresh_token_hash, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, user_id, access_token, refresh_token, expires_at, created_at
+		RETURNING id, user_id, expires_at, created_at
 	`
 
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query,
 			session.ID,
 			session.UserID,
-			session.AccessToken,
-			session.RefreshToken,
+			accessTokenHash,
+			refreshTokenHash,
 			session.ExpiresAt,
 			session.CreatedAt,
 		).Scan(
 			&session.ID,
 			&session.UserID,
-			&session.AccessToken,
-			&session.RefreshToken,
 			&session.ExpiresAt,
 			&session.CreatedAt,
 		)
@@ -80,20 +96,24 @@ func (r *SessionRepository) Create(ctx context.Context, userID, accessToken, ref
 }
 
 // GetByAccessToken retrieves a session by access token
+// SECURITY: The token is hashed and compared against stored hashes.
 func (r *SessionRepository) GetByAccessToken(ctx context.Context, accessToken string) (*Session, error) {
+	// Hash the incoming token for comparison
+	accessTokenHash := hashToken(accessToken)
+
 	query := `
-		SELECT id, user_id, access_token, refresh_token, expires_at, created_at
+		SELECT id, user_id, expires_at, created_at
 		FROM auth.sessions
-		WHERE access_token = $1
+		WHERE access_token_hash = $1
 	`
 
-	session := &Session{}
+	session := &Session{
+		AccessToken: accessToken, // Return the provided token (we don't store plaintext)
+	}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, accessToken).Scan(
+		return tx.QueryRow(ctx, query, accessTokenHash).Scan(
 			&session.ID,
 			&session.UserID,
-			&session.AccessToken,
-			&session.RefreshToken,
 			&session.ExpiresAt,
 			&session.CreatedAt,
 		)
@@ -115,20 +135,24 @@ func (r *SessionRepository) GetByAccessToken(ctx context.Context, accessToken st
 }
 
 // GetByRefreshToken retrieves a session by refresh token
+// SECURITY: The token is hashed and compared against stored hashes.
 func (r *SessionRepository) GetByRefreshToken(ctx context.Context, refreshToken string) (*Session, error) {
+	// Hash the incoming token for comparison
+	refreshTokenHash := hashToken(refreshToken)
+
 	query := `
-		SELECT id, user_id, access_token, refresh_token, expires_at, created_at
+		SELECT id, user_id, expires_at, created_at
 		FROM auth.sessions
-		WHERE refresh_token = $1
+		WHERE refresh_token_hash = $1
 	`
 
-	session := &Session{}
+	session := &Session{
+		RefreshToken: refreshToken, // Return the provided token (we don't store plaintext)
+	}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, refreshToken).Scan(
+		return tx.QueryRow(ctx, query, refreshTokenHash).Scan(
 			&session.ID,
 			&session.UserID,
-			&session.AccessToken,
-			&session.RefreshToken,
 			&session.ExpiresAt,
 			&session.CreatedAt,
 		)
@@ -150,9 +174,10 @@ func (r *SessionRepository) GetByRefreshToken(ctx context.Context, refreshToken 
 }
 
 // GetByUserID retrieves all sessions for a user
+// NOTE: Tokens are not returned since we only store hashes.
 func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*Session, error) {
 	query := `
-		SELECT id, user_id, access_token, refresh_token, expires_at, created_at
+		SELECT id, user_id, expires_at, created_at
 		FROM auth.sessions
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -171,8 +196,6 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 			err := rows.Scan(
 				&session.ID,
 				&session.UserID,
-				&session.AccessToken,
-				&session.RefreshToken,
 				&session.ExpiresAt,
 				&session.CreatedAt,
 			)
@@ -193,15 +216,24 @@ func (r *SessionRepository) GetByUserID(ctx context.Context, userID string) ([]*
 }
 
 // UpdateTokens updates the tokens for a session
+// SECURITY: Tokens are hashed before storage.
 func (r *SessionRepository) UpdateTokens(ctx context.Context, id, accessToken, refreshToken string, expiresAt time.Time) error {
+	// Hash tokens before storage
+	accessTokenHash := hashToken(accessToken)
+	var refreshTokenHash *string
+	if refreshToken != "" {
+		h := hashToken(refreshToken)
+		refreshTokenHash = &h
+	}
+
 	query := `
 		UPDATE auth.sessions
-		SET access_token = $2, refresh_token = $3, expires_at = $4
+		SET access_token_hash = $2, refresh_token_hash = $3, expires_at = $4
 		WHERE id = $1
 	`
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query, id, accessToken, refreshToken, expiresAt)
+		result, err := tx.Exec(ctx, query, id, accessTokenHash, refreshTokenHash, expiresAt)
 		if err != nil {
 			return err
 		}
@@ -215,15 +247,18 @@ func (r *SessionRepository) UpdateTokens(ctx context.Context, id, accessToken, r
 }
 
 // UpdateAccessToken updates only the access token
+// SECURITY: Token is hashed before storage.
 func (r *SessionRepository) UpdateAccessToken(ctx context.Context, id, accessToken string) error {
+	accessTokenHash := hashToken(accessToken)
+
 	query := `
 		UPDATE auth.sessions
-		SET access_token = $2
+		SET access_token_hash = $2
 		WHERE id = $1
 	`
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query, id, accessToken)
+		result, err := tx.Exec(ctx, query, id, accessTokenHash)
 		if err != nil {
 			return err
 		}
@@ -255,11 +290,14 @@ func (r *SessionRepository) Delete(ctx context.Context, id string) error {
 }
 
 // DeleteByAccessToken deletes a session by access token
+// SECURITY: Token is hashed for lookup.
 func (r *SessionRepository) DeleteByAccessToken(ctx context.Context, accessToken string) error {
-	query := `DELETE FROM auth.sessions WHERE access_token = $1`
+	accessTokenHash := hashToken(accessToken)
+
+	query := `DELETE FROM auth.sessions WHERE access_token_hash = $1`
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query, accessToken)
+		result, err := tx.Exec(ctx, query, accessTokenHash)
 		if err != nil {
 			return err
 		}

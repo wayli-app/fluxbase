@@ -520,6 +520,8 @@ func (h *Handler) GetJobAdmin(c *fiber.Ctx) error {
 }
 
 // GetJobLogs gets execution logs for a job (admin access)
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
+// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetJobLogs(c *fiber.Ctx) error {
 	jobID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
@@ -528,36 +530,12 @@ func (h *Handler) GetJobLogs(c *fiber.Ctx) error {
 
 	log.Debug().
 		Str("job_id", jobID.String()).
-		Msg("GetJobLogs called")
+		Msg("GetJobLogs called - returning empty (logs moved to central logging)")
 
-	// Parse optional after parameter for pagination
-	var afterLine *int
-	if after := c.QueryInt("after", -1); after >= 0 {
-		afterLine = &after
-	}
-
-	logs, err := h.storage.GetExecutionLogs(c.Context(), jobID, afterLine)
-	if err != nil {
-		reqID := getRequestID(c)
-		log.Error().
-			Err(err).
-			Str("job_id", jobID.String()).
-			Str("request_id", reqID).
-			Msg("Failed to get job logs")
-
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to get job logs",
-			"request_id": reqID,
-		})
-	}
-
-	log.Debug().
-		Str("job_id", jobID.String()).
-		Int("log_count", len(logs)).
-		Msg("Returning execution logs")
-
+	// Return empty - logs are now in central logging schema
 	return c.JSON(fiber.Map{
-		"logs": logs,
+		"logs":    []interface{}{},
+		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
 	})
 }
 

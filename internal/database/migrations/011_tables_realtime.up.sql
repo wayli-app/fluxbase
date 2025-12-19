@@ -15,12 +15,7 @@ CREATE TABLE IF NOT EXISTS realtime.schema_registry (
     UNIQUE(schema_name, table_name)
 );
 
--- Register functions.execution_logs for realtime (table created in functions migration)
-INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
-VALUES ('functions', 'execution_logs', true, ARRAY['INSERT'])
-ON CONFLICT (schema_name, table_name) DO UPDATE
-SET realtime_enabled = true,
-    events = EXCLUDED.events;
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 -- Register jobs schema tables for realtime (tables created in jobs migration)
 -- Note: jobs.functions is excluded because code fields exceed pg_notify's 8KB limit
@@ -28,8 +23,7 @@ INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled,
 VALUES
     ('jobs', 'queue', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
     ('jobs', 'workers', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('jobs', 'function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('jobs', 'execution_logs', true, ARRAY['INSERT'])
+    ('jobs', 'function_files', true, ARRAY['INSERT', 'UPDATE', 'DELETE'])
 ON CONFLICT (schema_name, table_name) DO UPDATE
 SET realtime_enabled = true,
     events = EXCLUDED.events;

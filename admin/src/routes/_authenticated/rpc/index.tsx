@@ -54,8 +54,8 @@ import {
   rpcApi,
   type RPCProcedure,
   type RPCExecution,
-  type RPCExecutionLog,
 } from '@/lib/api'
+import { useExecutionLogs } from '@/hooks/use-execution-logs'
 
 export const Route = createFileRoute('/_authenticated/rpc/')({
   component: RPCPage,
@@ -115,8 +115,16 @@ function RPCContent() {
   // Execution detail dialog
   const [selectedExecution, setSelectedExecution] = useState<RPCExecution | null>(null)
   const [showExecutionDetails, setShowExecutionDetails] = useState(false)
-  const [executionLogs, setExecutionLogs] = useState<RPCExecutionLog[]>([])
-  const [loadingLogs, setLoadingLogs] = useState(false)
+
+  // Use the real-time execution logs hook
+  const {
+    logs: executionLogs,
+    loading: loadingLogs,
+  } = useExecutionLogs({
+    executionId: selectedExecution?.id || null,
+    executionType: 'rpc',
+    enabled: showExecutionDetails,
+  })
 
   // Cancel execution state
   const [cancellingExecutionId, setCancellingExecutionId] = useState<string | null>(null)
@@ -199,24 +207,11 @@ function RPCContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNamespace, searchQuery, statusFilter])
 
-  // Fetch execution logs
-  const fetchExecutionLogs = useCallback(async (executionId: string) => {
-    setLoadingLogs(true)
-    try {
-      const logs = await rpcApi.getExecutionLogs(executionId)
-      setExecutionLogs(logs || [])
-    } catch {
-      toast.error('Failed to fetch execution logs')
-    } finally {
-      setLoadingLogs(false)
-    }
-  }, [])
-
   // Open execution detail dialog
-  const openExecutionDetails = async (exec: RPCExecution) => {
+  const openExecutionDetails = (exec: RPCExecution) => {
     setSelectedExecution(exec)
     setShowExecutionDetails(true)
-    await fetchExecutionLogs(exec.id)
+    // The useExecutionLogs hook handles fetching and real-time updates automatically
   }
 
   // Cancel execution

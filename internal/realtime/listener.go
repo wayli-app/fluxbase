@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
+	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
+	"github.com/fluxbase-eu/fluxbase/internal/storage"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,33 +24,51 @@ type ChangeEvent struct {
 	OldRecord map[string]interface{} `json:"old_record,omitempty"` // Old record data (for UPDATE/DELETE)
 }
 
-// Listener handles PostgreSQL LISTEN/NOTIFY
+// LogChannel is the PubSub channel for execution log notifications.
+const LogChannel = "fluxbase:logs"
+
+// AllLogsChannel is the PubSub channel for all log notifications (admin streaming).
+const AllLogsChannel = "fluxbase:all_logs"
+
+// Listener handles PostgreSQL LISTEN/NOTIFY and PubSub log events
 type Listener struct {
 	pool       *pgxpool.Pool
 	handler    *RealtimeHandler
 	subManager *SubscriptionManager
+	pubsub     pubsub.PubSub
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
 // NewListener creates a new PostgreSQL listener
-func NewListener(pool *pgxpool.Pool, handler *RealtimeHandler, subManager *SubscriptionManager) *Listener {
+func NewListener(pool *pgxpool.Pool, handler *RealtimeHandler, subManager *SubscriptionManager, ps pubsub.PubSub) *Listener {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Listener{
 		pool:       pool,
 		handler:    handler,
 		subManager: subManager,
+		pubsub:     ps,
 		ctx:        ctx,
 		cancel:     cancel,
 	}
 }
 
-// Start begins listening for PostgreSQL notifications
+// Start begins listening for PostgreSQL notifications and PubSub log events
 func (l *Listener) Start() error {
-	// Start listening loop in a goroutine
+	// Start PostgreSQL listening loop in a goroutine
 	go l.listen()
 
 	log.Info().Msg("PostgreSQL LISTEN started on channel: fluxbase_changes")
+
+	// Start PubSub log listener if available
+	if l.pubsub != nil {
+		go l.listenLogsPubSub()
+		log.Info().Msg("PubSub log listener started on channel: " + LogChannel)
+
+		// Start all-logs listener for admin dashboard streaming
+		go l.listenAllLogsPubSub()
+		log.Info().Msg("PubSub all-logs listener started on channel: " + AllLogsChannel)
+	}
 
 	return nil
 }
@@ -260,4 +280,154 @@ func (l *Listener) enrichJobWithETA(event *ChangeEvent) {
 // Stop stops the listener
 func (l *Listener) Stop() {
 	l.cancel()
+}
+
+// listenLogsPubSub listens for execution log events via PubSub
+func (l *Listener) listenLogsPubSub() {
+	msgChan, err := l.pubsub.Subscribe(l.ctx, LogChannel)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to subscribe to log channel")
+		return
+	}
+
+	for {
+		select {
+		case <-l.ctx.Done():
+			log.Info().Msg("Stopping PubSub log listener")
+			return
+
+		case msg, ok := <-msgChan:
+			if !ok {
+				log.Info().Msg("PubSub log channel closed")
+				return
+			}
+
+			// Parse the log event
+			var event storage.ExecutionLogEvent
+			if err := json.Unmarshal(msg.Payload, &event); err != nil {
+				log.Error().Err(err).Msg("Failed to parse log event")
+				continue
+			}
+
+			// Forward to subscribers
+			l.processLogEvent(&event)
+		}
+	}
+}
+
+// processLogEvent forwards a log event to subscribed connections
+func (l *Listener) processLogEvent(event *storage.ExecutionLogEvent) {
+	if l.subManager == nil || l.handler == nil {
+		return
+	}
+
+	// Get connections subscribed to this execution's logs
+	connIDs := l.subManager.GetLogSubscribers(event.ExecutionID)
+	if len(connIDs) == 0 {
+		return
+	}
+
+	// Send to each subscribed connection
+	manager := l.handler.GetManager()
+	for _, connID := range connIDs {
+		manager.mu.RLock()
+		conn, exists := manager.connections[connID]
+		manager.mu.RUnlock()
+
+		if exists {
+			_ = conn.SendMessage(ServerMessage{
+				Type:    MessageTypeExecutionLog,
+				Payload: event,
+			})
+		}
+	}
+
+	// Note: We intentionally don't log here to avoid potential feedback loops
+}
+
+// listenAllLogsPubSub listens for all log events via PubSub (for admin dashboard streaming)
+func (l *Listener) listenAllLogsPubSub() {
+	msgChan, err := l.pubsub.Subscribe(l.ctx, AllLogsChannel)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to subscribe to all-logs channel")
+		return
+	}
+
+	for {
+		select {
+		case <-l.ctx.Done():
+			log.Info().Msg("Stopping PubSub all-logs listener")
+			return
+
+		case msg, ok := <-msgChan:
+			if !ok {
+				log.Info().Msg("PubSub all-logs channel closed")
+				return
+			}
+
+			// Parse the log stream event
+			var event storage.LogStreamEvent
+			if err := json.Unmarshal(msg.Payload, &event); err != nil {
+				log.Error().Err(err).Msg("Failed to parse all-logs event")
+				continue
+			}
+
+			// Forward to subscribers
+			l.processAllLogsEvent(&event)
+		}
+	}
+}
+
+// processAllLogsEvent forwards a log event to all-logs subscribers with filtering
+func (l *Listener) processAllLogsEvent(event *storage.LogStreamEvent) {
+	if l.subManager == nil || l.handler == nil {
+		return
+	}
+
+	// Get all connections subscribed to all logs with their filter preferences
+	subscribers := l.subManager.GetAllLogsSubscribers()
+	if len(subscribers) == 0 {
+		return
+	}
+
+	// Send to each subscribed connection that matches the filters
+	manager := l.handler.GetManager()
+	sentCount := 0
+
+	for connID, sub := range subscribers {
+		// Apply category filter if set
+		if sub.Category != "" && string(event.Category) != sub.Category {
+			continue
+		}
+
+		// Apply level filter if set
+		if len(sub.Levels) > 0 {
+			levelMatch := false
+			for _, level := range sub.Levels {
+				if string(event.Level) == level {
+					levelMatch = true
+					break
+				}
+			}
+			if !levelMatch {
+				continue
+			}
+		}
+
+		// Send to this connection
+		manager.mu.RLock()
+		conn, exists := manager.connections[connID]
+		manager.mu.RUnlock()
+
+		if exists {
+			_ = conn.SendMessage(ServerMessage{
+				Type:    MessageTypeLogEntry,
+				Payload: event,
+			})
+			sentCount++
+		}
+	}
+
+	// Note: We intentionally don't log here to avoid a feedback loop
+	// (logging would trigger another log event, which would be forwarded, etc.)
 }

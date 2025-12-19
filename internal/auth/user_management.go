@@ -20,6 +20,7 @@ type EnrichedUser struct {
 	Provider       string                 `json:"provider"` // "email", "invite_pending", "magic_link"
 	ActiveSessions int                    `json:"active_sessions"`
 	LastSignIn     *time.Time             `json:"last_sign_in"`
+	IsLocked       bool                   `json:"is_locked"`
 	UserMetadata   map[string]interface{} `json:"user_metadata"`
 	AppMetadata    map[string]interface{} `json:"app_metadata"`
 	CreatedAt      time.Time              `json:"created_at"`
@@ -84,10 +85,11 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 				WHEN u.password_hash IS NOT NULL THEN 'email'
 				WHEN u.email_verified = false THEN 'invite_pending'
 				ELSE 'email'
-			END as provider
+			END as provider,
+			COALESCE(u.is_locked, false) as is_locked
 		FROM %s u
 		LEFT JOIN %s s ON u.id = s.user_id
-		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash
+		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash, u.is_locked
 		ORDER BY u.created_at DESC
 	`, usersTable, sessionsTable)
 
@@ -113,6 +115,7 @@ func (s *UserManagementService) ListEnrichedUsers(ctx context.Context, userType 
 				&user.ActiveSessions,
 				&user.LastSignIn,
 				&user.Provider,
+				&user.IsLocked,
 			)
 			if err != nil {
 				return fmt.Errorf("failed to scan enriched user: %w", err)
@@ -162,11 +165,12 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 				WHEN u.password_hash IS NOT NULL THEN 'email'
 				WHEN u.email_verified = false THEN 'invite_pending'
 				ELSE 'email'
-			END as provider
+			END as provider,
+			COALESCE(u.is_locked, false) as is_locked
 		FROM %s u
 		LEFT JOIN %s s ON u.id = s.user_id
 		WHERE u.id = $1
-		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash
+		GROUP BY u.id, u.email, u.email_verified, u.role, u.user_metadata, u.app_metadata, u.created_at, u.updated_at, u.password_hash, u.is_locked
 	`, usersTable, sessionsTable)
 
 	user := &EnrichedUser{}
@@ -183,6 +187,7 @@ func (s *UserManagementService) GetEnrichedUserByID(ctx context.Context, userID 
 			&user.ActiveSessions,
 			&user.LastSignIn,
 			&user.Provider,
+			&user.IsLocked,
 		)
 	})
 
@@ -333,6 +338,44 @@ func (s *UserManagementService) ResetUserPassword(ctx context.Context, userID st
 
 	// Otherwise return temp password
 	return tempPassword, nil
+}
+
+// LockUser locks a user account
+func (s *UserManagementService) LockUser(ctx context.Context, userID string, userType string) error {
+	return s.setUserLockStatus(ctx, userID, userType, true)
+}
+
+// UnlockUser unlocks a user account
+func (s *UserManagementService) UnlockUser(ctx context.Context, userID string, userType string) error {
+	return s.setUserLockStatus(ctx, userID, userType, false)
+}
+
+// setUserLockStatus sets the lock status for a user
+func (s *UserManagementService) setUserLockStatus(ctx context.Context, userID string, userType string, locked bool) error {
+	// Determine which table to update
+	usersTable := "auth.users"
+	if userType == "dashboard" {
+		usersTable = "dashboard.users"
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE %s
+		SET is_locked = $1, failed_login_attempts = CASE WHEN $1 = false THEN 0 ELSE failed_login_attempts END, updated_at = NOW()
+		WHERE id = $2
+	`, usersTable)
+
+	err := database.WrapWithServiceRole(ctx, s.userRepo.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, locked, userID)
+		if err != nil {
+			return fmt.Errorf("failed to update user lock status: %w", err)
+		}
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
+		return nil
+	})
+
+	return err
 }
 
 // Helper function to generate secure random password

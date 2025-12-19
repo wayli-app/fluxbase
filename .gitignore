@@ -81,6 +81,7 @@ docs/node_modules/
 # Logs
 *.log
 logs/
+!admin/src/features/logs
 
 # Temporary files
 tmp/

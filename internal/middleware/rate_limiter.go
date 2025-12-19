@@ -23,6 +23,11 @@ type RateLimiterConfig struct {
 // NewRateLimiter creates a new rate limiter middleware with custom configuration.
 // If config.Store is nil, it uses the global rate limit store (configured via scaling.backend).
 // For backwards compatibility, it falls back to in-memory storage if no global store is set.
+//
+// SECURITY WARNING: In-memory rate limiting is per-instance only. In multi-instance deployments,
+// attackers can bypass rate limits by targeting different instances. For production environments
+// with horizontal scaling, configure Redis-backed storage via FLUXBASE_REDIS_ENABLED=true.
+// See docs/deployment/production-checklist.md for details.
 func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 	var storage fiber.Storage
 

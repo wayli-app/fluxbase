@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -53,22 +52,21 @@ type SecurityEvent struct {
 }
 
 // SecurityLogger handles logging of security events
-type SecurityLogger struct {
-	logger zerolog.Logger
-}
+type SecurityLogger struct{}
 
 // NewSecurityLogger creates a new security logger
 func NewSecurityLogger() *SecurityLogger {
-	return &SecurityLogger{
-		logger: log.With().Str("component", "security").Logger(),
-	}
+	return &SecurityLogger{}
 }
 
 // Log logs a security event
 // All security events are logged at INFO level with a "security_event" marker
 // so they can be easily filtered and monitored
 func (s *SecurityLogger) Log(ctx context.Context, event SecurityEvent) {
-	logEvent := s.logger.Info().
+	// Use log.Info() directly to ensure we use the current global logger writer
+	// (which may have been replaced by the logging service after package init)
+	logEvent := log.Info().
+		Str("component", "security").
 		Str("security_event", string(event.Type)).
 		Str("event_type", string(event.Type))
 
@@ -93,7 +91,9 @@ func (s *SecurityLogger) Log(ctx context.Context, event SecurityEvent) {
 
 // LogWarning logs a warning-level security event (suspicious activity)
 func (s *SecurityLogger) LogWarning(ctx context.Context, event SecurityEvent) {
-	logEvent := s.logger.Warn().
+	// Use log.Warn() directly to ensure we use the current global logger writer
+	logEvent := log.Warn().
+		Str("component", "security").
 		Str("security_event", string(event.Type)).
 		Str("event_type", string(event.Type))
 

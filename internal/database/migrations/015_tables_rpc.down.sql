@@ -6,7 +6,6 @@ DELETE FROM realtime.schema_registry WHERE schema_name = 'rpc';
 
 -- Drop triggers
 DROP TRIGGER IF EXISTS executions_realtime_notify ON rpc.executions;
-DROP TRIGGER IF EXISTS execution_logs_realtime_notify ON rpc.execution_logs;
 DROP TRIGGER IF EXISTS procedures_update_updated_at ON rpc.procedures;
 
 -- Drop functions
@@ -14,7 +13,6 @@ DROP FUNCTION IF EXISTS rpc.notify_realtime_change();
 DROP FUNCTION IF EXISTS rpc.update_updated_at();
 
 -- Drop tables (CASCADE will drop policies, indexes, and foreign key references)
-DROP TABLE IF EXISTS rpc.execution_logs CASCADE;
 DROP TABLE IF EXISTS rpc.executions CASCADE;
 DROP TABLE IF EXISTS rpc.procedures CASCADE;
 

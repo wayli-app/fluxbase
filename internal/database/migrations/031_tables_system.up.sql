@@ -1,5 +1,12 @@
--- Rate limits table for distributed rate limiting
+-- System Tables Migration
+-- Creates system-level tables for infrastructure features
+-- Note: system schema is created in 002_schemas
+
+-- ============================================================================
+-- RATE LIMITS
+-- Distributed rate limiting storage for multi-instance deployments
 -- Used when scaling.backend is set to "postgres"
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS system.rate_limits (
     key TEXT PRIMARY KEY,
@@ -12,7 +19,6 @@ CREATE TABLE IF NOT EXISTS system.rate_limits (
 CREATE INDEX IF NOT EXISTS idx_rate_limits_expires_at
 ON system.rate_limits (expires_at);
 
--- Comment explaining the table purpose
 COMMENT ON TABLE system.rate_limits IS 'Distributed rate limiting storage for multi-instance deployments';
 COMMENT ON COLUMN system.rate_limits.key IS 'Rate limit key (e.g., "login:192.168.1.1")';
 COMMENT ON COLUMN system.rate_limits.count IS 'Number of requests in the current window';

@@ -168,15 +168,7 @@ type Progress struct {
 	Data                 map[string]interface{} `json:"data,omitempty"`
 }
 
-// ExecutionLog represents a single log line from job execution
-type ExecutionLog struct {
-	ID         int64     `db:"id" json:"id"`
-	JobID      uuid.UUID `db:"job_id" json:"job_id"`
-	LineNumber int       `db:"line_number" json:"line_number"`
-	Level      string    `db:"level" json:"level"`
-	Message    string    `db:"message" json:"message"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-}
+// Note: ExecutionLog is now in the central logging schema (logging.entries)
 
 // CalculateETA computes the estimated completion time for a running job
 // using linear extrapolation based on current progress and elapsed time.

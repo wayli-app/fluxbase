@@ -204,11 +204,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 }
 
 // IncrementFailedLoginAttempts increments failed login attempts and locks account after threshold
+// SECURITY FIX: Now sets locked_until to allow automatic unlock after 15 minutes
 func (r *UserRepository) IncrementFailedLoginAttempts(ctx context.Context, userID string) error {
 	query := `
 		UPDATE auth.users
 		SET failed_login_attempts = COALESCE(failed_login_attempts, 0) + 1,
 		    is_locked = CASE WHEN COALESCE(failed_login_attempts, 0) >= 4 THEN true ELSE false END,
+		    locked_until = CASE WHEN COALESCE(failed_login_attempts, 0) >= 4 THEN NOW() + interval '15 minutes' ELSE locked_until END,
 		    updated_at = NOW()
 		WHERE id = $1
 	`

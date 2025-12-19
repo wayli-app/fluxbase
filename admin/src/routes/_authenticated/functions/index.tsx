@@ -74,8 +74,8 @@ import {
   functionsApi,
   type EdgeFunction,
   type EdgeFunctionExecution,
-  type FunctionExecutionLog,
 } from '@/lib/api'
+import { useExecutionLogs } from '@/hooks/use-execution-logs'
 
 export const Route = createFileRoute('/_authenticated/functions/')({
   component: FunctionsPage,
@@ -204,9 +204,17 @@ function EdgeFunctionsTab() {
   // Execution detail dialog state
   const [showExecutionDetailDialog, setShowExecutionDetailDialog] = useState(false)
   const [selectedExecution, setSelectedExecution] = useState<EdgeFunctionExecution | null>(null)
-  const [executionLogs, setExecutionLogs] = useState<FunctionExecutionLog[]>([])
-  const [executionLogsLoading, setExecutionLogsLoading] = useState(false)
   const [logLevelFilter, setLogLevelFilter] = useState<string>('all')
+
+  // Use the real-time execution logs hook
+  const {
+    logs: executionLogs,
+    loading: executionLogsLoading,
+  } = useExecutionLogs({
+    executionId: selectedExecution?.id || null,
+    executionType: 'function',
+    enabled: showExecutionDetailDialog,
+  })
 
   // Ref to track initial fetch (prevents debounced search from re-fetching on mount)
   const hasInitialFetch = useRef(false)
@@ -377,24 +385,11 @@ async function handler(req: Request) {
   }, [executionLogs, logLevelFilter])
 
   // Open execution detail dialog
-  const openExecutionDetail = async (exec: EdgeFunctionExecution) => {
+  const openExecutionDetail = (exec: EdgeFunctionExecution) => {
     setSelectedExecution(exec)
     setShowExecutionDetailDialog(true)
-    setExecutionLogs([])
     setLogLevelFilter('all')
-    setExecutionLogsLoading(true)
-
-    try {
-      const result = await functionsApi.getExecutionLogs(exec.id)
-      setExecutionLogs(result.logs || [])
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error fetching execution logs:', error)
-      // If there are no structured logs, the execution might be old (before the new table)
-      // The dialog will show the blob logs from exec.logs instead
-    } finally {
-      setExecutionLogsLoading(false)
-    }
+    // The useExecutionLogs hook handles fetching and real-time updates automatically
   }
 
   // Copy to clipboard helper

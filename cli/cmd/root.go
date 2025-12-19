@@ -98,6 +98,7 @@ func init() {
 	rootCmd.AddCommand(extensionsCmd)
 	rootCmd.AddCommand(realtimeCmd)
 	rootCmd.AddCommand(settingsCmd)
+	rootCmd.AddCommand(logsCmd)
 }
 
 func initConfig() {

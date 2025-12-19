@@ -227,12 +227,17 @@ func NewPasswordResetService(
 }
 
 // RequestPasswordReset sends a password reset email to the specified email
+// SECURITY: Uses constant-time-ish processing to prevent email enumeration via timing attacks
 func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email string) error {
 	// Get user by email
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		// Don't reveal if user exists or not (security best practice)
+		// SECURITY FIX: Add small random delay to prevent timing-based email enumeration
+		// Real requests take longer due to DB operations and email sending
 		if errors.Is(err, ErrUserNotFound) {
+			// Sleep for a random duration between 100-300ms to mimic real processing time
+			time.Sleep(time.Duration(100+time.Now().UnixNano()%200) * time.Millisecond)
 			return nil
 		}
 		return fmt.Errorf("failed to get user: %w", err)

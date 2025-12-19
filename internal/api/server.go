@@ -15,6 +15,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/extensions"
 	"github.com/fluxbase-eu/fluxbase/internal/functions"
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/migrations"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
@@ -29,7 +30,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/rs/zerolog/log"
@@ -81,6 +81,9 @@ type Server struct {
 	rpcScheduler          *rpc.Scheduler
 	extensionsHandler     *extensions.Handler
 	vectorHandler         *VectorHandler
+	loggingService        *logging.Service
+	loggingHandler        *LoggingHandler
+	retentionService      *logging.RetentionService
 
 	// Leader election for schedulers (used in multi-instance deployments)
 	jobsSchedulerLeader      *scaling.LeaderElector
@@ -171,10 +174,41 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Warn().Err(err).Msg("Failed to ensure default buckets")
 	}
 
+	// Initialize central logging service
+	var loggingService *logging.Service
+	var loggingHandler *LoggingHandler
+	var retentionService *logging.RetentionService
+	if cfg.Logging.ConsoleEnabled || cfg.Logging.Backend != "" {
+		loggingService, err = logging.New(&cfg.Logging, db, storageService.Provider, ps)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to initialize central logging service, continuing with default logging")
+		} else {
+			// Replace zerolog writer with the central logging writer
+			log.Logger = log.Output(loggingService.Writer())
+			log.Info().
+				Str("backend", cfg.Logging.Backend).
+				Bool("pubsub_enabled", cfg.Logging.PubSubEnabled).
+				Int("batch_size", cfg.Logging.BatchSize).
+				Msg("Central logging service initialized")
+
+			// Create logging handler for API routes
+			loggingHandler = NewLoggingHandler(loggingService)
+
+			// Create retention cleanup service
+			if cfg.Logging.RetentionEnabled {
+				retentionService = logging.NewRetentionService(&cfg.Logging, loggingService.Storage())
+			}
+		}
+	}
+
 	// Initialize webhook service
 	webhookService := webhook.NewWebhookService(db)
 	// Allow private IPs in debug mode (for local testing with localhost webhooks)
+	// SECURITY WARNING: This bypasses SSRF protection - NEVER enable debug mode in production!
 	webhookService.AllowPrivateIPs = cfg.Debug
+	if cfg.Debug {
+		log.Warn().Msg("SECURITY: Debug mode enabled - webhook SSRF protection is DISABLED. Do NOT use in production!")
+	}
 
 	// Initialize webhook trigger service (4 workers)
 	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)
@@ -316,7 +350,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		}
 
 		// Create AI chat handler for WebSocket with RAG support
-		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService)
+		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService, loggingService)
 
 		log.Info().
 			Str("chatbots_dir", cfg.AI.ChatbotsDir).
@@ -400,7 +434,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
 	realtimeSubManager := realtime.NewSubscriptionManager(db.Pool())
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
-	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager)
+	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager, ps)
 
 	// Create monitoring handler
 	monitoringHandler := NewMonitoringHandler(db.Pool(), realtimeHandler, storageService.Provider)
@@ -451,6 +485,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		rpcScheduler:          rpcScheduler,
 		extensionsHandler:     extensions.NewHandler(extensions.NewService(db)),
 		vectorHandler:         vectorHandler,
+		loggingService:        loggingService,
+		loggingHandler:        loggingHandler,
+		retentionService:      retentionService,
 	}
 
 	// Start realtime listener (unless disabled or in worker-only mode)
@@ -597,6 +634,14 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Error().Err(err).Msg("Failed to start webhook trigger service")
 	}
 
+	// Start retention cleanup service (for central logging)
+	if retentionService != nil {
+		retentionService.Start()
+		log.Info().
+			Dur("interval", cfg.Logging.RetentionCheckInterval).
+			Msg("Log retention cleanup service started")
+	}
+
 	// Auto-load AI chatbots if enabled
 	if cfg.AI.Enabled && cfg.AI.AutoLoadOnBoot && aiHandler != nil {
 		if err := aiHandler.AutoLoadChatbots(context.Background()); err != nil {
@@ -648,13 +693,14 @@ func (s *Server) setupMiddlewares() {
 		return middleware.SecurityHeaders()(c)
 	})
 
-	// Logger middleware
-	log.Debug().Msg("Adding logger middleware")
-	if s.config.Debug {
-		s.app.Use(logger.New(logger.Config{
-			Format: "[${time}] ${status} - ${latency} ${method} ${path} ${error}\n",
-		}))
-	}
+	// Structured logger middleware - logs HTTP requests through zerolog
+	// This allows HTTP logs to be captured by the central logging system
+	log.Debug().Msg("Adding structured logger middleware")
+	s.app.Use(middleware.StructuredLogger(middleware.StructuredLoggerConfig{
+		SkipPaths: []string{"/health", "/ready", "/metrics"},
+		// In debug mode, log all requests; in production, skip successful requests to reduce noise
+		SkipSuccessfulRequests: !s.config.Debug,
+	}))
 
 	// Recover middleware - catch panics
 	log.Debug().Msg("Adding recover middleware")
@@ -1088,6 +1134,13 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/query", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleExecuteQuery)
 
 	// DDL routes (schema and table management) - require admin or dashboard_admin role
+	router.Get("/ddl/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.ListSchemas)
+	router.Post("/ddl/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateSchema)
+	router.Get("/ddl/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.ListTables)
+	router.Post("/ddl/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateTable)
+	router.Delete("/ddl/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DeleteTable)
+
+	// Legacy DDL routes (without /ddl/ prefix) - keep for backwards compatibility
 	router.Post("/schemas", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateSchema)
 	router.Post("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.CreateTable)
 	router.Delete("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DeleteTable)
@@ -1317,6 +1370,14 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 			Msg("Migrations API registered with enhanced security controls")
 	} else {
 		log.Info().Msg("Migrations API disabled")
+	}
+
+	// Central logging routes (require admin, dashboard_admin, or service_role)
+	if s.loggingHandler != nil {
+		router.Get("/logs", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.loggingHandler.QueryLogs)
+		router.Get("/logs/stats", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.loggingHandler.GetLogStats)
+		router.Get("/logs/executions/:execution_id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.loggingHandler.GetExecutionLogs)
+		router.Post("/logs/flush", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.loggingHandler.FlushLogs)
 	}
 
 	// Schema refresh endpoint (require admin, dashboard_admin, or service_role)
@@ -1563,6 +1624,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Stop retention cleanup service
+	if s.retentionService != nil {
+		log.Info().Msg("Stopping log retention cleanup service")
+		s.retentionService.Stop()
+	}
+
+	// Close central logging service (flush remaining log entries)
+	if s.loggingService != nil {
+		log.Info().Msg("Closing central logging service")
+		if err := s.loggingService.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close logging service")
+		}
+	}
+
 	log.Info().Msg("Shutting down HTTP server")
 	return s.app.ShutdownWithContext(ctx)
 }
@@ -1591,6 +1666,11 @@ func (s *Server) GetAuthService() *auth.Service {
 		return nil
 	}
 	return s.authHandler.authService
+}
+
+// GetLoggingService returns the central logging service
+func (s *Server) GetLoggingService() *logging.Service {
+	return s.loggingService
 }
 
 // LoadFunctionsFromFilesystem loads edge functions from the filesystem

@@ -148,24 +148,7 @@ ALTER TABLE jobs.functions REPLICA IDENTITY FULL;
 ALTER TABLE jobs.workers REPLICA IDENTITY FULL;
 ALTER TABLE jobs.function_files REPLICA IDENTITY FULL;
 
--- ============================================
--- Execution logs table (separate from queue for efficient Realtime streaming)
--- ============================================
-CREATE TABLE IF NOT EXISTS jobs.execution_logs (
-    id BIGSERIAL PRIMARY KEY,
-    job_id UUID NOT NULL REFERENCES jobs.queue(id) ON DELETE CASCADE,
-    line_number INTEGER NOT NULL,
-    level TEXT NOT NULL DEFAULT 'info',
-    message TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_execution_logs_job_id ON jobs.execution_logs(job_id);
-CREATE INDEX IF NOT EXISTS idx_execution_logs_job_id_line ON jobs.execution_logs(job_id, line_number);
-
-ALTER TABLE jobs.execution_logs REPLICA IDENTITY FULL;
-
-COMMENT ON TABLE jobs.execution_logs IS 'Individual log lines for job execution (streamed via Realtime)';
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 -- ============================================
 -- Generic notify function for jobs schema
@@ -215,10 +198,4 @@ FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
 DROP TRIGGER IF EXISTS function_files_realtime_notify ON jobs.function_files;
 CREATE TRIGGER function_files_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON jobs.function_files
-FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();
-
--- execution_logs only needs INSERT notifications (logs are append-only)
-DROP TRIGGER IF EXISTS execution_logs_realtime_notify ON jobs.execution_logs;
-CREATE TRIGGER execution_logs_realtime_notify
-AFTER INSERT ON jobs.execution_logs
 FOR EACH ROW EXECUTE FUNCTION jobs.notify_realtime_change();

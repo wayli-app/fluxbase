@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  aiProvidersApi,
   chatbotsApi,
   type AIChatbot,
   type AIChatbotSummary,
   type AIProvider,
 } from '@/lib/api'
-import { getAccessToken } from '@/lib/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -345,21 +345,11 @@ export function ChatbotSettingsDialog({
   })
 
   // Fetch available providers
-  const { data: providersData } = useQuery<{ providers: AIProvider[] }>({
+  const { data: providers = [] } = useQuery({
     queryKey: ['ai-providers'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/admin/ai/providers', {
-        headers: {
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch providers')
-      return response.json()
-    },
+    queryFn: () => aiProvidersApi.list(),
     enabled: open,
   })
-
-  const providers: AIProvider[] = providersData?.providers || []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

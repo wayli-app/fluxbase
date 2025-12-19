@@ -55,28 +55,7 @@ CREATE POLICY "Service role can manage function files"
     USING (true)
     WITH CHECK (true);
 
--- Execution Logs: Enable RLS
-ALTER TABLE jobs.execution_logs ENABLE ROW LEVEL SECURITY;
-
--- Execution Logs: Users can read logs for their own jobs
-DROP POLICY IF EXISTS "Users can read their own job logs" ON jobs.execution_logs;
-CREATE POLICY "Users can read their own job logs"
-    ON jobs.execution_logs FOR SELECT
-    TO authenticated
-    USING (
-        EXISTS (
-            SELECT 1 FROM jobs.queue
-            WHERE queue.id = execution_logs.job_id
-            AND queue.created_by = auth.uid()
-        )
-    );
-
-DROP POLICY IF EXISTS "Service role can manage execution logs" ON jobs.execution_logs;
-CREATE POLICY "Service role can manage execution logs"
-    ON jobs.execution_logs FOR ALL
-    TO service_role
-    USING (true)
-    WITH CHECK (true);
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 -- ============================================
 -- Dashboard Admin Policies
@@ -103,11 +82,5 @@ CREATE POLICY "Dashboard admins can read all workers"
 DROP POLICY IF EXISTS "Dashboard admins can read all function files" ON jobs.function_files;
 CREATE POLICY "Dashboard admins can read all function files"
     ON jobs.function_files FOR SELECT
-    TO authenticated
-    USING (auth.role() = 'dashboard_admin');
-
-DROP POLICY IF EXISTS "Dashboard admins can read all execution logs" ON jobs.execution_logs;
-CREATE POLICY "Dashboard admins can read all execution logs"
-    ON jobs.execution_logs FOR SELECT
     TO authenticated
     USING (auth.role() = 'dashboard_admin');

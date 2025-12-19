@@ -660,6 +660,15 @@ func (s *WebhookService) Deliver(ctx context.Context, webhook *Webhook, payload 
 
 // sendWebhookSync sends an HTTP request synchronously and returns any error
 func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, payloadJSON []byte) error {
+	// SECURITY FIX: Validate webhook URL at request time to prevent DNS rebinding attacks
+	// An attacker could create a webhook with a URL that initially resolves to a public IP,
+	// then change the DNS to point to a private IP (e.g., 169.254.169.254 for cloud metadata)
+	if !s.AllowPrivateIPs {
+		if err := validateWebhookURL(webhook.URL); err != nil {
+			return fmt.Errorf("webhook URL validation failed (possible DNS rebinding attack): %w", err)
+		}
+	}
+
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", webhook.URL, bytes.NewReader(payloadJSON))
 	if err != nil {
@@ -703,6 +712,14 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 
 // sendWebhook sends the actual HTTP request (runs asynchronously)
 func (s *WebhookService) sendWebhook(ctx context.Context, deliveryID uuid.UUID, webhook *Webhook, payloadJSON []byte) {
+	// SECURITY FIX: Validate webhook URL at request time to prevent DNS rebinding attacks
+	if !s.AllowPrivateIPs {
+		if err := validateWebhookURL(webhook.URL); err != nil {
+			s.markDeliveryFailed(ctx, deliveryID, 0, nil, fmt.Sprintf("webhook URL validation failed (possible DNS rebinding): %v", err))
+			return
+		}
+	}
+
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "POST", webhook.URL, bytes.NewReader(payloadJSON))
 	if err != nil {

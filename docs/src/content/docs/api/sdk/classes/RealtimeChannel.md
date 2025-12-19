@@ -165,6 +165,36 @@ channel.on('presence', { event: 'sync' }, (payload) => {
 })
 ```
 
+#### on(event, config, callback)
+
+> **on**(`event`, `config`, `callback`): `this`
+
+Listen to execution log events
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `event` | `"execution_log"` | 'execution_log' |
+| `config` | `object` | Configuration with execution_id and optional type |
+| `config.execution_id` | `string` | - |
+| `config.type`? | [`ExecutionType`](/api/sdk/type-aliases/executiontype/) | - |
+| `callback` | [`ExecutionLogCallback`](/api/sdk/type-aliases/executionlogcallback/) | Function to call when log entries are received |
+
+##### Returns
+
+`this`
+
+This channel for chaining
+
+##### Example
+
+```typescript
+channel.on('execution_log', { execution_id: 'abc123', type: 'function' }, (log) => {
+  console.log(`[${log.level}] ${log.message}`)
+})
+```
+
 ***
 
 ### presenceState()

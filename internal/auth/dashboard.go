@@ -135,6 +135,12 @@ type LoginResponse struct {
 
 // Login authenticates a dashboard user with email and password
 func (s *DashboardAuthService) Login(ctx context.Context, email, password string, ipAddress net.IP, userAgent string) (*DashboardUser, *LoginResponse, error) {
+	// Safe IP address string for logging
+	var ipStr string
+	if ipAddress != nil {
+		ipStr = ipAddress.String()
+	}
+
 	// Fetch user with password hash
 	var user DashboardUser
 	var passwordHash string
@@ -155,18 +161,45 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Log failed login attempt for non-existent user
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:      SecurityEventLoginFailed,
+				Email:     email,
+				IPAddress: ipStr,
+				UserAgent: userAgent,
+				Details:   map[string]interface{}{"reason": "user_not_found", "dashboard": true},
+			})
 			return nil, nil, errors.New("invalid credentials")
 		}
 		return nil, nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
 
 	// Check if account is locked
+	// TODO: SECURITY - Add locked_until column to dashboard.users table and implement
+	// automatic unlock after timeout (similar to auth.users). Currently dashboard accounts
+	// are locked indefinitely until admin intervention.
 	if user.IsLocked {
+		LogSecurityWarning(ctx, SecurityEvent{
+			Type:      SecurityEventLoginFailed,
+			UserID:    user.ID.String(),
+			Email:     user.Email,
+			IPAddress: ipStr,
+			UserAgent: userAgent,
+			Details:   map[string]interface{}{"reason": "account_locked", "dashboard": true},
+		})
 		return nil, nil, errors.New("account is locked")
 	}
 
 	// Check if account is active
 	if !user.IsActive {
+		LogSecurityWarning(ctx, SecurityEvent{
+			Type:      SecurityEventLoginFailed,
+			UserID:    user.ID.String(),
+			Email:     user.Email,
+			IPAddress: ipStr,
+			UserAgent: userAgent,
+			Details:   map[string]interface{}{"reason": "account_inactive", "dashboard": true},
+		})
 		return nil, nil, errors.New("account is inactive")
 	}
 
@@ -182,6 +215,15 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 				WHERE id = $1
 			`, user.ID)
 			return err
+		})
+		// Log failed login due to wrong password
+		LogSecurityEvent(ctx, SecurityEvent{
+			Type:      SecurityEventLoginFailed,
+			UserID:    user.ID.String(),
+			Email:     user.Email,
+			IPAddress: ipStr,
+			UserAgent: userAgent,
+			Details:   map[string]interface{}{"reason": "invalid_password", "dashboard": true},
 		})
 		return nil, nil, errors.New("invalid credentials")
 	}
@@ -199,6 +241,16 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to update login timestamp: %w", err)
 	}
+
+	// Log successful login
+	LogSecurityEvent(ctx, SecurityEvent{
+		Type:      SecurityEventLoginSuccess,
+		UserID:    user.ID.String(),
+		Email:     user.Email,
+		IPAddress: ipStr,
+		UserAgent: userAgent,
+		Details:   map[string]interface{}{"dashboard": true},
+	})
 
 	// Generate JWT token pair (access + refresh) - dashboard users don't need metadata for now
 	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", nil, nil)

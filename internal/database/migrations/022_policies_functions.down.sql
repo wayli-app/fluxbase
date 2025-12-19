@@ -1,9 +1,6 @@
 -- Drop all functions schema RLS policies
 
--- Execution logs
-DROP POLICY IF EXISTS functions_execution_logs_owner ON functions.execution_logs;
-DROP POLICY IF EXISTS functions_execution_logs_admin ON functions.execution_logs;
-DROP POLICY IF EXISTS functions_execution_logs_service_all ON functions.execution_logs;
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 -- Function dependencies
 DROP POLICY IF EXISTS functions_dependencies_owner ON functions.function_dependencies;

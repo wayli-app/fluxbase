@@ -541,6 +541,8 @@ func (h *Handler) GetExecution(c *fiber.Ctx) error {
 
 // GetExecutionLogs returns logs for an execution
 // GET /api/v1/admin/rpc/executions/:id/logs
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
+// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 	ctx := c.Context()
 	id := c.Params("id")
@@ -560,31 +562,11 @@ func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get logs
-	afterLine := 0
-	if after := c.Query("after"); after != "" {
-		if a, err := strconv.Atoi(after); err == nil {
-			afterLine = a
-		}
-	}
-
-	var logs []*ExecutionLog
-	if afterLine > 0 {
-		logs, err = h.storage.GetExecutionLogsSince(ctx, id, afterLine)
-	} else {
-		logs, err = h.storage.GetExecutionLogs(ctx, id)
-	}
-
-	if err != nil {
-		log.Error().Err(err).Str("id", id).Msg("Failed to get execution logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to get execution logs",
-		})
-	}
-
+	// Return empty - logs are now in central logging schema
 	return c.JSON(fiber.Map{
-		"logs":  logs,
-		"count": len(logs),
+		"logs":    []interface{}{},
+		"count":   0,
+		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
 	})
 }
 
@@ -827,6 +809,8 @@ func (h *Handler) GetPublicExecution(c *fiber.Ctx) error {
 
 // GetPublicExecutionLogs returns logs for user's own execution
 // GET /api/v1/rpc/executions/:id/logs
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
+// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 	ctx := c.Context()
 	id := c.Params("id")
@@ -862,30 +846,10 @@ func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 		}
 	}
 
-	// Get logs
-	afterLine := 0
-	if after := c.Query("after"); after != "" {
-		if a, err := strconv.Atoi(after); err == nil {
-			afterLine = a
-		}
-	}
-
-	var logs []*ExecutionLog
-	if afterLine > 0 {
-		logs, err = h.storage.GetExecutionLogsSince(ctx, id, afterLine)
-	} else {
-		logs, err = h.storage.GetExecutionLogs(ctx, id)
-	}
-
-	if err != nil {
-		log.Error().Err(err).Str("id", id).Msg("Failed to get execution logs")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to get execution logs",
-		})
-	}
-
+	// Return empty - logs are now in central logging schema
 	return c.JSON(fiber.Map{
-		"logs":  logs,
-		"count": len(logs),
+		"logs":    []interface{}{},
+		"count":   0,
+		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
 	})
 }

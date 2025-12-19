@@ -30,6 +30,7 @@ type Config struct {
 	AI         AIConfig         `mapstructure:"ai"`
 	RPC        RPCConfig        `mapstructure:"rpc"`
 	Scaling    ScalingConfig    `mapstructure:"scaling"`
+	Logging    LoggingConfig    `mapstructure:"logging"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
 }
@@ -322,6 +323,47 @@ type RPCConfig struct {
 	MaxMaxExecutionTime     time.Duration `mapstructure:"max_max_execution_time"`     // Maximum allowed execution time
 	DefaultMaxRows          int           `mapstructure:"default_max_rows"`           // Default max rows returned
 	SyncAllowedIPRanges     []string      `mapstructure:"sync_allowed_ip_ranges"`     // IP CIDR ranges allowed to sync procedures
+}
+
+// LoggingConfig contains central logging configuration
+type LoggingConfig struct {
+	// Console output settings
+	ConsoleEnabled bool   `mapstructure:"console_enabled"` // Enable console output (default: true)
+	ConsoleLevel   string `mapstructure:"console_level"`   // Minimum level for console: trace, debug, info, warn, error
+	ConsoleFormat  string `mapstructure:"console_format"`  // Output format: json or console
+
+	// Backend settings
+	Backend string `mapstructure:"backend"` // Primary backend: postgres (default), s3, local
+
+	// S3 backend settings (when backend is "s3")
+	S3Bucket string `mapstructure:"s3_bucket"` // S3 bucket for logs
+	S3Prefix string `mapstructure:"s3_prefix"` // Prefix for log objects (default: "logs")
+
+	// Local backend settings (when backend is "local")
+	LocalPath string `mapstructure:"local_path"` // Directory for log files (default: "./logs")
+
+	// Batching settings
+	BatchSize     int           `mapstructure:"batch_size"`     // Number of entries per batch (default: 100)
+	FlushInterval time.Duration `mapstructure:"flush_interval"` // Max time before flushing (default: 1s)
+	BufferSize    int           `mapstructure:"buffer_size"`    // Async buffer size (default: 10000)
+
+	// PubSub notifications (for realtime streaming)
+	PubSubEnabled bool `mapstructure:"pubsub_enabled"` // Enable PubSub notifications for execution logs
+
+	// Retention settings (days, 0 = keep forever)
+	SystemRetentionDays    int `mapstructure:"system_retention_days"`    // App/system logs (default: 7)
+	HTTPRetentionDays      int `mapstructure:"http_retention_days"`      // HTTP access logs (default: 30)
+	SecurityRetentionDays  int `mapstructure:"security_retention_days"`  // Security/audit logs (default: 90)
+	ExecutionRetentionDays int `mapstructure:"execution_retention_days"` // Function/job/RPC logs (default: 30)
+	AIRetentionDays        int `mapstructure:"ai_retention_days"`        // AI query audit logs (default: 30)
+
+	// Retention service settings
+	RetentionEnabled       bool          `mapstructure:"retention_enabled"`        // Enable retention cleanup (default: true)
+	RetentionCheckInterval time.Duration `mapstructure:"retention_check_interval"` // Interval between cleanup checks (default: 24h)
+
+	// Custom categories
+	CustomCategories    []string `mapstructure:"custom_categories"`     // List of allowed custom category names
+	CustomRetentionDays int      `mapstructure:"custom_retention_days"` // Retention for custom categories (default: 30)
 }
 
 // Load loads configuration from file and environment variables
@@ -634,6 +676,28 @@ func setDefaults() {
 	viper.SetDefault("scaling.backend", "local")                        // Use local in-memory storage by default
 	viper.SetDefault("scaling.redis_url", "")                           // No Redis URL by default
 
+	// Logging defaults
+	viper.SetDefault("logging.console_enabled", true)
+	viper.SetDefault("logging.console_level", "info")
+	viper.SetDefault("logging.console_format", "console")       // "json" or "console"
+	viper.SetDefault("logging.backend", "postgres")             // postgres, s3, local
+	viper.SetDefault("logging.s3_bucket", "")                   // Required when backend is s3
+	viper.SetDefault("logging.s3_prefix", "logs")               // Prefix for S3 objects
+	viper.SetDefault("logging.local_path", "./logs")            // Path for local logs
+	viper.SetDefault("logging.batch_size", 100)                 // Entries per batch
+	viper.SetDefault("logging.flush_interval", "1s")            // Flush interval
+	viper.SetDefault("logging.buffer_size", 10000)              // Async buffer size
+	viper.SetDefault("logging.pubsub_enabled", true)            // Enable PubSub for execution logs
+	viper.SetDefault("logging.system_retention_days", 7)        // App logs retention
+	viper.SetDefault("logging.http_retention_days", 30)         // HTTP logs retention
+	viper.SetDefault("logging.security_retention_days", 90)     // Security logs retention
+	viper.SetDefault("logging.execution_retention_days", 30)    // Execution logs retention
+	viper.SetDefault("logging.ai_retention_days", 30)           // AI logs retention
+	viper.SetDefault("logging.retention_enabled", true)         // Enable retention service
+	viper.SetDefault("logging.retention_check_interval", "24h") // Check interval for retention cleanup
+	viper.SetDefault("logging.custom_categories", []string{})   // Custom categories (empty by default)
+	viper.SetDefault("logging.custom_retention_days", 30)       // Custom category retention
+
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("debug", false)
@@ -709,6 +773,11 @@ func (c *Config) Validate() error {
 	// Validate scaling configuration
 	if err := c.Scaling.Validate(); err != nil {
 		return fmt.Errorf("scaling configuration error: %w", err)
+	}
+
+	// Validate logging configuration
+	if err := c.Logging.Validate(); err != nil {
+		return fmt.Errorf("logging configuration error: %w", err)
 	}
 
 	// Validate base URL
@@ -1244,6 +1313,80 @@ func (ac *AIConfig) Validate() error {
 	// Warn if max rows is very high
 	if ac.MaxRowsPerQuery > 10000 {
 		log.Warn().Int("max_rows_per_query", ac.MaxRowsPerQuery).Msg("max_rows_per_query is over 10000 - large result sets may impact performance")
+	}
+
+	return nil
+}
+
+// Validate validates logging configuration
+func (lc *LoggingConfig) Validate() error {
+	// Validate console level
+	validLevels := []string{"trace", "debug", "info", "warn", "error"}
+	levelValid := false
+	for _, level := range validLevels {
+		if lc.ConsoleLevel == level {
+			levelValid = true
+			break
+		}
+	}
+	if !levelValid && lc.ConsoleLevel != "" {
+		return fmt.Errorf("invalid console_level: %s (must be one of: %v)", lc.ConsoleLevel, validLevels)
+	}
+
+	// Validate console format
+	if lc.ConsoleFormat != "" && lc.ConsoleFormat != "json" && lc.ConsoleFormat != "console" {
+		return fmt.Errorf("invalid console_format: %s (must be 'json' or 'console')", lc.ConsoleFormat)
+	}
+
+	// Validate backend
+	validBackends := []string{"postgres", "s3", "local"}
+	backendValid := false
+	for _, backend := range validBackends {
+		if lc.Backend == backend {
+			backendValid = true
+			break
+		}
+	}
+	if !backendValid && lc.Backend != "" {
+		return fmt.Errorf("invalid logging backend: %s (must be one of: %v)", lc.Backend, validBackends)
+	}
+
+	// Validate S3 settings when backend is s3
+	if lc.Backend == "s3" && lc.S3Bucket == "" {
+		return fmt.Errorf("s3_bucket is required when logging backend is 's3'")
+	}
+
+	// Validate batching settings
+	if lc.BatchSize < 0 {
+		return fmt.Errorf("batch_size cannot be negative, got: %d", lc.BatchSize)
+	}
+	if lc.FlushInterval < 0 {
+		return fmt.Errorf("flush_interval cannot be negative, got: %v", lc.FlushInterval)
+	}
+	if lc.BufferSize < 0 {
+		return fmt.Errorf("buffer_size cannot be negative, got: %d", lc.BufferSize)
+	}
+
+	// Validate retention settings
+	if lc.SystemRetentionDays < 0 {
+		return fmt.Errorf("system_retention_days cannot be negative, got: %d", lc.SystemRetentionDays)
+	}
+	if lc.HTTPRetentionDays < 0 {
+		return fmt.Errorf("http_retention_days cannot be negative, got: %d", lc.HTTPRetentionDays)
+	}
+	if lc.SecurityRetentionDays < 0 {
+		return fmt.Errorf("security_retention_days cannot be negative, got: %d", lc.SecurityRetentionDays)
+	}
+	if lc.ExecutionRetentionDays < 0 {
+		return fmt.Errorf("execution_retention_days cannot be negative, got: %d", lc.ExecutionRetentionDays)
+	}
+	if lc.AIRetentionDays < 0 {
+		return fmt.Errorf("ai_retention_days cannot be negative, got: %d", lc.AIRetentionDays)
+	}
+
+	// Warn about short retention periods for security logs
+	if lc.SecurityRetentionDays > 0 && lc.SecurityRetentionDays < 30 {
+		log.Warn().Int("security_retention_days", lc.SecurityRetentionDays).Msg("Security log retention is less than 30 days - consider increasing for compliance")
 	}
 
 	return nil

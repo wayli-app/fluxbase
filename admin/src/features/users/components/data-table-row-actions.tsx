@@ -1,6 +1,8 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, UserPen } from 'lucide-react'
+import { Lock, Trash2, Unlock, UserPen } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,7 +20,52 @@ type DataTableRowActionsProps = {
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
-  const { setOpen, setCurrentRow } = useUsers()
+  const { setOpen, setCurrentRow, userType } = useUsers()
+  const queryClient = useQueryClient()
+  const user = row.original
+
+  const lockMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/v1/admin/users/${user.id}/lock?type=${userType}`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to lock user')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      toast.success('User account locked')
+      queryClient.invalidateQueries({ queryKey: ['users', userType] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const unlockMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/v1/admin/users/${user.id}/unlock?type=${userType}`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to unlock user')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      toast.success('User account unlocked')
+      queryClient.invalidateQueries({ queryKey: ['users', userType] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
   return (
     <>
       <DropdownMenu modal={false}>
@@ -43,6 +90,29 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <UserPen size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {user.is_locked ? (
+            <DropdownMenuItem
+              onClick={() => unlockMutation.mutate()}
+              disabled={unlockMutation.isPending}
+            >
+              Unlock
+              <DropdownMenuShortcut>
+                <Unlock size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => lockMutation.mutate()}
+              disabled={lockMutation.isPending}
+              className='text-orange-600'
+            >
+              Lock
+              <DropdownMenuShortcut>
+                <Lock size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {

@@ -12,6 +12,13 @@ import (
 )
 
 // detectContentType detects content type from file extension
+// SECURITY NOTE: This function only checks file extension, which can be spoofed.
+// For enhanced security, consider using detectContentTypeFromBytes() which validates
+// magic bytes. However, the primary security control should be:
+// 1. Never execute uploaded files
+// 2. Serve files with Content-Disposition: attachment
+// 3. Use strict CSP headers on storage endpoints
+// 4. Implement bucket-level MIME type whitelists
 func detectContentType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
 	contentTypes := map[string]string{

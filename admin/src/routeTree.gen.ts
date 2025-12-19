@@ -36,6 +36,7 @@ import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes
 import { Route as AuthenticatedRpcIndexRouteImport } from './routes/_authenticated/rpc/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
+import { Route as AuthenticatedLogsIndexRouteImport } from './routes/_authenticated/logs/index'
 import { Route as AuthenticatedKnowledgeBasesIndexRouteImport } from './routes/_authenticated/knowledge-bases/index'
 import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
 import { Route as AuthenticatedFunctionsIndexRouteImport } from './routes/_authenticated/functions/index'
@@ -197,6 +198,11 @@ const AuthenticatedMonitoringIndexRoute =
     path: '/monitoring/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLogsIndexRoute = AuthenticatedLogsIndexRouteImport.update({
+  id: '/logs/',
+  path: '/logs/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedKnowledgeBasesIndexRoute =
   AuthenticatedKnowledgeBasesIndexRouteImport.update({
     id: '/knowledge-bases/',
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/knowledge-bases': typeof AuthenticatedKnowledgeBasesIndexRoute
+  '/logs': typeof AuthenticatedLogsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
@@ -373,6 +380,7 @@ export interface FileRoutesByTo {
   '/functions': typeof AuthenticatedFunctionsIndexRoute
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/knowledge-bases': typeof AuthenticatedKnowledgeBasesIndexRoute
+  '/logs': typeof AuthenticatedLogsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/_authenticated/functions/': typeof AuthenticatedFunctionsIndexRoute
   '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
   '/_authenticated/knowledge-bases/': typeof AuthenticatedKnowledgeBasesIndexRoute
+  '/_authenticated/logs/': typeof AuthenticatedLogsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
   '/_authenticated/rpc/': typeof AuthenticatedRpcIndexRoute
@@ -467,6 +476,7 @@ export interface FileRouteTypes {
     | '/functions'
     | '/jobs'
     | '/knowledge-bases'
+    | '/logs'
     | '/monitoring'
     | '/realtime'
     | '/rpc'
@@ -512,6 +522,7 @@ export interface FileRouteTypes {
     | '/functions'
     | '/jobs'
     | '/knowledge-bases'
+    | '/logs'
     | '/monitoring'
     | '/realtime'
     | '/rpc'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/_authenticated/functions/'
     | '/_authenticated/jobs/'
     | '/_authenticated/knowledge-bases/'
+    | '/_authenticated/logs/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
     | '/_authenticated/rpc/'
@@ -783,6 +795,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMonitoringIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/logs/': {
+      id: '/_authenticated/logs/'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedLogsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/knowledge-bases/': {
       id: '/_authenticated/knowledge-bases/'
       path: '/knowledge-bases'
@@ -921,6 +940,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFunctionsIndexRoute: typeof AuthenticatedFunctionsIndexRoute
   AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
   AuthenticatedKnowledgeBasesIndexRoute: typeof AuthenticatedKnowledgeBasesIndexRoute
+  AuthenticatedLogsIndexRoute: typeof AuthenticatedLogsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
   AuthenticatedRpcIndexRoute: typeof AuthenticatedRpcIndexRoute
@@ -953,6 +973,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFunctionsIndexRoute: AuthenticatedFunctionsIndexRoute,
   AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,
   AuthenticatedKnowledgeBasesIndexRoute: AuthenticatedKnowledgeBasesIndexRoute,
+  AuthenticatedLogsIndexRoute: AuthenticatedLogsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
   AuthenticatedRpcIndexRoute: AuthenticatedRpcIndexRoute,

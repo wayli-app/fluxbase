@@ -416,60 +416,7 @@ func (s *Storage) UpdateJobProgress(ctx context.Context, jobID uuid.UUID, progre
 	return nil
 }
 
-// InsertExecutionLog inserts a single log line for a job
-func (s *Storage) InsertExecutionLog(ctx context.Context, jobID uuid.UUID, lineNumber int, level string, message string) error {
-	query := `
-		INSERT INTO jobs.execution_logs (job_id, line_number, level, message)
-		VALUES ($1, $2, $3, $4)
-	`
-
-	_, err := s.conn.Pool().Exec(ctx, query, jobID, lineNumber, level, message)
-	return err
-}
-
-// GetExecutionLogs retrieves execution logs for a job, optionally starting after a line number
-func (s *Storage) GetExecutionLogs(ctx context.Context, jobID uuid.UUID, afterLine *int) ([]*ExecutionLog, error) {
-	query := `
-		SELECT id, job_id, line_number, level, message, created_at
-		FROM jobs.execution_logs
-		WHERE job_id = $1
-	`
-	args := []interface{}{jobID}
-
-	if afterLine != nil {
-		query += " AND line_number > $2"
-		args = append(args, *afterLine)
-	}
-
-	query += " ORDER BY line_number ASC"
-
-	var logs []*ExecutionLog
-
-	// Use service role to bypass RLS (admin endpoint)
-	err := database.WrapWithServiceRole(ctx, s.conn, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var log ExecutionLog
-			if err := rows.Scan(&log.ID, &log.JobID, &log.LineNumber, &log.Level, &log.Message, &log.CreatedAt); err != nil {
-				return err
-			}
-			logs = append(logs, &log)
-		}
-
-		return rows.Err()
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return logs, nil
-}
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 // CompleteJob marks a job as completed
 func (s *Storage) CompleteJob(ctx context.Context, jobID uuid.UUID, result string) error {

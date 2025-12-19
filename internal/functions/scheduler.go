@@ -61,6 +61,7 @@ func NewScheduler(db *database.Connection, jwtSecret, publicURL string) *Schedul
 }
 
 // handleLogMessage is called when a scheduled function outputs a log message
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, message string) {
 	// Get and increment the line counter for this execution
 	counterVal, ok := s.logCounters.Load(executionID)
@@ -82,11 +83,13 @@ func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, messag
 	lineNumber := *counterPtr
 	*counterPtr = lineNumber + 1
 
-	// Insert log line into database
-	ctx := context.Background()
-	if err := s.storage.AppendExecutionLog(ctx, executionID, lineNumber, level, message); err != nil {
-		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to insert execution log")
-	}
+	// Log to zerolog - central logging service will capture this
+	log.Debug().
+		Str("execution_id", executionID.String()).
+		Str("level", level).
+		Int("line_number", lineNumber).
+		Str("message", message).
+		Msg("Scheduled function execution log")
 }
 
 // Start initializes the scheduler and loads all enabled cron functions

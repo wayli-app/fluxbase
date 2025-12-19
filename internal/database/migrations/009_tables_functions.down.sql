@@ -1,10 +1,5 @@
 -- Drop functions tables in reverse dependency order
 
--- Drop execution logs and related
-DROP TRIGGER IF EXISTS execution_logs_realtime_notify ON functions.execution_logs;
-DROP FUNCTION IF EXISTS functions.notify_realtime_change();
-DROP TABLE IF EXISTS functions.execution_logs;
-
 -- Remove enhancements from edge_functions
 ALTER TABLE functions.edge_functions
     DROP COLUMN IF EXISTS cors_origins,

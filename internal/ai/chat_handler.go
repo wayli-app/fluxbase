@@ -11,6 +11,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -19,17 +20,18 @@ import (
 
 // ChatHandler handles WebSocket chat connections
 type ChatHandler struct {
-	storage       *Storage
-	conversations *ConversationManager
-	schemaBuilder *SchemaBuilder
-	executor      *Executor
-	httpHandler   *HttpRequestHandler
-	auditLogger   *AuditLogger
-	ragService    *RAGService
-	metrics       *observability.Metrics
-	config        *config.AIConfig
-	providers     map[string]Provider
-	providersMu   sync.RWMutex
+	storage        *Storage
+	conversations  *ConversationManager
+	schemaBuilder  *SchemaBuilder
+	executor       *Executor
+	httpHandler    *HttpRequestHandler
+	auditLogger    *AuditLogger
+	ragService     *RAGService
+	loggingService *logging.Service
+	metrics        *observability.Metrics
+	config         *config.AIConfig
+	providers      map[string]Provider
+	providersMu    sync.RWMutex
 }
 
 // NewChatHandler creates a new chat handler
@@ -40,6 +42,7 @@ func NewChatHandler(
 	metrics *observability.Metrics,
 	cfg *config.AIConfig,
 	embeddingService *EmbeddingService,
+	loggingService *logging.Service,
 ) *ChatHandler {
 	// Initialize RAG service if embedding is available
 	var ragService *RAGService
@@ -49,16 +52,17 @@ func NewChatHandler(
 	}
 
 	return &ChatHandler{
-		storage:       storage,
-		conversations: conversations,
-		schemaBuilder: NewSchemaBuilder(db),
-		executor:      NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
-		httpHandler:   NewHttpRequestHandler(),
-		auditLogger:   NewAuditLogger(db),
-		ragService:    ragService,
-		metrics:       metrics,
-		config:        cfg,
-		providers:     make(map[string]Provider),
+		storage:        storage,
+		conversations:  conversations,
+		schemaBuilder:  NewSchemaBuilder(db),
+		executor:       NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
+		httpHandler:    NewHttpRequestHandler(),
+		auditLogger:    NewAuditLogger(db),
+		ragService:     ragService,
+		loggingService: loggingService,
+		metrics:        metrics,
+		config:         cfg,
+		providers:      make(map[string]Provider),
 	}
 }
 
@@ -613,6 +617,19 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 		chatCtx.Role, chatCtx.IPAddress, chatCtx.UserAgent,
 	)
 
+	// Log to central logging service
+	if h.loggingService != nil {
+		h.loggingService.LogAI(ctx, map[string]any{
+			"tool":            "execute_sql",
+			"chatbot_id":      chatbot.ID,
+			"conversation_id": conversationID,
+			"success":         result.Success,
+			"rows_returned":   result.RowCount,
+			"tables":          result.TablesAccessed,
+			"duration_ms":     result.DurationMs,
+		}, "", userID)
+	}
+
 	// Send result to client for display
 	h.send(chatCtx, ServerMessage{
 		Type:           "query_result",
@@ -684,6 +701,19 @@ func (h *ChatHandler) executeHttpTool(ctx context.Context, chatCtx *ChatContext,
 		Int("status", result.Status).
 		Str("error", result.Error).
 		Msg("HTTP request tool executed")
+
+	// Log to central logging service
+	if h.loggingService != nil {
+		h.loggingService.LogAI(ctx, map[string]any{
+			"tool":            "http_request",
+			"chatbot_id":      chatbot.ID,
+			"conversation_id": conversationID,
+			"method":          args.Method,
+			"url":             logPath,
+			"success":         result.Success,
+			"status":          result.Status,
+		}, "", "")
+	}
 
 	// Return result as JSON string for AI
 	resultJSON, err := json.Marshal(result)
@@ -765,6 +795,17 @@ func (h *ChatHandler) executeVectorSearchTool(ctx context.Context, chatCtx *Chat
 		Str("query", args.Query).
 		Int("results", len(results)).
 		Msg("Vector search tool executed")
+
+	// Log to central logging service
+	if h.loggingService != nil {
+		h.loggingService.LogAI(ctx, map[string]any{
+			"tool":            "vector_search",
+			"chatbot_id":      chatbot.ID,
+			"conversation_id": conversationID,
+			"query":           args.Query,
+			"results_count":   len(results),
+		}, "", userID)
+	}
 
 	// Format result for LLM
 	if len(results) == 0 {

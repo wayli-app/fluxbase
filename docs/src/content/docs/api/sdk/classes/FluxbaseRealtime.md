@@ -54,6 +54,40 @@ const channel = realtime.channel('room-1', {
 
 ***
 
+### executionLogs()
+
+> **executionLogs**(`executionId`, `type`): [`ExecutionLogsChannel`](/api/sdk/classes/executionlogschannel/)
+
+Create an execution log subscription channel
+
+This provides a cleaner API for subscribing to execution logs
+(functions, jobs, or RPC procedures).
+
+#### Parameters
+
+| Parameter | Type | Default value | Description |
+| ------ | ------ | ------ | ------ |
+| `executionId` | `string` | `undefined` | The execution ID to subscribe to |
+| `type` | [`ExecutionType`](/api/sdk/type-aliases/executiontype/) | `"function"` | The type of execution ('function', 'job', 'rpc') |
+
+#### Returns
+
+[`ExecutionLogsChannel`](/api/sdk/classes/executionlogschannel/)
+
+ExecutionLogsChannel instance with fluent API
+
+#### Example
+
+```typescript
+const channel = client.realtime.executionLogs('exec-123', 'function')
+  .onLog((log) => {
+    console.log(`[${log.level}] ${log.message}`)
+  })
+  .subscribe()
+```
+
+***
+
 ### removeAllChannels()
 
 > **removeAllChannels**(): `void`

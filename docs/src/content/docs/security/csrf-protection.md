@@ -176,39 +176,22 @@ await client
 ### React Example
 
 ```tsx
-import { useState, useEffect } from "react";
+import { createClient } from "@fluxbase/sdk";
 
-function getCsrfToken(): string | null {
-  const match = document.cookie.match(/csrf_token=([^;]+)/);
-  return match ? match[1] : null;
-}
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 function UserForm() {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Get CSRF token on mount
-    setCsrfToken(getCsrfToken());
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const response = await fetch("/api/v1/tables/users", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-Token": csrfToken || "",
-      },
-      body: JSON.stringify({
-        name: "John Doe",
-        email: "john@example.com",
-      }),
-      credentials: "include",
+    // CSRF token is automatically included by the SDK
+    const { error } = await client.from("users").insert({
+      name: "John Doe",
+      email: "john@example.com",
     });
 
-    if (!response.ok) {
-      console.error("Request failed");
+    if (error) {
+      console.error("Request failed:", error.message);
     }
   };
 
@@ -232,31 +215,21 @@ function UserForm() {
 </template>
 
 <script>
+import { createClient } from "@fluxbase/sdk";
+
+const client = createClient("http://localhost:8080", "your-anon-key");
+
 export default {
   methods: {
-    getCsrfToken() {
-      const match = document.cookie.match(/csrf_token=([^;]+)/);
-      return match ? match[1] : null;
-    },
-
     async handleSubmit() {
-      const csrfToken = this.getCsrfToken();
-
-      const response = await fetch("/api/v1/tables/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken || "",
-        },
-        body: JSON.stringify({
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-        credentials: "include",
+      // CSRF token is automatically included by the SDK
+      const { error } = await client.from("users").insert({
+        name: "John Doe",
+        email: "john@example.com",
       });
 
-      if (!response.ok) {
-        console.error("Request failed");
+      if (error) {
+        console.error("Request failed:", error.message);
       }
     },
   },
@@ -463,14 +436,11 @@ describe("CSRF Protection", () => {
 
 **Cause**: Token older than configured expiration
 
-**Solution**: Request a new token by making a GET request:
+**Solution**: The SDK handles token refresh automatically. If you encounter this issue, any SDK call will refresh the token:
 
 ```typescript
-// Make a simple GET request to get new CSRF token
-await fetch("/api/v1/health");
-
-// Token is now refreshed in cookie
-const newToken = getCsrfToken();
+// Any SDK request will refresh the CSRF token
+await client.admin.getHealth();
 ```
 
 ### Issue: CSRF with CORS
@@ -565,11 +535,10 @@ security:
 ### 4. Rotate Tokens After Sensitive Actions
 
 ```typescript
-// After password change, force token refresh
+// After password change, the SDK automatically handles token refresh
 await client.auth.changePassword(oldPassword, newPassword);
 
-// Make a GET request to get new CSRF token
-await fetch("/api/v1/health");
+// The next request will use a fresh CSRF token
 ```
 
 ### 5. Monitor CSRF Failures

@@ -3325,6 +3325,55 @@ export interface VectorSearchResult<T = Record<string, unknown>> {
 }
 
 // ============================================================================
+// Execution Log Streaming Types
+// ============================================================================
+
+/**
+ * Log level for execution logs
+ */
+export type ExecutionLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+/**
+ * Execution type for log subscriptions
+ */
+export type ExecutionType = 'function' | 'job' | 'rpc'
+
+/**
+ * Execution log event received from realtime subscription
+ */
+export interface ExecutionLogEvent {
+  /** Unique execution ID */
+  execution_id: string
+  /** Type of execution */
+  execution_type: ExecutionType
+  /** Line number in the execution log */
+  line_number: number
+  /** Log level */
+  level: ExecutionLogLevel
+  /** Log message content */
+  message: string
+  /** Timestamp of the log entry */
+  timestamp: string
+  /** Additional fields */
+  fields?: Record<string, unknown>
+}
+
+/**
+ * Callback for execution log events
+ */
+export type ExecutionLogCallback = (log: ExecutionLogEvent) => void
+
+/**
+ * Configuration for execution log subscription
+ */
+export interface ExecutionLogConfig {
+  /** Execution ID to subscribe to */
+  execution_id: string
+  /** Type of execution (function, job, rpc) */
+  type?: ExecutionType
+}
+
+// ============================================================================
 // Deprecated Supabase-compatible type aliases (for backward compatibility)
 // ============================================================================
 

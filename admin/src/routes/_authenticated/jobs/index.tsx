@@ -19,15 +19,20 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useImpersonationStore } from '@/stores/impersonation-store'
 import {
   jobsApi,
   type JobFunction,
   type Job,
   type JobWorker,
-  type ExecutionLog,
   type LogLevel,
 } from '@/lib/api'
 import { fluxbaseClient } from '@/lib/fluxbase-client'
+import {
+  useExecutionLogs,
+  type ExecutionLog,
+  type ExecutionLogLevel,
+} from '@/hooks/use-execution-logs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -55,7 +60,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
-import { useImpersonationStore } from '@/stores/impersonation-store'
 
 export const Route = createFileRoute('/_authenticated/jobs/')({
   component: JobsPage,
@@ -91,14 +95,11 @@ function JobsPage() {
   const [submittingJob, setSubmittingJob] = useState(false)
   const [togglingJob, setTogglingJob] = useState<string | null>(null)
 
-  // Execution logs state (fetched from separate table)
-  const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
-  const [loadingLogs, setLoadingLogs] = useState(false)
+  // Execution logs state
   const [logLevelFilter, setLogLevelFilter] = useState<LogLevel | 'all'>('all')
 
   // Ref for auto-scrolling logs
   const logsContainerRef = useRef<HTMLDivElement>(null)
-  const prevLogsLengthRef = useRef<number>(0)
   const isAtBottomRef = useRef<boolean>(true)
 
   // Helper to check if scrolled to bottom (with small threshold for rounding)
@@ -108,12 +109,23 @@ function JobsPage() {
     return scrollHeight - scrollTop - clientHeight < 20
   }
 
-  // Helper to scroll to bottom only if user was already at bottom
-  const scrollToBottomIfNeeded = () => {
-    if (isAtBottomRef.current && logsContainerRef.current) {
-      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
-    }
-  }
+  // Use the real-time execution logs hook
+  const { logs: executionLogs, loading: loadingLogs } = useExecutionLogs({
+    executionId: selectedJob?.id || null,
+    executionType: 'job',
+    enabled: showJobDetails,
+    onNewLog: () => {
+      // Check if at bottom BEFORE the log is added
+      isAtBottomRef.current = checkIfAtBottom()
+      // Auto-scroll only if user was at bottom
+      setTimeout(() => {
+        if (isAtBottomRef.current && logsContainerRef.current) {
+          logsContainerRef.current.scrollTop =
+            logsContainerRef.current.scrollHeight
+        }
+      }, 50)
+    },
+  })
 
   // Fetch namespaces on mount
   useEffect(() => {
@@ -187,73 +199,8 @@ function JobsPage() {
     }
   }, [fetchJobs])
 
-  // Fetch execution logs and subscribe to Realtime when modal is open
-  useEffect(() => {
-    if (!showJobDetails || !selectedJob) return
-
-    const jobId = selectedJob.id
-    const isActiveJob =
-      selectedJob.status === 'running' || selectedJob.status === 'pending'
-
-    // Fetch initial logs
-    const fetchLogs = async () => {
-      setLoadingLogs(true)
-      try {
-        const logs = await jobsApi.getJobLogs(jobId)
-        setExecutionLogs(logs)
-        // Scroll to bottom after loading
-        setTimeout(() => {
-          if (logsContainerRef.current) {
-            logsContainerRef.current.scrollTop =
-              logsContainerRef.current.scrollHeight
-          }
-        }, 50)
-      } catch {
-        // Silently fail
-      } finally {
-        setLoadingLogs(false)
-      }
-    }
-    fetchLogs()
-
-    // Subscribe to Realtime for new logs if job is active
-    let channel: ReturnType<typeof fluxbaseClient.channel> | null = null
-    if (isActiveJob) {
-      channel = fluxbaseClient
-        .channel(`job-logs-${jobId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'jobs',
-            table: 'execution_logs',
-            filter: `job_id=eq.${jobId}`,
-          },
-          (payload) => {
-            const newLog = payload.new as ExecutionLog
-            // Check if at bottom BEFORE adding new log
-            isAtBottomRef.current = checkIfAtBottom()
-            setExecutionLogs((prev) => [...prev, newLog])
-            // Auto-scroll only if user was at bottom
-            setTimeout(() => {
-              scrollToBottomIfNeeded()
-            }, 50)
-          }
-        )
-        .subscribe()
-    }
-
-    return () => {
-      if (channel) {
-        channel.unsubscribe()
-      }
-      setExecutionLogs([])
-    }
-  // selectedJob is accessed via selectedJob?.id which is in deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showJobDetails, selectedJob?.id])
-
   // Subscribe to job updates via Realtime when modal is open and job is running/pending
+  // Note: Execution logs are now handled by the useExecutionLogs hook
   useEffect(() => {
     if (!showJobDetails || !selectedJob) return
 
@@ -293,12 +240,11 @@ function JobsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We only want to restart subscription when job ID or status changes
   }, [showJobDetails, selectedJob?.id, selectedJob?.status, fetchJobs])
 
-  // Reset logs scroll ref when opening a new job
+  // Reset scroll position ref when opening a new job
   useEffect(() => {
-    if (showJobDetails && selectedJob) {
-      prevLogsLengthRef.current = executionLogs.length
+    if (showJobDetails && selectedJob?.id) {
+      isAtBottomRef.current = true // Start at bottom for new jobs
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset on job ID change, not every selectedJob update
   }, [showJobDetails, selectedJob?.id])
 
   // Subscribe to jobs.queue changes via Realtime for live updates
@@ -559,7 +505,8 @@ function JobsPage() {
       }
 
       // Build config with impersonation token if active
-      const { isImpersonating, impersonationToken } = useImpersonationStore.getState()
+      const { isImpersonating, impersonationToken } =
+        useImpersonationStore.getState()
       const config: { headers?: Record<string, string> } = {}
       if (isImpersonating && impersonationToken) {
         config.headers = { 'X-Impersonation-Token': impersonationToken }
@@ -655,28 +602,21 @@ function JobsPage() {
     return JSON.stringify(value, null, 2)
   }
 
-  // Log level priority for filtering
-  const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
-    debug: 0,
-    info: 1,
-    warning: 2,
-    error: 3,
-    fatal: 4,
-  }
-
-  // Log level colors for display
-  const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
+  // Log level colors for display (supports both 'warn' and 'warning')
+  const LOG_LEVEL_COLORS: Record<ExecutionLogLevel, string> = {
     debug: 'text-gray-400',
     info: 'text-green-400',
+    warn: 'text-yellow-400',
     warning: 'text-yellow-400',
     error: 'text-red-400',
     fatal: 'text-red-600 font-bold',
   }
 
-  // Log level badge variants
-  const LOG_LEVEL_BADGE_COLORS: Record<LogLevel, string> = {
+  // Log level badge variants (supports both 'warn' and 'warning')
+  const LOG_LEVEL_BADGE_COLORS: Record<ExecutionLogLevel, string> = {
     debug: 'bg-gray-600',
     info: 'bg-green-600',
+    warn: 'bg-yellow-600',
     warning: 'bg-yellow-600',
     error: 'bg-red-600',
     fatal: 'bg-red-800',
@@ -685,7 +625,7 @@ function JobsPage() {
   // Collapse consecutive duplicate log messages with count prefix
   type CollapsedLog = {
     id: string
-    level: LogLevel
+    level: ExecutionLogLevel
     message: string
     count: number
   }
@@ -698,7 +638,10 @@ function JobsPage() {
     let count = 1
 
     for (let i = 1; i < logs.length; i++) {
-      if (logs[i].message === currentLog.message && logs[i].level === currentLog.level) {
+      if (
+        logs[i].message === currentLog.message &&
+        logs[i].level === currentLog.level
+      ) {
         count++
       } else {
         result.push({
@@ -722,11 +665,26 @@ function JobsPage() {
     return result
   }
 
+  // Priority mapping for log levels (includes both 'warn' and 'warning' for compatibility)
+  const LOG_LEVEL_PRIORITY_MAP: Record<ExecutionLogLevel, number> = {
+    debug: 0,
+    info: 1,
+    warn: 2,
+    warning: 2,
+    error: 3,
+    fatal: 4,
+  }
+
   // Filter logs by level
   const filterLogsByLevel = (logs: ExecutionLog[]): ExecutionLog[] => {
     if (logLevelFilter === 'all') return logs
-    const minPriority = LOG_LEVEL_PRIORITY[logLevelFilter]
-    return logs.filter((log) => LOG_LEVEL_PRIORITY[log.level || 'info'] >= minPriority)
+    // Map 'warning' to 'warn' for comparison
+    const filterLevel = logLevelFilter === 'warning' ? 'warn' : logLevelFilter
+    const minPriority =
+      LOG_LEVEL_PRIORITY_MAP[filterLevel as ExecutionLogLevel] ?? 0
+    return logs.filter(
+      (log) => LOG_LEVEL_PRIORITY_MAP[log.level || 'info'] >= minPriority
+    )
   }
 
   // Format logs for clipboard (plain text)
@@ -802,8 +760,8 @@ function JobsPage() {
   const filteredAndCollapsedLogs = useMemo(() => {
     const filtered = filterLogsByLevel(executionLogs)
     return collapseConsecutiveLogs(filtered)
-  // filterLogsByLevel and collapseConsecutiveLogs are stable functions defined in component
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // filterLogsByLevel and collapseConsecutiveLogs are stable functions defined in component
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [executionLogs, logLevelFilter])
 
   // Filter jobs from past 24 hours (for stats display only)
@@ -816,14 +774,17 @@ function JobsPage() {
   }, [jobs])
 
   // Stats based on past 24 hours
-  const filteredStats = useMemo(() => ({
-    pending: jobs24h.filter((j) => j.status === 'pending').length,
-    running: jobs24h.filter((j) => j.status === 'running').length,
-    completed: jobs24h.filter((j) => j.status === 'completed').length,
-    failed: jobs24h.filter((j) => j.status === 'failed').length,
-    cancelled: jobs24h.filter((j) => j.status === 'cancelled').length,
-    total: jobs24h.length,
-  }), [jobs24h])
+  const filteredStats = useMemo(
+    () => ({
+      pending: jobs24h.filter((j) => j.status === 'pending').length,
+      running: jobs24h.filter((j) => j.status === 'running').length,
+      completed: jobs24h.filter((j) => j.status === 'completed').length,
+      failed: jobs24h.filter((j) => j.status === 'failed').length,
+      cancelled: jobs24h.filter((j) => j.status === 'cancelled').length,
+      total: jobs24h.length,
+    }),
+    [jobs24h]
+  )
 
   // Filter by search query only (no time filter for display)
   const filteredJobs = jobs.filter((job) => {
@@ -857,8 +818,8 @@ function JobsPage() {
         </div>
         <div className='flex items-center gap-2'>
           <ImpersonationPopover
-            contextLabel="Running as"
-            defaultReason="Testing job submission"
+            contextLabel='Running as'
+            defaultReason='Testing job submission'
           />
           <Button onClick={refreshAllData} variant='outline' size='sm'>
             <RefreshCw className='mr-2 h-4 w-4' />
@@ -871,7 +832,9 @@ function JobsPage() {
       <Card className='!gap-0 !py-0'>
         <CardContent className='px-4 py-2'>
           <div className='flex items-center gap-4'>
-            <span className='text-muted-foreground text-xs'>(Past 24 hours)</span>
+            <span className='text-muted-foreground text-xs'>
+              (Past 24 hours)
+            </span>
             <div className='flex items-center gap-1'>
               <span className='text-muted-foreground text-xs'>Pending:</span>
               <span className='text-sm font-semibold'>
@@ -912,9 +875,7 @@ function JobsPage() {
                     ? ((filteredStats.completed / total) * 100).toFixed(0)
                     : '0'
                 return (
-                  <span className='text-sm font-semibold'>
-                    {successRate}%
-                  </span>
+                  <span className='text-sm font-semibold'>{successRate}%</span>
                 )
               })()}
             </div>
@@ -964,7 +925,10 @@ function JobsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value='queue' className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'>
+        <TabsContent
+          value='queue'
+          className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'
+        >
           {/* Filters */}
           <div className='flex items-center gap-3'>
             <div className='flex items-center gap-2'>
@@ -1061,7 +1025,11 @@ function JobsPage() {
                       {job.user_email && (
                         <span
                           className='text-muted-foreground max-w-[120px] shrink-0 truncate text-[10px]'
-                          title={job.user_name ? `${job.user_name} (${job.user_email})` : job.user_email}
+                          title={
+                            job.user_name
+                              ? `${job.user_name} (${job.user_email})`
+                              : job.user_email
+                          }
                         >
                           {job.user_email}
                         </span>
@@ -1165,7 +1133,10 @@ function JobsPage() {
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value='functions' className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'>
+        <TabsContent
+          value='functions'
+          className='mt-6 flex min-h-0 flex-1 flex-col space-y-6'
+        >
           {/* Namespace Selector and Sync */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -1342,7 +1313,14 @@ function JobsPage() {
                   {selectedJob.status}
                 </Badge>
                 {selectedJob.user_email && (
-                  <Badge variant='outline' title={selectedJob.user_name ? `${selectedJob.user_name} (${selectedJob.user_email})` : selectedJob.user_email}>
+                  <Badge
+                    variant='outline'
+                    title={
+                      selectedJob.user_name
+                        ? `${selectedJob.user_name} (${selectedJob.user_email})`
+                        : selectedJob.user_email
+                    }
+                  >
                     {selectedJob.user_email}
                   </Badge>
                 )}
@@ -1498,7 +1476,9 @@ function JobsPage() {
                           className='h-6 px-2'
                           onClick={() =>
                             copyToClipboard(
-                              formatLogsForClipboard(filterLogsByLevel(executionLogs)),
+                              formatLogsForClipboard(
+                                filterLogsByLevel(executionLogs)
+                              ),
                               'Logs'
                             )
                           }
@@ -1521,30 +1501,28 @@ function JobsPage() {
                       </span>
                     ) : executionLogs.length > 0 ? (
                       <div className='flex flex-col gap-0.5'>
-                        {filteredAndCollapsedLogs.map(
-                          (log) => (
-                            <div
-                              key={log.id}
-                              className='flex items-start gap-2 text-xs'
+                        {filteredAndCollapsedLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className='flex items-start gap-2 text-xs'
+                          >
+                            <span
+                              className={`w-12 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-medium text-white uppercase ${LOG_LEVEL_BADGE_COLORS[log.level]}`}
                             >
-                              <span
-                                className={`w-12 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-medium uppercase text-white ${LOG_LEVEL_BADGE_COLORS[log.level]}`}
-                              >
-                                {log.level}
-                              </span>
-                              <span
-                                className={`break-words ${LOG_LEVEL_COLORS[log.level]}`}
-                              >
-                                {log.count > 1 && (
-                                  <span className='text-gray-500'>
-                                    ({log.count}x){' '}
-                                  </span>
-                                )}
-                                {log.message}
-                              </span>
-                            </div>
-                          )
-                        )}
+                              {log.level}
+                            </span>
+                            <span
+                              className={`break-words ${LOG_LEVEL_COLORS[log.level]}`}
+                            >
+                              {log.count > 1 && (
+                                <span className='text-gray-500'>
+                                  ({log.count}x){' '}
+                                </span>
+                              )}
+                              {log.message}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <span className='text-muted-foreground text-xs italic'>

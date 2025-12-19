@@ -219,7 +219,7 @@ func TestNewListener(t *testing.T) {
 	manager := NewManager(ctx)
 	handler := NewRealtimeHandler(manager, nil, nil)
 
-	listener := NewListener(nil, handler, nil)
+	listener := NewListener(nil, handler, nil, nil)
 
 	assert.NotNil(t, listener)
 	assert.NotNil(t, listener.handler)
@@ -232,7 +232,7 @@ func TestListener_Stop(t *testing.T) {
 	manager := NewManager(ctx)
 	handler := NewRealtimeHandler(manager, nil, nil)
 
-	listener := NewListener(nil, handler, nil)
+	listener := NewListener(nil, handler, nil, nil)
 
 	// Should not panic
 	listener.Stop()

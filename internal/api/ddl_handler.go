@@ -639,3 +639,78 @@ func escapeLiteral(value string) string {
 	escaped := strings.ReplaceAll(value, "'", "''")
 	return fmt.Sprintf("'%s'", escaped)
 }
+
+// ListSchemas returns all user schemas (excluding system schemas)
+func (h *DDLHandler) ListSchemas(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	schemas, err := h.db.Inspector().GetSchemas(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list schemas")
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to list schemas"})
+	}
+
+	// Filter out system schemas and build response
+	type schemaInfo struct {
+		Name  string `json:"name"`
+		Owner string `json:"owner"`
+	}
+	var result []schemaInfo
+	for _, schema := range schemas {
+		// Skip system schemas
+		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+			continue
+		}
+		result = append(result, schemaInfo{Name: schema, Owner: "postgres"})
+	}
+
+	return c.JSON(fiber.Map{"schemas": result})
+}
+
+// ListTables returns all tables, optionally filtered by schema
+func (h *DDLHandler) ListTables(c *fiber.Ctx) error {
+	ctx := c.Context()
+	schemaParam := c.Query("schema")
+
+	var schemasToQuery []string
+
+	if schemaParam != "" {
+		// If schema parameter provided, query only that schema
+		schemasToQuery = []string{schemaParam}
+	} else {
+		// Otherwise, get all schemas
+		schemas, err := h.db.Inspector().GetSchemas(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to list schemas")
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to list schemas"})
+		}
+
+		// Filter out system schemas
+		for _, schema := range schemas {
+			if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" {
+				continue
+			}
+			schemasToQuery = append(schemasToQuery, schema)
+		}
+	}
+
+	// Collect tables from requested schema(s)
+	type tableInfo struct {
+		Schema string `json:"schema"`
+		Name   string `json:"name"`
+	}
+	var tables []tableInfo
+
+	for _, schema := range schemasToQuery {
+		dbTables, err := h.db.Inspector().GetAllTables(ctx, schema)
+		if err != nil {
+			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
+			continue
+		}
+		for _, t := range dbTables {
+			tables = append(tables, tableInfo{Schema: t.Schema, Name: t.Name})
+		}
+	}
+
+	return c.JSON(fiber.Map{"tables": tables})
+}

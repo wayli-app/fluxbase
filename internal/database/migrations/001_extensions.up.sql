@@ -8,3 +8,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";     -- Provides gen_random_uuid() and
 -- Text search and indexing
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";      -- Trigram text search
 CREATE EXTENSION IF NOT EXISTS "btree_gin";    -- GIN indexes for btree-indexable data types
+
+-- Vector similarity search (pgvector)
+CREATE EXTENSION IF NOT EXISTS "vector";       -- Vector embeddings for AI/ML

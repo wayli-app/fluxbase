@@ -29,12 +29,31 @@ type SubscriptionFilter struct {
 	Value    interface{} `json:"value"`
 }
 
+// LogSubscription represents a subscription to execution logs
+type LogSubscription struct {
+	ID            string
+	ConnID        string
+	ExecutionID   string
+	ExecutionType string // "function", "job", "rpc"
+}
+
+// AllLogsSubscription represents a subscription to all logs (admin only)
+type AllLogsSubscription struct {
+	ID       string
+	ConnID   string
+	Category string   // Optional filter by category
+	Levels   []string // Optional filter by levels
+}
+
 // SubscriptionManager manages RLS-aware subscriptions
 type SubscriptionManager struct {
 	db            *pgxpool.Pool
-	subscriptions map[string]*Subscription   // subscription ID -> subscription
-	userSubs      map[string]map[string]bool // user ID -> subscription IDs
-	tableSubs     map[string]map[string]bool // "schema.table" -> subscription IDs
+	subscriptions map[string]*Subscription        // subscription ID -> subscription
+	userSubs      map[string]map[string]bool      // user ID -> subscription IDs
+	tableSubs     map[string]map[string]bool      // "schema.table" -> subscription IDs
+	logSubs       map[string]*LogSubscription     // subscription ID -> log subscription
+	execLogSubs   map[string]map[string]bool      // execution ID -> subscription IDs
+	allLogsSubs   map[string]*AllLogsSubscription // subscription ID -> all-logs subscription
 	mu            sync.RWMutex
 }
 
@@ -45,6 +64,9 @@ func NewSubscriptionManager(db *pgxpool.Pool) *SubscriptionManager {
 		subscriptions: make(map[string]*Subscription),
 		userSubs:      make(map[string]map[string]bool),
 		tableSubs:     make(map[string]map[string]bool),
+		logSubs:       make(map[string]*LogSubscription),
+		execLogSubs:   make(map[string]map[string]bool),
+		allLogsSubs:   make(map[string]*AllLogsSubscription),
 	}
 }
 
@@ -387,4 +409,186 @@ func ParseChangeEvent(payload string) (*ChangeEvent, error) {
 		return nil, fmt.Errorf("failed to parse change event: %w", err)
 	}
 	return &event, nil
+}
+
+// CreateLogSubscription creates a subscription for execution logs
+func (sm *SubscriptionManager) CreateLogSubscription(subID, connID, executionID, executionType string) (*LogSubscription, error) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	sub := &LogSubscription{
+		ID:            subID,
+		ConnID:        connID,
+		ExecutionID:   executionID,
+		ExecutionType: executionType,
+	}
+
+	// Store subscription
+	sm.logSubs[subID] = sub
+
+	// Track by execution ID
+	if _, exists := sm.execLogSubs[executionID]; !exists {
+		sm.execLogSubs[executionID] = make(map[string]bool)
+	}
+	sm.execLogSubs[executionID][subID] = true
+
+	log.Info().
+		Str("sub_id", subID).
+		Str("execution_id", executionID).
+		Str("execution_type", executionType).
+		Msg("Created execution log subscription")
+
+	return sub, nil
+}
+
+// RemoveLogSubscription removes an execution log subscription
+func (sm *SubscriptionManager) RemoveLogSubscription(subID string) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	sub, exists := sm.logSubs[subID]
+	if !exists {
+		return fmt.Errorf("log subscription not found")
+	}
+
+	// Remove from execution ID subscriptions
+	if execSubs, exists := sm.execLogSubs[sub.ExecutionID]; exists {
+		delete(execSubs, subID)
+		if len(execSubs) == 0 {
+			delete(sm.execLogSubs, sub.ExecutionID)
+		}
+	}
+
+	delete(sm.logSubs, subID)
+
+	log.Info().
+		Str("sub_id", subID).
+		Str("execution_id", sub.ExecutionID).
+		Msg("Removed execution log subscription")
+
+	return nil
+}
+
+// GetLogSubscribers returns all connection IDs subscribed to an execution's logs
+func (sm *SubscriptionManager) GetLogSubscribers(executionID string) []string {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	subIDs, exists := sm.execLogSubs[executionID]
+	if !exists {
+		return nil
+	}
+
+	connIDs := make([]string, 0, len(subIDs))
+	for subID := range subIDs {
+		if sub, exists := sm.logSubs[subID]; exists {
+			connIDs = append(connIDs, sub.ConnID)
+		}
+	}
+
+	return connIDs
+}
+
+// RemoveConnectionLogSubscriptions removes all log subscriptions for a connection
+func (sm *SubscriptionManager) RemoveConnectionLogSubscriptions(connID string) {
+	sm.mu.Lock()
+
+	subsToRemove := make([]string, 0)
+	for subID, sub := range sm.logSubs {
+		if sub.ConnID == connID {
+			subsToRemove = append(subsToRemove, subID)
+		}
+	}
+
+	sm.mu.Unlock()
+
+	for _, subID := range subsToRemove {
+		_ = sm.RemoveLogSubscription(subID)
+	}
+}
+
+// GetLogSubscriptionsByConnection returns all log subscriptions for a connection
+func (sm *SubscriptionManager) GetLogSubscriptionsByConnection(connID string) []*LogSubscription {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	subs := make([]*LogSubscription, 0)
+	for _, sub := range sm.logSubs {
+		if sub.ConnID == connID {
+			subs = append(subs, sub)
+		}
+	}
+
+	return subs
+}
+
+// CreateAllLogsSubscription creates a subscription for all logs (admin only)
+func (sm *SubscriptionManager) CreateAllLogsSubscription(subID, connID, category string, levels []string) (*AllLogsSubscription, error) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	sub := &AllLogsSubscription{
+		ID:       subID,
+		ConnID:   connID,
+		Category: category,
+		Levels:   levels,
+	}
+
+	// Store subscription
+	sm.allLogsSubs[subID] = sub
+
+	// Note: The handler logs this with more context (connection info)
+
+	return sub, nil
+}
+
+// RemoveAllLogsSubscription removes an all-logs subscription
+func (sm *SubscriptionManager) RemoveAllLogsSubscription(subID string) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if _, exists := sm.allLogsSubs[subID]; !exists {
+		return fmt.Errorf("all-logs subscription not found")
+	}
+
+	delete(sm.allLogsSubs, subID)
+
+	log.Info().
+		Str("sub_id", subID).
+		Msg("Removed all-logs subscription")
+
+	return nil
+}
+
+// GetAllLogsSubscribers returns all connection IDs subscribed to all logs,
+// along with their filter preferences
+func (sm *SubscriptionManager) GetAllLogsSubscribers() map[string]*AllLogsSubscription {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	// Return map of connection ID -> subscription
+	result := make(map[string]*AllLogsSubscription)
+	for _, sub := range sm.allLogsSubs {
+		result[sub.ConnID] = sub
+	}
+
+	return result
+}
+
+// RemoveConnectionAllLogsSubscriptions removes all all-logs subscriptions for a connection
+func (sm *SubscriptionManager) RemoveConnectionAllLogsSubscriptions(connID string) {
+	sm.mu.Lock()
+
+	subsToRemove := make([]string, 0)
+	for subID, sub := range sm.allLogsSubs {
+		if sub.ConnID == connID {
+			subsToRemove = append(subsToRemove, subID)
+		}
+	}
+
+	sm.mu.Unlock()
+
+	for _, subID := range subsToRemove {
+		_ = sm.RemoveAllLogsSubscription(subID)
+	}
 }

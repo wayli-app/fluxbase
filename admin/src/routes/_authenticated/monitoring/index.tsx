@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle, Bot, MessageSquare, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Activity, Database, HardDrive, Zap, Cpu, MemoryStick, Network, CheckCircle2, AlertCircle, XCircle, Bot, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useState } from 'react'
-import { monitoringApi, type SystemMetrics, type SystemHealth, aiMetricsApi, type AIMetrics, conversationsApi, auditLogApi } from '@/lib/api'
+import { monitoringApi, type SystemMetrics, type SystemHealth, aiMetricsApi, type AIMetrics, conversationsApi } from '@/lib/api'
 import {
   Table,
   TableBody,
@@ -44,9 +44,6 @@ function MonitoringPage() {
   const [convPage, setConvPage] = useState(0)
   const [convPageSize, setConvPageSize] = useState(25)
 
-  // Pagination state for audit log
-  const [auditPage, setAuditPage] = useState(0)
-  const [auditPageSize, setAuditPageSize] = useState(25)
 
   // Fetch metrics
   const { data: metrics } = useQuery<SystemMetrics>({
@@ -78,16 +75,6 @@ function MonitoringPage() {
   const conversations = conversationsData?.conversations || []
   const convTotalCount = conversationsData?.total_count || 0
   const convTotalPages = Math.ceil(convTotalCount / convPageSize)
-
-  // Fetch audit log
-  const { data: auditLogData } = useQuery({
-    queryKey: ['ai-audit-log', auditPage, auditPageSize],
-    queryFn: () => auditLogApi.list({ limit: auditPageSize, offset: auditPage * auditPageSize }),
-    refetchInterval: autoRefresh ? 15000 : false,
-  })
-  const auditLog = auditLogData?.entries || []
-  const auditTotalCount = auditLogData?.total_count || 0
-  const auditTotalPages = Math.ceil(auditTotalCount / auditPageSize)
 
   // Format uptime
   const formatUptime = (seconds: number) => {
@@ -207,7 +194,6 @@ function MonitoringPage() {
           {metrics?.storage && <TabsTrigger value='storage'>Storage</TabsTrigger>}
           <TabsTrigger value='ai'>AI Chatbots</TabsTrigger>
           <TabsTrigger value='conversations'>Conversations</TabsTrigger>
-          <TabsTrigger value='audit'>Audit Log</TabsTrigger>
           <TabsTrigger value='health'>Health Checks</TabsTrigger>
         </TabsList>
 
@@ -628,131 +614,6 @@ function MonitoringPage() {
                   <p className='text-lg font-medium mb-1'>No conversations yet</p>
                   <p className='text-sm text-muted-foreground'>
                     Conversations will appear here once users start chatting with AI chatbots
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Audit Log Tab */}
-        <TabsContent value='audit' className='space-y-4'>
-          <Card>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2'>
-                <FileText className='h-5 w-5' />
-                Query Audit Log
-              </CardTitle>
-              <CardDescription>SQL queries generated and executed by AI chatbots</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {auditLog && auditLog.length > 0 ? (
-                <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>Chatbot</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Query</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className='text-right'>Rows</TableHead>
-                      <TableHead className='text-right'>Duration</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {auditLog.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell className='text-sm'>
-                          {new Date(entry.created_at).toLocaleDateString()}<br />
-                          <span className='text-xs text-muted-foreground'>
-                            {new Date(entry.created_at).toLocaleTimeString()}
-                          </span>
-                        </TableCell>
-                        <TableCell className='font-medium'>{entry.chatbot_name || '-'}</TableCell>
-                        <TableCell className='text-sm text-muted-foreground'>
-                          {entry.user_id ? entry.user_id.substring(0, 8) + '...' : 'Anonymous'}
-                        </TableCell>
-                        <TableCell className='font-mono text-xs max-w-md'>
-                          <div className='truncate' title={entry.generated_sql}>
-                            {entry.generated_sql}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {entry.success ? (
-                            <Badge variant='outline' className='border-green-500 text-green-500'>
-                              <CheckCircle2 className='mr-1 h-3 w-3' />
-                              Success
-                            </Badge>
-                          ) : (
-                            <Badge variant='outline' className='border-red-500 text-red-500'>
-                              <XCircle className='mr-1 h-3 w-3' />
-                              Error
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className='text-right font-mono'>
-                          {entry.rows_returned !== undefined && entry.rows_returned !== null ? entry.rows_returned : '-'}
-                        </TableCell>
-                        <TableCell className='text-right font-mono'>
-                          {entry.execution_duration_ms !== undefined && entry.execution_duration_ms !== null ? `${entry.execution_duration_ms.toFixed(2)}ms` : '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {/* Pagination Controls */}
-                <div className='flex items-center justify-between px-2 py-4'>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-sm text-muted-foreground'>Rows per page</span>
-                    <Select
-                      value={`${auditPageSize}`}
-                      onValueChange={(value) => {
-                        setAuditPageSize(Number(value))
-                        setAuditPage(0)
-                      }}
-                    >
-                      <SelectTrigger className='h-8 w-[70px]'>
-                        <SelectValue placeholder={auditPageSize} />
-                      </SelectTrigger>
-                      <SelectContent side='top'>
-                        {[10, 25, 50, 100].map((pageSize) => (
-                          <SelectItem key={pageSize} value={`${pageSize}`}>
-                            {pageSize}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <span className='text-sm text-muted-foreground'>
-                      Page {auditPage + 1} of {auditTotalPages || 1} ({auditTotalCount} total)
-                    </span>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => setAuditPage((p) => Math.max(0, p - 1))}
-                      disabled={auditPage === 0}
-                    >
-                      <ChevronLeft className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => setAuditPage((p) => Math.min(auditTotalPages - 1, p + 1))}
-                      disabled={auditPage >= auditTotalPages - 1}
-                    >
-                      <ChevronRight className='h-4 w-4' />
-                    </Button>
-                  </div>
-                </div>
-                </>
-              ) : (
-                <div className='p-8 text-center'>
-                  <FileText className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
-                  <p className='text-lg font-medium mb-1'>No audit entries yet</p>
-                  <p className='text-sm text-muted-foreground'>
-                    SQL queries executed by AI chatbots will be logged here for auditing
                   </p>
                 </div>
               )}

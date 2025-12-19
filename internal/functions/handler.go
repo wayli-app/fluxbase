@@ -12,6 +12,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
+	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -55,6 +56,7 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 }
 
 // handleLogMessage is called when a function outputs a log message via console.log/console.error
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message string) {
 	// Get and increment the line counter for this execution
 	counterVal, ok := h.logCounters.Load(executionID)
@@ -77,11 +79,13 @@ func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message 
 	lineNumber := *counterPtr
 	*counterPtr = lineNumber + 1
 
-	// Insert log line into database
-	ctx := context.Background()
-	if err := h.storage.AppendExecutionLog(ctx, executionID, lineNumber, level, message); err != nil {
-		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to insert execution log")
-	}
+	// Log to zerolog - central logging service will capture this
+	log.Debug().
+		Str("execution_id", executionID.String()).
+		Str("level", level).
+		Int("line_number", lineNumber).
+		Str("message", message).
+		Msg("Function execution log")
 }
 
 // applyCorsHeaders applies CORS headers to the response with fallback to global config
@@ -700,13 +704,35 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	// Check for impersonation token - allows admin to invoke functions as another user
 	impersonationToken := c.Get("X-Impersonation-Token")
 	if impersonationToken != "" && h.authService != nil {
+		// SECURITY: Rate limit impersonation token attempts to prevent brute force attacks
+		// Limit: 5 attempts per 5 minutes per IP address
+		store := ratelimit.GetGlobalStore()
+		rateLimitKey := "impersonation:" + c.IP()
+		result, err := ratelimit.Check(c.Context(), store, rateLimitKey, 5, 5*time.Minute)
+		if err != nil {
+			log.Error().Err(err).Str("ip", c.IP()).Msg("Failed to check impersonation rate limit")
+			// Continue on rate limit check error to avoid blocking legitimate requests
+		} else if !result.Allowed {
+			log.Warn().
+				Str("ip", c.IP()).
+				Int64("limit", result.Limit).
+				Time("reset_at", result.ResetAt).
+				Msg("SECURITY: Impersonation token rate limit exceeded - possible brute force attack")
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":       "Rate limit exceeded",
+				"message":     "Too many impersonation attempts. Please try again in 5 minutes.",
+				"retry_after": int(time.Until(result.ResetAt).Seconds()),
+			})
+		}
+
 		// Trim any whitespace that might have been added
 		impersonationToken = strings.TrimSpace(impersonationToken)
 
-		// Log token prefix for debugging (first 30 chars to see if it starts with "Bearer ")
+		// SECURITY FIX: Reduced from 30 to 8 characters to minimize token exposure in logs
+		// 8 chars is enough to identify token format without exposing sensitive data
 		tokenPreview := impersonationToken
-		if len(tokenPreview) > 30 {
-			tokenPreview = tokenPreview[:30] + "..."
+		if len(tokenPreview) > 8 {
+			tokenPreview = tokenPreview[:8] + "..."
 		}
 		log.Info().
 			Str("token_preview", tokenPreview).
@@ -721,7 +747,8 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 				Err(err).
 				Str("token_preview", tokenPreview).
 				Int("token_length", len(impersonationToken)).
-				Msg("Invalid impersonation token in function invocation")
+				Str("ip", c.IP()).
+				Msg("SECURITY: Invalid impersonation token in function invocation")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid impersonation token",
 			})
@@ -916,49 +943,23 @@ func (h *Handler) ListAllExecutions(c *fiber.Ctx) error {
 }
 
 // GetExecutionLogs returns logs for a specific function execution
+// Note: Execution logs are now stored in the central logging schema (logging.entries)
+// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 	executionIDStr := c.Params("executionId")
 
-	executionID, err := uuid.Parse(executionIDStr)
+	_, err := uuid.Parse(executionIDStr)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Invalid execution ID",
 		})
 	}
 
-	// Get optional after parameter for pagination/streaming
-	afterLine := 0
-	if after := c.Query("after"); after != "" {
-		if a, err := strconv.Atoi(after); err == nil {
-			afterLine = a
-		}
-	}
-
-	var logs []ExecutionLog
-	if afterLine > 0 {
-		logs, err = h.storage.GetExecutionLogsSince(c.Context(), executionID, afterLine)
-	} else {
-		logs, err = h.storage.GetExecutionLogs(c.Context(), executionID)
-	}
-
-	if err != nil {
-		reqID := getRequestID(c)
-		log.Error().
-			Err(err).
-			Str("request_id", reqID).
-			Str("execution_id", executionIDStr).
-			Msg("Failed to get execution logs")
-
-		return c.Status(500).JSON(fiber.Map{
-			"error":      "Failed to get execution logs",
-			"details":    err.Error(),
-			"request_id": reqID,
-		})
-	}
-
+	// Return empty - logs are now in central logging schema
 	return c.JSON(fiber.Map{
-		"logs":  logs,
-		"count": len(logs),
+		"logs":    []interface{}{},
+		"count":   0,
+		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
 	})
 }
 

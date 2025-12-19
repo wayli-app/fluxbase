@@ -216,6 +216,50 @@ func (h *UserManagementHandler) ResetUserPassword(c *fiber.Ctx) error {
 	})
 }
 
+// LockUser locks a user account
+func (h *UserManagementHandler) LockUser(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	userType := c.Query("type", "app")
+
+	err := h.userMgmtService.LockUser(c.Context(), userID, userType)
+	if err != nil {
+		if err == auth.ErrUserNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "User account locked successfully",
+	})
+}
+
+// UnlockUser unlocks a user account
+func (h *UserManagementHandler) UnlockUser(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	userType := c.Query("type", "app")
+
+	err := h.userMgmtService.UnlockUser(c.Context(), userID, userType)
+	if err != nil {
+		if err == auth.ErrUserNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "User account unlocked successfully",
+	})
+}
+
 // RegisterRoutes registers user management routes
 func (h *UserManagementHandler) RegisterRoutes(app *fiber.App) {
 	admin := app.Group("/api/v1/admin",
@@ -230,4 +274,6 @@ func (h *UserManagementHandler) RegisterRoutes(app *fiber.App) {
 	admin.Delete("/users/:id", h.DeleteUser)
 	admin.Patch("/users/:id/role", h.UpdateUserRole)
 	admin.Post("/users/:id/reset-password", h.ResetUserPassword)
+	admin.Post("/users/:id/lock", h.LockUser)
+	admin.Post("/users/:id/unlock", h.UnlockUser)
 }

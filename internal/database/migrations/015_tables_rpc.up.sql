@@ -99,24 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_rpc_executions_is_async ON rpc.executions(is_asyn
 COMMENT ON TABLE rpc.executions IS 'RPC execution history with input, output, and performance metrics';
 COMMENT ON COLUMN rpc.executions.is_async IS 'Whether this was an async invocation (returns execution_id immediately)';
 
--- ============================================================================
--- RPC EXECUTION LOGS
--- Live streaming logs for execution progress via Realtime
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS rpc.execution_logs (
-    id BIGSERIAL PRIMARY KEY,
-    execution_id UUID NOT NULL REFERENCES rpc.executions(id) ON DELETE CASCADE,
-    line_number INTEGER NOT NULL,
-    level TEXT NOT NULL DEFAULT 'info' CHECK (level IN ('debug', 'info', 'warn', 'error')),
-    message TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_rpc_execution_logs_execution ON rpc.execution_logs(execution_id);
-CREATE INDEX IF NOT EXISTS idx_rpc_execution_logs_execution_line ON rpc.execution_logs(execution_id, line_number);
-
-COMMENT ON TABLE rpc.execution_logs IS 'Individual log lines for RPC execution (streamed via Realtime)';
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 -- ============================================================================
 -- ROW LEVEL SECURITY
@@ -124,7 +107,6 @@ COMMENT ON TABLE rpc.execution_logs IS 'Individual log lines for RPC execution (
 
 ALTER TABLE rpc.procedures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rpc.executions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rpc.execution_logs ENABLE ROW LEVEL SECURITY;
 
 -- Service role can do everything (bypasses RLS)
 DO $$ BEGIN
@@ -133,9 +115,6 @@ DO $$ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'rpc' AND tablename = 'executions' AND policyname = 'rpc_executions_service_all') THEN
         CREATE POLICY "rpc_executions_service_all" ON rpc.executions FOR ALL TO service_role USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'rpc' AND tablename = 'execution_logs' AND policyname = 'rpc_execution_logs_service_all') THEN
-        CREATE POLICY "rpc_execution_logs_service_all" ON rpc.execution_logs FOR ALL TO service_role USING (true);
     END IF;
 END $$;
 
@@ -166,21 +145,6 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Users can read logs for their own executions
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'rpc' AND tablename = 'execution_logs' AND policyname = 'rpc_execution_logs_read_own') THEN
-        CREATE POLICY "rpc_execution_logs_read_own" ON rpc.execution_logs
-            FOR SELECT TO authenticated
-            USING (
-                EXISTS (
-                    SELECT 1 FROM rpc.executions
-                    WHERE executions.id = execution_logs.execution_id
-                    AND executions.user_id = auth.current_user_id()
-                )
-            );
-    END IF;
-END $$;
-
 -- Dashboard admins can read all procedures
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'rpc' AND tablename = 'procedures' AND policyname = 'rpc_procedures_dashboard_admin_read') THEN
@@ -199,15 +163,6 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Dashboard admins can read all execution logs
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'rpc' AND tablename = 'execution_logs' AND policyname = 'rpc_execution_logs_dashboard_admin_read') THEN
-        CREATE POLICY "rpc_execution_logs_dashboard_admin_read" ON rpc.execution_logs
-            FOR SELECT TO authenticated
-            USING (auth.role() = 'dashboard_admin');
-    END IF;
-END $$;
-
 -- ============================================================================
 -- PERMISSIONS
 -- ============================================================================
@@ -219,19 +174,12 @@ GRANT ALL ON rpc.procedures TO service_role;
 GRANT SELECT ON rpc.executions TO authenticated;
 GRANT ALL ON rpc.executions TO service_role;
 
-GRANT SELECT ON rpc.execution_logs TO authenticated;
-GRANT ALL ON rpc.execution_logs TO service_role;
-
--- Grant sequence usage for execution_logs
-GRANT USAGE, SELECT ON SEQUENCE rpc.execution_logs_id_seq TO service_role;
-
 -- ============================================================================
 -- REALTIME SUPPORT
 -- ============================================================================
 
 -- Set replica identity for UPDATE/DELETE payloads
 ALTER TABLE rpc.executions REPLICA IDENTITY FULL;
-ALTER TABLE rpc.execution_logs REPLICA IDENTITY FULL;
 
 -- Note: procedures table is not included in realtime because SQL queries can be large
 
@@ -279,17 +227,10 @@ CREATE TRIGGER executions_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON rpc.executions
 FOR EACH ROW EXECUTE FUNCTION rpc.notify_realtime_change();
 
--- execution_logs only needs INSERT notifications (logs are append-only)
-DROP TRIGGER IF EXISTS execution_logs_realtime_notify ON rpc.execution_logs;
-CREATE TRIGGER execution_logs_realtime_notify
-AFTER INSERT ON rpc.execution_logs
-FOR EACH ROW EXECUTE FUNCTION rpc.notify_realtime_change();
-
 -- Register tables for realtime in schema registry
 INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
 VALUES
-    ('rpc', 'executions', true, ARRAY['INSERT', 'UPDATE', 'DELETE']),
-    ('rpc', 'execution_logs', true, ARRAY['INSERT'])
+    ('rpc', 'executions', true, ARRAY['INSERT', 'UPDATE', 'DELETE'])
 ON CONFLICT (schema_name, table_name) DO UPDATE
 SET realtime_enabled = true,
     events = EXCLUDED.events;

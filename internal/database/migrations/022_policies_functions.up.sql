@@ -236,38 +236,7 @@ CREATE POLICY functions_dependencies_owner ON functions.function_dependencies
         )
     );
 
--- ============================================================================
--- EXECUTION LOGS
--- ============================================================================
-ALTER TABLE functions.execution_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE functions.execution_logs FORCE ROW LEVEL SECURITY;
-
--- Service role: full access (logs are system-generated)
-DROP POLICY IF EXISTS functions_execution_logs_service_all ON functions.execution_logs;
-CREATE POLICY functions_execution_logs_service_all ON functions.execution_logs
-    FOR ALL
-    USING (auth.current_user_role() = 'service_role')
-    WITH CHECK (auth.current_user_role() = 'service_role');
-
--- Dashboard admin: full access
-DROP POLICY IF EXISTS functions_execution_logs_admin ON functions.execution_logs;
-CREATE POLICY functions_execution_logs_admin ON functions.execution_logs
-    FOR ALL
-    USING (auth.current_user_role() = 'dashboard_admin')
-    WITH CHECK (auth.current_user_role() = 'dashboard_admin');
-
--- Owner: can view logs for executions of their own functions (SELECT only)
-DROP POLICY IF EXISTS functions_execution_logs_owner ON functions.execution_logs;
-CREATE POLICY functions_execution_logs_owner ON functions.execution_logs
-    FOR SELECT
-    USING (
-        auth.current_user_id() IS NOT NULL
-        AND EXISTS (
-            SELECT 1 FROM functions.edge_executions ee
-            JOIN functions.edge_functions ef ON ef.id = ee.function_id
-            WHERE ee.id = execution_id AND ef.created_by = auth.current_user_id()
-        )
-    );
+-- Note: Execution logs are now stored in the central logging schema (logging.entries)
 
 --
 -- PERFORMANCE INDEXES FOR RLS POLICIES

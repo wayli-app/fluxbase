@@ -299,7 +299,8 @@ func (l *Loader) LoadBuiltinJobs(ctx context.Context, namespace string) error {
 	errorCount := 0
 
 	for _, entry := range entries {
-		if entry.IsDir() || (!strings.HasSuffix(entry.Name(), ".ts") && !strings.HasSuffix(entry.Name(), ".js")) {
+		// Skip directories, non-ts/js files, and files starting with underscore (placeholders/private)
+		if entry.IsDir() || (!strings.HasSuffix(entry.Name(), ".ts") && !strings.HasSuffix(entry.Name(), ".js")) || strings.HasPrefix(entry.Name(), "_") {
 			continue
 		}
 

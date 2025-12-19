@@ -26,6 +26,7 @@ const userSchema = z.object({
   provider: providerSchema,
   active_sessions: z.number(),
   last_sign_in: z.coerce.date().nullable(),
+  is_locked: z.boolean(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),

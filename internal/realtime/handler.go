@@ -15,15 +15,19 @@ import (
 type MessageType string
 
 const (
-	MessageTypeSubscribe   MessageType = "subscribe"
-	MessageTypeUnsubscribe MessageType = "unsubscribe"
-	MessageTypeHeartbeat   MessageType = "heartbeat"
-	MessageTypeBroadcast   MessageType = "broadcast"
-	MessageTypePresence    MessageType = "presence"
-	MessageTypeError       MessageType = "error"
-	MessageTypeAck         MessageType = "ack"
-	MessageTypeChange      MessageType = "postgres_changes"
-	MessageTypeAccessToken MessageType = "access_token"
+	MessageTypeSubscribe        MessageType = "subscribe"
+	MessageTypeUnsubscribe      MessageType = "unsubscribe"
+	MessageTypeHeartbeat        MessageType = "heartbeat"
+	MessageTypeBroadcast        MessageType = "broadcast"
+	MessageTypePresence         MessageType = "presence"
+	MessageTypeError            MessageType = "error"
+	MessageTypeAck              MessageType = "ack"
+	MessageTypeChange           MessageType = "postgres_changes"
+	MessageTypeAccessToken      MessageType = "access_token"
+	MessageTypeSubscribeLogs    MessageType = "subscribe_logs"     // Subscribe to execution logs
+	MessageTypeExecutionLog     MessageType = "execution_log"      // Execution log event from server
+	MessageTypeSubscribeAllLogs MessageType = "subscribe_all_logs" // Subscribe to all logs (admin only)
+	MessageTypeLogEntry         MessageType = "log_entry"          // Log entry event from server (all categories)
 )
 
 // ClientMessage represents a message from the client
@@ -353,6 +357,12 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	case MessageTypeAccessToken:
 		h.handleAccessToken(conn, msg)
 
+	case MessageTypeSubscribeLogs:
+		h.handleSubscribeLogs(conn, msg)
+
+	case MessageTypeSubscribeAllLogs:
+		h.handleSubscribeAllLogs(conn, msg)
+
 	default:
 		_ = conn.SendMessage(ServerMessage{
 			Type:  MessageTypeError,
@@ -618,4 +628,134 @@ func (h *RealtimeHandler) handleAccessToken(conn *Connection, msg ClientMessage)
 			"updated": true,
 		},
 	})
+}
+
+// handleSubscribeLogs processes execution log subscription requests
+func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessage) {
+	// Extract execution_id and type from config or payload
+	var executionID, executionType string
+
+	if msg.Config != nil {
+		// New format: { type: "subscribe_logs", config: { schema: execution_id, table: type } }
+		// Reuse schema field for execution_id and table field for execution_type
+		if msg.Config.Schema != "" {
+			executionID = msg.Config.Schema
+		}
+		if msg.Config.Table != "" {
+			executionType = msg.Config.Table
+		}
+	}
+
+	// Try to get from payload if not in config
+	if executionID == "" && msg.Payload != nil {
+		var payload map[string]interface{}
+		if err := json.Unmarshal(msg.Payload, &payload); err == nil {
+			if v, ok := payload["execution_id"].(string); ok {
+				executionID = v
+			}
+			if v, ok := payload["type"].(string); ok {
+				executionType = v
+			}
+		}
+	}
+
+	// Validate execution_id is provided
+	if executionID == "" {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "execution_id is required for subscribe_logs",
+		})
+		return
+	}
+
+	// Create log subscription
+	subID := uuid.New().String()
+	_, err := h.subManager.CreateLogSubscription(subID, conn.ID, executionID, executionType)
+	if err != nil {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Send acknowledgment
+	ackPayload := map[string]interface{}{
+		"subscribed":      true,
+		"subscription_id": subID,
+		"execution_id":    executionID,
+	}
+	if executionType != "" {
+		ackPayload["type"] = executionType
+	}
+
+	_ = conn.SendMessage(ServerMessage{
+		Type:    MessageTypeAck,
+		Payload: ackPayload,
+	})
+
+	log.Debug().
+		Str("connection_id", conn.ID).
+		Str("subscription_id", subID).
+		Str("execution_id", executionID).
+		Str("execution_type", executionType).
+		Msg("Created execution log subscription")
+}
+
+// handleSubscribeAllLogs processes all-logs subscription requests (admin only).
+func (h *RealtimeHandler) handleSubscribeAllLogs(conn *Connection, msg ClientMessage) {
+	// Require admin role for all-logs subscription
+	if conn.Role != "admin" && conn.Role != "dashboard_admin" && conn.Role != "service_role" {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: "admin role required for all-logs subscription",
+		})
+		return
+	}
+
+	// Extract optional filters from payload
+	var filters struct {
+		Category string   `json:"category,omitempty"`
+		Levels   []string `json:"levels,omitempty"`
+	}
+
+	if msg.Payload != nil {
+		_ = json.Unmarshal(msg.Payload, &filters)
+	}
+
+	// Create all-logs subscription
+	subID := uuid.New().String()
+	_, err := h.subManager.CreateAllLogsSubscription(subID, conn.ID, filters.Category, filters.Levels)
+	if err != nil {
+		_ = conn.SendMessage(ServerMessage{
+			Type:  MessageTypeError,
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Send acknowledgment
+	ackPayload := map[string]interface{}{
+		"subscribed":      true,
+		"subscription_id": subID,
+		"type":            "all_logs",
+	}
+	if filters.Category != "" {
+		ackPayload["category"] = filters.Category
+	}
+	if len(filters.Levels) > 0 {
+		ackPayload["levels"] = filters.Levels
+	}
+
+	_ = conn.SendMessage(ServerMessage{
+		Type:    MessageTypeAck,
+		Payload: ackPayload,
+	})
+
+	log.Debug().
+		Str("connection_id", conn.ID).
+		Str("subscription_id", subID).
+		Str("category", filters.Category).
+		Strs("levels", filters.Levels).
+		Msg("Created all-logs subscription")
 }

@@ -14,6 +14,9 @@ import type {
   BroadcastMessage,
   RealtimeBroadcastPayload,
   BroadcastCallback,
+  ExecutionLogEvent,
+  ExecutionLogCallback,
+  ExecutionType,
 } from "./types";
 
 export class RealtimeChannel {
@@ -24,8 +27,10 @@ export class RealtimeChannel {
   private callbacks: Map<string, Set<RealtimeCallback>> = new Map();
   private presenceCallbacks: Map<string, Set<PresenceCallback>> = new Map();
   private broadcastCallbacks: Map<string, Set<BroadcastCallback>> = new Map();
+  private executionLogCallbacks: Set<ExecutionLogCallback> = new Set();
   private subscriptionConfig: PostgresChangesConfig | null = null;
   private subscriptionId: string | null = null;
+  private executionLogConfig: { execution_id: string; type?: ExecutionType } | null = null;
   private _presenceState: Record<string, PresenceState[]> = {};
   private myPresenceKey: string | null = null;
   private config: RealtimeChannelConfig;
@@ -149,6 +154,27 @@ export class RealtimeChannel {
     callback: PresenceCallback,
   ): this;
 
+  /**
+   * Listen to execution log events
+   *
+   * @param event - 'execution_log'
+   * @param config - Configuration with execution_id and optional type
+   * @param callback - Function to call when log entries are received
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.on('execution_log', { execution_id: 'abc123', type: 'function' }, (log) => {
+   *   console.log(`[${log.level}] ${log.message}`)
+   * })
+   * ```
+   */
+  on(
+    event: "execution_log",
+    config: { execution_id: string; type?: ExecutionType },
+    callback: ExecutionLogCallback,
+  ): this;
+
   // Implementation
   on(
     event:
@@ -158,13 +184,15 @@ export class RealtimeChannel {
       | "DELETE"
       | "*"
       | "broadcast"
-      | "presence",
+      | "presence"
+      | "execution_log",
     configOrCallback:
       | PostgresChangesConfig
       | RealtimeCallback
       | { event: string }
-      | { event: "sync" | "join" | "leave" },
-    callback?: RealtimeCallback | BroadcastCallback | PresenceCallback,
+      | { event: "sync" | "join" | "leave" }
+      | { execution_id: string; type?: ExecutionType },
+    callback?: RealtimeCallback | BroadcastCallback | PresenceCallback | ExecutionLogCallback,
   ): this {
     if (
       event === "postgres_changes" &&
@@ -198,6 +226,12 @@ export class RealtimeChannel {
         this.presenceCallbacks.set(config.event, new Set());
       }
       this.presenceCallbacks.get(config.event)!.add(actualCallback);
+    } else if (event === "execution_log" && typeof configOrCallback !== "function") {
+      // on('execution_log', { execution_id, type }, callback)
+      const config = configOrCallback as { execution_id: string; type?: ExecutionType };
+      this.executionLogConfig = config;
+      const actualCallback = callback as ExecutionLogCallback;
+      this.executionLogCallbacks.add(actualCallback);
     } else {
       // on('INSERT'|'UPDATE'|'DELETE'|'*', callback)
       const actualEvent = event as "INSERT" | "UPDATE" | "DELETE" | "*";
@@ -547,18 +581,31 @@ export class RealtimeChannel {
       console.log("[Fluxbase Realtime] Connected");
       this.reconnectAttempts = 0;
 
-      // Subscribe to channel with optional config
-      const subscribeMessage: RealtimeMessage = {
-        type: "subscribe",
-        channel: this.channelName,
-      };
+      // Subscribe to execution logs if configured
+      if (this.executionLogConfig) {
+        const logSubscribeMessage = {
+          type: "subscribe_logs" as const,
+          channel: this.channelName,
+          config: {
+            execution_id: this.executionLogConfig.execution_id,
+            type: this.executionLogConfig.type || "function",
+          },
+        };
+        this.sendMessage(logSubscribeMessage as unknown as RealtimeMessage);
+      } else {
+        // Subscribe to channel with optional config (for postgres_changes)
+        const subscribeMessage: RealtimeMessage = {
+          type: "subscribe",
+          channel: this.channelName,
+        };
 
-      // Add subscription config if using new postgres_changes API
-      if (this.subscriptionConfig) {
-        subscribeMessage.config = this.subscriptionConfig;
+        // Add subscription config if using new postgres_changes API
+        if (this.subscriptionConfig) {
+          subscribeMessage.config = this.subscriptionConfig;
+        }
+
+        this.sendMessage(subscribeMessage);
       }
-
-      this.sendMessage(subscribeMessage);
 
       // Start heartbeat
       this.startHeartbeat();
@@ -697,7 +744,28 @@ export class RealtimeChannel {
           this.handlePostgresChanges(message.payload);
         }
         break;
+
+      case "execution_log" as any:
+        // Handle execution log events
+        if (message.payload) {
+          this.handleExecutionLog(message.payload as ExecutionLogEvent);
+        }
+        break;
     }
+  }
+
+  /**
+   * Internal: Handle execution log message
+   */
+  private handleExecutionLog(log: ExecutionLogEvent) {
+    // Call all execution log callbacks
+    this.executionLogCallbacks.forEach((callback) => {
+      try {
+        callback(log);
+      } catch (err) {
+        console.error("[Fluxbase Realtime] Error in execution log callback:", err);
+      }
+    });
   }
 
   /**
@@ -1009,5 +1077,131 @@ export class FluxbaseRealtime {
     this.channels.forEach((channel) => {
       channel.updateToken(token);
     });
+  }
+
+  /**
+   * Create an execution log subscription channel
+   *
+   * This provides a cleaner API for subscribing to execution logs
+   * (functions, jobs, or RPC procedures).
+   *
+   * @param executionId - The execution ID to subscribe to
+   * @param type - The type of execution ('function', 'job', 'rpc')
+   * @returns ExecutionLogsChannel instance with fluent API
+   *
+   * @example
+   * ```typescript
+   * const channel = client.realtime.executionLogs('exec-123', 'function')
+   *   .onLog((log) => {
+   *     console.log(`[${log.level}] ${log.message}`)
+   *   })
+   *   .subscribe()
+   * ```
+   */
+  executionLogs(
+    executionId: string,
+    type: ExecutionType = "function"
+  ): ExecutionLogsChannel {
+    return new ExecutionLogsChannel(this.url, executionId, type, this.token, this.tokenRefreshCallback);
+  }
+}
+
+/**
+ * Specialized channel for execution log subscriptions
+ * Provides a cleaner API than the generic RealtimeChannel
+ */
+export class ExecutionLogsChannel {
+  private channel: RealtimeChannel;
+  private executionId: string;
+  private executionType: ExecutionType;
+  private logCallbacks: ExecutionLogCallback[] = [];
+
+  constructor(
+    url: string,
+    executionId: string,
+    type: ExecutionType,
+    token: string | null,
+    tokenRefreshCallback: (() => Promise<string | null>) | null
+  ) {
+    this.executionId = executionId;
+    this.executionType = type;
+
+    // Create a channel with a unique name for this execution
+    const channelName = `execution:${executionId}`;
+    this.channel = new RealtimeChannel(url, channelName, token);
+
+    // Set up token refresh if available
+    if (tokenRefreshCallback) {
+      this.channel.setTokenRefreshCallback(tokenRefreshCallback);
+    }
+  }
+
+  /**
+   * Register a callback for log events
+   *
+   * @param callback - Function to call when log entries are received
+   * @returns This channel for chaining
+   *
+   * @example
+   * ```typescript
+   * channel.onLog((log) => {
+   *   console.log(`[${log.level}] Line ${log.line_number}: ${log.message}`)
+   * })
+   * ```
+   */
+  onLog(callback: ExecutionLogCallback): this {
+    this.logCallbacks.push(callback);
+    return this;
+  }
+
+  /**
+   * Subscribe to execution logs
+   *
+   * @param callback - Optional status callback
+   * @returns Promise that resolves when subscribed
+   *
+   * @example
+   * ```typescript
+   * await channel.subscribe()
+   * ```
+   */
+  subscribe(
+    callback?: (
+      status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED",
+      err?: Error
+    ) => void
+  ): this {
+    // Register all callbacks
+    this.channel.on(
+      "execution_log",
+      { execution_id: this.executionId, type: this.executionType },
+      (log) => {
+        this.logCallbacks.forEach((cb) => {
+          try {
+            cb(log);
+          } catch (err) {
+            console.error("[Fluxbase ExecutionLogs] Error in log callback:", err);
+          }
+        });
+      }
+    );
+
+    // Subscribe to the channel
+    this.channel.subscribe(callback);
+    return this;
+  }
+
+  /**
+   * Unsubscribe from execution logs
+   *
+   * @returns Promise resolving to status
+   *
+   * @example
+   * ```typescript
+   * await channel.unsubscribe()
+   * ```
+   */
+  async unsubscribe(): Promise<"ok" | "timed out" | "error"> {
+    return this.channel.unsubscribe();
   }
 }

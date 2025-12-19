@@ -464,65 +464,47 @@ Sample log output:
 
 ### Respect Rate Limits
 
-Implement exponential backoff when receiving 429 responses:
+The SDK automatically handles rate limit responses with exponential backoff:
 
 ```typescript
-// TypeScript/JavaScript client
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    const response = await fetch(url, options);
+import { createClient } from '@fluxbase/sdk'
 
-    if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
-      console.warn(`Rate limited. Retrying after ${retryAfter} seconds...`);
-      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-      continue;
-    }
+const client = createClient({
+  baseUrl: 'http://localhost:8080',
+})
 
-    return response;
-  }
-
-  throw new Error('Max retries exceeded');
-}
-
-// Usage
-const response = await fetchWithRetry('http://localhost:8080/api/v1/tables/posts', {
-  headers: { 'Authorization': 'Bearer token' }
-});
+// The SDK automatically retries on 429 responses
+const { data: posts } = await client.from('posts').select()
 ```
 
-### Check Rate Limit Status
+If you need custom retry logic, you can catch the error:
 
 ```typescript
-const response = await fetch('http://localhost:8080/api/v1/tables/posts');
-
-const limit = parseInt(response.headers.get('X-RateLimit-Limit') || '0');
-const remaining = parseInt(response.headers.get('X-RateLimit-Remaining') || '0');
-const reset = parseInt(response.headers.get('X-RateLimit-Reset') || '0');
-
-console.log(`Rate limit: ${remaining}/${limit} remaining`);
-console.log(`Resets at: ${new Date(reset * 1000)}`);
-
-if (remaining < 10) {
-  console.warn('Approaching rate limit!');
+try {
+  const { data } = await client.from('posts').select()
+} catch (error) {
+  if (error.status === 429) {
+    const retryAfter = error.headers?.get('Retry-After') || 60
+    console.warn(`Rate limited. Retry after ${retryAfter} seconds`)
+  }
 }
 ```
 
 ### Batch Requests
 
-Reduce rate limit impact by batching requests:
+Reduce rate limit impact by using efficient queries:
 
 ```typescript
 // Bad: Many individual requests
 for (const id of userIds) {
-  await fetch(`/api/v1/users/${id}`);
+  await client.from('users').select().eq('id', id).single()
 }
 
-// Good: Single batched request
-const users = await fetch('/api/v1/users', {
-  method: 'POST',
-  body: JSON.stringify({ ids: userIds })
-});
+// Good: Single query with filter
+const { data: users } = await client
+  .from('users')
+  .select()
+  .in('id', userIds)
 ```
 
 ---

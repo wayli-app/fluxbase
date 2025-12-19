@@ -127,8 +127,14 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 				SameSite: cfg.CookieSameSite,
 			})
 
-			// First request, allow it through
-			return c.Next()
+			// SECURITY FIX: Reject request - user must retry with the new token
+			// The cookie is set, so the next request will include it
+			// Previously this allowed the first request through, which was a vulnerability
+			// (attacker could clear cookie and submit malicious POST)
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "CSRF token required",
+				"message": "CSRF token was not present. A new token has been issued. Please retry your request.",
+			})
 		}
 
 		// Validate tokens match

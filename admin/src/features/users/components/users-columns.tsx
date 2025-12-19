@@ -1,5 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { formatDistanceToNow } from 'date-fns'
+import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -43,7 +44,12 @@ export const usersColumns: ColumnDef<User>[] = [
       <DataTableColumnHeader column={column} title='Email' />
     ),
     cell: ({ row }) => (
-      <LongText className='max-w-48 ps-3'>{row.getValue('email')}</LongText>
+      <div className='flex items-center gap-2 ps-3'>
+        <LongText className='max-w-48'>{row.getValue('email')}</LongText>
+        {row.original.is_locked && (
+          <Lock className='h-3.5 w-3.5 text-orange-500' />
+        )}
+      </div>
     ),
     meta: {
       className: cn(
