@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 	"github.com/fluxbase-eu/fluxbase/cli/util"
 )
@@ -107,13 +106,8 @@ func runAPIKeysList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/api-keys", nil)
-	if err != nil {
-		return err
-	}
-
 	var keys []map[string]interface{}
-	if err := client.DecodeResponse(resp, &keys); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/api-keys", nil, &keys); err != nil {
 		return err
 	}
 
@@ -180,13 +174,8 @@ func runAPIKeysCreate(cmd *cobra.Command, args []string) error {
 		body["expires_in"] = akExpires
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/api-keys", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/api-keys", body, &result); err != nil {
 		return err
 	}
 
@@ -208,13 +197,8 @@ func runAPIKeysGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/api-keys/"+url.PathEscape(id), nil)
-	if err != nil {
-		return err
-	}
-
 	var key map[string]interface{}
-	if err := client.DecodeResponse(resp, &key); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/api-keys/"+url.PathEscape(id), nil, &key); err != nil {
 		return err
 	}
 
@@ -233,15 +217,9 @@ func runAPIKeysRevoke(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/api-keys/"+url.PathEscape(id)+"/revoke", nil)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/api-keys/"+url.PathEscape(id)+"/revoke", nil, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("API key '%s' revoked.\n", id)
 	return nil
@@ -253,15 +231,9 @@ func runAPIKeysDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/api-keys/"+url.PathEscape(id))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/api-keys/"+url.PathEscape(id)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("API key '%s' deleted.\n", id)
 	return nil

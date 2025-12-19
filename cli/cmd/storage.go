@@ -14,7 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 	"github.com/fluxbase-eu/fluxbase/cli/util"
 )
@@ -183,13 +182,8 @@ func runBucketsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/storage/buckets", nil)
-	if err != nil {
-		return err
-	}
-
 	var buckets []map[string]interface{}
-	if err := client.DecodeResponse(resp, &buckets); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/storage/buckets", nil, &buckets); err != nil {
 		return err
 	}
 
@@ -237,15 +231,9 @@ func runBucketsCreate(cmd *cobra.Command, args []string) error {
 		body["max_file_size"] = bucketMaxSize
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/storage/buckets/"+url.PathEscape(name), body)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/storage/buckets/"+url.PathEscape(name), body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Bucket '%s' created successfully.\n", name)
 	return nil
@@ -257,15 +245,9 @@ func runBucketsDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/storage/buckets/"+url.PathEscape(name))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/storage/buckets/"+url.PathEscape(name)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Bucket '%s' deleted.\n", name)
 	return nil
@@ -282,13 +264,8 @@ func runObjectsList(cmd *cobra.Command, args []string) error {
 		query.Set("prefix", objectPrefix)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/storage/"+url.PathEscape(bucket), query)
-	if err != nil {
-		return err
-	}
-
 	var objects []map[string]interface{}
-	if err := client.DecodeResponse(resp, &objects); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/storage/"+url.PathEscape(bucket), query, &objects); err != nil {
 		return err
 	}
 
@@ -378,10 +355,11 @@ func runObjectsUpload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed: %s", string(body))
 	}
 
 	fmt.Printf("Uploaded '%s' to '%s/%s' (%s)\n", localFile, bucket, remotePath, util.FormatBytes(int64(len(data))))
@@ -405,10 +383,11 @@ func runObjectsDownload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("download failed: %s", string(body))
 	}
 
 	// Create output file
@@ -416,7 +395,7 @@ func runObjectsDownload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	n, err := io.Copy(out, resp.Body)
 	if err != nil {
@@ -436,15 +415,9 @@ func runObjectsDelete(cmd *cobra.Command, args []string) error {
 
 	deletePath := fmt.Sprintf("/api/v1/storage/%s/%s", url.PathEscape(bucket), remotePath)
 
-	resp, err := apiClient.Delete(ctx, deletePath)
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, deletePath); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Deleted '%s/%s'\n", bucket, remotePath)
 	return nil
@@ -463,13 +436,8 @@ func runObjectsURL(cmd *cobra.Command, args []string) error {
 		"expires_in": urlExpires,
 	}
 
-	resp, err := apiClient.Post(ctx, signPath, body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, signPath, body, &result); err != nil {
 		return err
 	}
 

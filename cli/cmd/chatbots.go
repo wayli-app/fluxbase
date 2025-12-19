@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -130,13 +129,8 @@ func runChatbotsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/ai/chatbots", nil)
-	if err != nil {
-		return err
-	}
-
 	var chatbots []map[string]interface{}
-	if err := client.DecodeResponse(resp, &chatbots); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots", nil, &chatbots); err != nil {
 		return err
 	}
 
@@ -176,13 +170,8 @@ func runChatbotsGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id), nil)
-	if err != nil {
-		return err
-	}
-
 	var chatbot map[string]interface{}
-	if err := client.DecodeResponse(resp, &chatbot); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id), nil, &chatbot); err != nil {
 		return err
 	}
 
@@ -212,13 +201,8 @@ func runChatbotsCreate(cmd *cobra.Command, args []string) error {
 		body["knowledge_base_ids"] = []string{cbKnowledgeBase}
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/ai/chatbots", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/chatbots", body, &result); err != nil {
 		return err
 	}
 
@@ -252,15 +236,9 @@ func runChatbotsUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	resp, err := apiClient.Put(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id), body)
-	if err != nil {
+	if err := apiClient.DoPut(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id), body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Chatbot '%s' updated.\n", id)
 	return nil
@@ -272,15 +250,9 @@ func runChatbotsDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Chatbot '%s' deleted.\n", id)
 	return nil
@@ -298,16 +270,11 @@ func runChatbotsChat(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/ai/conversations", map[string]interface{}{
-		"chatbot_id": chatbotID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create conversation: %w", err)
-	}
-
 	var convResult map[string]interface{}
-	if err := client.DecodeResponse(resp, &convResult); err != nil {
-		return err
+	if err := apiClient.DoPost(ctx, "/api/v1/ai/conversations", map[string]interface{}{
+		"chatbot_id": chatbotID,
+	}, &convResult); err != nil {
+		return fmt.Errorf("failed to create conversation: %w", err)
 	}
 
 	conversationID := getStringValue(convResult, "id")
@@ -332,18 +299,13 @@ func runChatbotsChat(cmd *cobra.Command, args []string) error {
 		// Send message
 		msgCtx, msgCancel := context.WithTimeout(context.Background(), 60*time.Second)
 
-		msgResp, err := apiClient.Post(msgCtx, "/api/v1/ai/conversations/"+url.PathEscape(conversationID)+"/messages", map[string]interface{}{
+		var msgResult map[string]interface{}
+		err = apiClient.DoPost(msgCtx, "/api/v1/ai/conversations/"+url.PathEscape(conversationID)+"/messages", map[string]interface{}{
 			"content": input,
-		})
+		}, &msgResult)
 		msgCancel()
 
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			continue
-		}
-
-		var msgResult map[string]interface{}
-		if err := client.DecodeResponse(msgResp, &msgResult); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
 		}

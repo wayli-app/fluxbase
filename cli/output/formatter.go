@@ -78,7 +78,7 @@ func (f *Formatter) printJSON(data interface{}) error {
 func (f *Formatter) printYAML(data interface{}) error {
 	encoder := yaml.NewEncoder(f.Writer)
 	encoder.SetIndent(2)
-	defer encoder.Close()
+	defer func() { _ = encoder.Close() }()
 	return encoder.Encode(data)
 }
 
@@ -111,7 +111,7 @@ func (f *Formatter) PrintTable(data TableData) {
 			}
 			rows[i] = rowMap
 		}
-		f.Print(rows)
+		_ = f.Print(rows)
 		return
 	}
 

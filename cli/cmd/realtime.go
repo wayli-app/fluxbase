@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 )
 
 var realtimeCmd = &cobra.Command{
@@ -60,13 +58,8 @@ func runRealtimeStats(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/realtime/stats", nil)
-	if err != nil {
-		return err
-	}
-
 	var stats map[string]interface{}
-	if err := client.DecodeResponse(resp, &stats); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/realtime/stats", nil, &stats); err != nil {
 		return err
 	}
 
@@ -86,15 +79,9 @@ func runRealtimeBroadcast(cmd *cobra.Command, args []string) error {
 		"payload": rtMessage,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/realtime/broadcast", body)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/realtime/broadcast", body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Message broadcast to channel '%s'.\n", channel)
 	return nil

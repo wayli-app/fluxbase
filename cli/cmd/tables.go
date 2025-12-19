@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -152,13 +151,8 @@ func runTablesList(cmd *cobra.Command, args []string) error {
 		query.Set("schema", tableSchema)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/tables", query)
-	if err != nil {
-		return err
-	}
-
 	var tables []map[string]interface{}
-	if err := client.DecodeResponse(resp, &tables); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/tables", query, &tables); err != nil {
 		return err
 	}
 
@@ -208,13 +202,8 @@ func runTablesDescribe(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/admin/tables/%s/%s/columns", url.PathEscape(schema), url.PathEscape(table))
 
-	resp, err := apiClient.Get(ctx, path, nil)
-	if err != nil {
-		return err
-	}
-
 	var columns []map[string]interface{}
-	if err := client.DecodeResponse(resp, &columns); err != nil {
+	if err := apiClient.DoGet(ctx, path, nil, &columns); err != nil {
 		return err
 	}
 
@@ -287,13 +276,8 @@ func runTablesQuery(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/tables/%s/%s", url.PathEscape(schema), url.PathEscape(table))
 
-	resp, err := apiClient.Get(ctx, path, query)
-	if err != nil {
-		return err
-	}
-
 	var records []map[string]interface{}
-	if err := client.DecodeResponse(resp, &records); err != nil {
+	if err := apiClient.DoGet(ctx, path, query, &records); err != nil {
 		return err
 	}
 
@@ -369,13 +353,8 @@ func runTablesInsert(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/tables/%s/%s", url.PathEscape(schema), url.PathEscape(table))
 
-	resp, err := apiClient.Post(ctx, path, data)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, path, data, &result); err != nil {
 		return err
 	}
 
@@ -429,15 +408,9 @@ func runTablesUpdate(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/tables/%s/%s", url.PathEscape(schema), url.PathEscape(table))
 
-	resp, err := apiClient.RequestWithQuery(ctx, "PATCH", path, data, query)
-	if err != nil {
+	if err := apiClient.DoRequestWithQuery(ctx, "PATCH", path, data, query); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Println("Records updated successfully.")
 	return nil
@@ -470,15 +443,9 @@ func runTablesDelete(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/tables/%s/%s", url.PathEscape(schema), url.PathEscape(table))
 
-	resp, err := apiClient.RequestWithQuery(ctx, "DELETE", path, nil, query)
-	if err != nil {
+	if err := apiClient.DoRequestWithQuery(ctx, "DELETE", path, nil, query); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Println("Records deleted successfully.")
 	return nil

@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -134,13 +133,8 @@ func runWebhooksList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/webhooks", nil)
-	if err != nil {
-		return err
-	}
-
 	var webhooks []map[string]interface{}
-	if err := client.DecodeResponse(resp, &webhooks); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/webhooks", nil, &webhooks); err != nil {
 		return err
 	}
 
@@ -180,13 +174,8 @@ func runWebhooksGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/webhooks/"+url.PathEscape(id), nil)
-	if err != nil {
-		return err
-	}
-
 	var webhook map[string]interface{}
-	if err := client.DecodeResponse(resp, &webhook); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/webhooks/"+url.PathEscape(id), nil, &webhook); err != nil {
 		return err
 	}
 
@@ -210,13 +199,8 @@ func runWebhooksCreate(cmd *cobra.Command, args []string) error {
 		body["secret"] = whSecret
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/webhooks", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/webhooks", body, &result); err != nil {
 		return err
 	}
 
@@ -247,15 +231,9 @@ func runWebhooksUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	resp, err := apiClient.Patch(ctx, "/api/v1/webhooks/"+url.PathEscape(id), body)
-	if err != nil {
+	if err := apiClient.DoPatch(ctx, "/api/v1/webhooks/"+url.PathEscape(id), body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Webhook '%s' updated.\n", id)
 	return nil
@@ -267,15 +245,9 @@ func runWebhooksDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/webhooks/"+url.PathEscape(id))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/webhooks/"+url.PathEscape(id)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Webhook '%s' deleted.\n", id)
 	return nil
@@ -287,13 +259,8 @@ func runWebhooksTest(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/webhooks/"+url.PathEscape(id)+"/test", nil)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/webhooks/"+url.PathEscape(id)+"/test", nil, &result); err != nil {
 		return err
 	}
 
@@ -314,13 +281,8 @@ func runWebhooksDeliveries(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/webhooks/"+url.PathEscape(id)+"/deliveries", nil)
-	if err != nil {
-		return err
-	}
-
 	var deliveries []map[string]interface{}
-	if err := client.DecodeResponse(resp, &deliveries); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/webhooks/"+url.PathEscape(id)+"/deliveries", nil, &deliveries); err != nil {
 		return err
 	}
 

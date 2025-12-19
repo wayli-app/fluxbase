@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -105,13 +104,8 @@ func runRPCList(cmd *cobra.Command, args []string) error {
 		query.Set("namespace", rpcNamespace)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/rpc/procedures", query)
-	if err != nil {
-		return err
-	}
-
 	var procedures []map[string]interface{}
-	if err := client.DecodeResponse(resp, &procedures); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/rpc/procedures", query, &procedures); err != nil {
 		return err
 	}
 
@@ -161,13 +155,8 @@ func runRPCGet(cmd *cobra.Command, args []string) error {
 
 	path := fmt.Sprintf("/api/v1/admin/rpc/procedures/%s/%s", url.PathEscape(namespace), url.PathEscape(name))
 
-	resp, err := apiClient.Get(ctx, path, nil)
-	if err != nil {
-		return err
-	}
-
 	var proc map[string]interface{}
-	if err := client.DecodeResponse(resp, &proc); err != nil {
+	if err := apiClient.DoGet(ctx, path, nil, &proc); err != nil {
 		return err
 	}
 
@@ -211,13 +200,8 @@ func runRPCInvoke(cmd *cobra.Command, args []string) error {
 		body["async"] = true
 	}
 
-	resp, err := apiClient.Post(ctx, path, body)
-	if err != nil {
-		return err
-	}
-
 	var result interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, path, body, &result); err != nil {
 		return err
 	}
 

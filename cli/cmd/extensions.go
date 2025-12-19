@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -85,13 +84,8 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/extensions", nil)
-	if err != nil {
-		return err
-	}
-
 	var extensions []map[string]interface{}
-	if err := client.DecodeResponse(resp, &extensions); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/extensions", nil, &extensions); err != nil {
 		return err
 	}
 
@@ -134,13 +128,8 @@ func runExtensionsStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/status", nil)
-	if err != nil {
-		return err
-	}
-
 	var status map[string]interface{}
-	if err := client.DecodeResponse(resp, &status); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/status", nil, &status); err != nil {
 		return err
 	}
 
@@ -159,15 +148,9 @@ func runExtensionsEnable(cmd *cobra.Command, args []string) error {
 		body["schema"] = extSchema
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/enable", body)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/enable", body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Extension '%s' enabled.\n", name)
 	return nil
@@ -179,15 +162,9 @@ func runExtensionsDisable(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/disable", nil)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/extensions/"+url.PathEscape(name)+"/disable", nil, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Extension '%s' disabled.\n", name)
 	return nil

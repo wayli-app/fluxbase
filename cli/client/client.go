@@ -209,7 +209,7 @@ func (c *Client) refreshToken(creds *config.Credentials) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("refresh failed with status %d", resp.StatusCode)
@@ -275,6 +275,105 @@ func (c *Client) Delete(ctx context.Context, path string) (*http.Response, error
 	return c.Request(ctx, http.MethodDelete, path, nil)
 }
 
+// DoGet performs a GET request and decodes the response into target
+func (c *Client) DoGet(ctx context.Context, path string, query url.Values, target interface{}) error {
+	resp, err := c.Get(ctx, path, query)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return decodeBody(resp, target)
+}
+
+// DoPost performs a POST request and decodes the response into target
+func (c *Client) DoPost(ctx context.Context, path string, body interface{}, target interface{}) error {
+	resp, err := c.Post(ctx, path, body)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return decodeBody(resp, target)
+}
+
+// DoPut performs a PUT request and decodes the response into target
+func (c *Client) DoPut(ctx context.Context, path string, body interface{}, target interface{}) error {
+	resp, err := c.Put(ctx, path, body)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return decodeBody(resp, target)
+}
+
+// DoDelete performs a DELETE request
+func (c *Client) DoDelete(ctx context.Context, path string) error {
+	resp, err := c.Delete(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		return parseErrorBody(resp)
+	}
+	return nil
+}
+
+// DoPatch performs a PATCH request and decodes the response into target
+func (c *Client) DoPatch(ctx context.Context, path string, body interface{}, target interface{}) error {
+	resp, err := c.Patch(ctx, path, body)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return decodeBody(resp, target)
+}
+
+// DoRequestWithQuery performs a request with query parameters and handles the response
+func (c *Client) DoRequestWithQuery(ctx context.Context, method string, path string, body interface{}, query url.Values) error {
+	resp, err := c.RequestWithQuery(ctx, method, path, body, query)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		return parseErrorBody(resp)
+	}
+	return nil
+}
+
+// decodeBody decodes the response body into target
+func decodeBody(resp *http.Response, target interface{}) error {
+	if resp.StatusCode >= 400 {
+		return parseErrorBody(resp)
+	}
+	if target == nil {
+		return nil
+	}
+	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+// parseErrorBody parses an error response body
+func parseErrorBody(resp *http.Response) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to read error response: %v", err),
+		}
+	}
+
+	var apiErr APIError
+	if err := json.Unmarshal(body, &apiErr); err != nil {
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    string(body),
+		}
+	}
+
+	apiErr.StatusCode = resp.StatusCode
+	return &apiErr
+}
+
 // APIError represents an API error response
 type APIError struct {
 	StatusCode int    `json:"-"`
@@ -295,7 +394,7 @@ func (e *APIError) Error() string {
 
 // ParseError parses an error response
 func ParseError(resp *http.Response) error {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -319,7 +418,7 @@ func ParseError(resp *http.Response) error {
 
 // DecodeResponse decodes a successful response into the target
 func DecodeResponse(resp *http.Response, target interface{}) error {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return ParseError(resp)

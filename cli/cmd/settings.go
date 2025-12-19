@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -63,13 +62,8 @@ func runSettingsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/system/settings", nil)
-	if err != nil {
-		return err
-	}
-
 	var settings map[string]interface{}
-	if err := client.DecodeResponse(resp, &settings); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/system/settings", nil, &settings); err != nil {
 		return err
 	}
 
@@ -115,13 +109,8 @@ func runSettingsGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/system/settings", nil)
-	if err != nil {
-		return err
-	}
-
 	var settings map[string]interface{}
-	if err := client.DecodeResponse(resp, &settings); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/system/settings", nil, &settings); err != nil {
 		return err
 	}
 
@@ -193,15 +182,9 @@ func runSettingsSet(cmd *cobra.Command, args []string) error {
 		"value": parsedValue,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/system/settings", body)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/system/settings", body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Setting '%s' updated to '%v'.\n", key, value)
 	return nil

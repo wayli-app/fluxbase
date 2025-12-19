@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -193,13 +192,8 @@ func runFunctionsList(cmd *cobra.Command, args []string) error {
 		query.Set("namespace", fnNamespace)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/functions/", query)
-	if err != nil {
-		return err
-	}
-
 	var functions []map[string]interface{}
-	if err := client.DecodeResponse(resp, &functions); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/functions/", query, &functions); err != nil {
 		return err
 	}
 
@@ -240,13 +234,8 @@ func runFunctionsGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/functions/"+url.PathEscape(name), nil)
-	if err != nil {
-		return err
-	}
-
 	var fn map[string]interface{}
-	if err := client.DecodeResponse(resp, &fn); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/functions/"+url.PathEscape(name), nil, &fn); err != nil {
 		return err
 	}
 
@@ -277,13 +266,8 @@ func runFunctionsCreate(cmd *cobra.Command, args []string) error {
 		body["description"] = fnDescription
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/functions/", body)
-	if err != nil {
-		return err
-	}
-
 	var fn map[string]interface{}
-	if err := client.DecodeResponse(resp, &fn); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/functions/", body, &fn); err != nil {
 		return err
 	}
 
@@ -323,15 +307,9 @@ func runFunctionsUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	resp, err := apiClient.Put(ctx, "/api/v1/functions/"+url.PathEscape(name), body)
-	if err != nil {
+	if err := apiClient.DoPut(ctx, "/api/v1/functions/"+url.PathEscape(name), body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Function '%s' updated successfully.\n", name)
 	return nil
@@ -343,15 +321,9 @@ func runFunctionsDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/functions/"+url.PathEscape(name))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/functions/"+url.PathEscape(name)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Function '%s' deleted successfully.\n", name)
 	return nil
@@ -383,7 +355,7 @@ func runFunctionsInvoke(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -416,13 +388,8 @@ func runFunctionsLogs(cmd *cobra.Command, args []string) error {
 	query := url.Values{}
 	query.Set("limit", fmt.Sprintf("%d", fnTail))
 
-	resp, err := apiClient.Get(ctx, "/api/v1/functions/"+url.PathEscape(name)+"/executions", query)
-	if err != nil {
-		return err
-	}
-
 	var executions []map[string]interface{}
-	if err := client.DecodeResponse(resp, &executions); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/functions/"+url.PathEscape(name)+"/executions", query, &executions); err != nil {
 		return err
 	}
 
@@ -518,13 +485,8 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 		"functions": functions,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/functions/sync", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/functions/sync", body, &result); err != nil {
 		return err
 	}
 

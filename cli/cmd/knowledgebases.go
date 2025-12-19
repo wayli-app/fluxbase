@@ -15,7 +15,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 	"github.com/fluxbase-eu/fluxbase/cli/util"
 )
@@ -185,13 +184,8 @@ func runKBList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/ai/knowledge-bases", nil)
-	if err != nil {
-		return err
-	}
-
 	var kbs []map[string]interface{}
-	if err := client.DecodeResponse(resp, &kbs); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases", nil, &kbs); err != nil {
 		return err
 	}
 
@@ -231,13 +225,8 @@ func runKBGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id), nil)
-	if err != nil {
-		return err
-	}
-
 	var kb map[string]interface{}
-	if err := client.DecodeResponse(resp, &kb); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id), nil, &kb); err != nil {
 		return err
 	}
 
@@ -263,13 +252,8 @@ func runKBCreate(cmd *cobra.Command, args []string) error {
 		body["embeddings_model"] = kbEmbeddingModel
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/ai/knowledge-bases", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/knowledge-bases", body, &result); err != nil {
 		return err
 	}
 
@@ -294,15 +278,9 @@ func runKBUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	resp, err := apiClient.Put(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id), body)
-	if err != nil {
+	if err := apiClient.DoPut(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id), body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Knowledge base '%s' updated.\n", id)
 	return nil
@@ -314,15 +292,9 @@ func runKBDelete(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Delete(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id))
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(id)); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Knowledge base '%s' deleted.\n", id)
 	return nil
@@ -337,7 +309,7 @@ func runKBUpload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -404,10 +376,11 @@ func runKBUpload(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload failed: %s", string(body))
 	}
 
 	var result map[string]interface{}
@@ -428,13 +401,8 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/documents", nil)
-	if err != nil {
-		return err
-	}
-
 	var docs []map[string]interface{}
-	if err := client.DecodeResponse(resp, &docs); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/documents", nil, &docs); err != nil {
 		return err
 	}
 
@@ -481,15 +449,9 @@ func runKBDocumentDelete(cmd *cobra.Command, args []string) error {
 
 	deletePath := fmt.Sprintf("/api/v1/admin/ai/knowledge-bases/%s/documents/%s", url.PathEscape(kbID), url.PathEscape(docID))
 
-	resp, err := apiClient.Delete(ctx, deletePath)
-	if err != nil {
+	if err := apiClient.DoDelete(ctx, deletePath); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Document '%s' deleted from knowledge base '%s'.\n", docID, kbID)
 	return nil
@@ -508,13 +470,8 @@ func runKBSearch(cmd *cobra.Command, args []string) error {
 		"threshold": kbSearchThreshold,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/search", body)
-	if err != nil {
-		return err
-	}
-
 	var results []map[string]interface{}
-	if err := client.DecodeResponse(resp, &results); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/search", body, &results); err != nil {
 		return err
 	}
 

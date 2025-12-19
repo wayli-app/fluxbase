@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -169,13 +168,8 @@ func runJobsList(cmd *cobra.Command, args []string) error {
 		query.Set("namespace", jobNamespace)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/jobs/functions", query)
-	if err != nil {
-		return err
-	}
-
 	var jobs []map[string]interface{}
-	if err := client.DecodeResponse(resp, &jobs); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/jobs/functions", query, &jobs); err != nil {
 		return err
 	}
 
@@ -250,13 +244,8 @@ func runJobsSubmit(cmd *cobra.Command, args []string) error {
 		body["scheduled_at"] = jobSchedule
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/jobs/submit", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/jobs/submit", body, &result); err != nil {
 		return err
 	}
 
@@ -272,13 +261,8 @@ func runJobsStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/jobs/"+url.PathEscape(id), nil)
-	if err != nil {
-		return err
-	}
-
 	var job map[string]interface{}
-	if err := client.DecodeResponse(resp, &job); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/jobs/"+url.PathEscape(id), nil, &job); err != nil {
 		return err
 	}
 
@@ -292,15 +276,9 @@ func runJobsCancel(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/jobs/"+url.PathEscape(id)+"/cancel", nil)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/jobs/"+url.PathEscape(id)+"/cancel", nil, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Job '%s' cancelled.\n", id)
 	return nil
@@ -312,13 +290,8 @@ func runJobsRetry(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/jobs/"+url.PathEscape(id)+"/retry", nil)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/jobs/"+url.PathEscape(id)+"/retry", nil, &result); err != nil {
 		return err
 	}
 
@@ -333,13 +306,8 @@ func runJobsLogs(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/jobs/queue/"+url.PathEscape(id)+"/logs", nil)
-	if err != nil {
-		return err
-	}
-
 	var logs []map[string]interface{}
-	if err := client.DecodeResponse(resp, &logs); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/jobs/queue/"+url.PathEscape(id)+"/logs", nil, &logs); err != nil {
 		return err
 	}
 
@@ -363,13 +331,8 @@ func runJobsStats(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/jobs/stats", nil)
-	if err != nil {
-		return err
-	}
-
 	var stats map[string]interface{}
-	if err := client.DecodeResponse(resp, &stats); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/jobs/stats", nil, &stats); err != nil {
 		return err
 	}
 
@@ -439,15 +402,9 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		"jobs":      jobs,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/jobs/sync", body)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/jobs/sync", body, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Synced %d job functions to namespace '%s'.\n", len(jobs), jobNamespace)
 	return nil

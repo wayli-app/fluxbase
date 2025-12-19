@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/fluxbase-eu/fluxbase/cli/client"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -151,13 +150,8 @@ func runMigrationsList(cmd *cobra.Command, args []string) error {
 		query.Set("namespace", migNamespace)
 	}
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/migrations", query)
-	if err != nil {
-		return err
-	}
-
 	var migrations []map[string]interface{}
-	if err := client.DecodeResponse(resp, &migrations); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/migrations", query, &migrations); err != nil {
 		return err
 	}
 
@@ -200,13 +194,8 @@ func runMigrationsGet(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Get(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name), nil)
-	if err != nil {
-		return err
-	}
-
 	var migration map[string]interface{}
-	if err := client.DecodeResponse(resp, &migration); err != nil {
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name), nil, &migration); err != nil {
 		return err
 	}
 
@@ -232,13 +221,8 @@ func runMigrationsCreate(cmd *cobra.Command, args []string) error {
 		body["down_sql"] = migDownSQL
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations", body, &result); err != nil {
 		return err
 	}
 
@@ -252,15 +236,9 @@ func runMigrationsApply(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name)+"/apply", nil)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name)+"/apply", nil, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Migration '%s' applied successfully.\n", name)
 	return nil
@@ -272,15 +250,9 @@ func runMigrationsRollback(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name)+"/rollback", nil)
-	if err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations/"+url.PathEscape(name)+"/rollback", nil, nil); err != nil {
 		return err
 	}
-
-	if resp.StatusCode >= 400 {
-		return client.ParseError(resp)
-	}
-	resp.Body.Close()
 
 	fmt.Printf("Migration '%s' rolled back successfully.\n", name)
 	return nil
@@ -290,13 +262,8 @@ func runMigrationsApplyPending(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations/apply-pending", nil)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations/apply-pending", nil, &result); err != nil {
 		return err
 	}
 
@@ -392,13 +359,8 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 		"auto_apply": migAutoApply,
 	}
 
-	resp, err := apiClient.Post(ctx, "/api/v1/admin/migrations/sync", body)
-	if err != nil {
-		return err
-	}
-
 	var result map[string]interface{}
-	if err := client.DecodeResponse(resp, &result); err != nil {
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/migrations/sync", body, &result); err != nil {
 		return err
 	}
 

@@ -235,7 +235,7 @@ func performLogin(server, email, password string) (*cliconfig.Credentials, *clic
 	if err != nil {
 		return nil, nil, fmt.Errorf("connection failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return nil, nil, fmt.Errorf("invalid email or password")
@@ -357,7 +357,7 @@ func verify2FACode(serverURL, userID, code string) (*cliconfig.Credentials, *cli
 	if err != nil {
 		return nil, nil, fmt.Errorf("2FA verification request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusBadRequest {
 		return nil, nil, fmt.Errorf("invalid 2FA code")
