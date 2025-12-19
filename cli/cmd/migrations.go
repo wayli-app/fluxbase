@@ -23,12 +23,12 @@ var migrationsCmd = &cobra.Command{
 }
 
 var (
-	migNamespace  string
-	migUpSQL      string
-	migDownSQL    string
-	migSyncDir    string
-	migAutoApply  bool
-	migDryRun     bool
+	migNamespace string
+	migUpSQL     string
+	migDownSQL   string
+	migSyncDir   string
+	migAutoApply bool
+	migDryRun    bool
 )
 
 var migrationsListCmd = &cobra.Command{

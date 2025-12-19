@@ -32,9 +32,9 @@ var (
 	maxRetryAttempts = getEnvInt("FLUXBASE_DATABASE_RETRY_ATTEMPTS", 5)
 
 	// Scaling CLI flags (override config file settings)
-	workerOnly       = flag.Bool("worker-only", false, "Run in worker-only mode (disable API server, only process background jobs)")
-	disableScheduler = flag.Bool("disable-scheduler", false, "Disable cron schedulers (use for multi-instance deployments)")
-	disableRealtime  = flag.Bool("disable-realtime", false, "Disable realtime listener")
+	workerOnly           = flag.Bool("worker-only", false, "Run in worker-only mode (disable API server, only process background jobs)")
+	disableScheduler     = flag.Bool("disable-scheduler", false, "Disable cron schedulers (use for multi-instance deployments)")
+	disableRealtime      = flag.Bool("disable-realtime", false, "Disable realtime listener")
 	enableLeaderElection = flag.Bool("enable-leader-election", false, "Enable scheduler leader election using PostgreSQL advisory locks")
 )
 

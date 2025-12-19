@@ -28,13 +28,13 @@ const (
 // It uses pg_try_advisory_lock for non-blocking lock acquisition, allowing
 // the instance to gracefully handle not being the leader.
 type LeaderElector struct {
-	pool         *pgxpool.Pool
-	lockID       int64
-	lockName     string
-	isLeader     bool
-	isLeaderMu   sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
+	pool          *pgxpool.Pool
+	lockID        int64
+	lockName      string
+	isLeader      bool
+	isLeaderMu    sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 	checkInterval time.Duration
 }
 
@@ -43,12 +43,12 @@ type LeaderElector struct {
 func NewLeaderElector(pool *pgxpool.Pool, lockID int64, lockName string) *LeaderElector {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &LeaderElector{
-		pool:         pool,
-		lockID:       lockID,
-		lockName:     lockName,
-		isLeader:     false,
-		ctx:          ctx,
-		cancel:       cancel,
+		pool:          pool,
+		lockID:        lockID,
+		lockName:      lockName,
+		isLeader:      false,
+		ctx:           ctx,
+		cancel:        cancel,
 		checkInterval: 5 * time.Second,
 	}
 }

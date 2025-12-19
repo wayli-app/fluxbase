@@ -28,12 +28,12 @@ var kbCmd = &cobra.Command{
 }
 
 var (
-	kbDescription    string
-	kbEmbeddingModel string
-	kbChunkSize      int
-	kbDocTitle       string
-	kbDocMetadata    string
-	kbSearchLimit    int
+	kbDescription     string
+	kbEmbeddingModel  string
+	kbChunkSize       int
+	kbDocTitle        string
+	kbDocMetadata     string
+	kbSearchLimit     int
 	kbSearchThreshold float64
 )
 

@@ -588,14 +588,14 @@ const (
 
 // HybridSearchOptions contains options for hybrid search
 type HybridSearchOptions struct {
-	Query           string
-	QueryEmbedding  []float32
-	Limit           int
-	Threshold       float64
-	Mode            SearchMode
-	SemanticWeight  float64         // Weight for semantic score (0-1), keyword weight = 1 - semantic
-	KeywordBoost    float64         // Boost factor for exact keyword matches
-	Filter          *MetadataFilter // Optional metadata filter for user isolation
+	Query          string
+	QueryEmbedding []float32
+	Limit          int
+	Threshold      float64
+	Mode           SearchMode
+	SemanticWeight float64         // Weight for semantic score (0-1), keyword weight = 1 - semantic
+	KeywordBoost   float64         // Boost factor for exact keyword matches
+	Filter         *MetadataFilter // Optional metadata filter for user isolation
 }
 
 // SearchChunksHybrid performs hybrid search combining vector similarity with full-text search

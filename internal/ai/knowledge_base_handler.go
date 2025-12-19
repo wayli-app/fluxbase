@@ -929,15 +929,15 @@ type DebugSearchRequest struct {
 
 // DebugSearchResponse contains detailed debug information about similarity search
 type DebugSearchResponse struct {
-	Query                   string    `json:"query"`
-	QueryEmbeddingPreview   []float32 `json:"query_embedding_preview"`
-	QueryEmbeddingDims      int       `json:"query_embedding_dims"`
-	StoredEmbeddingPreview  []float32 `json:"stored_embedding_preview,omitempty"`
-	RawSimilarities         []float64 `json:"raw_similarities"`
-	EmbeddingModel          string    `json:"embedding_model"`
-	KBEmbeddingModel        string    `json:"kb_embedding_model"`
-	ChunksFound             int       `json:"chunks_found"`
-	TopChunkContentPreview  string    `json:"top_chunk_content_preview,omitempty"`
+	Query                  string    `json:"query"`
+	QueryEmbeddingPreview  []float32 `json:"query_embedding_preview"`
+	QueryEmbeddingDims     int       `json:"query_embedding_dims"`
+	StoredEmbeddingPreview []float32 `json:"stored_embedding_preview,omitempty"`
+	RawSimilarities        []float64 `json:"raw_similarities"`
+	EmbeddingModel         string    `json:"embedding_model"`
+	KBEmbeddingModel       string    `json:"kb_embedding_model"`
+	ChunksFound            int       `json:"chunks_found"`
+	TopChunkContentPreview string    `json:"top_chunk_content_preview,omitempty"`
 	// Chunk statistics
 	TotalChunks            int    `json:"total_chunks"`
 	ChunksWithEmbedding    int    `json:"chunks_with_embedding"`

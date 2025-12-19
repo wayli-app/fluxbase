@@ -169,7 +169,7 @@ type VectorSearchResult struct {
 type VectorSearchOptions struct {
 	ChatbotID      string
 	Query          string
-	KnowledgeBases []string          // Specific KB names, or empty for all linked
+	KnowledgeBases []string // Specific KB names, or empty for all linked
 	Limit          int
 	Threshold      float64
 	Tags           []string

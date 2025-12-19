@@ -38,11 +38,11 @@ var storageObjectsCmd = &cobra.Command{
 }
 
 var (
-	bucketPublic     bool
-	bucketMaxSize    int64
-	objectPrefix     string
+	bucketPublic      bool
+	bucketMaxSize     int64
+	objectPrefix      string
 	objectContentType string
-	urlExpires       int
+	urlExpires        int
 )
 
 // Bucket commands

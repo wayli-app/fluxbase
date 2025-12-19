@@ -608,9 +608,9 @@ func setDefaults() {
 	viper.SetDefault("ai.azure_embedding_deployment_name", "")       // Optional separate Azure embedding deployment
 
 	// AI OCR Configuration defaults (for image-based PDF extraction)
-	viper.SetDefault("ai.ocr_enabled", true)               // Enabled by default (will gracefully degrade if Tesseract not installed)
-	viper.SetDefault("ai.ocr_provider", "tesseract")       // Default OCR provider
-	viper.SetDefault("ai.ocr_languages", []string{"eng"})  // Default to English
+	viper.SetDefault("ai.ocr_enabled", true)              // Enabled by default (will gracefully degrade if Tesseract not installed)
+	viper.SetDefault("ai.ocr_provider", "tesseract")      // Default OCR provider
+	viper.SetDefault("ai.ocr_languages", []string{"eng"}) // Default to English
 
 	// RPC defaults
 	viper.SetDefault("rpc.enabled", true)                     // Enabled by default (controlled by feature flag at runtime)
