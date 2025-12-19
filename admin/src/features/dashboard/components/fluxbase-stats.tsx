@@ -27,9 +27,8 @@ export function FluxbaseStats() {
   const { data: tables, isLoading: isLoadingTables } = useQuery({
     queryKey: ['dashboard', 'table-count'],
     queryFn: async () => {
-      const { data, error } = await client.admin.ddl.listTables()
-      if (error) throw error
-      return data?.tables.map((t: { schema: string; name: string }) => `${t.schema}.${t.name}`) || []
+      const response = await client.admin.ddl.listTables()
+      return response.tables.map((t: { schema: string; name: string }) => `${t.schema}.${t.name}`) || []
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   })

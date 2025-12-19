@@ -64,16 +64,14 @@ export function AIProvidersTab() {
   const [deleteConfirm, setDeleteConfirm] = useState<AIProvider | null>(null)
 
   // Fetch providers using SDK
-  const { data: providersData, isLoading } = useQuery({
+  const { data: providers = [], isLoading } = useQuery<AIProvider[]>({
     queryKey: ['ai-providers'],
     queryFn: async () => {
       const { data, error } = await client.admin.ai.listProviders()
       if (error) throw error
-      return data
+      return data ?? []
     },
   })
-
-  const providers: AIProvider[] = providersData?.providers || []
 
   // Set default provider mutation using SDK
   const setDefaultMutation = useMutation({
