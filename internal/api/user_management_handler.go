@@ -23,10 +23,22 @@ func NewUserManagementHandler(userMgmtService *auth.UserManagementService, authS
 
 // ListUsers lists all users with enriched metadata
 func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
+	const defaultLimit = 100
+	const maxLimit = 1000
+
 	excludeAdmins := c.QueryBool("exclude_admins", false)
 	search := c.Query("search", "")
-	limit := c.QueryInt("limit", 0)    // 0 means no limit
+	limit := c.QueryInt("limit", defaultLimit)
+	offset := c.QueryInt("offset", 0)
 	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
+
+	// Enforce maximum limit
+	if limit <= 0 || limit > maxLimit {
+		limit = defaultLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	users, err := h.userMgmtService.ListEnrichedUsers(c.Context(), userType)
 	if err != nil {
@@ -67,14 +79,26 @@ func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 		filteredUsers = searchResults
 	}
 
-	// Apply limit if specified
-	if limit > 0 && len(filteredUsers) > limit {
+	// Calculate total before pagination
+	total := len(filteredUsers)
+
+	// Apply offset
+	if offset >= len(filteredUsers) {
+		filteredUsers = []*auth.EnrichedUser{}
+	} else {
+		filteredUsers = filteredUsers[offset:]
+	}
+
+	// Apply limit
+	if len(filteredUsers) > limit {
 		filteredUsers = filteredUsers[:limit]
 	}
 
 	return c.JSON(fiber.Map{
-		"users": filteredUsers,
-		"total": len(filteredUsers),
+		"users":  filteredUsers,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
 	})
 }
 

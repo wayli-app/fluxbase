@@ -32,7 +32,8 @@ echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
 echo ""
 
 # Run the server and capture its PID
-go run cmd/fluxbase/main.go &
+# -tags "ocr" enables Tesseract OCR support for PDF text extraction
+go run -tags "ocr" cmd/fluxbase/main.go &
 SERVER_PID=$!
 
 # Wait for the server process

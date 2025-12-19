@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/ai"
@@ -566,16 +565,6 @@ func (h *VectorHandler) executeVectorSearch(ctx context.Context, params vectorSe
 	return data, distances, nil
 }
 
-// isValidIdentifier checks if a string is a valid SQL identifier
-func isValidIdentifier(s string) bool {
-	if s == "" || len(s) > 128 {
-		return false
-	}
-	// Allow schema.table format
-	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`, s)
-	return matched
-}
-
 // formatVectorLiteral formats a float64 slice as PostgreSQL vector literal
 func formatVectorLiteral(v []float64) string {
 	parts := make([]string, len(v))
@@ -635,27 +624,42 @@ type VectorCapabilities struct {
 
 // HandleGetCapabilities handles GET /api/v1/capabilities/vector
 // Returns information about vector search capabilities
+// Non-admin users only receive minimal info (enabled status)
 func (h *VectorHandler) HandleGetCapabilities(c *fiber.Ctx) error {
 	// EmbeddingEnabled reflects actual service availability (including fallback)
 	embeddingAvailable := h.embeddingService != nil
 
-	caps := VectorCapabilities{
-		EmbeddingEnabled: embeddingAvailable,
-	}
-
 	// Check pgvector installation status
+	pgVectorInstalled := false
+	var pgVectorVersion string
 	if h.schemaInspector != nil {
 		installed, version, err := h.schemaInspector.IsPgVectorInstalled(c.Context())
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to check pgvector status")
 		} else {
-			caps.PgVectorInstalled = installed
-			caps.PgVectorVersion = version
+			pgVectorInstalled = installed
+			pgVectorVersion = version
 		}
 	}
 
-	// Set enabled if both pgvector is installed and embedding is available
-	caps.Enabled = caps.PgVectorInstalled && embeddingAvailable
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	isAdmin := role == "admin" || role == "dashboard_admin" || role == "service_role"
+
+	// Non-admin users only get minimal info (enabled status)
+	if !isAdmin {
+		return c.JSON(fiber.Map{
+			"enabled": pgVectorInstalled && embeddingAvailable,
+		})
+	}
+
+	// Admin users get full details
+	caps := VectorCapabilities{
+		Enabled:           pgVectorInstalled && embeddingAvailable,
+		PgVectorInstalled: pgVectorInstalled,
+		PgVectorVersion:   pgVectorVersion,
+		EmbeddingEnabled:  embeddingAvailable,
+	}
 
 	// Add embedding provider info if embedding is available
 	if embeddingAvailable {

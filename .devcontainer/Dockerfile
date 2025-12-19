@@ -29,6 +29,12 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     zsh \
     lsof \
+    # OCR dependencies for knowledge base PDF extraction
+    tesseract-ocr \
+    libtesseract-dev \
+    libleptonica-dev \
+    tesseract-ocr-eng \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locale

@@ -28,7 +28,7 @@ type Service struct {
 	identityService       *IdentityService
 	systemSettings        *SystemSettingsService
 	settingsCache         *SettingsCache
-	nonceStore            *NonceStore
+	nonceRepo             *NonceRepository
 	oidcVerifier          *OIDCVerifier
 	config                *config.AuthConfig
 }
@@ -120,9 +120,8 @@ func NewService(
 	// Wire up cache to settings service for cache invalidation on updates
 	systemSettingsService.SetCache(settingsCache)
 
-	// Create nonce store for reauthentication with periodic cleanup
-	nonceStore := NewNonceStore()
-	nonceStore.StartCleanup(1 * time.Minute)
+	// Create nonce repository for distributed reauthentication
+	nonceRepo := NewNonceRepository(db)
 
 	// Create OIDC verifier for ID token authentication
 	oidcVerifier, err := NewOIDCVerifier(context.Background(), cfg)
@@ -151,7 +150,7 @@ func NewService(
 		identityService:       identityService,
 		systemSettings:        systemSettingsService,
 		settingsCache:         settingsCache,
-		nonceStore:            nonceStore,
+		nonceRepo:             nonceRepo,
 		oidcVerifier:          oidcVerifier,
 		config:                cfg,
 	}
@@ -948,8 +947,10 @@ func (s *Service) Reauthenticate(ctx context.Context, userID string) (string, er
 	// Generate a secure random nonce
 	nonce := uuid.New().String()
 
-	// Store nonce with 5-minute expiry for later verification
-	s.nonceStore.Set(nonce, userID, 5*time.Minute)
+	// Store nonce with 5-minute expiry for later verification (distributed across instances)
+	if err := s.nonceRepo.Set(ctx, nonce, userID, 5*time.Minute); err != nil {
+		return "", fmt.Errorf("failed to store nonce: %w", err)
+	}
 
 	return nonce, nil
 }
@@ -958,7 +959,19 @@ func (s *Service) Reauthenticate(ctx context.Context, userID string) (string, er
 // The nonce is single-use and will be invalidated after verification.
 // Returns true if the nonce is valid and belongs to the specified user.
 func (s *Service) VerifyNonce(ctx context.Context, nonce, userID string) bool {
-	return s.nonceStore.Validate(nonce, userID)
+	valid, err := s.nonceRepo.Validate(ctx, nonce, userID)
+	if err != nil {
+		// Log error but return false to maintain backward compatibility
+		return false
+	}
+	return valid
+}
+
+// CleanupExpiredNonces removes expired nonces from the database.
+// This is optional maintenance - nonces are single-use and deleted on validation.
+// Expired but unused nonces will simply fail validation and can be cleaned up periodically.
+func (s *Service) CleanupExpiredNonces(ctx context.Context) (int64, error) {
+	return s.nonceRepo.Cleanup(ctx)
 }
 
 // SignInWithIDToken signs in a user with an OAuth ID token (Google, Apple, Microsoft, or custom OIDC)

@@ -61,7 +61,7 @@ Choose one of the following installation methods:
 
 ### Method 1: Download Pre-built Binary (Recommended)
 
-Download the latest release for your platform (~40MB binary):
+Download the latest release for your platform (~70MB binary):
 
 **Linux (x86_64)**
 
@@ -81,7 +81,7 @@ sudo mv fluxbase /usr/local/bin/
 
 ### Method 2: Docker
 
-Pull and run the official Docker image (~80MB container):
+Pull and run the official Docker image (~110MB container):
 
 ```bash
 docker pull ghcr.io/fluxbase-eu/fluxbase:latest

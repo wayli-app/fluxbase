@@ -60,6 +60,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const authenticationSearchSchema = z.object({
   tab: z.string().optional().catch('providers'),
@@ -145,6 +146,8 @@ function OAuthProvidersTab() {
   const [customUserInfoUrl, setCustomUserInfoUrl] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [showDeleteProviderConfirm, setShowDeleteProviderConfirm] = useState(false)
+  const [deletingProvider, setDeletingProvider] = useState<OAuthProviderConfig | null>(null)
 
   const availableProviders = [
     { id: 'google', name: 'Google', icon: '🔵' },
@@ -402,13 +405,8 @@ function OAuthProvidersTab() {
                           variant='destructive'
                           size='sm'
                           onClick={() => {
-                            if (
-                              confirm(
-                                `Are you sure you want to remove ${provider.display_name}?`
-                              )
-                            ) {
-                              deleteProviderMutation.mutate(provider.id)
-                            }
+                            setDeletingProvider(provider)
+                            setShowDeleteProviderConfirm(true)
                           }}
                           disabled={deleteProviderMutation.isPending}
                         >
@@ -701,6 +699,27 @@ function OAuthProvidersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Provider Confirmation */}
+      <ConfirmDialog
+        open={showDeleteProviderConfirm}
+        onOpenChange={setShowDeleteProviderConfirm}
+        title="Remove OAuth Provider"
+        desc={`Are you sure you want to remove ${deletingProvider?.display_name}? Users will no longer be able to sign in with this provider.`}
+        confirmText="Remove"
+        destructive
+        isLoading={deleteProviderMutation.isPending}
+        handleConfirm={() => {
+          if (deletingProvider) {
+            deleteProviderMutation.mutate(deletingProvider.id, {
+              onSuccess: () => {
+                setShowDeleteProviderConfirm(false)
+                setDeletingProvider(null)
+              },
+            })
+          }
+        }}
+      />
     </div>
   )
 }

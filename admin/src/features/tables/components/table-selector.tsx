@@ -40,6 +40,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface TableSelectorProps {
   selectedTable?: string
@@ -86,6 +87,10 @@ export function TableSelector({
   const [newColumnNullable, setNewColumnNullable] = useState(true)
   const [newColumnDefault, setNewColumnDefault] = useState('')
   const [editTableName, setEditTableName] = useState('')
+  const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
+  const [deletingTableFull, setDeletingTableFull] = useState<string | null>(null)
+  const [showDropColumnConfirm, setShowDropColumnConfirm] = useState(false)
+  const [droppingColumn, setDroppingColumn] = useState<{ schema: string; table: string; column: string } | null>(null)
 
   const { data: schemas, isLoading: schemasLoading } = useQuery({
     queryKey: ['schemas'],
@@ -378,14 +383,8 @@ export function TableSelector({
                       className='text-destructive'
                       onClick={(e) => {
                         e.stopPropagation()
-                        const [schema, table] = full.split('.')
-                        if (
-                          confirm(
-                            `Are you sure you want to delete table "${full}"? This action cannot be undone.`
-                          )
-                        ) {
-                          deleteTableMutation.mutate({ schema, table })
-                        }
+                        setDeletingTableFull(full)
+                        setShowDeleteTableConfirm(true)
                       }}
                     >
                       <Trash2 className='mr-2 h-4 w-4' />
@@ -823,16 +822,13 @@ export function TableSelector({
                       className='text-destructive hover:text-destructive'
                       disabled={col.is_primary_key || dropColumnMutation.isPending}
                       onClick={() => {
-                        if (
-                          confirm(
-                            `Are you sure you want to drop column "${col.name}"? This will delete all data in this column.`
-                          )
-                        ) {
-                          dropColumnMutation.mutate({
+                        if (editingTable) {
+                          setDroppingColumn({
                             schema: editingTable.schema,
                             table: editingTable.name,
                             column: col.name,
                           })
+                          setShowDropColumnConfirm(true)
                         }
                       }}
                       title={col.is_primary_key ? 'Cannot drop primary key' : 'Drop column'}
@@ -944,6 +940,49 @@ export function TableSelector({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* Delete Table Confirmation */}
+      <ConfirmDialog
+        open={showDeleteTableConfirm}
+        onOpenChange={setShowDeleteTableConfirm}
+        title="Delete Table"
+        desc={`Are you sure you want to delete table "${deletingTableFull}"? This action cannot be undone.`}
+        confirmText="Delete"
+        destructive
+        isLoading={deleteTableMutation.isPending}
+        handleConfirm={() => {
+          if (deletingTableFull) {
+            const [schema, table] = deletingTableFull.split('.')
+            deleteTableMutation.mutate({ schema, table }, {
+              onSuccess: () => {
+                setShowDeleteTableConfirm(false)
+                setDeletingTableFull(null)
+              },
+            })
+          }
+        }}
+      />
+
+      {/* Drop Column Confirmation */}
+      <ConfirmDialog
+        open={showDropColumnConfirm}
+        onOpenChange={setShowDropColumnConfirm}
+        title="Drop Column"
+        desc={`Are you sure you want to drop column "${droppingColumn?.column}"? This will delete all data in this column.`}
+        confirmText="Drop Column"
+        destructive
+        isLoading={dropColumnMutation.isPending}
+        handleConfirm={() => {
+          if (droppingColumn) {
+            dropColumnMutation.mutate(droppingColumn, {
+              onSuccess: () => {
+                setShowDropColumnConfirm(false)
+                setDroppingColumn(null)
+              },
+            })
+          }
+        }}
+      />
     </div>
   )
 }

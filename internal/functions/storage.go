@@ -267,6 +267,49 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 	return functions, nil
 }
 
+// ListAllFunctions returns all functions regardless of is_public setting (admin use)
+func (s *Storage) ListAllFunctions(ctx context.Context) ([]EdgeFunctionSummary, error) {
+	query := `
+		SELECT id, name, namespace, description, is_bundled, bundle_error, version, cron_schedule, enabled,
+		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public,
+		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
+		       created_at, updated_at, created_by, source
+		FROM functions.edge_functions
+		ORDER BY namespace, name
+	`
+
+	var functions []EdgeFunctionSummary
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			fn := EdgeFunctionSummary{}
+			err := rows.Scan(
+				&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.IsBundled, &fn.BundleError,
+				&fn.Version, &fn.CronSchedule, &fn.Enabled,
+				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic,
+				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+			)
+			if err != nil {
+				return err
+			}
+			functions = append(functions, fn)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all functions: %w", err)
+	}
+
+	return functions, nil
+}
+
 // ListFunctionNamespaces returns all unique namespaces that have edge functions
 func (s *Storage) ListFunctionNamespaces(ctx context.Context) ([]string, error) {
 	query := `SELECT DISTINCT namespace FROM functions.edge_functions ORDER BY namespace`

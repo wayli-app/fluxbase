@@ -230,7 +230,11 @@ In a single-instance deployment, all WebSocket connections are handled by one Fl
 
 ### Multi-Instance Architecture (Horizontal Scaling)
 
-For horizontal scaling with multiple Fluxbase instances, you need session stickiness at the load balancer level to ensure WebSocket connections remain on the same instance:
+Fluxbase supports two types of realtime notifications, each handled differently in multi-instance deployments:
+
+#### Database Change Notifications
+
+Database changes (INSERT/UPDATE/DELETE) are automatically broadcast to **all instances** via PostgreSQL's LISTEN/NOTIFY. No extra configuration needed.
 
 ```mermaid
 graph TB
@@ -257,12 +261,28 @@ graph TB
     style LB fill:#ff6b6b,color:#fff
 ```
 
+#### Application Broadcasts (Cross-Instance)
+
+For application-level broadcasts (chat messages, custom events, presence), configure a distributed pub/sub backend:
+
+```bash
+# Option 1: PostgreSQL LISTEN/NOTIFY (default, no extra dependencies)
+FLUXBASE_SCALING_BACKEND=postgres
+
+# Option 2: Redis/Dragonfly (for high-scale deployments)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://dragonfly:6379
+```
+
+When configured, broadcasts sent via `BroadcastGlobal()` are delivered to clients on **all instances**, not just the originating one.
+
 **Key points for horizontal scaling:**
+
 - Each Fluxbase instance maintains its own PostgreSQL LISTEN connection
 - PostgreSQL broadcasts `pg_notify()` to **all** listening instances simultaneously
 - Load balancer uses session stickiness (source IP or cookie-based) to route each client to the same Fluxbase instance
 - Requires external PostgreSQL (which also stores authentication sessions shared across instances)
-- Sessions work across instances; rate limiting and CSRF are per-instance
+- With `postgres` or `redis` scaling backend, rate limiting is shared across instances
 
 See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for configuration details.
 

@@ -98,19 +98,41 @@ func (h *APIKeyHandler) CreateAPIKey(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(apiKey)
 }
 
-// ListAPIKeys lists all API keys
+// ListAPIKeys lists API keys
+// Non-admin users can only see their own keys
 func (h *APIKeyHandler) ListAPIKeys(c *fiber.Ctx) error {
-	// Optionally filter by user ID
+	// Get current user info
+	currentUserID, _ := c.Locals("user_id").(string)
+	role, _ := c.Locals("user_role").(string)
+	isAdmin := role == "admin" || role == "dashboard_admin" || role == "service_role"
+
+	// Determine which user's keys to list
 	var userID *uuid.UUID
+
 	if userIDStr := c.Query("user_id"); userIDStr != "" {
+		// User specified a user_id filter
 		id, err := uuid.Parse(userIDStr)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid user ID",
 			})
 		}
+
+		// Non-admin users can only view their own keys
+		if !isAdmin && userIDStr != currentUserID {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Cannot view other users' API keys",
+			})
+		}
 		userID = &id
+	} else if !isAdmin && currentUserID != "" {
+		// Non-admin users without filter: only show their own keys
+		id, err := uuid.Parse(currentUserID)
+		if err == nil {
+			userID = &id
+		}
 	}
+	// Admins without filter: show all keys (userID stays nil)
 
 	apiKeys, err := h.apiKeyService.ListAPIKeys(c.Context(), userID)
 	if err != nil {
@@ -123,6 +145,7 @@ func (h *APIKeyHandler) ListAPIKeys(c *fiber.Ctx) error {
 }
 
 // GetAPIKey retrieves a single API key
+// Non-admin users can only view their own keys
 func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
@@ -131,6 +154,11 @@ func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
 			"error": "Invalid API key ID",
 		})
 	}
+
+	// Get current user info
+	currentUserID, _ := c.Locals("user_id").(string)
+	role, _ := c.Locals("user_role").(string)
+	isAdmin := role == "admin" || role == "dashboard_admin" || role == "service_role"
 
 	// For simplicity, we'll just list and filter (in production, add a GetByID method)
 	apiKeys, err := h.apiKeyService.ListAPIKeys(c.Context(), nil)
@@ -142,6 +170,12 @@ func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
 
 	for _, key := range apiKeys {
 		if key.ID == id {
+			// Non-admin users can only view their own keys
+			if !isAdmin && key.UserID != nil && key.UserID.String() != currentUserID {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"error": "Cannot view other users' API keys",
+				})
+			}
 			return c.JSON(key)
 		}
 	}

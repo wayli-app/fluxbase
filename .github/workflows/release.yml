@@ -347,14 +347,36 @@ jobs:
         with:
           go-version: "1.25"
 
-      - name: Build binary
+      - name: Build server binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${{ needs.get-version.outputs.version }}
+          output_name="fluxbase-server-${{ matrix.goos }}-${{ matrix.goarch }}"
+          go build -ldflags="-s -w -X main.Version=${VERSION}" -o "${output_name}" cmd/fluxbase/main.go
+
+          # Create checksums
+          sha256sum "${output_name}" > "${output_name}.sha256"
+
+          # Create tar.gz for non-Windows
+          if [ "${{ matrix.goos }}" != "windows" ]; then
+            tar -czf "${output_name}.tar.gz" "${output_name}"
+            sha256sum "${output_name}.tar.gz" > "${output_name}.tar.gz.sha256"
+          else
+            # Create zip for Windows
+            zip "${output_name}.zip" "${output_name}"
+            sha256sum "${output_name}.zip" > "${output_name}.zip.sha256"
+          fi
+
+      - name: Build CLI binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           VERSION=${{ needs.get-version.outputs.version }}
           output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
-          go build -ldflags="-s -w -X main.Version=${VERSION}" -o "${output_name}" cmd/fluxbase/main.go
+          go build -ldflags="-s -w -X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=${VERSION} -X github.com/fluxbase-eu/fluxbase/cli/cmd.Commit=${{ github.sha }} -X github.com/fluxbase-eu/fluxbase/cli/cmd.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "${output_name}" cli/main.go
 
           # Create checksums
           sha256sum "${output_name}" > "${output_name}.sha256"
@@ -374,6 +396,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ needs.get-version.outputs.tag_name }} \
+            fluxbase-server-${{ matrix.goos }}-${{ matrix.goarch }}* \
             fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}* \
             --clobber
 

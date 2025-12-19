@@ -95,6 +95,9 @@ export { FluxbaseVector } from "./vector";
 // Admin Migrations module
 export { FluxbaseAdminMigrations } from "./admin-migrations";
 
+// Admin Storage module
+export { FluxbaseAdminStorage } from "./admin-storage";
+
 // Admin module
 export { FluxbaseAdmin } from "./admin";
 
@@ -210,6 +213,19 @@ export type {
   ApplyPendingRequest,
   SyncMigrationsOptions,
   SyncMigrationsResult,
+
+  // Health check types
+  HealthResponse,
+
+  // Admin storage types
+  AdminBucket,
+  AdminListBucketsResponse,
+  AdminStorageObject,
+  AdminListObjectsResponse,
+  SignedUrlResponse,
+
+  // Email types
+  SendEmailRequest,
 
   // Admin types
   AdminSetupStatusResponse,

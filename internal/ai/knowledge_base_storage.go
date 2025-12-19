@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -295,6 +296,43 @@ func (s *KnowledgeBaseStorage) DeleteDocument(ctx context.Context, id string) er
 	return err
 }
 
+// UpdateDocumentMetadata updates a document's title, metadata, and tags
+func (s *KnowledgeBaseStorage) UpdateDocumentMetadata(ctx context.Context, id string, title *string, metadata map[string]string, tags []string) (*Document, error) {
+	// Build the metadata JSON
+	var metadataJSON []byte
+	if metadata != nil {
+		var err error
+		metadataJSON, err = json.Marshal(metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+	}
+
+	query := `
+		UPDATE ai.documents SET
+			title = COALESCE($2, title),
+			metadata = COALESCE($3, metadata),
+			tags = COALESCE($4, tags),
+			updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, knowledge_base_id, title, source_url, source_type,
+			mime_type, content, content_hash, status, error_message,
+			chunks_count, metadata, tags, created_by, created_at, updated_at, indexed_at
+	`
+
+	var doc Document
+	err := s.db.QueryRow(ctx, query, id, title, metadataJSON, tags).Scan(
+		&doc.ID, &doc.KnowledgeBaseID, &doc.Title, &doc.SourceURL, &doc.SourceType,
+		&doc.MimeType, &doc.Content, &doc.ContentHash, &doc.Status, &doc.ErrorMessage,
+		&doc.ChunksCount, &doc.Metadata, &doc.Tags, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &doc.IndexedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update document: %w", err)
+	}
+
+	return &doc, nil
+}
+
 // ============================================================================
 // Chunk Operations
 // ============================================================================
@@ -317,16 +355,26 @@ func (s *KnowledgeBaseStorage) CreateChunks(ctx context.Context, chunks []Chunk)
 			metadataJSON = chunk.Metadata
 		}
 
-		batch.Queue(`
+		// Format embedding as PostgreSQL vector literal (pgx can't encode []float32 directly)
+		var embeddingExpr string
+		if chunk.Embedding != nil {
+			embeddingExpr = fmt.Sprintf("'%s'::vector", formatEmbeddingLiteral(chunk.Embedding))
+		} else {
+			embeddingExpr = "NULL"
+		}
+
+		query := fmt.Sprintf(`
 			INSERT INTO ai.chunks (
 				id, document_id, knowledge_base_id, content,
 				chunk_index, start_offset, end_offset, token_count,
 				embedding, metadata
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		`,
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, %s, $9)
+		`, embeddingExpr)
+
+		batch.Queue(query,
 			chunk.ID, chunk.DocumentID, chunk.KnowledgeBaseID, chunk.Content,
 			chunk.ChunkIndex, chunk.StartOffset, chunk.EndOffset, chunk.TokenCount,
-			chunk.Embedding, metadataJSON,
+			metadataJSON,
 		)
 	}
 
@@ -461,6 +509,19 @@ func (s *KnowledgeBaseStorage) SearchChunks(ctx context.Context, knowledgeBaseID
 	// Format embedding as PostgreSQL vector literal
 	embeddingStr := formatEmbeddingLiteral(queryEmbedding)
 
+	// Log embedding info for debugging
+	embeddingPreview := embeddingStr
+	if len(embeddingPreview) > 100 {
+		embeddingPreview = embeddingPreview[:100] + "..."
+	}
+	log.Debug().
+		Int("embedding_length", len(queryEmbedding)).
+		Str("kb_id", knowledgeBaseID).
+		Float64("threshold", threshold).
+		Int("limit", limit).
+		Str("embedding_preview", embeddingPreview).
+		Msg("SearchChunks starting")
+
 	query := fmt.Sprintf(`
 		SELECT
 			c.id as chunk_id,
@@ -479,6 +540,7 @@ func (s *KnowledgeBaseStorage) SearchChunks(ctx context.Context, knowledgeBaseID
 
 	rows, err := s.db.Query(ctx, query, knowledgeBaseID, threshold, limit)
 	if err != nil {
+		log.Error().Err(err).Str("kb_id", knowledgeBaseID).Msg("SearchChunks query failed")
 		return nil, fmt.Errorf("failed to search chunks: %w", err)
 	}
 	defer rows.Close()
@@ -495,6 +557,331 @@ func (s *KnowledgeBaseStorage) SearchChunks(ctx context.Context, knowledgeBaseID
 		if docTitle != nil {
 			r.DocumentTitle = *docTitle
 		}
+		results = append(results, r)
+	}
+
+	// Log results
+	if len(results) > 0 {
+		log.Debug().
+			Int("results_count", len(results)).
+			Float64("top_similarity", results[0].Similarity).
+			Str("kb_id", knowledgeBaseID).
+			Msg("SearchChunks completed")
+	} else {
+		log.Debug().
+			Str("kb_id", knowledgeBaseID).
+			Float64("threshold", threshold).
+			Msg("SearchChunks returned no results")
+	}
+
+	return results, nil
+}
+
+// SearchMode defines how search should be performed
+type SearchMode string
+
+const (
+	SearchModeSemantic SearchMode = "semantic" // Vector similarity only
+	SearchModeKeyword  SearchMode = "keyword"  // Full-text search only
+	SearchModeHybrid   SearchMode = "hybrid"   // Combined vector + full-text
+)
+
+// HybridSearchOptions contains options for hybrid search
+type HybridSearchOptions struct {
+	Query           string
+	QueryEmbedding  []float32
+	Limit           int
+	Threshold       float64
+	Mode            SearchMode
+	SemanticWeight  float64         // Weight for semantic score (0-1), keyword weight = 1 - semantic
+	KeywordBoost    float64         // Boost factor for exact keyword matches
+	Filter          *MetadataFilter // Optional metadata filter for user isolation
+}
+
+// SearchChunksHybrid performs hybrid search combining vector similarity with full-text search
+func (s *KnowledgeBaseStorage) SearchChunksHybrid(ctx context.Context, knowledgeBaseID string, opts HybridSearchOptions) ([]RetrievalResult, error) {
+	// Default weights
+	if opts.SemanticWeight == 0 {
+		opts.SemanticWeight = 0.5 // 50/50 by default
+	}
+	if opts.KeywordBoost == 0 {
+		opts.KeywordBoost = 0.3 // 30% boost for keyword matches
+	}
+
+	log.Debug().
+		Str("mode", string(opts.Mode)).
+		Str("query", opts.Query).
+		Float64("semantic_weight", opts.SemanticWeight).
+		Float64("threshold", opts.Threshold).
+		Msg("SearchChunksHybrid starting")
+
+	switch opts.Mode {
+	case SearchModeKeyword:
+		return s.searchKeywordOnly(ctx, knowledgeBaseID, opts)
+	case SearchModeHybrid:
+		return s.searchHybrid(ctx, knowledgeBaseID, opts)
+	default: // SearchModeSemantic
+		return s.SearchChunks(ctx, knowledgeBaseID, opts.QueryEmbedding, opts.Limit, opts.Threshold)
+	}
+}
+
+// searchKeywordOnly performs full-text search only
+func (s *KnowledgeBaseStorage) searchKeywordOnly(ctx context.Context, knowledgeBaseID string, opts HybridSearchOptions) ([]RetrievalResult, error) {
+	// Prepare the search query for PostgreSQL full-text search
+	// Use plainto_tsquery for simple word matching, or websearch_to_tsquery for more advanced
+	query := `
+		SELECT
+			c.id as chunk_id,
+			c.document_id,
+			c.content,
+			ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $2)) as similarity,
+			c.metadata,
+			d.title as document_title
+		FROM ai.chunks c
+		JOIN ai.documents d ON d.id = c.document_id
+		WHERE c.knowledge_base_id = $1
+		  AND (
+		    to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $2)
+		    OR c.content ILIKE '%' || $2 || '%'
+		  )
+		ORDER BY similarity DESC
+		LIMIT $3
+	`
+
+	rows, err := s.db.Query(ctx, query, knowledgeBaseID, opts.Query, opts.Limit)
+	if err != nil {
+		log.Error().Err(err).Str("kb_id", knowledgeBaseID).Msg("Keyword search query failed")
+		return nil, fmt.Errorf("failed to search chunks: %w", err)
+	}
+	defer rows.Close()
+
+	var results []RetrievalResult
+	for rows.Next() {
+		var r RetrievalResult
+		var docTitle *string
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Similarity, &r.Metadata, &docTitle); err != nil {
+			log.Warn().Err(err).Msg("Failed to scan keyword search result")
+			continue
+		}
+		r.KnowledgeBaseID = knowledgeBaseID
+		if docTitle != nil {
+			r.DocumentTitle = *docTitle
+		}
+		// Normalize similarity to 0-1 range (ts_rank_cd can exceed 1)
+		if r.Similarity > 1 {
+			r.Similarity = 1
+		}
+		results = append(results, r)
+	}
+
+	log.Debug().
+		Int("results_count", len(results)).
+		Str("kb_id", knowledgeBaseID).
+		Msg("Keyword search completed")
+
+	return results, nil
+}
+
+// searchHybrid combines vector similarity with full-text search
+func (s *KnowledgeBaseStorage) searchHybrid(ctx context.Context, knowledgeBaseID string, opts HybridSearchOptions) ([]RetrievalResult, error) {
+	embeddingStr := formatEmbeddingLiteral(opts.QueryEmbedding)
+	keywordWeight := 1 - opts.SemanticWeight
+
+	// Build dynamic filter conditions for user isolation
+	filterConditions := ""
+	args := []interface{}{knowledgeBaseID, opts.Query, opts.SemanticWeight, keywordWeight, opts.KeywordBoost, opts.Threshold, opts.Limit}
+	argIndex := 8
+
+	if opts.Filter != nil && opts.Filter.UserID != nil {
+		// Include user's content OR content without user_id (global)
+		filterConditions += fmt.Sprintf(` AND (
+			d.metadata->>'user_id' = $%d OR
+			d.metadata->>'user_id' IS NULL OR
+			NOT (d.metadata ? 'user_id')
+		)`, argIndex)
+		args = append(args, *opts.Filter.UserID)
+		argIndex++
+	}
+
+	if opts.Filter != nil && len(opts.Filter.Tags) > 0 {
+		filterConditions += fmt.Sprintf(" AND d.tags @> $%d", argIndex)
+		args = append(args, opts.Filter.Tags)
+		argIndex++
+	}
+
+	// Apply arbitrary metadata filters
+	if opts.Filter != nil && len(opts.Filter.Metadata) > 0 {
+		for key, value := range opts.Filter.Metadata {
+			// Use parameterized value but key must be sanitized (alphanumeric + underscore only)
+			safeKey := sanitizeMetadataKey(key)
+			filterConditions += fmt.Sprintf(" AND d.metadata->>'%s' = $%d", safeKey, argIndex)
+			args = append(args, value)
+			argIndex++
+		}
+	}
+
+	// Hybrid query combining vector similarity and full-text search
+	// The final score is: (semantic_weight * vector_similarity) + (keyword_weight * text_rank) + keyword_boost_if_match
+	query := fmt.Sprintf(`
+		WITH vector_search AS (
+			SELECT
+				c.id as chunk_id,
+				c.document_id,
+				c.content,
+				c.metadata,
+				1 - (c.embedding <=> '%s'::vector) as vector_similarity
+			FROM ai.chunks c
+			WHERE c.knowledge_base_id = $1
+			  AND c.embedding IS NOT NULL
+		),
+		text_search AS (
+			SELECT
+				c.id as chunk_id,
+				ts_rank_cd(to_tsvector('simple', c.content), plainto_tsquery('simple', $2)) as text_rank,
+				CASE
+					WHEN c.content ILIKE '%%' || $2 || '%%' THEN $5::float
+					ELSE 0
+				END as keyword_boost
+			FROM ai.chunks c
+			WHERE c.knowledge_base_id = $1
+		)
+		SELECT
+			v.chunk_id,
+			v.document_id,
+			v.content,
+			(($3::float * v.vector_similarity) + ($4::float * COALESCE(t.text_rank, 0)) + COALESCE(t.keyword_boost, 0)) as similarity,
+			v.metadata,
+			d.title as document_title,
+			d.tags,
+			v.vector_similarity,
+			COALESCE(t.text_rank, 0) as text_rank
+		FROM vector_search v
+		JOIN ai.documents d ON d.id = v.document_id
+		LEFT JOIN text_search t ON t.chunk_id = v.chunk_id
+		WHERE (($3::float * v.vector_similarity) + ($4::float * COALESCE(t.text_rank, 0)) + COALESCE(t.keyword_boost, 0)) >= $6
+		%s
+		ORDER BY similarity DESC
+		LIMIT $7
+	`, embeddingStr, filterConditions)
+
+	rows, err := s.db.Query(ctx, query, args...)
+	if err != nil {
+		log.Error().Err(err).Str("kb_id", knowledgeBaseID).Msg("Hybrid search query failed")
+		return nil, fmt.Errorf("failed to search chunks: %w", err)
+	}
+	defer rows.Close()
+
+	var results []RetrievalResult
+	for rows.Next() {
+		var r RetrievalResult
+		var docTitle *string
+		var tags []string
+		var vectorSim, textRank float64
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Similarity, &r.Metadata, &docTitle, &tags, &vectorSim, &textRank); err != nil {
+			log.Warn().Err(err).Msg("Failed to scan hybrid search result")
+			continue
+		}
+		r.KnowledgeBaseID = knowledgeBaseID
+		if docTitle != nil {
+			r.DocumentTitle = *docTitle
+		}
+		r.Tags = tags
+
+		log.Debug().
+			Str("chunk_id", r.ChunkID).
+			Float64("vector_sim", vectorSim).
+			Float64("text_rank", textRank).
+			Float64("combined", r.Similarity).
+			Msg("Hybrid result")
+
+		results = append(results, r)
+	}
+
+	log.Debug().
+		Int("results_count", len(results)).
+		Str("kb_id", knowledgeBaseID).
+		Msg("Hybrid search completed")
+
+	return results, nil
+}
+
+// SearchChunksWithFilter searches for similar chunks with metadata filtering for user isolation
+func (s *KnowledgeBaseStorage) SearchChunksWithFilter(
+	ctx context.Context,
+	knowledgeBaseID string,
+	queryEmbedding []float32,
+	limit int,
+	threshold float64,
+	filter *MetadataFilter,
+) ([]RetrievalResult, error) {
+	// Format embedding as PostgreSQL vector literal
+	embeddingStr := formatEmbeddingLiteral(queryEmbedding)
+
+	// Build dynamic WHERE clause for filtering
+	whereConditions := []string{
+		"c.knowledge_base_id = $1",
+		fmt.Sprintf("1 - (c.embedding <=> '%s'::vector) >= $2", embeddingStr),
+	}
+	args := []interface{}{knowledgeBaseID, threshold, limit}
+	argIndex := 4
+
+	// User isolation filter
+	if filter != nil && filter.UserID != nil {
+		// Include user's content OR content without user_id (global)
+		whereConditions = append(whereConditions, fmt.Sprintf(`(
+			d.metadata->>'user_id' = $%d OR
+			d.metadata->>'user_id' IS NULL OR
+			NOT (d.metadata ? 'user_id')
+		)`, argIndex))
+		args = append(args, *filter.UserID)
+		argIndex++
+	}
+
+	// Tag filter - documents must have ALL specified tags
+	if filter != nil && len(filter.Tags) > 0 {
+		whereConditions = append(whereConditions, fmt.Sprintf("d.tags @> $%d", argIndex))
+		args = append(args, filter.Tags)
+		argIndex++
+	}
+
+	whereClause := strings.Join(whereConditions, " AND ")
+
+	query := fmt.Sprintf(`
+		SELECT
+			c.id as chunk_id,
+			c.document_id,
+			c.content,
+			1 - (c.embedding <=> '%s'::vector) as similarity,
+			c.metadata,
+			d.title as document_title,
+			d.tags
+		FROM ai.chunks c
+		JOIN ai.documents d ON d.id = c.document_id
+		WHERE %s
+		ORDER BY c.embedding <=> '%s'::vector
+		LIMIT $3
+	`, embeddingStr, whereClause, embeddingStr)
+
+	rows, err := s.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search chunks with filter: %w", err)
+	}
+	defer rows.Close()
+
+	var results []RetrievalResult
+	for rows.Next() {
+		var r RetrievalResult
+		var docTitle *string
+		var tags []string
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Similarity, &r.Metadata, &docTitle, &tags); err != nil {
+			log.Warn().Err(err).Msg("Failed to scan filtered search result")
+			continue
+		}
+		r.KnowledgeBaseID = knowledgeBaseID
+		if docTitle != nil {
+			r.DocumentTitle = *docTitle
+		}
+		r.Tags = tags
 		results = append(results, r)
 	}
 
@@ -568,10 +955,12 @@ func (s *KnowledgeBaseStorage) LogRetrieval(ctx context.Context, log *RetrievalL
 }
 
 // formatEmbeddingLiteral formats a float32 slice as PostgreSQL vector literal
+// Uses %v format to preserve full float32 precision (7 decimal digits)
 func formatEmbeddingLiteral(v []float32) string {
 	parts := make([]string, len(v))
 	for i, f := range v {
-		parts[i] = fmt.Sprintf("%g", f)
+		// Use %v for full float32 precision instead of %g which defaults to 6 significant digits
+		parts[i] = fmt.Sprintf("%v", f)
 	}
 	return "[" + joinStrings(parts, ",") + "]"
 }
@@ -585,6 +974,18 @@ func joinStrings(parts []string, sep string) string {
 		result += sep + parts[i]
 	}
 	return result
+}
+
+// sanitizeMetadataKey sanitizes a metadata key to prevent SQL injection
+// Only allows alphanumeric characters and underscores
+func sanitizeMetadataKey(key string) string {
+	var result strings.Builder
+	for _, r := range key {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }
 
 // GetPendingDocuments retrieves documents pending processing
@@ -631,6 +1032,86 @@ func (s *KnowledgeBaseStorage) UpdateChunkEmbedding(ctx context.Context, chunkID
 	query := `UPDATE ai.chunks SET embedding = $2::vector WHERE id = $1`
 	_, err = s.db.Exec(ctx, query, chunkID, string(embeddingJSON))
 	return err
+}
+
+// GetChunkEmbeddingPreview returns the first N values of a chunk's embedding for debugging
+func (s *KnowledgeBaseStorage) GetChunkEmbeddingPreview(ctx context.Context, chunkID string, n int) ([]float32, error) {
+	// Get the embedding as text and parse the first N values
+	query := `SELECT left(embedding::text, 500) FROM ai.chunks WHERE id = $1`
+
+	var embeddingText *string
+	err := s.db.QueryRow(ctx, query, chunkID).Scan(&embeddingText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get embedding: %w", err)
+	}
+
+	if embeddingText == nil || *embeddingText == "" {
+		return nil, fmt.Errorf("embedding is NULL for chunk %s", chunkID)
+	}
+
+	// Parse the vector literal format: [0.1,0.2,0.3,...]
+	text := strings.TrimPrefix(*embeddingText, "[")
+	parts := strings.Split(text, ",")
+
+	result := make([]float32, 0, n)
+	for i := 0; i < n && i < len(parts); i++ {
+		var val float64
+		_, err := fmt.Sscanf(parts[i], "%f", &val)
+		if err != nil {
+			break
+		}
+		result = append(result, float32(val))
+	}
+
+	return result, nil
+}
+
+// ChunkEmbeddingStats contains statistics about chunk embeddings in a knowledge base
+type ChunkEmbeddingStats struct {
+	TotalChunks            int `json:"total_chunks"`
+	ChunksWithEmbedding    int `json:"chunks_with_embedding"`
+	ChunksWithoutEmbedding int `json:"chunks_without_embedding"`
+}
+
+// GetChunkEmbeddingStats returns statistics about chunk embeddings for debugging
+func (s *KnowledgeBaseStorage) GetChunkEmbeddingStats(ctx context.Context, knowledgeBaseID string) (*ChunkEmbeddingStats, error) {
+	query := `
+		SELECT
+			COUNT(*) as total,
+			COUNT(embedding) as with_embedding,
+			COUNT(*) - COUNT(embedding) as without_embedding
+		FROM ai.chunks
+		WHERE knowledge_base_id = $1
+	`
+
+	var stats ChunkEmbeddingStats
+	err := s.db.QueryRow(ctx, query, knowledgeBaseID).Scan(
+		&stats.TotalChunks,
+		&stats.ChunksWithEmbedding,
+		&stats.ChunksWithoutEmbedding,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chunk stats: %w", err)
+	}
+
+	return &stats, nil
+}
+
+// GetFirstChunkWithEmbedding returns the first chunk ID that has an embedding
+func (s *KnowledgeBaseStorage) GetFirstChunkWithEmbedding(ctx context.Context, knowledgeBaseID string) (string, error) {
+	query := `
+		SELECT id FROM ai.chunks
+		WHERE knowledge_base_id = $1 AND embedding IS NOT NULL
+		LIMIT 1
+	`
+
+	var chunkID string
+	err := s.db.QueryRow(ctx, query, knowledgeBaseID).Scan(&chunkID)
+	if err != nil {
+		return "", fmt.Errorf("no chunks with embeddings found: %w", err)
+	}
+
+	return chunkID, nil
 }
 
 // ============================================================================

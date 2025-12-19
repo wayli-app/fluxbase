@@ -2358,8 +2358,10 @@ export interface AIProvider {
   provider_type: AIProviderType
   is_default: boolean
   enabled: boolean
-  config?: Record<string, string>
-  /** True if provider is read-only (configured via environment variables or fluxbase.yaml) */
+  config: Record<string, string>
+  /** True if provider was configured via environment variables or fluxbase.yaml */
+  from_config?: boolean
+  /** @deprecated Use from_config instead */
   read_only?: boolean
   created_at: string
   updated_at: string
@@ -2768,6 +2770,18 @@ export interface AddDocumentResponse {
 }
 
 /**
+ * Response after uploading a document file
+ */
+export interface UploadDocumentResponse {
+  document_id: string
+  status: string
+  message: string
+  filename: string
+  extracted_length: number
+  mime_type: string
+}
+
+/**
  * Chatbot-knowledge base link
  */
 export interface ChatbotKnowledgeBaseLink {
@@ -2830,6 +2844,89 @@ export interface SearchKnowledgeBaseResponse {
   results: KnowledgeBaseSearchResult[]
   count: number
   query: string
+}
+
+// ============================================================================
+// Health Check Types
+// ============================================================================
+
+/**
+ * System health status response
+ */
+export interface HealthResponse {
+  status: string
+  services: {
+    database: boolean
+    realtime: boolean
+  }
+  timestamp: string
+}
+
+// ============================================================================
+// Admin Storage Types
+// ============================================================================
+
+/**
+ * Storage bucket information (admin API)
+ */
+export interface AdminBucket {
+  id: string
+  name: string
+  public: boolean
+  allowed_mime_types: string[] | null
+  max_file_size: number | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Response from listing buckets (admin API)
+ */
+export interface AdminListBucketsResponse {
+  buckets: AdminBucket[]
+}
+
+/**
+ * Storage object information (admin API)
+ */
+export interface AdminStorageObject {
+  id: string
+  bucket: string
+  path: string
+  mime_type: string
+  size: number
+  metadata: Record<string, unknown> | null
+  owner_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Response from listing objects (admin API)
+ */
+export interface AdminListObjectsResponse {
+  bucket: string
+  objects: AdminStorageObject[] | null
+  prefixes: string[]
+  truncated: boolean
+}
+
+/**
+ * Response from generating a signed URL
+ */
+export interface SignedUrlResponse {
+  url: string
+  expires_in: number
+}
+
+/**
+ * Request to send an email
+ */
+export interface SendEmailRequest {
+  to: string | string[]
+  subject: string
+  html?: string
+  text?: string
 }
 
 // ============================================================================

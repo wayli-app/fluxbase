@@ -157,6 +157,162 @@ func (r *RAGService) RetrieveForKnowledgeBase(ctx context.Context, kbID string, 
 	return chunks, nil
 }
 
+// VectorSearch performs an explicit search for the vector_search tool with user isolation
+// Uses hybrid search combining vector similarity with full-text search for better results
+func (r *RAGService) VectorSearch(ctx context.Context, opts VectorSearchOptions) ([]VectorSearchResult, error) {
+	if r.embeddingService == nil {
+		return nil, fmt.Errorf("embedding service not configured")
+	}
+
+	// Apply defaults
+	if opts.Limit <= 0 {
+		opts.Limit = 5
+	}
+	if opts.Limit > 20 {
+		opts.Limit = 20
+	}
+	if opts.Threshold <= 0 {
+		opts.Threshold = 0.7
+	}
+
+	// Generate embedding for the query
+	queryEmbedding, err := r.embeddingService.EmbedSingle(ctx, opts.Query, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed query: %w", err)
+	}
+
+	// Get linked knowledge bases for this chatbot
+	links, err := r.storage.GetChatbotKnowledgeBases(ctx, opts.ChatbotID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get linked knowledge bases: %w", err)
+	}
+
+	if len(links) == 0 {
+		return nil, fmt.Errorf("no knowledge bases linked to this chatbot")
+	}
+
+	// Build metadata filter for user isolation and custom filters
+	var filter *MetadataFilter
+	if opts.UserID != nil && !opts.IsAdmin {
+		filter = &MetadataFilter{
+			UserID:        opts.UserID,
+			Tags:          opts.Tags,
+			Metadata:      opts.Metadata,
+			IncludeGlobal: true,
+		}
+	} else if len(opts.Tags) > 0 || len(opts.Metadata) > 0 {
+		filter = &MetadataFilter{
+			Tags:     opts.Tags,
+			Metadata: opts.Metadata,
+		}
+	}
+
+	// Resolve which KBs to search
+	kbsToSearch := make(map[string]*KnowledgeBase)
+	for _, link := range links {
+		if !link.Enabled {
+			continue
+		}
+		kb, err := r.storage.GetKnowledgeBase(ctx, link.KnowledgeBaseID)
+		if err != nil || kb == nil || !kb.Enabled {
+			continue
+		}
+
+		// If specific KBs requested, filter to those
+		if len(opts.KnowledgeBases) > 0 {
+			for _, name := range opts.KnowledgeBases {
+				if kb.Name == name {
+					kbsToSearch[kb.ID] = kb
+					break
+				}
+			}
+		} else {
+			kbsToSearch[kb.ID] = kb
+		}
+	}
+
+	if len(kbsToSearch) == 0 {
+		if len(opts.KnowledgeBases) > 0 {
+			return nil, fmt.Errorf("no matching knowledge bases found for the specified names")
+		}
+		return nil, fmt.Errorf("no enabled knowledge bases available")
+	}
+
+	// Search each KB using hybrid search and aggregate results
+	var allResults []VectorSearchResult
+	perKBLimit := opts.Limit // Could distribute across KBs if needed
+
+	for kbID, kb := range kbsToSearch {
+		// Use hybrid search combining vector similarity with full-text search
+		hybridOpts := HybridSearchOptions{
+			Query:          opts.Query,
+			QueryEmbedding: queryEmbedding,
+			Limit:          perKBLimit,
+			Threshold:      opts.Threshold,
+			Mode:           SearchModeHybrid,
+			SemanticWeight: 0.7, // 70% semantic, 30% keyword
+			KeywordBoost:   0.2, // 20% boost for exact keyword matches
+			Filter:         filter,
+		}
+
+		results, err := r.storage.SearchChunksHybrid(ctx, kbID, hybridOpts)
+		if err != nil {
+			log.Warn().Err(err).Str("kb_id", kbID).Str("kb_name", kb.Name).Msg("Failed to search knowledge base")
+			continue
+		}
+
+		for _, result := range results {
+			allResults = append(allResults, VectorSearchResult{
+				ChunkID:           result.ChunkID,
+				DocumentID:        result.DocumentID,
+				DocumentTitle:     result.DocumentTitle,
+				KnowledgeBaseName: kb.Name,
+				Content:           result.Content,
+				Similarity:        result.Similarity,
+				Tags:              result.Tags,
+			})
+		}
+	}
+
+	// Sort by similarity (highest first) and limit
+	sortVectorSearchResults(allResults)
+
+	if len(allResults) > opts.Limit {
+		allResults = allResults[:opts.Limit]
+	}
+
+	// Log the retrieval
+	chunkIDs := make([]string, len(allResults))
+	scores := make([]float64, len(allResults))
+	for i, result := range allResults {
+		chunkIDs[i] = result.ChunkID
+		scores[i] = result.Similarity
+	}
+
+	r.storage.LogRetrieval(ctx, &RetrievalLog{
+		ChatbotID:           &opts.ChatbotID,
+		UserID:              opts.UserID,
+		QueryText:           opts.Query,
+		QueryEmbeddingModel: r.embeddingService.DefaultModel(),
+		ChunksRetrieved:     len(allResults),
+		ChunkIDs:            chunkIDs,
+		SimilarityScores:    scores,
+	})
+
+	return allResults, nil
+}
+
+// sortVectorSearchResults sorts results by similarity descending
+func sortVectorSearchResults(results []VectorSearchResult) {
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Similarity > results[i].Similarity {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+}
+
 // GetChatbotRAGConfig returns the RAG configuration for a chatbot
 func (r *RAGService) GetChatbotRAGConfig(ctx context.Context, chatbotID string) (*ChatbotRAGConfig, error) {
 	links, err := r.storage.GetChatbotKnowledgeBases(ctx, chatbotID)
@@ -272,37 +428,37 @@ func (r *RAGService) GetKnowledgeBaseStats(ctx context.Context, kbID string) (*K
 	}
 
 	return &KnowledgeBaseStats{
-		ID:              kb.ID,
-		Name:            kb.Name,
-		DocumentCount:   kb.DocumentCount,
-		TotalChunks:     kb.TotalChunks,
-		PendingDocs:     pendingDocs,
-		IndexedDocs:     indexedDocs,
-		FailedDocs:      failedDocs,
-		EmbeddingModel:  kb.EmbeddingModel,
-		ChunkSize:       kb.ChunkSize,
-		ChunkOverlap:    kb.ChunkOverlap,
-		ChunkStrategy:   kb.ChunkStrategy,
-		Enabled:         kb.Enabled,
-		CreatedAt:       kb.CreatedAt,
-		UpdatedAt:       kb.UpdatedAt,
+		ID:             kb.ID,
+		Name:           kb.Name,
+		DocumentCount:  kb.DocumentCount,
+		TotalChunks:    kb.TotalChunks,
+		PendingDocs:    pendingDocs,
+		IndexedDocs:    indexedDocs,
+		FailedDocs:     failedDocs,
+		EmbeddingModel: kb.EmbeddingModel,
+		ChunkSize:      kb.ChunkSize,
+		ChunkOverlap:   kb.ChunkOverlap,
+		ChunkStrategy:  kb.ChunkStrategy,
+		Enabled:        kb.Enabled,
+		CreatedAt:      kb.CreatedAt,
+		UpdatedAt:      kb.UpdatedAt,
 	}, nil
 }
 
 // KnowledgeBaseStats contains statistics about a knowledge base
 type KnowledgeBaseStats struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	DocumentCount   int       `json:"document_count"`
-	TotalChunks     int       `json:"total_chunks"`
-	PendingDocs     int       `json:"pending_docs"`
-	IndexedDocs     int       `json:"indexed_docs"`
-	FailedDocs      int       `json:"failed_docs"`
-	EmbeddingModel  string    `json:"embedding_model"`
-	ChunkSize       int       `json:"chunk_size"`
-	ChunkOverlap    int       `json:"chunk_overlap"`
-	ChunkStrategy   string    `json:"chunk_strategy"`
-	Enabled         bool      `json:"enabled"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	DocumentCount  int       `json:"document_count"`
+	TotalChunks    int       `json:"total_chunks"`
+	PendingDocs    int       `json:"pending_docs"`
+	IndexedDocs    int       `json:"indexed_docs"`
+	FailedDocs     int       `json:"failed_docs"`
+	EmbeddingModel string    `json:"embedding_model"`
+	ChunkSize      int       `json:"chunk_size"`
+	ChunkOverlap   int       `json:"chunk_overlap"`
+	ChunkStrategy  string    `json:"chunk_strategy"`
+	Enabled        bool      `json:"enabled"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }

@@ -327,6 +327,51 @@ Environment variables take precedence over configuration file values.
 | `FLUXBASE_JOBS_WORKER_HEARTBEAT_INTERVAL` | Worker heartbeat interval | `10s` | `10s` |
 | `FLUXBASE_JOBS_WORKER_TIMEOUT` | Worker considered dead after | `30s` | `30s` |
 
+### Horizontal Scaling
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FLUXBASE_SCALING_BACKEND` | Distributed state backend | `local` | `local`, `postgres`, `redis` |
+| `FLUXBASE_SCALING_REDIS_URL` | Redis/Dragonfly connection URL | `""` | `redis://dragonfly:6379` |
+| `FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION` | Enable scheduler leader election | `false` | `true`, `false` |
+
+**Backend Options:**
+
+- `local` - In-memory storage (single instance only, default)
+- `postgres` - Uses PostgreSQL for distributed state (no extra dependencies)
+- `redis` - Uses Redis-compatible backend (Dragonfly recommended for performance)
+
+**What's Distributed:**
+
+| Feature | Description |
+|---------|-------------|
+| Rate limiting | Shared counters across all instances |
+| Realtime broadcasts | Cross-instance pub/sub for application events |
+| Scheduler coordination | Leader election prevents duplicate cron jobs |
+| Nonce validation | PostgreSQL-backed for stateless auth flows |
+
+**CLI Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--worker-only` | Disable API server, only run background job workers |
+| `--disable-scheduler` | Disable cron job scheduler on this instance |
+| `--disable-realtime` | Disable realtime/WebSocket listener |
+| `--enable-leader-election` | Enable PostgreSQL advisory lock leader election |
+
+**Example Production Configuration:**
+
+```bash
+# Multi-instance with PostgreSQL backend
+FLUXBASE_SCALING_BACKEND=postgres
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+
+# Or with Redis/Dragonfly for high-scale (1000+ req/s)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://:password@dragonfly:6379
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+```
+
 ### OpenTelemetry Tracing
 
 | Variable | Description | Default | Example |

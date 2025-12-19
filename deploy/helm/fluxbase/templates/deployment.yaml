@@ -181,6 +181,54 @@ spec:
                   name: {{ include "fluxbase.fullname" . }}
                   key: s3-secret-access-key
             {{- end }}
+            # Scaling Configuration
+            {{- if ne .Values.scaling.backend "local" }}
+            - name: FLUXBASE_SCALING_BACKEND
+              value: {{ .Values.scaling.backend | quote }}
+            {{- end }}
+            {{- if .Values.scaling.enableLeaderElection }}
+            - name: FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION
+              value: "true"
+            {{- end }}
+            {{- if eq .Values.scaling.backend "redis" }}
+            {{- if .Values.scaling.redis.enabled }}
+            # Using built-in Dragonfly
+            - name: FLUXBASE_SCALING_REDIS_URL
+              {{- if or .Values.scaling.redis.password .Values.scaling.redis.existingSecret }}
+              value: "redis://:$(REDIS_PASSWORD)@{{ include "fluxbase.fullname" . }}-redis:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.scaling.redis.existingSecret }}
+                  name: {{ .Values.scaling.redis.existingSecret }}
+                  key: {{ .Values.scaling.redis.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "fluxbase.fullname" . }}-redis
+                  key: redis-password
+                  {{- end }}
+              {{- else }}
+              value: "redis://{{ include "fluxbase.fullname" . }}-redis:6379"
+              {{- end }}
+            {{- else if .Values.scaling.externalRedis.host }}
+            # Using external Redis/Dragonfly
+            - name: FLUXBASE_SCALING_REDIS_URL
+              {{- if or .Values.scaling.externalRedis.password .Values.scaling.externalRedis.existingSecret }}
+              value: "redis://:$(REDIS_PASSWORD)@{{ .Values.scaling.externalRedis.host }}:{{ .Values.scaling.externalRedis.port }}"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.scaling.externalRedis.existingSecret }}
+                  name: {{ .Values.scaling.externalRedis.existingSecret }}
+                  key: {{ .Values.scaling.externalRedis.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "fluxbase.fullname" . }}-external-redis
+                  key: redis-password
+                  {{- end }}
+              {{- else }}
+              value: "redis://{{ .Values.scaling.externalRedis.host }}:{{ .Values.scaling.externalRedis.port }}"
+              {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.extraEnvVars }}
             {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}

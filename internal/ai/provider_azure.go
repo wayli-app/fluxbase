@@ -132,6 +132,7 @@ func (p *azureProvider) ChatStream(ctx context.Context, req *ChatRequest, callba
 	// Build request
 	azureReq := p.buildRequest(req)
 	azureReq.Stream = true
+	azureReq.StreamOptions = &azureStreamOptions{IncludeUsage: true}
 
 	// Make HTTP request
 	body, err := json.Marshal(azureReq)
@@ -164,13 +165,19 @@ func (p *azureProvider) ChatStream(ctx context.Context, req *ChatRequest, callba
 
 // azureRequest is the same as OpenAI request
 type azureRequest struct {
-	Messages          []openAIMessage `json:"messages"`
-	Tools             []openAITool    `json:"tools,omitempty"`
-	MaxTokens         int             `json:"max_tokens,omitempty"`
-	Temperature       float64         `json:"temperature,omitempty"`
-	Stream            bool            `json:"stream,omitempty"`
-	ToolChoice        interface{}     `json:"tool_choice,omitempty"`
-	ParallelToolCalls *bool           `json:"parallel_tool_calls,omitempty"`
+	Messages          []openAIMessage      `json:"messages"`
+	Tools             []openAITool         `json:"tools,omitempty"`
+	MaxTokens         int                  `json:"max_tokens,omitempty"`
+	Temperature       float64              `json:"temperature,omitempty"`
+	Stream            bool                 `json:"stream,omitempty"`
+	StreamOptions     *azureStreamOptions  `json:"stream_options,omitempty"`
+	ToolChoice        interface{}          `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool                `json:"parallel_tool_calls,omitempty"`
+}
+
+// azureStreamOptions configures streaming behavior
+type azureStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // buildRequest converts our ChatRequest to Azure format

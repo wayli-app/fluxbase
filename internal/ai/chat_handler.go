@@ -375,6 +375,10 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		if len(chatbot.HTTPAllowedDomains) > 0 {
 			tools = append(tools, HttpRequestTool)
 		}
+		// Add vector_search if chatbot has linked knowledge bases
+		if h.ragService != nil && h.ragService.IsRAGEnabled(ctx, chatbot.ID) {
+			tools = append(tools, VectorSearchTool)
+		}
 
 		// Create chat request
 		chatReq := &ChatRequest{
@@ -404,7 +408,7 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 				// Collect tool calls to execute after streaming completes
 				if event.ToolCall != nil {
 					toolName := event.ToolCall.FunctionName
-					if toolName == "execute_sql" || toolName == "http_request" {
+					if toolName == "execute_sql" || toolName == "http_request" || toolName == "vector_search" {
 						pendingToolCalls = append(pendingToolCalls, ToolCall{
 							ID:   event.ToolCall.ID,
 							Type: "function",
@@ -515,6 +519,8 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID, userMessage)
 	case "http_request":
 		return h.executeHttpTool(ctx, chatCtx, conversationID, chatbot, toolCall)
+	case "vector_search":
+		return h.executeVectorSearchTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID)
 	default:
 		return fmt.Sprintf("Error: Unknown tool '%s'", toolCall.Function.Name), nil
 	}
@@ -686,6 +692,116 @@ func (h *ChatHandler) executeHttpTool(ctx context.Context, chatCtx *ChatContext,
 	}
 
 	return string(resultJSON), nil
+}
+
+// executeVectorSearchTool handles the vector_search tool call
+func (h *ChatHandler) executeVectorSearchTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
+	// Parse arguments
+	var args struct {
+		Query          string            `json:"query"`
+		KnowledgeBases []string          `json:"knowledge_bases,omitempty"`
+		Limit          int               `json:"limit,omitempty"`
+		Threshold      float64           `json:"threshold,omitempty"`
+		Tags           []string          `json:"tags,omitempty"`
+		Metadata       map[string]string `json:"metadata,omitempty"`
+	}
+
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse vector_search arguments")
+		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
+	}
+
+	// Validate required parameter
+	if args.Query == "" {
+		return "Error: 'query' parameter is required", nil
+	}
+
+	// Check if RAG service is available
+	if h.ragService == nil {
+		return "Error: Knowledge base search is not available", nil
+	}
+
+	// Send progress to client
+	h.sendProgress(chatCtx, conversationID, "searching", fmt.Sprintf("Searching knowledge base for: %s", args.Query))
+
+	// Build search options with user isolation
+	var userIDPtr *string
+	if userID != "" {
+		userIDPtr = &userID
+	}
+
+	opts := VectorSearchOptions{
+		ChatbotID:      chatbot.ID,
+		Query:          args.Query,
+		KnowledgeBases: args.KnowledgeBases,
+		Limit:          args.Limit,
+		Threshold:      args.Threshold,
+		Tags:           args.Tags,
+		Metadata:       args.Metadata,
+		UserID:         userIDPtr,
+		IsAdmin:        chatCtx.Role == "dashboard_admin",
+	}
+
+	// Execute search
+	results, err := h.ragService.VectorSearch(ctx, opts)
+	if err != nil {
+		log.Error().Err(err).Str("chatbot_id", chatbot.ID).Str("query", args.Query).Msg("Vector search error")
+		return fmt.Sprintf("Error searching knowledge base: %v", err), nil
+	}
+
+	// Send results to client for display
+	h.send(chatCtx, ServerMessage{
+		Type:           "vector_search_result",
+		ConversationID: conversationID,
+		Message:        args.Query,
+		Data:           vectorSearchResultsToMapSlice(results),
+		RowCount:       len(results),
+	})
+
+	// Log the search
+	log.Info().
+		Str("chatbot_id", chatbot.ID).
+		Str("conversation_id", conversationID).
+		Str("query", args.Query).
+		Int("results", len(results)).
+		Msg("Vector search tool executed")
+
+	// Format result for LLM
+	if len(results) == 0 {
+		return "No relevant results found in the knowledge base for the given query.", nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Found %d relevant result(s):\n\n", len(results)))
+
+	for i, r := range results {
+		sb.WriteString(fmt.Sprintf("### Result %d", i+1))
+		if r.DocumentTitle != "" {
+			sb.WriteString(fmt.Sprintf(": %s", r.DocumentTitle))
+		}
+		sb.WriteString(fmt.Sprintf(" (from %s, similarity: %.2f)\n", r.KnowledgeBaseName, r.Similarity))
+		sb.WriteString(r.Content)
+		sb.WriteString("\n\n---\n\n")
+	}
+
+	return sb.String(), nil
+}
+
+// vectorSearchResultsToMapSlice converts VectorSearchResult slice to generic map slice for JSON
+func vectorSearchResultsToMapSlice(results []VectorSearchResult) []map[string]any {
+	data := make([]map[string]any, len(results))
+	for i, r := range results {
+		data[i] = map[string]any{
+			"chunk_id":            r.ChunkID,
+			"document_id":         r.DocumentID,
+			"document_title":      r.DocumentTitle,
+			"knowledge_base_name": r.KnowledgeBaseName,
+			"content":             r.Content,
+			"similarity":          r.Similarity,
+			"tags":                r.Tags,
+		}
+	}
+	return data
 }
 
 // parseURLForLogging extracts domain and path from URL for safe logging (no query params)

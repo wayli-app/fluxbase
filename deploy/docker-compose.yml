@@ -44,6 +44,27 @@ services:
   #   networks:
   #     - fluxbase
 
+  # Dragonfly (Redis-compatible) - OPTIONAL
+  # Uncomment this service for multi-instance deployments requiring distributed state.
+  # Dragonfly is 25x faster than Redis with 80% less memory usage.
+  # Also update FLUXBASE_SCALING_BACKEND to 'redis' in the fluxbase service below.
+  # dragonfly:
+  #   image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+  #   container_name: fluxbase-dragonfly
+  #   # Uncomment the following line to enable password authentication:
+  #   # command: dragonfly --requirepass ${DRAGONFLY_PASSWORD:-your-dragonfly-password}
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - dragonfly_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+  #   networks:
+  #     - fluxbase
+
   # Fluxbase API
   fluxbase:
     image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.49
@@ -114,6 +135,22 @@ services:
       # General Configuration
       FLUXBASE_BASE_URL: http://localhost:8080
       FLUXBASE_DEBUG: "false"
+
+      # Horizontal Scaling Configuration - OPTIONAL
+      # Uncomment to enable multi-instance support (requires Dragonfly or PostgreSQL)
+      #
+      # Backend options: "local" (default), "postgres", "redis"
+      # - local: In-memory (single instance only)
+      # - postgres: Uses PostgreSQL for distributed state (no extra dependencies)
+      # - redis: Uses Redis-compatible backend (Dragonfly recommended)
+      # FLUXBASE_SCALING_BACKEND: postgres
+      #
+      # Enable scheduler leader election (prevents duplicate cron jobs)
+      # FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION: "true"
+      #
+      # For Redis/Dragonfly backend, set the connection URL:
+      # FLUXBASE_SCALING_REDIS_URL: redis://dragonfly:6379
+      # With password: FLUXBASE_SCALING_REDIS_URL: redis://:your-password@dragonfly:6379
     volumes:
       - storage_data:/app/storage
       - functions_data:/app/functions
@@ -148,6 +185,9 @@ volumes:
     driver: local
   # Uncomment if using MinIO:
   # minio_data:
+  #   driver: local
+  # Uncomment if using Dragonfly:
+  # dragonfly_data:
   #   driver: local
   storage_data:
     driver: local

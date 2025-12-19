@@ -3,7 +3,7 @@
  * Provides API-based migration management without filesystem coupling
  */
 
-import type { FluxbaseFetch } from './fetch'
+import type { FluxbaseFetch } from "./fetch";
 import type {
   Migration,
   CreateMigrationRequest,
@@ -11,7 +11,7 @@ import type {
   MigrationExecution,
   SyncMigrationsOptions,
   SyncMigrationsResult,
-} from './types'
+} from "./types";
 
 /**
  * Admin Migrations manager for database migration operations
@@ -20,11 +20,11 @@ import type {
  * @category Admin
  */
 export class FluxbaseAdminMigrations {
-  private fetch: FluxbaseFetch
-  private localMigrations: Map<string, CreateMigrationRequest> = new Map()
+  private fetch: FluxbaseFetch;
+  private localMigrations: Map<string, CreateMigrationRequest> = new Map();
 
   constructor(fetch: FluxbaseFetch) {
-    this.fetch = fetch
+    this.fetch = fetch;
   }
 
   /**
@@ -63,95 +63,34 @@ export class FluxbaseAdminMigrations {
       // Basic validation
       if (!migration.name || !migration.up_sql) {
         return {
-          error: new Error('Migration name and up_sql are required')
-        }
+          error: new Error("Migration name and up_sql are required"),
+        };
       }
 
-      const key = `${migration.namespace || 'default'}:${migration.name}`
-      this.localMigrations.set(key, migration)
+      const key = `${migration.namespace || "default"}:${migration.name}`;
+      this.localMigrations.set(key, migration);
 
-      return { error: null }
+      return { error: null };
     } catch (error) {
-      return { error: error as Error }
+      return { error: error as Error };
     }
   }
 
   /**
-   * Trigger schema refresh which will restart the server
-   * Handles the restart gracefully by waiting for the server to come back online
+   * Trigger schema refresh to update the REST API cache
+   * Note: Server no longer restarts - cache is invalidated instantly
    *
    * @private
    */
-  private async triggerSchemaRefreshWithRestart(): Promise<void> {
-    console.log('Triggering schema refresh (server will restart)...')
-
-    try {
-      // Call the schema refresh endpoint
-      // Server will return 202 and then restart
-      const response = await this.fetch.post<{ message: string }>(
-        '/api/v1/admin/schema/refresh',
-        {}
-      )
-
-      // If we got a 202, the server is restarting
-      console.log('Server restart initiated:', response.message || 'Schema refresh in progress')
-    } catch (error: any) {
-      // Connection errors are expected during restart
-      const isConnectionError =
-        error.message?.includes('fetch failed') ||
-        error.message?.includes('ECONNREFUSED') ||
-        error.message?.includes('ECONNRESET') ||
-        error.code === 'ECONNREFUSED' ||
-        error.code === 'ECONNRESET'
-
-      if (!isConnectionError) {
-        // Unexpected error - propagate it
-        throw error
-      }
-
-      console.log('Connection dropped (expected during restart)...')
-    }
-
-    // Wait for server to restart (typically takes 5-7 seconds with build + startup)
-    console.log('Waiting 6 seconds for server to restart...')
-    await this.sleep(6000)
-
-    // Verify server is back online by attempting a simple health check
-    // Try up to 5 times with exponential backoff
-    const maxAttempts = 5
-    const baseDelay = 1000 // 1 second
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        // Check the root health endpoint (not /api/v1/health which doesn't exist)
-        // We don't care about the response content, just that it responds without error
-        await this.fetch.get('/health')
-        console.log('Server is back online and ready')
-        return
-      } catch (error: any) {
-        const isLastAttempt = attempt === maxAttempts
-
-        if (isLastAttempt) {
-          throw new Error(
-            `Server did not come back online after ${maxAttempts} attempts. ` +
-            `Please check server logs and try again.`
-          )
-        }
-
-        // Exponential backoff: 1s, 2s, 4s, 8s
-        const delay = baseDelay * Math.pow(2, attempt - 1)
-        console.log(`Server not ready yet, retrying in ${delay}ms... (attempt ${attempt}/${maxAttempts})`)
-        await this.sleep(delay)
-      }
-    }
-  }
-
-  /**
-   * Helper function to sleep for a given duration
-   * @private
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+  private async triggerSchemaRefresh(): Promise<void> {
+    const response = await this.fetch.post<{
+      message: string;
+      tables: number;
+      views: number;
+    }>("/api/v1/admin/schema/refresh", {});
+    console.log(
+      `Schema cache refreshed: ${response.tables} tables, ${response.views} views`
+    );
   }
 
   /**
@@ -192,27 +131,27 @@ export class FluxbaseAdminMigrations {
   ): Promise<{ data: SyncMigrationsResult | null; error: Error | null }> {
     try {
       // Group migrations by namespace
-      const byNamespace = new Map<string, CreateMigrationRequest[]>()
+      const byNamespace = new Map<string, CreateMigrationRequest[]>();
 
       for (const migration of this.localMigrations.values()) {
-        const ns = migration.namespace || 'default'
+        const ns = migration.namespace || "default";
         if (!byNamespace.has(ns)) {
-          byNamespace.set(ns, [])
+          byNamespace.set(ns, []);
         }
-        byNamespace.get(ns)!.push(migration)
+        byNamespace.get(ns)!.push(migration);
       }
 
       // Sync each namespace
-      const results: SyncMigrationsResult[] = []
-      const errors: Error[] = []
+      const results: SyncMigrationsResult[] = [];
+      const errors: Error[] = [];
 
       for (const [namespace, migrations] of byNamespace) {
         try {
           const result = await this.fetch.post<SyncMigrationsResult>(
-            '/api/v1/admin/migrations/sync',
+            "/api/v1/admin/migrations/sync",
             {
               namespace,
-              migrations: migrations.map(m => ({
+              migrations: migrations.map((m) => ({
                 name: m.name,
                 description: m.description,
                 up_sql: m.up_sql,
@@ -224,26 +163,26 @@ export class FluxbaseAdminMigrations {
                 dry_run: options.dry_run ?? false,
               },
             }
-          )
-          results.push(result)
+          );
+          results.push(result);
         } catch (error) {
           // If sync failed with errors (422), extract the sync result from error.details
-          const err = error as any
+          const err = error as any;
           if (err.status === 422 && err.details) {
             // Server returned sync results with errors - include them
-            results.push(err.details as SyncMigrationsResult)
-            errors.push(err)
+            results.push(err.details as SyncMigrationsResult);
+            errors.push(err);
           } else {
             // Other errors (network, auth, etc.) - propagate them
-            throw error
+            throw error;
           }
         }
       }
 
       // Combine results
       const combined: SyncMigrationsResult = {
-        message: results.map(r => r.message).join('; '),
-        namespace: Array.from(byNamespace.keys()).join(', '),
+        message: results.map((r) => r.message).join("; "),
+        namespace: Array.from(byNamespace.keys()).join(", "),
         summary: {
           created: results.reduce((sum, r) => sum + r.summary.created, 0),
           updated: results.reduce((sum, r) => sum + r.summary.updated, 0),
@@ -253,42 +192,43 @@ export class FluxbaseAdminMigrations {
           errors: results.reduce((sum, r) => sum + r.summary.errors, 0),
         },
         details: {
-          created: results.flatMap(r => r.details.created),
-          updated: results.flatMap(r => r.details.updated),
-          unchanged: results.flatMap(r => r.details.unchanged),
-          skipped: results.flatMap(r => r.details.skipped),
-          applied: results.flatMap(r => r.details.applied),
-          errors: results.flatMap(r => r.details.errors),
+          created: results.flatMap((r) => r.details.created),
+          updated: results.flatMap((r) => r.details.updated),
+          unchanged: results.flatMap((r) => r.details.unchanged),
+          skipped: results.flatMap((r) => r.details.skipped),
+          applied: results.flatMap((r) => r.details.applied),
+          errors: results.flatMap((r) => r.details.errors),
         },
         dry_run: options.dry_run ?? false,
-        warnings: results.flatMap(r => r.warnings || []),
-      }
+        warnings: results.flatMap((r) => r.warnings || []),
+      };
 
-      // Refresh schema cache after migration sync - ONLY if migrations succeeded
-      // Server will restart to refresh routes, so we need to wait and handle connection drops
-      // Only trigger restart if migrations were applied successfully (no errors)
+      // Note: Schema cache is automatically invalidated by the server after migrations are applied.
+      // We call triggerSchemaRefresh as a safeguard to ensure cache is up-to-date.
+      // This is now instant (no server restart required).
       const migrationsAppliedSuccessfully =
-        combined.summary.applied > 0 && combined.summary.errors === 0
+        combined.summary.applied > 0 && combined.summary.errors === 0;
       if (!combined.dry_run && migrationsAppliedSuccessfully) {
         try {
-          await this.triggerSchemaRefreshWithRestart()
+          await this.triggerSchemaRefresh();
         } catch (refreshError) {
           // Log warning but don't fail the sync operation
-          console.warn('Schema refresh completed with warnings:', refreshError)
+          // Cache is already invalidated server-side, so this is just a safeguard
+          console.warn("Schema refresh warning:", refreshError);
         }
       }
 
       // If there were errors during sync, return error with full details
       if (errors.length > 0 || combined.summary.errors > 0) {
-        const error = new Error(combined.message) as any
-        error.syncResult = combined
-        error.details = combined.details.errors
-        return { data: combined, error }
+        const error = new Error(combined.message) as any;
+        error.syncResult = combined;
+        error.details = combined.details.errors;
+        return { data: combined, error };
       }
 
-      return { data: combined, error: null }
+      return { data: combined, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -313,10 +253,13 @@ export class FluxbaseAdminMigrations {
     request: CreateMigrationRequest
   ): Promise<{ data: Migration | null; error: Error | null }> {
     try {
-      const data = await this.fetch.post<Migration>('/api/v1/admin/migrations', request)
-      return { data, error: null }
+      const data = await this.fetch.post<Migration>(
+        "/api/v1/admin/migrations",
+        request
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -337,19 +280,19 @@ export class FluxbaseAdminMigrations {
    * ```
    */
   async list(
-    namespace: string = 'default',
-    status?: 'pending' | 'applied' | 'failed' | 'rolled_back'
+    namespace: string = "default",
+    status?: "pending" | "applied" | "failed" | "rolled_back"
   ): Promise<{ data: Migration[] | null; error: Error | null }> {
     try {
-      const params = new URLSearchParams({ namespace })
-      if (status) params.append('status', status)
+      const params = new URLSearchParams({ namespace });
+      if (status) params.append("status", status);
 
       const data = await this.fetch.get<Migration[]>(
         `/api/v1/admin/migrations?${params.toString()}`
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -367,16 +310,16 @@ export class FluxbaseAdminMigrations {
    */
   async get(
     name: string,
-    namespace: string = 'default'
+    namespace: string = "default"
   ): Promise<{ data: Migration | null; error: Error | null }> {
     try {
-      const params = new URLSearchParams({ namespace })
+      const params = new URLSearchParams({ namespace });
       const data = await this.fetch.get<Migration>(
         `/api/v1/admin/migrations/${name}?${params.toString()}`
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -400,17 +343,17 @@ export class FluxbaseAdminMigrations {
   async update(
     name: string,
     updates: UpdateMigrationRequest,
-    namespace: string = 'default'
+    namespace: string = "default"
   ): Promise<{ data: Migration | null; error: Error | null }> {
     try {
-      const params = new URLSearchParams({ namespace })
+      const params = new URLSearchParams({ namespace });
       const data = await this.fetch.put<Migration>(
         `/api/v1/admin/migrations/${name}?${params.toString()}`,
         updates
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -428,14 +371,16 @@ export class FluxbaseAdminMigrations {
    */
   async delete(
     name: string,
-    namespace: string = 'default'
+    namespace: string = "default"
   ): Promise<{ data: null; error: Error | null }> {
     try {
-      const params = new URLSearchParams({ namespace })
-      await this.fetch.delete(`/api/v1/admin/migrations/${name}?${params.toString()}`)
-      return { data: null, error: null }
+      const params = new URLSearchParams({ namespace });
+      await this.fetch.delete(
+        `/api/v1/admin/migrations/${name}?${params.toString()}`
+      );
+      return { data: null, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -456,16 +401,16 @@ export class FluxbaseAdminMigrations {
    */
   async apply(
     name: string,
-    namespace: string = 'default'
+    namespace: string = "default"
   ): Promise<{ data: { message: string } | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<{ message: string }>(
         `/api/v1/admin/migrations/${name}/apply`,
         { namespace }
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -483,16 +428,16 @@ export class FluxbaseAdminMigrations {
    */
   async rollback(
     name: string,
-    namespace: string = 'default'
+    namespace: string = "default"
   ): Promise<{ data: { message: string } | null; error: Error | null }> {
     try {
       const data = await this.fetch.post<{ message: string }>(
         `/api/v1/admin/migrations/${name}/rollback`,
         { namespace }
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -510,21 +455,19 @@ export class FluxbaseAdminMigrations {
    * }
    * ```
    */
-  async applyPending(
-    namespace: string = 'default'
-  ): Promise<{
-    data: { message: string; applied: string[]; failed: string[] } | null
-    error: Error | null
+  async applyPending(namespace: string = "default"): Promise<{
+    data: { message: string; applied: string[]; failed: string[] } | null;
+    error: Error | null;
   }> {
     try {
       const data = await this.fetch.post<{
-        message: string
-        applied: string[]
-        failed: string[]
-      }>('/api/v1/admin/migrations/apply-pending', { namespace })
-      return { data, error: null }
+        message: string;
+        applied: string[];
+        failed: string[];
+      }>("/api/v1/admin/migrations/apply-pending", { namespace });
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 
@@ -552,17 +495,20 @@ export class FluxbaseAdminMigrations {
    */
   async getExecutions(
     name: string,
-    namespace: string = 'default',
+    namespace: string = "default",
     limit: number = 50
   ): Promise<{ data: MigrationExecution[] | null; error: Error | null }> {
     try {
-      const params = new URLSearchParams({ namespace, limit: limit.toString() })
+      const params = new URLSearchParams({
+        namespace,
+        limit: limit.toString(),
+      });
       const data = await this.fetch.get<MigrationExecution[]>(
         `/api/v1/admin/migrations/${name}/executions?${params.toString()}`
-      )
-      return { data, error: null }
+      );
+      return { data, error: null };
     } catch (error) {
-      return { data: null, error: error as Error }
+      return { data: null, error: error as Error };
     }
   }
 }

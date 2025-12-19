@@ -37,6 +37,11 @@ import { toast } from 'sonner'
 import { EndpointBrowser } from '@/features/api-explorer/components/endpoint-browser'
 import { DocumentationPanel } from '@/features/api-explorer/components/documentation-panel'
 import type { OpenAPISpec, EndpointInfo } from '@/features/api-explorer/types'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { useImpersonationStore } from '@/stores/impersonation-store'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { PromptDialog } from '@/components/prompt-dialog'
 
 export const Route = createFileRoute('/_authenticated/api/rest')({
   component: RestAPIExplorer,
@@ -94,6 +99,19 @@ function RestAPIExplorer() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointInfo | null>(null)
   const [showEndpointBrowser, setShowEndpointBrowser] = useState(true)
   const [showDocumentation, setShowDocumentation] = useState(false)
+
+  // Dialog state
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false)
+  const [showHeaderPrompt, setShowHeaderPrompt] = useState(false)
+  const [headerPromptStep, setHeaderPromptStep] = useState<'name' | 'value'>('name')
+  const [pendingHeaderName, setPendingHeaderName] = useState('')
+  const [showParamPrompt, setShowParamPrompt] = useState(false)
+  const [paramPromptStep, setParamPromptStep] = useState<'name' | 'value'>('name')
+  const [pendingParamName, setPendingParamName] = useState('')
+  const [showSaveRequestPrompt, setShowSaveRequestPrompt] = useState(false)
+
+  // Impersonation state
+  const { isImpersonating, impersonationToken } = useImpersonationStore()
 
   // Load saved data from localStorage
   useEffect(() => {
@@ -210,7 +228,6 @@ function RestAPIExplorer() {
       }
     }
 
-    toast.success(`Loaded endpoint: ${endpoint.method} ${endpoint.path}`)
     setShowDocumentation(true)
   }, [generateExampleFromSchema])
 
@@ -237,6 +254,11 @@ function RestAPIExplorer() {
         }
         return acc
       }, {} as Record<string, string>)
+
+      // If impersonating, use the impersonation token for Authorization
+      if (isImpersonating && impersonationToken && includeAuthToken) {
+        filteredHeaders['Authorization'] = `Bearer ${impersonationToken}`
+      }
 
       const options: RequestInit = {
         method,
@@ -309,10 +331,20 @@ function RestAPIExplorer() {
   }
 
   const addHeader = () => {
-    const key = prompt('Header name:')
-    if (key) {
-      const value = prompt('Header value:')
-      setHeaders(prev => ({ ...prev, [key]: value || '' }))
+    setPendingHeaderName('')
+    setHeaderPromptStep('name')
+    setShowHeaderPrompt(true)
+  }
+
+  const handleHeaderPromptConfirm = (value: string) => {
+    if (headerPromptStep === 'name') {
+      setPendingHeaderName(value)
+      setHeaderPromptStep('value')
+    } else {
+      setHeaders(prev => ({ ...prev, [pendingHeaderName]: value }))
+      setShowHeaderPrompt(false)
+      setPendingHeaderName('')
+      setHeaderPromptStep('name')
     }
   }
 
@@ -325,10 +357,20 @@ function RestAPIExplorer() {
   }
 
   const addQueryParam = () => {
-    const key = prompt('Parameter name:')
-    if (key) {
-      const value = prompt('Parameter value:')
-      setQueryParams(prev => ({ ...prev, [key]: value || '' }))
+    setPendingParamName('')
+    setParamPromptStep('name')
+    setShowParamPrompt(true)
+  }
+
+  const handleParamPromptConfirm = (value: string) => {
+    if (paramPromptStep === 'name') {
+      setPendingParamName(value)
+      setParamPromptStep('value')
+    } else {
+      setQueryParams(prev => ({ ...prev, [pendingParamName]: value }))
+      setShowParamPrompt(false)
+      setPendingParamName('')
+      setParamPromptStep('name')
     }
   }
 
@@ -341,9 +383,10 @@ function RestAPIExplorer() {
   }
 
   const saveRequest = () => {
-    const name = prompt('Request name:')
-    if (!name) return
+    setShowSaveRequestPrompt(true)
+  }
 
+  const handleSaveRequestConfirm = (name: string) => {
     const request: SavedRequest = {
       id: Date.now().toString(),
       name,
@@ -358,6 +401,7 @@ function RestAPIExplorer() {
     setSavedRequests(newSaved)
     localStorage.setItem('fluxbase-saved-requests', JSON.stringify(newSaved))
     toast.success('Request saved')
+    setShowSaveRequestPrompt(false)
   }
 
   const loadSavedRequest = (request: SavedRequest) => {
@@ -395,11 +439,14 @@ function RestAPIExplorer() {
   }
 
   const clearHistory = () => {
-    if (confirm('Clear all history?')) {
-      setHistory([])
-      localStorage.removeItem('fluxbase-api-history')
-      toast.success('History cleared')
-    }
+    setShowClearHistoryConfirm(true)
+  }
+
+  const handleClearHistoryConfirm = () => {
+    setHistory([])
+    localStorage.removeItem('fluxbase-api-history')
+    toast.success('History cleared')
+    setShowClearHistoryConfirm(false)
   }
 
   const generateCode = (language: 'curl' | 'javascript' | 'typescript' | 'python') => {
@@ -585,28 +632,37 @@ print(data)`
       )}
 
       {/* Main Content */}
-      <div className="flex-1 p-6 space-y-6">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2">
-          {!showEndpointBrowser && (
+      <div className="flex-1 flex flex-col">
+        {/* Impersonation Banner */}
+        <ImpersonationBanner />
+
+        <div className="flex-1 p-6 space-y-6">
+          {/* Toolbar */}
+          <div className="flex items-center gap-2">
+            {!showEndpointBrowser && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEndpointBrowser(true)}
+              >
+                <List className="h-4 w-4 mr-2" />
+                Show Endpoints
+              </Button>
+            )}
             <Button
-              variant="outline"
+              variant={showDocumentation ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setShowEndpointBrowser(true)}
+              onClick={() => setShowDocumentation(!showDocumentation)}
             >
-              <List className="h-4 w-4 mr-2" />
-              Show Endpoints
+              <BookOpen className="h-4 w-4 mr-2" />
+              {showDocumentation ? 'Hide' : 'Show'} Documentation
             </Button>
-          )}
-          <Button
-            variant={showDocumentation ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowDocumentation(!showDocumentation)}
-          >
-            <BookOpen className="h-4 w-4 mr-2" />
-            {showDocumentation ? 'Hide' : 'Show'} Documentation
-          </Button>
-        </div>
+            <div className="flex-1" />
+            <ImpersonationPopover
+              contextLabel="Executing as"
+              defaultReason="REST API Explorer testing"
+            />
+          </div>
 
         {/* Request Builder */}
         <Card>
@@ -999,7 +1055,65 @@ print(data)`
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
+
+      {/* Clear History Confirmation */}
+      <ConfirmDialog
+        open={showClearHistoryConfirm}
+        onOpenChange={setShowClearHistoryConfirm}
+        title="Clear History"
+        desc="Are you sure you want to clear all request history? This action cannot be undone."
+        confirmText="Clear"
+        destructive
+        handleConfirm={handleClearHistoryConfirm}
+      />
+
+      {/* Add Header Prompt (2-step) */}
+      <PromptDialog
+        open={showHeaderPrompt}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowHeaderPrompt(false)
+            setPendingHeaderName('')
+            setHeaderPromptStep('name')
+          }
+        }}
+        title={headerPromptStep === 'name' ? 'Add Header' : `Header: ${pendingHeaderName}`}
+        description={headerPromptStep === 'name' ? 'Enter the header name' : 'Enter the header value'}
+        placeholder={headerPromptStep === 'name' ? 'e.g., Authorization' : 'e.g., Bearer token'}
+        confirmText={headerPromptStep === 'name' ? 'Next' : 'Add Header'}
+        onConfirm={handleHeaderPromptConfirm}
+      />
+
+      {/* Add Parameter Prompt (2-step) */}
+      <PromptDialog
+        open={showParamPrompt}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowParamPrompt(false)
+            setPendingParamName('')
+            setParamPromptStep('name')
+          }
+        }}
+        title={paramPromptStep === 'name' ? 'Add Parameter' : `Parameter: ${pendingParamName}`}
+        description={paramPromptStep === 'name' ? 'Enter the parameter name' : 'Enter the parameter value'}
+        placeholder={paramPromptStep === 'name' ? 'e.g., limit' : 'e.g., 10'}
+        confirmText={paramPromptStep === 'name' ? 'Next' : 'Add Parameter'}
+        onConfirm={handleParamPromptConfirm}
+      />
+
+      {/* Save Request Prompt */}
+      <PromptDialog
+        open={showSaveRequestPrompt}
+        onOpenChange={setShowSaveRequestPrompt}
+        title="Save Request"
+        description="Enter a name for this request"
+        placeholder="e.g., Get all users"
+        confirmText="Save"
+        onConfirm={handleSaveRequestConfirm}
+        validation={(value) => value.trim() ? null : 'Name is required'}
+      />
     </div>
   )
 }

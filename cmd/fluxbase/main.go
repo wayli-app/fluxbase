@@ -30,6 +30,12 @@ var (
 	showVersion      = flag.Bool("version", false, "Show version information")
 	validateConfig   = flag.Bool("validate", false, "Validate configuration and exit")
 	maxRetryAttempts = getEnvInt("FLUXBASE_DATABASE_RETRY_ATTEMPTS", 5)
+
+	// Scaling CLI flags (override config file settings)
+	workerOnly       = flag.Bool("worker-only", false, "Run in worker-only mode (disable API server, only process background jobs)")
+	disableScheduler = flag.Bool("disable-scheduler", false, "Disable cron schedulers (use for multi-instance deployments)")
+	disableRealtime  = flag.Bool("disable-realtime", false, "Disable realtime listener")
+	enableLeaderElection = flag.Bool("enable-leader-election", false, "Enable scheduler leader election using PostgreSQL advisory locks")
 )
 
 func main() {
@@ -59,6 +65,21 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load configuration")
 	}
 
+	// Apply CLI flag overrides for scaling settings
+	// CLI flags take precedence over config file and environment variables
+	if *workerOnly {
+		cfg.Scaling.WorkerOnly = true
+	}
+	if *disableScheduler {
+		cfg.Scaling.DisableScheduler = true
+	}
+	if *disableRealtime {
+		cfg.Scaling.DisableRealtime = true
+	}
+	if *enableLeaderElection {
+		cfg.Scaling.EnableSchedulerLeaderElection = true
+	}
+
 	// Set log level
 	if cfg.Debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -68,6 +89,17 @@ func main() {
 
 	// Print configuration summary
 	printConfigSummary(cfg)
+
+	// Log scaling mode if non-default settings are active
+	if cfg.Scaling.WorkerOnly || cfg.Scaling.DisableScheduler || cfg.Scaling.DisableRealtime || cfg.Scaling.EnableSchedulerLeaderElection {
+		log.Info().
+			Bool("worker_only", cfg.Scaling.WorkerOnly).
+			Bool("disable_scheduler", cfg.Scaling.DisableScheduler).
+			Bool("disable_realtime", cfg.Scaling.DisableRealtime).
+			Bool("leader_election", cfg.Scaling.EnableSchedulerLeaderElection).
+			Str("backend", cfg.Scaling.Backend).
+			Msg("Scaling configuration active")
+	}
 
 	// If validate flag is set, exit after validation
 	if *validateConfig {
@@ -180,15 +212,19 @@ func main() {
 		}
 	}
 
-	// Start server in a goroutine
-	go func() {
-		log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
-		if err := server.Start(); err != nil {
-			// Log at ERROR level to make server startup failures visible
-			// This includes port binding errors, network issues, etc.
-			log.Error().Err(err).Msg("Server failed to start or stopped with error")
-		}
-	}()
+	// Start server in a goroutine (unless in worker-only mode)
+	if cfg.Scaling.WorkerOnly {
+		log.Info().Msg("Running in worker-only mode - API server disabled, only processing background jobs")
+	} else {
+		go func() {
+			log.Info().Str("address", cfg.Server.Address).Msg("Starting Fluxbase server")
+			if err := server.Start(); err != nil {
+				// Log at ERROR level to make server startup failures visible
+				// This includes port binding errors, network issues, etc.
+				log.Error().Err(err).Msg("Server failed to start or stopped with error")
+			}
+		}()
+	}
 
 	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)

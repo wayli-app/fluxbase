@@ -1207,9 +1207,19 @@ func (h *Handler) ListNamespaces(c *fiber.Ctx) error {
 
 // ListJobFunctions lists all job functions (Admin only)
 func (h *Handler) ListJobFunctions(c *fiber.Ctx) error {
-	namespace := c.Query("namespace", "default")
+	namespace := c.Query("namespace")
 
-	functions, err := h.storage.ListJobFunctions(c.Context(), namespace)
+	var functions []*JobFunctionSummary
+	var err error
+
+	if namespace != "" {
+		// If namespace is specified, list functions in that namespace
+		functions, err = h.storage.ListJobFunctions(c.Context(), namespace)
+	} else {
+		// Otherwise, list all job functions across all namespaces
+		functions, err = h.storage.ListAllJobFunctions(c.Context())
+	}
+
 	if err != nil {
 		reqID := getRequestID(c)
 		log.Error().

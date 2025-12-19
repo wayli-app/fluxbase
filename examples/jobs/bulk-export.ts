@@ -223,22 +223,27 @@ export async function handler(req: any) {
     `;
 
     // Note: This requires the email service to be configured
-    // and the user to have proper email sending permissions
-    await fetch(
-      `${Deno.env.get("FLUXBASE_API_URL")}/api/v1/admin/email/send`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("FLUXBASE_SERVICE_KEY")}`,
-        },
-        body: JSON.stringify({
-          to: context.user.email,
-          subject: `Your ${table_name} export is ready`,
-          html: emailHtml,
-        }),
-      }
-    );
+    // and the user to have proper email sending permissions.
+    //
+    // In browser/Node.js contexts using the SDK, you would use:
+    //   await client.admin.sendEmail({ to, subject, html })
+    //
+    // In job contexts, we call the admin API directly:
+    const baseUrl = Deno.env.get("FLUXBASE_API_URL");
+    const serviceKey = Deno.env.get("FLUXBASE_SERVICE_KEY");
+
+    await fetch(`${baseUrl}/api/v1/admin/email/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        to: context.user.email,
+        subject: `Your ${table_name} export is ready`,
+        html: emailHtml,
+      }),
+    });
 
     console.log("Notification email sent");
   } catch (emailError) {

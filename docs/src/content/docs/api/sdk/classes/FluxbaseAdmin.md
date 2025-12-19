@@ -38,6 +38,7 @@ Admin client for managing Fluxbase instance
 | `oauth` | `public` | [`FluxbaseOAuth`](/api/sdk/classes/fluxbaseoauth/) | OAuth configuration manager for provider and auth settings |
 | `rpc` | `public` | [`FluxbaseAdminRPC`](/api/sdk/classes/fluxbaseadminrpc/) | RPC manager for procedure management (create, update, delete, sync, execution monitoring) |
 | `settings` | `public` | [`FluxbaseSettings`](/api/sdk/classes/fluxbasesettings/) | Settings manager for system and application settings |
+| `storage` | `public` | [`FluxbaseAdminStorage`](/api/sdk/classes/fluxbaseadminstorage/) | Storage manager for bucket and object management (list, create, delete, signed URLs) |
 
 ## Methods
 
@@ -79,6 +80,31 @@ Deletion confirmation
 ```typescript
 await admin.deleteUser('user-uuid');
 console.log('User deleted');
+```
+
+***
+
+### getHealth()
+
+> **getHealth**(): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`HealthResponse`](/api/sdk/interfaces/healthresponse/)\>\>
+
+Get system health status
+
+#### Returns
+
+`Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`HealthResponse`](/api/sdk/interfaces/healthresponse/)\>\>
+
+Health status including database and realtime service status
+
+#### Example
+
+```typescript
+const { data, error } = await admin.getHealth();
+if (data) {
+  console.log('Status:', data.status);
+  console.log('Database:', data.services.database);
+  console.log('Realtime:', data.services.realtime);
+}
 ```
 
 ***
@@ -358,6 +384,37 @@ Reset confirmation message
 ```typescript
 const response = await admin.resetUserPassword('user-uuid');
 console.log(response.message);
+```
+
+***
+
+### sendEmail()
+
+> **sendEmail**(`request`): `Promise`\<[`VoidResponse`](/api/sdk/type-aliases/voidresponse/)\>
+
+Send an email
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `request` | [`SendEmailRequest`](/api/sdk/interfaces/sendemailrequest/) | Email details (to, subject, html/text) |
+
+#### Returns
+
+`Promise`\<[`VoidResponse`](/api/sdk/type-aliases/voidresponse/)\>
+
+#### Example
+
+```typescript
+const { error } = await admin.sendEmail({
+  to: 'user@example.com',
+  subject: 'Hello',
+  html: '<p>Your message here</p>'
+});
+if (!error) {
+  console.log('Email sent');
+}
 ```
 
 ***

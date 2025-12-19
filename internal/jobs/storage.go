@@ -235,6 +235,42 @@ func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*Jo
 	return functions, rows.Err()
 }
 
+// ListAllJobFunctions lists all job functions across all namespaces (admin use)
+func (s *Storage) ListAllJobFunctions(ctx context.Context) ([]*JobFunctionSummary, error) {
+	query := `
+		SELECT id, name, namespace, description, is_bundled, bundle_error,
+			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			version, created_by, source, created_at, updated_at
+		FROM jobs.functions
+		ORDER BY namespace, name
+	`
+
+	rows, err := s.conn.Pool().Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var functions []*JobFunctionSummary
+	for rows.Next() {
+		var fn JobFunctionSummary
+		err := rows.Scan(
+			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description,
+			&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
+			&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
+			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+			&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		functions = append(functions, &fn)
+	}
+
+	return functions, rows.Err()
+}
+
 // DeleteJobFunction deletes a job function
 func (s *Storage) DeleteJobFunction(ctx context.Context, namespace, name string) error {
 	query := `DELETE FROM jobs.functions WHERE namespace = $1 AND name = $2`

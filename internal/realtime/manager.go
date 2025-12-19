@@ -2,8 +2,10 @@ package realtime
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
+	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/rs/zerolog/log"
 )
@@ -14,6 +16,7 @@ type Manager struct {
 	mu          sync.RWMutex
 	ctx         context.Context
 	cancel      context.CancelFunc
+	ps          pubsub.PubSub // For cross-instance broadcasting
 }
 
 // NewManager creates a new connection manager
@@ -24,6 +27,83 @@ func NewManager(ctx context.Context) *Manager {
 		ctx:         ctx,
 		cancel:      cancel,
 	}
+}
+
+// SetPubSub sets the pub/sub backend for cross-instance broadcasting.
+// If set, BroadcastGlobal will publish messages to the pub/sub channel
+// and this manager will subscribe to receive messages from other instances.
+func (m *Manager) SetPubSub(ps pubsub.PubSub) {
+	m.ps = ps
+
+	// Subscribe to broadcast channel to receive messages from other instances
+	if ps != nil {
+		go m.handleGlobalBroadcasts()
+	}
+}
+
+// handleGlobalBroadcasts listens for broadcast messages from other instances
+func (m *Manager) handleGlobalBroadcasts() {
+	ch, err := m.ps.Subscribe(m.ctx, pubsub.BroadcastChannel)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to subscribe to broadcast channel")
+		return
+	}
+
+	log.Info().Msg("Subscribed to global broadcast channel for cross-instance messages")
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			m.handleGlobalMessage(msg)
+		}
+	}
+}
+
+// GlobalBroadcast represents a message broadcast across instances
+type GlobalBroadcast struct {
+	Channel string        `json:"channel"` // The realtime channel to broadcast to
+	Message ServerMessage `json:"message"` // The message to send
+}
+
+// handleGlobalMessage processes a message received from another instance
+func (m *Manager) handleGlobalMessage(msg pubsub.Message) {
+	var broadcast GlobalBroadcast
+	if err := json.Unmarshal(msg.Payload, &broadcast); err != nil {
+		log.Error().Err(err).Msg("Failed to unmarshal global broadcast message")
+		return
+	}
+
+	// Deliver to local connections subscribed to the channel
+	m.BroadcastToChannel(broadcast.Channel, broadcast.Message)
+}
+
+// BroadcastGlobal sends a message to all connections across all instances.
+// If pub/sub is configured, it publishes to the broadcast channel.
+// Otherwise, it only broadcasts to local connections.
+func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
+	if m.ps == nil {
+		// No pub/sub configured - broadcast locally only
+		m.BroadcastToChannel(channel, message)
+		return nil
+	}
+
+	// Publish to pub/sub for cross-instance delivery
+	broadcast := GlobalBroadcast{
+		Channel: channel,
+		Message: message,
+	}
+
+	payload, err := json.Marshal(broadcast)
+	if err != nil {
+		return err
+	}
+
+	return m.ps.Publish(m.ctx, pubsub.BroadcastChannel, payload)
 }
 
 // AddConnection adds a new WebSocket connection

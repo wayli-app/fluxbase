@@ -9,11 +9,13 @@ import type {
   AdminSetupStatusResponse,
   DeleteUserResponse,
   EnrichedUser,
+  HealthResponse,
   InviteUserRequest,
   InviteUserResponse,
   ListUsersOptions,
   ListUsersResponse,
   ResetUserPasswordResponse,
+  SendEmailRequest,
   DataResponse,
   VoidResponse,
 } from "./types";
@@ -28,6 +30,7 @@ import { FluxbaseAdminMigrations } from "./admin-migrations";
 import { FluxbaseAdminJobs } from "./admin-jobs";
 import { FluxbaseAdminAI } from "./admin-ai";
 import { FluxbaseAdminRPC } from "./admin-rpc";
+import { FluxbaseAdminStorage } from "./admin-storage";
 
 /**
  * Admin client for managing Fluxbase instance
@@ -91,6 +94,11 @@ export class FluxbaseAdmin {
    */
   public rpc: FluxbaseAdminRPC;
 
+  /**
+   * Storage manager for bucket and object management (list, create, delete, signed URLs)
+   */
+  public storage: FluxbaseAdminStorage;
+
   constructor(fetch: FluxbaseFetch) {
     this.fetch = fetch;
     this.settings = new FluxbaseSettings(fetch);
@@ -104,6 +112,7 @@ export class FluxbaseAdmin {
     this.migrations = new FluxbaseAdminMigrations(fetch);
     this.ai = new FluxbaseAdminAI(fetch);
     this.rpc = new FluxbaseAdminRPC(fetch);
+    this.storage = new FluxbaseAdminStorage(fetch);
   }
 
   /**
@@ -127,6 +136,58 @@ export class FluxbaseAdmin {
   clearToken() {
     this.adminToken = null;
     this.fetch.setAuthToken(null);
+  }
+
+  // ============================================================================
+  // Health Check
+  // ============================================================================
+
+  /**
+   * Get system health status
+   *
+   * @returns Health status including database and realtime service status
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await admin.getHealth();
+   * if (data) {
+   *   console.log('Status:', data.status);
+   *   console.log('Database:', data.services.database);
+   *   console.log('Realtime:', data.services.realtime);
+   * }
+   * ```
+   */
+  async getHealth(): Promise<DataResponse<HealthResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<HealthResponse>("/health");
+    });
+  }
+
+  // ============================================================================
+  // Email
+  // ============================================================================
+
+  /**
+   * Send an email
+   *
+   * @param request - Email details (to, subject, html/text)
+   *
+   * @example
+   * ```typescript
+   * const { error } = await admin.sendEmail({
+   *   to: 'user@example.com',
+   *   subject: 'Hello',
+   *   html: '<p>Your message here</p>'
+   * });
+   * if (!error) {
+   *   console.log('Email sent');
+   * }
+   * ```
+   */
+  async sendEmail(request: SendEmailRequest): Promise<VoidResponse> {
+    return wrapAsyncVoid(async () => {
+      await this.fetch.post("/api/v1/admin/email/send", request);
+    });
   }
 
   // ============================================================================

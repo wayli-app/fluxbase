@@ -73,14 +73,20 @@ func (p *openAIProvider) Close() error {
 
 // openAIRequest represents the OpenAI API request format
 type openAIRequest struct {
-	Model             string          `json:"model"`
-	Messages          []openAIMessage `json:"messages"`
-	Tools             []openAITool    `json:"tools,omitempty"`
-	MaxTokens         int             `json:"max_tokens,omitempty"`
-	Temperature       float64         `json:"temperature,omitempty"`
-	Stream            bool            `json:"stream,omitempty"`
-	ToolChoice        interface{}     `json:"tool_choice,omitempty"`
-	ParallelToolCalls *bool           `json:"parallel_tool_calls,omitempty"`
+	Model             string               `json:"model"`
+	Messages          []openAIMessage      `json:"messages"`
+	Tools             []openAITool         `json:"tools,omitempty"`
+	MaxTokens         int                  `json:"max_tokens,omitempty"`
+	Temperature       float64              `json:"temperature,omitempty"`
+	Stream            bool                 `json:"stream,omitempty"`
+	StreamOptions     *openAIStreamOptions `json:"stream_options,omitempty"`
+	ToolChoice        interface{}          `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool                `json:"parallel_tool_calls,omitempty"`
+}
+
+// openAIStreamOptions configures streaming behavior
+type openAIStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type openAIMessage struct {
@@ -222,6 +228,7 @@ func (p *openAIProvider) ChatStream(ctx context.Context, req *ChatRequest, callb
 	// Build OpenAI request
 	openaiReq := p.buildRequest(req)
 	openaiReq.Stream = true
+	openaiReq.StreamOptions = &openAIStreamOptions{IncludeUsage: true}
 
 	// Make HTTP request
 	body, err := json.Marshal(openaiReq)

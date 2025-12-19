@@ -2428,6 +2428,7 @@ export interface AddDocumentRequest {
   source?: string
   mime_type?: string
   metadata?: Record<string, string>
+  tags?: string[]
 }
 
 export interface AddDocumentResponse {
@@ -2454,6 +2455,23 @@ export interface SearchResult {
   knowledge_base_name?: string
   content: string
   similarity: number
+}
+
+export interface DebugSearchResult {
+  query: string
+  query_embedding_preview: number[]
+  query_embedding_dims: number
+  stored_embedding_preview?: number[]
+  raw_similarities: number[]
+  embedding_model: string
+  kb_embedding_model: string
+  chunks_found: number
+  top_chunk_content_preview?: string
+  // Chunk statistics
+  total_chunks: number
+  chunks_with_embedding: number
+  chunks_without_embedding: number
+  error_message?: string
 }
 
 export const knowledgeBasesApi = {
@@ -2539,21 +2557,116 @@ export const knowledgeBasesApi = {
     )
   },
 
+  // Update document metadata and tags
+  updateDocument: async (
+    kbId: string,
+    docId: string,
+    data: {
+      title?: string
+      metadata?: Record<string, string>
+      tags?: string[]
+    }
+  ): Promise<KnowledgeBaseDocument> => {
+    const response = await api.patch<KnowledgeBaseDocument>(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`,
+      data
+    )
+    return response.data
+  },
+
+  // Get knowledge base capabilities (OCR status, supported file types)
+  getCapabilities: async (): Promise<{
+    ocr_enabled: boolean
+    ocr_available: boolean
+    ocr_languages: string[]
+    supported_file_types: string[]
+  }> => {
+    const response = await api.get<{
+      ocr_enabled: boolean
+      ocr_available: boolean
+      ocr_languages: string[]
+      supported_file_types: string[]
+    }>('/api/v1/admin/ai/knowledge-bases/capabilities')
+    return response.data
+  },
+
+  // Upload document file
+  uploadDocument: async (
+    kbId: string,
+    file: File,
+    title?: string
+  ): Promise<{
+    document_id: string
+    status: string
+    message: string
+    filename: string
+    extracted_length: number
+    mime_type: string
+  }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (title) {
+      formData.append('title', title)
+    }
+    const response = await api.post<{
+      document_id: string
+      status: string
+      message: string
+      filename: string
+      extracted_length: number
+      mime_type: string
+    }>(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  },
+
   // Search knowledge base
   search: async (
     kbId: string,
     query: string,
-    options?: { max_chunks?: number; threshold?: number }
-  ): Promise<{ results: SearchResult[]; count: number; query: string }> => {
+    options?: {
+      max_chunks?: number
+      threshold?: number
+      mode?: 'semantic' | 'keyword' | 'hybrid'
+      semantic_weight?: number
+    }
+  ): Promise<{
+    results: SearchResult[]
+    count: number
+    query: string
+    mode: string
+  }> => {
     const response = await api.post<{
       results: SearchResult[]
       count: number
       query: string
+      mode: string
     }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/search`, {
       query,
       max_chunks: options?.max_chunks,
       threshold: options?.threshold,
+      mode: options?.mode,
+      semantic_weight: options?.semantic_weight,
     })
+    return response.data
+  },
+
+  // Debug search - returns detailed diagnostic information
+  debugSearch: async (
+    kbId: string,
+    query: string
+  ): Promise<DebugSearchResult> => {
+    const response = await api.post<DebugSearchResult>(
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/debug-search`,
+      { query }
+    )
     return response.data
   },
 

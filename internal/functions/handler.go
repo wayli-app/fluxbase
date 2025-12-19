@@ -395,7 +395,16 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 }
 
 // ListFunctions lists all edge functions
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *Handler) ListFunctions(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if !isAdminRole(role) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to list functions",
+		})
+	}
+
 	// Check if namespace filter is provided
 	namespace := c.Query("namespace")
 
@@ -406,8 +415,8 @@ func (h *Handler) ListFunctions(c *fiber.Ctx) error {
 		// If namespace is specified, list functions in that namespace
 		functions, err = h.storage.ListFunctionsByNamespace(c.Context(), namespace)
 	} else {
-		// Otherwise, list all public functions
-		functions, err = h.storage.ListFunctions(c.Context())
+		// Otherwise, list all functions (admin can see all)
+		functions, err = h.storage.ListAllFunctions(c.Context())
 	}
 
 	if err != nil {
@@ -452,7 +461,16 @@ func (h *Handler) ListNamespaces(c *fiber.Ctx) error {
 }
 
 // GetFunction gets a single function by name
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *Handler) GetFunction(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if !isAdminRole(role) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to view function details",
+		})
+	}
+
 	name := c.Params("name")
 
 	fn, err := h.storage.GetFunction(c.Context(), name)
@@ -1615,6 +1633,11 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 }
 
 // Helper functions
+
+// isAdminRole checks if the given role has admin privileges
+func isAdminRole(role string) bool {
+	return role == "admin" || role == "dashboard_admin" || role == "service_role"
+}
 
 func valueOr[T any](ptr *T, defaultVal T) T {
 	if ptr != nil {

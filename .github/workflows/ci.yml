@@ -406,21 +406,36 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Build binary
+      - name: Build server binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
-          output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
+          output_name="fluxbase-server-${{ matrix.goos }}-${{ matrix.goarch }}"
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           go build -ldflags="-s -w -X main.Version=dev-${GITHUB_SHA::8} -X main.Commit=${GITHUB_SHA} -X main.BuildDate=${BUILD_DATE}" -o "dist/${output_name}" cmd/fluxbase/main.go
 
-      - name: Upload artifacts
+      - name: Build CLI binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          go build -ldflags="-s -w -X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=dev-${GITHUB_SHA::8} -X github.com/fluxbase-eu/fluxbase/cli/cmd.Commit=${GITHUB_SHA} -X github.com/fluxbase-eu/fluxbase/cli/cmd.BuildDate=${BUILD_DATE}" -o "dist/${output_name}" cli/main.go
+
+      - name: Upload server artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxbase-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/fluxbase-server-${{ matrix.goos }}-${{ matrix.goarch }}
+
+      - name: Upload CLI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+          path: dist/fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}
 
   docker:
     name: Docker Build Test

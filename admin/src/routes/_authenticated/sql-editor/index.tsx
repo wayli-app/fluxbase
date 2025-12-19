@@ -107,6 +107,15 @@ function SQLEditorPage() {
     }
   }, [schemas, tables])
 
+  // Update Monaco theme when app theme changes
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(
+        resolvedTheme === 'dark' ? 'fluxbase-dark' : 'fluxbase-light'
+      )
+    }
+  }, [resolvedTheme])
+
   // Get current history item (most recent or selected)
   const currentHistory = selectedHistoryId
     ? queryHistory.find((h) => h.id === selectedHistoryId)

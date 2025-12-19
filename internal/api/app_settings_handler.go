@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -13,13 +14,15 @@ import (
 type AppSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
 	settingsCache   *auth.SettingsCache
+	config          *config.Config
 }
 
 // NewAppSettingsHandler creates a new app settings handler
-func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache) *AppSettingsHandler {
+func NewAppSettingsHandler(settingsService *auth.SystemSettingsService, settingsCache *auth.SettingsCache, cfg *config.Config) *AppSettingsHandler {
 	return &AppSettingsHandler{
 		settingsService: settingsService,
 		settingsCache:   settingsCache,
+		config:          cfg,
 	}
 }
 
@@ -90,8 +93,9 @@ type SendGridSettings struct {
 
 // MailgunSettings contains Mailgun configuration
 type MailgunSettings struct {
-	APIKey string `json:"api_key,omitempty"` // Omit in responses for security
-	Domain string `json:"domain"`
+	APIKey   string `json:"api_key,omitempty"` // Omit in responses for security
+	Domain   string `json:"domain"`
+	EURegion bool   `json:"eu_region"`
 }
 
 // SESSettings contains AWS SES configuration
@@ -262,7 +266,7 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 				appSettings.Features.EnableFunctions = val
 			}
 
-		// Email
+		// Email - basic settings
 		case "app.email.enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
 				appSettings.Email.Enabled = val
@@ -271,12 +275,142 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 			if val, ok := setting.Value["value"].(string); ok {
 				appSettings.Email.Provider = val
 			}
+		case "app.email.from_address":
+			if val, ok := setting.Value["value"].(string); ok {
+				appSettings.Email.FromAddress = val
+			}
+		case "app.email.from_name":
+			if val, ok := setting.Value["value"].(string); ok {
+				appSettings.Email.FromName = val
+			}
+		case "app.email.reply_to_address":
+			if val, ok := setting.Value["value"].(string); ok {
+				appSettings.Email.ReplyToAddress = val
+			}
+
+		// Email - SMTP settings
+		case "app.email.smtp.host":
+			if val, ok := setting.Value["value"].(string); ok {
+				if appSettings.Email.SMTP == nil {
+					appSettings.Email.SMTP = &SMTPSettings{}
+				}
+				appSettings.Email.SMTP.Host = val
+			}
+		case "app.email.smtp.port":
+			if val, ok := setting.Value["value"].(float64); ok {
+				if appSettings.Email.SMTP == nil {
+					appSettings.Email.SMTP = &SMTPSettings{}
+				}
+				appSettings.Email.SMTP.Port = int(val)
+			}
+		case "app.email.smtp.username":
+			if val, ok := setting.Value["value"].(string); ok {
+				if appSettings.Email.SMTP == nil {
+					appSettings.Email.SMTP = &SMTPSettings{}
+				}
+				appSettings.Email.SMTP.Username = val
+			}
+		case "app.email.smtp.tls":
+			if val, ok := setting.Value["value"].(bool); ok {
+				if appSettings.Email.SMTP == nil {
+					appSettings.Email.SMTP = &SMTPSettings{}
+				}
+				appSettings.Email.SMTP.TLS = val
+			}
+		// Note: app.email.smtp.password is stored but never returned (omitted for security)
+
+		// Email - Mailgun settings
+		case "app.email.mailgun.domain":
+			if val, ok := setting.Value["value"].(string); ok {
+				if appSettings.Email.Mailgun == nil {
+					appSettings.Email.Mailgun = &MailgunSettings{}
+				}
+				appSettings.Email.Mailgun.Domain = val
+			}
+		case "app.email.mailgun.eu_region":
+			if val, ok := setting.Value["value"].(bool); ok {
+				if appSettings.Email.Mailgun == nil {
+					appSettings.Email.Mailgun = &MailgunSettings{}
+				}
+				appSettings.Email.Mailgun.EURegion = val
+			}
+		// Note: app.email.mailgun.api_key is stored but never returned (omitted for security)
+
+		// Email - SES settings
+		case "app.email.ses.region":
+			if val, ok := setting.Value["value"].(string); ok {
+				if appSettings.Email.SES == nil {
+					appSettings.Email.SES = &SESSettings{}
+				}
+				appSettings.Email.SES.Region = val
+			}
+		// Note: app.email.ses.access_key_id and app.email.ses.secret_access_key are stored but never returned
 
 		// Security
 		case "app.security.enable_global_rate_limit":
 			if val, ok := setting.Value["value"].(bool); ok {
 				appSettings.Security.EnableGlobalRateLimit = val
 			}
+		}
+	}
+
+	// Apply email settings from config (environment variables take precedence)
+	if h.config != nil {
+		emailCfg := h.config.Email
+
+		// Basic email settings from config
+		if emailCfg.Enabled {
+			appSettings.Email.Enabled = emailCfg.Enabled
+		}
+		if emailCfg.Provider != "" {
+			appSettings.Email.Provider = emailCfg.Provider
+		}
+		if emailCfg.FromAddress != "" {
+			appSettings.Email.FromAddress = emailCfg.FromAddress
+		}
+		if emailCfg.FromName != "" {
+			appSettings.Email.FromName = emailCfg.FromName
+		}
+		if emailCfg.ReplyToAddress != "" {
+			appSettings.Email.ReplyToAddress = emailCfg.ReplyToAddress
+		}
+
+		// SMTP settings from config
+		if emailCfg.SMTPHost != "" || emailCfg.SMTPPort != 0 || emailCfg.SMTPUsername != "" {
+			if appSettings.Email.SMTP == nil {
+				appSettings.Email.SMTP = &SMTPSettings{}
+			}
+			if emailCfg.SMTPHost != "" {
+				appSettings.Email.SMTP.Host = emailCfg.SMTPHost
+			}
+			if emailCfg.SMTPPort != 0 {
+				appSettings.Email.SMTP.Port = emailCfg.SMTPPort
+			}
+			if emailCfg.SMTPUsername != "" {
+				appSettings.Email.SMTP.Username = emailCfg.SMTPUsername
+			}
+			if emailCfg.SMTPTLS {
+				appSettings.Email.SMTP.TLS = emailCfg.SMTPTLS
+			}
+			// Note: Password is never returned
+		}
+
+		// Mailgun settings from config
+		if emailCfg.MailgunDomain != "" {
+			if appSettings.Email.Mailgun == nil {
+				appSettings.Email.Mailgun = &MailgunSettings{}
+			}
+			appSettings.Email.Mailgun.Domain = emailCfg.MailgunDomain
+			// Note: API key is never returned
+		}
+
+		// SES settings from config
+		if emailCfg.SESRegion != "" {
+			if appSettings.Email.SES == nil {
+				appSettings.Email.SES = &SESSettings{}
+			}
+			appSettings.Email.SES.Region = emailCfg.SESRegion
+			// Note: Access key and secret key are never returned
 		}
 	}
 
@@ -307,12 +441,61 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 			appSettings.Overrides.Features["enable_functions"] = true
 		}
 
-		// Email overrides
+		// Email overrides - basic settings
 		if h.settingsCache.IsOverriddenByEnv("app.email.enabled") {
 			appSettings.Overrides.Email["enabled"] = true
 		}
 		if h.settingsCache.IsOverriddenByEnv("app.email.provider") {
 			appSettings.Overrides.Email["provider"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.from_address") {
+			appSettings.Overrides.Email["from_address"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.from_name") {
+			appSettings.Overrides.Email["from_name"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.reply_to_address") {
+			appSettings.Overrides.Email["reply_to_address"] = true
+		}
+		// Email overrides - SMTP
+		if h.settingsCache.IsOverriddenByEnv("app.email.smtp.host") {
+			appSettings.Overrides.Email["smtp.host"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.smtp.port") {
+			appSettings.Overrides.Email["smtp.port"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.smtp.username") {
+			appSettings.Overrides.Email["smtp.username"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.smtp.password") {
+			appSettings.Overrides.Email["smtp.password"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.smtp.tls") {
+			appSettings.Overrides.Email["smtp.tls"] = true
+		}
+		// Email overrides - SendGrid
+		if h.settingsCache.IsOverriddenByEnv("app.email.sendgrid.api_key") {
+			appSettings.Overrides.Email["sendgrid.api_key"] = true
+		}
+		// Email overrides - Mailgun
+		if h.settingsCache.IsOverriddenByEnv("app.email.mailgun.api_key") {
+			appSettings.Overrides.Email["mailgun.api_key"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.mailgun.domain") {
+			appSettings.Overrides.Email["mailgun.domain"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.mailgun.eu_region") {
+			appSettings.Overrides.Email["mailgun.eu_region"] = true
+		}
+		// Email overrides - SES
+		if h.settingsCache.IsOverriddenByEnv("app.email.ses.region") {
+			appSettings.Overrides.Email["ses.region"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.ses.access_key_id") {
+			appSettings.Overrides.Email["ses.access_key_id"] = true
+		}
+		if h.settingsCache.IsOverriddenByEnv("app.email.ses.secret_access_key") {
+			appSettings.Overrides.Email["ses.secret_access_key"] = true
 		}
 
 		// Security overrides
@@ -371,20 +554,95 @@ func (h *AppSettingsHandler) updateFeatureSettings(ctx context.Context, features
 }
 
 func (h *AppSettingsHandler) updateEmailSettings(ctx context.Context, email *EmailSettings) error {
-	settingsMap := map[string]interface{}{
-		"app.email.enabled":  email.Enabled,
-		"app.email.provider": email.Provider,
-	}
-
-	for key, value := range settingsMap {
-		// Check if setting is overridden by environment variable
+	// Helper to update a setting with env override check
+	setSetting := func(key string, value interface{}) error {
 		if h.settingsCache != nil && h.settingsCache.IsOverriddenByEnv(key) {
 			return fiber.NewError(fiber.StatusConflict,
 				fmt.Sprintf("Setting '%s' cannot be updated because it is overridden by an environment variable", key))
 		}
+		return h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": value}, "")
+	}
 
-		if err := h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": value}, ""); err != nil {
+	// Basic email settings (always update)
+	if err := setSetting("app.email.enabled", email.Enabled); err != nil {
+		return err
+	}
+	if err := setSetting("app.email.provider", email.Provider); err != nil {
+		return err
+	}
+	if err := setSetting("app.email.from_address", email.FromAddress); err != nil {
+		return err
+	}
+	if err := setSetting("app.email.from_name", email.FromName); err != nil {
+		return err
+	}
+	if err := setSetting("app.email.reply_to_address", email.ReplyToAddress); err != nil {
+		return err
+	}
+
+	// SMTP settings
+	if email.SMTP != nil {
+		if err := setSetting("app.email.smtp.host", email.SMTP.Host); err != nil {
 			return err
+		}
+		if err := setSetting("app.email.smtp.port", email.SMTP.Port); err != nil {
+			return err
+		}
+		if err := setSetting("app.email.smtp.username", email.SMTP.Username); err != nil {
+			return err
+		}
+		if err := setSetting("app.email.smtp.tls", email.SMTP.TLS); err != nil {
+			return err
+		}
+		// Only update password if provided (non-empty) - preserves existing password
+		if email.SMTP.Password != "" {
+			if err := setSetting("app.email.smtp.password", email.SMTP.Password); err != nil {
+				return err
+			}
+		}
+	}
+
+	// SendGrid settings
+	if email.SendGrid != nil {
+		// Only update API key if provided (non-empty) - preserves existing key
+		if email.SendGrid.APIKey != "" {
+			if err := setSetting("app.email.sendgrid.api_key", email.SendGrid.APIKey); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Mailgun settings
+	if email.Mailgun != nil {
+		if err := setSetting("app.email.mailgun.domain", email.Mailgun.Domain); err != nil {
+			return err
+		}
+		if err := setSetting("app.email.mailgun.eu_region", email.Mailgun.EURegion); err != nil {
+			return err
+		}
+		// Only update API key if provided (non-empty) - preserves existing key
+		if email.Mailgun.APIKey != "" {
+			if err := setSetting("app.email.mailgun.api_key", email.Mailgun.APIKey); err != nil {
+				return err
+			}
+		}
+	}
+
+	// SES settings
+	if email.SES != nil {
+		if err := setSetting("app.email.ses.region", email.SES.Region); err != nil {
+			return err
+		}
+		// Only update credentials if provided (non-empty) - preserves existing credentials
+		if email.SES.AccessKeyID != "" {
+			if err := setSetting("app.email.ses.access_key_id", email.SES.AccessKeyID); err != nil {
+				return err
+			}
+		}
+		if email.SES.SecretAccessKey != "" {
+			if err := setSetting("app.email.ses.secret_access_key", email.SES.SecretAccessKey); err != nil {
+				return err
+			}
 		}
 	}
 

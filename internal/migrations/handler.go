@@ -14,15 +14,17 @@ import (
 
 // Handler manages HTTP endpoints for migrations
 type Handler struct {
-	storage  *Storage
-	executor *Executor
+	storage     *Storage
+	executor    *Executor
+	schemaCache *database.SchemaCache
 }
 
 // NewHandler creates a new migrations handler
-func NewHandler(db *database.Connection) *Handler {
+func NewHandler(db *database.Connection, schemaCache *database.SchemaCache) *Handler {
 	return &Handler{
-		storage:  NewStorage(db),
-		executor: NewExecutor(db),
+		storage:     NewStorage(db),
+		executor:    NewExecutor(db),
+		schemaCache: schemaCache,
 	}
 }
 
@@ -207,6 +209,12 @@ func (h *Handler) ApplyMigration(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to apply migration", "details": err.Error()})
 	}
 
+	// Invalidate schema cache so REST API reflects changes immediately
+	if h.schemaCache != nil {
+		h.schemaCache.Invalidate()
+		log.Debug().Str("migration", name).Msg("Schema cache invalidated after applying migration")
+	}
+
 	return c.JSON(fiber.Map{"message": "Migration applied successfully"})
 }
 
@@ -237,6 +245,12 @@ func (h *Handler) RollbackMigration(c *fiber.Ctx) error {
 
 	if err := h.executor.RollbackMigration(c.Context(), req.Namespace, name, executedBy); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to rollback migration", "details": err.Error()})
+	}
+
+	// Invalidate schema cache so REST API reflects changes immediately
+	if h.schemaCache != nil {
+		h.schemaCache.Invalidate()
+		log.Debug().Str("migration", name).Msg("Schema cache invalidated after rolling back migration")
 	}
 
 	return c.JSON(fiber.Map{"message": "Migration rolled back successfully"})
@@ -273,6 +287,12 @@ func (h *Handler) ApplyPending(c *fiber.Ctx) error {
 			"applied": applied,
 			"failed":  failed,
 		})
+	}
+
+	// Invalidate schema cache if any migrations were applied
+	if len(applied) > 0 && h.schemaCache != nil {
+		h.schemaCache.Invalidate()
+		log.Debug().Int("count", len(applied)).Msg("Schema cache invalidated after applying pending migrations")
 	}
 
 	return c.JSON(fiber.Map{
@@ -525,6 +545,12 @@ func (h *Handler) SyncMigrations(c *fiber.Ctx) error {
 		summary.Skipped++
 		details.Skipped = append(details.Skipped, reqMig.Name)
 		warnings = append(warnings, fmt.Sprintf("Migration '%s' has status '%s' (skipped)", reqMig.Name, existingMig.Status))
+	}
+
+	// Invalidate schema cache if any migrations were applied
+	if summary.Applied > 0 && h.schemaCache != nil {
+		h.schemaCache.Invalidate()
+		log.Info().Int("applied", summary.Applied).Msg("Schema cache invalidated after sync")
 	}
 
 	// Build response message

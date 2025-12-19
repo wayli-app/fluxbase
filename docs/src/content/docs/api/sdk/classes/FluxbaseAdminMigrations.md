@@ -37,7 +37,7 @@ Apply a specific migration
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 
@@ -71,7 +71,7 @@ Apply all pending migrations in order
 
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 
@@ -143,7 +143,7 @@ Delete a migration (only if status is pending)
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 
@@ -175,7 +175,7 @@ Get details of a specific migration
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 
@@ -207,7 +207,7 @@ Get execution history for a migration
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 | `limit` | `number` | `50` | Maximum number of executions to return (default: 50, max: 100) |
 
 #### Returns
@@ -248,7 +248,7 @@ List migrations in a namespace
 
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 | `status`? | `"pending"` \| `"failed"` \| `"applied"` \| `"rolled_back"` | `undefined` | Filter by status: 'pending', 'applied', 'failed', 'rolled_back' |
 
 #### Returns
@@ -335,7 +335,7 @@ Rollback a specific migration
 | Parameter | Type | Default value | Description |
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 
@@ -421,7 +421,7 @@ Update a migration (only if status is pending)
 | ------ | ------ | ------ | ------ |
 | `name` | `string` | `undefined` | Migration name |
 | `updates` | [`UpdateMigrationRequest`](/api/sdk/interfaces/updatemigrationrequest/) | `undefined` | Fields to update |
-| `namespace` | `string` | `'default'` | Migration namespace (default: 'default') |
+| `namespace` | `string` | `"default"` | Migration namespace (default: 'default') |
 
 #### Returns
 

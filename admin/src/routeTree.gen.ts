@@ -50,6 +50,9 @@ import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_aut
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedApiRestRouteImport } from './routes/_authenticated/api/rest'
+import { Route as AuthenticatedKnowledgeBasesIdIndexRouteImport } from './routes/_authenticated/knowledge-bases/$id/index'
+import { Route as AuthenticatedKnowledgeBasesIdSettingsRouteImport } from './routes/_authenticated/knowledge-bases/$id/settings'
+import { Route as AuthenticatedKnowledgeBasesIdSearchRouteImport } from './routes/_authenticated/knowledge-bases/$id/search'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -276,6 +279,24 @@ const AuthenticatedApiRestRoute = AuthenticatedApiRestRouteImport.update({
   path: '/api/rest',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedKnowledgeBasesIdIndexRoute =
+  AuthenticatedKnowledgeBasesIdIndexRouteImport.update({
+    id: '/knowledge-bases/$id/',
+    path: '/knowledge-bases/$id/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedKnowledgeBasesIdSettingsRoute =
+  AuthenticatedKnowledgeBasesIdSettingsRouteImport.update({
+    id: '/knowledge-bases/$id/settings',
+    path: '/knowledge-bases/$id/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedKnowledgeBasesIdSearchRoute =
+  AuthenticatedKnowledgeBasesIdSearchRouteImport.update({
+    id: '/knowledge-bases/$id/search',
+    path: '/knowledge-bases/$id/search',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
@@ -318,6 +339,9 @@ export interface FileRoutesByFullPath {
   '/tables': typeof AuthenticatedTablesIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/webhooks': typeof AuthenticatedWebhooksIndexRoute
+  '/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
+  '/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
+  '/knowledge-bases/$id': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
@@ -360,6 +384,9 @@ export interface FileRoutesByTo {
   '/tables': typeof AuthenticatedTablesIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/webhooks': typeof AuthenticatedWebhooksIndexRoute
+  '/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
+  '/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
+  '/knowledge-bases/$id': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -404,6 +431,9 @@ export interface FileRoutesById {
   '/_authenticated/tables/': typeof AuthenticatedTablesIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/webhooks/': typeof AuthenticatedWebhooksIndexRoute
+  '/_authenticated/knowledge-bases/$id/search': typeof AuthenticatedKnowledgeBasesIdSearchRoute
+  '/_authenticated/knowledge-bases/$id/settings': typeof AuthenticatedKnowledgeBasesIdSettingsRoute
+  '/_authenticated/knowledge-bases/$id/': typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -448,6 +478,9 @@ export interface FileRouteTypes {
     | '/tables'
     | '/users'
     | '/webhooks'
+    | '/knowledge-bases/$id/search'
+    | '/knowledge-bases/$id/settings'
+    | '/knowledge-bases/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/setup'
@@ -490,6 +523,9 @@ export interface FileRouteTypes {
     | '/tables'
     | '/users'
     | '/webhooks'
+    | '/knowledge-bases/$id/search'
+    | '/knowledge-bases/$id/settings'
+    | '/knowledge-bases/$id'
   id:
     | '__root__'
     | '/_authenticated'
@@ -533,6 +569,9 @@ export interface FileRouteTypes {
     | '/_authenticated/tables/'
     | '/_authenticated/users/'
     | '/_authenticated/webhooks/'
+    | '/_authenticated/knowledge-bases/$id/search'
+    | '/_authenticated/knowledge-bases/$id/settings'
+    | '/_authenticated/knowledge-bases/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -842,6 +881,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedApiRestRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/knowledge-bases/$id/': {
+      id: '/_authenticated/knowledge-bases/$id/'
+      path: '/knowledge-bases/$id'
+      fullPath: '/knowledge-bases/$id'
+      preLoaderRoute: typeof AuthenticatedKnowledgeBasesIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/knowledge-bases/$id/settings': {
+      id: '/_authenticated/knowledge-bases/$id/settings'
+      path: '/knowledge-bases/$id/settings'
+      fullPath: '/knowledge-bases/$id/settings'
+      preLoaderRoute: typeof AuthenticatedKnowledgeBasesIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/knowledge-bases/$id/search': {
+      id: '/_authenticated/knowledge-bases/$id/search'
+      path: '/knowledge-bases/$id/search'
+      fullPath: '/knowledge-bases/$id/search'
+      preLoaderRoute: typeof AuthenticatedKnowledgeBasesIdSearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -872,6 +932,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTablesIndexRoute: typeof AuthenticatedTablesIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWebhooksIndexRoute: typeof AuthenticatedWebhooksIndexRoute
+  AuthenticatedKnowledgeBasesIdSearchRoute: typeof AuthenticatedKnowledgeBasesIdSearchRoute
+  AuthenticatedKnowledgeBasesIdSettingsRoute: typeof AuthenticatedKnowledgeBasesIdSettingsRoute
+  AuthenticatedKnowledgeBasesIdIndexRoute: typeof AuthenticatedKnowledgeBasesIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -902,6 +965,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTablesIndexRoute: AuthenticatedTablesIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWebhooksIndexRoute: AuthenticatedWebhooksIndexRoute,
+  AuthenticatedKnowledgeBasesIdSearchRoute:
+    AuthenticatedKnowledgeBasesIdSearchRoute,
+  AuthenticatedKnowledgeBasesIdSettingsRoute:
+    AuthenticatedKnowledgeBasesIdSettingsRoute,
+  AuthenticatedKnowledgeBasesIdIndexRoute:
+    AuthenticatedKnowledgeBasesIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

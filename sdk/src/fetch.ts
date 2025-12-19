@@ -406,4 +406,52 @@ export class FluxbaseFetch {
 
     return response.headers
   }
+
+  /**
+   * GET request that returns response as Blob (for file downloads)
+   */
+  async getBlob(path: string, options: Omit<FetchOptions, 'method'> = {}): Promise<Blob> {
+    const url = `${this.baseUrl}${path}`
+    const headers = { ...this.defaultHeaders, ...options.headers }
+    // Remove Content-Type for blob downloads
+    delete headers['Content-Type']
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), options.timeout ?? this.timeout)
+
+    if (this.debug) {
+      console.log(`[Fluxbase SDK] GET (blob) ${url}`)
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const error = new Error(response.statusText) as FluxbaseError
+        error.status = response.status
+        throw error
+      }
+
+      return await response.blob()
+    } catch (err) {
+      clearTimeout(timeoutId)
+
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error('Request timeout') as FluxbaseError
+          timeoutError.status = 408
+          throw timeoutError
+        }
+        throw err
+      }
+
+      throw new Error('Unknown error occurred')
+    }
+  }
 }

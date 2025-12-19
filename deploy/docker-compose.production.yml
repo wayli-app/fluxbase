@@ -32,18 +32,20 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Redis for session storage and caching
-  redis:
-    image: redis:7-alpine
-    container_name: fluxbase-redis
+  # Dragonfly for distributed caching, rate limiting, and pub/sub
+  # Dragonfly is 25x faster than Redis with 80% less memory usage
+  # Fully Redis-compatible - works with redis-cli and go-redis
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: fluxbase-dragonfly
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: dragonfly --requirepass ${DRAGONFLY_PASSWORD:?DRAGONFLY_PASSWORD is required} --maxmemory 256mb
     volumes:
-      - redis_data:/data
+      - dragonfly_data:/data
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${DRAGONFLY_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -99,7 +101,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      dragonfly:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -140,6 +142,11 @@ services:
 
       # Base URL
       FLUXBASE_BASE_URL: ${BASE_URL:-http://localhost:8080}
+
+      # Horizontal Scaling (enabled by default in production)
+      FLUXBASE_SCALING_BACKEND: redis
+      FLUXBASE_SCALING_REDIS_URL: redis://:${DRAGONFLY_PASSWORD}@dragonfly:6379
+      FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION: "true"
 
       # Service Keys (optional - for backend services/cron jobs)
       # ⚠️  WARNING: Service keys bypass RLS and have full database access
@@ -252,7 +259,7 @@ networks:
 volumes:
   postgres_data:
     driver: local
-  redis_data:
+  dragonfly_data:
     driver: local
   minio_data:
     driver: local

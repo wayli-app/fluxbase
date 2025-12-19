@@ -19,6 +19,7 @@ import type {
   KnowledgeBaseDocument,
   AddDocumentRequest,
   AddDocumentResponse,
+  UploadDocumentResponse,
   ChatbotKnowledgeBaseLink,
   LinkKnowledgeBaseRequest,
   UpdateChatbotKnowledgeBaseRequest,
@@ -613,6 +614,58 @@ export class FluxbaseAdminAI {
   }
 
   /**
+   * Upload a document file to a knowledge base
+   *
+   * Supported file types: PDF, TXT, MD, HTML, CSV, DOCX, XLSX, RTF, EPUB, JSON
+   * Maximum file size: 50MB
+   *
+   * @param knowledgeBaseId - Knowledge base ID
+   * @param file - File to upload (File or Blob)
+   * @param title - Optional document title (defaults to filename without extension)
+   * @returns Promise resolving to { data, error } tuple with upload result
+   *
+   * @example
+   * ```typescript
+   * // Browser
+   * const fileInput = document.getElementById('file') as HTMLInputElement
+   * const file = fileInput.files?.[0]
+   * if (file) {
+   *   const { data, error } = await client.admin.ai.uploadDocument('kb-uuid', file)
+   *   if (data) {
+   *     console.log('Document ID:', data.document_id)
+   *     console.log('Extracted length:', data.extracted_length)
+   *   }
+   * }
+   *
+   * // Node.js (with node-fetch or similar)
+   * import { Blob } from 'buffer'
+   * const content = await fs.readFile('document.pdf')
+   * const blob = new Blob([content], { type: 'application/pdf' })
+   * const { data, error } = await client.admin.ai.uploadDocument('kb-uuid', blob, 'My Document')
+   * ```
+   */
+  async uploadDocument(
+    knowledgeBaseId: string,
+    file: File | Blob,
+    title?: string,
+  ): Promise<{ data: UploadDocumentResponse | null; error: Error | null }> {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (title) {
+        formData.append("title", title);
+      }
+      const data = await this.fetch.post<UploadDocumentResponse>(
+        `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/documents/upload`,
+        formData,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
    * Delete a document from a knowledge base
    *
    * @param knowledgeBaseId - Knowledge base ID
@@ -661,7 +714,10 @@ export class FluxbaseAdminAI {
     knowledgeBaseId: string,
     query: string,
     options?: { max_chunks?: number; threshold?: number },
-  ): Promise<{ data: SearchKnowledgeBaseResponse | null; error: Error | null }> {
+  ): Promise<{
+    data: SearchKnowledgeBaseResponse | null;
+    error: Error | null;
+  }> {
     try {
       const data = await this.fetch.post<SearchKnowledgeBaseResponse>(
         `/api/v1/admin/ai/knowledge-bases/${knowledgeBaseId}/search`,

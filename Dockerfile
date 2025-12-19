@@ -44,8 +44,8 @@ RUN npm run build
 # Stage 2: Build Go Binary
 FROM golang:1.25-alpine AS go-builder
 
-# Install build dependencies
-RUN apk add --no-cache git make gcc musl-dev
+# Install build dependencies (including tesseract-dev for gosseract CGO bindings)
+RUN apk add --no-cache git make gcc musl-dev tesseract-ocr-dev leptonica-dev
 
 WORKDIR /build
 
@@ -68,10 +68,12 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 
 # Build the binary with optimizations and version information
+# Include 'ocr' build tag to enable Tesseract OCR support
 RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "ocr" \
     -ldflags="-w -s -extldflags '-static' -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
     -a -installsuffix cgo \
-    -o fluxbase \
+    -o fluxbase-server \
     ./cmd/fluxbase
 
 # Stage 3: Production Runtime Image
@@ -87,10 +89,18 @@ LABEL maintainer="Fluxbase Team" \
       commit="${COMMIT}" \
       build-date="${BUILD_DATE}"
 
-# Install minimal runtime dependencies
+# Install runtime dependencies
+# - ca-certificates: For HTTPS connections
+# - tzdata: For timezone support
+# - tesseract-ocr: For OCR text extraction from image-based PDFs
+# - tesseract-ocr-data-eng: English language data for OCR
+# - poppler-utils: For PDF to image conversion (pdftoppm)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    poppler-utils \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user
@@ -100,7 +110,7 @@ RUN addgroup -g 1000 -S fluxbase && \
 WORKDIR /app
 
 # Copy binary to PATH
-COPY --from=go-builder /build/fluxbase /usr/local/bin/fluxbase
+COPY --from=go-builder /build/fluxbase-server /usr/local/bin/fluxbase-server
 
 # Create necessary directories
 RUN mkdir -p /app/storage /app/config /app/data /app/logs && \
@@ -127,4 +137,4 @@ ENV FLUXBASE_SERVER_ADDRESS=:8080 \
 VOLUME ["/app/storage", "/app/config", "/app/logs"]
 
 # Run the application
-ENTRYPOINT ["fluxbase"]
+ENTRYPOINT ["fluxbase-server"]

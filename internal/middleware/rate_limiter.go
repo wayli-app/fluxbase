@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/storage/memory/v2"
@@ -16,14 +17,26 @@ type RateLimiterConfig struct {
 	Expiration time.Duration           // Time window for the rate limit
 	KeyFunc    func(*fiber.Ctx) string // Function to generate the key for rate limiting
 	Message    string                  // Custom error message
+	Store      ratelimit.Store         // Optional: custom rate limit store (uses global store if nil)
 }
 
-// NewRateLimiter creates a new rate limiter middleware with custom configuration
+// NewRateLimiter creates a new rate limiter middleware with custom configuration.
+// If config.Store is nil, it uses the global rate limit store (configured via scaling.backend).
+// For backwards compatibility, it falls back to in-memory storage if no global store is set.
 func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
-	// Use in-memory storage (can be replaced with Redis for distributed systems)
-	storage := memory.New(memory.Config{
-		GCInterval: 10 * time.Minute,
-	})
+	var storage fiber.Storage
+
+	// Use the configured store, or fall back to global store, or use memory
+	if config.Store != nil {
+		storage = ratelimit.NewIncrementAdapter(config.Store, config.Expiration)
+	} else if ratelimit.GlobalStore != nil {
+		storage = ratelimit.NewIncrementAdapter(ratelimit.GlobalStore, config.Expiration)
+	} else {
+		// Fall back to in-memory storage for backwards compatibility
+		storage = memory.New(memory.Config{
+			GCInterval: 10 * time.Minute,
+		})
+	}
 
 	// Default key function uses IP address
 	if config.KeyFunc == nil {

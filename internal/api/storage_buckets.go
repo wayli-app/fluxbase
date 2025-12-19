@@ -268,7 +268,16 @@ func (h *StorageHandler) DeleteBucket(c *fiber.Ctx) error {
 
 // ListBuckets handles listing all buckets
 // GET /api/v1/storage/buckets
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *StorageHandler) ListBuckets(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if role != "admin" && role != "dashboard_admin" && role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to list buckets",
+		})
+	}
+
 	ctx := c.Context()
 
 	// Start database transaction

@@ -12,36 +12,36 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function FluxbaseStats() {
   const client = useFluxbaseClient()
 
-  // Fetch health status
+  // Fetch health status using SDK
   const { data: health, isLoading: isLoadingHealth} = useQuery({
     queryKey: ['health'],
     queryFn: async () => {
-      return await client.http.get<{
-        status: string
-        services: { database: boolean; realtime: boolean }
-        timestamp: string
-      }>('/health')
+      const { data, error } = await client.admin.getHealth()
+      if (error) throw error
+      return data
     },
     refetchInterval: 10000, // Refresh every 10 seconds
   })
 
-  // Fetch table count
+  // Fetch table count using SDK (uses unique key to avoid conflict with other table queries)
   const { data: tables, isLoading: isLoadingTables } = useQuery({
-    queryKey: ['tables'],
+    queryKey: ['dashboard', 'table-count'],
     queryFn: async () => {
-      const response = await client.http.get<Array<{ schema: string; name: string }>>('/api/v1/admin/tables')
-      return response.map((t: { schema: string; name: string }) => `${t.schema}.${t.name}`)
+      const { data, error } = await client.admin.ddl.listTables()
+      if (error) throw error
+      return data?.tables.map((t: { schema: string; name: string }) => `${t.schema}.${t.name}`) || []
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   })
 
-  // Fetch user count from auth.users table
+  // Fetch user count using SDK
   const { data: users } = useQuery({
     queryKey: ['users', 'count'],
     queryFn: async () => {
       try {
-        const result = await client.from('auth/users').select('*').execute()
-        return result.data?.length || 0
+        const { data, error } = await client.admin.listUsers()
+        if (error) return 0
+        return data?.total || 0
       } catch {
         return 0
       }

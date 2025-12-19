@@ -12,7 +12,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ### Single Binary Deployment
 
-- **Simple**: Deploy one ~40MB binary or ~80MB container
+- **Simple**: Deploy one ~70MB binary or ~110MB container
 - **Fast**: Starts in seconds, not minutes
 - **Portable**: Runs anywhere Go runs
 
@@ -102,7 +102,7 @@ WebSocket-based AI chatbot integration:
 
 | Feature             | Fluxbase              | Supabase                 | Firebase           |
 | ------------------- | --------------------- | ------------------------ | ------------------ |
-| **Deployment**      | Single binary (~40MB) | ~13 containers (~2.5GB)  | Cloud only         |
+| **Deployment**      | Single binary (~70MB) | ~13 containers (~2.5GB)  | Cloud only         |
 | **Dependencies**    | PostgreSQL only       | PostgreSQL + 5+ services | Proprietary        |
 | **Self-hosting**    | ✅ Easy               | ⚠️ Complex               | ❌ No              |
 | **REST API**        | ✅ Auto-generated     | ✅ PostgREST             | ✅ Auto-generated  |

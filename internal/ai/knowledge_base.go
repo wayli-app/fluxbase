@@ -143,6 +143,39 @@ type RetrievalResult struct {
 	Content           string          `json:"content"`
 	Similarity        float64         `json:"similarity"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	Tags              []string        `json:"tags,omitempty"`
+}
+
+// MetadataFilter for user isolation and tag filtering in vector search
+type MetadataFilter struct {
+	UserID        *string           // If set, filter to this user's content + global content
+	Tags          []string          // Filter by tags (documents must have ALL these tags)
+	IncludeGlobal bool              // Include content without user_id (default: true)
+	Metadata      map[string]string // Arbitrary key-value filters on document metadata
+}
+
+// VectorSearchResult represents a single search result from the vector_search tool
+type VectorSearchResult struct {
+	ChunkID           string   `json:"chunk_id"`
+	DocumentID        string   `json:"document_id"`
+	DocumentTitle     string   `json:"document_title,omitempty"`
+	KnowledgeBaseName string   `json:"knowledge_base_name"`
+	Content           string   `json:"content"`
+	Similarity        float64  `json:"similarity"`
+	Tags              []string `json:"tags,omitempty"`
+}
+
+// VectorSearchOptions contains options for explicit vector search via the tool
+type VectorSearchOptions struct {
+	ChatbotID      string
+	Query          string
+	KnowledgeBases []string          // Specific KB names, or empty for all linked
+	Limit          int
+	Threshold      float64
+	Tags           []string
+	Metadata       map[string]string // Arbitrary key-value filters on document metadata
+	UserID         *string           // For user isolation
+	IsAdmin        bool              // Admin can bypass user filter
 }
 
 // RetrievalLog records a RAG retrieval operation
@@ -187,13 +220,14 @@ type UpdateKnowledgeBaseRequest struct {
 
 // CreateDocumentRequest is the request to add a document to a knowledge base
 type CreateDocumentRequest struct {
-	Title      string            `json:"title,omitempty"`
-	Content    string            `json:"content"`
-	SourceURL  string            `json:"source_url,omitempty"`
-	SourceType string            `json:"source_type,omitempty"`
-	MimeType   string            `json:"mime_type,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	Tags       []string          `json:"tags,omitempty"`
+	Title            string            `json:"title,omitempty"`
+	Content          string            `json:"content"`
+	SourceURL        string            `json:"source_url,omitempty"`
+	SourceType       string            `json:"source_type,omitempty"`
+	MimeType         string            `json:"mime_type,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	Tags             []string          `json:"tags,omitempty"`
+	OriginalFilename string            `json:"original_filename,omitempty"`
 }
 
 // LinkKnowledgeBaseRequest is the request to link a knowledge base to a chatbot

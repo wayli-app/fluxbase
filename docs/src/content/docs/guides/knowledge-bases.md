@@ -210,6 +210,103 @@ for (const doc of docs) {
 }
 ```
 
+## Uploading Document Files
+
+In addition to pasting text content, you can upload document files directly. Fluxbase automatically extracts text from various file formats.
+
+### Supported File Types
+
+| Format | Extension | MIME Type |
+|--------|-----------|-----------|
+| PDF | `.pdf` | `application/pdf` |
+| Plain Text | `.txt` | `text/plain` |
+| Markdown | `.md` | `text/markdown` |
+| HTML | `.html`, `.htm` | `text/html` |
+| CSV | `.csv` | `text/csv` |
+| Word Document | `.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| Excel Spreadsheet | `.xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
+| Rich Text | `.rtf` | `application/rtf` |
+| EPUB | `.epub` | `application/epub+zip` |
+| JSON | `.json` | `application/json` |
+
+**Maximum file size:** 50MB
+
+### Upload via Admin Dashboard
+
+1. Navigate to **Knowledge Bases** and select your knowledge base
+2. Click **Add Document**
+3. Select the **Upload File** tab
+4. Drag and drop a file or click **Browse Files**
+5. Optionally provide a custom title
+6. Click **Upload Document**
+
+### Upload via SDK
+
+```typescript
+// Browser environment
+const fileInput = document.getElementById('file') as HTMLInputElement
+const file = fileInput.files?.[0]
+
+if (file) {
+  const { data, error } = await client.admin.ai.uploadDocument(
+    'kb-id',
+    file,
+    'Custom Document Title' // Optional
+  )
+
+  if (data) {
+    console.log('Document ID:', data.document_id)
+    console.log('Filename:', data.filename)
+    console.log('Extracted text length:', data.extracted_length)
+    console.log('MIME type:', data.mime_type)
+  }
+}
+```
+
+```typescript
+// Node.js environment
+import { readFile } from 'fs/promises'
+import { Blob } from 'buffer'
+
+const content = await readFile('document.pdf')
+const blob = new Blob([content], { type: 'application/pdf' })
+
+const { data, error } = await client.admin.ai.uploadDocument(
+  'kb-id',
+  blob,
+  'My PDF Document'
+)
+```
+
+### Upload via REST API
+
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/ai/knowledge-bases/KB_ID/documents/upload \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+  -F "file=@document.pdf" \
+  -F "title=My Document"
+```
+
+### Text Extraction Details
+
+Fluxbase uses specialized libraries to extract text from each file type:
+
+- **PDF**: Extracts text content from all pages, preserving paragraph structure
+- **DOCX**: Extracts text from Word documents including paragraphs and tables
+- **XLSX**: Extracts content from all sheets, preserving cell structure with tab delimiters
+- **HTML**: Strips tags and scripts, extracts visible text content
+- **CSV**: Preserves tabular structure with tab delimiters
+- **RTF**: Removes RTF formatting codes, extracts plain text
+- **EPUB**: Extracts text from all chapters in reading order
+- **Plain text/Markdown/JSON**: Used as-is without transformation
+
+### Best Practices for File Uploads
+
+1. **Clean PDFs**: Ensure PDFs are text-based, not scanned images (OCR not supported)
+2. **Simple formatting**: Documents with simpler formatting extract more cleanly
+3. **File size**: Smaller files process faster; split very large documents if needed
+4. **Text density**: Avoid uploading files with mostly images or charts
+
 ## Chunking Strategies
 
 Choose the chunking strategy that best fits your content:

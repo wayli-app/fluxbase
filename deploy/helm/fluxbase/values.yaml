@@ -841,6 +841,81 @@ serviceAccount:
   automountServiceAccountToken: false
   annotations: {}
 
+## @section Horizontal Scaling Parameters
+## @descriptionStart
+## Configuration for multi-instance deployments.
+## These settings enable distributed rate limiting, cross-instance realtime broadcasting,
+## and scheduler leader election for running multiple Fluxbase instances.
+## @descriptionEnd
+
+## Scaling configuration
+## @param scaling.backend Backend for distributed state. Options: 'local' (single instance), 'postgres', 'redis'
+## @param scaling.enableLeaderElection Enable scheduler leader election using PostgreSQL advisory locks
+##
+scaling:
+  ## Backend for distributed state (rate limiting, pub/sub)
+  ## - local: In-memory storage (default, single instance only)
+  ## - postgres: PostgreSQL-backed (multi-instance without extra dependencies)
+  ## - redis: Redis-compatible backend (Dragonfly recommended for high scale)
+  backend: local
+
+  ## Enable scheduler leader election
+  ## When enabled, only one instance will run cron schedulers
+  ## Uses PostgreSQL advisory locks (no extra dependencies)
+  enableLeaderElection: false
+
+  ## Redis Configuration (Dragonfly recommended)
+  ## Only used when backend is 'redis'
+  ## Dragonfly is 25x faster than Redis with 80% less memory
+  ## Works with: Dragonfly, Redis, Valkey, KeyDB
+  redis:
+    ## @param scaling.redis.enabled Deploy Dragonfly alongside Fluxbase
+    enabled: false
+
+    ## @param scaling.redis.image.registry Dragonfly image registry
+    ## @param scaling.redis.image.repository Dragonfly image repository
+    ## @param scaling.redis.image.tag Dragonfly image tag
+    image:
+      registry: docker.dragonflydb.io
+      repository: dragonflydb/dragonfly
+      tag: latest
+      pullPolicy: IfNotPresent
+
+    ## @param scaling.redis.password Dragonfly password (use existingSecret in production)
+    password: ""
+    ## @param scaling.redis.existingSecret Name of existing secret containing Dragonfly password
+    existingSecret: ""
+    ## @param scaling.redis.existingSecretKey Key name in the existing secret
+    existingSecretKey: "redis-password"
+
+    ## @param scaling.redis.resources Resource requests and limits for Dragonfly
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    ## @param scaling.redis.persistence.enabled Enable persistence for Dragonfly
+    ## @param scaling.redis.persistence.size Size of Dragonfly data volume
+    persistence:
+      enabled: false
+      size: 1Gi
+      storageClass: ""
+
+  ## External Redis configuration
+  ## Used when redis.enabled is false but backend is 'redis'
+  ## @param scaling.externalRedis.host External Redis/Dragonfly host
+  ## @param scaling.externalRedis.port External Redis/Dragonfly port
+  ## @param scaling.externalRedis.password External Redis/Dragonfly password
+  externalRedis:
+    host: ""
+    port: 6379
+    password: ""
+    existingSecret: ""
+    existingSecretKey: "redis-password"
+
 ## @section Autoscaling Parameters
 
 ## Autoscaling configuration

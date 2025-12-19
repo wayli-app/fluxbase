@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { BookOpen, Plus, RefreshCw, Trash2, Settings, Search, FileText, MoreHorizontal } from 'lucide-react'
+import { BookOpen, Plus, RefreshCw, Trash2, Settings, Search, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,12 +25,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -258,46 +256,63 @@ function KnowledgeBasesPage() {
                       <BookOpen className='h-5 w-5' />
                       <CardTitle className='text-lg'>{kb.name}</CardTitle>
                     </div>
-                    <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-1'>
                       <Switch
                         checked={kb.enabled}
                         onCheckedChange={() => toggleEnabled(kb)}
                       />
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                            <MoreHorizontal className='h-4 w-4' />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0'
+                            onClick={() => navigate({ to: `/knowledge-bases/$id`, params: { id: kb.id } })}
+                          >
+                            <FileText className='h-4 w-4' />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            onClick={() => navigate({ to: `/knowledge-bases/${kb.id}` as any })}
+                        </TooltipTrigger>
+                        <TooltipContent>View Documents</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0'
+                            onClick={() => navigate({ to: `/knowledge-bases/$id/search`, params: { id: kb.id } })}
                           >
-                            <FileText className='mr-2 h-4 w-4' />
-                            View Documents
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => navigate({ to: `/knowledge-bases/${kb.id}/search` as any })}
+                            <Search className='h-4 w-4' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Search</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0'
+                            onClick={() => navigate({ to: `/knowledge-bases/$id/settings`, params: { id: kb.id } })}
                           >
-                            <Search className='mr-2 h-4 w-4' />
-                            Search
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => navigate({ to: `/knowledge-bases/${kb.id}/settings` as any })}
-                          >
-                            <Settings className='mr-2 h-4 w-4' />
-                            Settings
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
+                            <Settings className='h-4 w-4' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Settings</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            className='h-8 w-8 p-0 text-destructive hover:text-destructive'
                             onClick={() => setDeleteConfirm(kb.id)}
-                            className='text-destructive'
                           >
-                            <Trash2 className='mr-2 h-4 w-4' />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                   {kb.namespace !== 'default' && (
@@ -319,9 +334,11 @@ function KnowledgeBasesPage() {
                     <Badge variant='secondary'>
                       {kb.total_chunks} chunks
                     </Badge>
-                    <Badge variant='outline' className='text-[10px]'>
-                      {kb.embedding_model}
-                    </Badge>
+                    {kb.embedding_model && (
+                      <Badge variant='outline' className='text-[10px]'>
+                        {kb.embedding_model}
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>

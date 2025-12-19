@@ -2,13 +2,13 @@
 title: "Fluxbase vs Supabase"
 ---
 
-Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~80MB container (~40MB binary). If you're evaluating Fluxbase as a Supabase alternative, this guide highlights key differences.
+Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~110MB container (~70MB binary). If you're evaluating Fluxbase as a Supabase alternative, this guide highlights key differences.
 
 ## Quick Comparison
 
 | Feature                | Supabase                     | Fluxbase                      |
 | ---------------------- | ---------------------------- | ----------------------------- |
-| **Deployment**         | ~13 containers (~2.5GB)      | 1 binary or container (~80MB) |
+| **Deployment**         | ~13 containers (~2.5GB)      | 1 binary or container (~110MB) |
 | **REST API**           | PostgREST                    | ✅ Built-in                   |
 | **Authentication**     | GoTrue (JWT)                 | ✅ Built-in                   |
 | **Realtime**           | WebSocket                    | WebSocket                     |
@@ -18,7 +18,7 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 | **Database**           | PostgreSQL 15+               | PostgreSQL 15+                |
 | **Row-Level Security** | ✅ Yes                       | ✅ Yes                        |
 | **Client SDK**         | TypeScript/JS                | TypeScript/JS                 |
-| **Horizontal Scaling** | ✅ Yes (read replicas)       | Yes (with configuration)\*    |
+| **Horizontal Scaling** | ✅ Yes (read replicas)       | ✅ Yes (distributed backends) |
 | **Hosted Service**     | ✅ Yes (free tier available) | ❌ No(t yet?)                 |
 | **Pricing**            | Free/$25+/month              | Open source (ELv2)            |
 
@@ -129,15 +129,16 @@ Function code requires minor adaptation when switching platforms.
 - You prefer self-hosting with full control
 - You need predictable costs (no usage fees)
 - You want to customize backend code
-- You can configure horizontal scaling infrastructure (load balancer, external DB, S3/MinIO)
+- You want horizontal scaling with just PostgreSQL (no Redis required)
+- You need AI chatbots with database access built-in
 
 ## When to Choose Supabase
 
 - You want a hosted service with free tier
-- You prefer managed infrastructure with automatic scaling
+- You prefer fully managed infrastructure
 - You want professional support
-- You don't want to manage load balancers, databases, or object storage
-- You need built-in read replicas without configuration
+- You don't want to manage any infrastructure
+- You need built-in read replicas and global edge functions
 
 ## Deployment
 
@@ -159,19 +160,36 @@ Not a one-click migration, but API compatibility minimizes code changes.
 
 ## Scaling
 
-**Fluxbase:** Supports both vertical and horizontal scaling\*
+**Fluxbase:** Supports both vertical and horizontal scaling with distributed state backends
 
 **Supabase:** Horizontal scaling with read replicas for high traffic
 
-**\*Fluxbase horizontal scaling requirements:**
+**Fluxbase horizontal scaling features:**
 
-- External PostgreSQL database (not embedded) - stores data + sessions
+- **Distributed rate limiting** - Shared counters across all instances (via PostgreSQL or Redis/Dragonfly)
+- **Cross-instance broadcasts** - Pub/sub for realtime application events
+- **Scheduler leader election** - Prevents duplicate cron job execution
+- **Stateless authentication** - Nonces stored in PostgreSQL for multi-instance auth flows
+
+**Requirements:**
+
+- External PostgreSQL database (stores data, sessions, and distributed state)
 - S3-compatible storage (MinIO, AWS S3, etc.) instead of local filesystem
-- Load balancer with session stickiness for realtime WebSocket connections
+- Load balancer with session stickiness for WebSocket connections
 
-**Note**: Sessions are stored in PostgreSQL (shared across instances). Rate limiting and CSRF are per-instance.
+**Configuration:**
 
-See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for configuration details.
+```bash
+# Enable distributed state (PostgreSQL backend, no extra dependencies)
+FLUXBASE_SCALING_BACKEND=postgres
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+
+# Or use Dragonfly for high-scale (1000+ req/s)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://dragonfly:6379
+```
+
+See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for full configuration details.
 
 ## Resources
 

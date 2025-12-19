@@ -343,6 +343,44 @@ sudo systemctl status fluxbase
 | `LOG_FORMAT`                   | Log format (`json` or `text`)  | `json`          | No          |
 | `METRICS_ENABLED`              | Enable Prometheus metrics      | `true`          | No          |
 
+### Horizontal Scaling
+
+For multi-instance deployments, configure distributed state:
+
+| Variable                                      | Description                     | Default  | Required        |
+| --------------------------------------------- | ------------------------------- | -------- | --------------- |
+| `FLUXBASE_SCALING_BACKEND`                    | Distributed state backend       | `local`  | No              |
+| `FLUXBASE_SCALING_REDIS_URL`                  | Redis/Dragonfly connection URL  | -        | If using redis  |
+| `FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION` | Enable scheduler leader election | `false` | No         |
+
+**Backend Options:**
+
+- `local` - In-memory (single instance only, default)
+- `postgres` - Uses PostgreSQL for distributed state (no extra dependencies)
+- `redis` - Uses Redis-compatible backend (Dragonfly recommended)
+
+**CLI Flags for Worker Mode:**
+
+```bash
+# Run as worker-only (no API server)
+fluxbase --worker-only
+
+# Disable specific components
+fluxbase --disable-scheduler --disable-realtime
+```
+
+**Production Example:**
+
+```bash
+# Multi-instance with PostgreSQL backend
+FLUXBASE_SCALING_BACKEND=postgres
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+
+# Or with Dragonfly for high-scale
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://:password@dragonfly:6379
+```
+
 ### Helm Chart Values
 
 See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configuration options.
@@ -355,6 +393,9 @@ See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configu
 - `ingress.enabled` - Enable ingress (default: false)
 - `autoscaling.enabled` - Enable HPA (default: false)
 - `metrics.enabled` - Enable Prometheus metrics (default: true)
+- `scaling.backend` - Distributed state backend: `local`, `postgres`, or `redis` (default: local)
+- `scaling.enableLeaderElection` - Enable scheduler leader election (default: false)
+- `scaling.redis.enabled` - Deploy Dragonfly for scaling (default: false)
 
 ## Production Checklist
 
@@ -377,6 +418,9 @@ See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configu
 - [ ] Configure health checks (liveness/readiness)
 - [ ] Use rolling updates
 - [ ] Set resource limits
+- [ ] Configure distributed state backend (`postgres` or `redis`)
+- [ ] Enable scheduler leader election
+- [ ] Consider Dragonfly for high-scale deployments (1000+ req/s)
 - [ ] Enable autoscaling (HPA)
 - [ ] Configure PodDisruptionBudget
 

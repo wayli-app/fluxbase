@@ -355,36 +355,42 @@ Response:
 
 ---
 
-## Distributed Rate Limiting (Redis)
+## Distributed Rate Limiting
 
-For multi-instance deployments, use Redis for distributed rate limiting:
+For multi-instance deployments, use a distributed backend for rate limiting:
 
-### Enable Redis
+### Configure Scaling Backend
 
 ```bash
-# .env
-FLUXBASE_REDIS_ENABLED=true
-FLUXBASE_REDIS_HOST=redis
-FLUXBASE_REDIS_PORT=6379
-FLUXBASE_REDIS_PASSWORD=your-redis-password
-FLUXBASE_REDIS_DB=0
+# Option 1: PostgreSQL (recommended, no extra dependencies)
+FLUXBASE_SCALING_BACKEND=postgres
+
+# Option 2: Redis/Dragonfly (for high-scale, 1000+ req/s)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://dragonfly:6379
 ```
 
 ```yaml
 # fluxbase.yaml
-redis:
-  enabled: true
-  host: redis
-  port: 6379
-  password: your-redis-password
-  db: 0
-  pool_size: 10
+scaling:
+  backend: postgres  # or "redis"
+  redis_url: ""      # only needed if backend is redis
 ```
+
+**Backend Comparison:**
+
+| Backend | Use Case | Performance |
+|---------|----------|-------------|
+| `local` | Single instance (default) | Fastest, in-memory |
+| `postgres` | Multi-instance, < 1000 req/s | Good, uses UPSERT |
+| `redis` | High-scale, > 1000 req/s | Best, in-memory distributed |
+
+**Dragonfly Recommended:** For the `redis` backend, we recommend [Dragonfly](https://dragonflydb.io/) - a Redis-compatible datastore that is 25x faster with 80% less memory than Redis.
 
 **Benefits**:
 - Shared rate limit state across all Fluxbase instances
 - Consistent rate limiting in horizontal scaling
-- Persistent rate limit counters (survives restarts)
+- No sticky sessions required
 
 **Architecture**:
 
@@ -405,11 +411,11 @@ redis:
   │         │        │      │
   └─────────┴────────┴──────┘
             │
-      ┌─────▼──────┐
-      │   Redis    │
-      │  (Shared   │
-      │   State)   │
-      └────────────┘
+   ┌────────▼─────────┐
+   │ PostgreSQL or    │
+   │ Dragonfly/Redis  │
+   │  (Shared State)  │
+   └──────────────────┘
 ```
 
 ---

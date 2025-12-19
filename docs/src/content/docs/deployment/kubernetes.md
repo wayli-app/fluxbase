@@ -286,6 +286,81 @@ See [values.yaml](https://github.com/your-org/fluxbase/blob/main/deploy/helm/flu
 | `autoscaling.enabled` | Enable HPA                    | false                               |
 | `metrics.enabled`     | Expose Prometheus metrics     | true                                |
 | `persistence.enabled` | Enable persistent storage     | true                                |
+| `scaling.backend`     | Distributed state backend     | local                               |
+| `scaling.enableLeaderElection` | Scheduler leader election | false                        |
+| `scaling.redis.enabled` | Deploy Dragonfly for scaling | false                              |
+
+---
+
+## Horizontal Scaling Configuration
+
+For multi-instance deployments, configure distributed state backends:
+
+### Enable Distributed State
+
+```yaml
+# values.yaml
+scaling:
+  # Backend: "local" (single instance), "postgres", or "redis"
+  backend: postgres
+
+  # Enable scheduler leader election (prevents duplicate cron jobs)
+  enableLeaderElection: true
+
+  # Optional: Deploy Dragonfly (Redis-compatible) for high-scale
+  redis:
+    enabled: false  # Set to true to deploy Dragonfly
+    image:
+      repository: docker.dragonflydb.io/dragonflydb/dragonfly
+      tag: latest
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Or use external Redis/Dragonfly
+  externalRedis:
+    host: ""
+    port: 6379
+    password: ""
+    existingSecret: ""
+    existingSecretKey: "redis-password"
+```
+
+### Backend Options
+
+| Backend | Use Case | Configuration |
+|---------|----------|---------------|
+| `local` | Single instance (default) | No config needed |
+| `postgres` | Multi-instance, no extra dependencies | `scaling.backend: postgres` |
+| `redis` | High-scale (1000+ req/s) | `scaling.backend: redis` + Dragonfly |
+
+**What's distributed with postgres/redis backend:**
+
+- Rate limiting (shared counters)
+- Realtime broadcasts (cross-instance pub/sub)
+- Scheduler coordination (leader election)
+- Nonce validation (stateless auth)
+
+### Production Example with Scaling
+
+```yaml
+# production-values.yaml
+replicaCount: 5
+
+scaling:
+  backend: postgres
+  enableLeaderElection: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPU: 70
+```
 
 ---
 

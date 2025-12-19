@@ -112,7 +112,16 @@ type SystemHealth struct {
 var startTime = time.Now()
 
 // GetMetrics returns system metrics
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetMetrics(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if role != "admin" && role != "dashboard_admin" && role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to view system metrics",
+		})
+	}
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -198,7 +207,16 @@ func (h *MonitoringHandler) GetMetrics(c *fiber.Ctx) error {
 }
 
 // GetHealth returns the health status of all system components
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetHealth(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if role != "admin" && role != "dashboard_admin" && role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to view system health",
+		})
+	}
+
 	health := SystemHealth{
 		Status:   "healthy",
 		Services: make(map[string]HealthStatus),
@@ -275,7 +293,16 @@ type LogEntry struct {
 }
 
 // GetLogs returns recent application logs
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (h *MonitoringHandler) GetLogs(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if role != "admin" && role != "dashboard_admin" && role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to view logs",
+		})
+	}
+
 	// For MVP, return a placeholder indicating logs are not yet stored
 	// In production, this would query from a log storage system (e.g., database table, file, or external service)
 

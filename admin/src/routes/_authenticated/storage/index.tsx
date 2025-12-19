@@ -55,18 +55,25 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
-import { storageApi, type StorageObject, type Bucket } from '@/lib/api'
+import { useFluxbaseClient } from '@fluxbase/sdk-react'
+import type { AdminStorageObject, AdminBucket } from '@fluxbase/sdk'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { useImpersonationStore } from '@/stores/impersonation-store'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const Route = createFileRoute('/_authenticated/storage/')({
   component: StorageBrowser,
 })
 
 function StorageBrowser() {
+  const client = useFluxbaseClient()
+
   // State
-  const [buckets, setBuckets] = useState<Bucket[]>([])
+  const [buckets, setBuckets] = useState<AdminBucket[]>([])
   const [selectedBucket, setSelectedBucket] = useState<string>('')
   const [currentPrefix, setCurrentPrefix] = useState<string>('')
-  const [objects, setObjects] = useState<StorageObject[]>([])
+  const [objects, setObjects] = useState<AdminStorageObject[]>([])
   const [prefixes, setPrefixes] = useState<string[]>([])
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -79,13 +86,17 @@ function StorageBrowser() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showFilePreview, setShowFilePreview] = useState(false)
   const [showCreateFolder, setShowCreateFolder] = useState(false)
-  const [previewFile, setPreviewFile] = useState<StorageObject | null>(null)
+  const [showDeleteBucketConfirm, setShowDeleteBucketConfirm] = useState(false)
+  const [deletingBucketName, setDeletingBucketName] = useState<string | null>(null)
+  const [showDeleteFileConfirm, setShowDeleteFileConfirm] = useState(false)
+  const [deletingFilePath, setDeletingFilePath] = useState<string | null>(null)
+  const [previewFile, setPreviewFile] = useState<AdminStorageObject | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>('')
   const [newBucketName, setNewBucketName] = useState('')
   const [newFolderName, setNewFolderName] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [showMetadata, setShowMetadata] = useState(false)
-  const [metadataFile, setMetadataFile] = useState<StorageObject | null>(null)
+  const [metadataFile, setMetadataFile] = useState<AdminStorageObject | null>(null)
   const [signedUrl, setSignedUrl] = useState<string>('')
   const [signedUrlExpiry, setSignedUrlExpiry] = useState<number>(3600)
   const [generatingUrl, setGeneratingUrl] = useState(false)
@@ -111,9 +122,10 @@ function StorageBrowser() {
   const loadBuckets = async () => {
     setLoading(true)
     try {
-      const data = await storageApi.listBuckets()
-      setBuckets(data.buckets || [])
-      if (data.buckets && data.buckets.length > 0 && !selectedBucket) {
+      const { data, error } = await client.admin.storage.listBuckets()
+      if (error) throw error
+      setBuckets(data?.buckets || [])
+      if (data?.buckets && data.buckets.length > 0 && !selectedBucket) {
         setSelectedBucket(data.buckets[0].name)
       }
     } catch (error: unknown) {
@@ -129,9 +141,10 @@ function StorageBrowser() {
 
     setLoading(true)
     try {
-      const data = await storageApi.listObjects(selectedBucket, currentPrefix || undefined, '/')
-      setObjects(data.objects || [])
-      setPrefixes(data.prefixes || [])
+      const { data, error } = await client.admin.storage.listObjects(selectedBucket, currentPrefix || undefined, '/')
+      if (error) throw error
+      setObjects(data?.objects || [])
+      setPrefixes(data?.prefixes || [])
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to load files: ${errorMessage}`)
@@ -148,7 +161,8 @@ function StorageBrowser() {
 
     setLoading(true)
     try {
-      await storageApi.createBucket(newBucketName)
+      const { error } = await client.admin.storage.createBucket(newBucketName)
+      if (error) throw error
       toast.success(`Bucket "${newBucketName}" created`)
       setShowCreateBucket(false)
       setNewBucketName('')
@@ -165,7 +179,8 @@ function StorageBrowser() {
   const deleteBucket = async (bucketName: string) => {
     setLoading(true)
     try {
-      await storageApi.deleteBucket(bucketName)
+      const { error } = await client.admin.storage.deleteBucket(bucketName)
+      if (error) throw error
       toast.success(`Bucket "${bucketName}" deleted`)
       await loadBuckets()
       if (selectedBucket === bucketName) {
@@ -193,7 +208,11 @@ function StorageBrowser() {
       // Upload files sequentially
       for (const file of filesArray) {
         const key = currentPrefix ? `${currentPrefix}${file.name}` : file.name
-        const token = localStorage.getItem('fluxbase-auth-token')
+        // Use impersonation token if active, otherwise use admin token
+        const { isImpersonating: isImpersonatingNow, impersonationToken: impersonationTokenNow } = useImpersonationStore.getState()
+        const token = isImpersonatingNow && impersonationTokenNow
+          ? impersonationTokenNow
+          : localStorage.getItem('fluxbase-auth-token')
 
         // Set initial progress
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }))
@@ -306,7 +325,9 @@ function StorageBrowser() {
     if (!selectedBucket) return
 
     try {
-      const blob = await storageApi.downloadObject(selectedBucket, key)
+      const { data: blob, error } = await client.admin.storage.downloadObject(selectedBucket, key)
+      if (error) throw error
+      if (!blob) throw new Error('No data received')
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -326,7 +347,8 @@ function StorageBrowser() {
     if (!selectedBucket) return
 
     try {
-      await storageApi.deleteObject(selectedBucket, key)
+      const { error } = await client.admin.storage.deleteObject(selectedBucket, key)
+      if (error) throw error
       toast.success('File deleted')
       await loadObjects()
       setSelectedFiles(prev => {
@@ -349,7 +371,8 @@ function StorageBrowser() {
 
     for (const key of files) {
       try {
-        await storageApi.deleteObject(selectedBucket, key)
+        const { error } = await client.admin.storage.deleteObject(selectedBucket, key)
+        if (error) throw error
         successCount++
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -372,7 +395,7 @@ function StorageBrowser() {
     setShowDeleteConfirm(false)
   }
 
-  const previewFileHandler = async (obj: StorageObject) => {
+  const previewFileHandler = async (obj: AdminStorageObject) => {
     if (!selectedBucket) return
 
     // Check if file is previewable
@@ -387,7 +410,9 @@ function StorageBrowser() {
     }
 
     try {
-      const blob = await storageApi.downloadObject(selectedBucket, obj.path)
+      const { data: blob, error } = await client.admin.storage.downloadObject(selectedBucket, obj.path)
+      if (error) throw error
+      if (!blob) throw new Error('No data received')
       if (isImage) {
         const url = URL.createObjectURL(blob)
         setPreviewUrl(url)
@@ -421,7 +446,8 @@ function StorageBrowser() {
         ? `${currentPrefix}${newFolderName.trim()}/.keep`
         : `${newFolderName.trim()}/.keep`
 
-      await storageApi.createFolder(selectedBucket, folderPath)
+      const { error } = await client.admin.storage.createFolder(selectedBucket, folderPath)
+      if (error) throw error
       toast.success(`Folder "${newFolderName}" created`)
       setShowCreateFolder(false)
       setNewFolderName('')
@@ -434,7 +460,7 @@ function StorageBrowser() {
     }
   }
 
-  const openFileMetadata = async (file: StorageObject) => {
+  const openFileMetadata = async (file: AdminStorageObject) => {
     setMetadataFile(file)
     setShowMetadata(true)
     setSignedUrl('') // Reset signed URL
@@ -448,7 +474,9 @@ function StorageBrowser() {
 
     setGeneratingUrl(true)
     try {
-      const data = await storageApi.generateSignedUrl(selectedBucket, metadataFile.path, signedUrlExpiry)
+      const { data, error } = await client.admin.storage.generateSignedUrl(selectedBucket, metadataFile.path, signedUrlExpiry)
+      if (error) throw error
+      if (!data) throw new Error('No data received')
       setSignedUrl(data.url)
       toast.success('Signed URL generated')
     } catch (error: unknown) {
@@ -633,9 +661,8 @@ function StorageBrowser() {
                   className="h-6 w-6 opacity-0 group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`Delete bucket "${bucket.name}"?`)) {
-                      deleteBucket(bucket.name)
-                    }
+                    setDeletingBucketName(bucket.name)
+                    setShowDeleteBucketConfirm(true)
                   }}
                 >
                   <Trash2 className="h-3 w-3" />
@@ -666,6 +693,7 @@ function StorageBrowser() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
+        <ImpersonationBanner />
         {selectedBucket ? (
           <>
             {/* Toolbar */}
@@ -760,6 +788,11 @@ function StorageBrowser() {
                     <Upload className="h-4 w-4 mr-2" />
                     {uploading ? 'Uploading...' : 'Upload'}
                   </Button>
+
+                  <ImpersonationPopover
+                    contextLabel="Browsing as"
+                    defaultReason="Storage browser testing"
+                  />
                 </div>
 
                 {/* File Type Filter Chips */}
@@ -970,9 +1003,8 @@ function StorageBrowser() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            if (confirm(`Delete "${obj.path}"?`)) {
-                              deleteFile(obj.path)
-                            }
+                            setDeletingFilePath(obj.path)
+                            setShowDeleteFileConfirm(true)
                           }}
                           title="Delete"
                         >
@@ -1141,6 +1173,40 @@ function StorageBrowser() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Bucket Confirmation */}
+      <ConfirmDialog
+        open={showDeleteBucketConfirm}
+        onOpenChange={setShowDeleteBucketConfirm}
+        title="Delete Bucket"
+        desc={`Are you sure you want to delete the bucket "${deletingBucketName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        destructive
+        handleConfirm={() => {
+          if (deletingBucketName) {
+            deleteBucket(deletingBucketName)
+          }
+          setShowDeleteBucketConfirm(false)
+          setDeletingBucketName(null)
+        }}
+      />
+
+      {/* Delete File Confirmation */}
+      <ConfirmDialog
+        open={showDeleteFileConfirm}
+        onOpenChange={setShowDeleteFileConfirm}
+        title="Delete File"
+        desc={`Are you sure you want to delete "${deletingFilePath}"? This action cannot be undone.`}
+        confirmText="Delete"
+        destructive
+        handleConfirm={() => {
+          if (deletingFilePath) {
+            deleteFile(deletingFilePath)
+          }
+          setShowDeleteFileConfirm(false)
+          setDeletingFilePath(null)
+        }}
+      />
 
       {/* File Metadata Sheet */}
       <Sheet open={showMetadata} onOpenChange={setShowMetadata}>

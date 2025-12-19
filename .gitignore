@@ -62,6 +62,7 @@ sdk-react/dist/
 
 # Generated embedded SDK for Jobs runtime (generated during CI)
 internal/jobs/embedded_sdk.js
+internal/runtime/embedded_sdk.js
 
 # Documentation built assets
 docs/build/

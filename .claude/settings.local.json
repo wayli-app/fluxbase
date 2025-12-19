@@ -63,7 +63,9 @@
       "Bash(go get:*)",
       "Bash(xargs:*)",
       "Bash(npx eslint:*)",
-      "Bash(timeout 60 npm run type-check)"
+      "Bash(timeout 60 npm run type-check)",
+      "Bash(go doc:*)",
+      "Bash(./build/fluxbase-cli completion:*)"
     ],
     "deny": [],
     "ask": []

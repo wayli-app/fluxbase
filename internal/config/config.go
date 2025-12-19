@@ -29,8 +29,40 @@ type Config struct {
 	Tracing    TracingConfig    `mapstructure:"tracing"`
 	AI         AIConfig         `mapstructure:"ai"`
 	RPC        RPCConfig        `mapstructure:"rpc"`
+	Scaling    ScalingConfig    `mapstructure:"scaling"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
+}
+
+// ScalingConfig contains horizontal scaling settings for multi-instance deployments
+type ScalingConfig struct {
+	// WorkerOnly mode disables the API server and only runs job workers
+	// Use this for dedicated worker containers that only process background jobs
+	WorkerOnly bool `mapstructure:"worker_only"`
+
+	// DisableScheduler prevents cron schedulers from running on this instance
+	// Use this when running multiple instances to prevent duplicate scheduled jobs
+	// Only one instance should run the scheduler (use leader election or manual config)
+	DisableScheduler bool `mapstructure:"disable_scheduler"`
+
+	// DisableRealtime prevents the realtime listener from starting
+	// Useful for worker-only instances or when using an external realtime service
+	DisableRealtime bool `mapstructure:"disable_realtime"`
+
+	// EnableSchedulerLeaderElection enables automatic leader election for schedulers
+	// When enabled, only one instance will run schedulers using PostgreSQL advisory locks
+	// This is the recommended setting for multi-instance deployments
+	EnableSchedulerLeaderElection bool `mapstructure:"enable_scheduler_leader_election"`
+
+	// Backend for distributed state (rate limiting, pub/sub, sessions)
+	// Options: "local" (single instance), "postgres", "redis"
+	// "redis" works with Dragonfly (recommended), Redis, Valkey, KeyDB
+	Backend string `mapstructure:"backend"`
+
+	// RedisURL is the connection URL for Redis-compatible backends (Dragonfly recommended)
+	// Only used when Backend is "redis"
+	// Format: redis://[password@]host:port[/db]
+	RedisURL string `mapstructure:"redis_url"`
 }
 
 // TracingConfig contains OpenTelemetry tracing settings
@@ -274,6 +306,11 @@ type AIConfig struct {
 	// Ollama Settings
 	OllamaEndpoint string `mapstructure:"ollama_endpoint"`
 	OllamaModel    string `mapstructure:"ollama_model"`
+
+	// OCR Configuration (for image-based PDF extraction in knowledge bases)
+	OCREnabled   bool     `mapstructure:"ocr_enabled"`   // Enable OCR for image-based PDFs
+	OCRProvider  string   `mapstructure:"ocr_provider"`  // OCR provider: tesseract
+	OCRLanguages []string `mapstructure:"ocr_languages"` // Default languages for OCR (e.g., ["eng", "deu"])
 }
 
 // RPCConfig contains RPC (Remote Procedure Call) configuration
@@ -570,6 +607,11 @@ func setDefaults() {
 	viper.SetDefault("ai.embedding_model", "text-embedding-3-small") // Default OpenAI embedding model
 	viper.SetDefault("ai.azure_embedding_deployment_name", "")       // Optional separate Azure embedding deployment
 
+	// AI OCR Configuration defaults (for image-based PDF extraction)
+	viper.SetDefault("ai.ocr_enabled", true)               // Enabled by default (will gracefully degrade if Tesseract not installed)
+	viper.SetDefault("ai.ocr_provider", "tesseract")       // Default OCR provider
+	viper.SetDefault("ai.ocr_languages", []string{"eng"})  // Default to English
+
 	// RPC defaults
 	viper.SetDefault("rpc.enabled", true)                     // Enabled by default (controlled by feature flag at runtime)
 	viper.SetDefault("rpc.procedures_dir", "./rpc")           // Default procedures directory
@@ -583,6 +625,14 @@ func setDefaults() {
 		"192.168.0.0/16", // Private networks
 		"127.0.0.0/8",    // Loopback (localhost)
 	})
+
+	// Scaling defaults (for multi-instance deployments)
+	viper.SetDefault("scaling.worker_only", false)                      // Run full server by default
+	viper.SetDefault("scaling.disable_scheduler", false)                // Run schedulers by default
+	viper.SetDefault("scaling.disable_realtime", false)                 // Run realtime by default
+	viper.SetDefault("scaling.enable_scheduler_leader_election", false) // Disabled by default (single instance)
+	viper.SetDefault("scaling.backend", "local")                        // Use local in-memory storage by default
+	viper.SetDefault("scaling.redis_url", "")                           // No Redis URL by default
 
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
@@ -654,6 +704,11 @@ func (c *Config) Validate() error {
 		if err := c.AI.Validate(); err != nil {
 			return fmt.Errorf("ai configuration error: %w", err)
 		}
+	}
+
+	// Validate scaling configuration
+	if err := c.Scaling.Validate(); err != nil {
+		return fmt.Errorf("scaling configuration error: %w", err)
 	}
 
 	// Validate base URL
@@ -1109,6 +1164,38 @@ func (tc *TracingConfig) Validate() error {
 	// Warn if sample rate is 100% in production
 	if tc.Environment == "production" && tc.SampleRate >= 1.0 {
 		log.Warn().Msg("Tracing sample_rate is 100% in production - consider reducing to lower overhead")
+	}
+
+	return nil
+}
+
+// Validate validates scaling configuration
+func (sc *ScalingConfig) Validate() error {
+	// Validate backend
+	validBackends := []string{"local", "postgres", "redis"}
+	backendValid := false
+	for _, b := range validBackends {
+		if sc.Backend == b {
+			backendValid = true
+			break
+		}
+	}
+	if !backendValid {
+		return fmt.Errorf("invalid scaling backend: %s (must be one of: %v)", sc.Backend, validBackends)
+	}
+
+	// Validate redis_url is set when backend is redis
+	if sc.Backend == "redis" && sc.RedisURL == "" {
+		return fmt.Errorf("redis_url is required when scaling backend is 'redis'")
+	}
+
+	// Warn about conflicting settings
+	if sc.WorkerOnly && !sc.DisableScheduler {
+		log.Warn().Msg("Worker-only mode is enabled but scheduler is not disabled - consider setting disable_scheduler=true for worker containers")
+	}
+
+	if sc.WorkerOnly && !sc.DisableRealtime {
+		log.Warn().Msg("Worker-only mode is enabled but realtime is not disabled - realtime will be skipped in worker-only mode anyway")
 	}
 
 	return nil

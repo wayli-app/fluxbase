@@ -95,3 +95,13 @@ CREATE SCHEMA IF NOT EXISTS rpc;
 GRANT USAGE, CREATE ON SCHEMA rpc TO CURRENT_USER;
 
 COMMENT ON SCHEMA rpc IS 'Stored procedure definitions and executions';
+
+--
+-- SYSTEM SCHEMA
+-- Handles system-level infrastructure tables for scaling and distributed operations
+--
+
+CREATE SCHEMA IF NOT EXISTS system;
+GRANT USAGE, CREATE ON SCHEMA system TO CURRENT_USER;
+
+COMMENT ON SCHEMA system IS 'System-level infrastructure for scaling and distributed operations';

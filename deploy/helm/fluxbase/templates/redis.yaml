@@ -1,0 +1,136 @@
+{{- if and (eq .Values.scaling.backend "redis") .Values.scaling.redis.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-redis
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: redis
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.scaling.redis.image.registry }}/{{ .Values.scaling.redis.image.repository }}:{{ .Values.scaling.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.scaling.redis.image.pullPolicy }}
+          {{- if or .Values.scaling.redis.password .Values.scaling.redis.existingSecret }}
+          args:
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+          {{- end }}
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          {{- if or .Values.scaling.redis.password .Values.scaling.redis.existingSecret }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.scaling.redis.existingSecret }}
+                  name: {{ .Values.scaling.redis.existingSecret }}
+                  key: {{ .Values.scaling.redis.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "fluxbase.fullname" . }}-redis
+                  key: redis-password
+                  {{- end }}
+          {{- end }}
+          resources: {{- toYaml .Values.scaling.redis.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                {{- if or .Values.scaling.redis.password .Values.scaling.redis.existingSecret }}
+                - -a
+                - $(REDIS_PASSWORD)
+                {{- end }}
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                {{- if or .Values.scaling.redis.password .Values.scaling.redis.existingSecret }}
+                - -a
+                - $(REDIS_PASSWORD)
+                {{- end }}
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- if .Values.scaling.redis.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if .Values.scaling.redis.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "fluxbase.fullname" . }}-redis
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-redis
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector: {{- include "common.labels.matchLabels" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- if and .Values.scaling.redis.password (not .Values.scaling.redis.existingSecret) }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-redis
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: redis
+type: Opaque
+data:
+  redis-password: {{ .Values.scaling.redis.password | b64enc | quote }}
+{{- end }}
+{{- if .Values.scaling.redis.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-redis
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.scaling.redis.persistence.size }}
+  {{- if .Values.scaling.redis.persistence.storageClass }}
+  storageClassName: {{ .Values.scaling.redis.persistence.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

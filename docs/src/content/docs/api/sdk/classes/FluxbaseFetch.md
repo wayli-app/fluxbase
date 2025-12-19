@@ -77,6 +77,25 @@ GET request
 
 ***
 
+### getBlob()
+
+> **getBlob**(`path`, `options`): `Promise`\<`Blob`\>
+
+GET request that returns response as Blob (for file downloads)
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `path` | `string` |
+| `options` | `Omit`\<`FetchOptions`, `"method"`\> |
+
+#### Returns
+
+`Promise`\<`Blob`\>
+
+***
+
 ### getWithHeaders()
 
 > **getWithHeaders**\<`T`\>(`path`, `options`): `Promise`\<`FetchResponseWithHeaders`\<`T`\>\>

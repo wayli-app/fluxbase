@@ -99,19 +99,24 @@ To scale Fluxbase horizontally across multiple instances, you need to ensure all
 - Configure sticky sessions based on source IP or cookies
 - Ensures WebSocket connections remain on the same instance
 
-#### Current Limitations
+#### Distributed State Backends
 
-⚠️ **Per-Instance State** (not shared across instances):
+Fluxbase supports **pluggable backends** for distributed state, enabling true horizontal scaling without session stickiness:
 
-- **Rate limiting**: Request counters are stored in-memory per instance
-- **CSRF tokens**: Anti-CSRF tokens are stored in-memory per instance
-- Session stickiness helps mitigate these limitations for individual users
+| Backend | Use Case | Configuration |
+|---------|----------|---------------|
+| `local` | Single instance (default) | No config needed |
+| `postgres` | Multi-instance, no extra dependencies | `FLUXBASE_SCALING_BACKEND=postgres` |
+| `redis` | High-scale (1000+ req/s) | `FLUXBASE_SCALING_BACKEND=redis` |
 
-💡 **Future Enhancement**: Redis support planned to enable:
+**What's distributed:**
 
-- Shared rate limiting across all instances
-- Shared CSRF token validation
-- Faster session lookups (compared to PostgreSQL)
+- ✅ **Rate limiting** - Shared counters across all instances
+- ✅ **Realtime broadcasts** - Cross-instance pub/sub
+- ✅ **Scheduler coordination** - Leader election prevents duplicate cron jobs
+- ✅ **Nonce validation** - PostgreSQL-backed for stateless auth
+
+**Dragonfly Recommended**: For the `redis` backend, we recommend [Dragonfly](https://dragonflydb.io/) - a Redis-compatible datastore that is 25x faster with 80% less memory. Works with standard `go-redis` library.
 
 #### Configuration Example
 
@@ -354,10 +359,10 @@ graph TB
 **Key Points:**
 
 - Each Fluxbase instance shares state via external PostgreSQL and S3/MinIO
-- **PostgreSQL** stores: Database records + authentication sessions + token blacklist
+- **PostgreSQL** stores: Database records + authentication sessions + token blacklist + rate limits + nonces
 - **MinIO/S3** stores: User-uploaded files and objects
 - Load balancer uses session stickiness to route WebSocket connections consistently
-- Rate limiting and CSRF tokens are per-instance (not shared)
+- With distributed backends (`postgres` or `redis`), rate limiting is shared across instances
 
 #### Why Session Stickiness for Realtime?
 
@@ -369,7 +374,73 @@ Fluxbase uses PostgreSQL's `LISTEN/NOTIFY` for realtime subscriptions. Each inst
 
 Without sticky sessions, a client might establish a WebSocket on Instance 1, but subsequent requests could route to Instance 2, breaking the realtime connection.
 
-## **Alternative:** Implement Redis Pub/Sub for realtime (future feature) to eliminate the need for sticky sessions.
+### Cross-Instance Broadcasting
+
+For application-level broadcasts (chat messages, custom events, presence), Fluxbase supports **cross-instance pub/sub**:
+
+```bash
+# Use PostgreSQL LISTEN/NOTIFY (default, no extra dependencies)
+FLUXBASE_SCALING_BACKEND=postgres
+
+# Or use Redis/Dragonfly for higher throughput (1000+ instances)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://dragonfly:6379
+```
+
+When configured, broadcasts sent via `BroadcastGlobal()` are delivered to clients connected to **any** instance, not just the originating instance.
+
+## Worker Scaling
+
+### Dedicated Worker Containers
+
+For high-throughput job processing, you can run dedicated worker containers that don't serve API traffic:
+
+```bash
+# Worker-only mode: disable API server, realtime, and scheduler
+fluxbase --worker-only
+
+# Or disable specific components
+fluxbase --disable-scheduler --disable-realtime
+```
+
+**Docker Compose Example:**
+
+```yaml
+services:
+  # API instances (handle HTTP traffic)
+  fluxbase-api:
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
+    environment:
+      FLUXBASE_SCALING_BACKEND: postgres
+      FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION: "true"
+    deploy:
+      replicas: 3
+
+  # Worker instances (process background jobs only)
+  fluxbase-worker:
+    image: ghcr.io/fluxbase-eu/fluxbase:latest
+    command: ["fluxbase", "--worker-only"]
+    environment:
+      FLUXBASE_SCALING_BACKEND: postgres
+    deploy:
+      replicas: 5
+```
+
+### Scheduler Leader Election
+
+When running multiple instances, only **one** should execute scheduled jobs to prevent duplicates. Fluxbase uses PostgreSQL advisory locks for leader election:
+
+```bash
+# Enable leader election (recommended for multi-instance)
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+```
+
+With leader election enabled:
+
+- All instances attempt to acquire the scheduler lock
+- Only the lock holder runs cron jobs
+- If the leader fails, another instance automatically takes over
+- Lock is released gracefully on shutdown
 
 ## Application Scaling
 

@@ -318,6 +318,54 @@ var HttpRequestTool = Tool{
 	},
 }
 
+// VectorSearchTool is the standard tool definition for searching knowledge bases
+var VectorSearchTool = Tool{
+	Type: "function",
+	Function: ToolFunction{
+		Name:        "vector_search",
+		Description: "Search the knowledge base for relevant information using semantic similarity. Use this to find specific information when the automatically provided context is insufficient or when you need to search for something specific.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{
+					"type":        "string",
+					"description": "The search query to find relevant content in the knowledge base",
+				},
+				"knowledge_bases": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Optional: Names of specific knowledge bases to search. If not provided, searches all linked knowledge bases.",
+				},
+				"limit": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum number of results to return (1-20, default: 5)",
+					"minimum":     1,
+					"maximum":     20,
+				},
+				"threshold": map[string]interface{}{
+					"type":        "number",
+					"description": "Minimum similarity score (0-1, default: 0.7). Higher values return more relevant but fewer results.",
+					"minimum":     0,
+					"maximum":     1,
+				},
+				"tags": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Optional: Filter results to documents with these tags",
+				},
+				"metadata": map[string]interface{}{
+					"type":        "object",
+					"description": "Optional: Filter results by document metadata fields. Keys are field names (e.g., 'city', 'category'), values are exact matches.",
+					"additionalProperties": map[string]interface{}{
+						"type": "string",
+					},
+				},
+			},
+			"required": []string{"query"},
+		},
+	},
+}
+
 // ReadCloserWrapper wraps an io.Reader with a no-op Close method
 type ReadCloserWrapper struct {
 	io.Reader

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { AIProvider, UpdateAIProviderRequest } from '@fluxbase/sdk'
+import { useFluxbaseClient } from '@fluxbase/sdk-react'
 import { Bot, Plus, Trash2, Star, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AIProvider, UpdateAIProviderRequest } from '@/lib/api'
-import { getAccessToken } from '@/lib/auth'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,43 +57,29 @@ interface CreateProviderRequest {
 }
 
 export function AIProvidersTab() {
+  const client = useFluxbaseClient()
   const queryClient = useQueryClient()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editProvider, setEditProvider] = useState<AIProvider | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<AIProvider | null>(null)
 
-  // Fetch providers
-  const { data: providersData, isLoading } = useQuery<{
-    providers: AIProvider[]
-  }>({
+  // Fetch providers using SDK
+  const { data: providersData, isLoading } = useQuery({
     queryKey: ['ai-providers'],
     queryFn: async () => {
-      const response = await fetch('/api/v1/admin/ai/providers', {
-        headers: {
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch providers')
-      return response.json()
+      const { data, error } = await client.admin.ai.listProviders()
+      if (error) throw error
+      return data
     },
   })
 
   const providers: AIProvider[] = providersData?.providers || []
 
-  // Set default provider mutation
+  // Set default provider mutation using SDK
   const setDefaultMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/admin/ai/providers/${id}/default`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to set default provider')
-      }
-      return response.json()
+      const { error } = await client.admin.ai.setDefaultProvider(id)
+      if (error) throw error
     },
     onSuccess: () => {
       toast.success('Default provider updated')
@@ -104,20 +90,11 @@ export function AIProvidersTab() {
     },
   })
 
-  // Delete provider mutation
+  // Delete provider mutation using SDK
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/v1/admin/ai/providers/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete provider')
-      }
-      return response.json()
+      const { error } = await client.admin.ai.deleteProvider(id)
+      if (error) throw error
     },
     onSuccess: () => {
       toast.success('Provider deleted')
@@ -129,22 +106,11 @@ export function AIProvidersTab() {
     },
   })
 
-  // Create provider mutation
+  // Create provider mutation using SDK
   const createMutation = useMutation({
     mutationFn: async (data: CreateProviderRequest) => {
-      const response = await fetch('/api/v1/admin/ai/providers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create provider')
-      }
-      return response.json()
+      const { error } = await client.admin.ai.createProvider(data)
+      if (error) throw error
     },
     onSuccess: () => {
       toast.success('Provider created')
@@ -156,7 +122,7 @@ export function AIProvidersTab() {
     },
   })
 
-  // Update provider mutation
+  // Update provider mutation using SDK
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -165,19 +131,8 @@ export function AIProvidersTab() {
       id: string
       data: UpdateAIProviderRequest
     }) => {
-      const response = await fetch(`/api/v1/admin/ai/providers/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update provider')
-      }
-      return response.json()
+      const { error } = await client.admin.ai.updateProvider(id, data)
+      if (error) throw error
     },
     onSuccess: () => {
       toast.success('Provider updated')

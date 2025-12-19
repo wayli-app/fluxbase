@@ -44,6 +44,7 @@ import {
 import { EditableCell } from './editable-cell'
 import { RecordEditDialog } from './record-edit-dialog'
 import { TableRowActions } from './table-row-actions'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const route = getRouteApi('/_authenticated/tables/')
 
@@ -63,6 +64,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   > | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [density, setDensity] = useState<TableDensity>('compact')
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
 
   // Impersonation state for access denied message
   const {
@@ -363,6 +365,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     return allColumns
   }, [data, deleteMutate, updateMutateAsync, tableColumns])
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns non-memoizable functions by design
   const table = useReactTable<Record<string, unknown>>({
     data: (data || []) as Record<string, unknown>[],
     columns,
@@ -405,16 +408,17 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const selectedCount = selectedRows.length
 
   const handleBulkDelete = () => {
-    const selectedIds = selectedRows.map((row) => String(row.original.id))
-    if (selectedIds.length === 0) return
+    if (selectedRows.length === 0) return
+    setShowBulkDeleteConfirm(true)
+  }
 
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedIds.length} record${selectedIds.length !== 1 ? 's' : ''}? This action cannot be undone.`
-      )
-    ) {
-      bulkDeleteMutation.mutate(selectedIds)
-    }
+  const confirmBulkDelete = () => {
+    const selectedIds = selectedRows.map((row) => String(row.original.id))
+    bulkDeleteMutation.mutate(selectedIds, {
+      onSuccess: () => {
+        setShowBulkDeleteConfirm(false)
+      },
+    })
   }
 
   return (
@@ -566,6 +570,17 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
           setIsCreating(false)
         }}
         isCreate={isCreating}
+      />
+
+      <ConfirmDialog
+        open={showBulkDeleteConfirm}
+        onOpenChange={setShowBulkDeleteConfirm}
+        title="Delete Records"
+        desc={`Are you sure you want to delete ${selectedCount} record${selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmText="Delete"
+        destructive
+        isLoading={bulkDeleteMutation.isPending}
+        handleConfirm={confirmBulkDelete}
       />
     </>
   )

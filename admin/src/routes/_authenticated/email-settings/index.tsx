@@ -14,6 +14,8 @@ import { apiClient } from '@/lib/api'
 import { useState } from 'react'
 import { OverridableSwitch } from '@/components/admin/overridable-switch'
 import { OverridableSelect, SelectItem } from '@/components/admin/overridable-select'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { PromptDialog } from '@/components/prompt-dialog'
 
 const emailSettingsSearchSchema = z.object({
   tab: z.string().optional().catch('configuration'),
@@ -65,6 +67,10 @@ function EmailSettingsPage() {
   const navigate = route.useNavigate()
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<Partial<EmailTemplate> | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetTemplateType, setResetTemplateType] = useState<string | null>(null)
+  const [showTestEmailPrompt, setShowTestEmailPrompt] = useState(false)
+  const [testTemplateType, setTestTemplateType] = useState<string | null>(null)
 
   // Fetch email settings
   const { data: settings, isLoading: settingsLoading } = useQuery<EmailSettings>({
@@ -202,16 +208,13 @@ function EmailSettingsPage() {
   }
 
   const handleResetTemplate = (type: string) => {
-    if (confirm('Are you sure you want to reset this template to default?')) {
-      resetTemplateMutation.mutate(type)
-    }
+    setResetTemplateType(type)
+    setShowResetConfirm(true)
   }
 
   const handleTestTemplate = (type: string) => {
-    const email = prompt('Enter email address to send test email:')
-    if (email) {
-      testTemplateMutation.mutate({ type, email })
-    }
+    setTestTemplateType(type)
+    setShowTestEmailPrompt(true)
   }
 
   if (settingsLoading || templatesLoading) {
@@ -474,6 +477,54 @@ function EmailSettingsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Reset Template Confirmation */}
+      <ConfirmDialog
+        open={showResetConfirm}
+        onOpenChange={setShowResetConfirm}
+        title="Reset Template"
+        desc="Are you sure you want to reset this template to default? Any customizations will be lost."
+        confirmText="Reset"
+        destructive
+        isLoading={resetTemplateMutation.isPending}
+        handleConfirm={() => {
+          if (resetTemplateType) {
+            resetTemplateMutation.mutate(resetTemplateType, {
+              onSuccess: () => {
+                setShowResetConfirm(false)
+                setResetTemplateType(null)
+              },
+            })
+          }
+        }}
+      />
+
+      {/* Test Email Prompt */}
+      <PromptDialog
+        open={showTestEmailPrompt}
+        onOpenChange={setShowTestEmailPrompt}
+        title="Send Test Email"
+        description="Enter an email address to send a test email."
+        placeholder="email@example.com"
+        inputType="email"
+        confirmText="Send Test"
+        isLoading={testTemplateMutation.isPending}
+        validation={(value) => {
+          if (!value) return 'Email is required'
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Invalid email address'
+          return null
+        }}
+        onConfirm={(email) => {
+          if (testTemplateType) {
+            testTemplateMutation.mutate({ type: testTemplateType, email }, {
+              onSuccess: () => {
+                setShowTestEmailPrompt(false)
+                setTestTemplateType(null)
+              },
+            })
+          }
+        }}
+      />
     </div>
   )
 }

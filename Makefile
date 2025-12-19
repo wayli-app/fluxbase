@@ -1,8 +1,10 @@
-.PHONY: help dev build clean test migrate-up migrate-down migrate-create db-reset db-reset-full deps setup-dev install-hooks uninstall-hooks docs docs-build version docker-build docker-push release
+.PHONY: help dev build clean test migrate-up migrate-down migrate-create db-reset db-reset-full deps setup-dev install-hooks uninstall-hooks docs docs-build version docker-build docker-push release cli cli-install cli-completions
 
 # Variables
-BINARY_NAME=fluxbase
+BINARY_NAME=fluxbase-server
+CLI_BINARY_NAME=fluxbase
 MAIN_PATH=cmd/fluxbase/main.go
+CLI_MAIN_PATH=cli/main.go
 
 # Version variables
 VERSION := $(shell cat VERSION)
@@ -77,7 +79,7 @@ build: ## Build production binary with embedded admin UI
 	@cp -r admin/dist internal/adminui/dist
 	@echo "${YELLOW}Building ${BINARY_NAME} v$(VERSION)...${NC}"
 	@mkdir -p build/
-	@go build -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
+	@go build -tags "ocr" -ldflags="$(LDFLAGS)" -o build/${BINARY_NAME} ${MAIN_PATH}
 	@echo "${GREEN}Build complete: ${BINARY_NAME} v$(VERSION)${NC}"
 
 clean: ## Clean build artifacts
@@ -443,3 +445,37 @@ release: ## Create a new release (test, build, tag, push)
 	@echo ""
 	@echo "${GREEN}✓ Release v$(VERSION) complete!${NC}"
 	@echo "${YELLOW}Next: Create GitHub release with binaries${NC}"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLI COMMANDS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+cli: ## Build the Fluxbase CLI tool
+	@echo "${YELLOW}Building ${CLI_BINARY_NAME} v$(VERSION)...${NC}"
+	@mkdir -p build/
+	@go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION) -X github.com/fluxbase-eu/fluxbase/cli/cmd.Commit=$(COMMIT) -X github.com/fluxbase-eu/fluxbase/cli/cmd.BuildDate=$(BUILD_DATE)" -o build/${CLI_BINARY_NAME} ${CLI_MAIN_PATH}
+	@echo "${GREEN}CLI build complete: build/${CLI_BINARY_NAME}${NC}"
+
+cli-install: cli ## Build and install CLI to /usr/local/bin
+	@echo "${YELLOW}Installing ${CLI_BINARY_NAME} to /usr/local/bin...${NC}"
+	@sudo cp build/${CLI_BINARY_NAME} /usr/local/bin/fluxbase
+	@echo "${GREEN}CLI installed! Run 'fluxbase --help' to get started.${NC}"
+
+cli-completions: cli ## Generate shell completion scripts
+	@echo "${YELLOW}Generating shell completions...${NC}"
+	@mkdir -p build/completions
+	@./build/${CLI_BINARY_NAME} completion bash > build/completions/fluxbase.bash
+	@./build/${CLI_BINARY_NAME} completion zsh > build/completions/_fluxbase
+	@./build/${CLI_BINARY_NAME} completion fish > build/completions/fluxbase.fish
+	@./build/${CLI_BINARY_NAME} completion powershell > build/completions/fluxbase.ps1
+	@echo "${GREEN}Completions generated in build/completions/${NC}"
+
+cli-cross-compile: ## Cross-compile CLI for multiple platforms
+	@echo "${YELLOW}Cross-compiling CLI for multiple platforms...${NC}"
+	@mkdir -p build/dist
+	@GOOS=darwin GOARCH=amd64 go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION)" -o build/dist/fluxbase-darwin-amd64 ${CLI_MAIN_PATH}
+	@GOOS=darwin GOARCH=arm64 go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION)" -o build/dist/fluxbase-darwin-arm64 ${CLI_MAIN_PATH}
+	@GOOS=linux GOARCH=amd64 go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION)" -o build/dist/fluxbase-linux-amd64 ${CLI_MAIN_PATH}
+	@GOOS=linux GOARCH=arm64 go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION)" -o build/dist/fluxbase-linux-arm64 ${CLI_MAIN_PATH}
+	@GOOS=windows GOARCH=amd64 go build -ldflags="-X github.com/fluxbase-eu/fluxbase/cli/cmd.Version=$(VERSION)" -o build/dist/fluxbase-windows-amd64.exe ${CLI_MAIN_PATH}
+	@echo "${GREEN}Cross-compilation complete! Binaries in build/dist/${NC}"

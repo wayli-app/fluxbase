@@ -3,9 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/adminui"
@@ -20,8 +18,11 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/migrations"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
+	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
+	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/fluxbase-eu/fluxbase/internal/realtime"
 	"github.com/fluxbase-eu/fluxbase/internal/rpc"
+	"github.com/fluxbase-eu/fluxbase/internal/scaling"
 	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/fluxbase-eu/fluxbase/internal/webhook"
@@ -80,6 +81,11 @@ type Server struct {
 	rpcScheduler          *rpc.Scheduler
 	extensionsHandler     *extensions.Handler
 	vectorHandler         *VectorHandler
+
+	// Leader election for schedulers (used in multi-instance deployments)
+	jobsSchedulerLeader      *scaling.LeaderElector
+	functionsSchedulerLeader *scaling.LeaderElector
+	rpcSchedulerLeader       *scaling.LeaderElector
 }
 
 // NewServer creates a new HTTP server
@@ -121,6 +127,24 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	tracer, err := observability.NewTracer(context.Background(), tracerCfg)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize OpenTelemetry tracer, tracing will be disabled")
+	}
+
+	// Initialize rate limit store based on scaling configuration
+	rateLimitStore, err := ratelimit.NewStore(&cfg.Scaling, db.Pool())
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize rate limit store, falling back to memory")
+	} else {
+		ratelimit.SetGlobalStore(rateLimitStore)
+		log.Info().Str("backend", cfg.Scaling.Backend).Msg("Rate limit store initialized")
+	}
+
+	// Initialize pub/sub for cross-instance communication
+	ps, err := pubsub.NewPubSub(&cfg.Scaling, db.Pool())
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize pub/sub, cross-instance broadcasting disabled")
+	} else {
+		pubsub.SetGlobalPubSub(ps)
+		log.Info().Str("backend", cfg.Scaling.Backend).Msg("Pub/sub initialized for cross-instance broadcasting")
 	}
 
 	// Initialize email service
@@ -187,7 +211,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
-	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache())
+	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db, emailService)
 	sqlHandler := NewSQLHandler(db.Pool(), authService)
@@ -227,12 +251,20 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		jobsHandler.SetScheduler(jobsScheduler)
 	}
 
-	migrationsHandler := migrations.NewHandler(db)
+	// Create schema cache for dynamic REST API routing (5 minute TTL)
+	schemaCache := database.NewSchemaCache(db.Inspector(), 5*time.Minute)
+	// Populate cache on startup
+	if err := schemaCache.Refresh(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("Failed to populate schema cache on startup")
+	} else {
+		log.Info().Int("tables", schemaCache.TableCount()).Int("views", schemaCache.ViewCount()).Msg("Schema cache populated")
+	}
+
+	migrationsHandler := migrations.NewHandler(db, schemaCache)
 
 	// Create vector search handler (for pgvector support) - create early for embedding service sharing
 	// Embedding can be enabled explicitly (EmbeddingEnabled=true) or via fallback from AI provider
 	var vectorHandler *VectorHandler
-	var err error
 	vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector(), db)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize vector handler")
@@ -299,14 +331,43 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Create knowledge base handler for RAG management
 	var knowledgeBaseHandler *ai.KnowledgeBaseHandler
+	var ocrService *ai.OCRService
 	if cfg.AI.Enabled {
+		// Initialize OCR service for image-based PDF extraction
+		if cfg.AI.OCREnabled {
+			var err error
+			ocrService, err = ai.NewOCRService(ai.OCRServiceConfig{
+				Enabled:          cfg.AI.OCREnabled,
+				ProviderType:     ai.OCRProviderType(cfg.AI.OCRProvider),
+				DefaultLanguages: cfg.AI.OCRLanguages,
+			})
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to initialize OCR service, OCR will be disabled")
+			} else if ocrService.IsEnabled() {
+				log.Info().
+					Str("provider", cfg.AI.OCRProvider).
+					Strs("languages", cfg.AI.OCRLanguages).
+					Msg("OCR service initialized")
+			}
+		}
+
 		kbStorage := ai.NewKnowledgeBaseStorage(db)
 		var docProcessor *ai.DocumentProcessor
 		if vectorHandler != nil && vectorHandler.GetEmbeddingService() != nil {
 			docProcessor = ai.NewDocumentProcessor(kbStorage, vectorHandler.GetEmbeddingService())
 		}
-		knowledgeBaseHandler = ai.NewKnowledgeBaseHandler(kbStorage, docProcessor)
-		log.Info().Bool("processing_enabled", docProcessor != nil).Msg("Knowledge base handler initialized")
+
+		// Use OCR-enabled handler if OCR service is available
+		if ocrService != nil && ocrService.IsEnabled() {
+			knowledgeBaseHandler = ai.NewKnowledgeBaseHandlerWithOCR(kbStorage, docProcessor, ocrService)
+		} else {
+			knowledgeBaseHandler = ai.NewKnowledgeBaseHandler(kbStorage, docProcessor)
+		}
+		knowledgeBaseHandler.SetStorageService(storageService)
+		log.Info().
+			Bool("processing_enabled", docProcessor != nil).
+			Bool("ocr_enabled", ocrService != nil && ocrService.IsEnabled()).
+			Msg("Knowledge base handler initialized")
 	}
 
 	// Create RPC components (only if RPC is enabled)
@@ -330,6 +391,12 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Create realtime components
 	realtimeManager := realtime.NewManager(context.Background())
+
+	// Set up cross-instance broadcasting via pub/sub (if configured)
+	if ps != nil {
+		realtimeManager.SetPubSub(ps)
+	}
+
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
 	realtimeSubManager := realtime.NewSubscriptionManager(db.Pool())
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
@@ -344,7 +411,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		config:                cfg,
 		db:                    db,
 		tracer:                tracer,
-		rest:                  NewRESTHandler(db, NewQueryParser(cfg)),
+		rest:                  NewRESTHandler(db, NewQueryParser(cfg), schemaCache),
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
 		dashboardAuthHandler:  dashboardAuthHandler,
@@ -386,18 +453,58 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		vectorHandler:         vectorHandler,
 	}
 
-	// Start realtime listener
-	if err := realtimeListener.Start(); err != nil {
-		log.Error().Err(err).Msg("Failed to start realtime listener")
+	// Start realtime listener (unless disabled or in worker-only mode)
+	if !cfg.Scaling.DisableRealtime && !cfg.Scaling.WorkerOnly {
+		if err := realtimeListener.Start(); err != nil {
+			log.Error().Err(err).Msg("Failed to start realtime listener")
+		}
+	} else {
+		log.Info().
+			Bool("disable_realtime", cfg.Scaling.DisableRealtime).
+			Bool("worker_only", cfg.Scaling.WorkerOnly).
+			Msg("Realtime listener disabled by scaling configuration")
 	}
 
-	// Start edge functions scheduler
-	if err := functionsScheduler.Start(); err != nil {
-		log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+	// Start edge functions scheduler (respects scaling configuration)
+	if !cfg.Scaling.DisableScheduler && !cfg.Scaling.WorkerOnly {
+		if cfg.Scaling.EnableSchedulerLeaderElection {
+			// Use leader election - only the leader will run the scheduler
+			server.functionsSchedulerLeader = scaling.NewLeaderElector(
+				db.Pool(),
+				scaling.FunctionsSchedulerLockID,
+				"functions-scheduler",
+			)
+			server.functionsSchedulerLeader.Start(
+				func() {
+					// Became leader - start the scheduler
+					log.Info().Msg("This instance is now the functions scheduler leader")
+					if err := functionsScheduler.Start(); err != nil {
+						log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+					}
+				},
+				func() {
+					// Lost leadership - stop the scheduler
+					log.Warn().Msg("Lost functions scheduler leadership - stopping scheduler")
+					functionsScheduler.Stop()
+				},
+			)
+		} else {
+			// No leader election - start scheduler directly
+			if err := functionsScheduler.Start(); err != nil {
+				log.Error().Err(err).Msg("Failed to start edge functions scheduler")
+			}
+		}
+	} else {
+		log.Info().
+			Bool("disable_scheduler", cfg.Scaling.DisableScheduler).
+			Bool("worker_only", cfg.Scaling.WorkerOnly).
+			Msg("Edge functions scheduler disabled by scaling configuration")
 	}
 
 	// Start jobs manager and scheduler
 	if cfg.Jobs.Enabled && jobsManager != nil {
+		// Job workers can run on any instance (including worker-only mode)
+		// The scheduler should respect the scaling configuration
 		workerCount := cfg.Jobs.EmbeddedWorkerCount
 		if workerCount <= 0 {
 			workerCount = 4 // Default to 4 workers if not configured
@@ -407,18 +514,81 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		} else {
 			log.Info().Int("workers", workerCount).Msg("Jobs manager started successfully")
 		}
-		// Start jobs scheduler for cron-based execution
+
+		// Start jobs scheduler for cron-based execution (respects scaling configuration)
 		if jobsScheduler != nil {
-			if err := jobsScheduler.Start(); err != nil {
-				log.Error().Err(err).Msg("Failed to start jobs scheduler")
+			if !cfg.Scaling.DisableScheduler && !cfg.Scaling.WorkerOnly {
+				if cfg.Scaling.EnableSchedulerLeaderElection {
+					// Use leader election - only the leader will run the scheduler
+					server.jobsSchedulerLeader = scaling.NewLeaderElector(
+						db.Pool(),
+						scaling.JobsSchedulerLockID,
+						"jobs-scheduler",
+					)
+					server.jobsSchedulerLeader.Start(
+						func() {
+							// Became leader - start the scheduler
+							log.Info().Msg("This instance is now the jobs scheduler leader")
+							if err := jobsScheduler.Start(); err != nil {
+								log.Error().Err(err).Msg("Failed to start jobs scheduler")
+							}
+						},
+						func() {
+							// Lost leadership - stop the scheduler
+							log.Warn().Msg("Lost jobs scheduler leadership - stopping scheduler")
+							jobsScheduler.Stop()
+						},
+					)
+				} else {
+					// No leader election - start scheduler directly
+					if err := jobsScheduler.Start(); err != nil {
+						log.Error().Err(err).Msg("Failed to start jobs scheduler")
+					}
+				}
+			} else {
+				log.Info().
+					Bool("disable_scheduler", cfg.Scaling.DisableScheduler).
+					Bool("worker_only", cfg.Scaling.WorkerOnly).
+					Msg("Jobs scheduler disabled by scaling configuration (workers still active)")
 			}
 		}
 	}
 
-	// Start RPC scheduler for cron-based procedure execution
+	// Start RPC scheduler for cron-based procedure execution (respects scaling configuration)
 	if cfg.RPC.Enabled && rpcScheduler != nil {
-		if err := rpcScheduler.Start(); err != nil {
-			log.Error().Err(err).Msg("Failed to start RPC scheduler")
+		if !cfg.Scaling.DisableScheduler && !cfg.Scaling.WorkerOnly {
+			if cfg.Scaling.EnableSchedulerLeaderElection {
+				// Use leader election - only the leader will run the scheduler
+				server.rpcSchedulerLeader = scaling.NewLeaderElector(
+					db.Pool(),
+					scaling.RPCSchedulerLockID,
+					"rpc-scheduler",
+				)
+				server.rpcSchedulerLeader.Start(
+					func() {
+						// Became leader - start the scheduler
+						log.Info().Msg("This instance is now the RPC scheduler leader")
+						if err := rpcScheduler.Start(); err != nil {
+							log.Error().Err(err).Msg("Failed to start RPC scheduler")
+						}
+					},
+					func() {
+						// Lost leadership - stop the scheduler
+						log.Warn().Msg("Lost RPC scheduler leadership - stopping scheduler")
+						rpcScheduler.Stop()
+					},
+				)
+			} else {
+				// No leader election - start scheduler directly
+				if err := rpcScheduler.Start(); err != nil {
+					log.Error().Err(err).Msg("Failed to start RPC scheduler")
+				}
+			}
+		} else {
+			log.Info().
+				Bool("disable_scheduler", cfg.Scaling.DisableScheduler).
+				Bool("worker_only", cfg.Scaling.WorkerOnly).
+				Msg("RPC scheduler disabled by scaling configuration")
 		}
 	}
 
@@ -587,9 +757,9 @@ func (s *Server) setupRoutes() {
 
 	// Jobs routes - require authentication
 	// Protected by feature flag middleware
+	// Note: Admin routes are registered in setupAdminRoutes with proper auth middleware
 	if s.jobsHandler != nil {
 		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
-		s.jobsHandler.RegisterAdminRoutes(s.app) // Admin routes for job management
 	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
@@ -760,64 +930,74 @@ func (s *Server) setupRoutes() {
 	})
 }
 
-// setupRESTRoutes sets up auto-generated REST routes
+// setupRESTRoutes sets up dynamic REST routes using wildcard patterns
+// This allows new tables created via migrations to be immediately accessible
+// without requiring a server restart.
 func (s *Server) setupRESTRoutes(router fiber.Router) {
-	// Initialize REST routes on startup
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	log.Info().Msg("Setting up dynamic REST API routes with wildcard patterns")
 
-	// Get all schemas to register tables from
-	schemas, err := s.db.Inspector().GetSchemas(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get schemas for REST API")
-		return
-	}
-
-	// Register tables from all schemas (excluding system schemas only)
-	for _, schema := range schemas {
-		// Skip system schemas and internal migration tracking schema
-		// Note: auth and dashboard schemas are included and protected by RLS/authentication
-		if schema == "information_schema" || schema == "pg_catalog" || schema == "pg_toast" ||
-			schema == "_fluxbase" {
-			continue
-		}
-
-		// Get all tables from this schema
-		tables, err := s.db.Inspector().GetAllTables(ctx, schema)
-		if err != nil {
-			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get tables from schema")
-			continue
-		}
-
-		// Register dynamic routes for each table
-		for _, table := range tables {
-			s.rest.RegisterTableRoutes(router, table)
-		}
-
-		// Get all views and register as read-only endpoints
-		views, err := s.db.Inspector().GetAllViews(ctx, schema)
-		if err != nil {
-			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get views from schema")
-		} else {
-			for _, view := range views {
-				s.rest.RegisterViewRoutes(router, view)
-			}
-		}
-
-		// Get all materialized views and register as read-only endpoints
-		matviews, err := s.db.Inspector().GetAllMaterializedViews(ctx, schema)
-		if err != nil {
-			log.Warn().Err(err).Str("schema", schema).Msg("Failed to get materialized views from schema")
-		} else {
-			for _, matview := range matviews {
-				s.rest.RegisterViewRoutes(router, matview)
-			}
-		}
-	}
-
-	// Metadata endpoint with scope enforcement
+	// Metadata endpoint - list all tables
 	router.Get("/", middleware.RequireScope(auth.ScopeTablesRead), s.rest.HandleGetTables)
 
+	// Dynamic routes using wildcard patterns
+	// Order matters: more specific routes first
+
+	// POST query endpoint for complex filters (avoids URL length limits)
+	// Routes: /tables/:schema/:table/query and /tables/:table/query
+	router.Post("/:schema/:table/query",
+		middleware.RequireScope(auth.ScopeTablesRead),
+		s.rest.HandleDynamicQuery)
+	router.Post("/:schema/query",
+		middleware.RequireScope(auth.ScopeTablesRead),
+		s.rest.HandleDynamicQuery)
+
+	// Routes with ID parameter: /tables/:schema/:table/:id and /tables/:table/:id
+	// These handle GET (fetch one), PUT (replace), PATCH (update), DELETE (remove)
+	router.Get("/:schema/:table/:id",
+		middleware.RequireScope(auth.ScopeTablesRead),
+		s.rest.HandleDynamicTableById)
+	router.Put("/:schema/:table/:id",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTableById)
+	router.Patch("/:schema/:table/:id",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTableById)
+	router.Delete("/:schema/:table/:id",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTableById)
+
+	// Collection routes: /tables/:schema/:table and /tables/:table
+	// These handle GET (list), POST (create), PATCH (batch update), DELETE (batch delete)
+	router.Get("/:schema/:table",
+		middleware.RequireScope(auth.ScopeTablesRead),
+		s.rest.HandleDynamicTable)
+	router.Post("/:schema/:table",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+	router.Patch("/:schema/:table",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+	router.Delete("/:schema/:table",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+
+	// Single-segment routes for public schema: /tables/:table
+	// Note: Fiber parses /tables/posts as schema="posts", table=""
+	// The handler detects this and treats it as public.posts
+	router.Get("/:schema",
+		middleware.RequireScope(auth.ScopeTablesRead),
+		s.rest.HandleDynamicTable)
+	router.Post("/:schema",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+	router.Patch("/:schema",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+	router.Delete("/:schema",
+		middleware.RequireScope(auth.ScopeTablesWrite),
+		s.rest.HandleDynamicTable)
+
+	log.Info().Msg("Dynamic REST API routes configured")
 }
 
 // setupAuthRoutes sets up authentication routes
@@ -967,8 +1147,8 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Get("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.ListInvitations)
 	router.Delete("/invitations/:token", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.RevokeInvitation)
 
-	// SQL Editor route (require dashboard_admin role only)
-	router.Post("/sql/execute", unifiedAuth, RequireRole("dashboard_admin"), s.sqlHandler.ExecuteSQL)
+	// SQL Editor route (require admin or dashboard_admin role)
+	router.Post("/sql/execute", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.sqlHandler.ExecuteSQL)
 
 	// Functions management routes (require admin, dashboard_admin, or service_role)
 	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ReloadFunctions)
@@ -1050,6 +1230,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		// Knowledge base management (RAG)
 		if s.knowledgeBaseHandler != nil {
 			router.Get("/ai/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.ListKnowledgeBases)
+			router.Get("/ai/knowledge-bases/capabilities", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.GetCapabilities)
 			router.Get("/ai/knowledge-bases/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.GetKnowledgeBase)
 			router.Post("/ai/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.CreateKnowledgeBase)
 			router.Put("/ai/knowledge-bases/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UpdateKnowledgeBase)
@@ -1060,9 +1241,12 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 			router.Post("/ai/knowledge-bases/:id/documents", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.AddDocument)
 			router.Get("/ai/knowledge-bases/:id/documents/:doc_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.GetDocument)
 			router.Delete("/ai/knowledge-bases/:id/documents/:doc_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.DeleteDocument)
+			router.Patch("/ai/knowledge-bases/:id/documents/:doc_id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UpdateDocument)
+			router.Post("/ai/knowledge-bases/:id/documents/upload", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.UploadDocument)
 
 			// Search/test endpoint
 			router.Post("/ai/knowledge-bases/:id/search", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.SearchKnowledgeBase)
+			router.Post("/ai/knowledge-bases/:id/debug-search", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.DebugSearch)
 
 			// Chatbot knowledge base linking
 			router.Get("/ai/chatbots/:id/knowledge-bases", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.knowledgeBaseHandler.ListChatbotKnowledgeBases)
@@ -1278,34 +1462,37 @@ func (s *Server) handleExecuteQuery(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Execute query endpoint - to be implemented"})
 }
 
-// handleRefreshSchema refreshes the REST API schema cache by re-registering all table routes
+// handleRefreshSchema refreshes the REST API schema cache without requiring a server restart
 func (s *Server) handleRefreshSchema(c *fiber.Ctx) error {
-	log.Info().Msg("Schema refresh requested - triggering graceful server restart")
+	log.Info().Msg("Schema refresh requested")
 
-	// Send response before shutting down
-	// Client should retry after a few seconds
-	if err := c.Status(202).JSON(fiber.Map{
-		"message": "Server restart initiated to refresh schema cache. Reconnect in 3-5 seconds.",
-	}); err != nil {
-		log.Error().Err(err).Msg("Failed to send response")
+	// Get the schema cache from the REST handler
+	schemaCache := s.rest.SchemaCache()
+	if schemaCache == nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Schema cache not initialized",
+		})
 	}
 
-	// Trigger graceful shutdown in a goroutine to allow response to be sent
-	go func() {
-		// Wait a moment to ensure the response is sent
-		time.Sleep(500 * time.Millisecond)
+	// Force refresh the schema cache
+	if err := schemaCache.Refresh(c.Context()); err != nil {
+		log.Error().Err(err).Msg("Failed to refresh schema cache")
+		return c.Status(500).JSON(fiber.Map{
+			"error":   "Failed to refresh schema cache",
+			"details": err.Error(),
+		})
+	}
 
-		log.Info().Msg("Triggering graceful server shutdown for restart")
+	log.Info().
+		Int("tables", schemaCache.TableCount()).
+		Int("views", schemaCache.ViewCount()).
+		Msg("Schema cache refreshed successfully")
 
-		// Send SIGTERM to trigger graceful shutdown via main's signal handler
-		// This ensures proper cleanup through the main goroutine's shutdown path
-		if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
-			log.Error().Err(err).Msg("Failed to send shutdown signal, forcing exit")
-			os.Exit(1)
-		}
-	}()
-
-	return nil
+	return c.JSON(fiber.Map{
+		"message": "Schema cache refreshed successfully",
+		"tables":  schemaCache.TableCount(),
+		"views":   schemaCache.ViewCount(),
+	})
 }
 
 // Start starts the HTTP server
@@ -1315,6 +1502,20 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop leader electors first (releases advisory locks)
+	if s.functionsSchedulerLeader != nil {
+		log.Info().Msg("Stopping functions scheduler leader election")
+		s.functionsSchedulerLeader.Stop()
+	}
+	if s.jobsSchedulerLeader != nil {
+		log.Info().Msg("Stopping jobs scheduler leader election")
+		s.jobsSchedulerLeader.Stop()
+	}
+	if s.rpcSchedulerLeader != nil {
+		log.Info().Msg("Stopping RPC scheduler leader election")
+		s.rpcSchedulerLeader.Stop()
+	}
+
 	// Stop realtime listener (PostgreSQL LISTEN/NOTIFY)
 	if s.realtimeListener != nil {
 		log.Info().Msg("Stopping realtime listener")
@@ -1445,7 +1646,16 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 }
 
 // handleRealtimeStats returns realtime statistics
+// Admin-only endpoint - non-admin users receive 403 Forbidden
 func (s *Server) handleRealtimeStats(c *fiber.Ctx) error {
+	// Check if user has admin role
+	role, _ := c.Locals("user_role").(string)
+	if role != "admin" && role != "dashboard_admin" && role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Admin access required to view realtime stats",
+		})
+	}
+
 	stats := s.realtimeHandler.GetDetailedStats()
 	return c.JSON(stats)
 }

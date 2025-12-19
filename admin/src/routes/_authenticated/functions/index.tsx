@@ -408,18 +408,19 @@ async function handler(req: Request) {
     const fetchNamespaces = async () => {
       try {
         const data = await functionsApi.listNamespaces()
-        setNamespaces(data.length > 0 ? data : ['default'])
+        // Filter out empty strings to prevent Select component errors
+        const validNamespaces = data.filter((ns: string) => ns !== '')
+        setNamespaces(validNamespaces.length > 0 ? validNamespaces : ['default'])
         // If current namespace not in list, reset to first available
         // Use functional update to avoid dependency on selectedNamespace
         setSelectedNamespace((current) =>
-          data.includes(current) ? current : (data[0] || 'default')
+          validNamespaces.includes(current) ? current : (validNamespaces[0] || 'default')
         )
       } catch {
         setNamespaces(['default'])
       }
     }
     fetchNamespaces()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])  // Only run on mount - no dependencies needed
 
   useEffect(() => {

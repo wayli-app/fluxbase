@@ -58,6 +58,12 @@ const categoryDisplayNames: Record<string, string> = {
   indexing: 'Indexing',
   networking: 'Networking',
   testing: 'Testing',
+  maintenance: 'Maintenance',
+  performance: 'Performance',
+  foreign_data: 'Foreign Data',
+  triggers: 'Triggers',
+  sampling: 'Sampling',
+  utilities: 'Utilities',
 }
 
 const categoryOrder = [
@@ -65,11 +71,18 @@ const categoryOrder = [
   'ai_ml',
   'geospatial',
   'monitoring',
+  'performance',
+  'maintenance',
   'scheduling',
   'data_types',
+  'text_search',
   'indexing',
+  'foreign_data',
   'networking',
+  'triggers',
+  'sampling',
   'testing',
+  'utilities',
 ]
 
 function ExtensionsPage() {
@@ -233,12 +246,23 @@ function ExtensionsPage() {
                     'Extensions for working with geographic and spatial data.'}
                   {category === 'monitoring' &&
                     'Extensions for monitoring and analyzing database performance.'}
+                  {category === 'performance' &&
+                    'Extensions for optimizing and improving query performance.'}
+                  {category === 'maintenance' &&
+                    'Extensions for database maintenance and administrative tasks.'}
                   {category === 'scheduling' && 'Extensions for scheduling jobs within PostgreSQL.'}
                   {category === 'data_types' && 'Extensions that add additional data types.'}
+                  {category === 'text_search' &&
+                    'Extensions for full-text search and text processing.'}
                   {category === 'indexing' && 'Extensions for advanced indexing capabilities.'}
+                  {category === 'foreign_data' &&
+                    'Extensions for accessing external data sources and foreign tables.'}
                   {category === 'networking' &&
                     'Extensions for network operations from within PostgreSQL.'}
+                  {category === 'triggers' && 'Extensions for trigger-based functionality.'}
+                  {category === 'sampling' && 'Extensions for data sampling and statistics.'}
                   {category === 'testing' && 'Extensions for database testing and validation.'}
+                  {category === 'utilities' && 'General-purpose utility extensions.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

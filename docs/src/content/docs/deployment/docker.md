@@ -6,7 +6,7 @@ Deploy Fluxbase using Docker and Docker Compose for simple production environmen
 
 ## Overview
 
-Fluxbase provides official Docker images (~80MB) with:
+Fluxbase provides official Docker images (~110MB) with:
 
 - Multi-stage build for minimal image size
 - Non-root user for security
@@ -117,7 +117,36 @@ You should see:
 
 ## Production Docker Compose
 
-For production, use this enhanced configuration:
+For production, use the production compose file which includes Dragonfly for distributed state:
+
+```bash
+# Start production stack
+cd deploy
+docker-compose -f docker-compose.production.yml up -d
+```
+
+**What's included:**
+
+- PostgreSQL with health checks
+- Dragonfly (Redis-compatible, 25x faster) for distributed rate limiting and pub/sub
+- MinIO for S3-compatible storage
+- Prometheus and Grafana for monitoring
+- Horizontal scaling support out of the box
+
+**Key environment variables for scaling:**
+
+```bash
+# Distributed state backend (uses Dragonfly)
+FLUXBASE_SCALING_BACKEND=redis
+FLUXBASE_SCALING_REDIS_URL=redis://:${DRAGONFLY_PASSWORD}@dragonfly:6379
+
+# Enable scheduler leader election (prevents duplicate cron jobs)
+FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION=true
+```
+
+### Custom Production Configuration
+
+For custom production setups, use this enhanced configuration:
 
 ```yaml
 version: "3.8"
