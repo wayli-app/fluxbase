@@ -235,6 +235,9 @@ jobs:
           psql -h localhost -U postgres -d fluxbase_test -c "CREATE USER fluxbase_rls_test WITH PASSWORD 'fluxbase_rls_test_password' LOGIN NOBYPASSRLS CREATEDB;"
           psql -h localhost -U postgres -d fluxbase_test -c "GRANT ALL PRIVILEGES ON DATABASE fluxbase_test TO fluxbase_rls_test;"
 
+          # Enable pgvector extension for AI/RAG features
+          psql -h localhost -U postgres -d fluxbase_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
       - name: Run database migrations
         env:
           # Run migrations as fluxbase_app user (same user tests will use)
