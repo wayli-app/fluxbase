@@ -121,7 +121,8 @@ func Load(path string) (*Config, error) {
 		path = DefaultConfigPath()
 	}
 
-	data, err := os.ReadFile(path)
+	// Clean the path to prevent directory traversal attacks
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("config file not found at %s - run 'fluxbase auth login' to create one", path)

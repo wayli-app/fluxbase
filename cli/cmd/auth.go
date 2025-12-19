@@ -546,13 +546,15 @@ func runAuthWhoami(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Role: %s\n", profile.User.Role)
 		fmt.Printf("Email Verified: %v\n", profile.User.EmailVerified)
 	} else {
-		formatter.Print(map[string]interface{}{
+		if err := formatter.Print(map[string]interface{}{
 			"server":         profile.Server,
 			"email":          profile.User.Email,
 			"id":             profile.User.ID,
 			"role":           profile.User.Role,
 			"email_verified": profile.User.EmailVerified,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil

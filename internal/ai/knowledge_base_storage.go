@@ -379,7 +379,7 @@ func (s *KnowledgeBaseStorage) CreateChunks(ctx context.Context, chunks []Chunk)
 	}
 
 	br := s.db.Pool().SendBatch(ctx, batch)
-	defer br.Close()
+	defer func() { _ = br.Close() }()
 
 	for range chunks {
 		if _, err := br.Exec(); err != nil {
@@ -841,7 +841,6 @@ func (s *KnowledgeBaseStorage) SearchChunksWithFilter(
 	if filter != nil && len(filter.Tags) > 0 {
 		whereConditions = append(whereConditions, fmt.Sprintf("d.tags @> $%d", argIndex))
 		args = append(args, filter.Tags)
-		argIndex++
 	}
 
 	whereClause := strings.Join(whereConditions, " AND ")

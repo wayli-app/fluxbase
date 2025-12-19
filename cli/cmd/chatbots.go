@@ -158,7 +158,9 @@ func runChatbotsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(chatbots)
+		if err := formatter.Print(chatbots); err != nil {
+			return err
+		}
 	}
 
 	return nil

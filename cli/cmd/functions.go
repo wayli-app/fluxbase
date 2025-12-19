@@ -222,7 +222,9 @@ func runFunctionsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(functions)
+		if err := formatter.Print(functions); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -247,7 +249,7 @@ func runFunctionsCreate(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	// Read code file
-	code, err := os.ReadFile(fnCodeFile)
+	code, err := os.ReadFile(fnCodeFile) //nolint:gosec // CLI tool reads user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to read code file: %w", err)
 	}
@@ -284,7 +286,7 @@ func runFunctionsUpdate(cmd *cobra.Command, args []string) error {
 	body := make(map[string]interface{})
 
 	if fnCodeFile != "" {
-		code, err := os.ReadFile(fnCodeFile)
+		code, err := os.ReadFile(fnCodeFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read code file: %w", err)
 		}
@@ -338,7 +340,7 @@ func runFunctionsInvoke(cmd *cobra.Command, args []string) error {
 	var payload interface{}
 
 	if fnInvokeFile != "" {
-		data, err := os.ReadFile(fnInvokeFile)
+		data, err := os.ReadFile(fnInvokeFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read payload file: %w", err)
 		}
@@ -417,7 +419,9 @@ func runFunctionsLogs(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(executions)
+		if err := formatter.Print(executions); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -451,7 +455,7 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 		}
 
 		// Read file
-		content, err := os.ReadFile(fnSyncDir + "/" + name)
+		content, err := os.ReadFile(fnSyncDir + "/" + name) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
 			continue

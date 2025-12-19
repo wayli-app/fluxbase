@@ -182,7 +182,9 @@ func runMigrationsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(migrations)
+		if err := formatter.Print(migrations); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -310,7 +312,7 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		content, err := os.ReadFile(filepath.Join(migSyncDir, name))
+		content, err := os.ReadFile(filepath.Join(migSyncDir, name)) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
 			continue

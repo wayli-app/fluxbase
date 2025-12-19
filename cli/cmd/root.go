@@ -2,9 +2,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -211,9 +208,4 @@ func GetConfigPath() string {
 // IsDebug returns true if debug mode is enabled
 func IsDebug() bool {
 	return debug
-}
-
-// printError prints an error message to stderr
-func printError(err error) {
-	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 }

@@ -213,7 +213,9 @@ func runKBList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(kbs)
+		if err := formatter.Print(kbs); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -305,7 +307,7 @@ func runKBUpload(cmd *cobra.Command, args []string) error {
 	filePath := args[1]
 
 	// Read file
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) //nolint:gosec // CLI tool reads user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
@@ -434,7 +436,9 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(docs)
+		if err := formatter.Print(docs); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -496,7 +500,9 @@ func runKBSearch(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   %s\n\n", content)
 		}
 	} else {
-		formatter.Print(results)
+		if err := formatter.Print(results); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -216,7 +216,7 @@ func (e *TextExtractor) ExtractFromDOCX(data []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read DOCX: %w", err)
 	}
-	defer doc.Close()
+	defer func() { _ = doc.Close() }()
 
 	content := doc.Editable().GetContent()
 	return strings.TrimSpace(content), nil
@@ -229,7 +229,7 @@ func (e *TextExtractor) ExtractFromXLSX(data []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read XLSX: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var text strings.Builder
 	sheets := f.GetSheetList()
@@ -350,13 +350,13 @@ func (e *TextExtractor) ExtractFromEPUB(data []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	defer func() { _ = tmpFile.Close() }()
 
 	if _, err := tmpFile.Write(data); err != nil {
 		return "", fmt.Errorf("failed to write temp file: %w", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	book, err := epub.Open(tmpFile.Name())
 	if err != nil {
@@ -374,7 +374,7 @@ func (e *TextExtractor) ExtractFromEPUB(data []byte) (string, error) {
 				continue
 			}
 			contentBytes, err := io.ReadAll(content)
-			content.Close()
+			_ = content.Close()
 			if err != nil {
 				continue
 			}

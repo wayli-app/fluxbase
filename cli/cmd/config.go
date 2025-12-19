@@ -259,7 +259,9 @@ func runConfigProfiles(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  Server: %s\n", p["server"])
 		}
 	} else {
-		formatter.Print(profiles)
+		if err := formatter.Print(profiles); err != nil {
+			return err
+		}
 	}
 
 	return nil

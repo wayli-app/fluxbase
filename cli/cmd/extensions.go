@@ -116,7 +116,9 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(extensions)
+		if err := formatter.Print(extensions); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -143,7 +143,9 @@ func runAPIKeysList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(keys)
+		if err := formatter.Print(keys); err != nil {
+			return err
+		}
 	}
 
 	return nil

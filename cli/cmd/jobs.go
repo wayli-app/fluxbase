@@ -201,7 +201,9 @@ func runJobsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(jobs)
+		if err := formatter.Print(jobs); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -219,7 +221,7 @@ func runJobsSubmit(cmd *cobra.Command, args []string) error {
 
 	// Parse payload
 	if jobPayloadFile != "" {
-		data, err := os.ReadFile(jobPayloadFile)
+		data, err := os.ReadFile(jobPayloadFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read payload file: %w", err)
 		}
@@ -321,7 +323,9 @@ func runJobsLogs(cmd *cobra.Command, args []string) error {
 			fmt.Printf("[%s] %s: %s\n", timestamp, level, message)
 		}
 	} else {
-		formatter.Print(logs)
+		if err := formatter.Print(logs); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -368,7 +372,7 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		}
 
 		// Read file
-		content, err := os.ReadFile(jobSyncDir + "/" + name)
+		content, err := os.ReadFile(jobSyncDir + "/" + name) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
 			continue

@@ -81,7 +81,9 @@ func runSettingsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(settings)
+		if err := formatter.Print(settings); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -170,11 +172,14 @@ func runSettingsSet(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Parse value
-	var parsedValue interface{} = value
-	if value == "true" {
+	var parsedValue interface{}
+	switch value {
+	case "true":
 		parsedValue = true
-	} else if value == "false" {
+	case "false":
 		parsedValue = false
+	default:
+		parsedValue = value
 	}
 
 	body := map[string]interface{}{

@@ -74,11 +74,7 @@ func IsValidTextContent(text string) bool {
 
 	// At least 30% of characters should be in word-like patterns
 	wordRatio := float64(wordLetterCount) / float64(totalRunes)
-	if wordRatio < 0.30 {
-		return false
-	}
-
-	return true
+	return wordRatio >= 0.30
 }
 
 // TextQualityScore returns a score from 0-1 indicating text quality.

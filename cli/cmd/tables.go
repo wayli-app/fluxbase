@@ -179,7 +179,9 @@ func runTablesList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(tables)
+		if err := formatter.Print(tables); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -229,7 +231,9 @@ func runTablesDescribe(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(columns)
+		if err := formatter.Print(columns); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -312,7 +316,9 @@ func runTablesQuery(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(records)
+		if err := formatter.Print(records); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -333,7 +339,7 @@ func runTablesInsert(cmd *cobra.Command, args []string) error {
 	// Get data
 	var data interface{}
 	if tableFile != "" {
-		content, err := os.ReadFile(tableFile)
+		content, err := os.ReadFile(tableFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read file: %w", err)
 		}
@@ -378,7 +384,7 @@ func runTablesUpdate(cmd *cobra.Command, args []string) error {
 	// Get data
 	var data interface{}
 	if tableFile != "" {
-		content, err := os.ReadFile(tableFile)
+		content, err := os.ReadFile(tableFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read file: %w", err)
 		}

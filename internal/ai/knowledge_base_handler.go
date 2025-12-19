@@ -418,7 +418,7 @@ func (h *KnowledgeBaseHandler) UploadDocument(c *fiber.Ctx) error {
 			"error": "Failed to read uploaded file",
 		})
 	}
-	defer fileReader.Close()
+	defer func() { _ = fileReader.Close() }()
 
 	fileData, err := io.ReadAll(fileReader)
 	if err != nil {
@@ -468,7 +468,7 @@ func (h *KnowledgeBaseHandler) UploadDocument(c *fiber.Ctx) error {
 	if err != nil {
 		log.Error().Err(err).Str("filename", file.Filename).Msg("Failed to reopen file for storage")
 	}
-	defer fileReader2.Close()
+	defer func() { _ = fileReader2.Close() }()
 
 	var sourceURL string
 	uploadOpts := &storage.UploadOptions{
@@ -703,12 +703,7 @@ func (h *KnowledgeBaseHandler) UpdateChatbotKnowledgeBase(c *fiber.Ctx) error {
 		})
 	}
 
-	link, err := h.storage.UpdateChatbotKnowledgeBaseLink(ctx, chatbotID, kbID, UpdateChatbotKnowledgeBaseOptions{
-		Priority:            req.Priority,
-		MaxChunks:           req.MaxChunks,
-		SimilarityThreshold: req.SimilarityThreshold,
-		Enabled:             req.Enabled,
-	})
+	link, err := h.storage.UpdateChatbotKnowledgeBaseLink(ctx, chatbotID, kbID, UpdateChatbotKnowledgeBaseOptions(req))
 	if err != nil {
 		log.Error().Err(err).
 			Str("chatbot_id", chatbotID).

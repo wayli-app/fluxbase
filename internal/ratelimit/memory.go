@@ -2,7 +2,6 @@ package ratelimit
 
 import (
 	"context"
-	"encoding/binary"
 	"sync"
 	"time"
 )
@@ -122,19 +121,4 @@ func (s *MemoryStore) cleanup() {
 			delete(s.data, key)
 		}
 	}
-}
-
-// encodeCount converts an int64 to bytes for storage
-func encodeCount(count int64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(count))
-	return buf
-}
-
-// decodeCount converts bytes back to int64
-func decodeCount(data []byte) int64 {
-	if len(data) != 8 {
-		return 0
-	}
-	return int64(binary.BigEndian.Uint64(data))
 }

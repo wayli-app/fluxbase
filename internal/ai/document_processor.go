@@ -62,12 +62,12 @@ func (p *DocumentProcessor) ProcessDocument(ctx context.Context, doc *Document, 
 	// Chunk the document
 	textChunks, err := p.chunkDocument(doc.Content, opts)
 	if err != nil {
-		p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
+		_ = p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
 		return fmt.Errorf("failed to chunk document: %w", err)
 	}
 
 	if len(textChunks) == 0 {
-		p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, "No content to process")
+		_ = p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, "No content to process")
 		return fmt.Errorf("no content to process")
 	}
 
@@ -76,7 +76,7 @@ func (p *DocumentProcessor) ProcessDocument(ctx context.Context, doc *Document, 
 	// Generate embeddings for all chunks
 	embeddings, err := p.generateEmbeddings(ctx, textChunks)
 	if err != nil {
-		p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
+		_ = p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
 		return fmt.Errorf("failed to generate embeddings: %w", err)
 	}
 
@@ -96,7 +96,7 @@ func (p *DocumentProcessor) ProcessDocument(ctx context.Context, doc *Document, 
 
 	// Save chunks
 	if err := p.storage.CreateChunks(ctx, chunks); err != nil {
-		p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
+		_ = p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, err.Error())
 		return fmt.Errorf("failed to save chunks: %w", err)
 	}
 
@@ -209,9 +209,7 @@ func (p *DocumentProcessor) splitRecursively(text string, separators []string, c
 		// If part itself is too large, recursively split it
 		if len(part) > maxChars {
 			subChunks, _ := p.splitRecursively(part, remainingSeparators, chunkSize, overlap)
-			for _, subChunk := range subChunks {
-				chunks = append(chunks, subChunk)
-			}
+			chunks = append(chunks, subChunks...)
 		} else {
 			currentChunk.WriteString(part)
 		}
@@ -425,7 +423,7 @@ func (p *DocumentProcessor) ProcessPendingDocuments(ctx context.Context, batchSi
 		kb, err := p.storage.GetKnowledgeBase(ctx, doc.KnowledgeBaseID)
 		if err != nil || kb == nil {
 			log.Warn().Str("doc_id", doc.ID).Msg("Knowledge base not found for document")
-			p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, "Knowledge base not found")
+			_ = p.storage.UpdateDocumentStatus(ctx, doc.ID, DocumentStatusFailed, "Knowledge base not found")
 			continue
 		}
 

@@ -162,7 +162,9 @@ func runWebhooksList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(webhooks)
+		if err := formatter.Print(webhooks); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -313,7 +315,9 @@ func runWebhooksDeliveries(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(deliveries)
+		if err := formatter.Print(deliveries); err != nil {
+			return err
+		}
 	}
 
 	return nil

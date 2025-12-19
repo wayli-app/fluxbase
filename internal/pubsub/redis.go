@@ -87,7 +87,7 @@ func (r *RedisPubSub) Subscribe(ctx context.Context, channel string) (<-chan Mes
 		defer r.wg.Done()
 		defer func() {
 			r.unsubscribe(channel, ch)
-			pubsub.Close()
+			_ = pubsub.Close()
 		}()
 
 		msgCh := pubsub.Channel()

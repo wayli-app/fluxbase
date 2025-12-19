@@ -122,11 +122,3 @@ func encodeInt64(n int64) []byte {
 	binary.BigEndian.PutUint64(buf, uint64(n))
 	return buf
 }
-
-// decodeInt64 converts bytes to int64.
-func decodeInt64(data []byte) int64 {
-	if len(data) != 8 {
-		return 0
-	}
-	return int64(binary.BigEndian.Uint64(data))
-}

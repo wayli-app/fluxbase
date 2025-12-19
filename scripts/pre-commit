@@ -51,21 +51,25 @@ echo ""
 
 # ============================================================================
 # Go Linting (golangci-lint)
+# Uses the same configuration as CI pipeline (golangci-lint v2.7.1)
+# Install with: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.7.1
 # ============================================================================
 echo -e "${YELLOW}[2/5] Running golangci-lint...${NC}"
 
 if [ -n "$STAGED_GO_FILES" ]; then
     if command -v golangci-lint &> /dev/null; then
-        echo "  Running: golangci-lint run --fast"
-        if ! golangci-lint run --fast 2>&1 | head -50; then
+        echo "  Running: golangci-lint run ./..."
+        if ! golangci-lint run ./... 2>&1 | head -100; then
             echo -e "${RED}✗ golangci-lint found issues${NC}"
-            echo -e "${YELLOW}  Run 'golangci-lint run' to see all issues${NC}"
+            echo -e "${YELLOW}  Run 'golangci-lint run ./...' to see all issues${NC}"
             CHECKS_FAILED=1
         else
             echo -e "${GREEN}✓ golangci-lint passed${NC}"
         fi
     else
         echo -e "${YELLOW}⚠ Skipping (golangci-lint not installed)${NC}"
+        echo -e "${YELLOW}  Install v2.7.1 with:${NC}"
+        echo -e "${YELLOW}  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b \$(go env GOPATH)/bin v2.7.1${NC}"
     fi
 else
     echo -e "${GREEN}✓ No Go files to lint${NC}"

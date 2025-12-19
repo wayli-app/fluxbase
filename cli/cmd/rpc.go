@@ -137,7 +137,9 @@ func runRPCList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(procedures)
+		if err := formatter.Print(procedures); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -174,7 +176,7 @@ func runRPCInvoke(cmd *cobra.Command, args []string) error {
 	// Get parameters
 	var params interface{}
 	if rpcFile != "" {
-		content, err := os.ReadFile(rpcFile)
+		content, err := os.ReadFile(rpcFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read file: %w", err)
 		}

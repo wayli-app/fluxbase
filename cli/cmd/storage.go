@@ -210,7 +210,9 @@ func runBucketsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(buckets)
+		if err := formatter.Print(buckets); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -293,7 +295,9 @@ func runObjectsList(cmd *cobra.Command, args []string) error {
 
 		formatter.PrintTable(data)
 	} else {
-		formatter.Print(objects)
+		if err := formatter.Print(objects); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -305,7 +309,7 @@ func runObjectsUpload(cmd *cobra.Command, args []string) error {
 	localFile := args[2]
 
 	// Read file
-	data, err := os.ReadFile(localFile)
+	data, err := os.ReadFile(localFile) //nolint:gosec // CLI tool reads user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
@@ -391,7 +395,7 @@ func runObjectsDownload(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create output file
-	out, err := os.Create(localFile)
+	out, err := os.Create(localFile) //nolint:gosec // CLI tool writes to user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}

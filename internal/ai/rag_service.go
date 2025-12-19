@@ -89,7 +89,7 @@ func (r *RAGService) RetrieveContext(ctx context.Context, opts RetrieveContextOp
 		scores[i] = chunk.Similarity
 	}
 
-	r.storage.LogRetrieval(ctx, &RetrievalLog{
+	_ = r.storage.LogRetrieval(ctx, &RetrievalLog{
 		ChatbotID:           &opts.ChatbotID,
 		ConversationID:      optString(opts.ConversationID),
 		UserID:              optString(opts.UserID),
@@ -289,7 +289,7 @@ func (r *RAGService) VectorSearch(ctx context.Context, opts VectorSearchOptions)
 		scores[i] = result.Similarity
 	}
 
-	r.storage.LogRetrieval(ctx, &RetrievalLog{
+	_ = r.storage.LogRetrieval(ctx, &RetrievalLog{
 		ChatbotID:           &opts.ChatbotID,
 		UserID:              opts.UserID,
 		QueryText:           opts.Query,

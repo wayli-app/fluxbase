@@ -143,7 +143,7 @@ func (f *Formatter) PrintSuccess(message string) {
 	if f.Quiet {
 		return
 	}
-	fmt.Fprintln(f.Writer, message)
+	_, _ = fmt.Fprintln(f.Writer, message)
 }
 
 // PrintError prints an error message
@@ -164,7 +164,7 @@ func (f *Formatter) PrintInfo(message string) {
 	if f.Quiet {
 		return
 	}
-	fmt.Fprintln(f.Writer, message)
+	_, _ = fmt.Fprintln(f.Writer, message)
 }
 
 // PrintKeyValue prints a key-value pair
@@ -175,11 +175,11 @@ func (f *Formatter) PrintKeyValue(key, value string) {
 
 	switch f.Format {
 	case FormatJSON:
-		f.printJSON(map[string]string{key: value})
+		_ = f.printJSON(map[string]string{key: value})
 	case FormatYAML:
-		f.printYAML(map[string]string{key: value})
+		_ = f.printYAML(map[string]string{key: value})
 	default:
-		fmt.Fprintf(f.Writer, "%s: %s\n", key, value)
+		_, _ = fmt.Fprintf(f.Writer, "%s: %s\n", key, value)
 	}
 }
 
@@ -191,12 +191,12 @@ func (f *Formatter) PrintList(items []string) {
 
 	switch f.Format {
 	case FormatJSON:
-		f.printJSON(items)
+		_ = f.printJSON(items)
 	case FormatYAML:
-		f.printYAML(items)
+		_ = f.printYAML(items)
 	default:
 		for _, item := range items {
-			fmt.Fprintln(f.Writer, item)
+			_, _ = fmt.Fprintln(f.Writer, item)
 		}
 	}
 }

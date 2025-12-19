@@ -49,6 +49,12 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 	poolConfig.MaxConnIdleTime = cfg.MaxConnIdleTime
 	poolConfig.HealthCheckPeriod = cfg.HealthCheck
 
+	// Use QueryExecModeDescribeExec to avoid prepared statement caching issues.
+	// This prevents nil pointer dereferences in pgx when statements are invalidated
+	// (e.g., after schema changes or extension creation like pgvector).
+	// The tradeoff is slightly higher overhead per query, but more robust connections.
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeDescribeExec
+
 	// Register custom types for PostgreSQL-specific types that pgx doesn't handle by default
 	// This allows scanning tsvector, tsquery, and other types into interface{}
 	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
