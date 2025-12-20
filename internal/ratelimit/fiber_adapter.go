@@ -80,7 +80,10 @@ func NewIncrementAdapter(store Store, expiration time.Duration) *IncrementAdapte
 }
 
 // Get retrieves and increments the counter for a key.
-// Returns the new count as a byte slice.
+// Returns the count BEFORE the increment to match Fiber's limiter expectations.
+// Fiber's limiter expects: Get() -> check if >= Max -> Set(count+1)
+// Since we do atomic increment in Get(), we return count-1 to simulate
+// the "get before increment" behavior.
 func (a *IncrementAdapter) Get(key string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -88,6 +91,15 @@ func (a *IncrementAdapter) Get(key string) ([]byte, error) {
 	count, err := a.store.Increment(ctx, key, a.expiration)
 	if err != nil {
 		return nil, err
+	}
+
+	// Return count-1 because we pre-incremented
+	// This makes the behavior match what Fiber's limiter expects:
+	// - First request: Increment returns 1, we return 0 (0 < Max, pass)
+	// - Max-th request: Increment returns Max, we return Max-1 (Max-1 < Max, pass)
+	// - (Max+1)-th request: Increment returns Max+1, we return Max (Max >= Max, block)
+	if count > 0 {
+		count--
 	}
 
 	return encodeInt64(count), nil

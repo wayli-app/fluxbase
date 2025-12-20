@@ -601,6 +601,34 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 	return user, nil
 }
 
+// UpdatePasswordInTable updates a user's password in the specified table
+func (r *UserRepository) UpdatePasswordInTable(ctx context.Context, id string, newPasswordHash string, userType string) error {
+	// Determine which table to use
+	tableName := "auth.users"
+	if userType == "dashboard" {
+		tableName = "dashboard.users"
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE %s
+		SET password_hash = $2, updated_at = NOW()
+		WHERE id = $1
+	`, tableName)
+
+	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, newPasswordHash)
+		if err != nil {
+			return err
+		}
+
+		if result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
+
+		return nil
+	})
+}
+
 // DeleteFromTable deletes a user from the specified table
 func (r *UserRepository) DeleteFromTable(ctx context.Context, id string, userType string) error {
 	// Determine which table to use

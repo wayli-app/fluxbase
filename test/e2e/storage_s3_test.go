@@ -69,13 +69,16 @@ func TestStorageS3ListBuckets(t *testing.T) {
 	tc := setupStorageS3Test(t)
 	defer tc.Close()
 
-	// Create a few test buckets
-	tc.NewRequest("POST", "/api/v1/storage/buckets/s3-bucket1").WithAPIKey(tc.APIKey).Send().AssertStatus(fiber.StatusCreated)
-	tc.NewRequest("POST", "/api/v1/storage/buckets/s3-bucket2").WithAPIKey(tc.APIKey).Send().AssertStatus(fiber.StatusCreated)
+	// Create a service key for admin operations (listing buckets requires admin/service role)
+	serviceKey := tc.CreateServiceKey("S3 Storage Admin Key")
 
-	// List buckets
+	// Create a few test buckets
+	tc.NewRequest("POST", "/api/v1/storage/buckets/s3-bucket1").WithServiceKey(serviceKey).Send().AssertStatus(fiber.StatusCreated)
+	tc.NewRequest("POST", "/api/v1/storage/buckets/s3-bucket2").WithServiceKey(serviceKey).Send().AssertStatus(fiber.StatusCreated)
+
+	// List buckets (requires admin/service role)
 	resp := tc.NewRequest("GET", "/api/v1/storage/buckets").
-		WithAPIKey(tc.APIKey).
+		WithServiceKey(serviceKey).
 		Send().
 		AssertStatus(fiber.StatusOK)
 

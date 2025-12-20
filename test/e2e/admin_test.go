@@ -206,9 +206,9 @@ func TestAdminLoginRateLimit(t *testing.T) {
 	tc.CreateDashboardAdminUser(email, password)
 
 	// Make multiple login attempts with wrong password to trigger rate limit
-	// (max 10 per minute)
+	// (max 4 per minute - lower than account lockout threshold of 5)
 	rateLimitHit := false
-	for i := 1; i <= 12; i++ {
+	for i := 1; i <= 6; i++ {
 		resp := tc.NewRequest("POST", "/api/v1/admin/login").
 			WithBody(map[string]interface{}{
 				"email":    email,
@@ -227,9 +227,9 @@ func TestAdminLoginRateLimit(t *testing.T) {
 			break
 		}
 
-		// Any other status is acceptable before rate limit
+		// Any other status is acceptable before rate limit (401 for wrong password)
 		t.Logf("Attempt %d: Status %d", i, status)
 	}
 
-	require.True(t, rateLimitHit, "Rate limit should have been triggered within 12 attempts")
+	require.True(t, rateLimitHit, "Rate limit should have been triggered within 6 attempts")
 }

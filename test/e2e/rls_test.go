@@ -51,9 +51,9 @@ func TestRLSUserCanAccessOwnData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create two users
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
-	user2ID, token2 := tc.CreateTestUser("user2@example.com", "password123")
+	// Create two users with unique emails
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	user2ID, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// User 1 creates a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -112,9 +112,9 @@ func TestRLSUserCannotAccessOtherUserData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create two users
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
-	user2ID, _ := tc.CreateTestUser("user2@example.com", "password123")
+	// Create two users with unique emails
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	user2ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Insert tasks directly in DB as superuser (bypassing RLS to set up test data)
 	// Note: Using TRUNCATE ... CASCADE at test setup already cleared tasks
@@ -150,9 +150,9 @@ func TestRLSPublicDataAccess(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create two users
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
-	_, token2 := tc.CreateTestUser("user2@example.com", "password123")
+	// Create two users with unique emails
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// User 1 creates a public task
 	tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -197,8 +197,8 @@ func TestRLSUpdateOwnData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create user
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
+	// Create user with unique email
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Create a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -218,7 +218,7 @@ func TestRLSUpdateOwnData(t *testing.T) {
 	require.True(t, ok, "Task ID should be a string")
 
 	// User 1 updates their own task
-	resp = tc.NewRequest("PUT", "/api/v1/tables/tasks/"+taskID).
+	resp = tc.NewRequest("PUT", "/api/v1/tables/public/tasks/"+taskID).
 		WithAuth(token1).
 		WithBody(map[string]interface{}{
 			"title":       "Updated Title",
@@ -239,9 +239,9 @@ func TestRLSCannotUpdateOtherUserData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create two users
-	user1ID, _ := tc.CreateTestUser("user1@example.com", "password123")
-	_, token2 := tc.CreateTestUser("user2@example.com", "password123")
+	// Create two users with unique emails
+	user1ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Insert a task for user 1 directly in DB as superuser
 	taskID := "11111111-1111-1111-1111-111111111111"
@@ -251,7 +251,7 @@ func TestRLSCannotUpdateOtherUserData(t *testing.T) {
 	`, taskID, user1ID)
 
 	// User 2 tries to update User 1's task - should return 403 (RLS blocking)
-	resp := tc.NewRequest("PUT", "/api/v1/tables/tasks/"+taskID).
+	resp := tc.NewRequest("PUT", "/api/v1/tables/public/tasks/"+taskID).
 		WithAuth(token2).
 		WithBody(map[string]interface{}{
 			"title":       "Malicious Update",
@@ -275,8 +275,8 @@ func TestRLSDeleteOwnData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create user
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
+	// Create user with unique email
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Create a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -296,7 +296,7 @@ func TestRLSDeleteOwnData(t *testing.T) {
 	require.True(t, ok, "Task ID should be a string")
 
 	// User 1 deletes their own task
-	tc.NewRequest("DELETE", "/api/v1/tables/tasks/"+taskID).
+	tc.NewRequest("DELETE", "/api/v1/tables/public/tasks/"+taskID).
 		WithAuth(token1).
 		Send().
 		AssertStatus(fiber.StatusNoContent)
@@ -311,9 +311,9 @@ func TestRLSCannotDeleteOtherUserData(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create two users
-	user1ID, _ := tc.CreateTestUser("user1@example.com", "password123")
-	_, token2 := tc.CreateTestUser("user2@example.com", "password123")
+	// Create two users with unique emails
+	user1ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Insert a task for user 1 directly in DB as superuser
 	taskID := "22222222-2222-2222-2222-222222222222"
@@ -323,7 +323,7 @@ func TestRLSCannotDeleteOtherUserData(t *testing.T) {
 	`, taskID, user1ID)
 
 	// User 2 tries to delete User 1's task - should fail
-	resp := tc.NewRequest("DELETE", "/api/v1/tables/tasks/"+taskID).
+	resp := tc.NewRequest("DELETE", "/api/v1/tables/public/tasks/"+taskID).
 		WithAuth(token2).
 		Send()
 
@@ -341,8 +341,8 @@ func TestRLSAnonymousUserAccess(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create a user
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
+	// Create a user with unique email
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Create a public task
 	tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -386,8 +386,8 @@ func TestRLSBatchOperations(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create user
-	user1ID, token1 := tc.CreateTestUser("user1@example.com", "password123")
+	// Create user with unique email
+	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Batch create tasks
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -430,7 +430,7 @@ func TestRLSSecurityInputValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create a user to get a valid token
-	_, token := tc.CreateTestUser("user1@example.com", "password123")
+	_, token := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Test 1: Create task with valid user_id - should work
 	validResp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -461,7 +461,7 @@ func TestRLSUUIDValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create a valid user to test with
-	_, token := tc.CreateTestUser("validuser@example.com", "password123")
+	_, token := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Test with valid UUID format - should work
 	validResp := tc.NewRequest("GET", "/api/v1/tables/tasks").
@@ -480,7 +480,7 @@ func TestRLSRoleValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create users with different roles
-	_, userToken := tc.CreateTestUser("user@example.com", "password123")
+	_, userToken := tc.CreateTestUser(test.E2ETestEmail(), "password123")
 
 	// Test authenticated user role - should work
 	resp := tc.NewRequest("GET", "/api/v1/tables/tasks").
@@ -977,8 +977,8 @@ func TestRLSRoleMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a test user with specific role
-			email := tt.appRole + "@example.com"
+			// Create a test user with specific role and unique email
+			email := test.E2ETestEmailWithSuffix(tt.appRole)
 			userID, token := tc.CreateTestUserWithRole(email, "password123", tt.appRole)
 
 			// Create a task to trigger RLS
@@ -1014,11 +1014,11 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 	defer tc.Close()
 
 	// Create admin user (admin app role maps to authenticated DB role)
-	adminEmail := "admin@example.com"
+	adminEmail := test.E2ETestEmailWithSuffix("admin")
 	adminID, _ := tc.CreateTestUserWithRole(adminEmail, "password123", "admin")
 
 	// Create regular user
-	userEmail := "user@example.com"
+	userEmail := test.E2ETestEmailWithSuffix("user")
 	userID, _ := tc.CreateTestUserWithRole(userEmail, "password123", "user")
 
 	// Create test function that returns the current role from request.jwt.claims
@@ -1107,9 +1107,9 @@ func TestRLSHybridApproachDefenseInDepth(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create admin and regular user
-	adminID, _ := tc.CreateTestUserWithRole("admin@example.com", "password123", "admin")
-	userID, _ := tc.CreateTestUserWithRole("user@example.com", "password123", "user")
+	// Create admin and regular user with unique emails
+	adminID, _ := tc.CreateTestUserWithRole(test.E2ETestEmailWithSuffix("admin"), "password123", "admin")
+	userID, _ := tc.CreateTestUserWithRole(test.E2ETestEmailWithSuffix("user"), "password123", "user")
 
 	// Create a test table that requires both database-level role AND app-level role check
 	// (cleanup first in case it exists from previous failed run)

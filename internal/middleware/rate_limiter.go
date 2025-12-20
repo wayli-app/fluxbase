@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
-	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/storage/memory/v2"
@@ -17,31 +16,26 @@ type RateLimiterConfig struct {
 	Expiration time.Duration           // Time window for the rate limit
 	KeyFunc    func(*fiber.Ctx) string // Function to generate the key for rate limiting
 	Message    string                  // Custom error message
-	Store      ratelimit.Store         // Optional: custom rate limit store (uses global store if nil)
 }
 
 // NewRateLimiter creates a new rate limiter middleware with custom configuration.
-// If config.Store is nil, it uses the global rate limit store (configured via scaling.backend).
-// For backwards compatibility, it falls back to in-memory storage if no global store is set.
+//
+// IMPORTANT: This middleware uses Fiber's native in-memory storage for rate limiting.
+// Rate limiting is per-instance only. In multi-instance deployments, each instance
+// maintains its own rate limit counters independently.
 //
 // SECURITY WARNING: In-memory rate limiting is per-instance only. In multi-instance deployments,
 // attackers can bypass rate limits by targeting different instances. For production environments
-// with horizontal scaling, configure Redis-backed storage via FLUXBASE_REDIS_ENABLED=true.
+// with horizontal scaling, consider using a reverse proxy (nginx, Traefik) with centralized
+// rate limiting, or implement custom middleware with Redis-backed storage.
 // See docs/deployment/production-checklist.md for details.
 func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
-	var storage fiber.Storage
-
-	// Use the configured store, or fall back to global store, or use memory
-	if config.Store != nil {
-		storage = ratelimit.NewIncrementAdapter(config.Store, config.Expiration)
-	} else if ratelimit.GlobalStore != nil {
-		storage = ratelimit.NewIncrementAdapter(ratelimit.GlobalStore, config.Expiration)
-	} else {
-		// Fall back to in-memory storage for backwards compatibility
-		storage = memory.New(memory.Config{
-			GCInterval: 10 * time.Minute,
-		})
-	}
+	// Always use Fiber's native memory storage for compatibility with Fiber's limiter.
+	// The limiter middleware uses MessagePack encoding internally, which is incompatible
+	// with our custom IncrementAdapter's binary encoding.
+	storage := memory.New(memory.Config{
+		GCInterval: 10 * time.Minute,
+	})
 
 	// Default key function uses IP address
 	if config.KeyFunc == nil {
@@ -298,9 +292,10 @@ func AdminSetupLimiter() fiber.Handler {
 }
 
 // AdminLoginLimiter limits admin login attempts per IP
+// Max is set to 4 to trigger rate limiting before account lockout (which happens at 5 failed attempts)
 func AdminLoginLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        10,
+		Max:        4,
 		Expiration: 1 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "admin_login:" + c.IP()

@@ -378,6 +378,51 @@ func (s *UserManagementService) setUserLockStatus(ctx context.Context, userID st
 	return err
 }
 
+// UpdateUserRequest for admin user updates
+type UpdateAdminUserRequest struct {
+	Email        *string                `json:"email,omitempty"`
+	Role         *string                `json:"role,omitempty"`
+	Password     *string                `json:"password,omitempty"`
+	UserMetadata map[string]interface{} `json:"user_metadata,omitempty"`
+}
+
+// UpdateUser updates a user's information
+func (s *UserManagementService) UpdateUser(ctx context.Context, userID string, req UpdateAdminUserRequest, userType string) (*EnrichedUser, error) {
+	// Build update request
+	updateReq := UpdateUserRequest{}
+
+	if req.Email != nil {
+		updateReq.Email = req.Email
+	}
+	if req.Role != nil {
+		updateReq.Role = req.Role
+	}
+	if req.UserMetadata != nil {
+		updateReq.UserMetadata = req.UserMetadata
+	}
+
+	// Update user in the appropriate table
+	_, err := s.userRepo.UpdateInTable(ctx, userID, updateReq, userType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// If password is provided, update it
+	if req.Password != nil && *req.Password != "" {
+		hashedPassword, err := s.passwordHasher.HashPassword(*req.Password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		err = s.userRepo.UpdatePasswordInTable(ctx, userID, hashedPassword, userType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update password: %w", err)
+		}
+	}
+
+	// Return the updated user
+	return s.GetEnrichedUserByID(ctx, userID, userType)
+}
+
 // Helper function to generate secure random password
 func generateSecurePassword(length int) (string, error) {
 	bytes := make([]byte, length)

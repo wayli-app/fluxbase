@@ -3,7 +3,9 @@
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { showSubmittedData } from '@/lib/show-submitted-data'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { userManagementApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,16 +30,15 @@ import { PasswordStrength } from '@/components/password-strength'
 import { SelectDropdown } from '@/components/select-dropdown'
 import { roles } from '../data/data'
 import { type User } from '../data/schema'
+import { useUsers } from './users-provider'
 
 const formSchema = z
   .object({
-    firstName: z.string().min(1, 'First Name is required.'),
-    lastName: z.string().min(1, 'Last Name is required.'),
-    username: z.string().min(1, 'Username is required.'),
-    phoneNumber: z.string().min(1, 'Phone number is required.'),
-    email: z.email({
-      error: (iss) => (iss.input === '' ? 'Email is required.' : undefined),
-    }),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    username: z.string().optional(),
+    phoneNumber: z.string().optional(),
+    email: z.string().email('Please enter a valid email address'),
     password: z.string().transform((pwd) => pwd.trim()),
     role: z.string().min(1, 'Role is required.'),
     confirmPassword: z.string().transform((pwd) => pwd.trim()),
@@ -107,11 +108,22 @@ export function UsersActionDialog({
   onOpenChange,
 }: UserActionDialogProps) {
   const isEdit = !!currentRow
+  const queryClient = useQueryClient()
+  const { userType } = useUsers()
+
+  // Extract user metadata fields
+  const userMetadata = currentRow?.user_metadata || {}
+
   const form = useForm<UserForm>({
     resolver: zodResolver(formSchema),
     defaultValues: isEdit
       ? {
-          ...currentRow,
+          firstName: (userMetadata.firstName as string) || '',
+          lastName: (userMetadata.lastName as string) || '',
+          username: (userMetadata.username as string) || '',
+          phoneNumber: (userMetadata.phoneNumber as string) || '',
+          email: currentRow.email,
+          role: currentRow.role,
           password: '',
           confirmPassword: '',
           isEdit,
@@ -129,10 +141,46 @@ export function UsersActionDialog({
         },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: (values: UserForm) => {
+      if (!currentRow) {
+        throw new Error('No user to update')
+      }
+      return userManagementApi.updateUser(
+        currentRow.id,
+        {
+          email: values.email,
+          role: values.role,
+          password: values.password || undefined,
+          user_metadata: {
+            firstName: values.firstName,
+            lastName: values.lastName,
+            username: values.username,
+            phoneNumber: values.phoneNumber,
+          },
+        },
+        userType
+      )
+    },
+    onSuccess: () => {
+      toast.success('User updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['users', userType] })
+      form.reset()
+      onOpenChange(false)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update user')
+    },
+  })
+
   const onSubmit = (values: UserForm) => {
-    form.reset()
-    showSubmittedData(values)
-    onOpenChange(false)
+    if (isEdit) {
+      updateMutation.mutate(values)
+    } else {
+      // For creating new users, use the invite flow
+      toast.info('Use the Invite User button to create new users')
+      onOpenChange(false)
+    }
   }
 
   const isPasswordTouched = !!form.formState.dirtyFields.password
@@ -216,7 +264,8 @@ export function UsersActionDialog({
                       />
                     </FormControl>
                     <FormDescription className='col-span-4 col-start-3'>
-                      Unique identifier for the user (letters, numbers, underscores)
+                      Unique identifier for the user (letters, numbers,
+                      underscores)
                     </FormDescription>
                     <FormMessage className='col-span-4 col-start-3' />
                   </FormItem>
@@ -286,7 +335,7 @@ export function UsersActionDialog({
                 name='password'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-start space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end mt-2.5'>
+                    <FormLabel className='col-span-2 mt-2.5 text-end'>
                       Password
                     </FormLabel>
                     <div className='col-span-4 space-y-2'>
@@ -297,7 +346,10 @@ export function UsersActionDialog({
                         />
                       </FormControl>
                       {field.value && (
-                        <PasswordStrength password={field.value} showRequirements={false} />
+                        <PasswordStrength
+                          password={field.value}
+                          showRequirements={false}
+                        />
                       )}
                       {isEdit && !field.value && (
                         <FormDescription>
@@ -333,8 +385,12 @@ export function UsersActionDialog({
           </Form>
         </div>
         <DialogFooter>
-          <Button type='submit' form='user-form'>
-            Save changes
+          <Button
+            type='submit'
+            form='user-form'
+            disabled={updateMutation.isPending}
+          >
+            {updateMutation.isPending ? 'Saving...' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -28,6 +28,7 @@ type DashboardUser struct {
 	TOTPEnabled   bool       `json:"totp_enabled"`
 	IsActive      bool       `json:"is_active"`
 	IsLocked      bool       `json:"is_locked"`
+	LockedUntil   *time.Time `json:"locked_until,omitempty"`
 	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
@@ -149,14 +150,14 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT id, email, email_verified, password_hash, full_name, avatar_url,
-			       totp_enabled, is_active, is_locked, failed_login_attempts,
+			       totp_enabled, is_active, is_locked, locked_until, failed_login_attempts,
 			       last_login_at, created_at, updated_at
 			FROM dashboard.users
 			WHERE email = $1 AND deleted_at IS NULL
 		`, email).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &passwordHash, &user.FullName,
 			&user.AvatarURL, &user.TOTPEnabled, &user.IsActive, &user.IsLocked,
-			&failedAttempts, &user.LastLoginAt, &user.CreatedAt, &user.UpdatedAt,
+			&user.LockedUntil, &failedAttempts, &user.LastLoginAt, &user.CreatedAt, &user.UpdatedAt,
 		)
 	})
 	if err != nil {
@@ -169,25 +170,51 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 				UserAgent: userAgent,
 				Details:   map[string]interface{}{"reason": "user_not_found", "dashboard": true},
 			})
-			return nil, nil, errors.New("invalid credentials")
+			return nil, nil, ErrInvalidCredentials
 		}
 		return nil, nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
 
 	// Check if account is locked
-	// TODO: SECURITY - Add locked_until column to dashboard.users table and implement
-	// automatic unlock after timeout (similar to auth.users). Currently dashboard accounts
-	// are locked indefinitely until admin intervention.
 	if user.IsLocked {
-		LogSecurityWarning(ctx, SecurityEvent{
-			Type:      SecurityEventLoginFailed,
-			UserID:    user.ID.String(),
-			Email:     user.Email,
-			IPAddress: ipStr,
-			UserAgent: userAgent,
-			Details:   map[string]interface{}{"reason": "account_locked", "dashboard": true},
-		})
-		return nil, nil, errors.New("account is locked")
+		// Check if the lock has expired and auto-unlock if so
+		if user.LockedUntil != nil && time.Now().After(*user.LockedUntil) {
+			// Lock has expired, auto-unlock the account
+			err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+				_, err := tx.Exec(ctx, `
+					UPDATE dashboard.users
+					SET is_locked = false, locked_until = NULL, failed_login_attempts = 0, updated_at = NOW()
+					WHERE id = $1
+				`, user.ID)
+				return err
+			})
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to auto-unlock account: %w", err)
+			}
+			// Update local state
+			user.IsLocked = false
+			user.LockedUntil = nil
+			// Log the auto-unlock
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:      SecurityEventAccountUnlocked,
+				UserID:    user.ID.String(),
+				Email:     user.Email,
+				IPAddress: ipStr,
+				UserAgent: userAgent,
+				Details:   map[string]interface{}{"reason": "lock_expired", "dashboard": true, "auto_unlock": true},
+			})
+		} else {
+			// Account is still locked
+			LogSecurityWarning(ctx, SecurityEvent{
+				Type:      SecurityEventLoginFailed,
+				UserID:    user.ID.String(),
+				Email:     user.Email,
+				IPAddress: ipStr,
+				UserAgent: userAgent,
+				Details:   map[string]interface{}{"reason": "account_locked", "dashboard": true},
+			})
+			return nil, nil, ErrAccountLocked
+		}
 	}
 
 	// Check if account is active
@@ -200,18 +227,19 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 			UserAgent: userAgent,
 			Details:   map[string]interface{}{"reason": "account_inactive", "dashboard": true},
 		})
-		return nil, nil, errors.New("account is inactive")
+		return nil, nil, errors.New("account is inactive") // No standard error for this case
 	}
 
 	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
-		// Increment failed login attempts
+		// Increment failed login attempts and lock if threshold exceeded
 		_ = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, `
 				UPDATE dashboard.users
 				SET failed_login_attempts = failed_login_attempts + 1,
-				    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END
+				    is_locked = CASE WHEN failed_login_attempts >= 4 THEN true ELSE false END,
+				    locked_until = CASE WHEN failed_login_attempts >= 4 THEN NOW() + INTERVAL '15 minutes' ELSE locked_until END
 				WHERE id = $1
 			`, user.ID)
 			return err
@@ -225,7 +253,7 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 			UserAgent: userAgent,
 			Details:   map[string]interface{}{"reason": "invalid_password", "dashboard": true},
 		})
-		return nil, nil, errors.New("invalid credentials")
+		return nil, nil, ErrInvalidCredentials
 	}
 
 	// Reset failed attempts on successful login
@@ -233,6 +261,7 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		_, err := tx.Exec(ctx, `
 			UPDATE dashboard.users
 			SET failed_login_attempts = 0,
+			    locked_until = NULL,
 			    last_login_at = NOW()
 			WHERE id = $1
 		`, user.ID)

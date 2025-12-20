@@ -538,7 +538,8 @@ export interface EnrichedUser {
   active_sessions: number
   last_sign_in: string | null
   is_locked: boolean
-  metadata: Record<string, unknown> | null
+  user_metadata: Record<string, unknown> | null
+  app_metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -617,6 +618,24 @@ export const userManagementApi = {
     const response = await api.post<{ message: string }>(
       `/api/v1/admin/users/${userId}/reset-password`,
       {},
+      { params: { type: userType } }
+    )
+    return response.data
+  },
+
+  updateUser: async (
+    userId: string,
+    data: {
+      email?: string
+      role?: string
+      password?: string
+      user_metadata?: Record<string, unknown>
+    },
+    userType: 'app' | 'dashboard' = 'app'
+  ): Promise<EnrichedUser> => {
+    const response = await api.patch<EnrichedUser>(
+      `/api/v1/admin/users/${userId}`,
+      data,
       { params: { type: userType } }
     )
     return response.data

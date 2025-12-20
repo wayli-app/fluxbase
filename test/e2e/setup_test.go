@@ -44,12 +44,18 @@ func getDatabase(cfg *config.Config) (*database.Connection, error) {
 // TestMain runs before all e2e tests to set up test tables and after all tests to clean up.
 //
 // Execution Flow:
-//  1. setupTestTables() - Creates products and tasks tables with RLS policies
-//  2. m.Run() - Runs all test functions in the e2e package
-//  3. teardownTestTables() - Drops all test tables
+//  1. CleanupE2ETestUsersGlobal() - Clean up any leftover test users from previous runs
+//  2. setupTestTables() - Creates products and tasks tables with RLS policies
+//  3. m.Run() - Runs all test functions in the e2e package
+//  4. teardownTestTables() - Drops all test tables
 //
 // Note: Individual tests should truncate tables for test isolation.
 func TestMain(m *testing.M) {
+	// Cleanup: Remove any leftover e2e test users from previous runs
+	// This ensures a clean state even if previous test runs failed
+	cfg := test.GetTestConfig()
+	test.CleanupE2ETestUsersGlobal(cfg)
+
 	// Setup: Create test tables before running tests
 	if !setupTestTables() {
 		log.Fatal().Msg("Failed to setup test tables - cannot run tests")

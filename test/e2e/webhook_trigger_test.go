@@ -63,8 +63,8 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	// Sign up and get admin token
-	email := "admin@example.com"
+	// Sign up and get admin token with unique email
+	email := test.E2ETestEmailWithSuffix("admin")
 	password := "adminpassword123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -102,7 +102,7 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 	_ = webhook["id"].(string) // webhookID not needed for this test
 
 	// Create a new user to trigger the webhook
-	newUserEmail := "newuser@example.com"
+	newUserEmail := test.E2ETestEmailWithSuffix("newuser")
 	tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
 			"email":    newUserEmail,
@@ -151,8 +151,8 @@ func TestWebhookTriggerOnUserUpdate(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	// Sign up user
-	email := "user@example.com"
+	// Sign up user with unique email
+	email := test.E2ETestEmail()
 	password := "password123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -257,8 +257,8 @@ func TestWebhookTriggerRetry(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	// Sign up user
-	email := "user@example.com"
+	// Sign up user with unique email
+	email := test.E2ETestEmail()
 	password := "password123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -365,8 +365,8 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 	}))
 	defer server2.Close()
 
-	// Sign up user
-	email := "user@example.com"
+	// Sign up user with unique email
+	email := test.E2ETestEmail()
 	password := "password123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -465,8 +465,8 @@ func TestWebhookTriggerInactiveWebhook(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	// Sign up user
-	email := "user@example.com"
+	// Sign up user with unique email
+	email := test.E2ETestEmail()
 	password := "password123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -541,8 +541,8 @@ func TestWebhookTriggerCleanup(t *testing.T) {
 	}))
 	defer webhookServer.Close()
 
-	// Sign up user
-	email := "user@example.com"
+	// Sign up user with unique email
+	email := test.E2ETestEmail()
 	password := "password123"
 	authResp := tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{

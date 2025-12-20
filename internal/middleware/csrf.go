@@ -72,9 +72,15 @@ func CSRF(config ...CSRFConfig) fiber.Handler {
 			return c.Next()
 		}
 
-		// Skip CSRF for certain paths (WebSocket, health checks)
+		// Skip CSRF for certain paths (WebSocket, health checks, public auth endpoints)
 		path := c.Path()
 		if path == "/realtime" || path == "/health" || path == "/ready" || path == "/metrics" {
+			return c.Next()
+		}
+
+		// Skip CSRF for public auth endpoints that don't require prior authentication
+		// These endpoints are designed to be accessed without tokens
+		if isPublicAuthEndpoint(path) {
 			return c.Next()
 		}
 
@@ -200,4 +206,51 @@ func generateCSRFToken(length int) (string, error) {
 // GetCSRFToken is a helper to retrieve the CSRF token for the current request
 func GetCSRFToken(c *fiber.Ctx) string {
 	return c.Cookies("csrf_token")
+}
+
+// isPublicAuthEndpoint checks if the path is a public auth endpoint that doesn't require CSRF
+// These are endpoints that are designed to work without prior authentication
+func isPublicAuthEndpoint(path string) bool {
+	publicPaths := []string{
+		"/api/v1/auth/signup",
+		"/api/v1/auth/signin",
+		"/api/v1/auth/signout",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/password/reset",
+		"/api/v1/auth/password/reset/confirm",
+		"/api/v1/auth/password/reset/verify",
+		"/api/v1/auth/magic-link",
+		"/api/v1/auth/magic-link/verify",
+		"/api/v1/auth/magiclink",
+		"/api/v1/auth/magiclink/verify",
+		"/api/v1/auth/verify-email",
+		"/api/v1/auth/oauth",
+		"/api/v1/auth/2fa/verify",
+		"/api/v1/admin/setup",
+		"/api/v1/admin/setup/status",
+		"/api/v1/admin/login",
+		"/api/v1/admin/login/2fa",
+		"/api/v1/admin/2fa/verify",
+		"/api/v1/admin/refresh",
+		"/dashboard/auth/signup",
+		"/dashboard/auth/login",
+		"/dashboard/auth/2fa/verify",
+	}
+
+	for _, p := range publicPaths {
+		if path == p {
+			return true
+		}
+		// Also match paths that start with OAuth callback paths
+		if len(path) > len(p) && path[:len(p)] == p && path[len(p)] == '/' {
+			return true
+		}
+	}
+
+	// Match OAuth callback pattern
+	if len(path) > 20 && path[:20] == "/api/v1/auth/oauth/" {
+		return true
+	}
+
+	return false
 }

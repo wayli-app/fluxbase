@@ -31,7 +31,7 @@ func TestAuthSignup(t *testing.T) {
 	defer tc.Close()
 
 	// Signup with email and password
-	email := "test@example.com"
+	email := test.E2ETestEmail()
 	password := "testpassword123"
 
 	resp := tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -61,8 +61,8 @@ func TestAuthSignin(t *testing.T) {
 	tc := setupAuthTest(t)
 	defer tc.Close()
 
-	// Create a test user
-	email := "signin@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "testpassword123"
 	_, token := tc.CreateTestUser(email, password)
 	require.NotEmpty(t, token, "Should receive token from signup")
@@ -89,8 +89,8 @@ func TestAuthGetUser(t *testing.T) {
 	tc := setupAuthTest(t)
 	defer tc.Close()
 
-	// Create a test user
-	email := "getuser@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "testpassword123"
 	userID, token := tc.CreateTestUser(email, password)
 	require.NotEmpty(t, userID, "Should have user ID")
@@ -115,8 +115,8 @@ func TestAuthSignout(t *testing.T) {
 	tc := setupAuthTest(t)
 	defer tc.Close()
 
-	// Create a test user
-	email := "signout@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "testpassword123"
 	_, token := tc.CreateTestUser(email, password)
 
@@ -138,8 +138,8 @@ func TestAuthRefreshToken(t *testing.T) {
 	tc := setupAuthTest(t)
 	defer tc.Close()
 
-	// Create a test user
-	email := "refresh@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "testpassword123"
 
 	signupResp := tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -177,8 +177,8 @@ func TestAuthPasswordReset(t *testing.T) {
 	defer tc.Close()
 	_ = tc.ClearMailHogEmails()
 
-	// Create a test user
-	email := "reset@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "oldpassword123"
 	tc.CreateTestUser(email, password)
 
@@ -219,7 +219,7 @@ func TestAuthMagicLink(t *testing.T) {
 		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 	`)
 
-	email := "magic@example.com"
+	email := test.E2ETestEmail()
 
 	// Request magic link
 	tc.NewRequest("POST", "/api/v1/auth/magiclink").
@@ -251,8 +251,8 @@ func TestAuthInvalidCredentials(t *testing.T) {
 	tc := setupAuthTest(t)
 	defer tc.Close()
 
-	// Create a test user
-	email := "invalid@example.com"
+	// Create a test user with unique email
+	email := test.E2ETestEmail()
 	password := "correctpassword"
 	tc.CreateTestUser(email, password)
 
@@ -297,10 +297,10 @@ func TestAuthSignupToggle(t *testing.T) {
 		require.NotNil(t, authService, "Auth service should not be nil")
 		authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
 
-		// Try to signup
+		// Try to signup with unique email
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
 			WithBody(map[string]interface{}{
-				"email":    "disabled@example.com",
+				"email":    test.E2ETestEmail(),
 				"password": "testpassword123",
 			}).
 			Send().
@@ -332,10 +332,10 @@ func TestAuthSignupToggle(t *testing.T) {
 			authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
 		}
 
-		// Try to signup
+		// Try to signup with unique email
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
 			WithBody(map[string]interface{}{
-				"email":    "enabled@example.com",
+				"email":    test.E2ETestEmail(),
 				"password": "testpassword123",
 			}).
 			Send().

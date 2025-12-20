@@ -13,11 +13,8 @@ import (
 
 // cleanup2FATestUsers removes any existing test users created by 2FA tests
 func cleanup2FATestUsers(t *testing.T, tc *test.TestContext) {
-	_, err := tc.DB.Pool().Exec(context.Background(),
-		"DELETE FROM auth.users WHERE email LIKE '%2fa_%@example.com'")
-	if err != nil {
-		t.Logf("Warning: failed to cleanup test users: %v", err)
-	}
+	// Cleanup is now handled globally in TestMain
+	// This function is kept for backwards compatibility but doesn't do anything special
 }
 
 // Test2FASetup tests initiating 2FA setup
@@ -28,8 +25,8 @@ func Test2FASetup(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	// Create a test user
-	user, token := createTestUser(t, tc, "2fa_setup@example.com", "TestPass123!")
+	// Create a test user with unique email
+	user, token := createTestUser(t, tc, test.E2ETestEmailWithSuffix("2fa-setup"), "TestPass123!")
 
 	// Setup 2FA
 	resp := tc.NewRequest("POST", "/api/v1/auth/2fa/setup").
@@ -63,8 +60,8 @@ func Test2FAEnable(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	// Create a test user
-	user, token := createTestUser(t, tc, "2fa_enable@example.com", "TestPass123!")
+	// Create a test user with unique email
+	user, token := createTestUser(t, tc, test.E2ETestEmailWithSuffix("2fa-enable"), "TestPass123!")
 
 	// Setup 2FA
 	setupResp := tc.NewRequest("POST", "/api/v1/auth/2fa/setup").
@@ -115,7 +112,7 @@ func Test2FAStatusCheck(t *testing.T) {
 	cleanup2FATestUsers(t, tc)
 
 	// Create a test user
-	_, token := createTestUser(t, tc, "2fa_status@example.com", "TestPass123!")
+	_, token := createTestUser(t, tc, test.E2ETestEmailWithSuffix("2fa-status"), "TestPass123!")
 
 	// Check status before enabling
 	resp := tc.NewRequest("GET", "/api/v1/auth/2fa/status").
@@ -153,7 +150,7 @@ func Test2FALoginFlow(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	email := "2fa_login@example.com"
+	email := test.E2ETestEmailWithSuffix("2fa-login")
 	password := "TestPass123!"
 
 	// Create a test user
@@ -213,7 +210,7 @@ func Test2FALoginWithBackupCode(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	email := "2fa_backup@example.com"
+	email := test.E2ETestEmailWithSuffix("2fa-backup")
 	password := "TestPass123!"
 
 	// Create a test user
@@ -292,7 +289,7 @@ func Test2FADisable(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	email := "2fa_disable@example.com"
+	email := test.E2ETestEmailWithSuffix("2fa-disable")
 	password := "TestPass123!"
 
 	// Create a test user
@@ -347,7 +344,7 @@ func Test2FAInvalidCode(t *testing.T) {
 	tc.EnsureAuthSchema()
 	cleanup2FATestUsers(t, tc)
 
-	email := "2fa_invalid@example.com"
+	email := test.E2ETestEmailWithSuffix("2fa-invalid")
 	password := "TestPass123!"
 
 	// Create a test user
@@ -395,7 +392,7 @@ func Test2FASetupExpiry(t *testing.T) {
 	cleanup2FATestUsers(t, tc)
 
 	// Create a test user
-	_, token := createTestUser(t, tc, "2fa_expiry@example.com", "TestPass123!")
+	_, token := createTestUser(t, tc, test.E2ETestEmailWithSuffix("2fa-expiry"), "TestPass123!")
 
 	// Setup 2FA
 	setupResp := tc.NewRequest("POST", "/api/v1/auth/2fa/setup").

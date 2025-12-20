@@ -68,6 +68,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -77,6 +78,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// E2ETestEmailPrefix is the prefix used for all e2e test emails.
+// This allows easy identification and cleanup of test accounts.
+const E2ETestEmailPrefix = "e2e-test-"
+
+// E2ETestEmail generates a unique email address for e2e tests.
+// The email uses a prefix that makes it easy to identify and clean up test accounts.
+// Format: e2e-test-{uuid8}@example.com
+func E2ETestEmail() string {
+	return fmt.Sprintf("%s%s@example.com", E2ETestEmailPrefix, uuid.New().String()[:8])
+}
+
+// E2ETestEmailWithSuffix generates a unique email address with a descriptive suffix.
+// Format: e2e-test-{suffix}-{uuid8}@example.com
+func E2ETestEmailWithSuffix(suffix string) string {
+	return fmt.Sprintf("%s%s-%s@example.com", E2ETestEmailPrefix, suffix, uuid.New().String()[:8])
+}
 
 // TestContext holds all testing dependencies including database connection,
 // API server, Fiber app, and configuration.
@@ -145,6 +163,13 @@ func NewTestContext(t *testing.T) *TestContext {
 		// Only run migrations locally (not in CI)
 		err = db.Migrate()
 		require.NoError(t, err, "Failed to run migrations")
+	}
+
+	// Reset global rate limit store to ensure test isolation
+	// This prevents stale data from previous tests affecting rate limiting
+	if ratelimit.GlobalStore != nil {
+		_ = ratelimit.GlobalStore.Close()
+		ratelimit.GlobalStore = nil
 	}
 
 	// Create server (REST API will now see all migrated tables)
@@ -229,6 +254,13 @@ func NewRLSTestContext(t *testing.T) *TestContext {
 	// Don't run migrations as RLS user - migrations should already be applied
 	// by setup using fluxbase_app user
 
+	// Reset global rate limit store to ensure test isolation
+	// This prevents stale data from previous tests affecting rate limiting
+	if ratelimit.GlobalStore != nil {
+		_ = ratelimit.GlobalStore.Close()
+		ratelimit.GlobalStore = nil
+	}
+
 	// Create server (REST API will see all migrated tables)
 	server := api.NewServer(cfg, db, "test")
 
@@ -250,6 +282,13 @@ func (tc *TestContext) Close() {
 		_ = tc.Server.Shutdown(ctx)
 	}
 
+	// Reset global rate limit store after test to prevent stale data
+	// from affecting subsequent tests
+	if ratelimit.GlobalStore != nil {
+		_ = ratelimit.GlobalStore.Close()
+		ratelimit.GlobalStore = nil
+	}
+
 	// Then close the database connection
 	if tc.DB != nil {
 		tc.DB.Close()
@@ -269,6 +308,69 @@ func (tc *TestContext) CleanDatabase() {
 		_, err := tc.DB.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table.Name))
 		require.NoError(tc.T, err)
 	}
+}
+
+// CleanupE2ETestUsers removes all users created by e2e tests.
+// This identifies test accounts by looking for emails with the e2e-test- prefix.
+func (tc *TestContext) CleanupE2ETestUsers() {
+	ctx := context.Background()
+
+	// Delete e2e test users from auth.users (cascade will handle sessions, etc.)
+	_, err := tc.DB.Exec(ctx, fmt.Sprintf(
+		"DELETE FROM auth.users WHERE email LIKE '%s%%@example.com'",
+		E2ETestEmailPrefix,
+	))
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to cleanup auth.users e2e test users")
+	}
+
+	// Delete e2e test users from dashboard.users
+	_, err = tc.DB.Exec(ctx, fmt.Sprintf(
+		"DELETE FROM dashboard.users WHERE email LIKE '%s%%@example.com'",
+		E2ETestEmailPrefix,
+	))
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to cleanup dashboard.users e2e test users")
+	}
+
+	// Also clean up any legacy test users with @example.com or @test.com patterns
+	// This handles tests that haven't been updated yet
+	_, _ = tc.DB.Exec(ctx, "DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+	_, _ = tc.DB.Exec(ctx, "DELETE FROM dashboard.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+	_, _ = tc.DB.Exec(ctx, "DELETE FROM auth.magic_links WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+}
+
+// CleanupE2ETestUsersGlobal is a standalone function to clean up e2e test users.
+// Use this in TestMain before running tests to ensure a clean state.
+// It creates its own database connection and doesn't require a TestContext.
+func CleanupE2ETestUsersGlobal(cfg *config.Config) {
+	ctx := context.Background()
+
+	db, err := database.NewConnection(cfg.Database)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to connect to database for e2e user cleanup")
+		return
+	}
+	defer db.Close()
+
+	// Delete e2e test users from auth.users (cascade will handle sessions, etc.)
+	_, err = db.Exec(ctx, "DELETE FROM auth.users WHERE email LIKE 'e2e-test-%@example.com'")
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to cleanup auth.users e2e test users")
+	}
+
+	// Delete e2e test users from dashboard.users
+	_, err = db.Exec(ctx, "DELETE FROM dashboard.users WHERE email LIKE 'e2e-test-%@example.com'")
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to cleanup dashboard.users e2e test users")
+	}
+
+	// Also clean up any legacy test users with @example.com or @test.com patterns
+	_, _ = db.Exec(ctx, "DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+	_, _ = db.Exec(ctx, "DELETE FROM dashboard.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+	_, _ = db.Exec(ctx, "DELETE FROM auth.magic_links WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
+
+	log.Info().Msg("Cleaned up e2e test users")
 }
 
 // CreateTestTable creates a table for testing

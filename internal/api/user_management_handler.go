@@ -194,6 +194,33 @@ func (h *UserManagementHandler) UpdateUserRole(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
+// UpdateUser updates a user's information (email, role, password, user_metadata)
+func (h *UserManagementHandler) UpdateUser(c *fiber.Ctx) error {
+	userID := c.Params("id")
+	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
+
+	var req auth.UpdateAdminUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	user, err := h.userMgmtService.UpdateUser(c.Context(), userID, req, userType)
+	if err != nil {
+		if err == auth.ErrUserNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(user)
+}
+
 // ResetUserPassword resets a user's password
 func (h *UserManagementHandler) ResetUserPassword(c *fiber.Ctx) error {
 	userID := c.Params("id")
@@ -271,6 +298,7 @@ func (h *UserManagementHandler) RegisterRoutes(app *fiber.App) {
 	admin.Get("/users", h.ListUsers)
 	admin.Get("/users/:id", h.GetUserByID)
 	admin.Post("/users/invite", h.InviteUser)
+	admin.Patch("/users/:id", h.UpdateUser)
 	admin.Delete("/users/:id", h.DeleteUser)
 	admin.Patch("/users/:id/role", h.UpdateUserRole)
 	admin.Post("/users/:id/reset-password", h.ResetUserPassword)

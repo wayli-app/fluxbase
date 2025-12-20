@@ -124,8 +124,8 @@ func TestRESTDelete(t *testing.T) {
 	// Insert products (table already exists and is cleaned)
 	tc.ExecuteSQL("INSERT INTO products (id, name, price) VALUES (1, 'Product 1', 10.00), (2, 'Product 2', 20.00)")
 
-	// Delete product with id=1 using the /:id endpoint
-	tc.NewRequest("DELETE", "/api/v1/tables/products/1").
+	// Delete product with id=1 using the /:id endpoint (explicit public schema)
+	tc.NewRequest("DELETE", "/api/v1/tables/public/products/1").
 		WithAPIKey(tc.APIKey).
 		Send().
 		AssertStatus(fiber.StatusNoContent)

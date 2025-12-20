@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -207,9 +208,14 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 	// Use the dashboard auth service to sign in (dashboard.users, not auth.users)
 	user, loginResp, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
-		if err == auth.ErrInvalidCredentials {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid email or password",
+			})
+		}
+		if errors.Is(err, auth.ErrAccountLocked) {
+			return c.Status(http.StatusForbidden).JSON(fiber.Map{
+				"error": "Account is locked due to too many failed login attempts",
 			})
 		}
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
