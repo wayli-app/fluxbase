@@ -58,6 +58,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,6 +79,63 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
+
+const (
+	// defaultDBRetryAttempts is the number of times to retry database connection
+	defaultDBRetryAttempts = 5
+	// defaultDBHealthTimeout is the timeout for database health checks
+	defaultDBHealthTimeout = 10 * time.Second
+)
+
+// connectTestDatabaseWithRetry attempts to connect to the test database with exponential backoff.
+// This mirrors the retry logic used in the main application (cmd/fluxbase/main.go) to handle
+// race conditions where the database container is running but not yet accepting connections.
+func connectTestDatabaseWithRetry(cfg config.DatabaseConfig, maxAttempts int) (*database.Connection, error) {
+	var db *database.Connection
+	var err error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		log.Debug().
+			Int("attempt", attempt).
+			Int("max_attempts", maxAttempts).
+			Str("host", cfg.Host).
+			Int("port", cfg.Port).
+			Msg("Attempting to connect to test database...")
+
+		db, err = database.NewConnection(cfg)
+		if err == nil {
+			// Connection successful, now verify health
+			ctx, cancel := context.WithTimeout(context.Background(), defaultDBHealthTimeout)
+			healthErr := db.Health(ctx)
+			cancel()
+
+			if healthErr == nil {
+				log.Debug().Msg("Test database connection and health check successful")
+				return db, nil
+			}
+
+			// Health check failed, close connection and retry
+			db.Close()
+			err = healthErr
+		}
+
+		// If this was the last attempt, return the error
+		if attempt >= maxAttempts {
+			break
+		}
+
+		// Calculate exponential backoff (1s, 2s, 4s, 8s, 16s)
+		backoff := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
+		log.Debug().
+			Err(err).
+			Int("attempt", attempt).
+			Dur("retry_in", backoff).
+			Msg("Test database connection failed, retrying...")
+		time.Sleep(backoff)
+	}
+
+	return nil, fmt.Errorf("failed to connect to test database after %d attempts: %w", maxAttempts, err)
+}
 
 // E2ETestEmailPrefix is the prefix used for all e2e test emails.
 // This allows easy identification and cleanup of test accounts.
@@ -144,16 +202,10 @@ func NewTestContext(t *testing.T) *TestContext {
 		Str("db_database", cfg.Database.Database).
 		Msg("Test database configuration")
 
-	// Connect to test database
-	db, err := database.NewConnection(cfg.Database)
-	require.NoError(t, err, "Failed to connect to test database")
-
-	// Ensure database is healthy
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = db.Health(ctx)
-	require.NoError(t, err, "Database is not healthy")
+	// Connect to test database with retry logic to handle CI race conditions
+	// where the database container may be running but not yet accepting connections
+	db, err := connectTestDatabaseWithRetry(cfg.Database, defaultDBRetryAttempts)
+	require.NoError(t, err, "Failed to connect to test database after retries")
 
 	// Run migrations BEFORE creating server so REST API can discover tables
 	// Note: In CI, migrations are already applied by postgres user during database setup
@@ -240,16 +292,10 @@ func NewRLSTestContext(t *testing.T) *TestContext {
 		Str("db_database", cfg.Database.Database).
 		Msg("RLS test database configuration (user without BYPASSRLS)")
 
-	// Connect to test database
-	db, err := database.NewConnection(cfg.Database)
-	require.NoError(t, err, "Failed to connect to test database with RLS user")
-
-	// Ensure database is healthy
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = db.Health(ctx)
-	require.NoError(t, err, "Database is not healthy")
+	// Connect to test database with retry logic to handle CI race conditions
+	// where the database container may be running but not yet accepting connections
+	db, err := connectTestDatabaseWithRetry(cfg.Database, defaultDBRetryAttempts)
+	require.NoError(t, err, "Failed to connect to test database with RLS user after retries")
 
 	// Don't run migrations as RLS user - migrations should already be applied
 	// by setup using fluxbase_app user
