@@ -354,6 +354,16 @@ func (s *SchemaBuilder) BuildSystemPrompt(ctx context.Context, chatbot *Chatbot,
 	sb.WriteString(fmt.Sprintf("Current user ID: %s\n", userID))
 	sb.WriteString(fmt.Sprintf("Current date and time: %s\n", time.Now().UTC().Format("Monday, January 2, 2006 at 3:04 PM MST")))
 
+	// Add response language instruction
+	sb.WriteString("\n## Response Language\n\n")
+	if chatbot.ResponseLanguage == "" || chatbot.ResponseLanguage == "auto" {
+		sb.WriteString("IMPORTANT: Always respond in the same language as the user's message. ")
+		sb.WriteString("Detect the language of each user message and reply in that exact language.\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("IMPORTANT: Always respond in %s, regardless of the language the user writes in.\n",
+			chatbot.ResponseLanguage))
+	}
+
 	return sb.String(), nil
 }
 

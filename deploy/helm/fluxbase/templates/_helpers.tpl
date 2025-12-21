@@ -113,11 +113,22 @@ imagePullSecrets:
 {{- end -}}
 
 {{/*
+Return the proper secret name for Fluxbase secrets
+*/}}
+{{- define "fluxbase.secretName" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecret -}}
+{{- else }}
+    {{- include "fluxbase.fullname" . -}}
+{{- end }}
+{{- end }}
+
+{{/*
 Return the proper PostgreSQL host
 */}}
 {{- define "fluxbase.databaseHost" -}}
-{{- if .Values.config.database.host }}
-    {{- .Values.config.database.host -}}
+{{- if .Values.fluxbase.database.host }}
+    {{- .Values.fluxbase.database.host -}}
 {{- else if eq .Values.postgresql.mode "standalone" }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
 {{- else if eq .Values.postgresql.mode "cnpg" }}
@@ -159,8 +170,8 @@ Return the proper PostgreSQL database name
 Return the proper PostgreSQL runtime username
 */}}
 {{- define "fluxbase.databaseUser" -}}
-{{- if .Values.config.database.user }}
-    {{- .Values.config.database.user -}}
+{{- if .Values.fluxbase.database.user }}
+    {{- .Values.fluxbase.database.user -}}
 {{- else if ne .Values.postgresql.mode "none" }}
     {{- .Values.postgresql.auth.username -}}
 {{- else }}
@@ -251,9 +262,9 @@ fluxbase: database
 Validate JWT secret
 */}}
 {{- define "fluxbase.validateValues.jwt" -}}
-{{- if and (not .Values.existingSecret) (not .Values.config.jwt.secret) -}}
-fluxbase: jwt.secret
-    You must provide either existingSecret or config.jwt.secret for JWT authentication.
+{{- if and (not .Values.existingSecret) (not .Values.fluxbase.auth.jwt_secret) -}}
+fluxbase: auth.jwt_secret
+    You must provide either existingSecret or fluxbase.auth.jwt_secret for JWT authentication.
     Please set one of these values or create a secret with key 'jwt-secret'
 {{- end -}}
 {{- end -}}

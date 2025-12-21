@@ -61,6 +61,9 @@ type Chatbot struct {
 	AllowUnauthenticated bool `json:"allow_unauthenticated"`
 	IsPublic             bool `json:"is_public"`
 
+	// Response language
+	ResponseLanguage string `json:"response_language"` // "auto" (default), ISO code, or language name
+
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
 	CreatedBy *string   `json:"created_by,omitempty"`
@@ -108,6 +111,9 @@ type ChatbotConfig struct {
 	RAGColumn              string   // Vector column in RAG table
 	RAGContentColumn       string   // Text content column in RAG table
 
+	// Response language
+	ResponseLanguage string // "auto" (default), ISO code, or language name
+
 	// Metadata
 	Version int
 }
@@ -132,6 +138,7 @@ func DefaultChatbotConfig() ChatbotConfig {
 		KnowledgeBases:         []string{},
 		RAGMaxChunks:           5,
 		RAGSimilarityThreshold: 0.7,
+		ResponseLanguage:       "auto",
 		Version:                1,
 	}
 }
@@ -220,6 +227,9 @@ var (
 
 	// @fluxbase:rag-content-column content (text column to retrieve)
 	ragContentColumnPattern = regexp.MustCompile(`@fluxbase:rag-content-column\s+([^\n*\s]+)`)
+
+	// @fluxbase:response-language auto | en | German | Deutsch
+	responseLanguagePattern = regexp.MustCompile(`@fluxbase:response-language\s+([^\n*]+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -394,6 +404,11 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		config.RAGContentColumn = strings.TrimSpace(matches[1])
 	}
 
+	// Parse response language
+	if matches := responseLanguagePattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.ResponseLanguage = strings.TrimSpace(matches[1])
+	}
+
 	return config
 }
 
@@ -513,6 +528,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.DailyTokenBudget = config.DailyTokenBudget
 	c.AllowUnauthenticated = config.AllowUnauthenticated
 	c.IsPublic = config.IsPublic
+	c.ResponseLanguage = config.ResponseLanguage
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {

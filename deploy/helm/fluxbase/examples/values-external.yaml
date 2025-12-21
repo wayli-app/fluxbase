@@ -25,35 +25,53 @@ externalDatabase:
   # kubectl create secret generic fluxbase-external-db \
   #   --from-literal=password=your-db-password
 
-# Fluxbase database configuration
-config:
+# Fluxbase configuration (mirrors fluxbase.yaml.example structure)
+fluxbase:
+  # Database connection settings
   database:
     # Override host if needed (otherwise uses externalDatabase.host)
     host: ""
-    port: 5432
-    sslMode: require # require, verify-ca, verify-full, or disable
+    ssl_mode: "require" # require, verify-ca, verify-full, or disable
+    max_connections: 25
+    min_connections: 5
 
-  # JWT secret - REQUIRED
-  jwt:
-    secret: "" # Generate with: openssl rand -base64 32
+  # Authentication - REQUIRED
+  auth:
+    jwt_secret: "" # Generate with: openssl rand -base64 32
+    jwt_expiry: "15m"
+    refresh_expiry: "168h"
+    enable_signup: true
 
-  # Security configuration
+  # Security configuration - REQUIRED
   security:
-    setupToken: "" # REQUIRED: Generate with: openssl rand -base64 32
+    setup_token: "" # Generate with: openssl rand -base64 32
 
   # Server configuration
   server:
-    port: 8080
-    host: "0.0.0.0"
+    address: ":8080"
+    read_timeout: "300s"
+    write_timeout: "300s"
 
-  # Storage configuration
+  # Storage configuration - using S3 for cloud deployments
   storage:
-    provider: s3 # Using S3 for cloud deployments
-    s3:
-      bucket: "" # Your S3 bucket name
-      region: us-east-1
-      endpoint: "" # Leave empty for AWS S3
-      # Credentials in existingSecret
+    provider: "s3"
+    s3_bucket: "" # Your S3 bucket name
+    s3_region: "us-east-1"
+    s3_endpoint: "" # Leave empty for AWS S3
+    # Credentials in existingSecret
+
+  # Realtime/WebSocket
+  realtime:
+    enabled: true
+
+  # Edge Functions
+  functions:
+    enabled: true
+
+  # Logging
+  logging:
+    console_level: "info"
+    console_format: "json"
 
 # Application replicas
 replicaCount: 3
@@ -77,8 +95,9 @@ functionsPersistence:
 # kubectl create secret generic fluxbase-secrets \
 #   --from-literal=database-password=your-db-password \
 #   --from-literal=jwt-secret=$(openssl rand -base64 32) \
-#   --from-literal=s3-access-key-id=your-s3-key \
-#   --from-literal=s3-secret-access-key=your-s3-secret
+#   --from-literal=setup-token=$(openssl rand -base64 32) \
+#   --from-literal=s3-access-key=your-s3-key \
+#   --from-literal=s3-secret-key=your-s3-secret
 
 # Ingress configuration
 ingress:
@@ -101,6 +120,7 @@ autoscaling:
   minReplicas: 3
   maxReplicas: 10
   targetCPU: 70
+
 # Examples for different cloud providers:
 #
 # ===== AWS RDS =====
@@ -109,9 +129,9 @@ autoscaling:
 #   port: 5432
 #   user: fluxbase
 #   database: fluxbase
-# config:
+# fluxbase:
 #   database:
-#     sslMode: require
+#     ssl_mode: require
 #
 # ===== Google Cloud SQL =====
 # externalDatabase:
@@ -119,9 +139,9 @@ autoscaling:
 #   port: 5432
 #   user: fluxbase
 #   database: fluxbase
-# config:
+# fluxbase:
 #   database:
-#     sslMode: require
+#     ssl_mode: require
 # Notes:
 # - Use Cloud SQL Proxy for external connections
 # - Or use Private IP with VPC peering
@@ -132,9 +152,9 @@ autoscaling:
 #   port: 5432
 #   user: fluxbase@myserver  # Note the @myserver suffix
 #   database: fluxbase
-# config:
+# fluxbase:
 #   database:
-#     sslMode: require
+#     ssl_mode: require
 #
 # ===== DigitalOcean Managed Database =====
 # externalDatabase:
@@ -142,9 +162,9 @@ autoscaling:
 #   port: 25060  # Default managed DB port
 #   user: fluxbase
 #   database: fluxbase
-# config:
+# fluxbase:
 #   database:
-#     sslMode: require
+#     ssl_mode: require
 #
 # ===== Supabase =====
 # externalDatabase:
@@ -152,9 +172,9 @@ autoscaling:
 #   port: 5432
 #   user: postgres
 #   database: postgres
-# config:
+# fluxbase:
 #   database:
-#     sslMode: require
+#     ssl_mode: require
 # Notes:
 # - Use connection pooler for better performance
 # - Transaction mode recommended
@@ -165,9 +185,9 @@ autoscaling:
 #   port: 5432
 #   user: fluxbase
 #   database: fluxbase
-# config:
+# fluxbase:
 #   database:
-#     sslMode: disable  # or require if using SSL
+#     ssl_mode: disable  # or require if using SSL
 
 # Database requirements:
 # ----------------------
@@ -187,8 +207,9 @@ autoscaling:
 #    kubectl create secret generic fluxbase-secrets \
 #      --from-literal=database-password=your-db-password \
 #      --from-literal=jwt-secret=$(openssl rand -base64 32) \
-#      --from-literal=s3-access-key-id=your-s3-key \
-#      --from-literal=s3-secret-access-key=your-s3-secret
+#      --from-literal=setup-token=$(openssl rand -base64 32) \
+#      --from-literal=s3-access-key=your-s3-key \
+#      --from-literal=s3-secret-key=your-s3-secret
 #
 # 3. Update this file with your database connection details
 #
@@ -196,5 +217,5 @@ autoscaling:
 #    helm install fluxbase ./deploy/helm/fluxbase \
 #      -f ./deploy/helm/fluxbase/examples/values-external.yaml \
 #      --set externalDatabase.host=your-db-host \
-#      --set config.storage.s3.bucket=your-bucket \
+#      --set fluxbase.storage.s3_bucket=your-bucket \
 #      --set existingSecret=fluxbase-secrets

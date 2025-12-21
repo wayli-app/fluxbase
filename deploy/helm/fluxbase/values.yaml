@@ -76,60 +76,431 @@ image:
   pullSecrets: []
 
 ## @section Fluxbase Configuration parameters
+## @descriptionStart
+## Complete Fluxbase application configuration.
+## This mirrors the structure of fluxbase.yaml.example.
+## All settings are passed as environment variables with FLUXBASE_ prefix.
+## Generate secrets with: scripts/generate-keys.sh
+## @descriptionEnd
 
 ## Fluxbase configuration
-## @param config.database.host PostgreSQL database host
-## @param config.database.port PostgreSQL database port
-## @param config.database.name PostgreSQL database name
-## @param config.database.user PostgreSQL user for normal operations
-## @param config.database.adminUser PostgreSQL admin user for migrations (optional, defaults to user if not set)
-## @param config.database.password PostgreSQL database password (use existingSecret instead)
-## @param config.database.sslMode PostgreSQL SSL mode (disable, require, verify-ca, verify-full)
-## @param config.database.userMigrationsPath Path to user-provided migration files (optional)
-## @param config.server.port HTTP server port
-## @param config.server.host HTTP server host
-## @param config.jwt.secret JWT secret key (use existingSecret instead)
-## @param config.jwt.expirationMinutes JWT access token expiration in minutes
-## @param config.security.setupToken Admin setup token - REQUIRED to enable dashboard (use existingSecret instead for production)
-## @param config.storage.provider Storage provider (local or s3)
-## @param config.storage.local.basePath Base path for local storage
-## @param config.storage.s3.bucket S3 bucket name
-## @param config.storage.s3.region S3 region
-## @param config.storage.s3.endpoint S3 endpoint (for MinIO or S3-compatible services)
-## @param config.storage.s3.accessKeyID S3 access key ID (use existingSecret instead)
-## @param config.storage.s3.secretAccessKey S3 secret access key (use existingSecret instead)
-##
-config:
-  database:
-    host: "" # Auto-determined based on postgresql.mode (can be overridden)
-    port: 5432
-    name: fluxbase
-    user: fluxbase
-    adminUser: "" # Optional: If not set, defaults to user
-    password: "" # Use existingSecret instead
-    sslMode: disable
-    userMigrationsPath: "" # Optional: Path to user-provided migration files (e.g., /migrations/user)
+fluxbase:
+  ## Server configuration
+  ## @param fluxbase.server.address Server bind address (host:port)
+  ## @param fluxbase.server.read_timeout HTTP read timeout
+  ## @param fluxbase.server.write_timeout HTTP write timeout
+  ## @param fluxbase.server.idle_timeout HTTP idle timeout
+  ## @param fluxbase.server.body_limit Maximum request body size in bytes (default 2GB)
+  ##
   server:
-    port: 8080
-    host: "0.0.0.0"
-  jwt:
-    secret: "" # Use existingSecret instead
-    expirationMinutes: 60
+    address: ":8080"
+    read_timeout: "300s"
+    write_timeout: "300s"
+    idle_timeout: "120s"
+    body_limit: 2147483648
+
+  ## Database configuration
+  ## Note: host, port, user are auto-determined from postgresql.* section
+  ## @param fluxbase.database.ssl_mode PostgreSQL SSL mode (disable, allow, prefer, require, verify-ca, verify-full)
+  ## @param fluxbase.database.max_connections Maximum database connections
+  ## @param fluxbase.database.min_connections Minimum database connections
+  ## @param fluxbase.database.max_conn_lifetime Maximum connection lifetime
+  ## @param fluxbase.database.max_conn_idle_time Maximum connection idle time
+  ## @param fluxbase.database.health_check_period Health check interval
+  ## @param fluxbase.database.user_migrations_path Path to user-provided migration files (optional)
+  ##
+  database:
+    ssl_mode: "disable"
+    max_connections: 25
+    min_connections: 5
+    max_conn_lifetime: "1h"
+    max_conn_idle_time: "30m"
+    health_check_period: "1m"
+    user_migrations_path: ""
+
+  ## Authentication configuration
+  ## @param fluxbase.auth.jwt_secret JWT signing secret (use existingSecret in production)
+  ## @param fluxbase.auth.anon_key Pre-generated JWT with 'anon' role for client apps (optional, for convenience)
+  ## @param fluxbase.auth.jwt_expiry Access token expiration
+  ## @param fluxbase.auth.refresh_expiry Refresh token expiration
+  ## @param fluxbase.auth.magic_link_expiry Magic link expiration
+  ## @param fluxbase.auth.password_reset_expiry Password reset link expiration
+  ## @param fluxbase.auth.password_min_length Minimum password length
+  ## @param fluxbase.auth.bcrypt_cost Bcrypt hashing cost (4-31, recommended 10-14)
+  ## @param fluxbase.auth.enable_signup Enable user registration
+  ## @param fluxbase.auth.enable_magic_link Enable magic link authentication
+  ## @param fluxbase.auth.totp_issuer TOTP issuer name for 2FA
+  ## @param fluxbase.auth.google_client_id Google OAuth client ID
+  ## @param fluxbase.auth.apple_client_id Apple OAuth client ID
+  ## @param fluxbase.auth.microsoft_client_id Microsoft OAuth client ID
+  ##
+  auth:
+    jwt_secret: ""  # Use existingSecret in production. Generate with: scripts/generate-keys.sh
+    anon_key: ""    # Pre-signed JWT for client apps. Generate with: scripts/generate-keys.sh (option 3)
+    jwt_expiry: "15m"
+    refresh_expiry: "168h"
+    magic_link_expiry: "15m"
+    password_reset_expiry: "1h"
+    password_min_length: 8
+    bcrypt_cost: 10
+    enable_signup: true
+    enable_magic_link: true
+    totp_issuer: "Fluxbase"
+    google_client_id: ""
+    apple_client_id: ""
+    microsoft_client_id: ""
+
+  ## Security configuration
+  ## @param fluxbase.security.enable_global_rate_limit Enable global rate limiting
+  ## @param fluxbase.security.setup_token Admin setup token (REQUIRED to enable dashboard)
+  ## @param fluxbase.security.admin_setup_rate_limit Admin setup rate limit (requests)
+  ## @param fluxbase.security.admin_setup_rate_window Admin setup rate window
+  ## @param fluxbase.security.auth_login_rate_limit Auth login rate limit (requests)
+  ## @param fluxbase.security.auth_login_rate_window Auth login rate window
+  ## @param fluxbase.security.admin_login_rate_limit Admin login rate limit (requests)
+  ## @param fluxbase.security.admin_login_rate_window Admin login rate window
+  ##
   security:
-    # REQUIRED: Admin setup token - enables admin dashboard
-    # If not set, admin dashboard will be disabled
-    # Generate with: openssl rand -base64 32
-    setupToken: "" # Use existingSecret instead
+    enable_global_rate_limit: false
+    setup_token: ""  # Use existingSecret in production. Generate with: openssl rand -base64 32
+    admin_setup_rate_limit: 5
+    admin_setup_rate_window: "1m"
+    auth_login_rate_limit: 10
+    auth_login_rate_window: "1m"
+    admin_login_rate_limit: 5
+    admin_login_rate_window: "1m"
+
+  ## CORS configuration
+  ## @param fluxbase.cors.allowed_origins Allowed origins for CORS
+  ## @param fluxbase.cors.allowed_methods Allowed HTTP methods
+  ## @param fluxbase.cors.allowed_headers Allowed request headers
+  ## @param fluxbase.cors.exposed_headers Headers exposed to the client
+  ## @param fluxbase.cors.allow_credentials Allow credentials (cookies, auth headers)
+  ## @param fluxbase.cors.max_age Preflight cache duration in seconds
+  ##
+  cors:
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "PATCH"
+      - "OPTIONS"
+    allowed_headers:
+      - "*"
+    exposed_headers: []
+    allow_credentials: true
+    max_age: 86400
+
+  ## Storage configuration
+  ## @param fluxbase.storage.provider Storage provider (local or s3)
+  ## @param fluxbase.storage.local_path Local storage base path
+  ## @param fluxbase.storage.max_upload_size Maximum upload size in bytes
+  ## @param fluxbase.storage.default_buckets Default storage buckets to create
+  ## @param fluxbase.storage.s3_endpoint S3 endpoint URL
+  ## @param fluxbase.storage.s3_access_key S3 access key (use existingSecret)
+  ## @param fluxbase.storage.s3_secret_key S3 secret key (use existingSecret)
+  ## @param fluxbase.storage.s3_bucket S3 bucket name
+  ## @param fluxbase.storage.s3_region S3 region
+  ## @param fluxbase.storage.s3_force_path_style Force S3 path-style URLs (for MinIO)
+  ##
   storage:
-    provider: local
-    local:
-      basePath: /data/storage
-    s3:
-      bucket: ""
-      region: ""
-      endpoint: ""
-      accessKeyID: "" # Use existingSecret instead
-      secretAccessKey: "" # Use existingSecret instead
+    provider: "local"
+    local_path: "/data/storage"
+    max_upload_size: 2147483648
+    default_buckets: []
+    s3_endpoint: ""
+    s3_access_key: ""  # Use existingSecret in production
+    s3_secret_key: ""  # Use existingSecret in production
+    s3_bucket: ""
+    s3_region: ""
+    s3_force_path_style: false
+
+  ## Realtime/WebSocket configuration
+  ## @param fluxbase.realtime.enabled Enable realtime subscriptions
+  ## @param fluxbase.realtime.max_connections Maximum WebSocket connections
+  ## @param fluxbase.realtime.ping_interval WebSocket ping interval
+  ## @param fluxbase.realtime.pong_timeout WebSocket pong timeout
+  ## @param fluxbase.realtime.write_buffer_size WebSocket write buffer size
+  ## @param fluxbase.realtime.read_buffer_size WebSocket read buffer size
+  ## @param fluxbase.realtime.message_size_limit Maximum message size
+  ## @param fluxbase.realtime.channel_buffer_size Channel buffer size
+  ##
+  realtime:
+    enabled: true
+    max_connections: 1000
+    ping_interval: "30s"
+    pong_timeout: "60s"
+    write_buffer_size: 1024
+    read_buffer_size: 1024
+    message_size_limit: 524288
+    channel_buffer_size: 100
+
+  ## Email configuration
+  ## @param fluxbase.email.enabled Enable email sending
+  ## @param fluxbase.email.provider Email provider (smtp, sendgrid, mailgun, ses)
+  ## @param fluxbase.email.from_address Sender email address
+  ## @param fluxbase.email.from_name Sender display name
+  ## @param fluxbase.email.reply_to_address Reply-to email address
+  ## @param fluxbase.email.smtp_host SMTP server host
+  ## @param fluxbase.email.smtp_port SMTP server port
+  ## @param fluxbase.email.smtp_username SMTP username
+  ## @param fluxbase.email.smtp_password SMTP password (use existingSecret)
+  ## @param fluxbase.email.smtp_tls Enable SMTP TLS
+  ## @param fluxbase.email.sendgrid_api_key SendGrid API key (use existingSecret)
+  ## @param fluxbase.email.mailgun_api_key Mailgun API key (use existingSecret)
+  ## @param fluxbase.email.mailgun_domain Mailgun domain
+  ## @param fluxbase.email.ses_access_key AWS SES access key (use existingSecret)
+  ## @param fluxbase.email.ses_secret_key AWS SES secret key (use existingSecret)
+  ## @param fluxbase.email.ses_region AWS SES region
+  ##
+  email:
+    enabled: false
+    provider: "smtp"
+    from_address: "noreply@localhost"
+    from_name: "Fluxbase"
+    reply_to_address: ""
+    smtp_host: ""
+    smtp_port: 587
+    smtp_username: ""
+    smtp_password: ""  # Use existingSecret in production
+    smtp_tls: true
+    sendgrid_api_key: ""  # Use existingSecret in production
+    mailgun_api_key: ""  # Use existingSecret in production
+    mailgun_domain: ""
+    ses_access_key: ""  # Use existingSecret in production
+    ses_secret_key: ""  # Use existingSecret in production
+    ses_region: "us-east-1"
+
+  ## Edge Functions configuration
+  ## @param fluxbase.functions.enabled Enable edge functions
+  ## @param fluxbase.functions.functions_dir Functions directory path
+  ## @param fluxbase.functions.auto_load_on_boot Auto-load functions on startup
+  ## @param fluxbase.functions.default_timeout Default function timeout (seconds)
+  ## @param fluxbase.functions.max_timeout Maximum function timeout (seconds)
+  ## @param fluxbase.functions.default_memory_limit Default memory limit (MB)
+  ## @param fluxbase.functions.max_memory_limit Maximum memory limit (MB)
+  ## @param fluxbase.functions.sync_allowed_ip_ranges IP ranges allowed for function sync
+  ##
+  functions:
+    enabled: true
+    functions_dir: "/app/functions"
+    auto_load_on_boot: true
+    default_timeout: 30
+    max_timeout: 300
+    default_memory_limit: 128
+    max_memory_limit: 1024
+    sync_allowed_ip_ranges: []
+
+  ## Background Jobs configuration
+  ## @param fluxbase.jobs.enabled Enable background jobs
+  ## @param fluxbase.jobs.jobs_dir Jobs directory path
+  ## @param fluxbase.jobs.auto_load_on_boot Auto-load jobs on startup
+  ## @param fluxbase.jobs.worker_mode Worker mode (embedded, standalone, disabled)
+  ## @param fluxbase.jobs.embedded_worker_count Number of embedded workers
+  ## @param fluxbase.jobs.max_concurrent_per_worker Max concurrent jobs per worker
+  ## @param fluxbase.jobs.max_concurrent_per_namespace Max concurrent jobs per namespace
+  ## @param fluxbase.jobs.default_max_duration Default max job duration
+  ## @param fluxbase.jobs.max_max_duration Maximum allowed job duration
+  ## @param fluxbase.jobs.default_progress_timeout Default progress timeout
+  ## @param fluxbase.jobs.poll_interval Job polling interval
+  ## @param fluxbase.jobs.worker_heartbeat_interval Worker heartbeat interval
+  ## @param fluxbase.jobs.worker_timeout Worker timeout
+  ## @param fluxbase.jobs.sync_allowed_ip_ranges IP ranges allowed for job sync
+  ## @param fluxbase.jobs.functions_logs_retention_days Function logs retention (days)
+  ## @param fluxbase.jobs.rpc_logs_retention_days RPC logs retention (days)
+  ## @param fluxbase.jobs.jobs_logs_retention_days Job logs retention (days)
+  ##
+  jobs:
+    enabled: true
+    jobs_dir: "/app/jobs"
+    auto_load_on_boot: true
+    worker_mode: "embedded"
+    embedded_worker_count: 4
+    max_concurrent_per_worker: 10
+    max_concurrent_per_namespace: 50
+    default_max_duration: "30m"
+    max_max_duration: "24h"
+    default_progress_timeout: "5m"
+    poll_interval: "1s"
+    worker_heartbeat_interval: "10s"
+    worker_timeout: "30s"
+    sync_allowed_ip_ranges: []
+    functions_logs_retention_days: 7
+    rpc_logs_retention_days: 7
+    jobs_logs_retention_days: 7
+
+  ## REST API configuration
+  ## @param fluxbase.api.max_page_size Maximum rows per request (-1 for unlimited)
+  ## @param fluxbase.api.max_total_results Maximum total rows via offset+limit (-1 for unlimited)
+  ## @param fluxbase.api.default_page_size Default page size when not specified (-1 for no default)
+  ##
+  api:
+    max_page_size: 1000
+    max_total_results: 10000
+    default_page_size: 1000
+
+  ## Migrations configuration
+  ## @param fluxbase.migrations.enabled Enable migrations API
+  ## @param fluxbase.migrations.allowed_ip_ranges IP ranges allowed for migrations
+  ## @param fluxbase.migrations.require_service_key Require service key for migrations
+  ##
+  migrations:
+    enabled: true
+    allowed_ip_ranges: []
+    require_service_key: false
+
+  ## RPC configuration
+  ## @param fluxbase.rpc.enabled Enable RPC procedures
+  ## @param fluxbase.rpc.procedures_dir Procedures directory path
+  ## @param fluxbase.rpc.auto_load_on_boot Auto-load procedures on startup
+  ## @param fluxbase.rpc.default_max_execution_time Default max execution time (seconds)
+  ## @param fluxbase.rpc.max_max_execution_time Maximum allowed execution time (seconds)
+  ## @param fluxbase.rpc.default_max_rows Default max rows returned
+  ## @param fluxbase.rpc.sync_allowed_ip_ranges IP ranges allowed for RPC sync
+  ##
+  rpc:
+    enabled: true
+    procedures_dir: "/app/procedures"
+    auto_load_on_boot: true
+    default_max_execution_time: 30
+    max_max_execution_time: 300
+    default_max_rows: 1000
+    sync_allowed_ip_ranges: []
+
+  ## AI/Chatbot configuration
+  ## @param fluxbase.ai.enabled Enable AI chatbots
+  ## @param fluxbase.ai.chatbots_dir Chatbots directory path
+  ## @param fluxbase.ai.auto_load_on_boot Auto-load chatbots on startup
+  ## @param fluxbase.ai.default_max_tokens Default max tokens for responses
+  ## @param fluxbase.ai.default_model Default AI model
+  ## @param fluxbase.ai.query_timeout Query timeout
+  ## @param fluxbase.ai.max_rows_per_query Max rows per database query
+  ## @param fluxbase.ai.conversation_cache_ttl Conversation cache TTL
+  ## @param fluxbase.ai.max_conversation_turns Max conversation turns
+  ## @param fluxbase.ai.encryption_key Encryption key for AI data (use existingSecret)
+  ## @param fluxbase.ai.sync_allowed_ip_ranges IP ranges allowed for AI sync
+  ## @param fluxbase.ai.provider_type AI provider type
+  ## @param fluxbase.ai.provider_enabled Enable AI provider
+  ## @param fluxbase.ai.provider_name AI provider name
+  ## @param fluxbase.ai.provider_model AI provider model
+  ## @param fluxbase.ai.openai_api_key OpenAI API key (use existingSecret)
+  ## @param fluxbase.ai.openai_organization_id OpenAI organization ID
+  ## @param fluxbase.ai.openai_base_url OpenAI base URL
+  ## @param fluxbase.ai.azure_api_key Azure OpenAI API key (use existingSecret)
+  ## @param fluxbase.ai.azure_endpoint Azure OpenAI endpoint
+  ## @param fluxbase.ai.azure_deployment_name Azure OpenAI deployment name
+  ## @param fluxbase.ai.azure_api_version Azure OpenAI API version
+  ## @param fluxbase.ai.azure_embedding_deployment_name Azure embedding deployment name
+  ## @param fluxbase.ai.ollama_endpoint Ollama endpoint
+  ## @param fluxbase.ai.ollama_model Ollama model
+  ## @param fluxbase.ai.embedding_enabled Enable embeddings
+  ## @param fluxbase.ai.embedding_provider Embedding provider
+  ## @param fluxbase.ai.embedding_model Embedding model
+  ## @param fluxbase.ai.ocr_enabled Enable OCR
+  ## @param fluxbase.ai.ocr_provider OCR provider
+  ## @param fluxbase.ai.ocr_languages OCR languages
+  ##
+  ai:
+    enabled: false
+    chatbots_dir: "/app/chatbots"
+    auto_load_on_boot: true
+    default_max_tokens: 4096
+    default_model: ""
+    query_timeout: "30s"
+    max_rows_per_query: 1000
+    conversation_cache_ttl: "1h"
+    max_conversation_turns: 50
+    encryption_key: ""  # Use existingSecret in production
+    sync_allowed_ip_ranges: []
+    # Provider configuration
+    provider_type: ""
+    provider_enabled: false
+    provider_name: ""
+    provider_model: ""
+    openai_api_key: ""  # Use existingSecret in production
+    openai_organization_id: ""
+    openai_base_url: ""
+    azure_api_key: ""  # Use existingSecret in production
+    azure_endpoint: ""
+    azure_deployment_name: ""
+    azure_api_version: ""
+    azure_embedding_deployment_name: ""
+    ollama_endpoint: ""
+    ollama_model: ""
+    # Embeddings
+    embedding_enabled: false
+    embedding_provider: ""
+    embedding_model: ""
+    # OCR
+    ocr_enabled: false
+    ocr_provider: ""
+    ocr_languages: []
+
+  ## Logging configuration
+  ## @param fluxbase.logging.console_enabled Enable console logging
+  ## @param fluxbase.logging.console_level Console log level
+  ## @param fluxbase.logging.console_format Console log format (json or text)
+  ## @param fluxbase.logging.backend Logging backend (postgres, s3, local)
+  ## @param fluxbase.logging.s3_bucket S3 bucket for logs
+  ## @param fluxbase.logging.s3_prefix S3 prefix for logs
+  ## @param fluxbase.logging.local_path Local path for logs
+  ## @param fluxbase.logging.batch_size Log batch size
+  ## @param fluxbase.logging.flush_interval Log flush interval
+  ## @param fluxbase.logging.buffer_size Log buffer size
+  ## @param fluxbase.logging.pubsub_enabled Enable log pub/sub
+  ## @param fluxbase.logging.system_retention_days System log retention (days)
+  ## @param fluxbase.logging.http_retention_days HTTP log retention (days)
+  ## @param fluxbase.logging.security_retention_days Security log retention (days)
+  ## @param fluxbase.logging.execution_retention_days Execution log retention (days)
+  ## @param fluxbase.logging.ai_retention_days AI log retention (days)
+  ## @param fluxbase.logging.retention_enabled Enable log retention cleanup
+  ## @param fluxbase.logging.retention_check_interval Retention check interval
+  ##
+  logging:
+    console_enabled: true
+    console_level: "info"
+    console_format: "json"
+    backend: "postgres"
+    s3_bucket: ""
+    s3_prefix: ""
+    local_path: ""
+    batch_size: 100
+    flush_interval: "5s"
+    buffer_size: 1000
+    pubsub_enabled: true
+    system_retention_days: 30
+    http_retention_days: 7
+    security_retention_days: 90
+    execution_retention_days: 7
+    ai_retention_days: 30
+    retention_enabled: true
+    retention_check_interval: "1h"
+
+  ## Tracing configuration (OpenTelemetry)
+  ## @param fluxbase.tracing.enabled Enable OpenTelemetry tracing
+  ## @param fluxbase.tracing.endpoint OTLP gRPC endpoint
+  ## @param fluxbase.tracing.service_name Service name for traces
+  ## @param fluxbase.tracing.environment Environment name
+  ## @param fluxbase.tracing.sample_rate Sample rate (0.0-1.0)
+  ## @param fluxbase.tracing.insecure Use insecure connection
+  ##
+  tracing:
+    enabled: false
+    endpoint: "localhost:4317"
+    service_name: "fluxbase"
+    environment: "production"
+    sample_rate: 0.1
+    insecure: false
+
+  ## General configuration
+  ## @param fluxbase.base_url Public base URL for the application
+  ## @param fluxbase.debug Enable debug mode
+  ##
+  base_url: ""
+  debug: false
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
 ## The secret should contain the following keys:
@@ -141,6 +512,19 @@ config:
 ## - service-key: Service role key for backend services (optional, highly sensitive)
 ##
 existingSecret: ""
+
+## @section ConfigMap Configuration
+## @descriptionStart
+## Optional ConfigMap for non-sensitive static configuration.
+## Application config is handled via environment variables.
+## @descriptionEnd
+
+## @param configMap.enabled Enable ConfigMap creation
+## @param configMap.data Custom data to include in ConfigMap
+##
+configMap:
+  enabled: false
+  data: {}
 
 ## @section Security Configuration
 
@@ -957,21 +1341,4 @@ metrics:
     additionalLabels: {}
     selector: {}
 
-## @section OpenTelemetry Tracing Parameters
-
-## OpenTelemetry tracing configuration
-## Traces are exported via OTLP gRPC to any compatible collector (Jaeger, Grafana Tempo, etc.)
-## @param tracing.enabled Enable OpenTelemetry tracing
-## @param tracing.endpoint OTLP gRPC endpoint (e.g., jaeger:4317, tempo:4317)
-## @param tracing.serviceName Service name for traces
-## @param tracing.environment Environment name (development, staging, production)
-## @param tracing.sampleRate Sample rate (0.0-1.0, where 1.0 = 100% of traces)
-## @param tracing.insecure Use insecure connection (set to false in production with TLS)
-##
-tracing:
-  enabled: false
-  endpoint: "localhost:4317"
-  serviceName: "fluxbase"
-  environment: "production"
-  sampleRate: 0.1
-  insecure: false
+## NOTE: OpenTelemetry tracing is now configured via fluxbase.tracing section above

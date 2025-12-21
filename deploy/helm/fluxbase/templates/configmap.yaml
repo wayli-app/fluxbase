@@ -1,56 +1,24 @@
+{{- /*
+ConfigMap for Fluxbase
+
+This ConfigMap is reserved for non-sensitive static configuration that benefits
+from being in a file format (e.g., custom email templates, static assets).
+
+Application configuration is handled via environment variables in the deployment.
+See values.yaml fluxbase.* section for all configurable options.
+*/ -}}
+{{- if .Values.configMap.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "fluxbase.fullname" . }}
+  name: {{ include "fluxbase.fullname" . }}-config
   namespace: {{ include "fluxbase.namespace" . | quote }}
   labels: {{- include "fluxbase.labels" . | nindent 4 }}
   {{- if .Values.commonAnnotations }}
   annotations: {{- toYaml .Values.commonAnnotations | nindent 4 }}
   {{- end }}
 data:
-  fluxbase.yaml: |
-    database:
-      host: {{ include "fluxbase.databaseHost" . }}
-      port: {{ include "fluxbase.databasePort" . }}
-      name: {{ include "fluxbase.databaseName" . }}
-      user: {{ include "fluxbase.databaseUser" . }}
-      sslmode: {{ .Values.config.database.sslMode }}
-
-    server:
-      port: {{ .Values.config.server.port }}
-      host: {{ .Values.config.server.host | quote }}
-
-    jwt:
-      expiration_minutes: {{ .Values.config.jwt.expirationMinutes }}
-
-    storage:
-      provider: {{ .Values.config.storage.provider | quote }}
-      {{- if eq .Values.config.storage.provider "local" }}
-      local:
-        base_path: {{ .Values.config.storage.local.basePath | quote }}
-      {{- else if eq .Values.config.storage.provider "s3" }}
-      s3:
-        bucket: {{ .Values.config.storage.s3.bucket | quote }}
-        region: {{ .Values.config.storage.s3.region | quote }}
-        endpoint: {{ .Values.config.storage.s3.endpoint | quote }}
-      {{- end }}
-
-    security:
-      rate_limit:
-        enabled: true
-        requests_per_minute: 100
-
-    observability:
-      logging:
-        level: "info"
-        format: "json"
-      metrics:
-        enabled: {{ .Values.metrics.enabled }}
-
-    tracing:
-      enabled: {{ .Values.tracing.enabled }}
-      endpoint: {{ .Values.tracing.endpoint | quote }}
-      service_name: {{ .Values.tracing.serviceName | quote }}
-      environment: {{ .Values.tracing.environment | quote }}
-      sample_rate: {{ .Values.tracing.sampleRate }}
-      insecure: {{ .Values.tracing.insecure }}
+  {{- if .Values.configMap.data }}
+  {{- toYaml .Values.configMap.data | nindent 2 }}
+  {{- end }}
+{{- end }}

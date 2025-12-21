@@ -58,20 +58,48 @@ persistence:
   enabled: true
   size: 50Gi
 
-# JWT secret - REQUIRED
-config:
-  jwt:
-    secret: "" # Generate with: openssl rand -base64 32
+# Fluxbase configuration (mirrors fluxbase.yaml.example structure)
+fluxbase:
+  # Authentication - REQUIRED
+  auth:
+    jwt_secret: "" # Generate with: openssl rand -base64 32
+    jwt_expiry: "15m"
+    refresh_expiry: "168h"
+    enable_signup: true
 
-  # Security configuration
+  # Security configuration - REQUIRED
   security:
-    setupToken: "" # REQUIRED: Generate with: openssl rand -base64 32
+    setup_token: "" # Generate with: openssl rand -base64 32
+
+  # Database connection settings
+  database:
+    ssl_mode: "disable"
+    max_connections: 25
+    min_connections: 5
 
   # Storage configuration
   storage:
-    provider: local # or s3
-    local:
-      basePath: /data/storage
+    provider: "local"
+    local_path: "/data/storage"
+
+  # Server settings
+  server:
+    address: ":8080"
+    read_timeout: "300s"
+    write_timeout: "300s"
+
+  # Realtime/WebSocket
+  realtime:
+    enabled: true
+
+  # Edge Functions
+  functions:
+    enabled: true
+
+  # Logging
+  logging:
+    console_level: "info"
+    console_format: "json"
 
 # Ingress configuration
 ingress:
@@ -110,7 +138,9 @@ containerSecurityContext:
   capabilities:
     drop:
       - ALL
+
 # Installation:
 # helm install fluxbase ./deploy/helm/fluxbase \
 #   -f ./deploy/helm/fluxbase/examples/values-standalone.yaml \
-#   --set config.jwt.secret=$(openssl rand -base64 32)
+#   --set fluxbase.auth.jwt_secret=$(openssl rand -base64 32) \
+#   --set fluxbase.security.setup_token=$(openssl rand -base64 32)

@@ -1,5 +1,20 @@
 version: "3.8"
 
+# ==============================================================================
+# Fluxbase Development Docker Compose
+# ==============================================================================
+# Full configuration reference: See fluxbase.yaml.example
+# All settings use FLUXBASE_ prefix (e.g., server.address -> FLUXBASE_SERVER_ADDRESS)
+#
+# Quick Start:
+#   docker-compose up -d
+#
+# With custom configuration:
+#   cp .env.example .env
+#   # Edit .env with your settings
+#   docker-compose up -d
+# ==============================================================================
+
 services:
   # PostgreSQL Database (with extensions for Fluxbase)
   postgres:
@@ -72,85 +87,249 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # ==========================================================================
+      # Server Configuration
+      # ==========================================================================
+      FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
+      # FLUXBASE_SERVER_READ_TIMEOUT: "300s"
+      # FLUXBASE_SERVER_WRITE_TIMEOUT: "300s"
+      # FLUXBASE_SERVER_IDLE_TIMEOUT: "120s"
+      # FLUXBASE_SERVER_BODY_LIMIT: "2147483648"  # 2GB
+
+      # ==========================================================================
       # Database Configuration
+      # ==========================================================================
       FLUXBASE_DATABASE_HOST: postgres
       FLUXBASE_DATABASE_PORT: 5432
       FLUXBASE_DATABASE_DATABASE: fluxbase
       FLUXBASE_DATABASE_USER: fluxbase
-      # Optional: Separate admin user for migrations (defaults to user if not set)
-      # FLUXBASE_DATABASE_ADMIN_USER: fluxbase_admin
       FLUXBASE_DATABASE_PASSWORD: fluxbase
       FLUXBASE_DATABASE_SSL_MODE: disable
-
-      # User Migrations (optional - uncomment to enable)
+      # FLUXBASE_DATABASE_MAX_CONNECTIONS: "25"
+      # FLUXBASE_DATABASE_MIN_CONNECTIONS: "5"
+      # FLUXBASE_DATABASE_MAX_CONN_LIFETIME: "1h"
+      # FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME: "30m"
+      # Optional: Separate admin user for migrations (defaults to user if not set)
+      # FLUXBASE_DATABASE_ADMIN_USER: fluxbase_admin
+      # Optional: User migrations path
       # FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
 
-      # Server Configuration
-      FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
-
-      # JWT Configuration
-      # ⚠️  CRITICAL SECURITY WARNING ⚠️
-      # The JWT secret below is a randomly generated example for development only.
-      # For production, you MUST generate a new secret using:
-      #   openssl rand -base64 32
-      # Never commit your production JWT secret to version control!
+      # ==========================================================================
+      # Authentication Configuration
+      # ==========================================================================
+      # CRITICAL: Generate secrets with: openssl rand -base64 32
+      # Or use: scripts/generate-keys.sh
       FLUXBASE_AUTH_JWT_SECRET: haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=
       FLUXBASE_AUTH_JWT_EXPIRY: 15m
+      # FLUXBASE_AUTH_REFRESH_EXPIRY: "168h"
+      # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY: "15m"
+      # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY: "1h"
+      # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH: "8"
+      # FLUXBASE_AUTH_BCRYPT_COST: "10"
+      # FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
+      # FLUXBASE_AUTH_ENABLE_MAGIC_LINK: "true"
+      # FLUXBASE_AUTH_TOTP_ISSUER: "Fluxbase"
 
-      # Security - Admin Setup Token (REQUIRED)
-      # Generate with: openssl rand -base64 32
+      # Anon Key: Pre-generated JWT with 'anon' role for client-side apps
+      # Generate with: scripts/generate-keys.sh (option 3)
+      # Use in client apps as: VITE_FLUXBASE_ANON_KEY, NEXT_PUBLIC_FLUXBASE_ANON_KEY, etc.
+      # FLUXBASE_AUTH_ANON_KEY: ""
+
+      # OAuth Providers (optional)
+      # FLUXBASE_AUTH_GOOGLE_CLIENT_ID: ""
+      # FLUXBASE_AUTH_APPLE_CLIENT_ID: ""
+      # FLUXBASE_AUTH_MICROSOFT_CLIENT_ID: ""
+
+      # ==========================================================================
+      # Security Configuration
+      # ==========================================================================
+      # CRITICAL: Generate with: openssl rand -base64 32
       FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:-your-secret-setup-token-change-in-production}
+      # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT: "false"
+      # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT: "5"
+      # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW: "1m"
+      # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT: "10"
+      # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW: "1m"
+      # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT: "5"
+      # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW: "1m"
 
-      # API Keys (Optional - for client applications)
-      #
-      # Anon Key: JWT token with 'anon' role for client-side applications
-      # Generate using: bash scripts/generate-keys.sh (select option 3)
-      # Or use the pre-generated development key below (⚠️ DEVELOPMENT ONLY):
-      # FLUXBASE_AUTH_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYW5vbiIsImVtYWlsIjoiIiwicm9sZSI6ImFub24iLCJzZXNzaW9uX2lkIjoiIiwidG9rZW5fdHlwZSI6ImFjY2VzcyIsImlzX2Fub255bW91cyI6dHJ1ZSwiaXNzIjoiZmx1eGJhc2UiLCJzdWIiOiJhbm9uIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjE3MzE1MzYwMDAsIm5iZiI6MTcwMDAwMDAwMCwianRpIjoiYW5vbiJ9.example
-      #
-      # Service Key: For backend services with elevated privileges (bypasses RLS)
-      # Generate using: bash scripts/generate-keys.sh (select option 2)
-      # Then store the key hash in the database (auth.service_keys table)
-      # FLUXBASE_AUTH_SERVICE_KEY: sk_test_your-generated-service-key-here
+      # ==========================================================================
+      # CORS Configuration
+      # ==========================================================================
+      # FLUXBASE_CORS_ALLOWED_ORIGINS: "*"
+      # FLUXBASE_CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+      # FLUXBASE_CORS_ALLOWED_HEADERS: "*"
+      # FLUXBASE_CORS_ALLOW_CREDENTIALS: "true"
+      # FLUXBASE_CORS_MAX_AGE: "86400"
 
-      # Storage Configuration (using local storage for development)
+      # ==========================================================================
+      # Storage Configuration
+      # ==========================================================================
       FLUXBASE_STORAGE_PROVIDER: local
       FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
+      # FLUXBASE_STORAGE_MAX_UPLOAD_SIZE: "2147483648"  # 2GB
 
-      # For S3-compatible storage (e.g., MinIO), uncomment below and comment out local storage:
+      # For S3-compatible storage (e.g., MinIO), uncomment below:
       # FLUXBASE_STORAGE_PROVIDER: s3
       # FLUXBASE_STORAGE_S3_BUCKET: fluxbase
       # FLUXBASE_STORAGE_S3_REGION: us-east-1
       # FLUXBASE_STORAGE_S3_ENDPOINT: http://minio:9000
       # FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
       # FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
+      # FLUXBASE_STORAGE_S3_FORCE_PATH_STYLE: "true"
 
-      # Realtime Configuration
+      # ==========================================================================
+      # Realtime (WebSocket) Configuration
+      # ==========================================================================
       FLUXBASE_REALTIME_ENABLED: "true"
+      # FLUXBASE_REALTIME_MAX_CONNECTIONS: "1000"
+      # FLUXBASE_REALTIME_PING_INTERVAL: "30s"
+      # FLUXBASE_REALTIME_PONG_TIMEOUT: "60s"
+      # FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT: "524288"  # 512KB
 
+      # ==========================================================================
+      # Email Configuration (optional)
+      # ==========================================================================
+      # FLUXBASE_EMAIL_ENABLED: "false"
+      # FLUXBASE_EMAIL_PROVIDER: "smtp"  # smtp, sendgrid, mailgun, ses
+      # FLUXBASE_EMAIL_FROM_ADDRESS: "noreply@localhost"
+      # FLUXBASE_EMAIL_FROM_NAME: "Fluxbase"
+
+      # SMTP Configuration
+      # FLUXBASE_EMAIL_SMTP_HOST: ""
+      # FLUXBASE_EMAIL_SMTP_PORT: "587"
+      # FLUXBASE_EMAIL_SMTP_USERNAME: ""
+      # FLUXBASE_EMAIL_SMTP_PASSWORD: ""
+      # FLUXBASE_EMAIL_SMTP_TLS: "true"
+
+      # SendGrid Configuration
+      # FLUXBASE_EMAIL_SENDGRID_API_KEY: ""
+
+      # Mailgun Configuration
+      # FLUXBASE_EMAIL_MAILGUN_API_KEY: ""
+      # FLUXBASE_EMAIL_MAILGUN_DOMAIN: ""
+
+      # AWS SES Configuration
+      # FLUXBASE_EMAIL_SES_ACCESS_KEY: ""
+      # FLUXBASE_EMAIL_SES_SECRET_KEY: ""
+      # FLUXBASE_EMAIL_SES_REGION: "us-east-1"
+
+      # ==========================================================================
       # Edge Functions Configuration
+      # ==========================================================================
       FLUXBASE_FUNCTIONS_ENABLED: "true"
       FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /app/functions
+      # FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT: "true"
+      # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT: "30"
+      # FLUXBASE_FUNCTIONS_MAX_TIMEOUT: "300"
+      # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT: "128"
+      # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT: "1024"
 
+      # ==========================================================================
+      # Jobs Configuration
+      # ==========================================================================
+      # FLUXBASE_JOBS_ENABLED: "true"
+      # FLUXBASE_JOBS_JOBS_DIR: "/app/jobs"
+      # FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT: "true"
+      # FLUXBASE_JOBS_WORKER_MODE: "embedded"
+      # FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT: "4"
+      # FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER: "10"
+
+      # ==========================================================================
+      # REST API Configuration
+      # ==========================================================================
+      # FLUXBASE_API_MAX_PAGE_SIZE: "1000"
+      # FLUXBASE_API_MAX_TOTAL_RESULTS: "10000"
+      # FLUXBASE_API_DEFAULT_PAGE_SIZE: "1000"
+
+      # ==========================================================================
+      # Migrations Configuration
+      # ==========================================================================
+      # FLUXBASE_MIGRATIONS_ENABLED: "true"
+      # FLUXBASE_MIGRATIONS_REQUIRE_SERVICE_KEY: "false"
+
+      # ==========================================================================
+      # RPC Configuration
+      # ==========================================================================
+      # FLUXBASE_RPC_ENABLED: "true"
+      # FLUXBASE_RPC_PROCEDURES_DIR: "/app/procedures"
+      # FLUXBASE_RPC_AUTO_LOAD_ON_BOOT: "true"
+      # FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME: "30"
+      # FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME: "300"
+      # FLUXBASE_RPC_DEFAULT_MAX_ROWS: "1000"
+
+      # ==========================================================================
+      # AI Configuration (optional)
+      # ==========================================================================
+      # FLUXBASE_AI_ENABLED: "false"
+      # FLUXBASE_AI_CHATBOTS_DIR: "/app/chatbots"
+      # FLUXBASE_AI_AUTO_LOAD_ON_BOOT: "true"
+      # FLUXBASE_AI_DEFAULT_MAX_TOKENS: "4096"
+      # FLUXBASE_AI_QUERY_TIMEOUT: "30s"
+      # FLUXBASE_AI_MAX_ROWS_PER_QUERY: "1000"
+      # FLUXBASE_AI_ENCRYPTION_KEY: ""  # Generate with: openssl rand -base64 32
+
+      # OpenAI Configuration
+      # FLUXBASE_AI_OPENAI_API_KEY: ""
+      # FLUXBASE_AI_OPENAI_ORGANIZATION_ID: ""
+      # FLUXBASE_AI_OPENAI_BASE_URL: ""
+
+      # Azure OpenAI Configuration
+      # FLUXBASE_AI_AZURE_API_KEY: ""
+      # FLUXBASE_AI_AZURE_ENDPOINT: ""
+      # FLUXBASE_AI_AZURE_DEPLOYMENT_NAME: ""
+      # FLUXBASE_AI_AZURE_API_VERSION: ""
+
+      # Ollama Configuration
+      # FLUXBASE_AI_OLLAMA_ENDPOINT: ""
+      # FLUXBASE_AI_OLLAMA_MODEL: ""
+
+      # ==========================================================================
+      # Logging Configuration
+      # ==========================================================================
+      # FLUXBASE_LOGGING_CONSOLE_ENABLED: "true"
+      # FLUXBASE_LOGGING_CONSOLE_LEVEL: "info"
+      # FLUXBASE_LOGGING_CONSOLE_FORMAT: "json"
+      # FLUXBASE_LOGGING_BACKEND: "postgres"
+      # FLUXBASE_LOGGING_BATCH_SIZE: "100"
+      # FLUXBASE_LOGGING_FLUSH_INTERVAL: "5s"
+      # FLUXBASE_LOGGING_PUBSUB_ENABLED: "true"
+      # FLUXBASE_LOGGING_RETENTION_ENABLED: "true"
+      # FLUXBASE_LOGGING_SYSTEM_RETENTION_DAYS: "30"
+      # FLUXBASE_LOGGING_HTTP_RETENTION_DAYS: "7"
+      # FLUXBASE_LOGGING_SECURITY_RETENTION_DAYS: "90"
+      # FLUXBASE_LOGGING_EXECUTION_RETENTION_DAYS: "7"
+      # FLUXBASE_LOGGING_AI_RETENTION_DAYS: "30"
+
+      # ==========================================================================
+      # Tracing Configuration (OpenTelemetry)
+      # ==========================================================================
+      # FLUXBASE_TRACING_ENABLED: "false"
+      # FLUXBASE_TRACING_ENDPOINT: "localhost:4317"
+      # FLUXBASE_TRACING_SERVICE_NAME: "fluxbase"
+      # FLUXBASE_TRACING_ENVIRONMENT: "development"
+      # FLUXBASE_TRACING_SAMPLE_RATE: "0.1"
+      # FLUXBASE_TRACING_INSECURE: "true"
+
+      # ==========================================================================
       # General Configuration
+      # ==========================================================================
       FLUXBASE_BASE_URL: http://localhost:8080
       FLUXBASE_DEBUG: "false"
 
+      # ==========================================================================
       # Horizontal Scaling Configuration - OPTIONAL
-      # Uncomment to enable multi-instance support (requires Dragonfly or PostgreSQL)
-      #
+      # ==========================================================================
       # Backend options: "local" (default), "postgres", "redis"
       # - local: In-memory (single instance only)
       # - postgres: Uses PostgreSQL for distributed state (no extra dependencies)
       # - redis: Uses Redis-compatible backend (Dragonfly recommended)
       # FLUXBASE_SCALING_BACKEND: postgres
-      #
-      # Enable scheduler leader election (prevents duplicate cron jobs)
       # FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION: "true"
-      #
-      # For Redis/Dragonfly backend, set the connection URL:
+      # For Redis/Dragonfly backend:
       # FLUXBASE_SCALING_REDIS_URL: redis://dragonfly:6379
       # With password: FLUXBASE_SCALING_REDIS_URL: redis://:your-password@dragonfly:6379
+
     volumes:
       - storage_data:/app/storage
       - functions_data:/app/functions

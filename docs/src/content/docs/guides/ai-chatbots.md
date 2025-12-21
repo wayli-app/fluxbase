@@ -35,6 +35,7 @@ graph LR
 ```
 
 The chatbot system:
+
 1. Client connects to Fluxbase via WebSocket
 2. User sends a message to the chatbot
 3. Fluxbase sends the prompt to the LLM provider
@@ -53,59 +54,59 @@ npm install @fluxbase/sdk
 ### Connecting to a Chatbot
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient('http://localhost:8080', 'your-anon-key')
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // List available chatbots
-const { data: chatbots, error } = await client.ai.listChatbots()
-console.log('Available chatbots:', chatbots)
+const { data: chatbots, error } = await client.ai.listChatbots();
+console.log("Available chatbots:", chatbots);
 
 // Create a chat connection
 const chat = client.ai.createChat({
-  token: 'your-jwt-token',
+  token: "your-jwt-token",
   onContent: (delta, conversationId) => {
     // Stream content as it arrives
-    process.stdout.write(delta)
+    process.stdout.write(delta);
   },
   onProgress: (step, message, conversationId) => {
     // Progress updates (e.g., "Querying database...")
-    console.log(`[${step}] ${message}`)
+    console.log(`[${step}] ${message}`);
   },
   onQueryResult: (query, summary, rowCount, data, conversationId) => {
     // SQL query results
-    console.log(`Query: ${query}`)
-    console.log(`Summary: ${summary}`)
-    console.log(`Rows: ${rowCount}`)
-    console.log('Data:', data)
+    console.log(`Query: ${query}`);
+    console.log(`Summary: ${summary}`);
+    console.log(`Rows: ${rowCount}`);
+    console.log("Data:", data);
   },
   onDone: (usage, conversationId) => {
     // Completion with token usage stats
-    console.log(`\nTokens used: ${usage?.total_tokens}`)
+    console.log(`\nTokens used: ${usage?.total_tokens}`);
   },
   onError: (error, code, conversationId) => {
-    console.error(`Error: ${error} (${code})`)
+    console.error(`Error: ${error} (${code})`);
   },
-})
+});
 
 // Connect and start chatting
-await chat.connect()
-const conversationId = await chat.startChat('sql-assistant')
-chat.sendMessage(conversationId, 'Show me the top 10 users by order count')
+await chat.connect();
+const conversationId = await chat.startChat("sql-assistant");
+chat.sendMessage(conversationId, "Show me the top 10 users by order count");
 ```
 
 ### Event Callbacks
 
 The chat client provides several event callbacks:
 
-| Callback | Description | Parameters |
-|----------|-------------|------------|
-| `onEvent` | All events (general handler) | `(event: AIChatEvent) => void` |
-| `onContent` | Streaming content chunks | `(delta: string, conversationId: string) => void` |
-| `onProgress` | Progress updates | `(step: string, message: string, conversationId: string) => void` |
-| `onQueryResult` | SQL query results | `(query, summary, rowCount, data, conversationId) => void` |
-| `onDone` | Message completion | `(usage: AIUsageStats \| undefined, conversationId) => void` |
-| `onError` | Error events | `(error: string, code: string \| undefined, conversationId: string \| undefined) => void` |
+| Callback        | Description                  | Parameters                                                                                |
+| --------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `onEvent`       | All events (general handler) | `(event: AIChatEvent) => void`                                                            |
+| `onContent`     | Streaming content chunks     | `(delta: string, conversationId: string) => void`                                         |
+| `onProgress`    | Progress updates             | `(step: string, message: string, conversationId: string) => void`                         |
+| `onQueryResult` | SQL query results            | `(query, summary, rowCount, data, conversationId) => void`                                |
+| `onDone`        | Message completion           | `(usage: AIUsageStats \| undefined, conversationId) => void`                              |
+| `onError`       | Error events                 | `(error: string, code: string \| undefined, conversationId: string \| undefined) => void` |
 
 ### React Example
 
@@ -237,7 +238,7 @@ export default `You are a helpful assistant that helps users query their data.
 5. Interpret and explain results
 
 Current user ID: {{user_id}}
-`
+`;
 
 export const tools = [
   {
@@ -258,33 +259,34 @@ export const tools = [
       required: ["sql", "description"],
     },
   },
-]
+];
 ```
 
 ### Configuration Annotations
 
 Available metadata annotations:
 
-| Annotation | Description | Default |
-|------------|-------------|---------|
-| `@fluxbase:description` | Short description of the chatbot | Required |
-| `@fluxbase:allowed-tables` | Comma-separated table names or `*` | `*` |
-| `@fluxbase:allowed-operations` | Allowed SQL operations (SELECT, INSERT, etc.) | `SELECT` |
-| `@fluxbase:allowed-schemas` | Allowed database schemas | `public` |
-| `@fluxbase:max-tokens` | Maximum tokens per response | `4096` |
-| `@fluxbase:temperature` | LLM temperature (0.0-2.0) | `0.7` |
-| `@fluxbase:persist-conversations` | Save conversation history | `false` |
-| `@fluxbase:conversation-ttl` | Conversation TTL in hours | `24` |
-| `@fluxbase:max-turns` | Max messages in conversation | `50` |
-| `@fluxbase:rate-limit` | Requests per minute | `10` |
-| `@fluxbase:daily-limit` | Requests per day | `100` |
-| `@fluxbase:token-budget` | Max tokens per day | `50000` |
-| `@fluxbase:allow-unauthenticated` | Allow anonymous access | `false` |
-| `@fluxbase:public` | Show in public chatbot list | `true` |
-| `@fluxbase:http-allowed-domains` | Domains chatbot can fetch (comma-separated) | `""` (disabled) |
-| `@fluxbase:knowledge-base` | Name of knowledge base for RAG (can specify multiple) | - |
-| `@fluxbase:rag-max-chunks` | Maximum chunks to retrieve for RAG context | `5` |
-| `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0) | `0.7` |
+| Annotation                           | Description                                               | Default         |
+| ------------------------------------ | --------------------------------------------------------- | --------------- |
+| `@fluxbase:description`              | Short description of the chatbot                          | Required        |
+| `@fluxbase:allowed-tables`           | Comma-separated table names or `*`                        | `*`             |
+| `@fluxbase:allowed-operations`       | Allowed SQL operations (SELECT, INSERT, etc.)             | `SELECT`        |
+| `@fluxbase:allowed-schemas`          | Allowed database schemas                                  | `public`        |
+| `@fluxbase:max-tokens`               | Maximum tokens per response                               | `4096`          |
+| `@fluxbase:temperature`              | LLM temperature (0.0-2.0)                                 | `0.7`           |
+| `@fluxbase:response-language`        | Response language: `auto` (match user), ISO code, or name | `auto`          |
+| `@fluxbase:persist-conversations`    | Save conversation history                                 | `false`         |
+| `@fluxbase:conversation-ttl`         | Conversation TTL in hours                                 | `24`            |
+| `@fluxbase:max-turns`                | Max messages in conversation                              | `50`            |
+| `@fluxbase:rate-limit`               | Requests per minute                                       | `10`            |
+| `@fluxbase:daily-limit`              | Requests per day                                          | `100`           |
+| `@fluxbase:token-budget`             | Max tokens per day                                        | `50000`         |
+| `@fluxbase:allow-unauthenticated`    | Allow anonymous access                                    | `false`         |
+| `@fluxbase:public`                   | Show in public chatbot list                               | `true`          |
+| `@fluxbase:http-allowed-domains`     | Domains chatbot can fetch (comma-separated)               | `""` (disabled) |
+| `@fluxbase:knowledge-base`           | Name of knowledge base for RAG (can specify multiple)     | -               |
+| `@fluxbase:rag-max-chunks`           | Maximum chunks to retrieve for RAG context                | `5`             |
+| `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0)                | `0.7`           |
 
 ### HTTP Tool
 
@@ -325,7 +327,7 @@ Use the http_get tool to fetch weather data:
 - Parameters: lat, lon, appid (API key is provided automatically)
 
 Current user ID: {{user_id}}
-`
+`;
 ```
 
 ### RAG & Knowledge Bases
@@ -351,7 +353,7 @@ Use the provided context from the knowledge base to answer questions.
 If you can't find relevant information in the context, say so honestly.
 
 Current user ID: {{user_id}}
-`
+`;
 ```
 
 **How RAG works:**
@@ -363,13 +365,51 @@ Current user ID: {{user_id}}
 
 **RAG configuration options:**
 
-| Annotation | Description | Default |
-|------------|-------------|---------|
-| `@fluxbase:knowledge-base` | Knowledge base name (can specify multiple) | - |
-| `@fluxbase:rag-max-chunks` | Maximum chunks to retrieve | `5` |
-| `@fluxbase:rag-similarity-threshold` | Minimum similarity (0.0-1.0) | `0.7` |
+| Annotation                           | Description                                | Default |
+| ------------------------------------ | ------------------------------------------ | ------- |
+| `@fluxbase:knowledge-base`           | Knowledge base name (can specify multiple) | -       |
+| `@fluxbase:rag-max-chunks`           | Maximum chunks to retrieve                 | `5`     |
+| `@fluxbase:rag-similarity-threshold` | Minimum similarity (0.0-1.0)               | `0.7`   |
 
 For detailed documentation on creating knowledge bases, adding documents, and configuring RAG, see the [Knowledge Bases & RAG](/docs/guides/knowledge-bases) guide.
+
+### Response Language
+
+Control the language of chatbot responses using the `@fluxbase:response-language` annotation. By default, chatbots will respond in the same language as the user's message (auto-detect).
+
+**Auto-detect (default):**
+
+```typescript
+/**
+ * Multilingual Assistant
+ *
+ * @fluxbase:response-language auto
+ */
+
+export default `You are a helpful assistant.`;
+```
+
+With `auto`, if a user asks a question in German, the chatbot responds in German. If they ask in Spanish, it responds in Spanish.
+
+**Fixed language:**
+
+```typescript
+/**
+ * German Support Bot
+ *
+ * @fluxbase:response-language German
+ */
+
+export default `You are a customer support assistant.`;
+```
+
+You can use ISO language codes (`en`, `de`, `fr`, `es`) or language names (`English`, `German`, `French`, `Spanish`, `Deutsch`, `Français`).
+
+**Use cases:**
+
+- **Multilingual applications**: Use `auto` to support users in their preferred language
+- **Region-specific bots**: Force a specific language for compliance or brand consistency
+- **Internal tools**: Ensure responses match your team's working language
 
 ### System Prompt Best Practices
 
@@ -394,23 +434,23 @@ Administrators can manage chatbots and AI providers through the admin API.
 
 ```typescript
 // List all chatbots (admin view)
-const { data, error } = await client.admin.ai.listChatbots()
+const { data, error } = await client.admin.ai.listChatbots();
 
 // Filter by namespace
-const { data, error } = await client.admin.ai.listChatbots('production')
+const { data, error } = await client.admin.ai.listChatbots("production");
 ```
 
 ### Managing Chatbots
 
 ```typescript
 // Get chatbot details
-const { data, error } = await client.admin.ai.getChatbot('chatbot-id')
+const { data, error } = await client.admin.ai.getChatbot("chatbot-id");
 
 // Enable/disable a chatbot
-const { data, error } = await client.admin.ai.toggleChatbot('chatbot-id', true)
+const { data, error } = await client.admin.ai.toggleChatbot("chatbot-id", true);
 
 // Delete a chatbot
-const { data, error } = await client.admin.ai.deleteChatbot('chatbot-id')
+const { data, error } = await client.admin.ai.deleteChatbot("chatbot-id");
 ```
 
 ### Syncing Chatbots
@@ -419,25 +459,27 @@ Sync chatbots from filesystem or API payload:
 
 ```typescript
 // Sync from filesystem (loads from configured chatbots directory)
-const { data, error } = await client.admin.ai.sync()
+const { data, error } = await client.admin.ai.sync();
 
 // Sync with provided chatbot code
 const { data, error } = await client.admin.ai.sync({
-  namespace: 'default',
-  chatbots: [{
-    name: 'my-assistant',
-    code: chatbotCodeString,
-  }],
+  namespace: "default",
+  chatbots: [
+    {
+      name: "my-assistant",
+      code: chatbotCodeString,
+    },
+  ],
   options: {
     delete_missing: false, // Don't remove chatbots not in this sync
-    dry_run: false,        // Preview changes without applying
-  }
-})
+    dry_run: false, // Preview changes without applying
+  },
+});
 
 if (data) {
-  console.log(`Created: ${data.summary.created}`)
-  console.log(`Updated: ${data.summary.updated}`)
-  console.log(`Deleted: ${data.summary.deleted}`)
+  console.log(`Created: ${data.summary.created}`);
+  console.log(`Updated: ${data.summary.updated}`);
+  console.log(`Deleted: ${data.summary.deleted}`);
 }
 ```
 
@@ -447,25 +489,25 @@ Configure AI providers (OpenAI, Azure OpenAI, or Ollama):
 
 ```typescript
 // List providers
-const { data: providers } = await client.admin.ai.listProviders()
+const { data: providers } = await client.admin.ai.listProviders();
 
 // Create a provider
 const { data, error } = await client.admin.ai.createProvider({
-  name: 'openai-main',
-  display_name: 'OpenAI (Main)',
-  provider_type: 'openai',
+  name: "openai-main",
+  display_name: "OpenAI (Main)",
+  provider_type: "openai",
   is_default: true,
   config: {
-    api_key: 'sk-...',
-    model: 'gpt-4-turbo',
-  }
-})
+    api_key: "sk-...",
+    model: "gpt-4-turbo",
+  },
+});
 
 // Set as default
-await client.admin.ai.setDefaultProvider('provider-id')
+await client.admin.ai.setDefaultProvider("provider-id");
 
 // Delete provider
-await client.admin.ai.deleteProvider('provider-id')
+await client.admin.ai.deleteProvider("provider-id");
 ```
 
 ## Security & Best Practices
@@ -479,7 +521,7 @@ Chatbots require authentication by default. Configure with `@fluxbase:allow-unau
 const chat = client.ai.createChat({
   token: userJWT, // User's JWT token
   // ... event handlers
-})
+});
 ```
 
 ### Row-Level Security
@@ -492,7 +534,7 @@ When querying user-specific tables, ALWAYS filter by:
 WHERE user_id = '{{user_id}}'
 
 Current user: {{user_id}}
-`
+`;
 ```
 
 ### Rate Limiting
@@ -533,6 +575,7 @@ Restrict database operations to prevent data modification:
 ### Connection Issues
 
 **WebSocket fails to connect:**
+
 - Verify the WebSocket URL is correct
 - Check CORS settings if connecting from browser
 - Ensure JWT token is valid and not expired
@@ -541,24 +584,29 @@ Restrict database operations to prevent data modification:
 ### Rate Limit Errors
 
 **"Rate limit exceeded" error:**
+
 - User has exceeded `@fluxbase:rate-limit` (per minute)
 - Wait or increase the limit in chatbot configuration
 
 **"Daily limit exceeded" error:**
+
 - User has exceeded `@fluxbase:daily-limit` (per day)
 - Reset occurs at midnight UTC or increase the limit
 
 **"Token budget exceeded" error:**
+
 - Total tokens consumed exceeded `@fluxbase:token-budget`
 - Monitor usage via admin API and increase if needed
 
 ### Provider Configuration
 
 **"No AI provider configured" error:**
+
 - Create at least one AI provider via admin API
 - Set a default provider with `setDefaultProvider()`
 
 **"Provider authentication failed" error:**
+
 - Verify API key is correct
 - Check provider is enabled
 - Ensure API key has sufficient credits/quota
@@ -566,14 +614,17 @@ Restrict database operations to prevent data modification:
 ### Query Execution Errors
 
 **"Table not allowed" error:**
+
 - Table not in `@fluxbase:allowed-tables` list
 - Update chatbot configuration to include the table
 
 **"Operation not allowed" error:**
+
 - Query uses operation not in `@fluxbase:allowed-operations`
 - Typically means attempting INSERT/UPDATE/DELETE when only SELECT is allowed
 
 **"Permission denied" error:**
+
 - User lacks PostgreSQL permissions on the table
 - Check Row-Level Security policies
 - Verify user authentication

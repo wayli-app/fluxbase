@@ -79,23 +79,63 @@ functionsPersistence:
   accessModes:
     - ReadWriteMany
 
-# JWT secret - REQUIRED
-config:
-  jwt:
-    secret: "" # Generate with: openssl rand -base64 32
+# Fluxbase configuration (mirrors fluxbase.yaml.example structure)
+fluxbase:
+  # Authentication - REQUIRED
+  auth:
+    jwt_secret: "" # Generate with: openssl rand -base64 32
+    jwt_expiry: "15m"
+    refresh_expiry: "168h"
+    enable_signup: true
 
-  # Security configuration
+  # Security configuration - REQUIRED
   security:
-    setupToken: "" # REQUIRED: Generate with: openssl rand -base64 32
+    setup_token: "" # Generate with: openssl rand -base64 32
+    enable_global_rate_limit: true
+
+  # Database connection settings
+  database:
+    ssl_mode: "require"
+    max_connections: 50
+    min_connections: 10
 
   # Storage configuration - using S3 for better scalability
   storage:
-    provider: s3
-    s3:
-      bucket: fluxbase-storage
-      region: us-east-1
-      endpoint: "" # Leave empty for AWS S3
-      # accessKeyID and secretAccessKey should be in existingSecret
+    provider: "s3"
+    s3_bucket: "fluxbase-storage"
+    s3_region: "us-east-1"
+    s3_endpoint: "" # Leave empty for AWS S3
+    # s3_access_key and s3_secret_key should be in existingSecret
+
+  # Server settings
+  server:
+    address: ":8080"
+    read_timeout: "300s"
+    write_timeout: "300s"
+
+  # Realtime/WebSocket
+  realtime:
+    enabled: true
+    max_connections: 5000
+
+  # Edge Functions
+  functions:
+    enabled: true
+
+  # Jobs
+  jobs:
+    enabled: true
+    embedded_worker_count: 8
+
+  # API limits
+  api:
+    max_page_size: 1000
+    max_total_results: 10000
+
+  # Logging
+  logging:
+    console_level: "info"
+    console_format: "json"
 
 # Use existing secret for sensitive data
 # existingSecret: fluxbase-secrets
@@ -103,8 +143,9 @@ config:
 # kubectl create secret generic fluxbase-secrets \
 #   --from-literal=database-password=xxx \
 #   --from-literal=jwt-secret=yyy \
-#   --from-literal=s3-access-key-id=zzz \
-#   --from-literal=s3-secret-access-key=aaa
+#   --from-literal=setup-token=zzz \
+#   --from-literal=s3-access-key=aaa \
+#   --from-literal=s3-secret-key=bbb
 
 # Ingress configuration
 ingress:
@@ -148,8 +189,9 @@ podAntiAffinityPreset: hard # Ensure pods are on different nodes
 #    kubectl create secret generic fluxbase-secrets \
 #      --from-literal=database-password=$(openssl rand -base64 32) \
 #      --from-literal=jwt-secret=$(openssl rand -base64 32) \
-#      --from-literal=s3-access-key-id=YOUR_ACCESS_KEY \
-#      --from-literal=s3-secret-access-key=YOUR_SECRET_KEY
+#      --from-literal=setup-token=$(openssl rand -base64 32) \
+#      --from-literal=s3-access-key=YOUR_ACCESS_KEY \
+#      --from-literal=s3-secret-key=YOUR_SECRET_KEY
 #
 # 3. Install Fluxbase:
 #    helm install fluxbase ./deploy/helm/fluxbase \

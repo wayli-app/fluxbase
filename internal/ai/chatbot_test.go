@@ -199,3 +199,85 @@ func TestParseChatbotConfig_MultipleIntentRulesAnnotations(t *testing.T) {
 	assert.Equal(t, []string{"trip", "travel"}, config.IntentRules[1].Keywords)
 	assert.Equal(t, "my_trips", config.IntentRules[1].RequiredTable)
 }
+
+func TestParseChatbotConfig_ResponseLanguage(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected string
+	}{
+		{
+			name: "auto (default)",
+			code: "/**\n" +
+				" * Test chatbot\n" +
+				" *\n" +
+				" * @fluxbase:allowed-tables users\n" +
+				" */\n" +
+				"\n" +
+				"export default `You are a helpful assistant.`;\n",
+			expected: "auto",
+		},
+		{
+			name: "explicit auto",
+			code: "/**\n" +
+				" * Test chatbot\n" +
+				" *\n" +
+				" * @fluxbase:response-language auto\n" +
+				" */\n" +
+				"\n" +
+				"export default `You are a helpful assistant.`;\n",
+			expected: "auto",
+		},
+		{
+			name: "ISO code",
+			code: "/**\n" +
+				" * Test chatbot\n" +
+				" *\n" +
+				" * @fluxbase:response-language de\n" +
+				" */\n" +
+				"\n" +
+				"export default `You are a helpful assistant.`;\n",
+			expected: "de",
+		},
+		{
+			name: "language name English",
+			code: "/**\n" +
+				" * Test chatbot\n" +
+				" *\n" +
+				" * @fluxbase:response-language German\n" +
+				" */\n" +
+				"\n" +
+				"export default `You are a helpful assistant.`;\n",
+			expected: "German",
+		},
+		{
+			name: "language name native",
+			code: "/**\n" +
+				" * Test chatbot\n" +
+				" *\n" +
+				" * @fluxbase:response-language Deutsch\n" +
+				" */\n" +
+				"\n" +
+				"export default `You are a helpful assistant.`;\n",
+			expected: "Deutsch",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ParseChatbotConfig(tt.code)
+			assert.Equal(t, tt.expected, config.ResponseLanguage)
+		})
+	}
+}
+
+func TestApplyConfig_ResponseLanguage(t *testing.T) {
+	config := ChatbotConfig{
+		ResponseLanguage: "German",
+	}
+
+	chatbot := &Chatbot{}
+	chatbot.ApplyConfig(config)
+
+	assert.Equal(t, "German", chatbot.ResponseLanguage)
+}
