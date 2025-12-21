@@ -551,6 +551,9 @@ func GetTestConfig() *config.Config {
 			MaxTotalResults: 10000,
 			DefaultPageSize: 1000,
 		},
+		Admin: config.AdminConfig{
+			Enabled: true, // Enable admin dashboard for e2e tests
+		},
 		Debug: true,
 	}
 }
