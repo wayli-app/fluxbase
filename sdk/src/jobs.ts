@@ -19,7 +19,7 @@
  */
 
 import type { FluxbaseFetch } from "./fetch";
-import type { Job, OnBehalfOf, SubmitJobRequest } from "./types";
+import type { ExecutionLog, Job, OnBehalfOf, SubmitJobRequest } from "./types";
 
 /**
  * Jobs client for submitting and monitoring background jobs
@@ -229,6 +229,57 @@ export class FluxbaseJobs {
     try {
       const data = await this.fetch.post<Job>(`/api/v1/jobs/${jobId}/retry`, {});
       return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Get execution logs for a job
+   *
+   * Returns logs for the specified job. Only returns logs for jobs
+   * owned by the authenticated user (unless using service_role).
+   *
+   * @param jobId - Job ID
+   * @param afterLine - Optional line number to get logs after (for polling/streaming)
+   * @returns Promise resolving to { data, error } tuple with execution logs
+   *
+   * @example
+   * ```typescript
+   * // Get all logs for a job
+   * const { data: logs, error } = await client.jobs.getLogs('550e8400-e29b-41d4-a716-446655440000')
+   *
+   * if (logs) {
+   *   for (const log of logs) {
+   *     console.log(`[${log.level}] ${log.message}`)
+   *   }
+   * }
+   *
+   * // Backfill + stream pattern
+   * const { data: logs } = await client.jobs.getLogs(jobId)
+   * let lastLine = Math.max(...(logs?.map(l => l.line_number) ?? []), 0)
+   *
+   * const channel = client.realtime
+   *   .executionLogs(jobId, 'job')
+   *   .onLog((log) => {
+   *     if (log.line_number > lastLine) {
+   *       displayLog(log)
+   *       lastLine = log.line_number
+   *     }
+   *   })
+   *   .subscribe()
+   * ```
+   */
+  async getLogs(
+    jobId: string,
+    afterLine?: number,
+  ): Promise<{ data: ExecutionLog[] | null; error: Error | null }> {
+    try {
+      const params = afterLine !== undefined ? `?after_line=${afterLine}` : "";
+      const response = await this.fetch.get<{ logs: ExecutionLog[]; count: number }>(
+        `/api/v1/jobs/${jobId}/logs${params}`,
+      );
+      return { data: response.logs || [], error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -432,12 +434,6 @@ func (sm *SubscriptionManager) CreateLogSubscription(subID, connID, executionID,
 	}
 	sm.execLogSubs[executionID][subID] = true
 
-	log.Info().
-		Str("sub_id", subID).
-		Str("execution_id", executionID).
-		Str("execution_type", executionType).
-		Msg("Created execution log subscription")
-
 	return sub, nil
 }
 
@@ -591,4 +587,99 @@ func (sm *SubscriptionManager) RemoveConnectionAllLogsSubscriptions(connID strin
 	for _, subID := range subsToRemove {
 		_ = sm.RemoveAllLogsSubscription(subID)
 	}
+}
+
+// CheckExecutionOwnership verifies if a user owns the execution.
+// Returns (isOwner, exists, error).
+// executionType can be "rpc", "job", "function", or empty (will try all).
+func (sm *SubscriptionManager) CheckExecutionOwnership(ctx context.Context, executionID, userID, executionType string) (isOwner bool, exists bool, err error) {
+	execUUID, err := uuid.Parse(executionID)
+	if err != nil {
+		return false, false, fmt.Errorf("invalid execution ID: %w", err)
+	}
+
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return false, false, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	// Check based on execution type
+	switch executionType {
+	case "rpc":
+		return sm.checkRPCOwnership(ctx, execUUID, userUUID)
+	case "job":
+		return sm.checkJobOwnership(ctx, execUUID, userUUID)
+	case "function":
+		return sm.checkFunctionOwnership(ctx, execUUID, userUUID)
+	default:
+		// Unknown type - try all tables
+		return sm.checkAnyExecution(ctx, execUUID, userUUID)
+	}
+}
+
+func (sm *SubscriptionManager) checkRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	var ownerID *uuid.UUID
+	err := sm.db.QueryRow(ctx, "SELECT user_id FROM rpc.executions WHERE id = $1", execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil // Anonymous - allow
+	}
+	return *ownerID == userID, true, nil
+}
+
+func (sm *SubscriptionManager) checkJobOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	var ownerID *uuid.UUID
+	err := sm.db.QueryRow(ctx, "SELECT created_by FROM jobs.queue WHERE id = $1", execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil // Anonymous - allow
+	}
+	return *ownerID == userID, true, nil
+}
+
+func (sm *SubscriptionManager) checkFunctionOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	// Edge function executions are owned by whoever created the function
+	// Join edge_executions → edge_functions to get created_by
+	var ownerID *uuid.UUID
+	err := sm.db.QueryRow(ctx, `
+		SELECT ef.created_by
+		FROM functions.edge_executions ee
+		JOIN functions.edge_functions ef ON ee.function_id = ef.id
+		WHERE ee.id = $1
+	`, execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil // No owner (system function) - allow
+	}
+	return *ownerID == userID, true, nil
+}
+
+func (sm *SubscriptionManager) checkAnyExecution(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	// Try RPC first
+	isOwner, exists, err := sm.checkRPCOwnership(ctx, execID, userID)
+	if err != nil || exists {
+		return isOwner, exists, err
+	}
+	// Try jobs
+	isOwner, exists, err = sm.checkJobOwnership(ctx, execID, userID)
+	if err != nil || exists {
+		return isOwner, exists, err
+	}
+	// Try functions
+	return sm.checkFunctionOwnership(ctx, execID, userID)
 }

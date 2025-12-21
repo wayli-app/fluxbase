@@ -7,6 +7,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
@@ -14,13 +15,14 @@ import (
 
 // Handler handles RPC-related HTTP endpoints
 type Handler struct {
-	storage     *Storage
-	loader      *Loader
-	executor    *Executor
-	validator   *Validator
-	config      *config.RPCConfig
-	authService *auth.Service
-	scheduler   *Scheduler
+	storage        *Storage
+	loader         *Loader
+	executor       *Executor
+	validator      *Validator
+	config         *config.RPCConfig
+	authService    *auth.Service
+	scheduler      *Scheduler
+	loggingService *logging.Service
 }
 
 // SetScheduler sets the scheduler for procedure lifecycle management
@@ -34,14 +36,15 @@ func (h *Handler) GetExecutor() *Executor {
 }
 
 // NewHandler creates a new RPC handler
-func NewHandler(db *database.Connection, storage *Storage, loader *Loader, metrics *observability.Metrics, cfg *config.RPCConfig, authService *auth.Service) *Handler {
+func NewHandler(db *database.Connection, storage *Storage, loader *Loader, metrics *observability.Metrics, cfg *config.RPCConfig, authService *auth.Service, loggingService *logging.Service) *Handler {
 	return &Handler{
-		storage:     storage,
-		loader:      loader,
-		executor:    NewExecutor(db, storage, metrics, cfg),
-		validator:   NewValidator(),
-		config:      cfg,
-		authService: authService,
+		storage:        storage,
+		loader:         loader,
+		executor:       NewExecutor(db, storage, metrics, cfg),
+		validator:      NewValidator(),
+		config:         cfg,
+		authService:    authService,
+		loggingService: loggingService,
 	}
 }
 
@@ -541,8 +544,6 @@ func (h *Handler) GetExecution(c *fiber.Ctx) error {
 
 // GetExecutionLogs returns logs for an execution
 // GET /api/v1/admin/rpc/executions/:id/logs
-// Note: Execution logs are now stored in the central logging schema (logging.entries)
-// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 	ctx := c.Context()
 	id := c.Params("id")
@@ -562,11 +563,26 @@ func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 		})
 	}
 
-	// Return empty - logs are now in central logging schema
+	// Parse after_line query param for pagination
+	afterLine := 0
+	if afterLineStr := c.Query("after_line"); afterLineStr != "" {
+		if l, err := strconv.Atoi(afterLineStr); err == nil {
+			afterLine = l
+		}
+	}
+
+	// Query logs from central logging
+	entries, err := h.loggingService.GetExecutionLogs(ctx, id, afterLine)
+	if err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to get execution logs")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get execution logs",
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"logs":    []interface{}{},
-		"count":   0,
-		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
+		"entries": entries,
+		"count":   len(entries),
 	})
 }
 
@@ -809,8 +825,6 @@ func (h *Handler) GetPublicExecution(c *fiber.Ctx) error {
 
 // GetPublicExecutionLogs returns logs for user's own execution
 // GET /api/v1/rpc/executions/:id/logs
-// Note: Execution logs are now stored in the central logging schema (logging.entries)
-// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 	ctx := c.Context()
 	id := c.Params("id")
@@ -836,7 +850,7 @@ func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check ownership
+	// Check ownership (unless service_role or dashboard_admin)
 	role, _ := c.Locals("role").(string)
 	if role != "service_role" && role != "dashboard_admin" {
 		if execution.UserID == nil || *execution.UserID != userID {
@@ -846,10 +860,25 @@ func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 		}
 	}
 
-	// Return empty - logs are now in central logging schema
+	// Parse after_line query param for pagination
+	afterLine := 0
+	if afterLineStr := c.Query("after_line"); afterLineStr != "" {
+		if l, err := strconv.Atoi(afterLineStr); err == nil {
+			afterLine = l
+		}
+	}
+
+	// Query logs from central logging
+	entries, err := h.loggingService.GetExecutionLogs(ctx, id, afterLine)
+	if err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to get execution logs")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get execution logs",
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"logs":    []interface{}{},
-		"count":   0,
-		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
+		"entries": entries,
+		"count":   len(entries),
 	})
 }

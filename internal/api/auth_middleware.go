@@ -255,11 +255,6 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 			}
 			c.Locals("user_role", effectiveRole)
 
-			log.Debug().
-				Str("user_id", claims.UserID).
-				Str("role", effectiveRole).
-				Msg("Authenticated as auth.users")
-
 			return c.Next()
 		}
 

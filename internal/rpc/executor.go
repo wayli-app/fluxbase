@@ -519,13 +519,13 @@ func (e *Executor) failExecution(ctx context.Context, exec *Execution, start tim
 // appendLog appends a log entry to the execution
 // Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (e *Executor) appendLog(ctx context.Context, executionID string, lineNumber int, level, message string) {
-	// Log to zerolog - central logging service will capture this
-	log.Debug().
+	// Log to zerolog - central logging service will capture this via execution_id field
+	log.Info().
 		Str("execution_id", executionID).
+		Str("execution_type", "rpc").
 		Str("level", level).
 		Int("line_number", lineNumber).
-		Str("message", message).
-		Msg("RPC execution log")
+		Msg(message)
 }
 
 // convertValue converts database values to JSON-safe types

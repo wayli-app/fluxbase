@@ -491,13 +491,13 @@ func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string)
 	lineNumber := *counterPtr
 	*counterPtr = lineNumber + 1
 
-	// Log to zerolog - central logging service will capture this
-	log.Debug().
-		Str("job_id", jobID.String()).
+	// Log to zerolog - central logging service will capture this via execution_id field
+	log.Info().
+		Str("execution_id", jobID.String()).
+		Str("execution_type", "job").
 		Str("level", level).
 		Int("line_number", lineNumber).
-		Str("message", message).
-		Msg("Job execution log")
+		Msg(message)
 }
 
 // cancelJob cancels a running job

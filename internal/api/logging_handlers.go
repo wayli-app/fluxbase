@@ -42,6 +42,7 @@ func NewLoggingHandler(loggingService *logging.Service) *LoggingHandler {
 // @Param limit query int false "Max results (default 100)"
 // @Param offset query int false "Offset for pagination"
 // @Param sort_asc query bool false "Sort ascending by timestamp"
+// @Param hide_static_assets query bool false "Hide HTTP logs for static assets (js, css, images, fonts)"
 // @Success 200 {object} LogQueryResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 401 {object} ErrorResponse
@@ -110,6 +111,9 @@ func (h *LoggingHandler) QueryLogs(c *fiber.Ctx) error {
 
 	// Parse sort order
 	opts.SortAsc = c.Query("sort_asc") == "true"
+
+	// Parse hide static assets filter
+	opts.HideStaticAssets = c.Query("hide_static_assets") == "true"
 
 	// Query logs
 	result, err := h.loggingService.Query(c.Context(), opts)

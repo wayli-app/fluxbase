@@ -10,6 +10,7 @@ import {
   LOG_CATEGORY_CONFIG,
   DEFAULT_PAGE_SIZE,
   TIME_RANGE_PRESETS,
+  STATIC_ASSET_EXTENSIONS,
 } from '../constants'
 import { useLogStream } from '../hooks/use-log-stream'
 import { useLogs, useLogStats } from '../hooks/use-logs'
@@ -56,6 +57,7 @@ export function LogViewer() {
       limit: pageSize,
       offset: page * pageSize,
       sort_asc: false,
+      hide_static_assets: filters.hideStaticAssets || undefined,
     }),
     [filters, page, pageSize]
   )
@@ -85,11 +87,32 @@ export function LogViewer() {
   // Stats
   const { data: stats } = useLogStats()
 
+  // Helper to check if a log entry is a static asset request
+  const isStaticAssetLog = useCallback((log: LogEntry): boolean => {
+    if (log.category !== 'http') return false
+    const path = log.fields?.path as string | undefined
+    if (!path) return false
+    // Check if path ends with any static asset extension (ignore query strings)
+    const pathWithoutQuery = path.split('?')[0]
+    return STATIC_ASSET_EXTENSIONS.some((ext) =>
+      pathWithoutQuery.toLowerCase().endsWith(ext)
+    )
+  }, [])
+
   // Logs to display (memoized to prevent useCallback dependency issues)
-  const logs = useMemo(
-    () => (isLiveMode ? streamLogs : (data?.entries as LogEntry[]) || []),
-    [isLiveMode, streamLogs, data?.entries]
-  )
+  const logs = useMemo(() => {
+    // Historical mode: server already filters, just use the data
+    if (!isLiveMode) {
+      return (data?.entries as LogEntry[]) || []
+    }
+
+    // Live mode: apply client-side filter for static assets
+    if (filters.hideStaticAssets) {
+      return streamLogs.filter((log) => !isStaticAssetLog(log))
+    }
+    return streamLogs
+  }, [isLiveMode, streamLogs, data?.entries, filters.hideStaticAssets, isStaticAssetLog])
+
   const totalCount = isLiveMode ? streamLogs.length : data?.total_count || 0
 
   // Handle filter changes with auto-pause when time range is selected

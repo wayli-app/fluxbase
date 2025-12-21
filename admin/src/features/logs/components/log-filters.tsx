@@ -1,4 +1,4 @@
-import { Search, Filter, X, History } from 'lucide-react'
+import { Search, Filter, X, History, FileCode } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -44,7 +44,8 @@ export function LogFiltersToolbar({
     filters.category !== 'all' ||
     filters.levels.length > 0 ||
     filters.search ||
-    filters.component
+    filters.component ||
+    filters.hideStaticAssets
 
   const clearFilters = () => {
     onFiltersChange({
@@ -53,6 +54,7 @@ export function LogFiltersToolbar({
       component: '',
       search: '',
       timeRange: { start: null, end: null },
+      hideStaticAssets: false,
     })
     onTimePresetChange?.(null)
   }
@@ -173,6 +175,24 @@ export function LogFiltersToolbar({
           </Button>
         ))}
       </div>
+
+      {/* Hide Static Assets Toggle (only visible for HTTP category) */}
+      {filters.category === 'http' && (
+        <Button
+          variant={filters.hideStaticAssets ? 'secondary' : 'outline'}
+          size='sm'
+          className='h-8 gap-1.5'
+          onClick={() =>
+            onFiltersChange({
+              ...filters,
+              hideStaticAssets: !filters.hideStaticAssets,
+            })
+          }
+        >
+          <FileCode className='h-3 w-3' />
+          Hide Assets
+        </Button>
+      )}
 
       {/* Clear Filters */}
       {hasActiveFilters && (

@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// staticAssetExtensions contains file extensions to filter out when HideStaticAssets is enabled.
+var staticAssetExtensions = []string{
+	// Scripts
+	".js", ".mjs", ".ts", ".jsx", ".tsx",
+	// Styles
+	".css",
+	// Images
+	".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".avif",
+	// Fonts
+	".woff", ".woff2", ".ttf", ".eot", ".otf",
+	// Source maps
+	".map",
+}
+
 // PostgresLogStorage implements LogStorage using PostgreSQL.
 type PostgresLogStorage struct {
 	db *database.Connection
@@ -362,6 +376,21 @@ func (s *PostgresLogStorage) buildWhereClause(opts LogQueryOptions) (string, []a
 	if opts.AfterLine > 0 {
 		conditions = append(conditions, fmt.Sprintf("line_number > $%d", argNum))
 		args = append(args, opts.AfterLine)
+		argNum++
+	}
+
+	if opts.HideStaticAssets {
+		// Exclude HTTP logs where the path ends with a static asset extension
+		// This uses a NOT condition with multiple LIKE patterns on the JSONB path field
+		var excludePatterns []string
+		for _, ext := range staticAssetExtensions {
+			excludePatterns = append(excludePatterns, fmt.Sprintf("fields->>'path' ILIKE $%d", argNum))
+			args = append(args, "%"+ext)
+			argNum++
+		}
+		// Only apply to HTTP category, or exclude matching HTTP logs from all categories
+		conditions = append(conditions,
+			fmt.Sprintf("(category != 'http' OR NOT (%s))", strings.Join(excludePatterns, " OR ")))
 	}
 
 	if len(conditions) == 0 {

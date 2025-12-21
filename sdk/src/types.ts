@@ -3153,16 +3153,30 @@ export interface RPCInvokeResponse<T = unknown> {
 }
 
 /**
- * RPC execution log entry
+ * Execution log entry (shared by jobs, RPC, and functions)
  */
-export interface RPCExecutionLog {
+export interface ExecutionLog {
+  /** Unique log entry ID */
   id: number
+  /** ID of the execution (job ID, RPC execution ID, or function execution ID) */
   execution_id: string
+  /** Line number within the execution log */
   line_number: number
+  /** Log level (debug, info, warn, error) */
   level: string
+  /** Log message content */
   message: string
-  created_at: string
+  /** Timestamp of the log entry */
+  timestamp: string
+  /** Additional structured fields */
+  fields?: Record<string, unknown>
 }
+
+/**
+ * RPC execution log entry
+ * @deprecated Use ExecutionLog instead
+ */
+export type RPCExecutionLog = ExecutionLog
 
 /**
  * RPC procedure specification for sync operations

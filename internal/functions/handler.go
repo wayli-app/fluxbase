@@ -11,6 +11,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
@@ -23,25 +24,27 @@ import (
 
 // Handler manages HTTP endpoints for edge functions
 type Handler struct {
-	storage      *Storage
-	runtime      *runtime.DenoRuntime
-	scheduler    *Scheduler
-	authService  *auth.Service
-	functionsDir string
-	corsConfig   config.CORSConfig
-	publicURL    string
-	logCounters  sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
+	storage        *Storage
+	runtime        *runtime.DenoRuntime
+	scheduler      *Scheduler
+	authService    *auth.Service
+	loggingService *logging.Service
+	functionsDir   string
+	corsConfig     config.CORSConfig
+	publicURL      string
+	logCounters    sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string, authService *auth.Service) *Handler {
+func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string, authService *auth.Service, loggingService *logging.Service) *Handler {
 	h := &Handler{
-		storage:      NewStorage(db),
-		runtime:      runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
-		authService:  authService,
-		functionsDir: functionsDir,
-		corsConfig:   corsConfig,
-		publicURL:    publicURL,
+		storage:        NewStorage(db),
+		runtime:        runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
+		authService:    authService,
+		loggingService: loggingService,
+		functionsDir:   functionsDir,
+		corsConfig:     corsConfig,
+		publicURL:      publicURL,
 	}
 
 	// Set up log callback to capture console.log output
@@ -62,11 +65,11 @@ func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message 
 	counterVal, ok := h.logCounters.Load(executionID)
 	if !ok {
 		// No counter means execution wasn't set up for logging (e.g., old code path)
-		log.Debug().
+		log.Info().
 			Str("execution_id", executionID.String()).
+			Str("execution_type", "function").
 			Str("level", level).
-			Str("message", message).
-			Msg("Function log (no counter)")
+			Msg(message)
 		return
 	}
 
@@ -79,13 +82,13 @@ func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message 
 	lineNumber := *counterPtr
 	*counterPtr = lineNumber + 1
 
-	// Log to zerolog - central logging service will capture this
-	log.Debug().
+	// Log to zerolog - central logging service will capture this via execution_id field
+	log.Info().
 		Str("execution_id", executionID.String()).
+		Str("execution_type", "function").
 		Str("level", level).
 		Int("line_number", lineNumber).
-		Str("message", message).
-		Msg("Function execution log")
+		Msg(message)
 }
 
 // applyCorsHeaders applies CORS headers to the response with fallback to global config
@@ -943,8 +946,6 @@ func (h *Handler) ListAllExecutions(c *fiber.Ctx) error {
 }
 
 // GetExecutionLogs returns logs for a specific function execution
-// Note: Execution logs are now stored in the central logging schema (logging.entries)
-// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 	executionIDStr := c.Params("executionId")
 
@@ -955,11 +956,26 @@ func (h *Handler) GetExecutionLogs(c *fiber.Ctx) error {
 		})
 	}
 
-	// Return empty - logs are now in central logging schema
+	// Parse after_line query param for pagination
+	afterLine := 0
+	if afterLineStr := c.Query("after_line"); afterLineStr != "" {
+		if l, err := strconv.Atoi(afterLineStr); err == nil {
+			afterLine = l
+		}
+	}
+
+	// Query logs from central logging
+	entries, err := h.loggingService.GetExecutionLogs(c.Context(), executionIDStr, afterLine)
+	if err != nil {
+		log.Error().Err(err).Str("execution_id", executionIDStr).Msg("Failed to get execution logs")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get execution logs",
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"logs":    []interface{}{},
-		"count":   0,
-		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
+		"entries": entries,
+		"count":   len(entries),
 	})
 }
 

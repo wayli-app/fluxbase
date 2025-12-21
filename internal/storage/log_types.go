@@ -163,6 +163,9 @@ type LogQueryOptions struct {
 
 	// Sort order (default: descending by timestamp)
 	SortAsc bool `json:"sort_asc,omitempty"`
+
+	// Filter out HTTP logs for static assets (js, css, images, fonts, etc.)
+	HideStaticAssets bool `json:"hide_static_assets,omitempty"`
 }
 
 // LogQueryResult contains the result of a log query.

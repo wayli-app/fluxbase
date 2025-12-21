@@ -75,6 +75,7 @@ export interface LogFilters {
     start: Date | null
     end: Date | null
   }
+  hideStaticAssets: boolean
 }
 
 // Default filter state
@@ -87,4 +88,5 @@ export const defaultLogFilters: LogFilters = {
     start: null,
     end: null,
   },
+  hideStaticAssets: false,
 }

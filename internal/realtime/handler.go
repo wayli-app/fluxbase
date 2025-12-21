@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -32,17 +33,23 @@ const (
 
 // ClientMessage represents a message from the client
 type ClientMessage struct {
-	Type           MessageType            `json:"type"`
-	Channel        string                 `json:"channel,omitempty"`
-	Event          string                 `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
-	Schema         string                 `json:"schema,omitempty"`
-	Table          string                 `json:"table,omitempty"`
-	Filter         string                 `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
-	Payload        json.RawMessage        `json:"payload,omitempty"`
-	Config         *PostgresChangesConfig `json:"config,omitempty"` // Alternative format for postgres_changes
-	SubscriptionID string                 `json:"subscription_id,omitempty"`
-	MessageID      string                 `json:"messageId,omitempty"` // Optional message ID for broadcast acknowledgements
-	Token          string                 `json:"token,omitempty"`     // JWT token for access_token message type
+	Type           MessageType     `json:"type"`
+	Channel        string          `json:"channel,omitempty"`
+	Event          string          `json:"event,omitempty"` // INSERT, UPDATE, DELETE, or *
+	Schema         string          `json:"schema,omitempty"`
+	Table          string          `json:"table,omitempty"`
+	Filter         string          `json:"filter,omitempty"` // Supabase-compatible filter: column=operator.value
+	Payload        json.RawMessage `json:"payload,omitempty"`
+	Config         json.RawMessage `json:"config,omitempty"` // Raw config - can be PostgresChangesConfig or LogSubscriptionConfig
+	SubscriptionID string          `json:"subscription_id,omitempty"`
+	MessageID      string          `json:"messageId,omitempty"` // Optional message ID for broadcast acknowledgements
+	Token          string          `json:"token,omitempty"`     // JWT token for access_token message type
+}
+
+// LogSubscriptionConfig represents the config for subscribe_logs messages
+type LogSubscriptionConfig struct {
+	ExecutionID string `json:"execution_id"`
+	Type        string `json:"type"` // function, job, rpc
 }
 
 // PostgresChangesConfig represents the config object in postgres_changes subscriptions
@@ -120,7 +127,6 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 		} else {
 			role = "authenticated" // Default authenticated role if JWT doesn't specify one
 		}
-		log.Debug().Str("user_id", claims.UserID).Str("role", role).Msg("WebSocket authenticated")
 	}
 
 	// Store user ID and role in Fiber locals so handleConnection can access them
@@ -210,13 +216,18 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 		// Extract subscription details from either direct fields or config object
 		var event, schema, table, filter string
 
-		if msg.Config != nil {
+		if len(msg.Config) > 0 {
 			// New format: { type: "subscribe", channel: "...", config: { event, schema, table, filter } }
-			event = msg.Config.Event
-			schema = msg.Config.Schema
-			table = msg.Config.Table
-			filter = msg.Config.Filter
-		} else {
+			var config PostgresChangesConfig
+			if err := json.Unmarshal(msg.Config, &config); err == nil {
+				event = config.Event
+				schema = config.Schema
+				table = config.Table
+				filter = config.Filter
+			}
+		}
+		// Fall back to legacy format fields if config wasn't parsed
+		if table == "" {
 			// Legacy format: { type: "subscribe", event, schema, table, filter }
 			event = msg.Event
 			schema = msg.Schema
@@ -635,19 +646,26 @@ func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessag
 	// Extract execution_id and type from config or payload
 	var executionID, executionType string
 
-	if msg.Config != nil {
-		// New format: { type: "subscribe_logs", config: { schema: execution_id, table: type } }
-		// Reuse schema field for execution_id and table field for execution_type
-		if msg.Config.Schema != "" {
-			executionID = msg.Config.Schema
+	// Try to parse config first (SDK sends { execution_id, type } in config)
+	if len(msg.Config) > 0 {
+		var logConfig LogSubscriptionConfig
+		if err := json.Unmarshal(msg.Config, &logConfig); err == nil {
+			executionID = logConfig.ExecutionID
+			executionType = logConfig.Type
 		}
-		if msg.Config.Table != "" {
-			executionType = msg.Config.Table
+
+		// Also try legacy format (schema/table fields)
+		if executionID == "" {
+			var pgConfig PostgresChangesConfig
+			if err := json.Unmarshal(msg.Config, &pgConfig); err == nil {
+				executionID = pgConfig.Schema
+				executionType = pgConfig.Table
+			}
 		}
 	}
 
-	// Try to get from payload if not in config
-	if executionID == "" && msg.Payload != nil {
+	// Fall back to payload if config didn't have it
+	if executionID == "" && len(msg.Payload) > 0 {
 		var payload map[string]interface{}
 		if err := json.Unmarshal(msg.Payload, &payload); err == nil {
 			if v, ok := payload["execution_id"].(string); ok {
@@ -666,6 +684,44 @@ func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessag
 			Error: "execution_id is required for subscribe_logs",
 		})
 		return
+	}
+
+	// Check ownership (unless admin/service role)
+	if conn.Role != "admin" && conn.Role != "dashboard_admin" && conn.Role != "service_role" {
+		if conn.UserID == nil {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "authentication required",
+			})
+			return
+		}
+
+		isOwner, exists, err := h.subManager.CheckExecutionOwnership(
+			context.Background(), executionID, *conn.UserID, executionType,
+		)
+		if err != nil {
+			log.Error().Err(err).Str("execution_id", executionID).Msg("Failed to check execution ownership")
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "failed to verify execution access",
+			})
+			return
+		}
+		if !exists {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "execution not found",
+			})
+			return
+		}
+		if !isOwner {
+			// For other user's executions, return same error to avoid information disclosure
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "execution not found",
+			})
+			return
+		}
 	}
 
 	// Create log subscription
@@ -694,7 +750,7 @@ func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessag
 		Payload: ackPayload,
 	})
 
-	log.Debug().
+	log.Info().
 		Str("connection_id", conn.ID).
 		Str("subscription_id", subID).
 		Str("execution_id", executionID).

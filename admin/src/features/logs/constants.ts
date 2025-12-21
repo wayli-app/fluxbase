@@ -147,3 +147,32 @@ export const TIME_RANGE_PRESETS = [
   { label: 'Last 24 hours', minutes: 1440 },
   { label: 'Last 7 days', minutes: 10080 },
 ] as const
+
+// Static asset file extensions to filter out from HTTP logs
+export const STATIC_ASSET_EXTENSIONS = [
+  // Scripts
+  '.js',
+  '.mjs',
+  '.ts',
+  '.jsx',
+  '.tsx',
+  // Styles
+  '.css',
+  // Images
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.svg',
+  '.webp',
+  '.ico',
+  '.avif',
+  // Fonts
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.otf',
+  // Source maps
+  '.map',
+] as const

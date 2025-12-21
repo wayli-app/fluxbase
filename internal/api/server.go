@@ -255,7 +255,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	if functionsPublicURL == "" {
 		functionsPublicURL = "http://localhost" + cfg.Server.Address
 	}
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL, authService)
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL, authService, loggingService)
 	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsPublicURL)
 	functionsHandler.SetScheduler(functionsScheduler)
 
@@ -276,7 +276,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("Initializing jobs manager with SDK credentials")
 		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsPublicURL)
 		var err error
-		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService)
+		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService, loggingService)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize jobs handler")
 		}
@@ -411,7 +411,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		rpcStorage := rpc.NewStorage(db)
 		rpcLoader := rpc.NewLoader(cfg.RPC.ProceduresDir)
 		rpcMetrics := observability.NewMetrics()
-		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC, authService)
+		rpcHandler = rpc.NewHandler(db, rpcStorage, rpcLoader, rpcMetrics, &cfg.RPC, authService, loggingService)
 
 		// Create RPC scheduler and wire it to handler
 		rpcScheduler = rpc.NewScheduler(rpcStorage, rpcHandler.GetExecutor())

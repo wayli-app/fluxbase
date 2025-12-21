@@ -50,7 +50,11 @@ export { QueryBuilder } from "./query-builder";
 export { SchemaQueryBuilder } from "./schema-query-builder";
 
 // Realtime module
-export { FluxbaseRealtime, RealtimeChannel, ExecutionLogsChannel } from "./realtime";
+export {
+  FluxbaseRealtime,
+  RealtimeChannel,
+  ExecutionLogsChannel,
+} from "./realtime";
 
 // Storage module
 export { FluxbaseStorage, StorageBucket } from "./storage";
@@ -176,6 +180,7 @@ export type {
   BroadcastCallback,
 
   // Execution Log types
+  ExecutionLog,
   ExecutionLogEvent,
   ExecutionLogCallback,
   ExecutionLogLevel,

@@ -2746,6 +2746,7 @@ export interface LogQueryOptionsAPI {
   limit?: number
   offset?: number
   sort_asc?: boolean
+  hide_static_assets?: boolean
 }
 
 export interface LogQueryResultAPI {
@@ -2781,6 +2782,7 @@ export const logsApi = {
     if (options.limit) params.set('limit', options.limit.toString())
     if (options.offset) params.set('offset', options.offset.toString())
     if (options.sort_asc) params.set('sort_asc', 'true')
+    if (options.hide_static_assets) params.set('hide_static_assets', 'true')
 
     const response = await api.get<LogQueryResultAPI>(
       `/api/v1/admin/logs?${params.toString()}`

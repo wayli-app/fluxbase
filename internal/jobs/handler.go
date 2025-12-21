@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -163,12 +165,13 @@ Configure job behavior using @fluxbase: annotations in code comments:
 
 // Handler manages HTTP endpoints for jobs
 type Handler struct {
-	storage     *Storage
-	loader      *Loader
-	manager     *Manager
-	scheduler   *Scheduler
-	config      *config.JobsConfig
-	authService *auth.Service
+	storage        *Storage
+	loader         *Loader
+	manager        *Manager
+	scheduler      *Scheduler
+	config         *config.JobsConfig
+	authService    *auth.Service
+	loggingService *logging.Service
 }
 
 // SetScheduler sets the scheduler for the handler
@@ -204,7 +207,7 @@ func roleSatisfiesRequirement(userRole, requiredRole string) bool {
 }
 
 // NewHandler creates a new jobs handler
-func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manager, authService *auth.Service) (*Handler, error) {
+func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manager, authService *auth.Service, loggingService *logging.Service) (*Handler, error) {
 	storage := NewStorage(db)
 	loader, err := NewLoader(storage, cfg)
 	if err != nil {
@@ -212,11 +215,12 @@ func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manage
 	}
 
 	return &Handler{
-		storage:     storage,
-		loader:      loader,
-		manager:     manager,
-		config:      cfg,
-		authService: authService,
+		storage:        storage,
+		loader:         loader,
+		manager:        manager,
+		config:         cfg,
+		authService:    authService,
+		loggingService: loggingService,
 	}, nil
 }
 
@@ -232,6 +236,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiK
 
 	// User endpoints - require authentication, RLS enforced
 	jobs.Post("/submit", authMiddleware, h.SubmitJob)
+	jobs.Get("/:id/logs", authMiddleware, h.GetJobLogsUser) // More specific route first
 	jobs.Get("/:id", authMiddleware, h.GetJob)
 	jobs.Get("/", authMiddleware, h.ListJobs)
 	jobs.Post("/:id/cancel", authMiddleware, h.CancelJob)
@@ -520,22 +525,92 @@ func (h *Handler) GetJobAdmin(c *fiber.Ctx) error {
 }
 
 // GetJobLogs gets execution logs for a job (admin access)
-// Note: Execution logs are now stored in the central logging schema (logging.entries)
-// This endpoint returns empty results - use the logs API instead
 func (h *Handler) GetJobLogs(c *fiber.Ctx) error {
 	jobID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid job ID"})
 	}
 
-	log.Debug().
-		Str("job_id", jobID.String()).
-		Msg("GetJobLogs called - returning empty (logs moved to central logging)")
+	// Parse after_line query param for pagination
+	afterLine := 0
+	if afterLineStr := c.Query("after_line"); afterLineStr != "" {
+		if l, err := strconv.Atoi(afterLineStr); err == nil {
+			afterLine = l
+		}
+	}
 
-	// Return empty - logs are now in central logging schema
+	// Query logs from central logging using job ID as execution ID
+	entries, err := h.loggingService.GetExecutionLogs(c.Context(), jobID.String(), afterLine)
+	if err != nil {
+		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to get job logs")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get job logs",
+		})
+	}
+
 	return c.JSON(fiber.Map{
-		"logs":    []interface{}{},
-		"message": "Execution logs have been moved to the central logging system. Use the logs API to query them.",
+		"entries": entries,
+		"count":   len(entries),
+	})
+}
+
+// GetJobLogsUser returns logs for user's own job
+// GET /api/v1/jobs/:id/logs
+func (h *Handler) GetJobLogsUser(c *fiber.Ctx) error {
+	jobID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid job ID"})
+	}
+
+	// Get user context
+	userID := ""
+	if uid, ok := c.Locals("user_id").(string); ok {
+		userID = uid
+	}
+
+	// Get job to verify ownership
+	job, err := h.storage.GetJob(c.Context(), jobID)
+	if err != nil {
+		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to get job")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get job",
+		})
+	}
+
+	if job == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Job not found"})
+	}
+
+	// Check ownership (unless service_role)
+	role, _ := c.Locals("user_role").(string)
+	if role != "service_role" {
+		// Parse userID for comparison
+		userUUID, err := uuid.Parse(userID)
+		if err != nil || job.CreatedBy == nil || *job.CreatedBy != userUUID {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Job not found"})
+		}
+	}
+
+	// Parse after_line query param for pagination
+	afterLine := 0
+	if afterLineStr := c.Query("after_line"); afterLineStr != "" {
+		if l, err := strconv.Atoi(afterLineStr); err == nil {
+			afterLine = l
+		}
+	}
+
+	// Query logs from central logging using job ID as execution ID
+	entries, err := h.loggingService.GetExecutionLogs(c.Context(), jobID.String(), afterLine)
+	if err != nil {
+		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to get job logs")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get job logs",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"logs":  entries,
+		"count": len(entries),
 	})
 }
 
