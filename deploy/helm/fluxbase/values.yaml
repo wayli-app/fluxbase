@@ -1123,7 +1123,7 @@ postgresql:
     image:
       registry: ghcr.io
       repository: fluxbase-eu/fluxbase-postgres
-      tag: "18.1-0.0.1-rc.50"
+      tag: "18.1-0.0.1-rc.51"
       pullPolicy: IfNotPresent
     ## @param postgresql.standalone.persistence.enabled Enable persistence for standalone PostgreSQL
     ## @param postgresql.standalone.persistence.size Size of PostgreSQL data volume
