@@ -312,6 +312,13 @@ services:
       # FLUXBASE_TRACING_INSECURE: "true"
 
       # ==========================================================================
+      # Admin Dashboard Configuration
+      # ==========================================================================
+      # Enable admin dashboard UI and API routes
+      # Requires FLUXBASE_SECURITY_SETUP_TOKEN to also be set
+      FLUXBASE_ADMIN_ENABLED: "false"
+
+      # ==========================================================================
       # General Configuration
       # ==========================================================================
       FLUXBASE_BASE_URL: http://localhost:8080

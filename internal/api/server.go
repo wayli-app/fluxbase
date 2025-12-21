@@ -947,20 +947,26 @@ func (s *Server) setupRoutes() {
 		log.Info().Msg("Vector search routes registered")
 	}
 
-	// Admin routes and UI (only enabled if setup token is configured)
-	if s.config.Security.SetupToken != "" {
-		admin := v1.Group("/admin")
-		s.setupAdminRoutes(admin)
+	// Admin routes and UI (requires admin.enabled=true and setup_token to be set)
+	if s.config.Admin.Enabled {
+		if s.config.Security.SetupToken == "" {
+			log.Error().Msg("Admin dashboard is enabled but FLUXBASE_SECURITY_SETUP_TOKEN is not set. Admin routes will not be registered for security reasons.")
+		} else {
+			admin := v1.Group("/admin")
+			s.setupAdminRoutes(admin)
 
-		// Public invitation routes (no auth required)
-		invitations := v1.Group("/invitations")
-		s.setupPublicInvitationRoutes(invitations)
+			// Public invitation routes (no auth required)
+			invitations := v1.Group("/invitations")
+			s.setupPublicInvitationRoutes(invitations)
 
-		// Admin UI (embedded React app)
-		adminUI := adminui.New()
-		adminUI.RegisterRoutes(s.app)
+			// Admin UI (embedded React app)
+			adminUI := adminui.New()
+			adminUI.RegisterRoutes(s.app)
+
+			log.Info().Msg("Admin dashboard enabled")
+		}
 	} else {
-		log.Warn().Msg("Admin dashboard is disabled. Set FLUXBASE_SECURITY_SETUP_TOKEN to enable admin functionality.")
+		log.Info().Msg("Admin dashboard is disabled. Set FLUXBASE_ADMIN_ENABLED=true and FLUXBASE_SECURITY_SETUP_TOKEN to enable.")
 	}
 
 	// OpenAPI specification

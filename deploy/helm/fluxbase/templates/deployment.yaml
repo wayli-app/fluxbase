@@ -545,6 +545,12 @@ spec:
             {{- end }}
 
             # ===========================================
+            # Admin Dashboard Configuration
+            # ===========================================
+            - name: FLUXBASE_ADMIN_ENABLED
+              value: {{ .Values.fluxbase.admin.enabled | quote }}
+
+            # ===========================================
             # General Configuration
             # ===========================================
             {{- if .Values.fluxbase.base_url }}

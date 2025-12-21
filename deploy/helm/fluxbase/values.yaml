@@ -135,8 +135,8 @@ fluxbase:
   ## @param fluxbase.auth.microsoft_client_id Microsoft OAuth client ID
   ##
   auth:
-    jwt_secret: ""  # Use existingSecret in production. Generate with: scripts/generate-keys.sh
-    anon_key: ""    # Pre-signed JWT for client apps. Generate with: scripts/generate-keys.sh (option 3)
+    jwt_secret: "" # Use existingSecret in production. Generate with: scripts/generate-keys.sh
+    anon_key: "" # Pre-signed JWT for client apps. Generate with: scripts/generate-keys.sh (option 3)
     jwt_expiry: "15m"
     refresh_expiry: "168h"
     magic_link_expiry: "15m"
@@ -162,7 +162,7 @@ fluxbase:
   ##
   security:
     enable_global_rate_limit: false
-    setup_token: ""  # Use existingSecret in production. Generate with: openssl rand -base64 32
+    setup_token: "" # Use existingSecret in production. Generate with: openssl rand -base64 32
     admin_setup_rate_limit: 5
     admin_setup_rate_window: "1m"
     auth_login_rate_limit: 10
@@ -212,8 +212,8 @@ fluxbase:
     max_upload_size: 2147483648
     default_buckets: []
     s3_endpoint: ""
-    s3_access_key: ""  # Use existingSecret in production
-    s3_secret_key: ""  # Use existingSecret in production
+    s3_access_key: "" # Use existingSecret in production
+    s3_secret_key: "" # Use existingSecret in production
     s3_bucket: ""
     s3_region: ""
     s3_force_path_style: false
@@ -265,13 +265,13 @@ fluxbase:
     smtp_host: ""
     smtp_port: 587
     smtp_username: ""
-    smtp_password: ""  # Use existingSecret in production
+    smtp_password: "" # Use existingSecret in production
     smtp_tls: true
-    sendgrid_api_key: ""  # Use existingSecret in production
-    mailgun_api_key: ""  # Use existingSecret in production
+    sendgrid_api_key: "" # Use existingSecret in production
+    mailgun_api_key: "" # Use existingSecret in production
     mailgun_domain: ""
-    ses_access_key: ""  # Use existingSecret in production
-    ses_secret_key: ""  # Use existingSecret in production
+    ses_access_key: "" # Use existingSecret in production
+    ses_secret_key: "" # Use existingSecret in production
     ses_region: "us-east-1"
 
   ## Edge Functions configuration
@@ -413,17 +413,17 @@ fluxbase:
     max_rows_per_query: 1000
     conversation_cache_ttl: "1h"
     max_conversation_turns: 50
-    encryption_key: ""  # Use existingSecret in production
+    encryption_key: "" # Use existingSecret in production
     sync_allowed_ip_ranges: []
     # Provider configuration
     provider_type: ""
     provider_enabled: false
     provider_name: ""
     provider_model: ""
-    openai_api_key: ""  # Use existingSecret in production
+    openai_api_key: "" # Use existingSecret in production
     openai_organization_id: ""
     openai_base_url: ""
-    azure_api_key: ""  # Use existingSecret in production
+    azure_api_key: "" # Use existingSecret in production
     azure_endpoint: ""
     azure_deployment_name: ""
     azure_api_version: ""
@@ -494,6 +494,13 @@ fluxbase:
     environment: "production"
     sample_rate: 0.1
     insecure: false
+
+  ## Admin dashboard configuration
+  ## @param fluxbase.admin.enabled Enable admin dashboard UI and API routes
+  ## Note: Also requires fluxbase.security.setup_token to be set
+  ##
+  admin:
+    enabled: true
 
   ## General configuration
   ## @param fluxbase.base_url Public base URL for the application
@@ -1340,5 +1347,4 @@ metrics:
     honorLabels: false
     additionalLabels: {}
     selector: {}
-
 ## NOTE: OpenTelemetry tracing is now configured via fluxbase.tracing section above

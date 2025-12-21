@@ -31,8 +31,14 @@ type Config struct {
 	RPC        RPCConfig        `mapstructure:"rpc"`
 	Scaling    ScalingConfig    `mapstructure:"scaling"`
 	Logging    LoggingConfig    `mapstructure:"logging"`
+	Admin      AdminConfig      `mapstructure:"admin"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
+}
+
+// AdminConfig contains admin dashboard settings
+type AdminConfig struct {
+	Enabled bool `mapstructure:"enabled"` // Enable admin dashboard UI and API routes
 }
 
 // ScalingConfig contains horizontal scaling settings for multi-instance deployments
@@ -484,13 +490,16 @@ func setDefaults() {
 
 	// Security defaults
 	viper.SetDefault("security.enable_global_rate_limit", false) // Disabled by default, enable in production if needed
-	viper.SetDefault("security.setup_token", "")                 // Empty by default - admin dashboard disabled until set
+	viper.SetDefault("security.setup_token", "")                 // Empty by default - required when admin.enabled=true
 	viper.SetDefault("security.admin_setup_rate_limit", 5)       // 5 attempts
 	viper.SetDefault("security.admin_setup_rate_window", "15m")  // per 15 minutes
 	viper.SetDefault("security.auth_login_rate_limit", 10)       // 10 attempts
 	viper.SetDefault("security.auth_login_rate_window", "1m")    // per minute
 	viper.SetDefault("security.admin_login_rate_limit", 10)      // 10 attempts
 	viper.SetDefault("security.admin_login_rate_window", "1m")   // per minute
+
+	// Admin defaults
+	viper.SetDefault("admin.enabled", false) // Admin dashboard disabled by default
 
 	// CORS defaults
 	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080,https://pelias.wayli.app")
