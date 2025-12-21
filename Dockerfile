@@ -45,7 +45,8 @@ RUN npm run build
 FROM golang:1.25-alpine AS go-builder
 
 # Install build dependencies (including tesseract-dev for gosseract CGO bindings)
-RUN apk add --no-cache git make gcc musl-dev tesseract-ocr-dev leptonica-dev
+# g++ is required because gosseract uses C++ code via CGO
+RUN apk add --no-cache git make gcc g++ musl-dev tesseract-ocr-dev leptonica-dev
 
 WORKDIR /build
 
@@ -70,10 +71,11 @@ ARG BUILD_DATE=unknown
 
 # Build the binary with optimizations and version information
 # Include 'ocr' build tag to enable Tesseract OCR support
+# Note: We use dynamic linking (no -static) because tesseract/leptonica don't provide static libs on Alpine
+# The runtime image installs the required shared libraries (tesseract-ocr, leptonica)
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags "ocr" \
-    -ldflags="-w -s -extldflags '-static' -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
-    -a -installsuffix cgo \
+    -ldflags="-w -s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
     -o fluxbase-server \
     ./cmd/fluxbase
 
@@ -95,12 +97,14 @@ LABEL maintainer="Fluxbase Team" \
 # - tzdata: For timezone support
 # - tesseract-ocr: For OCR text extraction from image-based PDFs
 # - tesseract-ocr-data-eng: English language data for OCR
+# - leptonica: Image processing library required by tesseract (dynamic linking)
 # - poppler-utils: For PDF to image conversion (pdftoppm)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     tesseract-ocr \
     tesseract-ocr-data-eng \
+    leptonica \
     poppler-utils \
     && rm -rf /var/cache/apk/*
 
