@@ -212,9 +212,9 @@ func (r *bytesReader) Read(p []byte) (n int, err error) {
 
 // MockPubSub implements pubsub.PubSub for testing
 type MockPubSub struct {
-	mu           sync.RWMutex
+	mu            sync.RWMutex
 	subscriptions map[string][]chan []byte
-	published    []PublishedMessage
+	published     []PublishedMessage
 }
 
 // PublishedMessage records a published message for testing

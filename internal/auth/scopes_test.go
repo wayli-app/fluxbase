@@ -46,7 +46,7 @@ func TestIsValidScope(t *testing.T) {
 			"invalid",
 			"read:",
 			":tables",
-			"READ:TABLES",          // case sensitive
+			"READ:TABLES", // case sensitive
 			"read:nonexistent",
 			"write:nonexistent",
 			"execute:nonexistent",

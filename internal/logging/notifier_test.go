@@ -258,9 +258,9 @@ func TestPubSubNotifier_Notify(t *testing.T) {
 			Level:     storage.LogLevelInfo,
 			Message:   "Test with fields",
 			Fields: map[string]any{
-				"custom_key":   "custom_value",
-				"numeric_key":  123,
-				"boolean_key":  true,
+				"custom_key":  "custom_value",
+				"numeric_key": 123,
+				"boolean_key": true,
 			},
 		}
 

@@ -279,9 +279,9 @@ func TestParseAnnotations_Schedule(t *testing.T) {
 
 func TestParseAnnotations_RequireRole(t *testing.T) {
 	tests := []struct {
-		name        string
-		code        string
-		expectRole  *string
+		name       string
+		code       string
+		expectRole *string
 	}{
 		{
 			name:       "no require-role",

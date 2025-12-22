@@ -71,9 +71,9 @@ func TestIsPrivateIP(t *testing.T) {
 func TestValidateWebhookHeaders(t *testing.T) {
 	t.Run("valid headers pass validation", func(t *testing.T) {
 		headers := map[string]string{
-			"Authorization": "Bearer token123",
+			"Authorization":   "Bearer token123",
 			"X-Custom-Header": "custom-value",
-			"X-API-Key": "api-key-value",
+			"X-API-Key":       "api-key-value",
 		}
 		err := validateWebhookHeaders(headers)
 		assert.NoError(t, err)
@@ -318,7 +318,7 @@ func TestValidateWebhookURL(t *testing.T) {
 				// Either rejected as private IP or localhost
 				assert.True(t,
 					contains(err.Error(), "private IP") ||
-					contains(err.Error(), "localhost"),
+						contains(err.Error(), "localhost"),
 					"Expected private IP or localhost error, got: %v", err)
 			})
 		}

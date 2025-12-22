@@ -17,7 +17,7 @@ linters:
   exclusions:
     paths:
       - "internal/adminui"
-      - "**/*_test.go"
+      - '.*\_test\.go'
     rules:
       - linters:
           - typecheck

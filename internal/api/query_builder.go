@@ -400,9 +400,10 @@ func (qb *QueryBuilder) buildOrderClause() string {
 			part += " ASC"
 		}
 
-		if order.Nulls == "first" {
+		switch order.Nulls {
+		case "first":
 			part += " NULLS FIRST"
-		} else if order.Nulls == "last" {
+		case "last":
 			part += " NULLS LAST"
 		}
 

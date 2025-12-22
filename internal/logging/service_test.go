@@ -155,9 +155,9 @@ func createTestService(cfg *config.LoggingConfig) (*Service, *serviceTestMockSto
 
 	// Create a batcher with our mock
 	s.batcher = NewBatcher(
-		10,             // batch size
+		10,                   // batch size
 		100*time.Millisecond, // flush interval
-		1000,           // buffer size
+		1000,                 // buffer size
 		func(ctx context.Context, entries []*storage.LogEntry) error {
 			return mockStorage.Write(ctx, entries)
 		},

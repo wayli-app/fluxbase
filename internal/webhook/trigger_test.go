@@ -151,11 +151,11 @@ func TestBackoffCalculation(t *testing.T) {
 		retryBackoffSeconds   int
 		expectedBackoffMillis int
 	}{
-		{1, 60, 60000},   // First retry: 60 * 1 = 60s
-		{2, 60, 120000},  // Second retry: 60 * 2 = 120s
-		{3, 60, 180000},  // Third retry: 60 * 3 = 180s
-		{1, 30, 30000},   // Different base: 30 * 1 = 30s
-		{5, 10, 50000},   // Fifth retry: 10 * 5 = 50s
+		{1, 60, 60000},  // First retry: 60 * 1 = 60s
+		{2, 60, 120000}, // Second retry: 60 * 2 = 120s
+		{3, 60, 180000}, // Third retry: 60 * 3 = 180s
+		{1, 30, 30000},  // Different base: 30 * 1 = 30s
+		{5, 10, 50000},  // Fifth retry: 10 * 5 = 50s
 	}
 
 	for _, tc := range testCases {

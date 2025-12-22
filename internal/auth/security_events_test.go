@@ -154,7 +154,7 @@ func TestSecurityLogger_Log(t *testing.T) {
 		event := SecurityEvent{
 			Type: SecurityEventAccountLocked,
 			Details: map[string]interface{}{
-				"reason":         "too_many_failed_attempts",
+				"reason":          "too_many_failed_attempts",
 				"failed_attempts": 5,
 			},
 		}
