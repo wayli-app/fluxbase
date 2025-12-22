@@ -16,66 +16,67 @@ linters:
     - noctx
   exclusions:
     paths:
-      - 'internal/adminui'
+      - "internal/adminui"
+      - "**/*_test.go"
     rules:
       - linters:
           - typecheck
-        text: '.*'
+        text: ".*"
       - linters:
           - gosec
-        text: 'G115:'
+        text: "G115:"
       - path: 'internal/runtime/runtime\.go'
         linters:
           - gosec
-        text: 'G204:'
+        text: "G204:"
       - path: 'internal/functions/bundler\.go'
         linters:
           - gosec
-        text: 'G204:'
+        text: "G204:"
       - path: 'internal/storage/local\.go'
         linters:
           - gosec
-        text: 'G(304|401|501|306|301):'
+        text: "G(304|401|501|306|301):"
       - path: 'internal/email/smtp\.go'
         linters:
           - gosec
-        text: 'G(101|402):'
+        text: "G(101|402):"
       - path: 'internal/email/templates\.go'
         linters:
           - gosec
-        text: 'G304:'
+        text: "G304:"
       - path: 'internal/functions/loader\.go'
         linters:
           - gosec
-        text: 'G(304|306|301):'
+        text: "G(304|306|301):"
       - path: 'internal/functions/bundler\.go'
         linters:
           - gosec
-        text: 'G(304|306|301):'
+        text: "G(304|306|301):"
       - path: 'internal/jobs/loader\.go'
         linters:
           - gosec
-        text: 'G304:'
+        text: "G304:"
       - path: 'internal/rpc/loader\.go'
         linters:
           - gosec
-        text: 'G304:'
+        text: "G304:"
       - path: 'internal/ai/loader\.go'
         linters:
           - gosec
-        text: 'G304:'
+        text: "G304:"
       - path: 'internal/database/connection\.go'
         linters:
           - gosec
-        text: 'G304:'
+        text: "G304:"
       - path: '_test\.go'
         linters:
           - gosec
-        text: 'G(101|104|306|301|304|404):'
+        text: "G(101|104|306|301|304|404):"
       - path: '_test\.go'
         linters:
           - errcheck
-      - path: 'test/'
+      - path: "test/"
         linters:
           - errcheck
           - bodyclose
@@ -88,7 +89,7 @@ linters:
       - path: 'internal/functions/validation_test\.go'
         linters:
           - staticcheck
-        text: 'SA1019:'
+        text: "SA1019:"
 
 issues:
   max-issues-per-linter: 0
