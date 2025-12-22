@@ -969,6 +969,35 @@ ingress:
   ##
   extraRules: []
 
+## @section Gateway API Parameters
+## Configure the Gateway API HTTPRoute resource
+## ref: https://gateway-api.sigs.k8s.io/
+##
+gateway:
+  ## @param gateway.enabled Enable Gateway API HTTPRoute generation for Fluxbase
+  ##
+  enabled: false
+  ## @param gateway.parentRefs References to the Gateway(s) that this HTTPRoute attaches to
+  ## e.g:
+  ## parentRefs:
+  ##   - name: my-gateway
+  ##     namespace: gateway-system
+  ##     sectionName: https
+  ##
+  parentRefs: []
+  ## @param gateway.hostname Hostname for the HTTPRoute
+  ##
+  hostname: fluxbase.local
+  ## @param gateway.path Path prefix for routing
+  ##
+  path: /
+  ## @param gateway.pathType Path match type (Exact, PathPrefix, RegularExpression)
+  ##
+  pathType: PathPrefix
+  ## @param gateway.annotations Additional annotations for the HTTPRoute resource
+  ##
+  annotations: {}
+
 ## @section Persistence Parameters
 
 ## Persistence for storage data (when using local storage provider)

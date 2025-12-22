@@ -160,6 +160,18 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
+## Gateway API (alternative to Ingress)
+## Uncomment to use Gateway API instead of Ingress
+## Remember to set ingress.enabled: false when using Gateway API
+# gateway:
+#   enabled: true
+#   parentRefs:
+#     - name: my-gateway
+#       namespace: gateway-system
+#   hostname: api.example.com
+#   path: /
+#   pathType: PathPrefix
+
 # Monitoring
 metrics:
   enabled: true
