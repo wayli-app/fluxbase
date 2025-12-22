@@ -6,12 +6,12 @@ version: "3.9"
 services:
   # Fluxbase Application (without bundled PostgreSQL)
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.51}
+    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.52}
     build:
       context: ..
       dockerfile: Dockerfile
       args:
-        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.51}
+        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.52}
     container_name: fluxbase-app
     restart: unless-stopped
     environment:
