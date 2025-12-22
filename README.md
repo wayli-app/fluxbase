@@ -1,6 +1,9 @@
 # Fluxbase
 
-> **⚠️ Beta Software**: Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
+[![CI](https://github.com/fluxbase-eu/fluxbase/actions/workflows/ci.yml/badge.svg)](https://github.com/fluxbase-eu/fluxbase/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/fluxbase-eu/fluxbase/branch/main/graph/badge.svg)](https://codecov.io/gh/fluxbase-eu/fluxbase)
+
+> **Beta Software**: Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
 
 A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. Fluxbase provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.
 
@@ -380,7 +383,7 @@ MIT License - see LICENSE file for details.
 | Realtime       | ✅ Built-in             | ✅ Realtime                    |
 | Storage        | ✅ Built-in             | ✅ Storage API                 |
 | Edge Functions | ✅ Deno                 | ✅ Deno                        |
-| Vector/AI      | ❌                      | ✅                             |
+| Vector/AI      | ✅                      | ✅                             |
 | Admin UI       | ✅ Built-in             | ✅                             |
 
 ## Documentation

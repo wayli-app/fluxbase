@@ -143,9 +143,9 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 	}
 
 	// Validate password strength
-	if len(req.Password) < 12 {
+	if err := auth.ValidateDashboardPassword(req.Password); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Password must be at least 12 characters long",
+			"error": err.Error(),
 		})
 	}
 

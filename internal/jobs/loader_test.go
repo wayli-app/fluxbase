@@ -220,3 +220,212 @@ export async function handler(request: Request) {
 		t.Error("AllowNet should be false")
 	}
 }
+
+func TestParseAnnotations_Schedule(t *testing.T) {
+	tests := []struct {
+		name           string
+		code           string
+		expectSchedule *string
+	}{
+		{
+			name:           "no schedule",
+			code:           "export function handler() {}",
+			expectSchedule: nil,
+		},
+		{
+			name:           "every 5 minutes",
+			code:           "// @fluxbase:schedule */5 * * * *\nexport function handler() {}",
+			expectSchedule: strPtr("*/5 * * * *"),
+		},
+		{
+			name:           "daily at midnight",
+			code:           "// @fluxbase:schedule 0 0 * * *\nexport function handler() {}",
+			expectSchedule: strPtr("0 0 * * *"),
+		},
+		{
+			name:           "every hour",
+			code:           "// @fluxbase:schedule 0 * * * *\nexport function handler() {}",
+			expectSchedule: strPtr("0 * * * *"),
+		},
+		{
+			name:           "weekly on sunday",
+			code:           "// @fluxbase:schedule 0 0 * * 0\nexport function handler() {}",
+			expectSchedule: strPtr("0 0 * * 0"),
+		},
+		{
+			name:           "every minute",
+			code:           "// @fluxbase:schedule * * * * *\nexport function handler() {}",
+			expectSchedule: strPtr("* * * * *"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := parseAnnotations(tt.code)
+			if tt.expectSchedule == nil {
+				if annotations.Schedule != nil {
+					t.Errorf("Schedule = %v, want nil", *annotations.Schedule)
+				}
+			} else {
+				if annotations.Schedule == nil {
+					t.Errorf("Schedule = nil, want %v", *tt.expectSchedule)
+				} else if *annotations.Schedule != *tt.expectSchedule {
+					t.Errorf("Schedule = %v, want %v", *annotations.Schedule, *tt.expectSchedule)
+				}
+			}
+		})
+	}
+}
+
+func TestParseAnnotations_RequireRole(t *testing.T) {
+	tests := []struct {
+		name        string
+		code        string
+		expectRole  *string
+	}{
+		{
+			name:       "no require-role",
+			code:       "export function handler() {}",
+			expectRole: nil,
+		},
+		{
+			name:       "require admin",
+			code:       "// @fluxbase:require-role admin\nexport function handler() {}",
+			expectRole: strPtr("admin"),
+		},
+		{
+			name:       "require authenticated",
+			code:       "// @fluxbase:require-role authenticated\nexport function handler() {}",
+			expectRole: strPtr("authenticated"),
+		},
+		{
+			name:       "require anon",
+			code:       "// @fluxbase:require-role anon\nexport function handler() {}",
+			expectRole: strPtr("anon"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := parseAnnotations(tt.code)
+			if tt.expectRole == nil {
+				if annotations.RequireRole != nil {
+					t.Errorf("RequireRole = %v, want nil", *annotations.RequireRole)
+				}
+			} else {
+				if annotations.RequireRole == nil {
+					t.Errorf("RequireRole = nil, want %v", *tt.expectRole)
+				} else if *annotations.RequireRole != *tt.expectRole {
+					t.Errorf("RequireRole = %v, want %v", *annotations.RequireRole, *tt.expectRole)
+				}
+			}
+		})
+	}
+}
+
+func TestParseAnnotations_Enabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    string
+		enabled bool
+	}{
+		{
+			name:    "default enabled",
+			code:    "export function handler() {}",
+			enabled: true,
+		},
+		{
+			name:    "explicitly disabled",
+			code:    "// @fluxbase:enabled false\nexport function handler() {}",
+			enabled: false,
+		},
+		{
+			name:    "explicitly enabled (redundant but valid)",
+			code:    "// @fluxbase:enabled true\nexport function handler() {}",
+			enabled: true, // Should remain true (default)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := parseAnnotations(tt.code)
+			if annotations.Enabled != tt.enabled {
+				t.Errorf("Enabled = %v, want %v", annotations.Enabled, tt.enabled)
+			}
+		})
+	}
+}
+
+func TestParseAnnotations_Memory(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected int
+	}{
+		{
+			name:     "default memory",
+			code:     "export function handler() {}",
+			expected: 256, // Default
+		},
+		{
+			name:     "explicit 128MB",
+			code:     "// @fluxbase:memory 128\nexport function handler() {}",
+			expected: 128,
+		},
+		{
+			name:     "explicit 512MB",
+			code:     "// @fluxbase:memory 512\nexport function handler() {}",
+			expected: 512,
+		},
+		{
+			name:     "explicit 1024MB (1GB)",
+			code:     "// @fluxbase:memory 1024\nexport function handler() {}",
+			expected: 1024,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			annotations := parseAnnotations(tt.code)
+			if annotations.MemoryLimitMB != tt.expected {
+				t.Errorf("MemoryLimitMB = %d, want %d", annotations.MemoryLimitMB, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseAnnotations_ScheduleWithParams(t *testing.T) {
+	code := `// @fluxbase:schedule 0 2 * * *
+// @fluxbase:schedule-params {"type": "daily", "notify": true}
+export function handler() {}`
+
+	annotations := parseAnnotations(code)
+
+	if annotations.Schedule == nil {
+		t.Fatal("Schedule should not be nil")
+	}
+
+	// Schedule should contain the combined format: cron|json
+	// Note: JSON marshal may reorder keys, so we check for presence of both parts
+	if annotations.Schedule == nil || !contains(*annotations.Schedule, "0 2 * * *") || !contains(*annotations.Schedule, "|") {
+		t.Errorf("Schedule = %v, expected to contain cron and pipe separator", *annotations.Schedule)
+	}
+}
+
+// Helper functions for tests
+func strPtr(s string) *string {
+	return &s
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsMiddle(s, substr)))
+}
+
+func containsMiddle(s, substr string) bool {
+	for i := 1; i < len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

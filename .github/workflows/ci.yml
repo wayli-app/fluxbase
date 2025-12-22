@@ -97,9 +97,16 @@ jobs:
         working-directory: ./sdk
         run: npm ci
 
-      - name: Run SDK tests
+      - name: Run SDK tests with coverage
         working-directory: ./sdk
-        run: npm test -- src/admin.test.ts src/auth.test.ts src/management.test.ts src/ddl.test.ts src/impersonation.test.ts src/settings.test.ts src/oauth.test.ts
+        run: npx vitest --coverage --run
+
+      - name: Upload SDK coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./sdk/coverage/coverage-final.json
+          flags: sdk
+          name: sdk-coverage
 
       - name: Type check SDK
         working-directory: ./sdk

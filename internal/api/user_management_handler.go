@@ -32,13 +32,8 @@ func (h *UserManagementHandler) ListUsers(c *fiber.Ctx) error {
 	offset := c.QueryInt("offset", 0)
 	userType := c.Query("type", "app") // "app" for auth.users, "dashboard" for dashboard.users
 
-	// Enforce maximum limit
-	if limit <= 0 || limit > maxLimit {
-		limit = defaultLimit
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	// Normalize pagination parameters
+	limit, offset = NormalizePaginationParams(limit, offset, defaultLimit, maxLimit)
 
 	users, err := h.userMgmtService.ListEnrichedUsers(c.Context(), userType)
 	if err != nil {

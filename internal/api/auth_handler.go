@@ -994,9 +994,9 @@ func (h *AuthHandler) SendOTP(c *fiber.Ctx) error {
 	}
 
 	// Validate that either email or phone is provided
-	if req.Email == nil && req.Phone == nil {
+	if err := auth.ValidateOTPContact(req.Email, req.Phone); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Either email or phone must be provided",
+			"error": err.Error(),
 		})
 	}
 
@@ -1055,16 +1055,19 @@ func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
 	var otpCode *auth.OTPCode
 	var err error
 
+	// Validate that either email or phone is provided
+	if err := auth.ValidateOTPContact(req.Email, req.Phone); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
 	if req.Email != nil {
 		otpCode, err = h.authService.VerifyOTP(c.Context(), *req.Email, req.Token)
 	} else if req.Phone != nil {
 		// Phone OTP not yet fully implemented
 		return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
 			"error": "Phone-based OTP authentication not yet implemented",
-		})
-	} else {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Either email or phone must be provided",
 		})
 	}
 
@@ -1116,9 +1119,10 @@ func (h *AuthHandler) ResendOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.Email == nil && req.Phone == nil {
+	// Validate that either email or phone is provided
+	if err := auth.ValidateOTPContact(req.Email, req.Phone); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Either email or phone must be provided",
+			"error": err.Error(),
 		})
 	}
 

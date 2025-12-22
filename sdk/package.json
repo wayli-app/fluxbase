@@ -68,6 +68,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
+    "@vitest/coverage-v8": "^1.6.1",
     "docusaurus-plugin-typedoc": "^1.4.2",
     "esbuild": "^0.24.0",
     "ts-node": "^10.9.2",

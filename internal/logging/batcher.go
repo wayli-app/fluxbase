@@ -20,6 +20,7 @@ type Batcher struct {
 	writeFunc     BatchWriteFunc
 	wg            sync.WaitGroup
 	done          chan struct{}
+	flushReq      chan chan error // Channel to request a flush and receive result
 	mu            sync.Mutex
 	closed        bool
 }
@@ -42,6 +43,7 @@ func NewBatcher(batchSize int, flushInterval time.Duration, bufferSize int, writ
 		flushInterval: flushInterval,
 		writeFunc:     writeFunc,
 		done:          make(chan struct{}),
+		flushReq:      make(chan chan error),
 	}
 
 	b.wg.Add(1)
@@ -71,32 +73,27 @@ func (b *Batcher) Add(entry *storage.LogEntry) {
 
 // Flush forces a flush of all buffered entries.
 func (b *Batcher) Flush(ctx context.Context) error {
-	// Signal a flush by sending a nil entry
-	// The run loop will flush when it sees this
-	flushDone := make(chan struct{})
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return nil
+	}
+	b.mu.Unlock()
 
-	go func() {
-		// Collect all pending entries
-		var batch []*storage.LogEntry
-		for {
-			select {
-			case entry := <-b.entries:
-				if entry != nil {
-					batch = append(batch, entry)
-				}
-			default:
-				// No more entries in buffer
-				if len(batch) > 0 {
-					_ = b.writeFunc(ctx, batch)
-				}
-				close(flushDone)
-				return
-			}
-		}
-	}()
+	// Send flush request to run loop and wait for response
+	resultCh := make(chan error, 1)
 
 	select {
-	case <-flushDone:
+	case b.flushReq <- resultCh:
+		// Request sent, wait for result
+		select {
+		case err := <-resultCh:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	case <-b.done:
+		// Batcher is closing
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -113,11 +110,11 @@ func (b *Batcher) Close(ctx context.Context) error {
 	b.closed = true
 	b.mu.Unlock()
 
+	// Signal shutdown - run loop will drain and flush remaining entries
 	close(b.done)
 	b.wg.Wait()
 
-	// Flush any remaining entries
-	return b.Flush(ctx)
+	return nil
 }
 
 // run is the main loop that collects and writes batches.
@@ -129,17 +126,54 @@ func (b *Batcher) run() {
 
 	var batch []*storage.LogEntry
 
+	// Helper to flush current batch
+	flushBatch := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err := b.writeFunc(ctx, batch)
+		cancel()
+		batch = nil
+		return err
+	}
+
 	for {
 		select {
 		case <-b.done:
 			// Shutdown requested
-			// Flush remaining entries
-			if len(batch) > 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_ = b.writeFunc(ctx, batch)
-				cancel()
+			// Drain any remaining entries from channel
+			draining := true
+			for draining {
+				select {
+				case entry := <-b.entries:
+					if entry != nil {
+						batch = append(batch, entry)
+					}
+				default:
+					draining = false
+				}
 			}
+			// Flush remaining entries
+			_ = flushBatch()
 			return
+
+		case resultCh := <-b.flushReq:
+			// Drain any pending entries from channel first
+			draining := true
+			for draining {
+				select {
+				case entry := <-b.entries:
+					if entry != nil {
+						batch = append(batch, entry)
+					}
+				default:
+					draining = false
+				}
+			}
+			// Flush and send result
+			err := flushBatch()
+			resultCh <- err
 
 		case entry := <-b.entries:
 			if entry == nil {
@@ -149,20 +183,12 @@ func (b *Batcher) run() {
 
 			// Flush if batch is full
 			if len(batch) >= b.batchSize {
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				_ = b.writeFunc(ctx, batch)
-				cancel()
-				batch = nil
+				_ = flushBatch()
 			}
 
 		case <-ticker.C:
 			// Flush on interval
-			if len(batch) > 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				_ = b.writeFunc(ctx, batch)
-				cancel()
-				batch = nil
-			}
+			_ = flushBatch()
 		}
 	}
 }

@@ -25,6 +25,9 @@ const (
 	// General metadata limits
 	MaxMetadataKeyLength   = 64
 	MaxMetadataValueLength = 1024
+
+	// Dashboard password validation (stricter than regular users)
+	MinDashboardPasswordLength = 12
 )
 
 var (
@@ -42,6 +45,12 @@ var (
 	ErrAvatarURLTooLong = errors.New("avatar URL is too long (max 2048 characters)")
 	// ErrInvalidAvatarURL is returned when avatar URL format is invalid
 	ErrInvalidAvatarURL = errors.New("invalid avatar URL format")
+	// ErrDashboardPasswordTooShort is returned when dashboard password is too short
+	ErrDashboardPasswordTooShort = errors.New("password must be at least 12 characters long")
+	// ErrOTPContactRequired is returned when neither email nor phone is provided for OTP
+	ErrOTPContactRequired = errors.New("either email or phone must be provided")
+	// ErrInvalidDashboardRole is returned when an invalid dashboard role is provided
+	ErrInvalidDashboardRole = errors.New("invalid role. Must be 'dashboard_admin' or 'dashboard_user'")
 )
 
 // emailRegex provides a basic email format validation
@@ -117,6 +126,36 @@ func ValidateNameOptional(name string) error {
 	}
 
 	return nil
+}
+
+// ValidateDashboardPassword validates password strength for dashboard/admin users
+// Dashboard users have stricter requirements (12 chars) than regular users (8 chars)
+func ValidateDashboardPassword(password string) error {
+	if len(password) < MinDashboardPasswordLength {
+		return ErrDashboardPasswordTooShort
+	}
+	return nil
+}
+
+// ValidateOTPContact validates that either email or phone is provided for OTP operations
+func ValidateOTPContact(email, phone *string) error {
+	if email == nil && phone == nil {
+		return ErrOTPContactRequired
+	}
+	return nil
+}
+
+// ValidDashboardRoles contains the valid roles for dashboard users
+var ValidDashboardRoles = []string{"dashboard_admin", "dashboard_user"}
+
+// ValidateDashboardRole validates that a role is valid for dashboard users
+func ValidateDashboardRole(role string) error {
+	for _, r := range ValidDashboardRoles {
+		if r == role {
+			return nil
+		}
+	}
+	return ErrInvalidDashboardRole
 }
 
 // ValidateAvatarURL validates an avatar URL

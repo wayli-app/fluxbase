@@ -101,9 +101,9 @@ func (h *InvitationHandler) CreateInvitation(c *fiber.Ctx) error {
 	}
 
 	// Validate role
-	if req.Role != "dashboard_admin" && req.Role != "dashboard_user" {
+	if err := auth.ValidateDashboardRole(req.Role); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid role. Must be 'dashboard_admin' or 'dashboard_user'",
+			"error": err.Error(),
 		})
 	}
 
@@ -210,9 +210,9 @@ func (h *InvitationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	}
 
 	// Validate password strength
-	if len(req.Password) < 12 {
+	if err := auth.ValidateDashboardPassword(req.Password); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Password must be at least 12 characters long",
+			"error": err.Error(),
 		})
 	}
 

@@ -14,11 +14,33 @@ coverage:
         target: 80%
         threshold: 2%
         informational: false
+      go:
+        flags: [unittests]
+        target: 30%
+        threshold: 5%
+        informational: false
+      sdk:
+        flags: [sdk]
+        target: 50%
+        threshold: 5%
+        informational: false
     patch:
       default:
         target: 70%
         threshold: 5%
         informational: false
+
+flags:
+  unittests:
+    paths:
+      - internal/
+      - cli/
+      - cmd/
+    carryforward: true
+  sdk:
+    paths:
+      - sdk/src/
+    carryforward: true
 
 comment:
   layout: "reach,diff,flags,tree,reach"
@@ -28,7 +50,21 @@ comment:
   require_head: true
 
 ignore:
+  # Test files
   - "**/*_test.go"
+  - "**/*.test.ts"
   - "test/**"
+
+  # Entry points and assets
+  - "cmd/fluxbase/main.go"
   - "internal/adminui/**"
-  - "cmd/fluxbase/main.go"  # Main entry point - hard to test
+
+  # SDK non-source
+  - "sdk/examples/**"
+  - "sdk/scripts/**"
+
+  # Infrastructure code (requires real DB/system deps, tested via E2E)
+  - "internal/scaling/leader.go"
+  - "internal/database/connection.go"
+  - "internal/ai/ocr_tesseract.go"
+  - "cli/**"

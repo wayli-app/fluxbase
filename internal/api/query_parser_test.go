@@ -1105,3 +1105,64 @@ func TestQueryParams_BuildWhereClause_OrGroups(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatVectorValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name:     "string with brackets",
+			input:    "[0.1,0.2,0.3]",
+			expected: "[0.1,0.2,0.3]",
+		},
+		{
+			name:     "string without brackets",
+			input:    "0.1,0.2,0.3",
+			expected: "[0.1,0.2,0.3]",
+		},
+		{
+			name:     "float64 slice",
+			input:    []float64{0.1, 0.2, 0.3},
+			expected: "[0.1,0.2,0.3]",
+		},
+		{
+			name:     "float32 slice",
+			input:    []float32{0.1, 0.2, 0.3},
+			expected: "[0.1,0.2,0.3]",
+		},
+		{
+			name:     "interface slice with floats",
+			input:    []interface{}{0.1, 0.2, 0.3},
+			expected: "[0.1,0.2,0.3]",
+		},
+		{
+			name:     "interface slice with ints",
+			input:    []interface{}{1, 2, 3},
+			expected: "[1,2,3]",
+		},
+		{
+			name:     "empty slice",
+			input:    []float64{},
+			expected: "[]",
+		},
+		{
+			name:     "string with leading bracket only",
+			input:    "[0.1,0.2",
+			expected: "[0.1,0.2]",
+		},
+		{
+			name:     "string with trailing bracket only",
+			input:    "0.1,0.2]",
+			expected: "[0.1,0.2]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatVectorValue(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

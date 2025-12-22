@@ -724,13 +724,18 @@ jobs:
           # Try to fetch gh-pages branch, create orphan if it doesn't exist
           if git fetch origin gh-pages:gh-pages 2>/dev/null; then
             git checkout gh-pages
+            # Merge new index with existing index to preserve history
+            if [ -f index.yaml ]; then
+              helm repo index /tmp/helm-repo --url https://${{ github.repository_owner }}.github.io/fluxbase --merge index.yaml
+            fi
           else
             git checkout --orphan gh-pages
+            git rm -rf . || true
           fi
 
-          # Keep only Helm artifacts
-          git rm -rf . || true
-          cp -r /tmp/helm-repo/* .
+          # Copy new chart package (keep existing .tgz files)
+          cp /tmp/helm-repo/*.tgz .
+          cp /tmp/helm-repo/index.yaml .
 
           # Commit and push
           git add index.yaml *.tgz
