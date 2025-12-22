@@ -71,7 +71,7 @@ Return the proper Fluxbase image name
 {{- $registryName := .Values.image.registry -}}
 {{- $repositoryName := .Values.image.repository -}}
 {{- $separator := ":" -}}
-{{- $termination := .Values.image.tag | toString -}}
+{{- $termination := (.Values.image.tag | default .Chart.AppVersion) | toString -}}
 {{- if .Values.global }}
     {{- if .Values.global.imageRegistry }}
      {{- $registryName = .Values.global.imageRegistry -}}
@@ -129,16 +129,8 @@ Return the proper PostgreSQL host
 {{- define "fluxbase.databaseHost" -}}
 {{- if .Values.fluxbase.database.host }}
     {{- .Values.fluxbase.database.host -}}
-{{- else if eq .Values.postgresql.mode "standalone" }}
+{{- else if .Values.postgresql.enabled }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
-{{- else if eq .Values.postgresql.mode "cnpg" }}
-    {{- if .Values.postgresql.cnpg.pooler.enabled }}
-        {{- printf "%s-postgresql-pooler-rw" (include "fluxbase.fullname" .) -}}
-    {{- else }}
-        {{- printf "%s-postgresql-rw" (include "fluxbase.fullname" .) -}}
-    {{- end }}
-{{- else if eq .Values.postgresql.mode "none" }}
-    {{- .Values.externalDatabase.host -}}
 {{- else }}
     {{- .Values.externalDatabase.host -}}
 {{- end }}
@@ -148,7 +140,7 @@ Return the proper PostgreSQL host
 Return the proper PostgreSQL port
 */}}
 {{- define "fluxbase.databasePort" -}}
-{{- if ne .Values.postgresql.mode "none" }}
+{{- if .Values.postgresql.enabled }}
     {{- print "5432" -}}
 {{- else }}
     {{- .Values.externalDatabase.port -}}
@@ -159,7 +151,7 @@ Return the proper PostgreSQL port
 Return the proper PostgreSQL database name
 */}}
 {{- define "fluxbase.databaseName" -}}
-{{- if ne .Values.postgresql.mode "none" }}
+{{- if .Values.postgresql.enabled }}
     {{- .Values.postgresql.auth.database -}}
 {{- else }}
     {{- .Values.externalDatabase.database -}}
@@ -172,7 +164,7 @@ Return the proper PostgreSQL runtime username
 {{- define "fluxbase.databaseUser" -}}
 {{- if .Values.fluxbase.database.user }}
     {{- .Values.fluxbase.database.user -}}
-{{- else if ne .Values.postgresql.mode "none" }}
+{{- else if .Values.postgresql.enabled }}
     {{- .Values.postgresql.auth.username -}}
 {{- else }}
     {{- .Values.externalDatabase.user -}}
@@ -185,16 +177,10 @@ Return the proper PostgreSQL password secret name
 {{- define "fluxbase.databaseSecretName" -}}
 {{- if .Values.existingSecret }}
     {{- .Values.existingSecret -}}
-{{- else if eq .Values.postgresql.mode "standalone" }}
+{{- else if .Values.postgresql.enabled }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
-{{- else if eq .Values.postgresql.mode "cnpg" }}
-    {{- printf "%s-postgresql-app" (include "fluxbase.fullname" .) -}}
-{{- else if eq .Values.postgresql.mode "none" }}
-    {{- if .Values.externalDatabase.existingSecret }}
-        {{- .Values.externalDatabase.existingSecret -}}
-    {{- else }}
-        {{- printf "%s" (include "fluxbase.fullname" .) -}}
-    {{- end }}
+{{- else if .Values.externalDatabase.existingSecret }}
+    {{- .Values.externalDatabase.existingSecret -}}
 {{- else }}
     {{- printf "%s" (include "fluxbase.fullname" .) -}}
 {{- end }}
@@ -205,19 +191,145 @@ Return the proper PostgreSQL password secret key
 */}}
 {{- define "fluxbase.databaseSecretPasswordKey" -}}
 {{- if .Values.existingSecret }}
-    {{- print "database-password" -}}
-{{- else if eq .Values.postgresql.mode "standalone" }}
+    {{- .Values.existingSecretKeyRef.databasePassword | default "database-password" -}}
+{{- else if .Values.postgresql.enabled }}
     {{- print "password" -}}
-{{- else if eq .Values.postgresql.mode "cnpg" }}
-    {{- print "password" -}}
-{{- else if eq .Values.postgresql.mode "none" }}
-    {{- if .Values.externalDatabase.existingSecret }}
-        {{- .Values.externalDatabase.existingSecretPasswordKey -}}
-    {{- else }}
-        {{- print "database-password" -}}
-    {{- end }}
+{{- else if .Values.externalDatabase.existingSecret }}
+    {{- .Values.externalDatabase.existingSecretPasswordKey -}}
 {{- else }}
     {{- print "database-password" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for JWT secret
+*/}}
+{{- define "fluxbase.secretKeyRef.jwtSecret" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.jwtSecret | default "jwt-secret" -}}
+{{- else }}
+    {{- print "jwt-secret" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for setup token
+*/}}
+{{- define "fluxbase.secretKeyRef.setupToken" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.setupToken | default "setup-token" -}}
+{{- else }}
+    {{- print "setup-token" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for S3 access key
+*/}}
+{{- define "fluxbase.secretKeyRef.s3AccessKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.s3AccessKey | default "s3-access-key" -}}
+{{- else }}
+    {{- print "s3-access-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for S3 secret key
+*/}}
+{{- define "fluxbase.secretKeyRef.s3SecretKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.s3SecretKey | default "s3-secret-key" -}}
+{{- else }}
+    {{- print "s3-secret-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for SMTP password
+*/}}
+{{- define "fluxbase.secretKeyRef.smtpPassword" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.smtpPassword | default "smtp-password" -}}
+{{- else }}
+    {{- print "smtp-password" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for SendGrid API key
+*/}}
+{{- define "fluxbase.secretKeyRef.sendgridApiKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.sendgridApiKey | default "sendgrid-api-key" -}}
+{{- else }}
+    {{- print "sendgrid-api-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for Mailgun API key
+*/}}
+{{- define "fluxbase.secretKeyRef.mailgunApiKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.mailgunApiKey | default "mailgun-api-key" -}}
+{{- else }}
+    {{- print "mailgun-api-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for SES access key
+*/}}
+{{- define "fluxbase.secretKeyRef.sesAccessKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.sesAccessKey | default "ses-access-key" -}}
+{{- else }}
+    {{- print "ses-access-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for SES secret key
+*/}}
+{{- define "fluxbase.secretKeyRef.sesSecretKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.sesSecretKey | default "ses-secret-key" -}}
+{{- else }}
+    {{- print "ses-secret-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for AI encryption key
+*/}}
+{{- define "fluxbase.secretKeyRef.aiEncryptionKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.aiEncryptionKey | default "ai-encryption-key" -}}
+{{- else }}
+    {{- print "ai-encryption-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for OpenAI API key
+*/}}
+{{- define "fluxbase.secretKeyRef.openaiApiKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.openaiApiKey | default "openai-api-key" -}}
+{{- else }}
+    {{- print "openai-api-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for Azure API key
+*/}}
+{{- define "fluxbase.secretKeyRef.azureApiKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.azureApiKey | default "azure-api-key" -}}
+{{- else }}
+    {{- print "azure-api-key" -}}
 {{- end }}
 {{- end }}
 

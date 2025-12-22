@@ -68,7 +68,8 @@
       "Bash(./build/fluxbase-cli completion:*)",
       "Bash(npx vitest:*)",
       "Bash(go tool cover:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(helm template:*)"
     ],
     "deny": [],
     "ask": []

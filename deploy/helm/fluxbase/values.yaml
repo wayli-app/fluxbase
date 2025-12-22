@@ -510,15 +510,74 @@ fluxbase:
   debug: false
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
-## The secret should contain the following keys:
-## - database-password: PostgreSQL database password (if using external database)
-## - jwt-secret: JWT secret key
-## - setup-token: Admin setup token (REQUIRED to enable dashboard)
-## - s3-access-key-id: S3 access key ID (if using S3 storage)
-## - s3-secret-access-key: S3 secret access key (if using S3 storage)
-## - service-key: Service role key for backend services (optional, highly sensitive)
+## @descriptionStart
+## When using existingSecret, the secret should contain keys matching the names below.
+## You can customize key names using the existingSecretKeyRef parameters.
+##
+## Supported secret keys (all optional, include only what you need):
+##
+## Authentication & Security:
+##   - jwt-secret: JWT signing secret (REQUIRED)
+##   - setup-token: Admin setup token (REQUIRED to enable dashboard)
+##
+## Database (only when postgresql.mode=none):
+##   - database-password: PostgreSQL database password
+##
+## Storage (only when storage.provider=s3):
+##   - s3-access-key: S3 access key ID
+##   - s3-secret-key: S3 secret access key
+##
+## Email (based on provider):
+##   - smtp-password: SMTP password (when email.provider=smtp)
+##   - sendgrid-api-key: SendGrid API key (when email.provider=sendgrid)
+##   - mailgun-api-key: Mailgun API key (when email.provider=mailgun)
+##   - ses-access-key: AWS SES access key (when email.provider=ses)
+##   - ses-secret-key: AWS SES secret key (when email.provider=ses)
+##
+## AI (when ai.enabled=true):
+##   - ai-encryption-key: Encryption key for AI data
+##   - openai-api-key: OpenAI API key (when using OpenAI provider)
+##   - azure-api-key: Azure OpenAI API key (when using Azure provider)
+##
+## Example secret creation:
+##   kubectl create secret generic fluxbase-secrets \
+##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+##     --from-literal=setup-token=$(openssl rand -base64 32) \
+##     --from-literal=openai-api-key=sk-xxx
+## @descriptionEnd
 ##
 existingSecret: ""
+
+## @param existingSecretKeyRef Custom key names for existingSecret
+## @descriptionStart
+## Use this to reference secrets that use different key names than the defaults.
+## This is useful when integrating with external secret management systems
+## (e.g., External Secrets Operator, Vault) that may use different naming conventions.
+##
+## Example: If your secret has 'JWT_SECRET' instead of 'jwt-secret':
+##   existingSecretKeyRef:
+##     jwtSecret: "JWT_SECRET"
+## @descriptionEnd
+##
+existingSecretKeyRef:
+  ## Authentication & Security
+  jwtSecret: "jwt-secret"
+  setupToken: "setup-token"
+  ## Database
+  databasePassword: "database-password"
+  ## Storage (S3)
+  s3AccessKey: "s3-access-key"
+  s3SecretKey: "s3-secret-key"
+  ## Email
+  smtpPassword: "smtp-password"
+  sendgridApiKey: "sendgrid-api-key"
+  mailgunApiKey: "mailgun-api-key"
+  sesAccessKey: "ses-access-key"
+  sesSecretKey: "ses-secret-key"
+  ## AI
+  aiEncryptionKey: "ai-encryption-key"
+  openaiApiKey: "openai-api-key"
+  azureApiKey: "azure-api-key"
 
 ## @section ConfigMap Configuration
 ## @descriptionStart
@@ -1118,126 +1177,77 @@ migrationsPersistence:
 ## @section PostgreSQL Parameters
 ## @descriptionStart
 ## PostgreSQL deployment configuration
-## Choose between CloudNativePG (cnpg), standalone StatefulSet, or external database
+## PostgreSQL can be deployed by Fluxbase or provided externally.
+## Set postgresql.enabled=true to deploy PostgreSQL alongside Fluxbase.
+## Set postgresql.enabled=false and configure externalDatabase to use an external PostgreSQL.
 ## @descriptionEnd
 
-## PostgreSQL Configuration
-## @param postgresql.mode PostgreSQL deployment mode. Options: 'none' (external only), 'standalone' (simple StatefulSet), 'cnpg' (CloudNativePG operator)
+## @section PostgreSQL Configuration
+## @param postgresql.enabled Deploy PostgreSQL alongside Fluxbase (set to false to use externalDatabase)
 ## @param postgresql.auth.username PostgreSQL username
 ## @param postgresql.auth.password PostgreSQL password (use existingSecret in production)
 ## @param postgresql.auth.database PostgreSQL database name
 ## @param postgresql.auth.existingSecret Name of existing secret containing PostgreSQL credentials
 ##
 postgresql:
-  # Deployment mode: none, standalone, or cnpg
-  mode: standalone
+  ## Set to true to deploy PostgreSQL, false to use externalDatabase
+  enabled: true
 
-  # Authentication settings (used by standalone and cnpg modes)
+  ## Authentication settings
   auth:
     username: fluxbase
     password: fluxbase
     database: fluxbase
-    # Name of existing secret with keys: username, password, database
+    ## Name of existing secret with keys: username, password, database
     existingSecret: ""
 
-  ## Standalone PostgreSQL Configuration (when mode=standalone)
-  ## Simple StatefulSet deployment using official PostgreSQL image
-  standalone:
-    ## @param postgresql.standalone.enabled Enable standalone PostgreSQL deployment
+  ## @param postgresql.image.registry PostgreSQL image registry
+  ## @param postgresql.image.repository PostgreSQL image repository
+  ## @param postgresql.image.tag PostgreSQL image tag
+  ##
+  image:
+    registry: ghcr.io
+    repository: fluxbase-eu/fluxbase-postgres
+    tag: "18.1-0.0.1-rc.52"
+    pullPolicy: IfNotPresent
+
+  ## @param postgresql.persistence.enabled Enable persistence for PostgreSQL
+  ## @param postgresql.persistence.size Size of PostgreSQL data volume
+  ## @param postgresql.persistence.storageClass Storage class for PostgreSQL PVC
+  ##
+  persistence:
     enabled: true
-    ## @param postgresql.standalone.image.registry PostgreSQL image registry
-    ## @param postgresql.standalone.image.repository PostgreSQL image repository
-    ## @param postgresql.standalone.image.tag PostgreSQL image tag
-    ##
-    image:
-      registry: ghcr.io
-      repository: fluxbase-eu/fluxbase-postgres
-      tag: "18.1-0.0.1-rc.52"
-      pullPolicy: IfNotPresent
-    ## @param postgresql.standalone.persistence.enabled Enable persistence for standalone PostgreSQL
-    ## @param postgresql.standalone.persistence.size Size of PostgreSQL data volume
-    ## @param postgresql.standalone.persistence.storageClass Storage class for PostgreSQL PVC
-    ##
-    persistence:
-      enabled: true
-      size: 8Gi
-      storageClass: ""
-      accessModes:
-        - ReadWriteOnce
-    ## @param postgresql.standalone.resources Resource requests and limits for standalone PostgreSQL
-    ##
-    resources:
-      requests:
-        cpu: 250m
-        memory: 256Mi
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-    ## @param postgresql.standalone.securityContext Security context for PostgreSQL pod
-    ##
-    securityContext:
-      fsGroup: 999
-      runAsUser: 999
-      runAsNonRoot: true
+    size: 8Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
 
-  ## CloudNativePG Configuration (when mode=cnpg)
-  ## Requires CloudNativePG operator to be installed
-  ## ref: https://cloudnative-pg.io/
-  cnpg:
-    ## @param postgresql.cnpg.enabled Enable CloudNativePG deployment
-    enabled: false
-    ## @param postgresql.cnpg.instances Number of PostgreSQL instances in the cluster
-    ##
-    instances: 3
-    ## @param postgresql.cnpg.imageName PostgreSQL image for CNPG (defaults to PostgreSQL 18)
-    ##
-    imageName: "ghcr.io/cloudnative-pg/postgresql:18"
-    ## @param postgresql.cnpg.storage.size Size of PostgreSQL data volume per instance
-    ## @param postgresql.cnpg.storage.storageClass Storage class for PostgreSQL PVCs
-    ##
-    storage:
-      size: 8Gi
-      storageClass: ""
-    ## @param postgresql.cnpg.monitoring.enabled Enable Prometheus monitoring for CNPG
-    ##
-    monitoring:
-      enabled: true
-    ## @param postgresql.cnpg.backup.enabled Enable automated backups
-    ## @param postgresql.cnpg.backup.retentionPolicy Backup retention policy
-    ## @param postgresql.cnpg.backup.schedule Backup schedule (cron format)
-    ##
-    backup:
-      enabled: false
-      retentionPolicy: "30d"
-      schedule: "0 0 * * *"
-      # S3 configuration for backups (optional)
-      s3:
-        enabled: false
-        bucket: ""
-        region: ""
-        endpoint: ""
-        # Credentials should be provided via existingSecret
-    ## @param postgresql.cnpg.pooler.enabled Enable PgBouncer connection pooler
-    ## @param postgresql.cnpg.pooler.instances Number of pooler instances
-    ##
-    pooler:
-      enabled: false
-      instances: 2
-      type: rw # rw (read-write) or ro (read-only)
-      poolMode: session # session, transaction, or statement
-      parameters:
-        max_client_conn: "1000"
-        default_pool_size: "25"
+  ## @param postgresql.resources Resource requests and limits for PostgreSQL
+  ##
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
 
-## External PostgreSQL configuration
-## Used when postgresql.mode is set to 'none'
-## @param externalDatabase.host Database host (required when mode=none)
+  ## @param postgresql.securityContext Security context for PostgreSQL pod
+  ##
+  securityContext:
+    fsGroup: 999
+    runAsUser: 999
+    runAsNonRoot: true
+
+## @section External Database Configuration
+## Used when postgresql.enabled is set to false
+## @param externalDatabase.host Database host (required when postgresql.enabled=false)
 ## @param externalDatabase.port Database port number
-## @param externalDatabase.user Non-root username
-## @param externalDatabase.password Password for the non-root username (use existingSecret in production)
+## @param externalDatabase.user Database username
+## @param externalDatabase.password Password for the database user (use existingSecret in production)
 ## @param externalDatabase.database Database name
 ## @param externalDatabase.existingSecret Name of an existing secret resource containing the database credentials
-## @param externalDatabase.existingSecretPasswordKey Name of an existing secret key containing the database credentials
+## @param externalDatabase.existingSecretPasswordKey Name of the key in existingSecret containing the password
 ##
 externalDatabase:
   host: ""

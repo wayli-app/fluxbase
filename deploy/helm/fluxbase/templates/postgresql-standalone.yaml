@@ -1,4 +1,4 @@
-{{- if eq .Values.postgresql.mode "standalone" }}
+{{- if .Values.postgresql.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -37,7 +37,7 @@ data:
   database: {{ .Values.postgresql.auth.database | b64enc | quote }}
   {{- end }}
 ---
-{{- if .Values.postgresql.standalone.persistence.enabled }}
+{{- if .Values.postgresql.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -48,17 +48,17 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   accessModes:
-    {{- range .Values.postgresql.standalone.persistence.accessModes }}
+    {{- range .Values.postgresql.persistence.accessModes }}
     - {{ . | quote }}
     {{- end }}
   resources:
     requests:
-      storage: {{ .Values.postgresql.standalone.persistence.size | quote }}
-  {{- if .Values.postgresql.standalone.persistence.storageClass }}
-  {{- if (eq "-" .Values.postgresql.standalone.persistence.storageClass) }}
+      storage: {{ .Values.postgresql.persistence.size | quote }}
+  {{- if .Values.postgresql.persistence.storageClass }}
+  {{- if (eq "-" .Values.postgresql.persistence.storageClass) }}
   storageClassName: ""
   {{- else }}
-  storageClassName: {{ .Values.postgresql.standalone.persistence.storageClass | quote }}
+  storageClassName: {{ .Values.postgresql.persistence.storageClass | quote }}
   {{- end }}
   {{- end }}
 {{- end }}
@@ -84,14 +84,14 @@ spec:
         {{- include "fluxbase.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: database
     spec:
-      {{- if .Values.postgresql.standalone.securityContext }}
+      {{- if .Values.postgresql.securityContext }}
       securityContext:
-        {{- toYaml .Values.postgresql.standalone.securityContext | nindent 8 }}
+        {{- toYaml .Values.postgresql.securityContext | nindent 8 }}
       {{- end }}
       containers:
         - name: postgresql
-          image: "{{ .Values.postgresql.standalone.image.registry }}/{{ .Values.postgresql.standalone.image.repository }}:{{ .Values.postgresql.standalone.image.tag }}"
-          imagePullPolicy: {{ .Values.postgresql.standalone.image.pullPolicy }}
+          image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           ports:
             - name: postgresql
               containerPort: 5432
@@ -114,9 +114,9 @@ spec:
                   key: database
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
-          {{- if .Values.postgresql.standalone.resources }}
+          {{- if .Values.postgresql.resources }}
           resources:
-            {{- toYaml .Values.postgresql.standalone.resources | nindent 12 }}
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
           {{- end }}
           livenessProbe:
             exec:
@@ -144,7 +144,7 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
       volumes:
-        {{- if .Values.postgresql.standalone.persistence.enabled }}
+        {{- if .Values.postgresql.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "fluxbase.fullname" . }}-postgresql

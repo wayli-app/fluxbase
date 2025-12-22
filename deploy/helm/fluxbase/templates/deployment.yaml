@@ -159,7 +159,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: jwt-secret
+                  key: {{ include "fluxbase.secretKeyRef.jwtSecret" . }}
             {{- if .Values.fluxbase.auth.anon_key }}
             - name: FLUXBASE_AUTH_ANON_KEY
               value: {{ .Values.fluxbase.auth.anon_key | quote }}
@@ -204,7 +204,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: setup-token
+                  key: {{ include "fluxbase.secretKeyRef.setupToken" . }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT
               value: {{ .Values.fluxbase.security.admin_setup_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW
@@ -256,12 +256,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: s3-access-key
+                  key: {{ include "fluxbase.secretKeyRef.s3AccessKey" . }}
             - name: FLUXBASE_STORAGE_S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: s3-secret-key
+                  key: {{ include "fluxbase.secretKeyRef.s3SecretKey" . }}
             - name: FLUXBASE_STORAGE_S3_BUCKET
               value: {{ .Values.fluxbase.storage.s3_bucket | quote }}
             - name: FLUXBASE_STORAGE_S3_REGION
@@ -313,12 +313,12 @@ spec:
               value: {{ .Values.fluxbase.email.smtp_port | quote }}
             - name: FLUXBASE_EMAIL_SMTP_USERNAME
               value: {{ .Values.fluxbase.email.smtp_username | quote }}
-            {{- if .Values.fluxbase.email.smtp_password }}
+            {{- if or .Values.fluxbase.email.smtp_password .Values.existingSecret }}
             - name: FLUXBASE_EMAIL_SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: smtp-password
+                  key: {{ include "fluxbase.secretKeyRef.smtpPassword" . }}
             {{- end }}
             - name: FLUXBASE_EMAIL_SMTP_TLS
               value: {{ .Values.fluxbase.email.smtp_tls | quote }}
@@ -328,14 +328,14 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: sendgrid-api-key
+                  key: {{ include "fluxbase.secretKeyRef.sendgridApiKey" . }}
             {{- end }}
             {{- if eq .Values.fluxbase.email.provider "mailgun" }}
             - name: FLUXBASE_EMAIL_MAILGUN_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: mailgun-api-key
+                  key: {{ include "fluxbase.secretKeyRef.mailgunApiKey" . }}
             - name: FLUXBASE_EMAIL_MAILGUN_DOMAIN
               value: {{ .Values.fluxbase.email.mailgun_domain | quote }}
             {{- end }}
@@ -344,12 +344,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: ses-access-key
+                  key: {{ include "fluxbase.secretKeyRef.sesAccessKey" . }}
             - name: FLUXBASE_EMAIL_SES_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: ses-secret-key
+                  key: {{ include "fluxbase.secretKeyRef.sesSecretKey" . }}
             - name: FLUXBASE_EMAIL_SES_REGION
               value: {{ .Values.fluxbase.email.ses_region | quote }}
             {{- end }}
@@ -461,26 +461,29 @@ spec:
               value: {{ .Values.fluxbase.ai.conversation_cache_ttl | quote }}
             - name: FLUXBASE_AI_MAX_CONVERSATION_TURNS
               value: {{ .Values.fluxbase.ai.max_conversation_turns | quote }}
-            {{- if .Values.fluxbase.ai.encryption_key }}
+            {{- if or .Values.fluxbase.ai.encryption_key .Values.existingSecret }}
             - name: FLUXBASE_AI_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: ai-encryption-key
+                  key: {{ include "fluxbase.secretKeyRef.aiEncryptionKey" . }}
+                  optional: true
             {{- end }}
-            {{- if .Values.fluxbase.ai.openai_api_key }}
+            {{- if or .Values.fluxbase.ai.openai_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: openai-api-key
+                  key: {{ include "fluxbase.secretKeyRef.openaiApiKey" . }}
+                  optional: true
             {{- end }}
-            {{- if .Values.fluxbase.ai.azure_api_key }}
+            {{- if or .Values.fluxbase.ai.azure_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_AZURE_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
-                  key: azure-api-key
+                  key: {{ include "fluxbase.secretKeyRef.azureApiKey" . }}
+                  optional: true
             {{- end }}
             {{- if .Values.fluxbase.ai.ollama_endpoint }}
             - name: FLUXBASE_AI_OLLAMA_ENDPOINT
@@ -630,7 +633,7 @@ spec:
           {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.config.server.port }}
+              containerPort: 8080
               protocol: TCP
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
@@ -679,17 +682,17 @@ spec:
             - name: config
               mountPath: /etc/fluxbase
               readOnly: true
-            {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
+            {{- if and .Values.persistence.enabled (eq .Values.fluxbase.storage.provider "local") }}
             - name: storage
-              mountPath: {{ .Values.config.storage.local.basePath }}
+              mountPath: {{ .Values.fluxbase.storage.local_path }}
             {{- end }}
             {{- if .Values.functionsPersistence.enabled }}
             - name: functions
               mountPath: /app/functions
             {{- end }}
-            {{- if and .Values.migrationsPersistence.enabled .Values.config.database.userMigrationsPath }}
+            {{- if and .Values.migrationsPersistence.enabled .Values.fluxbase.database.user_migrations_path }}
             - name: migrations
-              mountPath: {{ .Values.config.database.userMigrationsPath }}
+              mountPath: {{ .Values.fluxbase.database.user_migrations_path }}
               readOnly: true
             {{- end }}
             {{- if .Values.extraVolumeMounts }}
@@ -702,7 +705,7 @@ spec:
         - name: config
           configMap:
             name: {{ include "fluxbase.fullname" . }}
-        {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
+        {{- if and .Values.persistence.enabled (eq .Values.fluxbase.storage.provider "local") }}
         - name: storage
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim | default (include "fluxbase.fullname" .) }}

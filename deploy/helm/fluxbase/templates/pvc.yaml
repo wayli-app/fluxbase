@@ -26,8 +26,8 @@ spec:
   selector: {{- toYaml .Values.persistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
----
 {{- if and .Values.functionsPersistence.enabled (not .Values.functionsPersistence.existingClaim) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -55,8 +55,8 @@ spec:
   selector: {{- toYaml .Values.functionsPersistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
----
 {{- if and .Values.migrationsPersistence.enabled (not .Values.migrationsPersistence.existingClaim) }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

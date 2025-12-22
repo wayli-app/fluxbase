@@ -138,6 +138,64 @@ api:
   # - If a client doesn't specify ?limit and default_page_size=1000, they receive 1000 rows
   # - Set any value to -1 to disable that limit (allows unlimited queries)
 
+# AI/Chatbot configuration
+ai:
+  enabled: false                        # FLUXBASE_AI_ENABLED
+  chatbots_dir: "./chatbots"            # FLUXBASE_AI_CHATBOTS_DIR
+  auto_load_on_boot: true               # FLUXBASE_AI_AUTO_LOAD_ON_BOOT
+  default_max_tokens: 4096              # FLUXBASE_AI_DEFAULT_MAX_TOKENS
+  query_timeout: "30s"                  # FLUXBASE_AI_QUERY_TIMEOUT
+  max_rows_per_query: 1000              # FLUXBASE_AI_MAX_ROWS_PER_QUERY
+  conversation_cache_ttl: "1h"          # FLUXBASE_AI_CONVERSATION_CACHE_TTL
+  max_conversation_turns: 50            # FLUXBASE_AI_MAX_CONVERSATION_TURNS
+
+  # AI Provider Configuration (Optional - defaults to database-configured providers)
+  # When configured here, the provider becomes read-only in the dashboard
+  # and takes precedence over database providers
+  provider_enabled: false               # FLUXBASE_AI_PROVIDER_ENABLED
+  provider_type: "openai"               # FLUXBASE_AI_PROVIDER_TYPE (openai, azure, ollama)
+  provider_name: "Default Provider"     # FLUXBASE_AI_PROVIDER_NAME
+  provider_model: "gpt-4-turbo"         # FLUXBASE_AI_PROVIDER_MODEL
+
+  # OpenAI Provider Settings (when provider_type is "openai")
+  # openai_api_key: ""                  # FLUXBASE_AI_OPENAI_API_KEY (required for OpenAI)
+  # openai_organization_id: ""          # FLUXBASE_AI_OPENAI_ORGANIZATION_ID
+  # openai_base_url: ""                 # FLUXBASE_AI_OPENAI_BASE_URL (for OpenAI-compatible APIs)
+
+  # Azure OpenAI Provider Settings (when provider_type is "azure")
+  # azure_api_key: ""                   # FLUXBASE_AI_AZURE_API_KEY
+  # azure_endpoint: ""                  # FLUXBASE_AI_AZURE_ENDPOINT (e.g., https://your-resource.openai.azure.com)
+  # azure_deployment_name: ""           # FLUXBASE_AI_AZURE_DEPLOYMENT_NAME
+  # azure_api_version: "2024-02-15-preview"  # FLUXBASE_AI_AZURE_API_VERSION
+
+  # Ollama Provider Settings (when provider_type is "ollama")
+  # ollama_endpoint: "http://localhost:11434"  # FLUXBASE_AI_OLLAMA_ENDPOINT
+  # ollama_model: "llama2"              # FLUXBASE_AI_OLLAMA_MODEL
+
+  # Embedding Configuration (for vector search and knowledge bases)
+  embedding_enabled: false              # FLUXBASE_AI_EMBEDDING_ENABLED
+  # embedding_provider: ""              # FLUXBASE_AI_EMBEDDING_PROVIDER (defaults to provider_type)
+  embedding_model: "text-embedding-3-small"  # FLUXBASE_AI_EMBEDDING_MODEL
+
+  # Available embedding models by provider:
+  # - OpenAI: text-embedding-3-small (1536d), text-embedding-3-large (3072d), text-embedding-ada-002 (1536d)
+  # - Azure: Same as OpenAI (requires deployment)
+  # - Ollama: nomic-embed-text (768d), mxbai-embed-large (1024d), all-minilm (384d)
+
+  # Azure Embedding Settings (optional - only if using separate Azure deployment for embeddings)
+  # azure_embedding_deployment_name: "" # FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME
+
+  # OCR Configuration (for image-based PDF extraction in knowledge bases)
+  # OCR is used when standard PDF text extraction returns garbage/binary data (e.g., scanned documents)
+  # Requires Tesseract and poppler-utils to be installed (included in Docker image)
+  ocr_enabled: true                     # FLUXBASE_AI_OCR_ENABLED
+  ocr_provider: "tesseract"             # FLUXBASE_AI_OCR_PROVIDER
+  ocr_languages: "eng"                  # FLUXBASE_AI_OCR_LANGUAGES (comma-separated, e.g., eng,deu,nld,fra)
+
+  # Available Tesseract language codes (install additional language packs as needed):
+  # - eng (English), deu (German), nld (Dutch), fra (French), spa (Spanish), ita (Italian)
+  # - por (Portuguese), rus (Russian), chi_sim (Chinese Simplified), jpn (Japanese), kor (Korean)
+
 # General settings
 base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL (must include http:// or https://)
 debug: false                            # FLUXBASE_DEBUG (enables debug logging)

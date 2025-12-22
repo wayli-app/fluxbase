@@ -10,6 +10,11 @@
       "installDockerBuildx": true,
       "version": "latest",
       "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "helm": "latest",
+      "kubectl": "none",
+      "minikube": "none"
     }
   },
   "customizations": {

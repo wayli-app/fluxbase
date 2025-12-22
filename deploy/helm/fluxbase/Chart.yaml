@@ -24,9 +24,3 @@ icon: https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/docs/src/asset
 annotations:
   category: Database
   licenses: MIT
-dependencies:
-  - name: cluster
-    alias: cnpg
-    version: "~0.0.10"
-    repository: https://cloudnative-pg.github.io/charts
-    condition: postgresql.cnpg.enabled
