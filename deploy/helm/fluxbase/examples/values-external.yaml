@@ -26,7 +26,7 @@ externalDatabase:
   #   --from-literal=password=your-db-password
 
 # Fluxbase configuration (mirrors fluxbase.yaml.example structure)
-fluxbase:
+config:
   # Database connection settings
   database:
     # Override host if needed (otherwise uses externalDatabase.host)

@@ -127,8 +127,8 @@ Return the proper secret name for Fluxbase secrets
 Return the proper PostgreSQL host
 */}}
 {{- define "fluxbase.databaseHost" -}}
-{{- if .Values.fluxbase.database.host }}
-    {{- .Values.fluxbase.database.host -}}
+{{- if .Values.config.database.host }}
+    {{- .Values.config.database.host -}}
 {{- else if .Values.postgresql.enabled }}
     {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
 {{- else }}
@@ -162,8 +162,8 @@ Return the proper PostgreSQL database name
 Return the proper PostgreSQL runtime username
 */}}
 {{- define "fluxbase.databaseUser" -}}
-{{- if .Values.fluxbase.database.user }}
-    {{- .Values.fluxbase.database.user -}}
+{{- if .Values.config.database.user }}
+    {{- .Values.config.database.user -}}
 {{- else if .Values.postgresql.enabled }}
     {{- .Values.postgresql.auth.username -}}
 {{- else }}
@@ -374,7 +374,7 @@ fluxbase: database
 Validate JWT secret
 */}}
 {{- define "fluxbase.validateValues.jwt" -}}
-{{- if and (not .Values.existingSecret) (not .Values.fluxbase.auth.jwt_secret) -}}
+{{- if and (not .Values.existingSecret) (not .Values.config.auth.jwt_secret) -}}
 fluxbase: auth.jwt_secret
     You must provide either existingSecret or fluxbase.auth.jwt_secret for JWT authentication.
     Please set one of these values or create a secret with key 'jwt-secret'

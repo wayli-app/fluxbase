@@ -109,15 +109,15 @@ spec:
             # Server Configuration
             # ===========================================
             - name: FLUXBASE_SERVER_ADDRESS
-              value: {{ .Values.fluxbase.server.address | quote }}
+              value: {{ .Values.config.server.address | quote }}
             - name: FLUXBASE_SERVER_READ_TIMEOUT
-              value: {{ .Values.fluxbase.server.read_timeout | quote }}
+              value: {{ .Values.config.server.read_timeout | quote }}
             - name: FLUXBASE_SERVER_WRITE_TIMEOUT
-              value: {{ .Values.fluxbase.server.write_timeout | quote }}
+              value: {{ .Values.config.server.write_timeout | quote }}
             - name: FLUXBASE_SERVER_IDLE_TIMEOUT
-              value: {{ .Values.fluxbase.server.idle_timeout | quote }}
+              value: {{ .Values.config.server.idle_timeout | quote }}
             - name: FLUXBASE_SERVER_BODY_LIMIT
-              value: {{ .Values.fluxbase.server.body_limit | quote }}
+              value: {{ .Values.config.server.body_limit | quote }}
 
             # ===========================================
             # Database Configuration
@@ -136,20 +136,20 @@ spec:
                   name: {{ include "fluxbase.databaseSecretName" . }}
                   key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
             - name: FLUXBASE_DATABASE_SSL_MODE
-              value: {{ .Values.fluxbase.database.ssl_mode | quote }}
+              value: {{ .Values.config.database.ssl_mode | quote }}
             - name: FLUXBASE_DATABASE_MAX_CONNECTIONS
-              value: {{ .Values.fluxbase.database.max_connections | quote }}
+              value: {{ .Values.config.database.max_connections | quote }}
             - name: FLUXBASE_DATABASE_MIN_CONNECTIONS
-              value: {{ .Values.fluxbase.database.min_connections | quote }}
+              value: {{ .Values.config.database.min_connections | quote }}
             - name: FLUXBASE_DATABASE_MAX_CONN_LIFETIME
-              value: {{ .Values.fluxbase.database.max_conn_lifetime | quote }}
+              value: {{ .Values.config.database.max_conn_lifetime | quote }}
             - name: FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME
-              value: {{ .Values.fluxbase.database.max_conn_idle_time | quote }}
+              value: {{ .Values.config.database.max_conn_idle_time | quote }}
             - name: FLUXBASE_DATABASE_HEALTH_CHECK_PERIOD
-              value: {{ .Values.fluxbase.database.health_check_period | quote }}
-            {{- if .Values.fluxbase.database.user_migrations_path }}
+              value: {{ .Values.config.database.health_check_period | quote }}
+            {{- if .Values.config.database.user_migrations_path }}
             - name: FLUXBASE_DATABASE_USER_MIGRATIONS_PATH
-              value: {{ .Values.fluxbase.database.user_migrations_path | quote }}
+              value: {{ .Values.config.database.user_migrations_path | quote }}
             {{- end }}
 
             # ===========================================
@@ -160,98 +160,98 @@ spec:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.jwtSecret" . }}
-            {{- if .Values.fluxbase.auth.anon_key }}
+            {{- if .Values.config.auth.anon_key }}
             - name: FLUXBASE_AUTH_ANON_KEY
-              value: {{ .Values.fluxbase.auth.anon_key | quote }}
+              value: {{ .Values.config.auth.anon_key | quote }}
             {{- end }}
             - name: FLUXBASE_AUTH_JWT_EXPIRY
-              value: {{ .Values.fluxbase.auth.jwt_expiry | quote }}
+              value: {{ .Values.config.auth.jwt_expiry | quote }}
             - name: FLUXBASE_AUTH_REFRESH_EXPIRY
-              value: {{ .Values.fluxbase.auth.refresh_expiry | quote }}
+              value: {{ .Values.config.auth.refresh_expiry | quote }}
             - name: FLUXBASE_AUTH_MAGIC_LINK_EXPIRY
-              value: {{ .Values.fluxbase.auth.magic_link_expiry | quote }}
+              value: {{ .Values.config.auth.magic_link_expiry | quote }}
             - name: FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY
-              value: {{ .Values.fluxbase.auth.password_reset_expiry | quote }}
+              value: {{ .Values.config.auth.password_reset_expiry | quote }}
             - name: FLUXBASE_AUTH_PASSWORD_MIN_LENGTH
-              value: {{ .Values.fluxbase.auth.password_min_length | quote }}
+              value: {{ .Values.config.auth.password_min_length | quote }}
             - name: FLUXBASE_AUTH_BCRYPT_COST
-              value: {{ .Values.fluxbase.auth.bcrypt_cost | quote }}
+              value: {{ .Values.config.auth.bcrypt_cost | quote }}
             - name: FLUXBASE_AUTH_ENABLE_SIGNUP
-              value: {{ .Values.fluxbase.auth.enable_signup | quote }}
+              value: {{ .Values.config.auth.enable_signup | quote }}
             - name: FLUXBASE_AUTH_ENABLE_MAGIC_LINK
-              value: {{ .Values.fluxbase.auth.enable_magic_link | quote }}
+              value: {{ .Values.config.auth.enable_magic_link | quote }}
             - name: FLUXBASE_AUTH_TOTP_ISSUER
-              value: {{ .Values.fluxbase.auth.totp_issuer | quote }}
-            {{- if .Values.fluxbase.auth.google_client_id }}
+              value: {{ .Values.config.auth.totp_issuer | quote }}
+            {{- if .Values.config.auth.google_client_id }}
             - name: FLUXBASE_AUTH_GOOGLE_CLIENT_ID
-              value: {{ .Values.fluxbase.auth.google_client_id | quote }}
+              value: {{ .Values.config.auth.google_client_id | quote }}
             {{- end }}
-            {{- if .Values.fluxbase.auth.apple_client_id }}
+            {{- if .Values.config.auth.apple_client_id }}
             - name: FLUXBASE_AUTH_APPLE_CLIENT_ID
-              value: {{ .Values.fluxbase.auth.apple_client_id | quote }}
+              value: {{ .Values.config.auth.apple_client_id | quote }}
             {{- end }}
-            {{- if .Values.fluxbase.auth.microsoft_client_id }}
+            {{- if .Values.config.auth.microsoft_client_id }}
             - name: FLUXBASE_AUTH_MICROSOFT_CLIENT_ID
-              value: {{ .Values.fluxbase.auth.microsoft_client_id | quote }}
+              value: {{ .Values.config.auth.microsoft_client_id | quote }}
             {{- end }}
 
             # ===========================================
             # Security Configuration
             # ===========================================
             - name: FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT
-              value: {{ .Values.fluxbase.security.enable_global_rate_limit | quote }}
+              value: {{ .Values.config.security.enable_global_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_SETUP_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.setupToken" . }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT
-              value: {{ .Values.fluxbase.security.admin_setup_rate_limit | quote }}
+              value: {{ .Values.config.security.admin_setup_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW
-              value: {{ .Values.fluxbase.security.admin_setup_rate_window | quote }}
+              value: {{ .Values.config.security.admin_setup_rate_window | quote }}
             - name: FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT
-              value: {{ .Values.fluxbase.security.auth_login_rate_limit | quote }}
+              value: {{ .Values.config.security.auth_login_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW
-              value: {{ .Values.fluxbase.security.auth_login_rate_window | quote }}
+              value: {{ .Values.config.security.auth_login_rate_window | quote }}
             - name: FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT
-              value: {{ .Values.fluxbase.security.admin_login_rate_limit | quote }}
+              value: {{ .Values.config.security.admin_login_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW
-              value: {{ .Values.fluxbase.security.admin_login_rate_window | quote }}
+              value: {{ .Values.config.security.admin_login_rate_window | quote }}
 
             # ===========================================
             # CORS Configuration
             # ===========================================
             - name: FLUXBASE_CORS_ALLOWED_ORIGINS
-              value: {{ .Values.fluxbase.cors.allowed_origins | join "," | quote }}
+              value: {{ .Values.config.cors.allowed_origins | join "," | quote }}
             - name: FLUXBASE_CORS_ALLOWED_METHODS
-              value: {{ .Values.fluxbase.cors.allowed_methods | join "," | quote }}
+              value: {{ .Values.config.cors.allowed_methods | join "," | quote }}
             - name: FLUXBASE_CORS_ALLOWED_HEADERS
-              value: {{ .Values.fluxbase.cors.allowed_headers | join "," | quote }}
-            {{- if .Values.fluxbase.cors.exposed_headers }}
+              value: {{ .Values.config.cors.allowed_headers | join "," | quote }}
+            {{- if .Values.config.cors.exposed_headers }}
             - name: FLUXBASE_CORS_EXPOSED_HEADERS
-              value: {{ .Values.fluxbase.cors.exposed_headers | join "," | quote }}
+              value: {{ .Values.config.cors.exposed_headers | join "," | quote }}
             {{- end }}
             - name: FLUXBASE_CORS_ALLOW_CREDENTIALS
-              value: {{ .Values.fluxbase.cors.allow_credentials | quote }}
+              value: {{ .Values.config.cors.allow_credentials | quote }}
             - name: FLUXBASE_CORS_MAX_AGE
-              value: {{ .Values.fluxbase.cors.max_age | quote }}
+              value: {{ .Values.config.cors.max_age | quote }}
 
             # ===========================================
             # Storage Configuration
             # ===========================================
             - name: FLUXBASE_STORAGE_PROVIDER
-              value: {{ .Values.fluxbase.storage.provider | quote }}
+              value: {{ .Values.config.storage.provider | quote }}
             - name: FLUXBASE_STORAGE_LOCAL_PATH
-              value: {{ .Values.fluxbase.storage.local_path | quote }}
+              value: {{ .Values.config.storage.local_path | quote }}
             - name: FLUXBASE_STORAGE_MAX_UPLOAD_SIZE
-              value: {{ .Values.fluxbase.storage.max_upload_size | quote }}
-            {{- if .Values.fluxbase.storage.default_buckets }}
+              value: {{ .Values.config.storage.max_upload_size | quote }}
+            {{- if .Values.config.storage.default_buckets }}
             - name: FLUXBASE_STORAGE_DEFAULT_BUCKETS
-              value: {{ .Values.fluxbase.storage.default_buckets | join "," | quote }}
+              value: {{ .Values.config.storage.default_buckets | join "," | quote }}
             {{- end }}
-            {{- if eq .Values.fluxbase.storage.provider "s3" }}
+            {{- if eq .Values.config.storage.provider "s3" }}
             - name: FLUXBASE_STORAGE_S3_ENDPOINT
-              value: {{ .Values.fluxbase.storage.s3_endpoint | quote }}
+              value: {{ .Values.config.storage.s3_endpoint | quote }}
             - name: FLUXBASE_STORAGE_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -263,57 +263,57 @@ spec:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.s3SecretKey" . }}
             - name: FLUXBASE_STORAGE_S3_BUCKET
-              value: {{ .Values.fluxbase.storage.s3_bucket | quote }}
+              value: {{ .Values.config.storage.s3_bucket | quote }}
             - name: FLUXBASE_STORAGE_S3_REGION
-              value: {{ .Values.fluxbase.storage.s3_region | quote }}
+              value: {{ .Values.config.storage.s3_region | quote }}
             - name: FLUXBASE_STORAGE_S3_FORCE_PATH_STYLE
-              value: {{ .Values.fluxbase.storage.s3_force_path_style | quote }}
+              value: {{ .Values.config.storage.s3_force_path_style | quote }}
             {{- end }}
 
             # ===========================================
             # Realtime Configuration
             # ===========================================
             - name: FLUXBASE_REALTIME_ENABLED
-              value: {{ .Values.fluxbase.realtime.enabled | quote }}
+              value: {{ .Values.config.realtime.enabled | quote }}
             - name: FLUXBASE_REALTIME_MAX_CONNECTIONS
-              value: {{ .Values.fluxbase.realtime.max_connections | quote }}
+              value: {{ .Values.config.realtime.max_connections | quote }}
             - name: FLUXBASE_REALTIME_PING_INTERVAL
-              value: {{ .Values.fluxbase.realtime.ping_interval | quote }}
+              value: {{ .Values.config.realtime.ping_interval | quote }}
             - name: FLUXBASE_REALTIME_PONG_TIMEOUT
-              value: {{ .Values.fluxbase.realtime.pong_timeout | quote }}
+              value: {{ .Values.config.realtime.pong_timeout | quote }}
             - name: FLUXBASE_REALTIME_WRITE_BUFFER_SIZE
-              value: {{ .Values.fluxbase.realtime.write_buffer_size | quote }}
+              value: {{ .Values.config.realtime.write_buffer_size | quote }}
             - name: FLUXBASE_REALTIME_READ_BUFFER_SIZE
-              value: {{ .Values.fluxbase.realtime.read_buffer_size | quote }}
+              value: {{ .Values.config.realtime.read_buffer_size | quote }}
             - name: FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT
-              value: {{ .Values.fluxbase.realtime.message_size_limit | quote }}
+              value: {{ .Values.config.realtime.message_size_limit | quote }}
             - name: FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE
-              value: {{ .Values.fluxbase.realtime.channel_buffer_size | quote }}
+              value: {{ .Values.config.realtime.channel_buffer_size | quote }}
 
             # ===========================================
             # Email Configuration
             # ===========================================
             - name: FLUXBASE_EMAIL_ENABLED
-              value: {{ .Values.fluxbase.email.enabled | quote }}
-            {{- if .Values.fluxbase.email.enabled }}
+              value: {{ .Values.config.email.enabled | quote }}
+            {{- if .Values.config.email.enabled }}
             - name: FLUXBASE_EMAIL_PROVIDER
-              value: {{ .Values.fluxbase.email.provider | quote }}
+              value: {{ .Values.config.email.provider | quote }}
             - name: FLUXBASE_EMAIL_FROM_ADDRESS
-              value: {{ .Values.fluxbase.email.from_address | quote }}
+              value: {{ .Values.config.email.from_address | quote }}
             - name: FLUXBASE_EMAIL_FROM_NAME
-              value: {{ .Values.fluxbase.email.from_name | quote }}
-            {{- if .Values.fluxbase.email.reply_to_address }}
+              value: {{ .Values.config.email.from_name | quote }}
+            {{- if .Values.config.email.reply_to_address }}
             - name: FLUXBASE_EMAIL_REPLY_TO_ADDRESS
-              value: {{ .Values.fluxbase.email.reply_to_address | quote }}
+              value: {{ .Values.config.email.reply_to_address | quote }}
             {{- end }}
-            {{- if eq .Values.fluxbase.email.provider "smtp" }}
+            {{- if eq .Values.config.email.provider "smtp" }}
             - name: FLUXBASE_EMAIL_SMTP_HOST
-              value: {{ .Values.fluxbase.email.smtp_host | quote }}
+              value: {{ .Values.config.email.smtp_host | quote }}
             - name: FLUXBASE_EMAIL_SMTP_PORT
-              value: {{ .Values.fluxbase.email.smtp_port | quote }}
+              value: {{ .Values.config.email.smtp_port | quote }}
             - name: FLUXBASE_EMAIL_SMTP_USERNAME
-              value: {{ .Values.fluxbase.email.smtp_username | quote }}
-            {{- if or .Values.fluxbase.email.smtp_password .Values.existingSecret }}
+              value: {{ .Values.config.email.smtp_username | quote }}
+            {{- if or .Values.config.email.smtp_password .Values.existingSecret }}
             - name: FLUXBASE_EMAIL_SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -321,25 +321,25 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.smtpPassword" . }}
             {{- end }}
             - name: FLUXBASE_EMAIL_SMTP_TLS
-              value: {{ .Values.fluxbase.email.smtp_tls | quote }}
+              value: {{ .Values.config.email.smtp_tls | quote }}
             {{- end }}
-            {{- if eq .Values.fluxbase.email.provider "sendgrid" }}
+            {{- if eq .Values.config.email.provider "sendgrid" }}
             - name: FLUXBASE_EMAIL_SENDGRID_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.sendgridApiKey" . }}
             {{- end }}
-            {{- if eq .Values.fluxbase.email.provider "mailgun" }}
+            {{- if eq .Values.config.email.provider "mailgun" }}
             - name: FLUXBASE_EMAIL_MAILGUN_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.mailgunApiKey" . }}
             - name: FLUXBASE_EMAIL_MAILGUN_DOMAIN
-              value: {{ .Values.fluxbase.email.mailgun_domain | quote }}
+              value: {{ .Values.config.email.mailgun_domain | quote }}
             {{- end }}
-            {{- if eq .Values.fluxbase.email.provider "ses" }}
+            {{- if eq .Values.config.email.provider "ses" }}
             - name: FLUXBASE_EMAIL_SES_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -351,7 +351,7 @@ spec:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.sesSecretKey" . }}
             - name: FLUXBASE_EMAIL_SES_REGION
-              value: {{ .Values.fluxbase.email.ses_region | quote }}
+              value: {{ .Values.config.email.ses_region | quote }}
             {{- end }}
             {{- end }}
 
@@ -359,109 +359,109 @@ spec:
             # Functions Configuration
             # ===========================================
             - name: FLUXBASE_FUNCTIONS_ENABLED
-              value: {{ .Values.fluxbase.functions.enabled | quote }}
+              value: {{ .Values.config.functions.enabled | quote }}
             - name: FLUXBASE_FUNCTIONS_FUNCTIONS_DIR
-              value: {{ .Values.fluxbase.functions.functions_dir | quote }}
+              value: {{ .Values.config.functions.functions_dir | quote }}
             - name: FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT
-              value: {{ .Values.fluxbase.functions.auto_load_on_boot | quote }}
+              value: {{ .Values.config.functions.auto_load_on_boot | quote }}
             - name: FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT
-              value: {{ .Values.fluxbase.functions.default_timeout | quote }}
+              value: {{ .Values.config.functions.default_timeout | quote }}
             - name: FLUXBASE_FUNCTIONS_MAX_TIMEOUT
-              value: {{ .Values.fluxbase.functions.max_timeout | quote }}
+              value: {{ .Values.config.functions.max_timeout | quote }}
             - name: FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT
-              value: {{ .Values.fluxbase.functions.default_memory_limit | quote }}
+              value: {{ .Values.config.functions.default_memory_limit | quote }}
             - name: FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT
-              value: {{ .Values.fluxbase.functions.max_memory_limit | quote }}
+              value: {{ .Values.config.functions.max_memory_limit | quote }}
 
             # ===========================================
             # Jobs Configuration
             # ===========================================
             - name: FLUXBASE_JOBS_ENABLED
-              value: {{ .Values.fluxbase.jobs.enabled | quote }}
+              value: {{ .Values.config.jobs.enabled | quote }}
             - name: FLUXBASE_JOBS_JOBS_DIR
-              value: {{ .Values.fluxbase.jobs.jobs_dir | quote }}
+              value: {{ .Values.config.jobs.jobs_dir | quote }}
             - name: FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT
-              value: {{ .Values.fluxbase.jobs.auto_load_on_boot | quote }}
+              value: {{ .Values.config.jobs.auto_load_on_boot | quote }}
             - name: FLUXBASE_JOBS_WORKER_MODE
-              value: {{ .Values.fluxbase.jobs.worker_mode | quote }}
+              value: {{ .Values.config.jobs.worker_mode | quote }}
             - name: FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT
-              value: {{ .Values.fluxbase.jobs.embedded_worker_count | quote }}
+              value: {{ .Values.config.jobs.embedded_worker_count | quote }}
             - name: FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER
-              value: {{ .Values.fluxbase.jobs.max_concurrent_per_worker | quote }}
+              value: {{ .Values.config.jobs.max_concurrent_per_worker | quote }}
             - name: FLUXBASE_JOBS_MAX_CONCURRENT_PER_NAMESPACE
-              value: {{ .Values.fluxbase.jobs.max_concurrent_per_namespace | quote }}
+              value: {{ .Values.config.jobs.max_concurrent_per_namespace | quote }}
             - name: FLUXBASE_JOBS_DEFAULT_MAX_DURATION
-              value: {{ .Values.fluxbase.jobs.default_max_duration | quote }}
+              value: {{ .Values.config.jobs.default_max_duration | quote }}
             - name: FLUXBASE_JOBS_MAX_MAX_DURATION
-              value: {{ .Values.fluxbase.jobs.max_max_duration | quote }}
+              value: {{ .Values.config.jobs.max_max_duration | quote }}
             - name: FLUXBASE_JOBS_DEFAULT_PROGRESS_TIMEOUT
-              value: {{ .Values.fluxbase.jobs.default_progress_timeout | quote }}
+              value: {{ .Values.config.jobs.default_progress_timeout | quote }}
             - name: FLUXBASE_JOBS_POLL_INTERVAL
-              value: {{ .Values.fluxbase.jobs.poll_interval | quote }}
+              value: {{ .Values.config.jobs.poll_interval | quote }}
             - name: FLUXBASE_JOBS_WORKER_HEARTBEAT_INTERVAL
-              value: {{ .Values.fluxbase.jobs.worker_heartbeat_interval | quote }}
+              value: {{ .Values.config.jobs.worker_heartbeat_interval | quote }}
             - name: FLUXBASE_JOBS_WORKER_TIMEOUT
-              value: {{ .Values.fluxbase.jobs.worker_timeout | quote }}
+              value: {{ .Values.config.jobs.worker_timeout | quote }}
 
             # ===========================================
             # API Configuration
             # ===========================================
             - name: FLUXBASE_API_MAX_PAGE_SIZE
-              value: {{ .Values.fluxbase.api.max_page_size | quote }}
+              value: {{ .Values.config.api.max_page_size | quote }}
             - name: FLUXBASE_API_MAX_TOTAL_RESULTS
-              value: {{ .Values.fluxbase.api.max_total_results | quote }}
+              value: {{ .Values.config.api.max_total_results | quote }}
             - name: FLUXBASE_API_DEFAULT_PAGE_SIZE
-              value: {{ .Values.fluxbase.api.default_page_size | quote }}
+              value: {{ .Values.config.api.default_page_size | quote }}
 
             # ===========================================
             # Migrations Configuration
             # ===========================================
             - name: FLUXBASE_MIGRATIONS_ENABLED
-              value: {{ .Values.fluxbase.migrations.enabled | quote }}
+              value: {{ .Values.config.migrations.enabled | quote }}
             - name: FLUXBASE_MIGRATIONS_REQUIRE_SERVICE_KEY
-              value: {{ .Values.fluxbase.migrations.require_service_key | quote }}
+              value: {{ .Values.config.migrations.require_service_key | quote }}
 
             # ===========================================
             # RPC Configuration
             # ===========================================
             - name: FLUXBASE_RPC_ENABLED
-              value: {{ .Values.fluxbase.rpc.enabled | quote }}
+              value: {{ .Values.config.rpc.enabled | quote }}
             - name: FLUXBASE_RPC_PROCEDURES_DIR
-              value: {{ .Values.fluxbase.rpc.procedures_dir | quote }}
+              value: {{ .Values.config.rpc.procedures_dir | quote }}
             - name: FLUXBASE_RPC_AUTO_LOAD_ON_BOOT
-              value: {{ .Values.fluxbase.rpc.auto_load_on_boot | quote }}
+              value: {{ .Values.config.rpc.auto_load_on_boot | quote }}
             - name: FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME
-              value: {{ .Values.fluxbase.rpc.default_max_execution_time | quote }}
+              value: {{ .Values.config.rpc.default_max_execution_time | quote }}
             - name: FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME
-              value: {{ .Values.fluxbase.rpc.max_max_execution_time | quote }}
+              value: {{ .Values.config.rpc.max_max_execution_time | quote }}
             - name: FLUXBASE_RPC_DEFAULT_MAX_ROWS
-              value: {{ .Values.fluxbase.rpc.default_max_rows | quote }}
+              value: {{ .Values.config.rpc.default_max_rows | quote }}
 
             # ===========================================
             # AI Configuration
             # ===========================================
             - name: FLUXBASE_AI_ENABLED
-              value: {{ .Values.fluxbase.ai.enabled | quote }}
-            {{- if .Values.fluxbase.ai.enabled }}
+              value: {{ .Values.config.ai.enabled | quote }}
+            {{- if .Values.config.ai.enabled }}
             - name: FLUXBASE_AI_CHATBOTS_DIR
-              value: {{ .Values.fluxbase.ai.chatbots_dir | quote }}
+              value: {{ .Values.config.ai.chatbots_dir | quote }}
             - name: FLUXBASE_AI_AUTO_LOAD_ON_BOOT
-              value: {{ .Values.fluxbase.ai.auto_load_on_boot | quote }}
+              value: {{ .Values.config.ai.auto_load_on_boot | quote }}
             - name: FLUXBASE_AI_DEFAULT_MAX_TOKENS
-              value: {{ .Values.fluxbase.ai.default_max_tokens | quote }}
-            {{- if .Values.fluxbase.ai.default_model }}
+              value: {{ .Values.config.ai.default_max_tokens | quote }}
+            {{- if .Values.config.ai.default_model }}
             - name: FLUXBASE_AI_DEFAULT_MODEL
-              value: {{ .Values.fluxbase.ai.default_model | quote }}
+              value: {{ .Values.config.ai.default_model | quote }}
             {{- end }}
             - name: FLUXBASE_AI_QUERY_TIMEOUT
-              value: {{ .Values.fluxbase.ai.query_timeout | quote }}
+              value: {{ .Values.config.ai.query_timeout | quote }}
             - name: FLUXBASE_AI_MAX_ROWS_PER_QUERY
-              value: {{ .Values.fluxbase.ai.max_rows_per_query | quote }}
+              value: {{ .Values.config.ai.max_rows_per_query | quote }}
             - name: FLUXBASE_AI_CONVERSATION_CACHE_TTL
-              value: {{ .Values.fluxbase.ai.conversation_cache_ttl | quote }}
+              value: {{ .Values.config.ai.conversation_cache_ttl | quote }}
             - name: FLUXBASE_AI_MAX_CONVERSATION_TURNS
-              value: {{ .Values.fluxbase.ai.max_conversation_turns | quote }}
-            {{- if or .Values.fluxbase.ai.encryption_key .Values.existingSecret }}
+              value: {{ .Values.config.ai.max_conversation_turns | quote }}
+            {{- if or .Values.config.ai.encryption_key .Values.existingSecret }}
             - name: FLUXBASE_AI_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -469,7 +469,7 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.aiEncryptionKey" . }}
                   optional: true
             {{- end }}
-            {{- if or .Values.fluxbase.ai.openai_api_key .Values.existingSecret }}
+            {{- if or .Values.config.ai.openai_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -477,7 +477,7 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.openaiApiKey" . }}
                   optional: true
             {{- end }}
-            {{- if or .Values.fluxbase.ai.azure_api_key .Values.existingSecret }}
+            {{- if or .Values.config.ai.azure_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_AZURE_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -485,13 +485,13 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.azureApiKey" . }}
                   optional: true
             {{- end }}
-            {{- if .Values.fluxbase.ai.ollama_endpoint }}
+            {{- if .Values.config.ai.ollama_endpoint }}
             - name: FLUXBASE_AI_OLLAMA_ENDPOINT
-              value: {{ .Values.fluxbase.ai.ollama_endpoint | quote }}
+              value: {{ .Values.config.ai.ollama_endpoint | quote }}
             {{- end }}
-            {{- if .Values.fluxbase.ai.ollama_model }}
+            {{- if .Values.config.ai.ollama_model }}
             - name: FLUXBASE_AI_OLLAMA_MODEL
-              value: {{ .Values.fluxbase.ai.ollama_model | quote }}
+              value: {{ .Values.config.ai.ollama_model | quote }}
             {{- end }}
             {{- end }}
 
@@ -499,69 +499,69 @@ spec:
             # Logging Configuration
             # ===========================================
             - name: FLUXBASE_LOGGING_CONSOLE_ENABLED
-              value: {{ .Values.fluxbase.logging.console_enabled | quote }}
+              value: {{ .Values.config.logging.console_enabled | quote }}
             - name: FLUXBASE_LOGGING_CONSOLE_LEVEL
-              value: {{ .Values.fluxbase.logging.console_level | quote }}
+              value: {{ .Values.config.logging.console_level | quote }}
             - name: FLUXBASE_LOGGING_CONSOLE_FORMAT
-              value: {{ .Values.fluxbase.logging.console_format | quote }}
+              value: {{ .Values.config.logging.console_format | quote }}
             - name: FLUXBASE_LOGGING_BACKEND
-              value: {{ .Values.fluxbase.logging.backend | quote }}
+              value: {{ .Values.config.logging.backend | quote }}
             - name: FLUXBASE_LOGGING_BATCH_SIZE
-              value: {{ .Values.fluxbase.logging.batch_size | quote }}
+              value: {{ .Values.config.logging.batch_size | quote }}
             - name: FLUXBASE_LOGGING_FLUSH_INTERVAL
-              value: {{ .Values.fluxbase.logging.flush_interval | quote }}
+              value: {{ .Values.config.logging.flush_interval | quote }}
             - name: FLUXBASE_LOGGING_BUFFER_SIZE
-              value: {{ .Values.fluxbase.logging.buffer_size | quote }}
+              value: {{ .Values.config.logging.buffer_size | quote }}
             - name: FLUXBASE_LOGGING_PUBSUB_ENABLED
-              value: {{ .Values.fluxbase.logging.pubsub_enabled | quote }}
+              value: {{ .Values.config.logging.pubsub_enabled | quote }}
             - name: FLUXBASE_LOGGING_SYSTEM_RETENTION_DAYS
-              value: {{ .Values.fluxbase.logging.system_retention_days | quote }}
+              value: {{ .Values.config.logging.system_retention_days | quote }}
             - name: FLUXBASE_LOGGING_HTTP_RETENTION_DAYS
-              value: {{ .Values.fluxbase.logging.http_retention_days | quote }}
+              value: {{ .Values.config.logging.http_retention_days | quote }}
             - name: FLUXBASE_LOGGING_SECURITY_RETENTION_DAYS
-              value: {{ .Values.fluxbase.logging.security_retention_days | quote }}
+              value: {{ .Values.config.logging.security_retention_days | quote }}
             - name: FLUXBASE_LOGGING_EXECUTION_RETENTION_DAYS
-              value: {{ .Values.fluxbase.logging.execution_retention_days | quote }}
+              value: {{ .Values.config.logging.execution_retention_days | quote }}
             - name: FLUXBASE_LOGGING_AI_RETENTION_DAYS
-              value: {{ .Values.fluxbase.logging.ai_retention_days | quote }}
+              value: {{ .Values.config.logging.ai_retention_days | quote }}
             - name: FLUXBASE_LOGGING_RETENTION_ENABLED
-              value: {{ .Values.fluxbase.logging.retention_enabled | quote }}
+              value: {{ .Values.config.logging.retention_enabled | quote }}
             - name: FLUXBASE_LOGGING_RETENTION_CHECK_INTERVAL
-              value: {{ .Values.fluxbase.logging.retention_check_interval | quote }}
+              value: {{ .Values.config.logging.retention_check_interval | quote }}
 
             # ===========================================
             # Tracing Configuration
             # ===========================================
             - name: FLUXBASE_TRACING_ENABLED
-              value: {{ .Values.fluxbase.tracing.enabled | quote }}
-            {{- if .Values.fluxbase.tracing.enabled }}
+              value: {{ .Values.config.tracing.enabled | quote }}
+            {{- if .Values.config.tracing.enabled }}
             - name: FLUXBASE_TRACING_ENDPOINT
-              value: {{ .Values.fluxbase.tracing.endpoint | quote }}
+              value: {{ .Values.config.tracing.endpoint | quote }}
             - name: FLUXBASE_TRACING_SERVICE_NAME
-              value: {{ .Values.fluxbase.tracing.service_name | quote }}
+              value: {{ .Values.config.tracing.service_name | quote }}
             - name: FLUXBASE_TRACING_ENVIRONMENT
-              value: {{ .Values.fluxbase.tracing.environment | quote }}
+              value: {{ .Values.config.tracing.environment | quote }}
             - name: FLUXBASE_TRACING_SAMPLE_RATE
-              value: {{ .Values.fluxbase.tracing.sample_rate | quote }}
+              value: {{ .Values.config.tracing.sample_rate | quote }}
             - name: FLUXBASE_TRACING_INSECURE
-              value: {{ .Values.fluxbase.tracing.insecure | quote }}
+              value: {{ .Values.config.tracing.insecure | quote }}
             {{- end }}
 
             # ===========================================
             # Admin Dashboard Configuration
             # ===========================================
             - name: FLUXBASE_ADMIN_ENABLED
-              value: {{ .Values.fluxbase.admin.enabled | quote }}
+              value: {{ .Values.config.admin.enabled | quote }}
 
             # ===========================================
             # General Configuration
             # ===========================================
-            {{- if .Values.fluxbase.base_url }}
+            {{- if .Values.config.base_url }}
             - name: FLUXBASE_BASE_URL
-              value: {{ .Values.fluxbase.base_url | quote }}
+              value: {{ .Values.config.base_url | quote }}
             {{- end }}
             - name: FLUXBASE_DEBUG
-              value: {{ .Values.fluxbase.debug | quote }}
+              value: {{ .Values.config.debug | quote }}
 
             # ===========================================
             # Scaling Configuration
@@ -682,17 +682,17 @@ spec:
             - name: config
               mountPath: /etc/fluxbase
               readOnly: true
-            {{- if and .Values.persistence.enabled (eq .Values.fluxbase.storage.provider "local") }}
+            {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
             - name: storage
-              mountPath: {{ .Values.fluxbase.storage.local_path }}
+              mountPath: {{ .Values.config.storage.local_path }}
             {{- end }}
             {{- if .Values.functions.persistence.enabled }}
             - name: functions
               mountPath: /app/functions
             {{- end }}
-            {{- if and .Values.migrations.persistence.enabled .Values.fluxbase.database.user_migrations_path }}
+            {{- if and .Values.migrations.persistence.enabled .Values.config.database.user_migrations_path }}
             - name: migrations
-              mountPath: {{ .Values.fluxbase.database.user_migrations_path }}
+              mountPath: {{ .Values.config.database.user_migrations_path }}
               readOnly: true
             {{- end }}
             {{- if .Values.extraVolumeMounts }}
@@ -705,7 +705,7 @@ spec:
         - name: config
           configMap:
             name: {{ include "fluxbase.fullname" . }}
-        {{- if and .Values.persistence.enabled (eq .Values.fluxbase.storage.provider "local") }}
+        {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
         - name: storage
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim | default (include "fluxbase.fullname" .) }}
