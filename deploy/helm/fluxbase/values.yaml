@@ -903,8 +903,9 @@ service:
   loadBalancerSourceRanges: []
   ## @param service.externalTrafficPolicy Fluxbase service external traffic policy
   ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ## Note: Only applies to LoadBalancer and NodePort service types
   ##
-  externalTrafficPolicy: Cluster
+  externalTrafficPolicy: ""
   ## @param service.annotations Additional custom annotations for Fluxbase service
   ##
   annotations: {}
@@ -1036,6 +1037,9 @@ gateway:
   ## @param gateway.enabled Enable Gateway API HTTPRoute generation for Fluxbase
   ##
   enabled: false
+  ## @param gateway.routeName Name override for the HTTPRoute resource. Defaults to fullname template.
+  ##
+  routeName: ""
   ## @param gateway.parentRefs References to the Gateway(s) that this HTTPRoute attaches to
   ## e.g:
   ## parentRefs:

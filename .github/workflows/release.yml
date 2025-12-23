@@ -702,12 +702,22 @@ jobs:
 
   publish-helm-chart:
     name: Publish Helm Chart to GHCR
-    needs: get-version
+    needs: [get-version, update-version-files, publish-postgres-manifests]
     runs-on: ubuntu-latest
     # Publish Helm chart for all releases (stable and RC) unless disabled in workflow_dispatch
-    if: github.event_name != 'workflow_dispatch' || inputs.publish_helm
+    if: |
+      always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.publish_helm) &&
+      (needs.update-version-files.result == 'success' || needs.update-version-files.result == 'skipped') &&
+      (needs.publish-postgres-manifests.result == 'success' || needs.publish-postgres-manifests.result == 'skipped')
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Pull latest changes
+        run: |
+          git pull origin ${{ github.ref_name }} || true
 
       - name: Install Helm
         uses: azure/setup-helm@v4
