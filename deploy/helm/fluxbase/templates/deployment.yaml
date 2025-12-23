@@ -116,7 +116,7 @@ spec:
             - name: FLUXBASE_SERVER_IDLE_TIMEOUT
               value: {{ .Values.config.server.idle_timeout | quote }}
             - name: FLUXBASE_SERVER_BODY_LIMIT
-              value: {{ .Values.config.server.body_limit | quote }}
+              value: {{ .Values.config.server.body_limit | int64 | quote }}
 
             # ===========================================
             # Database Configuration
@@ -243,7 +243,7 @@ spec:
             - name: FLUXBASE_STORAGE_LOCAL_PATH
               value: {{ .Values.config.storage.local_path | quote }}
             - name: FLUXBASE_STORAGE_MAX_UPLOAD_SIZE
-              value: {{ .Values.config.storage.max_upload_size | quote }}
+              value: {{ .Values.config.storage.max_upload_size | int64 | quote }}
             {{- if .Values.config.storage.default_buckets }}
             - name: FLUXBASE_STORAGE_DEFAULT_BUCKETS
               value: {{ .Values.config.storage.default_buckets | join "," | quote }}

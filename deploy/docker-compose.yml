@@ -254,8 +254,8 @@ services:
       # FLUXBASE_RPC_ENABLED: "true"
       # FLUXBASE_RPC_PROCEDURES_DIR: "/app/procedures"
       # FLUXBASE_RPC_AUTO_LOAD_ON_BOOT: "true"
-      # FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME: "30"
-      # FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME: "300"
+      # FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME: "30s"
+      # FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME: "300s"
       # FLUXBASE_RPC_DEFAULT_MAX_ROWS: "1000"
 
       # ==========================================================================

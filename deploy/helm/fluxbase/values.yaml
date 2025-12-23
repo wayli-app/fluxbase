@@ -356,8 +356,8 @@ config:
   ## @param config.rpc.enabled Enable RPC procedures
   ## @param config.rpc.procedures_dir Procedures directory path
   ## @param config.rpc.auto_load_on_boot Auto-load procedures on startup
-  ## @param config.rpc.default_max_execution_time Default max execution time (seconds)
-  ## @param config.rpc.max_max_execution_time Maximum allowed execution time (seconds)
+  ## @param config.rpc.default_max_execution_time Default max execution time
+  ## @param config.rpc.max_max_execution_time Maximum allowed execution time
   ## @param config.rpc.default_max_rows Default max rows returned
   ## @param config.rpc.sync_allowed_ip_ranges IP ranges allowed for RPC sync
   ##
@@ -365,8 +365,8 @@ config:
     enabled: true
     procedures_dir: "/app/procedures"
     auto_load_on_boot: true
-    default_max_execution_time: 30
-    max_max_execution_time: 300
+    default_max_execution_time: "30s"
+    max_max_execution_time: "300s"
     default_max_rows: 1000
     sync_allowed_ip_ranges: []
 
