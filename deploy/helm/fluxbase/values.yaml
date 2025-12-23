@@ -1098,81 +1098,87 @@ persistence:
   ##
   dataSource: {}
 
-## Persistence for edge functions
+## @section Functions Persistence Parameters
 ##
-functionsPersistence:
-  ## @param functionsPersistence.enabled Enable persistence for edge functions using Persistent Volume Claims
+functions:
+  ## Persistence for edge functions
   ##
-  enabled: true
-  ## @param functionsPersistence.storageClass Storage class of backing PVC for functions
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.
-  ##
-  storageClass: ""
-  ## @param functionsPersistence.annotations Persistent Volume Claim annotations for functions
-  ##
-  annotations: {}
-  ## @param functionsPersistence.accessModes Persistent Volume Access Modes for functions
-  ##
-  accessModes:
-    - ReadWriteMany
-  ## @param functionsPersistence.size Size of functions volume
-  ##
-  size: 1Gi
-  ## @param functionsPersistence.existingClaim The name of an existing PVC to use for functions persistence
-  ##
-  existingClaim: ""
-  ## @param functionsPersistence.selector Selector to match an existing Persistent Volume for functions data PVC
-  ## If set, the PVC can't have a PV dynamically provisioned for it
-  ## E.g.
-  ## selector:
-  ##   matchLabels:
-  ##     app: my-app
-  ##
-  selector: {}
-  ## @param functionsPersistence.dataSource Custom PVC data source for functions
-  ##
-  dataSource: {}
+  persistence:
+    ## @param functions.persistence.enabled Enable persistence for edge functions using Persistent Volume Claims
+    ##
+    enabled: true
+    ## @param functions.persistence.storageClass Storage class of backing PVC for functions
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.
+    ##
+    storageClass: ""
+    ## @param functions.persistence.annotations Persistent Volume Claim annotations for functions
+    ##
+    annotations: {}
+    ## @param functions.persistence.accessModes Persistent Volume Access Modes for functions
+    ##
+    accessModes:
+      - ReadWriteMany
+    ## @param functions.persistence.size Size of functions volume
+    ##
+    size: 1Gi
+    ## @param functions.persistence.existingClaim The name of an existing PVC to use for functions persistence
+    ##
+    existingClaim: ""
+    ## @param functions.persistence.selector Selector to match an existing Persistent Volume for functions data PVC
+    ## If set, the PVC can't have a PV dynamically provisioned for it
+    ## E.g.
+    ## selector:
+    ##   matchLabels:
+    ##     app: my-app
+    ##
+    selector: {}
+    ## @param functions.persistence.dataSource Custom PVC data source for functions
+    ##
+    dataSource: {}
 
-## Persistence for user migrations
+## @section Migrations Persistence Parameters
 ##
-migrationsPersistence:
-  ## @param migrationsPersistence.enabled Enable persistence for user migrations using Persistent Volume Claims
+migrations:
+  ## Persistence for user migrations
   ##
-  enabled: false
-  ## @param migrationsPersistence.storageClass Storage class of backing PVC for user migrations
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.
-  ##
-  storageClass: ""
-  ## @param migrationsPersistence.annotations Persistent Volume Claim annotations for user migrations
-  ##
-  annotations: {}
-  ## @param migrationsPersistence.accessModes Persistent Volume Access Modes for user migrations
-  ##
-  accessModes:
-    - ReadWriteMany
-  ## @param migrationsPersistence.size Size of user migrations volume
-  ##
-  size: 100Mi
-  ## @param migrationsPersistence.existingClaim The name of an existing PVC to use for user migrations persistence
-  ##
-  existingClaim: ""
-  ## @param migrationsPersistence.selector Selector to match an existing Persistent Volume for user migrations data PVC
-  ## If set, the PVC can't have a PV dynamically provisioned for it
-  ## E.g.
-  ## selector:
-  ##   matchLabels:
-  ##     app: my-app
-  ##
-  selector: {}
-  ## @param migrationsPersistence.dataSource Custom PVC data source for user migrations
-  ##
-  dataSource: {}
+  persistence:
+    ## @param migrations.persistence.enabled Enable persistence for user migrations using Persistent Volume Claims
+    ##
+    enabled: false
+    ## @param migrations.persistence.storageClass Storage class of backing PVC for user migrations
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.
+    ##
+    storageClass: ""
+    ## @param migrations.persistence.annotations Persistent Volume Claim annotations for user migrations
+    ##
+    annotations: {}
+    ## @param migrations.persistence.accessModes Persistent Volume Access Modes for user migrations
+    ##
+    accessModes:
+      - ReadWriteMany
+    ## @param migrations.persistence.size Size of user migrations volume
+    ##
+    size: 100Mi
+    ## @param migrations.persistence.existingClaim The name of an existing PVC to use for user migrations persistence
+    ##
+    existingClaim: ""
+    ## @param migrations.persistence.selector Selector to match an existing Persistent Volume for user migrations data PVC
+    ## If set, the PVC can't have a PV dynamically provisioned for it
+    ## E.g.
+    ## selector:
+    ##   matchLabels:
+    ##     app: my-app
+    ##
+    selector: {}
+    ## @param migrations.persistence.dataSource Custom PVC data source for user migrations
+    ##
+    dataSource: {}
 
 ## @section PostgreSQL Parameters
 ## @descriptionStart
@@ -1214,6 +1220,7 @@ postgresql:
   ## @param postgresql.persistence.enabled Enable persistence for PostgreSQL
   ## @param postgresql.persistence.size Size of PostgreSQL data volume
   ## @param postgresql.persistence.storageClass Storage class for PostgreSQL PVC
+  ## @param postgresql.persistence.existingClaim The name of an existing PVC to use for PostgreSQL persistence
   ##
   persistence:
     enabled: true
@@ -1221,6 +1228,7 @@ postgresql:
     storageClass: ""
     accessModes:
       - ReadWriteOnce
+    existingClaim: ""
 
   ## @param postgresql.resources Resource requests and limits for PostgreSQL
   ##

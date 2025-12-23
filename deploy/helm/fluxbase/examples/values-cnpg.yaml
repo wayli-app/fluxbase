@@ -72,12 +72,13 @@ persistence:
   size: 100Gi
 
 # Functions storage (ReadWriteMany required for multiple replicas)
-functionsPersistence:
-  enabled: true
-  size: 10Gi
-  storageClass: "" # May need a storage class that supports RWX
-  accessModes:
-    - ReadWriteMany
+functions:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "" # May need a storage class that supports RWX
+    accessModes:
+      - ReadWriteMany
 
 # Fluxbase configuration (mirrors fluxbase.yaml.example structure)
 fluxbase:

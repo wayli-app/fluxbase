@@ -83,11 +83,12 @@ resourcesPreset: "medium"
 persistence:
   enabled: false # Disable if using S3 storage
 
-functionsPersistence:
-  enabled: true
-  size: 5Gi
-  accessModes:
-    - ReadWriteMany
+functions:
+  persistence:
+    enabled: true
+    size: 5Gi
+    accessModes:
+      - ReadWriteMany
 
 # Use existing secret for all sensitive data
 # existingSecret: fluxbase-secrets

@@ -37,7 +37,7 @@ data:
   database: {{ .Values.postgresql.auth.database | b64enc | quote }}
   {{- end }}
 ---
-{{- if .Values.postgresql.persistence.enabled }}
+{{- if and .Values.postgresql.persistence.enabled (not .Values.postgresql.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -147,7 +147,7 @@ spec:
         {{- if .Values.postgresql.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "fluxbase.fullname" . }}-postgresql
+            claimName: {{ .Values.postgresql.persistence.existingClaim | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
         {{- else }}
         - name: data
           emptyDir: {}

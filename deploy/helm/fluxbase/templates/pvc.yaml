@@ -26,7 +26,7 @@ spec:
   selector: {{- toYaml .Values.persistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
-{{- if and .Values.functionsPersistence.enabled (not .Values.functionsPersistence.existingClaim) }}
+{{- if and .Values.functions.persistence.enabled (not .Values.functions.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -34,28 +34,28 @@ metadata:
   name: {{ include "fluxbase.fullname" . }}-functions
   namespace: {{ include "fluxbase.namespace" . | quote }}
   labels: {{- include "fluxbase.labels" . | nindent 4 }}
-  {{- if or .Values.functionsPersistence.annotations .Values.commonAnnotations }}
+  {{- if or .Values.functions.persistence.annotations .Values.commonAnnotations }}
   annotations:
-    {{- if .Values.functionsPersistence.annotations }}
-    {{- toYaml .Values.functionsPersistence.annotations | nindent 4 }}
+    {{- if .Values.functions.persistence.annotations }}
+    {{- toYaml .Values.functions.persistence.annotations | nindent 4 }}
     {{- end }}
     {{- if .Values.commonAnnotations }}
     {{- toYaml .Values.commonAnnotations | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
-  accessModes: {{- toYaml .Values.functionsPersistence.accessModes | nindent 4 }}
+  accessModes: {{- toYaml .Values.functions.persistence.accessModes | nindent 4 }}
   resources:
     requests:
-      storage: {{ .Values.functionsPersistence.size | quote }}
-  {{- if .Values.functionsPersistence.storageClass }}
-  storageClassName: {{ .Values.functionsPersistence.storageClass | quote }}
+      storage: {{ .Values.functions.persistence.size | quote }}
+  {{- if .Values.functions.persistence.storageClass }}
+  storageClassName: {{ .Values.functions.persistence.storageClass | quote }}
   {{- end }}
-  {{- if .Values.functionsPersistence.selector }}
-  selector: {{- toYaml .Values.functionsPersistence.selector | nindent 4 }}
+  {{- if .Values.functions.persistence.selector }}
+  selector: {{- toYaml .Values.functions.persistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
-{{- if and .Values.migrationsPersistence.enabled (not .Values.migrationsPersistence.existingClaim) }}
+{{- if and .Values.migrations.persistence.enabled (not .Values.migrations.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -63,24 +63,24 @@ metadata:
   name: {{ include "fluxbase.fullname" . }}-migrations
   namespace: {{ include "fluxbase.namespace" . | quote }}
   labels: {{- include "fluxbase.labels" . | nindent 4 }}
-  {{- if or .Values.migrationsPersistence.annotations .Values.commonAnnotations }}
+  {{- if or .Values.migrations.persistence.annotations .Values.commonAnnotations }}
   annotations:
-    {{- if .Values.migrationsPersistence.annotations }}
-    {{- toYaml .Values.migrationsPersistence.annotations | nindent 4 }}
+    {{- if .Values.migrations.persistence.annotations }}
+    {{- toYaml .Values.migrations.persistence.annotations | nindent 4 }}
     {{- end }}
     {{- if .Values.commonAnnotations }}
     {{- toYaml .Values.commonAnnotations | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
-  accessModes: {{- toYaml .Values.migrationsPersistence.accessModes | nindent 4 }}
+  accessModes: {{- toYaml .Values.migrations.persistence.accessModes | nindent 4 }}
   resources:
     requests:
-      storage: {{ .Values.migrationsPersistence.size | quote }}
-  {{- if .Values.migrationsPersistence.storageClass }}
-  storageClassName: {{ .Values.migrationsPersistence.storageClass | quote }}
+      storage: {{ .Values.migrations.persistence.size | quote }}
+  {{- if .Values.migrations.persistence.storageClass }}
+  storageClassName: {{ .Values.migrations.persistence.storageClass | quote }}
   {{- end }}
-  {{- if .Values.migrationsPersistence.selector }}
-  selector: {{- toYaml .Values.migrationsPersistence.selector | nindent 4 }}
+  {{- if .Values.migrations.persistence.selector }}
+  selector: {{- toYaml .Values.migrations.persistence.selector | nindent 4 }}
   {{- end }}
 {{- end }}
