@@ -37,3 +37,6 @@ const BroadcastChannel = "fluxbase:broadcast"
 
 // PresenceChannel is the channel used for presence synchronization
 const PresenceChannel = "fluxbase:presence"
+
+// SchemaCacheChannel is the channel used for schema cache invalidation across instances
+const SchemaCacheChannel = "fluxbase:schema_cache"

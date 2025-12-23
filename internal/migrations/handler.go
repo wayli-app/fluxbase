@@ -209,9 +209,9 @@ func (h *Handler) ApplyMigration(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to apply migration", "details": err.Error()})
 	}
 
-	// Invalidate schema cache so REST API reflects changes immediately
+	// Invalidate schema cache so REST API reflects changes immediately (across all instances)
 	if h.schemaCache != nil {
-		h.schemaCache.Invalidate()
+		h.schemaCache.InvalidateAll(c.Context())
 		log.Debug().Str("migration", name).Msg("Schema cache invalidated after applying migration")
 	}
 
@@ -247,9 +247,9 @@ func (h *Handler) RollbackMigration(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to rollback migration", "details": err.Error()})
 	}
 
-	// Invalidate schema cache so REST API reflects changes immediately
+	// Invalidate schema cache so REST API reflects changes immediately (across all instances)
 	if h.schemaCache != nil {
-		h.schemaCache.Invalidate()
+		h.schemaCache.InvalidateAll(c.Context())
 		log.Debug().Str("migration", name).Msg("Schema cache invalidated after rolling back migration")
 	}
 
@@ -289,9 +289,9 @@ func (h *Handler) ApplyPending(c *fiber.Ctx) error {
 		})
 	}
 
-	// Invalidate schema cache if any migrations were applied
+	// Invalidate schema cache if any migrations were applied (across all instances)
 	if len(applied) > 0 && h.schemaCache != nil {
-		h.schemaCache.Invalidate()
+		h.schemaCache.InvalidateAll(c.Context())
 		log.Debug().Int("count", len(applied)).Msg("Schema cache invalidated after applying pending migrations")
 	}
 
@@ -547,9 +547,9 @@ func (h *Handler) SyncMigrations(c *fiber.Ctx) error {
 		warnings = append(warnings, fmt.Sprintf("Migration '%s' has status '%s' (skipped)", reqMig.Name, existingMig.Status))
 	}
 
-	// Invalidate schema cache if any migrations were applied
+	// Invalidate schema cache if any migrations were applied (across all instances)
 	if summary.Applied > 0 && h.schemaCache != nil {
-		h.schemaCache.Invalidate()
+		h.schemaCache.InvalidateAll(c.Context())
 		log.Info().Int("applied", summary.Applied).Msg("Schema cache invalidated after sync")
 	}
 

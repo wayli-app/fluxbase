@@ -84,6 +84,7 @@ type Server struct {
 	loggingService        *logging.Service
 	loggingHandler        *LoggingHandler
 	retentionService      *logging.RetentionService
+	schemaCache           *database.SchemaCache
 
 	// Leader election for schedulers (used in multi-instance deployments)
 	jobsSchedulerLeader      *scaling.LeaderElector
@@ -287,6 +288,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Create schema cache for dynamic REST API routing (5 minute TTL)
 	schemaCache := database.NewSchemaCache(db.Inspector(), 5*time.Minute)
+	// Configure PubSub for cross-instance cache invalidation
+	if ps != nil {
+		schemaCache.SetPubSub(ps)
+		log.Info().Msg("Schema cache configured for cross-instance invalidation via pub/sub")
+	}
 	// Populate cache on startup
 	if err := schemaCache.Refresh(context.Background()); err != nil {
 		log.Warn().Err(err).Msg("Failed to populate schema cache on startup")
@@ -488,6 +494,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		loggingService:        loggingService,
 		loggingHandler:        loggingHandler,
 		retentionService:      retentionService,
+		schemaCache:           schemaCache,
 	}
 
 	// Start realtime listener (unless disabled or in worker-only mode)
@@ -1642,6 +1649,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if err := s.loggingService.Close(); err != nil {
 			log.Warn().Err(err).Msg("Failed to close logging service")
 		}
+	}
+
+	// Close schema cache (stops invalidation listener)
+	if s.schemaCache != nil {
+		s.schemaCache.Close()
 	}
 
 	log.Info().Msg("Shutting down HTTP server")

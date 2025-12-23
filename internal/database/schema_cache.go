@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
 	"github.com/rs/zerolog/log"
 )
 
 // SchemaCache provides a thread-safe cache for database schema information
 // with TTL-based expiration and manual invalidation support.
+// When PubSub is configured, invalidation is broadcast to all instances.
 type SchemaCache struct {
 	mu          sync.RWMutex
 	tables      map[string]*TableInfo // key: "schema.table"
@@ -24,6 +26,11 @@ type SchemaCache struct {
 	inspector   *SchemaInspector
 	stale       bool // Force refresh on next access
 	schemas     []string
+
+	// PubSub for cross-instance cache invalidation
+	ps         pubsub.PubSub
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
 
 // NewSchemaCache creates a new schema cache with the given TTL
@@ -190,12 +197,93 @@ func (c *SchemaCache) GetSchemas(ctx context.Context) ([]string, error) {
 	return result, nil
 }
 
-// Invalidate marks the cache as stale, forcing a refresh on next access
+// Invalidate marks the cache as stale, forcing a refresh on next access.
+// This only invalidates the local cache. Use InvalidateAll to broadcast
+// invalidation to all instances.
 func (c *SchemaCache) Invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stale = true
-	log.Debug().Msg("Schema cache invalidated")
+	log.Debug().Msg("Schema cache invalidated (local)")
+}
+
+// InvalidateAll marks the cache as stale and broadcasts the invalidation
+// to all other instances via PubSub. Use this when schema changes occur
+// (e.g., after migrations) to ensure all instances refresh their caches.
+func (c *SchemaCache) InvalidateAll(ctx context.Context) {
+	// First invalidate locally
+	c.Invalidate()
+
+	// Then broadcast to other instances if PubSub is configured
+	if c.ps != nil {
+		if err := c.ps.Publish(ctx, pubsub.SchemaCacheChannel, []byte("invalidate")); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast schema cache invalidation")
+		} else {
+			log.Debug().Msg("Schema cache invalidation broadcast sent")
+		}
+	}
+}
+
+// SetPubSub configures the PubSub backend for cross-instance cache invalidation.
+// When set, InvalidateAll will broadcast invalidation messages to all instances,
+// and this instance will listen for invalidation messages from others.
+func (c *SchemaCache) SetPubSub(ps pubsub.PubSub) {
+	c.mu.Lock()
+	c.ps = ps
+	c.mu.Unlock()
+
+	if ps != nil {
+		c.startInvalidationListener()
+	}
+}
+
+// startInvalidationListener subscribes to schema cache invalidation messages
+// from other instances and invalidates the local cache when received.
+func (c *SchemaCache) startInvalidationListener() {
+	c.mu.Lock()
+	// Cancel any existing listener
+	if c.cancelFunc != nil {
+		c.cancelFunc()
+	}
+	c.ctx, c.cancelFunc = context.WithCancel(context.Background())
+	ctx := c.ctx
+	ps := c.ps
+	c.mu.Unlock()
+
+	go func() {
+		msgCh, err := ps.Subscribe(ctx, pubsub.SchemaCacheChannel)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to subscribe to schema cache invalidation channel")
+			return
+		}
+
+		log.Info().Msg("Schema cache listening for cross-instance invalidation messages")
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Debug().Msg("Schema cache invalidation listener stopped")
+				return
+			case msg, ok := <-msgCh:
+				if !ok {
+					log.Debug().Msg("Schema cache invalidation channel closed")
+					return
+				}
+				log.Debug().Str("payload", string(msg.Payload)).Msg("Received schema cache invalidation from another instance")
+				c.Invalidate()
+			}
+		}
+	}()
+}
+
+// Close stops the invalidation listener if running
+func (c *SchemaCache) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cancelFunc != nil {
+		c.cancelFunc()
+		c.cancelFunc = nil
+	}
 }
 
 // Refresh forces an immediate cache refresh

@@ -81,7 +81,7 @@ func (p *PostgresPubSub) listenLoop() {
 		}
 
 		// Listen on the pub/sub channels
-		channels := []string{BroadcastChannel, PresenceChannel}
+		channels := []string{BroadcastChannel, PresenceChannel, SchemaCacheChannel}
 		for _, ch := range channels {
 			// PostgreSQL channel names can't contain colons, replace with underscore
 			pgChannel := sanitizeChannelName(ch)

@@ -603,7 +603,7 @@ serviceKey:
 
 ## @param replicaCount Number of Fluxbase replicas to deploy
 ##
-replicaCount: 3
+replicaCount: 1
 
 ## @param updateStrategy.type Fluxbase deployment strategy type
 ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
