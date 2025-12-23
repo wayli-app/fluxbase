@@ -10,10 +10,22 @@ name: Release
 # How to create a release:
 #   1. Go to Actions → Release → Run workflow
 #   2. Select branch (usually 'main')
-#   3. Choose version_type: patch, minor, or major
+#   3. Choose version_type: continue, patch, minor, or major
 #   4. Choose release_type: stable or rc
 #   5. Select which components to publish (all enabled by default)
 #   6. Click "Run workflow"
+#
+# Version type options:
+#   - continue: Keep same base version (increment RC number, or promote RC to stable)
+#   - patch: Bump patch version (0.0.1 → 0.0.2)
+#   - minor: Bump minor version (0.0.1 → 0.1.0)
+#   - major: Bump major version (0.0.1 → 1.0.0)
+#
+# Examples:
+#   - 2.0.0-rc.1 + continue + rc → 2.0.0-rc.2 (continue RC series)
+#   - 2.0.0-rc.5 + continue + stable → 2.0.0 (promote RC to stable)
+#   - 2.0.0 + minor + rc → 2.1.0-rc.1 (start new minor RC)
+#   - 2.0.0-rc.1 + patch + rc → 2.0.1-rc.1 (start new patch RC)
 #
 # Component Toggles (workflow_dispatch only):
 #   - Publish binaries: Build and publish Go binaries for multiple platforms
@@ -55,10 +67,11 @@ on:
         required: true
         type: choice
         options:
+          - continue
           - patch
           - minor
           - major
-        default: "patch"
+        default: "continue"
       release_type:
         description: "Release type"
         required: true
@@ -152,6 +165,20 @@ jobs:
 
             # Calculate base version based on version_type
             case $VERSION_TYPE in
+              continue)
+                # Keep the same base version (for continuing RC series or promoting to stable)
+                # If not on an RC, fall back to patch bump behavior
+                if [[ "$LATEST_VERSION" =~ -rc\. ]]; then
+                  BASE_MAJOR="$MAJOR"
+                  BASE_MINOR="$MINOR"
+                  BASE_PATCH="$PATCH"
+                else
+                  # Not on an RC, fall back to patch
+                  BASE_MAJOR="$MAJOR"
+                  BASE_MINOR="$MINOR"
+                  BASE_PATCH="$((PATCH + 1))"
+                fi
+                ;;
               major)
                 BASE_MAJOR="$((MAJOR + 1))"
                 BASE_MINOR="0"
