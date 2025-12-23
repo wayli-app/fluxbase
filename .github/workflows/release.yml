@@ -317,16 +317,12 @@ jobs:
           cd sdk && npm version ${VERSION} --no-git-tag-version && cd ..
           cd sdk-react && npm version ${VERSION} --no-git-tag-version && npm install && cd ..
 
-          # Update Helm chart postgres image tag with immutable reference
-          sed -i '/fluxbase-postgres/,/pullPolicy/{s/tag: "18\.[^"]*"/tag: "18.1-'"${VERSION}"'"/}' deploy/helm/fluxbase/values.yaml
-
       - name: Commit version updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add deploy/helm/fluxbase/Chart.yaml
-          git add deploy/helm/fluxbase/values.yaml
           git add deploy/docker-compose*.yml
           git add sdk/package.json sdk/package-lock.json
           git add sdk-react/package.json sdk-react/package-lock.json
@@ -808,7 +804,7 @@ jobs:
       - name: Generate build matrix from versions.json
         id: set-matrix
         run: |
-          MATRIX=$(cat postgres/versions.json | jq -c '{include: [.versions[] | {major: .major, version: .version, latest: (.latest // false)}]}')
+          MATRIX=$(cat postgres/versions.json | jq -c '{include: [.versions[] | {major: .major, version: .version, imageVersion: .imageVersion, latest: (.latest // false)}]}')
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "Generated matrix: $MATRIX"
 
@@ -900,8 +896,8 @@ jobs:
           IMAGE="ghcr.io/${{ github.repository_owner }}/fluxbase-postgres"
           VERSION="${{ matrix.version }}"
           MAJOR="${{ matrix.major }}"
+          IMAGE_VERSION="${{ matrix.imageVersion }}"
           IS_LATEST="${{ matrix.latest }}"
-          FLUXBASE_VERSION="${{ needs.get-version.outputs.version }}"
 
           # Create manifest with version tag (rolling)
           docker buildx imagetools create \
@@ -909,9 +905,9 @@ jobs:
             ${IMAGE}:${VERSION}-amd64 \
             ${IMAGE}:${VERSION}-arm64
 
-          # Create manifest with immutable tag (postgres version + fluxbase version)
+          # Create manifest with immutable tag (postgres version + image version)
           docker buildx imagetools create \
-            -t ${IMAGE}:${VERSION}-${FLUXBASE_VERSION} \
+            -t ${IMAGE}:${VERSION}-v${IMAGE_VERSION} \
             ${IMAGE}:${VERSION}-amd64 \
             ${IMAGE}:${VERSION}-arm64
 
@@ -929,4 +925,4 @@ jobs:
               ${IMAGE}:${VERSION}-arm64
           fi
 
-          echo "Created manifests for PostgreSQL ${VERSION} (immutable: ${VERSION}-${FLUXBASE_VERSION})"
+          echo "Created manifests for PostgreSQL ${VERSION} (immutable: ${VERSION}-v${IMAGE_VERSION})"

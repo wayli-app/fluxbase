@@ -94,6 +94,7 @@ spec:
             - name: postgresql
               containerPort: 5432
               protocol: TCP
+          {{- $pgMajor := (split "." .Values.postgresql.image.tag)._0 | int }}
           env:
             {{- $useInlineSecret := or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
             - name: POSTGRES_USER
@@ -111,8 +112,14 @@ spec:
                 secretKeyRef:
                   name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
                   key: {{ .Values.postgresql.auth.secretKeys.database | default "database" }}
+            {{- /* PostgreSQL 18+ uses /var/lib/postgresql/MAJOR/docker as PGDATA */ -}}
+            {{- if ge $pgMajor 18 }}
+            - name: PGDATA
+              value: /var/lib/postgresql/{{ $pgMajor }}/docker
+            {{- else }}
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+            {{- end }}
           {{- if .Values.postgresql.resources }}
           resources:
             {{- toYaml .Values.postgresql.resources | nindent 12 }}
@@ -141,7 +148,11 @@ spec:
             successThreshold: 1
           volumeMounts:
             - name: data
+              {{- if ge $pgMajor 18 }}
+              mountPath: /var/lib/postgresql
+              {{- else }}
               mountPath: /var/lib/postgresql/data
+              {{- end }}
       volumes:
         {{- if .Values.postgresql.persistence.enabled }}
         - name: data
