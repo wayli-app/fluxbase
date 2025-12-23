@@ -35,6 +35,7 @@ open http://localhost:8080
 ```
 
 **What you get:**
+
 - PostgreSQL 18 database
 - Fluxbase API server
 - Local file storage
@@ -210,15 +211,7 @@ helm install fluxbase ./fluxbase \
   -f helm/fluxbase/examples/values-standalone.yaml \
   --set config.jwt.secret=$(openssl rand -base64 32)
 
-# Option 2: CloudNativePG (High Availability with automated backups)
-# Requires CNPG operator to be installed first
-kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.0.yaml
-
-helm install fluxbase ./fluxbase \
-  -f helm/fluxbase/examples/values-cnpg.yaml \
-  --set config.jwt.secret=$(openssl rand -base64 32)
-
-# Option 3: External Database (AWS RDS, GCP Cloud SQL, etc.)
+# Option 2: External Database (AWS RDS, GCP Cloud SQL, etc.)
 kubectl create secret generic fluxbase-secrets \
   --from-literal=database-password='<db-password>' \
   --from-literal=jwt-secret=$(openssl rand -base64 32) \
@@ -347,11 +340,11 @@ sudo systemctl status fluxbase
 
 For multi-instance deployments, configure distributed state:
 
-| Variable                                      | Description                     | Default  | Required        |
-| --------------------------------------------- | ------------------------------- | -------- | --------------- |
-| `FLUXBASE_SCALING_BACKEND`                    | Distributed state backend       | `local`  | No              |
-| `FLUXBASE_SCALING_REDIS_URL`                  | Redis/Dragonfly connection URL  | -        | If using redis  |
-| `FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION` | Enable scheduler leader election | `false` | No         |
+| Variable                                            | Description                      | Default | Required       |
+| --------------------------------------------------- | -------------------------------- | ------- | -------------- |
+| `FLUXBASE_SCALING_BACKEND`                          | Distributed state backend        | `local` | No             |
+| `FLUXBASE_SCALING_REDIS_URL`                        | Redis/Dragonfly connection URL   | -       | If using redis |
+| `FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION` | Enable scheduler leader election | `false` | No             |
 
 **Backend Options:**
 
@@ -389,7 +382,7 @@ See [helm/fluxbase/README.md](helm/fluxbase/README.md) for complete Helm configu
 
 - `replicaCount` - Number of replicas (default: 3)
 - `resourcesPreset` - Resource allocation (nano/micro/small/medium/large/xlarge/2xlarge)
-- `postgresql.mode` - PostgreSQL deployment mode: `standalone`, `cnpg`, or `none` (default: standalone)
+- `postgresql.mode` - PostgreSQL deployment mode: `standalone` or `none` (default: standalone)
 - `ingress.enabled` - Enable ingress (default: false)
 - `autoscaling.enabled` - Enable HPA (default: false)
 - `metrics.enabled` - Enable Prometheus metrics (default: true)
@@ -579,7 +572,7 @@ Use managed database services or configure automated backups:
 ## Support
 
 - Documentation: https://docs.fluxbase.io
-- GitHub Issues: https://github.com/yourusername/fluxbase/issues
+- GitHub Issues: https://github.com/fluxbase-eu/fluxbase/issues
 - Production Runbook: See [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md)
 
 ## License

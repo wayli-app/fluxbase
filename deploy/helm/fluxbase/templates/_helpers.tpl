@@ -178,7 +178,11 @@ Return the proper PostgreSQL password secret name
 {{- if .Values.existingSecret }}
     {{- .Values.existingSecret -}}
 {{- else if .Values.postgresql.enabled }}
-    {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
+    {{- if or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
+        {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
+    {{- else }}
+        {{- .Values.postgresql.auth.existingSecret -}}
+    {{- end }}
 {{- else if .Values.externalDatabase.existingSecret }}
     {{- .Values.externalDatabase.existingSecret -}}
 {{- else }}
@@ -193,7 +197,7 @@ Return the proper PostgreSQL password secret key
 {{- if .Values.existingSecret }}
     {{- .Values.existingSecretKeyRef.databasePassword | default "database-password" -}}
 {{- else if .Values.postgresql.enabled }}
-    {{- print "password" -}}
+    {{- .Values.postgresql.auth.secretKeys.password | default "password" -}}
 {{- else if .Values.externalDatabase.existingSecret }}
     {{- .Values.externalDatabase.existingSecretPasswordKey -}}
 {{- else }}

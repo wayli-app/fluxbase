@@ -19,6 +19,7 @@ spec:
     {{- include "fluxbase.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: database
 ---
+{{- if or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -29,13 +30,10 @@ metadata:
     app.kubernetes.io/component: database
 type: Opaque
 data:
-  {{- if .Values.postgresql.auth.existingSecret }}
-  # Using existing secret - this is just a placeholder
-  {{- else }}
-  password: {{ .Values.postgresql.auth.password | b64enc | quote }}
-  username: {{ .Values.postgresql.auth.username | b64enc | quote }}
-  database: {{ .Values.postgresql.auth.database | b64enc | quote }}
-  {{- end }}
+  {{ .Values.postgresql.auth.secretKeys.password | default "password" }}: {{ .Values.postgresql.auth.password | b64enc | quote }}
+  {{ .Values.postgresql.auth.secretKeys.username | default "username" }}: {{ .Values.postgresql.auth.username | b64enc | quote }}
+  {{ .Values.postgresql.auth.secretKeys.database | default "database" }}: {{ .Values.postgresql.auth.database | b64enc | quote }}
+{{- end }}
 ---
 {{- if and .Values.postgresql.persistence.enabled (not .Values.postgresql.persistence.existingClaim) }}
 apiVersion: v1
@@ -97,21 +95,22 @@ spec:
               containerPort: 5432
               protocol: TCP
           env:
+            {{- $useInlineSecret := or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
-                  key: username
+                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  key: {{ .Values.postgresql.auth.secretKeys.username | default "username" }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
-                  key: password
+                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  key: {{ .Values.postgresql.auth.secretKeys.password | default "password" }}
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
-                  key: database
+                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  key: {{ .Values.postgresql.auth.secretKeys.database | default "database" }}
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           {{- if .Values.postgresql.resources }}

@@ -13,12 +13,16 @@ Source: npmjs.com → Access Tokens → Generate (Automation type)
 ## ⚙️ Required Settings
 
 ### 1. Workflow Permissions
+
 **Settings → Actions → General → Workflow permissions**
+
 - ✅ Read and write permissions
 - ✅ Allow GitHub Actions to create and approve pull requests
 
 ### 2. GitHub Pages
+
 **Settings → Pages**
+
 - Source: Deploy from a branch
 - Branch: **gh-pages**
 - Folder: **/ (root)**
@@ -56,19 +60,20 @@ After your first successful release:
    - Repeat for **charts/fluxbase**
 
 2. **Verify Helm repository**
-   - Visit: https://yourusername.github.io/fluxbase
+   - Visit: https://fluxbase-eu.github.io/fluxbase
    - Should see: index.yaml file
 
 3. **Test installations**
+
    ```bash
    # Docker
-   docker pull ghcr.io/yourusername/fluxbase:0.1.0
+   docker pull ghcr.io/fluxbase-eu/fluxbase:0.1.0
 
    # Helm (OCI)
-   helm pull oci://ghcr.io/yourusername/charts/fluxbase --version 0.1.0
+   helm pull oci://ghcr.io/fluxbase-eu/charts/fluxbase --version 0.1.0
 
    # Helm (HTTP)
-   helm repo add fluxbase https://yourusername.github.io/fluxbase
+   helm repo add fluxbase https://fluxbase-eu.github.io/fluxbase
    helm search repo fluxbase
 
    # NPM

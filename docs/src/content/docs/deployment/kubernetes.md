@@ -404,53 +404,6 @@ kubectl create secret generic fluxbase-db-secret \
   --from-literal=password='production-db-password'
 ```
 
-### Option 3: PostgreSQL Operator (CloudNativePG)
-
-```yaml
-# Install CloudNativePG operator first
-helm repo add cnpg https://cloudnative-pg.github.io/charts
-helm install cnpg cnpg/cloudnative-pg --namespace cnpg-system --create-namespace
-
-# Create PostgreSQL cluster
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: fluxbase-postgres
-  namespace: fluxbase
-spec:
-  instances: 3
-  primaryUpdateStrategy: unsupervised
-
-  postgresql:
-    parameters:
-      shared_buffers: 256MB
-      max_connections: "300"
-      shared_preload_libraries: "pg_stat_statements"
-
-  bootstrap:
-    initdb:
-      database: fluxbase
-      owner: fluxbase
-      secret:
-        name: fluxbase-db-secret
-
-  storage:
-    size: 100Gi
-    storageClass: fast-ssd
-
-  backup:
-    barmanObjectStore:
-      destinationPath: s3://backups/postgresql
-      s3Credentials:
-        accessKeyId:
-          name: aws-creds
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: aws-creds
-          key: SECRET_ACCESS_KEY
-    retentionPolicy: "30d"
-```
-
 ---
 
 ## Ingress Configuration
@@ -767,16 +720,6 @@ Use managed database with multi-AZ:
 - AWS RDS Multi-AZ
 - Google Cloud SQL HA
 - Azure Database for PostgreSQL HA
-
-Or PostgreSQL operator with replication:
-
-```yaml
-# CloudNativePG cluster with 3 replicas
-spec:
-  instances: 3
-  minSyncReplicas: 1
-  maxSyncReplicas: 2
-```
 
 ---
 

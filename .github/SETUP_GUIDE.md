@@ -186,7 +186,7 @@ After the first Docker image is pushed, you need to make the package public.
 
 ### Purpose
 
-Hosts Helm chart repository at `https://yourusername.github.io/fluxbase`
+Hosts Helm chart repository at `https://fluxbase-eu.github.io/fluxbase`
 
 ### Navigation
 
@@ -210,14 +210,14 @@ Hosts Helm chart repository at `https://yourusername.github.io/fluxbase`
 After your first release completes:
 
 1. Wait 2-5 minutes for Pages to deploy
-2. Visit `https://yourusername.github.io/fluxbase`
+2. Visit `https://fluxbase-eu.github.io/fluxbase`
 3. You should see `index.yaml` (Helm repository index)
 
 ### Using the Helm Repository
 
 ```bash
 # Add repository
-helm repo add fluxbase https://yourusername.github.io/fluxbase
+helm repo add fluxbase https://fluxbase-eu.github.io/fluxbase
 helm repo update
 
 # Install chart
@@ -298,20 +298,20 @@ After successful release:
 
 ```bash
 # GHCR (always published)
-docker pull ghcr.io/yourusername/fluxbase:0.1.0
+docker pull ghcr.io/fluxbase-eu/fluxbase:0.1.0
 
 # Docker Hub (if configured)
-docker pull yourusername/fluxbase:0.1.0
+docker pull fluxbase-eu/fluxbase:0.1.0
 ```
 
 **Helm Chart**:
 
 ```bash
 # OCI registry
-helm pull oci://ghcr.io/yourusername/charts/fluxbase --version 0.1.0
+helm pull oci://ghcr.io/fluxbase-eu/charts/fluxbase --version 0.1.0
 
 # HTTP repository
-helm repo add fluxbase https://yourusername.github.io/fluxbase
+helm repo add fluxbase https://fluxbase-eu.github.io/fluxbase
 helm search repo fluxbase
 ```
 

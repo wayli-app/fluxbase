@@ -1208,8 +1208,14 @@ postgresql:
     username: fluxbase
     password: fluxbase
     database: fluxbase
-    ## Name of existing secret with keys: username, password, database
+    ## Name of existing secret to use instead of creating one
+    ## Only used if username, password, and database are all empty
     existingSecret: ""
+    ## Keys in the existing secret to use
+    secretKeys:
+      username: username
+      password: password
+      database: database
 
   ## @param postgresql.image.registry PostgreSQL image registry
   ## @param postgresql.image.repository PostgreSQL image repository
