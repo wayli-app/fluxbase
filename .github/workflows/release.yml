@@ -698,14 +698,15 @@ jobs:
 
   publish-helm-chart:
     name: Publish Helm Chart to GHCR
-    needs: [get-version, update-version-files, publish-postgres-manifests]
+    needs: [get-version, update-version-files, publish-postgres-manifests, update-postgres-version]
     runs-on: ubuntu-latest
     # Publish Helm chart for all releases (stable and RC) unless disabled in workflow_dispatch
     if: |
       always() &&
       (github.event_name != 'workflow_dispatch' || inputs.publish_helm) &&
       (needs.update-version-files.result == 'success' || needs.update-version-files.result == 'skipped') &&
-      (needs.publish-postgres-manifests.result == 'success' || needs.publish-postgres-manifests.result == 'skipped')
+      (needs.publish-postgres-manifests.result == 'success' || needs.publish-postgres-manifests.result == 'skipped') &&
+      (needs.update-postgres-version.result == 'success' || needs.update-postgres-version.result == 'skipped')
     steps:
       - uses: actions/checkout@v5
         with:
@@ -926,3 +927,48 @@ jobs:
           fi
 
           echo "Created manifests for PostgreSQL ${VERSION} (immutable: ${VERSION}-v${IMAGE_VERSION})"
+
+  update-postgres-version:
+    name: Update Postgres version in Helm values
+    needs: [get-postgres-versions, publish-postgres-manifests]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.publish_postgres
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Pull latest changes
+        run: |
+          git pull origin ${{ github.ref_name }} || true
+
+      - name: Update Helm values.yaml with new postgres image tag
+        run: |
+          # Get the postgres version info from versions.json
+          # For simplicity, use the first (and typically only) version marked as latest
+          POSTGRES_VERSION=$(cat postgres/versions.json | jq -r '.versions[] | select(.latest == true) | .version')
+          IMAGE_VERSION=$(cat postgres/versions.json | jq -r '.versions[] | select(.latest == true) | .imageVersion')
+
+          # Create the immutable tag
+          NEW_TAG="${POSTGRES_VERSION}-v${IMAGE_VERSION}"
+
+          echo "Updating postgres image tag to: ${NEW_TAG}"
+
+          # Update the tag in values.yaml
+          sed -i '/fluxbase-postgres/,/pullPolicy/{s/tag: "[^"]*"/tag: "'"${NEW_TAG}"'"/}' deploy/helm/fluxbase/values.yaml
+
+      - name: Commit postgres version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add deploy/helm/fluxbase/values.yaml
+
+          if git diff --staged --quiet; then
+            echo "No postgres version changes to commit"
+          else
+            POSTGRES_VERSION=$(cat postgres/versions.json | jq -r '.versions[] | select(.latest == true) | .version')
+            IMAGE_VERSION=$(cat postgres/versions.json | jq -r '.versions[] | select(.latest == true) | .imageVersion')
+            git commit -m "chore: Update fluxbase-postgres image to ${POSTGRES_VERSION}-v${IMAGE_VERSION}"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
