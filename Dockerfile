@@ -92,15 +92,14 @@ LABEL maintainer="Fluxbase Team" \
       commit="${COMMIT}" \
       build-date="${BUILD_DATE}"
 
-# Install runtime dependencies and Deno
+# Install runtime dependencies
 # - ca-certificates: For HTTPS connections
 # - tzdata: For timezone support
 # - tesseract-ocr: For OCR text extraction from image-based PDFs
 # - tesseract-ocr-data-eng: English language data for OCR
 # - leptonica: Image processing library required by tesseract (dynamic linking)
 # - poppler-utils: For PDF to image conversion (pdftoppm)
-# - curl, unzip: For Deno installation (removed after use)
-# - Deno: JavaScript/TypeScript runtime for jobs and functions
+# - deno: JavaScript/TypeScript runtime for jobs and functions (installed via apk)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
@@ -108,16 +107,7 @@ RUN apk add --no-cache \
     tesseract-ocr-data-eng \
     leptonica \
     poppler-utils \
-    curl \
-    unzip \
-    && DENO_ARCH=$(case "$(uname -m)" in "x86_64") echo "x86_64-unknown-linux-gnu";; "aarch64") echo "aarch64-unknown-linux-gnu";; *) echo "x86_64-unknown-linux-gnu";; esac) \
-    && DENO_VERSION=$(curl -s https://api.github.com/repos/denoland/deno/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/') \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-${DENO_ARCH}.zip" -o /tmp/deno.zip \
-    && unzip -q /tmp/deno.zip -d /usr/local/bin \
-    && chmod +x /usr/local/bin/deno \
-    && rm /tmp/deno.zip \
-    && apk del curl unzip \
-    && rm -rf /var/cache/apk/* \
+    deno \
     && deno --version
 
 # Create non-root user
