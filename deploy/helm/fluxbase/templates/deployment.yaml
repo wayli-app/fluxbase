@@ -19,7 +19,6 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- if .Values.podAnnotations }}
         {{- toYaml .Values.podAnnotations | nindent 8 }}
@@ -679,9 +678,6 @@ spec:
           {{- end }}
           resources: {{- include "fluxbase.resources" . | nindent 12 }}
           volumeMounts:
-            - name: config
-              mountPath: /etc/fluxbase
-              readOnly: true
             {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
             - name: storage
               mountPath: {{ .Values.config.storage.local_path }}
@@ -702,9 +698,6 @@ spec:
         {{- toYaml .Values.sidecars | nindent 8 }}
         {{- end }}
       volumes:
-        - name: config
-          configMap:
-            name: {{ include "fluxbase.fullname" . }}
         {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
         - name: storage
           persistentVolumeClaim:

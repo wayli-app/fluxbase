@@ -579,19 +579,6 @@ existingSecretKeyRef:
   openaiApiKey: "openai-api-key"
   azureApiKey: "azure-api-key"
 
-## @section ConfigMap Configuration
-## @descriptionStart
-## Optional ConfigMap for non-sensitive static configuration.
-## Application config is handled via environment variables.
-## @descriptionEnd
-
-## @param configMap.enabled Enable ConfigMap creation
-## @param configMap.data Custom data to include in ConfigMap
-##
-configMap:
-  enabled: false
-  data: {}
-
 ## @section Security Configuration
 
 ## Service Keys Configuration
