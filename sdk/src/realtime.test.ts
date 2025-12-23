@@ -11,10 +11,13 @@ class MockCloseEvent extends Event {
   public reason: string;
   public wasClean: boolean;
 
-  constructor(type: string, init?: { code?: number; reason?: string; wasClean?: boolean }) {
+  constructor(
+    type: string,
+    init?: { code?: number; reason?: string; wasClean?: boolean },
+  ) {
     super(type);
     this.code = init?.code ?? 1000;
-    this.reason = init?.reason ?? '';
+    this.reason = init?.reason ?? "";
     this.wasClean = init?.wasClean ?? true;
   }
 }
@@ -23,7 +26,7 @@ class MockCloseEvent extends Event {
 // Mock WebSocket
 class MockWebSocket {
   public url: string;
-  public readyState: number = 1;  // WebSocket.OPEN
+  public readyState: number = 1; // WebSocket.OPEN
   public onopen: ((event: Event) => void) | null = null;
   public onclose: ((event: CloseEvent) => void) | null = null;
   public onmessage: ((event: MessageEvent) => void) | null = null;
@@ -50,16 +53,18 @@ class MockWebSocket {
     // Auto-close WebSocket when unsubscribe message is sent
     try {
       const msg = JSON.parse(data);
-      if (msg.type === 'unsubscribe') {
+      if (msg.type === "unsubscribe") {
         setTimeout(() => this.close(), 10);
       }
       // Auto-respond to token updates
-      if (msg.type === 'token_update') {
+      if (msg.type === "token_update") {
         setTimeout(() => {
           if (this.onmessage) {
-            this.onmessage(new MessageEvent("message", {
-              data: JSON.stringify({ type: 'token_update_ack' })
-            }));
+            this.onmessage(
+              new MessageEvent("message", {
+                data: JSON.stringify({ type: "token_update_ack" }),
+              }),
+            );
           }
         }, 10);
       }
@@ -69,7 +74,7 @@ class MockWebSocket {
   }
 
   close(code?: number, reason?: string): void {
-    this.readyState = 3;  // WebSocket.CLOSED
+    this.readyState = 3; // WebSocket.CLOSED
     if (this.onclose) {
       this.onclose(new CloseEvent("close", { code, reason }));
     }
@@ -224,7 +229,11 @@ describe("RealtimeChannel - Change Events", () => {
   let channel: RealtimeChannel;
 
   beforeEach(async () => {
-    channel = new RealtimeChannel("http://localhost:8080", "public:users", "test-token");
+    channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "public:users",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
@@ -318,7 +327,11 @@ describe("RealtimeChannel - Broadcast", () => {
   let channel: RealtimeChannel;
 
   beforeEach(async () => {
-    channel = new RealtimeChannel("http://localhost:8080", "chat:room1", "test-token");
+    channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "chat:room1",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
@@ -364,7 +377,11 @@ describe("RealtimeChannel - Presence", () => {
   let channel: RealtimeChannel;
 
   beforeEach(async () => {
-    channel = new RealtimeChannel("http://localhost:8080", "presence:lobby", "test-token");
+    channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "presence:lobby",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
@@ -418,7 +435,11 @@ describe("RealtimeChannel - Error Handling", () => {
   let channel: RealtimeChannel;
 
   beforeEach(async () => {
-    channel = new RealtimeChannel("http://localhost:8080", "test", "test-token");
+    channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "test",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
@@ -446,7 +467,10 @@ describe("RealtimeChannel - Error Handling", () => {
 
 describe("RealtimeChannel - Filters", () => {
   it("should create channel with filter config", async () => {
-    const realtime = new FluxbaseRealtime("http://localhost:8080", "test-token");
+    const realtime = new FluxbaseRealtime(
+      "http://localhost:8080",
+      "test-token",
+    );
     const channel = realtime.channel("public:posts", {
       filter: "user_id=eq.123",
     });
@@ -462,7 +486,11 @@ describe("RealtimeChannel - Filters", () => {
 
 describe("Realtime - Heartbeat", () => {
   it("should send heartbeat messages periodically", async () => {
-    const channel = new RealtimeChannel("http://localhost:8080", "test", "test-token");
+    const channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "test",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
 
@@ -474,7 +502,11 @@ describe("Realtime - Heartbeat", () => {
   });
 
   it("should handle heartbeat responses", async () => {
-    const channel = new RealtimeChannel("http://localhost:8080", "test", "test-token");
+    const channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "test",
+      "test-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
 
@@ -541,11 +573,19 @@ describe("Realtime - Multiple Channels", () => {
 
 describe("RealtimeChannel - postgres_changes Filtering", () => {
   let channel: RealtimeChannel;
+  let mockWs: MockWebSocket;
 
   beforeEach(async () => {
-    channel = new RealtimeChannel("http://localhost:8080", "jobs:user123", "test-token");
+    channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "jobs:user123",
+      "test-token",
+    );
     channel.subscribe();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // Wait longer to ensure any pending reconnection timers from previous tests have completed
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Capture the WebSocket reference for this test to avoid race conditions
+    mockWs = lastMockWebSocket!;
   });
 
   afterEach(async () => {
@@ -585,7 +625,7 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
     );
 
     // Simulate INSERT event
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: {
         type: "INSERT",
@@ -613,7 +653,7 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: {
         type: "UPDATE",
@@ -639,7 +679,7 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: {
         type: "DELETE",
@@ -666,15 +706,15 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
     );
 
     // Send different event types
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: { type: "INSERT", schema: "public", table: "jobs" },
     });
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: { type: "UPDATE", schema: "public", table: "jobs" },
     });
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: { type: "DELETE", schema: "public", table: "jobs" },
     });
@@ -688,7 +728,7 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
     channel.on("INSERT", callback);
 
     // Simulate INSERT event
-    lastMockWebSocket!.simulateMessage({
+    mockWs.simulateMessage({
       type: "broadcast",
       payload: {
         type: "INSERT",
@@ -705,7 +745,11 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
 
 describe("RealtimeChannel - Token Update", () => {
   it("should update token on connected channel", async () => {
-    const channel = new RealtimeChannel("http://localhost:8080", "test", "old-token");
+    const channel = new RealtimeChannel(
+      "http://localhost:8080",
+      "test",
+      "old-token",
+    );
     channel.subscribe();
     await new Promise((resolve) => setTimeout(resolve, 30));
 
@@ -725,7 +769,10 @@ describe("RealtimeChannel - Token Update", () => {
 
 describe("FluxbaseRealtime - Token Refresh Callback", () => {
   it("should set token refresh callback", () => {
-    const realtime = new FluxbaseRealtime("http://localhost:8080", "test-token");
+    const realtime = new FluxbaseRealtime(
+      "http://localhost:8080",
+      "test-token",
+    );
 
     const refreshCallback = vi.fn().mockResolvedValue("new-token");
     realtime.setTokenRefreshCallback(refreshCallback);

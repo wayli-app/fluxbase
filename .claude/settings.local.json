@@ -69,7 +69,12 @@
       "Bash(npx vitest:*)",
       "Bash(go tool cover:*)",
       "Bash(sort:*)",
-      "Bash(helm template:*)"
+      "Bash(helm template:*)",
+      "Bash(for i in {1..10})",
+      "Bash(do echo \"Run $i\")",
+      "Bash(done)",
+      "Bash(for:*)",
+      "Bash(do npm test -- src/realtime.test.ts --run)"
     ],
     "deny": [],
     "ask": []
