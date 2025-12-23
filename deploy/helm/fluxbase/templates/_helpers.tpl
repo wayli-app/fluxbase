@@ -178,10 +178,10 @@ Return the proper PostgreSQL password secret name
 {{- if .Values.existingSecret }}
     {{- .Values.existingSecret -}}
 {{- else if .Values.postgresql.enabled }}
-    {{- if or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
-        {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
-    {{- else }}
+    {{- if .Values.postgresql.auth.existingSecret }}
         {{- .Values.postgresql.auth.existingSecret -}}
+    {{- else }}
+        {{- printf "%s-postgresql" (include "fluxbase.fullname" .) -}}
     {{- end }}
 {{- else if .Values.externalDatabase.existingSecret }}
     {{- .Values.externalDatabase.existingSecret -}}

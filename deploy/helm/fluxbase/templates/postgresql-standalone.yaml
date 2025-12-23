@@ -19,7 +19,7 @@ spec:
     {{- include "fluxbase.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: database
 ---
-{{- if or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
+{{- if and (not .Values.postgresql.auth.existingSecret) (or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database) }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -96,21 +96,21 @@ spec:
               protocol: TCP
           {{- $pgMajor := (split "." .Values.postgresql.image.tag)._0 | int }}
           env:
-            {{- $useInlineSecret := or .Values.postgresql.auth.username .Values.postgresql.auth.password .Values.postgresql.auth.database }}
+            {{- $pgSecretName := .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.username | default "username" }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.password | default "password" }}
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: {{ if $useInlineSecret }}{{ include "fluxbase.fullname" . }}-postgresql{{ else }}{{ .Values.postgresql.auth.existingSecret }}{{ end }}
+                  name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.database | default "database" }}
             {{- /* PostgreSQL 18+ uses /var/lib/postgresql/MAJOR/docker as PGDATA */ -}}
             {{- if ge $pgMajor 18 }}
