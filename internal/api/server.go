@@ -762,11 +762,11 @@ func (s *Server) setupRoutes() {
 	}
 
 	// REST API routes (auto-generated from database schema)
-	// Optional authentication (JWT, API key, or service key) - allows anonymous access with RLS
-	// Followed by RLS middleware to set PostgreSQL session variables (role 'anon' if unauthenticated)
+	// Required authentication (JWT, API key, or service key) - rejects unauthenticated requests
+	// Metadata listing (GET /) requires admin role; data operations use RLS filtering
 	// Pass jwtManager to support dashboard admin tokens (maps to service_role for full access)
 	rest := v1.Group("/tables",
-		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RLSMiddleware(rlsConfig),
 	)
 	s.setupRESTRoutes(rest)
@@ -976,6 +976,17 @@ func (s *Server) setupRoutes() {
 		log.Info().Msg("Admin dashboard is disabled. Set FLUXBASE_ADMIN_ENABLED=true and FLUXBASE_SECURITY_SETUP_TOKEN to enable.")
 	}
 
+	// Functions sync - always available (independent of admin dashboard)
+	// Protected by IP allowlist + auth + role requirements
+	funcSync := v1.Group("/admin/functions")
+	funcSyncAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
+	funcSync.Post("/sync",
+		middleware.RequireSyncIPAllowlist(s.config.Functions.SyncAllowedIPRanges, "functions"),
+		funcSyncAuth,
+		RequireRole("admin", "dashboard_admin", "service_role"),
+		s.functionsHandler.SyncFunctions,
+	)
+
 	// OpenAPI specification
 	openAPIHandler := NewOpenAPIHandler(s.db)
 	openAPIHandler.RegisterRoutes(s.app)
@@ -995,8 +1006,9 @@ func (s *Server) setupRoutes() {
 func (s *Server) setupRESTRoutes(router fiber.Router) {
 	log.Info().Msg("Setting up dynamic REST API routes with wildcard patterns")
 
-	// Metadata endpoint - list all tables
-	router.Get("/", middleware.RequireScope(auth.ScopeTablesRead), s.rest.HandleGetTables)
+	// Metadata endpoint - list all tables (admin only)
+	// Regular users should not be able to discover all tables; they access tables by name with RLS
+	router.Get("/", RequireRole("admin", "dashboard_admin", "service_role"), s.rest.HandleGetTables)
 
 	// Dynamic routes using wildcard patterns
 	// Order matters: more specific routes first
@@ -1219,13 +1231,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// Functions management routes (require admin, dashboard_admin, or service_role)
 	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ReloadFunctions)
 	router.Get("/functions/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ListNamespaces)
-	// Functions sync - with IP allowlist protection (similar to migrations)
-	router.Post("/functions/sync",
-		middleware.RequireSyncIPAllowlist(s.config.Functions.SyncAllowedIPRanges, "functions"),
-		unifiedAuth,
-		RequireRole("admin", "dashboard_admin", "service_role"),
-		s.functionsHandler.SyncFunctions,
-	)
+	// Note: Functions sync is registered outside setupAdminRoutes so it works when admin dashboard is disabled
 	// Functions executions - admin endpoint to list all executions
 	router.Get("/functions/executions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ListAllExecutions)
 	// Functions execution logs - admin endpoint to get logs for a specific execution

@@ -287,6 +287,11 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 					return c.Next()
 				}
 			}
+
+			// Bearer token was provided but invalid - return specific error
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or expired Bearer token",
+			})
 		}
 
 		// Try API key authentication
@@ -312,9 +317,13 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 
 				return c.Next()
 			}
+			// API key was provided but invalid - return specific error
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid API key",
+			})
 		}
 
-		// No valid authentication provided
+		// No authentication provided at all
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Authentication required. Provide Bearer token, X-API-Key, or X-Service-Key",
 		})

@@ -7,21 +7,20 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// TestRESTAnonymousAccessAllowed verifies that unauthenticated requests are allowed
-// with anonymous RLS role for tables with RLS enabled
-func TestRESTAnonymousAccessAllowed(t *testing.T) {
+// TestRESTAnonymousAccessRejected verifies that unauthenticated requests are rejected
+// Authentication is required for all /api/v1/tables/* routes
+func TestRESTAnonymousAccessRejected(t *testing.T) {
 	tc := test.NewTestContext(t)
 	defer tc.Close()
 
-	// Try to access REST API without authentication - should be allowed with role 'anon'
+	// Try to access REST API without authentication - should be rejected
 	resp := tc.NewRequest("GET", "/api/v1/tables/products").
 		Unauthenticated().
 		Send()
 
-	// Should succeed - anonymous access is allowed, RLS will filter data
-	// Status can be 200 (empty array) or 404 if table doesn't exist
-	if resp.Status() != fiber.StatusOK && resp.Status() != fiber.StatusNotFound {
-		t.Fatalf("Expected 200 or 404 for anonymous access, got %d: %s", resp.Status(), string(resp.Body()))
+	// Should return 401 Unauthorized - authentication is required
+	if resp.Status() != fiber.StatusUnauthorized {
+		t.Fatalf("Expected 401 for anonymous access, got %d: %s", resp.Status(), string(resp.Body()))
 	}
 }
 
