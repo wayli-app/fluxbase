@@ -1218,7 +1218,7 @@ postgresql:
   image:
     registry: ghcr.io
     repository: fluxbase-eu/fluxbase-postgres
-    tag: "18.1-0.0.1-rc.54"
+    tag: "18.1-0.0.1-rc.55"
     pullPolicy: IfNotPresent
 
   ## @param postgresql.persistence.enabled Enable persistence for PostgreSQL
