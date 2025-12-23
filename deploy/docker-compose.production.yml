@@ -99,12 +99,12 @@ services:
 
   # Fluxbase Application
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.60}
+    image: ghcr.io/fluxbase-eu/fluxbase:${FLUXBASE_VERSION:-0.0.1-rc.61}
     build:
       context: ..
       dockerfile: Dockerfile
       args:
-        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.60}
+        VERSION: ${FLUXBASE_VERSION:-0.0.1-rc.61}
         COMMIT: ${GIT_COMMIT:-unknown}
         BUILD_DATE: ${BUILD_DATE:-unknown}
     container_name: fluxbase-app
