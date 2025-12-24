@@ -1,0 +1,24 @@
+{{- if and .Values.httpRoute.enabled .Values.httpRoute.clientSettings.enabled }}
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}-client-settings
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if or .Values.httpRoute.clientSettings.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.httpRoute.clientSettings.annotations }}
+    {{- toYaml .Values.httpRoute.clientSettings.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}
+  body:
+    maxSize: {{ .Values.httpRoute.clientSettings.body.maxSize | quote }}
+{{- end }}
