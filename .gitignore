@@ -117,3 +117,5 @@ UI_PROPOSAL.md
 *.orig
 
 deploy/helm/fluxbase/charts/
+
+values.tmp.yml

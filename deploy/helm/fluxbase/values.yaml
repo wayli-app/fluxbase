@@ -211,7 +211,7 @@ config:
   storage:
     provider: "local"
     local_path: "/data/storage"
-    max_upload_size: 2147483648
+    max_upload_size: "2147483648" # 2GB
     default_buckets: []
     s3_endpoint: ""
     s3_access_key: "" # Use existingSecret in production
@@ -572,7 +572,7 @@ existingSecretKeyRef:
   serviceRoleKey: "service-role-key"
   setupToken: "setup-token"
   ## Database
-  databasePassword: "database-password"
+  databasePassword: "db-password"
   ## Storage (S3)
   s3AccessKey: "s3-access-key"
   s3SecretKey: "s3-secret-key"
@@ -1024,18 +1024,18 @@ ingress:
   ##
   extraRules: []
 
-## @section Gateway API Parameters
+## @section HTTPRoute Parameters (Gateway API)
 ## Configure the Gateway API HTTPRoute resource
 ## ref: https://gateway-api.sigs.k8s.io/
 ##
-gateway:
-  ## @param gateway.enabled Enable Gateway API HTTPRoute generation for Fluxbase
+httpRoute:
+  ## @param httpRoute.enabled Enable Gateway API HTTPRoute generation for Fluxbase
   ##
   enabled: false
-  ## @param gateway.routeName Name override for the HTTPRoute resource. Defaults to fullname template.
+  ## @param httpRoute.routeName Name override for the HTTPRoute resource. Defaults to fullname template.
   ##
   routeName: ""
-  ## @param gateway.parentRefs References to the Gateway(s) that this HTTPRoute attaches to
+  ## @param httpRoute.parentRefs References to the Gateway(s) that this HTTPRoute attaches to
   ## e.g:
   ## parentRefs:
   ##   - name: my-gateway
@@ -1043,16 +1043,16 @@ gateway:
   ##     sectionName: https
   ##
   parentRefs: []
-  ## @param gateway.hostname Hostname for the HTTPRoute
+  ## @param httpRoute.hostname Hostname for the HTTPRoute
   ##
   hostname: fluxbase.local
-  ## @param gateway.path Path prefix for routing
+  ## @param httpRoute.path Path prefix for routing
   ##
   path: /
-  ## @param gateway.pathType Path match type (Exact, PathPrefix, RegularExpression)
+  ## @param httpRoute.pathType Path match type (Exact, PathPrefix, RegularExpression)
   ##
   pathType: PathPrefix
-  ## @param gateway.annotations Additional annotations for the HTTPRoute resource
+  ## @param httpRoute.annotations Additional annotations for the HTTPRoute resource
   ##
   annotations: {}
 
@@ -1097,88 +1097,6 @@ persistence:
   ##
   dataSource: {}
 
-## @section Functions Persistence Parameters
-##
-functions:
-  ## Persistence for edge functions
-  ##
-  persistence:
-    ## @param functions.persistence.enabled Enable persistence for edge functions using Persistent Volume Claims
-    ##
-    enabled: true
-    ## @param functions.persistence.storageClass Storage class of backing PVC for functions
-    ## If defined, storageClassName: <storageClass>
-    ## If set to "-", storageClassName: "", which disables dynamic provisioning
-    ## If undefined (the default) or set to null, no storageClassName spec is
-    ##   set, choosing the default provisioner.
-    ##
-    storageClass: ""
-    ## @param functions.persistence.annotations Persistent Volume Claim annotations for functions
-    ##
-    annotations: {}
-    ## @param functions.persistence.accessModes Persistent Volume Access Modes for functions
-    ##
-    accessModes:
-      - ReadWriteMany
-    ## @param functions.persistence.size Size of functions volume
-    ##
-    size: 1Gi
-    ## @param functions.persistence.existingClaim The name of an existing PVC to use for functions persistence
-    ##
-    existingClaim: ""
-    ## @param functions.persistence.selector Selector to match an existing Persistent Volume for functions data PVC
-    ## If set, the PVC can't have a PV dynamically provisioned for it
-    ## E.g.
-    ## selector:
-    ##   matchLabels:
-    ##     app: my-app
-    ##
-    selector: {}
-    ## @param functions.persistence.dataSource Custom PVC data source for functions
-    ##
-    dataSource: {}
-
-## @section Migrations Persistence Parameters
-##
-migrations:
-  ## Persistence for user migrations
-  ##
-  persistence:
-    ## @param migrations.persistence.enabled Enable persistence for user migrations using Persistent Volume Claims
-    ##
-    enabled: false
-    ## @param migrations.persistence.storageClass Storage class of backing PVC for user migrations
-    ## If defined, storageClassName: <storageClass>
-    ## If set to "-", storageClassName: "", which disables dynamic provisioning
-    ## If undefined (the default) or set to null, no storageClassName spec is
-    ##   set, choosing the default provisioner.
-    ##
-    storageClass: ""
-    ## @param migrations.persistence.annotations Persistent Volume Claim annotations for user migrations
-    ##
-    annotations: {}
-    ## @param migrations.persistence.accessModes Persistent Volume Access Modes for user migrations
-    ##
-    accessModes:
-      - ReadWriteMany
-    ## @param migrations.persistence.size Size of user migrations volume
-    ##
-    size: 100Mi
-    ## @param migrations.persistence.existingClaim The name of an existing PVC to use for user migrations persistence
-    ##
-    existingClaim: ""
-    ## @param migrations.persistence.selector Selector to match an existing Persistent Volume for user migrations data PVC
-    ## If set, the PVC can't have a PV dynamically provisioned for it
-    ## E.g.
-    ## selector:
-    ##   matchLabels:
-    ##     app: my-app
-    ##
-    selector: {}
-    ## @param migrations.persistence.dataSource Custom PVC data source for user migrations
-    ##
-    dataSource: {}
-
 ## @section PostgreSQL Parameters
 ## @descriptionStart
 ## PostgreSQL deployment configuration
@@ -1199,18 +1117,26 @@ postgresql:
   enabled: true
 
   ## Authentication settings
+  ## You can specify runtime credentials, admin credentials, or both.
+  ## If only one set is provided, the other will use the same credentials.
   auth:
-    username: fluxbase
-    password: fluxbase
-    database: fluxbase
+    ## Runtime user for normal application queries
+    username: ~
+    password: ~
+    ## Admin user for migrations and DDL operations (defaults to runtime user if not set)
+    adminUsername: ~
+    adminPassword: ~
+    ## Database name
+    database: ~
     ## Name of existing secret to use instead of creating one
-    ## Only used if username, password, and database are all empty
     existingSecret: ""
     ## Keys in the existing secret to use
     secretKeys:
-      username: username
-      password: password
-      database: database
+      username: db-username
+      password: db-password
+      adminUsername: db-admin-username
+      adminPassword: db-admin-password
+      database: db-name
 
   ## @param postgresql.image.registry PostgreSQL image registry
   ## @param postgresql.image.repository PostgreSQL image repository

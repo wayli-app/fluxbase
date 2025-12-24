@@ -1,0 +1,83 @@
+## Fluxbase Helm Chart - Example Values
+## This is a minimal working configuration for deploying Fluxbase.
+## Copy this file to values.yaml and customize as needed.
+
+## Before deploying, create the required secret:
+##   kubectl create secret generic fluxbase-secrets \
+##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+##     --from-literal=setup-token=$(openssl rand -base64 32) \
+##     --from-literal=database-password=$(openssl rand -base64 24)
+
+## Global storage class (optional, uses cluster default if not set)
+global:
+  storageClass: "local-storage"
+
+replicaCount: 1
+
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: nginx-gateway
+      sectionName: https-yourdomain-com
+  hostname: flux.yourdomain.com
+  path: /
+  pathType: PathPrefix
+  annotations:
+    nginx.org/client-max-body-size: "0"  # Unlimited body size for uploads
+
+# Persistence for Fluxbase storage (local file storage). This is mounted to /data/storage
+persistence:
+  enabled: true
+  size: 50Gi
+
+## Fluxbase application configuration
+config:
+  ## REQUIRED: Public base URL for the application
+  ## This is used for generating links in emails, OAuth callbacks, etc.
+  base_url: "https://flux.yourdomain.com"
+
+  ## CORS configuration
+  cors:
+    allowed_origins:
+      - "https://flux.yourdomain.com"
+      - "https://app.int.yourdomain.com"
+
+## Secret containing sensitive values (REQUIRED)
+## See the kubectl command at the top of this file
+existingSecret: "fluxbase-secret"
+
+## Resource configuration
+resourcesPreset: "small"
+
+# ## Ingress configuration
+# ingress:
+#   enabled: true
+#   ingressClassName: nginx
+#   hostname: "flux.example.com"
+#   annotations:
+#     nginx.ingress.kubernetes.io/proxy-body-size: "1g"
+#     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+#     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+#   tls: false # Set to true if using cert-manager or providing TLS secrets
+
+## PostgreSQL (bundled)
+## You can specify runtime credentials, admin credentials, or both.
+## If only one set is provided, the other will use the same credentials.
+postgresql:
+  enabled: true
+  auth:
+    database: fluxbase
+    ## Runtime user for normal queries (optional, falls back to adminUsername)
+    # username: fluxbase
+    ## Admin user for migrations (optional, falls back to username)
+    # adminUsername: postgres
+    existingSecret: "fluxbase-secret"
+    secretKeys:
+      username: db-username
+      password: db-password
+      # adminUsername: db-admin-username  # Optional
+      # adminPassword: db-admin-password  # Optional
+  persistence:
+    enabled: true
+    size: 10Gi

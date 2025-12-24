@@ -194,14 +194,38 @@ Return the proper PostgreSQL password secret name
 Return the proper PostgreSQL password secret key
 */}}
 {{- define "fluxbase.databaseSecretPasswordKey" -}}
-{{- if .Values.existingSecret }}
-    {{- .Values.existingSecretKeyRef.databasePassword | default "database-password" -}}
+{{- if .Values.existingSecretKeyRef.databasePassword }}
+    {{- .Values.existingSecretKeyRef.databasePassword -}}
 {{- else if .Values.postgresql.enabled }}
-    {{- .Values.postgresql.auth.secretKeys.password | default "password" -}}
+    {{- .Values.postgresql.auth.secretKeys.password | default "db-password" -}}
 {{- else if .Values.externalDatabase.existingSecret }}
     {{- .Values.externalDatabase.existingSecretPasswordKey -}}
 {{- else }}
     {{- print "database-password" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the PostgreSQL admin username secret key
+*/}}
+{{- define "fluxbase.databaseSecretAdminUsernameKey" -}}
+{{- if .Values.postgresql.enabled }}
+    {{- .Values.postgresql.auth.secretKeys.adminUsername | default "db-admin-username" -}}
+{{- else }}
+    {{- print "db-admin-username" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the PostgreSQL admin password secret key
+*/}}
+{{- define "fluxbase.databaseSecretAdminPasswordKey" -}}
+{{- if .Values.existingSecretKeyRef.databaseAdminPassword }}
+    {{- .Values.existingSecretKeyRef.databaseAdminPassword -}}
+{{- else if .Values.postgresql.enabled }}
+    {{- .Values.postgresql.auth.secretKeys.adminPassword | default "db-admin-password" -}}
+{{- else }}
+    {{- print "database-admin-password" -}}
 {{- end }}
 {{- end }}
 

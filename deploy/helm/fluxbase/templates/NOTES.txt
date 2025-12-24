@@ -6,13 +6,13 @@ APP VERSION: {{ .Chart.AppVersion }}
 
 Fluxbase has been installed successfully!
 
-{{- if eq .Values.postgresql.mode "standalone" }}
+{{- if .Values.postgresql.enabled }}
 
-PostgreSQL Mode: Standalone
-A single-instance PostgreSQL 18 server has been deployed.
+PostgreSQL Mode: Bundled
+A PostgreSQL server has been deployed alongside Fluxbase.
 Connection: {{ include "fluxbase.databaseHost" . }}:{{ include "fluxbase.databasePort" . }}
 
-{{- else if eq .Values.postgresql.mode "none" }}
+{{- else }}
 
 PostgreSQL Mode: External Database
 You are using an external PostgreSQL database at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}
@@ -24,6 +24,10 @@ You are using an external PostgreSQL database at {{ .Values.externalDatabase.hos
 {{- if .Values.ingress.enabled }}
 
   http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.hostname }}{{ .Values.ingress.path }}
+
+{{- else if .Values.httpRoute.enabled }}
+
+  https://{{ .Values.httpRoute.hostname }}{{ .Values.httpRoute.path }}
 
 {{- else if contains "NodePort" .Values.service.type }}
 
@@ -59,16 +63,6 @@ You are using an external PostgreSQL database at {{ .Values.externalDatabase.hos
 4. Access Prometheus metrics:
 
   http://your-fluxbase-url/metrics
-
-{{- end }}
-
-{{- if .Values.migrations.persistence.enabled }}
-
-Note: User Migrations are enabled
-  - Migration path: {{ .Values.config.database.userMigrationsPath }}
-  - PVC: {{ .Values.migrations.persistence.existingClaim | default (printf "%s-migrations" (include "fluxbase.fullname" .)) }}
-  - Place your migration files in the PVC directory
-  - Migrations will run automatically on startup after system migrations
 
 {{- end }}
 

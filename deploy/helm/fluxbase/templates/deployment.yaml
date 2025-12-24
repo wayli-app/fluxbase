@@ -76,17 +76,36 @@ spec:
             - sh
             - -c
             - |
-              until pg_isready -h {{ include "fluxbase.databaseHost" . }} -p {{ include "fluxbase.databasePort" . }} -U {{ include "fluxbase.databaseUser" . }}; do
+              until pg_isready -h {{ include "fluxbase.databaseHost" . }} -p {{ include "fluxbase.databasePort" . }} -U "$PGUSER"; do
                 echo "Waiting for database to be ready..."
                 sleep 2
               done
               echo "Database is ready!"
           env:
+            {{- /* Use runtime user if set, else admin user, else from secret */}}
+            - name: PGUSER
+              {{- if .Values.postgresql.auth.username }}
+              value: {{ .Values.postgresql.auth.username | quote }}
+              {{- else if .Values.postgresql.auth.adminUsername }}
+              value: {{ .Values.postgresql.auth.adminUsername | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.databaseSecretName" . }}
+                  key: {{ .Values.postgresql.auth.secretKeys.username | default "db-username" }}
+              {{- end }}
+            {{- /* Use runtime password if set, else admin password, else from secret */}}
             - name: PGPASSWORD
+              {{- if .Values.postgresql.auth.password }}
+              value: {{ .Values.postgresql.auth.password | quote }}
+              {{- else if .Values.postgresql.auth.adminPassword }}
+              value: {{ .Values.postgresql.auth.adminPassword | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.databaseSecretName" . }}
                   key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
+              {{- end }}
         {{- if .Values.initContainers }}
         {{- toYaml .Values.initContainers | nindent 8 }}
         {{- end }}
@@ -127,13 +146,56 @@ spec:
               value: {{ include "fluxbase.databasePort" . | quote }}
             - name: FLUXBASE_DATABASE_DATABASE
               value: {{ include "fluxbase.databaseName" . | quote }}
+            {{- /* Runtime user: use username if set, else fall back to adminUsername */}}
             - name: FLUXBASE_DATABASE_USER
-              value: {{ include "fluxbase.databaseUser" . | quote }}
+              {{- if .Values.postgresql.auth.username }}
+              value: {{ .Values.postgresql.auth.username | quote }}
+              {{- else if .Values.postgresql.auth.adminUsername }}
+              value: {{ .Values.postgresql.auth.adminUsername | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.databaseSecretName" . }}
+                  key: {{ .Values.postgresql.auth.secretKeys.username | default "db-username" }}
+              {{- end }}
+            {{- /* Runtime password: use password if set, else fall back to adminPassword */}}
             - name: FLUXBASE_DATABASE_PASSWORD
+              {{- if .Values.postgresql.auth.password }}
+              value: {{ .Values.postgresql.auth.password | quote }}
+              {{- else if .Values.postgresql.auth.adminPassword }}
+              value: {{ .Values.postgresql.auth.adminPassword | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.databaseSecretName" . }}
                   key: {{ include "fluxbase.databaseSecretPasswordKey" . }}
+              {{- end }}
+            {{- /* Admin user: use adminUsername if set, else fall back to username */}}
+            - name: FLUXBASE_DATABASE_ADMIN_USER
+              {{- if .Values.postgresql.auth.adminUsername }}
+              value: {{ .Values.postgresql.auth.adminUsername | quote }}
+              {{- else if .Values.postgresql.auth.username }}
+              value: {{ .Values.postgresql.auth.username | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.databaseSecretName" . }}
+                  key: {{ include "fluxbase.databaseSecretAdminUsernameKey" . }}
+                  optional: true
+              {{- end }}
+            {{- /* Admin password: use adminPassword if set, else fall back to password */}}
+            - name: FLUXBASE_DATABASE_ADMIN_PASSWORD
+              {{- if .Values.postgresql.auth.adminPassword }}
+              value: {{ .Values.postgresql.auth.adminPassword | quote }}
+              {{- else if .Values.postgresql.auth.password }}
+              value: {{ .Values.postgresql.auth.password | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.databaseSecretName" . }}
+                  key: {{ include "fluxbase.databaseSecretAdminPasswordKey" . }}
+                  optional: true
+              {{- end }}
             - name: FLUXBASE_DATABASE_SSL_MODE
               value: {{ .Values.config.database.ssl_mode | quote }}
             - name: FLUXBASE_DATABASE_MAX_CONNECTIONS
@@ -702,15 +764,6 @@ spec:
             - name: storage
               mountPath: {{ .Values.config.storage.local_path }}
             {{- end }}
-            {{- if .Values.functions.persistence.enabled }}
-            - name: functions
-              mountPath: /app/functions
-            {{- end }}
-            {{- if and .Values.migrations.persistence.enabled .Values.config.database.user_migrations_path }}
-            - name: migrations
-              mountPath: {{ .Values.config.database.user_migrations_path }}
-              readOnly: true
-            {{- end }}
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -722,16 +775,6 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: {{ .Values.persistence.existingClaim | default (include "fluxbase.fullname" .) }}
-        {{- end }}
-        {{- if .Values.functions.persistence.enabled }}
-        - name: functions
-          persistentVolumeClaim:
-            claimName: {{ .Values.functions.persistence.existingClaim | default (printf "%s-functions" (include "fluxbase.fullname" .)) }}
-        {{- end }}
-        {{- if .Values.migrations.persistence.enabled }}
-        - name: migrations
-          persistentVolumeClaim:
-            claimName: {{ .Values.migrations.persistence.existingClaim | default (printf "%s-migrations" (include "fluxbase.fullname" .)) }}
         {{- end }}
         {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

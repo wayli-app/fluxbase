@@ -97,21 +97,34 @@ spec:
           {{- $pgMajor := (split "." .Values.postgresql.image.tag)._0 | int }}
           env:
             {{- $pgSecretName := .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "fluxbase.fullname" .)) }}
+            {{- /* Use hardcoded value if set, otherwise read from secret */}}
             - name: POSTGRES_USER
+              {{- if .Values.postgresql.auth.username }}
+              value: {{ .Values.postgresql.auth.username | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.username | default "username" }}
+              {{- end }}
             - name: POSTGRES_PASSWORD
+              {{- if .Values.postgresql.auth.password }}
+              value: {{ .Values.postgresql.auth.password | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.password | default "password" }}
+              {{- end }}
             - name: POSTGRES_DB
+              {{- if .Values.postgresql.auth.database }}
+              value: {{ .Values.postgresql.auth.database | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ $pgSecretName }}
                   key: {{ .Values.postgresql.auth.secretKeys.database | default "database" }}
+              {{- end }}
             {{- /* PostgreSQL 18+ uses /var/lib/postgresql/MAJOR/docker as PGDATA */ -}}
             {{- if ge $pgMajor 18 }}
             - name: PGDATA
