@@ -1067,6 +1067,16 @@ httpRoute:
   ## @param httpRoute.annotations Additional annotations for the HTTPRoute resource
   ##
   annotations: {}
+  ## Client Settings Policy for NGINX Gateway Fabric
+  ## @param httpRoute.clientSettings.enabled Enable ClientSettingsPolicy for body size configuration
+  ## @param httpRoute.clientSettings.body.maxSize Maximum request body size (0 = unlimited, or use "2g", "500m", etc.)
+  ## @param httpRoute.clientSettings.annotations Additional annotations for the ClientSettingsPolicy resource
+  ##
+  clientSettings:
+    enabled: true
+    body:
+      maxSize: "0"  # 0 = unlimited, matches Fluxbase default 2GB body limit
+    annotations: {}
 
 ## @section Persistence Parameters
 
