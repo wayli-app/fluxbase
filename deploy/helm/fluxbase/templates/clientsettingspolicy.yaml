@@ -15,7 +15,7 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  targetRefs:
+  targetRef:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}
