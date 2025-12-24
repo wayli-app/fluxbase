@@ -22,15 +22,9 @@ openssl rand -base64 32
 nano .env  # or use your preferred editor
 
 # 5. Start with minimal setup (no MinIO, just PostgreSQL + Fluxbase)
-docker-compose -f docker-compose.minimal.yml up -d
+docker compose up -d
 
-# 6. Check status
-docker-compose -f docker-compose.minimal.yml ps
-
-# 7. View logs
-docker-compose -f docker-compose.minimal.yml logs -f fluxbase
-
-# 8. Access Fluxbase
+# 6. Access Fluxbase
 open http://localhost:8080
 ```
 
