@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ==============================================================================
 # Fluxbase Development Docker Compose
 # ==============================================================================
@@ -21,13 +19,13 @@ services:
     image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
     container_name: fluxbase-postgres
     environment:
-      POSTGRES_USER: fluxbase
-      POSTGRES_PASSWORD: fluxbase
-      POSTGRES_DB: fluxbase
+      POSTGRES_USER: ${POSTGRES_USER:-fluxbase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fluxbase}
+      POSTGRES_DB: ${POSTGRES_DB:-fluxbase}
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fluxbase"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fluxbase}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -88,7 +86,7 @@ services:
       # ==========================================================================
       # Server Configuration
       # ==========================================================================
-      FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
+      FLUXBASE_SERVER_ADDRESS: ${FLUXBASE_SERVER_ADDRESS:-0.0.0.0:8080}
       # FLUXBASE_SERVER_READ_TIMEOUT: "300s"
       # FLUXBASE_SERVER_WRITE_TIMEOUT: "300s"
       # FLUXBASE_SERVER_IDLE_TIMEOUT: "120s"
@@ -97,18 +95,19 @@ services:
       # ==========================================================================
       # Database Configuration
       # ==========================================================================
-      FLUXBASE_DATABASE_HOST: postgres
-      FLUXBASE_DATABASE_PORT: 5432
-      FLUXBASE_DATABASE_DATABASE: fluxbase
-      FLUXBASE_DATABASE_USER: fluxbase
-      FLUXBASE_DATABASE_PASSWORD: fluxbase
-      FLUXBASE_DATABASE_SSL_MODE: disable
+      FLUXBASE_DATABASE_HOST: ${POSTGRES_HOST:-postgres}
+      FLUXBASE_DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      FLUXBASE_DATABASE_DATABASE: ${POSTGRES_DB:-fluxbase}
+      FLUXBASE_DATABASE_USER: ${POSTGRES_USER:-fluxbase}
+      FLUXBASE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-fluxbase}
+      FLUXBASE_DATABASE_SSL_MODE: ${FLUXBASE_DATABASE_SSL_MODE:-disable}
       # FLUXBASE_DATABASE_MAX_CONNECTIONS: "25"
       # FLUXBASE_DATABASE_MIN_CONNECTIONS: "5"
       # FLUXBASE_DATABASE_MAX_CONN_LIFETIME: "1h"
       # FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME: "30m"
-      # Optional: Separate admin user for migrations (defaults to user if not set)
-      # FLUXBASE_DATABASE_ADMIN_USER: fluxbase_admin
+      # Optional: Separate admin user for migrations (defaults to POSTGRES_USER if not set)
+      # FLUXBASE_DATABASE_ADMIN_USER: ${POSTGRES_ADMIN_USER:-}
+      # FLUXBASE_DATABASE_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-}
       # Optional: User migrations path
       # FLUXBASE_DATABASE_USER_MIGRATIONS_PATH: /migrations/user
 
@@ -117,8 +116,8 @@ services:
       # ==========================================================================
       # CRITICAL: Generate secrets with: openssl rand -base64 32
       # Or use: scripts/generate-keys.sh
-      FLUXBASE_AUTH_JWT_SECRET: haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=
-      FLUXBASE_AUTH_JWT_EXPIRY: 15m
+      FLUXBASE_AUTH_JWT_SECRET: ${FLUXBASE_AUTH_JWT_SECRET:-haEae1GZfKa/lzMHyNFIR5iL0FZFIMMxMN3pb2jqCRc=}
+      FLUXBASE_AUTH_JWT_EXPIRY: ${FLUXBASE_AUTH_JWT_EXPIRY:-15m}
       # FLUXBASE_AUTH_REFRESH_EXPIRY: "168h"
       # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY: "15m"
       # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY: "1h"
@@ -163,8 +162,8 @@ services:
       # ==========================================================================
       # Storage Configuration
       # ==========================================================================
-      FLUXBASE_STORAGE_PROVIDER: local
-      FLUXBASE_STORAGE_LOCAL_PATH: /app/storage
+      FLUXBASE_STORAGE_PROVIDER: ${FLUXBASE_STORAGE_PROVIDER:-local}
+      FLUXBASE_STORAGE_LOCAL_PATH: ${FLUXBASE_STORAGE_LOCAL_PATH:-/app/storage}
       # FLUXBASE_STORAGE_MAX_UPLOAD_SIZE: "2147483648"  # 2GB
 
       # For S3-compatible storage (e.g., MinIO), uncomment below:
@@ -179,7 +178,7 @@ services:
       # ==========================================================================
       # Realtime (WebSocket) Configuration
       # ==========================================================================
-      FLUXBASE_REALTIME_ENABLED: "true"
+      FLUXBASE_REALTIME_ENABLED: ${FLUXBASE_REALTIME_ENABLED:-true}
       # FLUXBASE_REALTIME_MAX_CONNECTIONS: "1000"
       # FLUXBASE_REALTIME_PING_INTERVAL: "30s"
       # FLUXBASE_REALTIME_PONG_TIMEOUT: "60s"
@@ -215,8 +214,8 @@ services:
       # ==========================================================================
       # Edge Functions Configuration
       # ==========================================================================
-      FLUXBASE_FUNCTIONS_ENABLED: "true"
-      FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: /app/functions
+      FLUXBASE_FUNCTIONS_ENABLED: ${FLUXBASE_FUNCTIONS_ENABLED:-true}
+      FLUXBASE_FUNCTIONS_FUNCTIONS_DIR: ${FLUXBASE_FUNCTIONS_FUNCTIONS_DIR:-/app/functions}
       # FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT: "true"
       # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT: "30"
       # FLUXBASE_FUNCTIONS_MAX_TIMEOUT: "300"
@@ -314,7 +313,7 @@ services:
       # ==========================================================================
       # Enable admin dashboard UI and API routes
       # Requires FLUXBASE_SECURITY_SETUP_TOKEN to also be set
-      FLUXBASE_ADMIN_ENABLED: "true"
+      FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED:-true}
 
       # ==========================================================================
       # Encryption Configuration
@@ -327,8 +326,8 @@ services:
       # ==========================================================================
       # General Configuration
       # ==========================================================================
-      FLUXBASE_BASE_URL: http://localhost:8080
-      FLUXBASE_DEBUG: "false"
+      FLUXBASE_BASE_URL: ${FLUXBASE_BASE_URL:-http://localhost:8080}
+      FLUXBASE_DEBUG: ${FLUXBASE_DEBUG:-false}
 
       # ==========================================================================
       # Horizontal Scaling Configuration - OPTIONAL
