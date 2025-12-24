@@ -1067,6 +1067,14 @@ httpRoute:
   ## @param httpRoute.annotations Additional annotations for the HTTPRoute resource
   ##
   annotations: {}
+  ## Timeout configuration for HTTPRoute rules
+  ## Critical for WebSocket connections which are long-lived
+  ## @param httpRoute.timeouts.request Total request timeout (use "0s" for no timeout, required for WebSockets)
+  ## @param httpRoute.timeouts.backendRequest Backend request timeout
+  ##
+  timeouts:
+    request: "0s"  # No timeout - required for WebSocket connections
+    backendRequest: "0s"
   ## Client Settings Policy for NGINX Gateway Fabric
   ## @param httpRoute.clientSettings.enabled Enable ClientSettingsPolicy for body size configuration
   ## @param httpRoute.clientSettings.body.maxSize Maximum request body size (0 = unlimited, or use "2g", "500m", etc.)
