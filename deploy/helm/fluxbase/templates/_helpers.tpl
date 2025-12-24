@@ -217,6 +217,28 @@ Return the secret key for JWT secret
 {{- end }}
 
 {{/*
+Return the secret key for anon key
+*/}}
+{{- define "fluxbase.secretKeyRef.anonKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.anonKey | default "anon-key" -}}
+{{- else }}
+    {{- print "anon-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for service role key
+*/}}
+{{- define "fluxbase.secretKeyRef.serviceRoleKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.serviceRoleKey | default "service-role-key" -}}
+{{- else }}
+    {{- print "service-role-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
 Return the secret key for setup token
 */}}
 {{- define "fluxbase.secretKeyRef.setupToken" -}}

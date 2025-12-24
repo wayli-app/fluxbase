@@ -159,9 +159,29 @@ spec:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.jwtSecret" . }}
-            {{- if .Values.config.auth.anon_key }}
+            {{- if or .Values.config.auth.anon_key .Values.existingSecret }}
             - name: FLUXBASE_AUTH_ANON_KEY
+              {{- if .Values.config.auth.anon_key }}
               value: {{ .Values.config.auth.anon_key | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.secretName" . }}
+                  key: {{ include "fluxbase.secretKeyRef.anonKey" . }}
+                  optional: true
+              {{- end }}
+            {{- end }}
+            {{- if or .Values.config.auth.service_role_key .Values.existingSecret }}
+            - name: FLUXBASE_AUTH_SERVICE_ROLE_KEY
+              {{- if .Values.config.auth.service_role_key }}
+              value: {{ .Values.config.auth.service_role_key | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.secretName" . }}
+                  key: {{ include "fluxbase.secretKeyRef.serviceRoleKey" . }}
+                  optional: true
+              {{- end }}
             {{- end }}
             - name: FLUXBASE_AUTH_JWT_EXPIRY
               value: {{ .Values.config.auth.jwt_expiry | quote }}

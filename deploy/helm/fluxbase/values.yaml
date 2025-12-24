@@ -121,6 +121,7 @@ config:
   ## Authentication configuration
   ## @param config.auth.jwt_secret JWT signing secret (use existingSecret in production)
   ## @param config.auth.anon_key Pre-generated JWT with 'anon' role for client apps (optional, for convenience)
+  ## @param config.auth.service_role_key Pre-generated JWT with 'service_role' for backend services (optional, for convenience)
   ## @param config.auth.jwt_expiry Access token expiration
   ## @param config.auth.refresh_expiry Refresh token expiration
   ## @param config.auth.magic_link_expiry Magic link expiration
@@ -137,6 +138,7 @@ config:
   auth:
     jwt_secret: "" # Use existingSecret in production. Generate with: scripts/generate-keys.sh
     anon_key: "" # Pre-signed JWT for client apps. Generate with: scripts/generate-keys.sh (option 3)
+    service_role_key: "" # Pre-signed JWT for backend services. Generate with: scripts/generate-keys.sh (option 3)
     jwt_expiry: "15m"
     refresh_expiry: "168h"
     magic_link_expiry: "15m"
@@ -518,6 +520,8 @@ config:
 ##
 ## Authentication & Security:
 ##   - jwt-secret: JWT signing secret (REQUIRED)
+##   - anon-key: Pre-generated JWT with 'anon' role for client apps
+##   - service-role-key: Pre-generated JWT with 'service_role' for backend services
 ##   - setup-token: Admin setup token (REQUIRED to enable dashboard)
 ##
 ## Database (only when postgresql.mode=none):
@@ -542,6 +546,8 @@ config:
 ## Example secret creation:
 ##   kubectl create secret generic fluxbase-secrets \
 ##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+##     --from-literal=anon-key=<generated-anon-jwt> \
+##     --from-literal=service-role-key=<generated-service-role-jwt> \
 ##     --from-literal=setup-token=$(openssl rand -base64 32) \
 ##     --from-literal=openai-api-key=sk-xxx
 ## @descriptionEnd
@@ -562,6 +568,8 @@ existingSecret: ""
 existingSecretKeyRef:
   ## Authentication & Security
   jwtSecret: "jwt-secret"
+  anonKey: "anon-key"
+  serviceRoleKey: "service-role-key"
   setupToken: "setup-token"
   ## Database
   databasePassword: "database-password"
