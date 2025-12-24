@@ -16,9 +16,9 @@ metadata:
   {{- end }}
 spec:
   targetRef:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}
   body:
     maxSize: {{ .Values.httpRoute.clientSettings.body.maxSize | quote }}
 {{- end }}
