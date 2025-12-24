@@ -61,6 +61,7 @@ type Server struct {
 	appSettingsHandler    *AppSettingsHandler
 	settingsHandler       *SettingsHandler
 	emailTemplateHandler  *EmailTemplateHandler
+	emailSettingsHandler  *EmailSettingsHandler
 	sqlHandler            *SQLHandler
 	functionsHandler      *functions.Handler
 	functionsScheduler    *functions.Scheduler
@@ -151,12 +152,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Info().Str("backend", cfg.Scaling.Backend).Msg("Pub/sub initialized for cross-instance broadcasting")
 	}
 
-	// Initialize email service
-	emailService, err := email.NewService(&cfg.Email)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize email service, some features may be disabled")
-		emailService = email.NewNoOpService("initialization failed: " + err.Error())
-	}
+	// Initialize email manager (handles dynamic refresh from settings)
+	// The settings cache will be injected later once auth service is initialized
+	emailManager := email.NewManager(&cfg.Email, nil, cfg.EncryptionKey)
+	// Get a service wrapper that delegates to the manager's current service
+	emailService := emailManager.WrapAsService()
 
 	// Initialize auth service
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.BaseURL)
@@ -249,6 +249,21 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db, emailService)
+
+	// Initialize email settings handler with settings cache for dynamic configuration
+	emailSettingsHandler := NewEmailSettingsHandler(
+		systemSettingsService,
+		authService.GetSettingsCache(),
+		emailManager,
+		cfg.EncryptionKey,
+		&cfg.Email,
+	)
+
+	// Refresh email manager with settings cache now that it's available
+	emailManager.SetSettingsCache(authService.GetSettingsCache())
+	if err := emailManager.RefreshFromSettings(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
+	}
 	sqlHandler := NewSQLHandler(db.Pool(), authService)
 
 	// Determine public URL for functions SDK client (same pattern as jobs)
@@ -471,6 +486,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		appSettingsHandler:    appSettingsHandler,
 		settingsHandler:       settingsHandler,
 		emailTemplateHandler:  emailTemplateHandler,
+		emailSettingsHandler:  emailSettingsHandler,
 		sqlHandler:            sqlHandler,
 		functionsHandler:      functionsHandler,
 		functionsScheduler:    functionsScheduler,
@@ -1256,6 +1272,11 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// App settings routes (require admin or dashboard_admin role)
 	router.Get("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.GetAppSettings)
 	router.Put("/app/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.appSettingsHandler.UpdateAppSettings)
+
+	// Email settings routes (require admin or dashboard_admin role)
+	router.Get("/email/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.GetSettings)
+	router.Put("/email/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.UpdateSettings)
+	router.Post("/email/settings/test", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.TestSettings)
 
 	// Email template routes (require admin or dashboard_admin role)
 	router.Get("/email/templates", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ListTemplates)

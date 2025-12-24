@@ -31,6 +31,14 @@ func NewService(cfg *config.EmailConfig) (Service, error) {
 		return &NoOpService{reason: "email is disabled"}, nil
 	}
 
+	// Validate provider first before checking if fully configured
+	switch cfg.Provider {
+	case "smtp", "", "sendgrid", "mailgun", "ses":
+		// Valid provider, continue
+	default:
+		return nil, fmt.Errorf("unsupported email provider: %s", cfg.Provider)
+	}
+
 	// If email is enabled but not fully configured, return a NoOpService
 	// This allows the server to start and be configured via admin UI
 	if !cfg.IsConfigured() {

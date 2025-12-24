@@ -351,17 +351,6 @@ Return the secret key for SES secret key
 {{- end }}
 
 {{/*
-Return the secret key for AI encryption key
-*/}}
-{{- define "fluxbase.secretKeyRef.aiEncryptionKey" -}}
-{{- if .Values.existingSecret }}
-    {{- .Values.existingSecretKeyRef.aiEncryptionKey | default "ai-encryption-key" -}}
-{{- else }}
-    {{- print "ai-encryption-key" -}}
-{{- end }}
-{{- end }}
-
-{{/*
 Return the secret key for OpenAI API key
 */}}
 {{- define "fluxbase.secretKeyRef.openaiApiKey" -}}
@@ -380,6 +369,17 @@ Return the secret key for Azure API key
     {{- .Values.existingSecretKeyRef.azureApiKey | default "azure-api-key" -}}
 {{- else }}
     {{- print "azure-api-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the secret key for encryption key (for dashboard-configured credentials)
+*/}}
+{{- define "fluxbase.secretKeyRef.encryptionKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.encryptionKey | default "encryption-key" -}}
+{{- else }}
+    {{- print "encryption-key" -}}
 {{- end }}
 {{- end }}
 

@@ -34,6 +34,11 @@ type Config struct {
 	Admin      AdminConfig      `mapstructure:"admin"`
 	BaseURL    string           `mapstructure:"base_url"`
 	Debug      bool             `mapstructure:"debug"`
+
+	// EncryptionKey is used to encrypt sensitive data stored in the database (e.g., API keys, credentials)
+	// Must be exactly 32 bytes for AES-256. Generate with: openssl rand -base64 32 | head -c 32
+	// Only required if you configure providers (Email, AI) through the admin dashboard instead of env vars
+	EncryptionKey string `mapstructure:"encryption_key"`
 }
 
 // AdminConfig contains admin dashboard settings

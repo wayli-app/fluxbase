@@ -203,6 +203,20 @@ var settingDefaults = map[string]map[string]interface{}{
 	"app.email.enabled":                     {"value": true},
 	"app.email.provider":                    {"value": ""},
 	"app.security.enable_global_rate_limit": {"value": false},
+	// Email provider settings (for UI configuration)
+	"app.email.from_address":     {"value": ""},
+	"app.email.from_name":        {"value": ""},
+	"app.email.smtp_host":        {"value": ""},
+	"app.email.smtp_port":        {"value": 587},
+	"app.email.smtp_username":    {"value": ""},
+	"app.email.smtp_password":    {"value": ""}, // Encrypted in database
+	"app.email.smtp_tls":         {"value": true},
+	"app.email.sendgrid_api_key": {"value": ""}, // Encrypted in database
+	"app.email.mailgun_api_key":  {"value": ""}, // Encrypted in database
+	"app.email.mailgun_domain":   {"value": ""},
+	"app.email.ses_access_key":   {"value": ""}, // Encrypted in database
+	"app.email.ses_secret_key":   {"value": ""}, // Encrypted in database
+	"app.email.ses_region":       {"value": "us-east-1"},
 }
 
 // isValidSettingKey checks if a setting key is in the allowlist

@@ -80,7 +80,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.67
+    image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.68
     container_name: fluxbase
     ports:
       - "8080:8080"
@@ -314,7 +314,15 @@ services:
       # ==========================================================================
       # Enable admin dashboard UI and API routes
       # Requires FLUXBASE_SECURITY_SETUP_TOKEN to also be set
-      FLUXBASE_ADMIN_ENABLED: "false"
+      FLUXBASE_ADMIN_ENABLED: "true"
+
+      # ==========================================================================
+      # Encryption Configuration
+      # ==========================================================================
+      # Encryption key for credentials stored via dashboard UI (e.g., email provider secrets, AI API keys)
+      # Only required if you configure providers through the admin dashboard instead of environment variables
+      # Generate with: openssl rand -base64 32 | head -c 32
+      # FLUXBASE_ENCRYPTION_KEY: ""
 
       # ==========================================================================
       # General Configuration

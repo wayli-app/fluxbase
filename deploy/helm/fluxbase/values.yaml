@@ -382,7 +382,6 @@ config:
   ## @param config.ai.max_rows_per_query Max rows per database query
   ## @param config.ai.conversation_cache_ttl Conversation cache TTL
   ## @param config.ai.max_conversation_turns Max conversation turns
-  ## @param config.ai.encryption_key Encryption key for AI data (use existingSecret)
   ## @param config.ai.sync_allowed_ip_ranges IP ranges allowed for AI sync
   ## @param config.ai.provider_type AI provider type
   ## @param config.ai.provider_enabled Enable AI provider
@@ -415,7 +414,6 @@ config:
     max_rows_per_query: 1000
     conversation_cache_ttl: "1h"
     max_conversation_turns: 50
-    encryption_key: "" # Use existingSecret in production
     sync_allowed_ip_ranges: []
     # Provider configuration
     provider_type: ""
@@ -504,6 +502,16 @@ config:
   admin:
     enabled: true
 
+  ## Encryption configuration
+  ## @param config.encryption_key Encryption key for credentials stored via dashboard UI
+  ## @descriptionStart
+  ## Only required if you configure providers (Email, AI) through the admin dashboard instead of secrets/env vars.
+  ## Must be exactly 32 characters for AES-256. Generate with: openssl rand -base64 32 | head -c 32
+  ## Use existingSecret in production.
+  ## @descriptionEnd
+  ##
+  encryption_key: ""
+
   ## General configuration
   ## @param config.base_url Public base URL for the application
   ## @param config.debug Enable debug mode
@@ -538,8 +546,10 @@ config:
 ##   - ses-access-key: AWS SES access key (when email.provider=ses)
 ##   - ses-secret-key: AWS SES secret key (when email.provider=ses)
 ##
+## Encryption (when configuring providers via dashboard):
+##   - encryption-key: Encryption key for dashboard-configured credentials (32 chars)
+##
 ## AI (when ai.enabled=true):
-##   - ai-encryption-key: Encryption key for AI data
 ##   - openai-api-key: OpenAI API key (when using OpenAI provider)
 ##   - azure-api-key: Azure OpenAI API key (when using Azure provider)
 ##
@@ -549,6 +559,7 @@ config:
 ##     --from-literal=anon-key=<generated-anon-jwt> \
 ##     --from-literal=service-role-key=<generated-service-role-jwt> \
 ##     --from-literal=setup-token=$(openssl rand -base64 32) \
+##     --from-literal=encryption-key=$(openssl rand -base64 32 | head -c 32) \
 ##     --from-literal=openai-api-key=sk-xxx
 ## @descriptionEnd
 ##
@@ -576,14 +587,15 @@ existingSecretKeyRef:
   ## Storage (S3)
   s3AccessKey: "s3-access-key"
   s3SecretKey: "s3-secret-key"
-  ## Email
+  ## Email (for env var overrides)
   smtpPassword: "smtp-password"
   sendgridApiKey: "sendgrid-api-key"
   mailgunApiKey: "mailgun-api-key"
   sesAccessKey: "ses-access-key"
   sesSecretKey: "ses-secret-key"
+  ## Encryption (for dashboard-configured credentials)
+  encryptionKey: "encryption-key"
   ## AI
-  aiEncryptionKey: "ai-encryption-key"
   openaiApiKey: "openai-api-key"
   azureApiKey: "azure-api-key"
 
