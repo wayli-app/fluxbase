@@ -38,7 +38,7 @@ type Config struct {
 
 // AdminConfig contains admin dashboard settings
 type AdminConfig struct {
-	Enabled bool `mapstructure:"enabled"` // Enable admin dashboard UI and API routes
+	Enabled bool `mapstructure:"enabled"` // Enable admin dashboard UI (React app). API routes are always available when setup_token is set.
 }
 
 // ScalingConfig contains horizontal scaling settings for multi-instance deployments

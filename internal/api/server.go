@@ -954,26 +954,32 @@ func (s *Server) setupRoutes() {
 		log.Info().Msg("Vector search routes registered")
 	}
 
-	// Admin routes and UI (requires admin.enabled=true and setup_token to be set)
+	// Admin API routes - always available (protected by their own auth middleware)
+	admin := v1.Group("/admin")
+	s.setupAdminRoutes(admin)
+
+	// Public invitation routes (no auth required)
+	invitations := v1.Group("/invitations")
+	s.setupPublicInvitationRoutes(invitations)
+
+	log.Info().Msg("Admin API routes registered")
+
+	// Admin UI and dashboard auth routes - only enabled when admin.enabled=true
+	// Requires setup_token for the dashboard authentication system
 	if s.config.Admin.Enabled {
 		if s.config.Security.SetupToken == "" {
-			log.Error().Msg("Admin dashboard is enabled but FLUXBASE_SECURITY_SETUP_TOKEN is not set. Admin routes will not be registered for security reasons.")
+			log.Error().Msg("Admin UI is enabled but FLUXBASE_SECURITY_SETUP_TOKEN is not set. Admin UI will not be registered for security reasons.")
 		} else {
-			admin := v1.Group("/admin")
-			s.setupAdminRoutes(admin)
-
-			// Public invitation routes (no auth required)
-			invitations := v1.Group("/invitations")
-			s.setupPublicInvitationRoutes(invitations)
+			// Dashboard auth routes (setup, login, etc.)
+			s.setupDashboardAuthRoutes(admin)
 
 			// Admin UI (embedded React app)
 			adminUI := adminui.New()
 			adminUI.RegisterRoutes(s.app)
-
-			log.Info().Msg("Admin dashboard enabled")
+			log.Info().Msg("Admin UI enabled")
 		}
 	} else {
-		log.Info().Msg("Admin dashboard is disabled. Set FLUXBASE_ADMIN_ENABLED=true and FLUXBASE_SECURITY_SETUP_TOKEN to enable.")
+		log.Info().Msg("Admin UI is disabled. Set FLUXBASE_ADMIN_ENABLED=true to enable the admin dashboard UI.")
 	}
 
 	// Functions sync - always available (independent of admin dashboard)
@@ -1136,21 +1142,27 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	router.Delete("/:bucket/*", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.DeleteFile) // Delete file
 }
 
-// setupAdminRoutes sets up admin routes
-func (s *Server) setupAdminRoutes(router fiber.Router) {
-	// Public admin auth routes (no authentication required)
+// setupDashboardAuthRoutes sets up dashboard authentication routes
+// These are only available when admin UI is enabled
+func (s *Server) setupDashboardAuthRoutes(router fiber.Router) {
+	// Public dashboard auth routes (no authentication required)
 	router.Get("/setup/status", s.adminAuthHandler.GetSetupStatus)
 	router.Post("/setup", middleware.AdminSetupLimiter(), s.adminAuthHandler.InitialSetup)
 	router.Post("/login", middleware.AdminLoginLimiter(), s.adminAuthHandler.AdminLogin)
 	router.Post("/refresh", s.adminAuthHandler.AdminRefreshToken)
 
+	// Protected dashboard auth routes
+	unifiedAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
+	router.Post("/logout", unifiedAuth, s.adminAuthHandler.AdminLogout)
+	router.Get("/me", unifiedAuth, s.adminAuthHandler.GetCurrentAdmin)
+}
+
+// setupAdminRoutes sets up admin API routes
+func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// Protected admin routes (require authentication from either auth.users or dashboard.users)
 	// UnifiedAuthMiddleware accepts tokens from both authentication systems
 	// The db pool is passed to allow real-time role checking from auth.users
 	unifiedAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
-
-	router.Post("/logout", unifiedAuth, s.adminAuthHandler.AdminLogout)
-	router.Get("/me", unifiedAuth, s.adminAuthHandler.GetCurrentAdmin)
 
 	// Admin panel routes (require admin or dashboard_admin role)
 	router.Get("/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.handleGetTables)
