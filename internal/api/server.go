@@ -982,16 +982,55 @@ func (s *Server) setupRoutes() {
 		log.Info().Msg("Admin UI is disabled. Set FLUXBASE_ADMIN_ENABLED=true to enable the admin dashboard UI.")
 	}
 
-	// Functions sync - always available (independent of admin dashboard)
-	// Protected by IP allowlist + auth + role requirements
+	// Sync endpoints - always available (independent of admin dashboard)
+	// Each is protected by IP allowlist + auth + role requirements + feature flag middleware
+	syncAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
+
+	// Functions sync
 	funcSync := v1.Group("/admin/functions")
-	funcSyncAuth := UnifiedAuthMiddleware(s.authHandler.authService, s.dashboardAuthHandler.jwtManager, s.db.Pool())
 	funcSync.Post("/sync",
 		middleware.RequireSyncIPAllowlist(s.config.Functions.SyncAllowedIPRanges, "functions"),
-		funcSyncAuth,
+		syncAuth,
 		RequireRole("admin", "dashboard_admin", "service_role"),
 		s.functionsHandler.SyncFunctions,
 	)
+
+	// Jobs sync (requires jobsHandler)
+	if s.jobsHandler != nil {
+		jobsSync := v1.Group("/admin/jobs")
+		jobsSync.Post("/sync",
+			middleware.RequireSyncIPAllowlist(s.config.Jobs.SyncAllowedIPRanges, "jobs"),
+			syncAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.jobsHandler.SyncJobs,
+		)
+	}
+
+	// AI chatbots sync (requires aiHandler)
+	if s.aiHandler != nil {
+		requireAI := middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache())
+		aiSync := v1.Group("/admin/ai/chatbots")
+		aiSync.Post("/sync",
+			requireAI,
+			middleware.RequireSyncIPAllowlist(s.config.AI.SyncAllowedIPRanges, "ai"),
+			syncAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.aiHandler.SyncChatbots,
+		)
+	}
+
+	// RPC sync (requires rpcHandler)
+	if s.rpcHandler != nil {
+		requireRPC := middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache())
+		rpcSync := v1.Group("/admin/rpc")
+		rpcSync.Post("/sync",
+			requireRPC,
+			middleware.RequireSyncIPAllowlist(s.config.RPC.SyncAllowedIPRanges, "rpc"),
+			syncAuth,
+			RequireRole("admin", "dashboard_admin", "service_role"),
+			s.rpcHandler.SyncProcedures,
+		)
+	}
 
 	// OpenAPI specification
 	openAPIHandler := NewOpenAPIHandler(s.db)
@@ -1251,14 +1290,8 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// Jobs management routes (require admin, dashboard_admin, or service_role)
 	// Only register if jobs are enabled
+	// Note: Jobs sync is registered outside setupAdminRoutes so it works when admin dashboard is disabled
 	if s.jobsHandler != nil {
-		// Jobs sync - with IP allowlist protection (similar to migrations)
-		router.Post("/jobs/sync",
-			middleware.RequireSyncIPAllowlist(s.config.Jobs.SyncAllowedIPRanges, "jobs"),
-			unifiedAuth,
-			RequireRole("admin", "dashboard_admin", "service_role"),
-			s.jobsHandler.SyncJobs,
-		)
 		router.Get("/jobs/namespaces", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListNamespaces)
 		router.Get("/jobs/functions", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.ListJobFunctions)
 		router.Get("/jobs/functions/:namespace/:name", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.jobsHandler.GetJobFunction)
@@ -1277,6 +1310,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// AI management routes (require admin, dashboard_admin, or service_role)
 	// Only register if AI is enabled
+	// Note: AI chatbots sync is registered outside setupAdminRoutes so it works when admin dashboard is disabled
 	if s.aiHandler != nil {
 		// Feature flag check for all AI routes
 		requireAI := middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache())
@@ -1284,13 +1318,6 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		// Chatbot management
 		router.Get("/ai/chatbots", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ListChatbots)
 		router.Get("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.GetChatbot)
-		router.Post("/ai/chatbots/sync",
-			requireAI,
-			middleware.RequireSyncIPAllowlist(s.config.AI.SyncAllowedIPRanges, "ai"),
-			unifiedAuth,
-			RequireRole("admin", "dashboard_admin", "service_role"),
-			s.aiHandler.SyncChatbots,
-		)
 		router.Put("/ai/chatbots/:id/toggle", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ToggleChatbot)
 		router.Put("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.UpdateChatbot)
 		router.Delete("/ai/chatbots/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteChatbot)
@@ -1342,6 +1369,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// RPC management routes (require admin, dashboard_admin, or service_role)
 	// Only register if RPC is enabled
+	// Note: RPC sync is registered outside setupAdminRoutes so it works when admin dashboard is disabled
 	if s.rpcHandler != nil {
 		requireRPC := middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache())
 
@@ -1351,13 +1379,6 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Get("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.GetProcedure)
 		router.Put("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.UpdateProcedure)
 		router.Delete("/rpc/procedures/:namespace/:name", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.DeleteProcedure)
-		router.Post("/rpc/sync",
-			requireRPC,
-			middleware.RequireSyncIPAllowlist(s.config.RPC.SyncAllowedIPRanges, "rpc"),
-			unifiedAuth,
-			RequireRole("admin", "dashboard_admin", "service_role"),
-			s.rpcHandler.SyncProcedures,
-		)
 
 		// Execution management
 		router.Get("/rpc/executions", requireRPC, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.rpcHandler.ListExecutions)
