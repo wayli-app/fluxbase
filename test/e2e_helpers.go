@@ -1287,6 +1287,66 @@ func (tc *TestContext) CreateTestUserWithRole(email, password, role string) (use
 	return userID, token
 }
 
+// CreateTestUserDirect creates a test user directly in the database and generates a JWT token.
+// This bypasses the auth API endpoints, making it suitable for RLS tests where the test user
+// (fluxbase_rls_test) doesn't have permission to SET LOCAL ROLE service_role.
+//
+// Use this method when:
+//   - Running RLS tests with NewRLSTestContext
+//   - You need to create users without triggering auth API flows
+//
+// The method:
+//  1. Generates a UUID for the user
+//  2. Hashes the password with bcrypt
+//  3. Inserts the user directly into auth.users as superuser
+//  4. Generates a JWT token using the configured secret
+func (tc *TestContext) CreateTestUserDirect(email, password string) (userID, token string) {
+	return tc.CreateTestUserDirectWithRole(email, password, "authenticated")
+}
+
+// CreateTestUserDirectWithRole creates a test user directly in the database with a specific role.
+// See CreateTestUserDirect for details on when to use this method.
+func (tc *TestContext) CreateTestUserDirectWithRole(email, password, role string) (userID, token string) {
+	ctx := context.Background()
+
+	// Generate user ID
+	userID = uuid.New().String()
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	require.NoError(tc.T, err, "Failed to hash password")
+
+	// Insert user directly in database as superuser (bypassing RLS)
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.users (id, email, password_hash, email_verified, role, created_at)
+		VALUES ($1, $2, $3, true, $4, NOW())
+	`, userID, email, string(hashedPassword), role)
+
+	// Generate JWT token using the configured secret
+	jwtManager := auth.NewJWTManager(
+		tc.Config.Auth.JWTSecret,
+		tc.Config.Auth.JWTExpiry,
+		tc.Config.Auth.RefreshExpiry,
+	)
+
+	accessToken, _, err := jwtManager.GenerateAccessToken(userID, email, role, nil, nil)
+	require.NoError(tc.T, err, "Failed to generate access token")
+
+	// Also create a session record so the token is valid
+	// The sessions table uses access_token_hash, not access_token
+	// For testing, we just need any unique hash
+	sessionID := uuid.New().String()
+	tokenHash := uuid.New().String() // Using UUID as a simple unique hash for tests
+	tc.ExecuteSQLAsSuperuser(`
+		INSERT INTO auth.sessions (id, user_id, access_token_hash, expires_at, created_at)
+		VALUES ($1, $2, $3, NOW() + interval '1 hour', NOW())
+	`, sessionID, userID, tokenHash)
+
+	_ = ctx // silence unused variable warning
+
+	return userID, accessToken
+}
+
 // CreateDashboardAdminUser creates a Fluxbase dashboard admin user (platform administrator)
 // and returns userID and token. This is different from app users in auth.users.
 func (tc *TestContext) CreateDashboardAdminUser(email, password string) (userID, token string) {

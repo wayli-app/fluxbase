@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/fluxbase-eu/fluxbase/test"
@@ -52,8 +53,9 @@ func TestRLSUserCanAccessOwnData(t *testing.T) {
 	defer tc.Close()
 
 	// Create two users with unique emails
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-	user2ID, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
+	user2ID, token2 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// User 1 creates a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -113,8 +115,9 @@ func TestRLSUserCannotAccessOtherUserData(t *testing.T) {
 	defer tc.Close()
 
 	// Create two users with unique emails
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-	user2ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
+	user2ID, _ := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Insert tasks directly in DB as superuser (bypassing RLS to set up test data)
 	// Note: Using TRUNCATE ... CASCADE at test setup already cleared tasks
@@ -151,8 +154,9 @@ func TestRLSPublicDataAccess(t *testing.T) {
 	defer tc.Close()
 
 	// Create two users with unique emails
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// User 1 creates a public task
 	tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -198,7 +202,8 @@ func TestRLSUpdateOwnData(t *testing.T) {
 	defer tc.Close()
 
 	// Create user with unique email
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Create a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -240,8 +245,9 @@ func TestRLSCannotUpdateOtherUserData(t *testing.T) {
 	defer tc.Close()
 
 	// Create two users with unique emails
-	user1ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, _ := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Insert a task for user 1 directly in DB as superuser
 	taskID := "11111111-1111-1111-1111-111111111111"
@@ -276,7 +282,8 @@ func TestRLSDeleteOwnData(t *testing.T) {
 	defer tc.Close()
 
 	// Create user with unique email
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Create a task
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -312,8 +319,9 @@ func TestRLSCannotDeleteOtherUserData(t *testing.T) {
 	defer tc.Close()
 
 	// Create two users with unique emails
-	user1ID, _ := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-	_, token2 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, _ := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
+	_, token2 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Insert a task for user 1 directly in DB as superuser
 	taskID := "22222222-2222-2222-2222-222222222222"
@@ -336,49 +344,27 @@ func TestRLSCannotDeleteOtherUserData(t *testing.T) {
 	require.Len(t, tasks, 1, "Task should still exist")
 }
 
-// TestRLSAnonymousUserAccess tests that unauthenticated users can only see public data
+// TestRLSAnonymousUserAccess tests that unauthenticated users are rejected
+// Note: The REST API now requires authentication. Anonymous access is no longer allowed.
+// This test verifies that unauthenticated requests are properly rejected.
 func TestRLSAnonymousUserAccess(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
 
-	// Create a user with unique email
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
-
-	// Create a public task
-	tc.NewRequest("POST", "/api/v1/tables/tasks").
-		WithAuth(token1).
-		WithBody(map[string]interface{}{
-			"user_id":     user1ID,
-			"title":       "Public Task",
-			"description": "This is public",
-			"is_public":   true,
-			"completed":   false,
-		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
-
-	// Create a private task
-	tc.NewRequest("POST", "/api/v1/tables/tasks").
-		WithAuth(token1).
-		WithBody(map[string]interface{}{
-			"user_id":     user1ID,
-			"title":       "Private Task",
-			"description": "This is private",
-			"is_public":   false,
-			"completed":   false,
-		}).
-		Send().
-		AssertStatus(fiber.StatusCreated)
-
-	// Anonymous user queries tasks (no auth token) - should see only public tasks
+	// Anonymous user queries tasks (no auth token) - should be rejected with 401
 	resp := tc.NewRequest("GET", "/api/v1/tables/tasks").
-		Send().
-		AssertStatus(fiber.StatusOK)
+		Unauthenticated().
+		Send()
 
-	var tasks []map[string]interface{}
-	resp.JSON(&tasks)
-	require.Len(t, tasks, 1, "Anonymous user should only see public tasks")
-	require.Equal(t, "Public Task", tasks[0]["title"])
+	// Should return 401 Unauthorized - authentication is required
+	require.Equal(t, fiber.StatusUnauthorized, resp.Status(),
+		"Anonymous access should be rejected with 401 Unauthorized")
+
+	// Verify error message
+	var errorResp map[string]interface{}
+	resp.JSON(&errorResp)
+	require.Contains(t, errorResp["error"], "Authentication required",
+		"Error message should indicate authentication is required")
 }
 
 // TestRLSBatchOperations tests that RLS works with batch operations
@@ -387,7 +373,8 @@ func TestRLSBatchOperations(t *testing.T) {
 	defer tc.Close()
 
 	// Create user with unique email
-	user1ID, token1 := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	user1ID, token1 := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Batch create tasks
 	resp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -430,7 +417,8 @@ func TestRLSSecurityInputValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create a user to get a valid token
-	_, token := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	_, token := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Test 1: Create task with valid user_id - should work
 	validResp := tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -461,7 +449,8 @@ func TestRLSUUIDValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create a valid user to test with
-	_, token := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	_, token := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Test with valid UUID format - should work
 	validResp := tc.NewRequest("GET", "/api/v1/tables/tasks").
@@ -480,7 +469,8 @@ func TestRLSRoleValidation(t *testing.T) {
 	defer tc.Close()
 
 	// Create users with different roles
-	_, userToken := tc.CreateTestUser(test.E2ETestEmail(), "password123")
+	// Use CreateTestUserDirect to bypass auth API (RLS test user can't SET ROLE service_role)
+	_, userToken := tc.CreateTestUserDirect(test.E2ETestEmail(), "password123")
 
 	// Test authenticated user role - should work
 	resp := tc.NewRequest("GET", "/api/v1/tables/tasks").
@@ -490,12 +480,13 @@ func TestRLSRoleValidation(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, resp.Status(),
 		"Authenticated user with valid role should access data")
 
-	// Test anonymous role - should work but with limited access
+	// Test anonymous access - should be rejected (authentication required)
 	anonResp := tc.NewRequest("GET", "/api/v1/tables/tasks").
+		Unauthenticated().
 		Send()
 
-	require.Equal(t, fiber.StatusOK, anonResp.Status(),
-		"Anonymous user should have limited access via RLS")
+	require.Equal(t, fiber.StatusUnauthorized, anonResp.Status(),
+		"Anonymous access should be rejected with 401 Unauthorized")
 
 	t.Log("RLS role validation test passed - properly validates roles")
 }
@@ -723,10 +714,13 @@ func TestRLSDashboardAdminTablesProtected(t *testing.T) {
 	`, userID)
 
 	// Test 1: OAuth providers should be admin-only
+	// Use a unique test provider name to avoid conflicts with existing data
+	testProviderName := fmt.Sprintf("test_provider_%s", userID[:8])
 	tc.ExecuteSQLAsSuperuser(`
 		INSERT INTO dashboard.oauth_providers (id, provider_name, display_name, client_id, client_secret, redirect_url, enabled, created_at, updated_at)
-		VALUES (gen_random_uuid(), 'google', 'Google', 'client123', 'secret456', 'http://localhost/callback', true, NOW(), NOW())
-	`)
+		VALUES (gen_random_uuid(), $1, 'Test Provider', 'client123', 'secret456', 'http://localhost/callback', true, NOW(), NOW())
+		ON CONFLICT (provider_name) DO NOTHING
+	`, testProviderName)
 
 	providers := tc.QuerySQLAsRLSUser(`
 		SELECT * FROM dashboard.oauth_providers
@@ -978,8 +972,9 @@ func TestRLSRoleMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a test user with specific role and unique email
+			// Use CreateTestUserDirectWithRole to bypass auth API (RLS test user can't SET ROLE service_role)
 			email := test.E2ETestEmailWithSuffix(tt.appRole)
-			userID, token := tc.CreateTestUserWithRole(email, "password123", tt.appRole)
+			userID, token := tc.CreateTestUserDirectWithRole(email, "password123", tt.appRole)
 
 			// Create a task to trigger RLS
 			tc.NewRequest("POST", "/api/v1/tables/tasks").
@@ -1014,12 +1009,13 @@ func TestRLSRequestJWTClaimsContainsOriginalRole(t *testing.T) {
 	defer tc.Close()
 
 	// Create admin user (admin app role maps to authenticated DB role)
+	// Use CreateTestUserDirectWithRole to bypass auth API (RLS test user can't SET ROLE service_role)
 	adminEmail := test.E2ETestEmailWithSuffix("admin")
-	adminID, _ := tc.CreateTestUserWithRole(adminEmail, "password123", "admin")
+	adminID, _ := tc.CreateTestUserDirectWithRole(adminEmail, "password123", "admin")
 
 	// Create regular user
 	userEmail := test.E2ETestEmailWithSuffix("user")
-	userID, _ := tc.CreateTestUserWithRole(userEmail, "password123", "user")
+	userID, _ := tc.CreateTestUserDirectWithRole(userEmail, "password123", "user")
 
 	// Create test function that returns the current role from request.jwt.claims
 	tc.ExecuteSQLAsSuperuser(`
@@ -1108,8 +1104,9 @@ func TestRLSHybridApproachDefenseInDepth(t *testing.T) {
 	defer tc.Close()
 
 	// Create admin and regular user with unique emails
-	adminID, _ := tc.CreateTestUserWithRole(test.E2ETestEmailWithSuffix("admin"), "password123", "admin")
-	userID, _ := tc.CreateTestUserWithRole(test.E2ETestEmailWithSuffix("user"), "password123", "user")
+	// Use CreateTestUserDirectWithRole to bypass auth API (RLS test user can't SET ROLE service_role)
+	adminID, _ := tc.CreateTestUserDirectWithRole(test.E2ETestEmailWithSuffix("admin"), "password123", "admin")
+	userID, _ := tc.CreateTestUserDirectWithRole(test.E2ETestEmailWithSuffix("user"), "password123", "user")
 
 	// Create a test table that requires both database-level role AND app-level role check
 	// (cleanup first in case it exists from previous failed run)
