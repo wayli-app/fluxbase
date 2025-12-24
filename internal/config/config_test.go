@@ -567,49 +567,12 @@ func TestEmailConfig_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid sendgrid config",
+			name: "unconfigured smtp is valid",
 			config: EmailConfig{
-				Enabled:        true,
-				Provider:       "sendgrid",
-				FromAddress:    "test@example.com",
-				SendGridAPIKey: "api-key",
+				Enabled:  true,
+				Provider: "smtp",
 			},
 			wantErr: false,
-		},
-		{
-			name: "valid mailgun config",
-			config: EmailConfig{
-				Enabled:       true,
-				Provider:      "mailgun",
-				FromAddress:   "test@example.com",
-				MailgunAPIKey: "api-key",
-				MailgunDomain: "mg.example.com",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid ses config",
-			config: EmailConfig{
-				Enabled:      true,
-				Provider:     "ses",
-				FromAddress:  "test@example.com",
-				SESAccessKey: "access-key",
-				SESSecretKey: "secret-key",
-				SESRegion:    "us-east-1",
-			},
-			wantErr: false,
-		},
-		{
-			name: "empty from address",
-			config: EmailConfig{
-				Enabled:     true,
-				Provider:    "smtp",
-				FromAddress: "",
-				SMTPHost:    "smtp.example.com",
-				SMTPPort:    587,
-			},
-			wantErr: true,
-			errMsg:  "from_address is required",
 		},
 		{
 			name: "invalid provider",
@@ -622,64 +585,12 @@ func TestEmailConfig_Validate(t *testing.T) {
 			errMsg:  "invalid email provider",
 		},
 		{
-			name: "smtp without host",
+			name: "empty provider is valid",
 			config: EmailConfig{
 				Enabled:     true,
-				Provider:    "smtp",
 				FromAddress: "test@example.com",
-				SMTPHost:    "",
-				SMTPPort:    587,
 			},
-			wantErr: true,
-			errMsg:  "smtp_host is required",
-		},
-		{
-			name: "smtp without port",
-			config: EmailConfig{
-				Enabled:     true,
-				Provider:    "smtp",
-				FromAddress: "test@example.com",
-				SMTPHost:    "smtp.example.com",
-				SMTPPort:    0,
-			},
-			wantErr: true,
-			errMsg:  "smtp_port is required",
-		},
-		{
-			name: "sendgrid without api key",
-			config: EmailConfig{
-				Enabled:        true,
-				Provider:       "sendgrid",
-				FromAddress:    "test@example.com",
-				SendGridAPIKey: "",
-			},
-			wantErr: true,
-			errMsg:  "sendgrid_api_key is required",
-		},
-		{
-			name: "mailgun without domain",
-			config: EmailConfig{
-				Enabled:       true,
-				Provider:      "mailgun",
-				FromAddress:   "test@example.com",
-				MailgunAPIKey: "api-key",
-				MailgunDomain: "",
-			},
-			wantErr: true,
-			errMsg:  "mailgun_domain is required",
-		},
-		{
-			name: "ses without region",
-			config: EmailConfig{
-				Enabled:      true,
-				Provider:     "ses",
-				FromAddress:  "test@example.com",
-				SESAccessKey: "access-key",
-				SESSecretKey: "secret-key",
-				SESRegion:    "",
-			},
-			wantErr: true,
-			errMsg:  "ses_region is required",
+			wantErr: false,
 		},
 	}
 
@@ -692,6 +603,137 @@ func TestEmailConfig_Validate(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestEmailConfig_IsConfigured(t *testing.T) {
+	tests := []struct {
+		name       string
+		config     EmailConfig
+		configured bool
+	}{
+		{
+			name: "fully configured smtp",
+			config: EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			configured: true,
+		},
+		{
+			name: "smtp missing host",
+			config: EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPPort:    587,
+			},
+			configured: false,
+		},
+		{
+			name: "smtp missing port",
+			config: EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+			},
+			configured: false,
+		},
+		{
+			name: "email disabled",
+			config: EmailConfig{
+				Enabled:     false,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			configured: false,
+		},
+		{
+			name: "missing from_address",
+			config: EmailConfig{
+				Enabled:  true,
+				Provider: "smtp",
+				SMTPHost: "smtp.example.com",
+				SMTPPort: 587,
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured sendgrid",
+			config: EmailConfig{
+				Enabled:        true,
+				Provider:       "sendgrid",
+				FromAddress:    "test@example.com",
+				SendGridAPIKey: "api-key",
+			},
+			configured: true,
+		},
+		{
+			name: "sendgrid missing api key",
+			config: EmailConfig{
+				Enabled:     true,
+				Provider:    "sendgrid",
+				FromAddress: "test@example.com",
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured mailgun",
+			config: EmailConfig{
+				Enabled:       true,
+				Provider:      "mailgun",
+				FromAddress:   "test@example.com",
+				MailgunAPIKey: "api-key",
+				MailgunDomain: "mg.example.com",
+			},
+			configured: true,
+		},
+		{
+			name: "mailgun missing domain",
+			config: EmailConfig{
+				Enabled:       true,
+				Provider:      "mailgun",
+				FromAddress:   "test@example.com",
+				MailgunAPIKey: "api-key",
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured ses",
+			config: EmailConfig{
+				Enabled:      true,
+				Provider:     "ses",
+				FromAddress:  "test@example.com",
+				SESAccessKey: "access-key",
+				SESSecretKey: "secret-key",
+				SESRegion:    "us-east-1",
+			},
+			configured: true,
+		},
+		{
+			name: "ses missing region",
+			config: EmailConfig{
+				Enabled:      true,
+				Provider:     "ses",
+				FromAddress:  "test@example.com",
+				SESAccessKey: "access-key",
+				SESSecretKey: "secret-key",
+			},
+			configured: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.IsConfigured()
+			assert.Equal(t, tt.configured, result)
 		})
 	}
 }

@@ -28,7 +28,13 @@ type Service interface {
 // NewService creates an email service based on configuration
 func NewService(cfg *config.EmailConfig) (Service, error) {
 	if !cfg.Enabled {
-		return &NoOpService{}, nil
+		return &NoOpService{reason: "email is disabled"}, nil
+	}
+
+	// If email is enabled but not fully configured, return a NoOpService
+	// This allows the server to start and be configured via admin UI
+	if !cfg.IsConfigured() {
+		return &NoOpService{reason: "email provider is not fully configured"}, nil
 	}
 
 	switch cfg.Provider {
@@ -45,25 +51,32 @@ func NewService(cfg *config.EmailConfig) (Service, error) {
 	}
 }
 
-// NoOpService is a no-op email service for when email is disabled
-type NoOpService struct{}
+// NoOpService is a no-op email service for when email is disabled or not configured
+type NoOpService struct {
+	reason string
+}
+
+// NewNoOpService creates a new NoOpService with the given reason
+func NewNoOpService(reason string) *NoOpService {
+	return &NoOpService{reason: reason}
+}
 
 func (s *NoOpService) SendMagicLink(ctx context.Context, to, token, link string) error {
-	return fmt.Errorf("email service is disabled")
+	return fmt.Errorf("cannot send email: %s", s.reason)
 }
 
 func (s *NoOpService) SendVerificationEmail(ctx context.Context, to, token, link string) error {
-	return fmt.Errorf("email service is disabled")
+	return fmt.Errorf("cannot send email: %s", s.reason)
 }
 
 func (s *NoOpService) SendPasswordReset(ctx context.Context, to, token, link string) error {
-	return fmt.Errorf("email service is disabled")
+	return fmt.Errorf("cannot send email: %s", s.reason)
 }
 
 func (s *NoOpService) SendInvitationEmail(ctx context.Context, to, inviterName, inviteLink string) error {
-	return fmt.Errorf("email service is disabled")
+	return fmt.Errorf("cannot send email: %s", s.reason)
 }
 
 func (s *NoOpService) Send(ctx context.Context, to, subject, body string) error {
-	return fmt.Errorf("email service is disabled")
+	return fmt.Errorf("cannot send email: %s", s.reason)
 }

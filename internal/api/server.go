@@ -155,7 +155,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	emailService, err := email.NewService(&cfg.Email)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize email service, some features may be disabled")
-		emailService = &email.NoOpService{}
+		emailService = email.NewNoOpService("initialization failed: " + err.Error())
 	}
 
 	// Initialize auth service

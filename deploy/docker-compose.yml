@@ -24,10 +24,8 @@ services:
       POSTGRES_USER: fluxbase
       POSTGRES_PASSWORD: fluxbase
       POSTGRES_DB: fluxbase
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fluxbase"]
       interval: 10s
@@ -83,7 +81,7 @@ services:
   # Fluxbase API
   fluxbase:
     image: ghcr.io/fluxbase-eu/fluxbase:0.0.1-rc.67
-    container_name: fluxbase-api
+    container_name: fluxbase
     ports:
       - "8080:8080"
     environment:
@@ -339,9 +337,6 @@ services:
 
     volumes:
       - storage_data:/app/storage
-      - functions_data:/app/functions
-      # Uncomment to enable user migrations:
-      # - ./migrations/user:/migrations/user:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -369,15 +364,7 @@ services:
 volumes:
   postgres_data:
     driver: local
-  # Uncomment if using MinIO:
-  # minio_data:
-  #   driver: local
-  # Uncomment if using Dragonfly:
-  # dragonfly_data:
-  #   driver: local
   storage_data:
-    driver: local
-  functions_data:
     driver: local
 
 networks:

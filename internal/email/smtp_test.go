@@ -281,25 +281,25 @@ func TestNewService(t *testing.T) {
 }
 
 func TestNoOpService(t *testing.T) {
-	service := &NoOpService{}
+	service := NewNoOpService("email is disabled")
 	ctx := context.Background()
 
 	t.Run("SendMagicLink returns error", func(t *testing.T) {
 		err := service.SendMagicLink(ctx, "user@example.com", "token", "link")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "disabled")
+		assert.Contains(t, err.Error(), "email is disabled")
 	})
 
 	t.Run("SendVerificationEmail returns error", func(t *testing.T) {
 		err := service.SendVerificationEmail(ctx, "user@example.com", "token", "link")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "disabled")
+		assert.Contains(t, err.Error(), "email is disabled")
 	})
 
 	t.Run("Send returns error", func(t *testing.T) {
 		err := service.Send(ctx, "user@example.com", "subject", "body")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "disabled")
+		assert.Contains(t, err.Error(), "email is disabled")
 	})
 }
 
@@ -321,14 +321,11 @@ func TestEmailConfig_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing from_address",
+			name: "unconfigured SMTP is valid (can be configured via admin UI)",
 			cfg: config.EmailConfig{
 				Provider: "smtp",
-				SMTPHost: "smtp.example.com",
-				SMTPPort: 587,
 			},
-			wantErr: true,
-			errMsg:  "from_address is required",
+			wantErr: false,
 		},
 		{
 			name: "invalid provider",
@@ -340,74 +337,11 @@ func TestEmailConfig_Validate(t *testing.T) {
 			errMsg:  "invalid email provider",
 		},
 		{
-			name: "SMTP missing host",
+			name: "empty provider is valid",
 			cfg: config.EmailConfig{
-				Provider:    "smtp",
-				FromAddress: "test@example.com",
-				SMTPPort:    587,
-			},
-			wantErr: true,
-			errMsg:  "smtp_host is required",
-		},
-		{
-			name: "SMTP missing port",
-			cfg: config.EmailConfig{
-				Provider:    "smtp",
-				FromAddress: "test@example.com",
-				SMTPHost:    "smtp.example.com",
-			},
-			wantErr: true,
-			errMsg:  "smtp_port is required",
-		},
-		{
-			name: "SendGrid missing API key",
-			cfg: config.EmailConfig{
-				Provider:    "sendgrid",
 				FromAddress: "test@example.com",
 			},
-			wantErr: true,
-			errMsg:  "sendgrid_api_key is required",
-		},
-		{
-			name: "Mailgun missing API key",
-			cfg: config.EmailConfig{
-				Provider:      "mailgun",
-				FromAddress:   "test@example.com",
-				MailgunDomain: "example.com",
-			},
-			wantErr: true,
-			errMsg:  "mailgun_api_key is required",
-		},
-		{
-			name: "Mailgun missing domain",
-			cfg: config.EmailConfig{
-				Provider:      "mailgun",
-				FromAddress:   "test@example.com",
-				MailgunAPIKey: "key",
-			},
-			wantErr: true,
-			errMsg:  "mailgun_domain is required",
-		},
-		{
-			name: "SES missing keys",
-			cfg: config.EmailConfig{
-				Provider:    "ses",
-				FromAddress: "test@example.com",
-				SESRegion:   "us-east-1",
-			},
-			wantErr: true,
-			errMsg:  "ses_access_key and ses_secret_key are required",
-		},
-		{
-			name: "SES missing region",
-			cfg: config.EmailConfig{
-				Provider:     "ses",
-				FromAddress:  "test@example.com",
-				SESAccessKey: "key",
-				SESSecretKey: "secret",
-			},
-			wantErr: true,
-			errMsg:  "ses_region is required",
+			wantErr: false,
 		},
 	}
 
@@ -421,6 +355,137 @@ func TestEmailConfig_Validate(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestEmailConfig_IsConfigured(t *testing.T) {
+	tests := []struct {
+		name       string
+		cfg        config.EmailConfig
+		configured bool
+	}{
+		{
+			name: "fully configured SMTP",
+			cfg: config.EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			configured: true,
+		},
+		{
+			name: "SMTP missing host",
+			cfg: config.EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPPort:    587,
+			},
+			configured: false,
+		},
+		{
+			name: "SMTP missing port",
+			cfg: config.EmailConfig{
+				Enabled:     true,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+			},
+			configured: false,
+		},
+		{
+			name: "email disabled",
+			cfg: config.EmailConfig{
+				Enabled:     false,
+				Provider:    "smtp",
+				FromAddress: "test@example.com",
+				SMTPHost:    "smtp.example.com",
+				SMTPPort:    587,
+			},
+			configured: false,
+		},
+		{
+			name: "missing from_address",
+			cfg: config.EmailConfig{
+				Enabled:  true,
+				Provider: "smtp",
+				SMTPHost: "smtp.example.com",
+				SMTPPort: 587,
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured SendGrid",
+			cfg: config.EmailConfig{
+				Enabled:        true,
+				Provider:       "sendgrid",
+				FromAddress:    "test@example.com",
+				SendGridAPIKey: "api-key",
+			},
+			configured: true,
+		},
+		{
+			name: "SendGrid missing API key",
+			cfg: config.EmailConfig{
+				Enabled:     true,
+				Provider:    "sendgrid",
+				FromAddress: "test@example.com",
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured Mailgun",
+			cfg: config.EmailConfig{
+				Enabled:       true,
+				Provider:      "mailgun",
+				FromAddress:   "test@example.com",
+				MailgunAPIKey: "api-key",
+				MailgunDomain: "example.com",
+			},
+			configured: true,
+		},
+		{
+			name: "Mailgun missing domain",
+			cfg: config.EmailConfig{
+				Enabled:       true,
+				Provider:      "mailgun",
+				FromAddress:   "test@example.com",
+				MailgunAPIKey: "api-key",
+			},
+			configured: false,
+		},
+		{
+			name: "fully configured SES",
+			cfg: config.EmailConfig{
+				Enabled:      true,
+				Provider:     "ses",
+				FromAddress:  "test@example.com",
+				SESAccessKey: "access-key",
+				SESSecretKey: "secret-key",
+				SESRegion:    "us-east-1",
+			},
+			configured: true,
+		},
+		{
+			name: "SES missing region",
+			cfg: config.EmailConfig{
+				Enabled:      true,
+				Provider:     "ses",
+				FromAddress:  "test@example.com",
+				SESAccessKey: "access-key",
+				SESSecretKey: "secret-key",
+			},
+			configured: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.IsConfigured()
+			assert.Equal(t, tt.configured, result)
 		})
 	}
 }

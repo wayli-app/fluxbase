@@ -205,7 +205,7 @@ services:
       POSTGRES_USER: fluxbase
       POSTGRES_PASSWORD: secure-password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
   minio:
     image: minio/minio
@@ -408,7 +408,7 @@ fluxbase --disable-scheduler --disable-realtime
 ```yaml
 services:
   # API instances (handle HTTP traffic)
-  fluxbase-api:
+  fluxbase:
     image: ghcr.io/fluxbase-eu/fluxbase:latest
     environment:
       FLUXBASE_SCALING_BACKEND: postgres

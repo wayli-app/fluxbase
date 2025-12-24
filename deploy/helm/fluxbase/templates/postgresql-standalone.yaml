@@ -131,7 +131,7 @@ spec:
               value: /var/lib/postgresql/{{ $pgMajor }}/docker
             {{- else }}
             - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+              value: /var/lib/postgresql/pgdata
             {{- end }}
           {{- if .Values.postgresql.resources }}
           resources:
@@ -164,7 +164,7 @@ spec:
               {{- if ge $pgMajor 18 }}
               mountPath: /var/lib/postgresql
               {{- else }}
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/postgresql
               {{- end }}
       volumes:
         {{- if .Values.postgresql.persistence.enabled }}

@@ -23,7 +23,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
   fluxbase:
     image: ghcr.io/fluxbase-eu/fluxbase:latest

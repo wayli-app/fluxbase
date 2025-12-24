@@ -42,7 +42,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - fluxbase-network
     healthcheck:
@@ -163,7 +163,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432" # Only bind to localhost
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./backups:/backups
     networks:
       - fluxbase-network

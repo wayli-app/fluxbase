@@ -1026,54 +1026,45 @@ func (sc *SecurityConfig) Validate() error {
 
 // Validate validates email configuration
 func (ec *EmailConfig) Validate() error {
-	// Basic validation
-	if ec.FromAddress == "" {
-		return fmt.Errorf("from_address is required when email is enabled")
+	// Validate provider if specified
+	if ec.Provider != "" {
+		validProviders := []string{"smtp", "sendgrid", "mailgun", "ses"}
+		providerValid := false
+		for _, p := range validProviders {
+			if ec.Provider == p {
+				providerValid = true
+				break
+			}
+		}
+		if !providerValid {
+			return fmt.Errorf("invalid email provider: %s (must be one of: %v)", ec.Provider, validProviders)
+		}
 	}
 
-	// Validate provider
-	validProviders := []string{"smtp", "sendgrid", "mailgun", "ses"}
-	providerValid := false
-	for _, p := range validProviders {
-		if ec.Provider == p {
-			providerValid = true
-			break
-		}
-	}
-	if !providerValid {
-		return fmt.Errorf("invalid email provider: %s (must be one of: %v)", ec.Provider, validProviders)
-	}
-
-	// Provider-specific validation
-	switch ec.Provider {
-	case "smtp":
-		if ec.SMTPHost == "" {
-			return fmt.Errorf("smtp_host is required when using SMTP provider")
-		}
-		if ec.SMTPPort == 0 {
-			return fmt.Errorf("smtp_port is required when using SMTP provider")
-		}
-	case "sendgrid":
-		if ec.SendGridAPIKey == "" {
-			return fmt.Errorf("sendgrid_api_key is required when using SendGrid provider")
-		}
-	case "mailgun":
-		if ec.MailgunAPIKey == "" {
-			return fmt.Errorf("mailgun_api_key is required when using Mailgun provider")
-		}
-		if ec.MailgunDomain == "" {
-			return fmt.Errorf("mailgun_domain is required when using Mailgun provider")
-		}
-	case "ses":
-		if ec.SESAccessKey == "" || ec.SESSecretKey == "" {
-			return fmt.Errorf("ses_access_key and ses_secret_key are required when using SES provider")
-		}
-		if ec.SESRegion == "" {
-			return fmt.Errorf("ses_region is required when using SES provider")
-		}
-	}
+	// Provider-specific settings are validated at runtime when sending emails,
+	// allowing configuration via admin UI after startup
 
 	return nil
+}
+
+// IsConfigured returns true if the email provider is fully configured and ready to send emails
+func (ec *EmailConfig) IsConfigured() bool {
+	if !ec.Enabled || ec.FromAddress == "" {
+		return false
+	}
+
+	switch ec.Provider {
+	case "smtp", "":
+		return ec.SMTPHost != "" && ec.SMTPPort != 0
+	case "sendgrid":
+		return ec.SendGridAPIKey != ""
+	case "mailgun":
+		return ec.MailgunAPIKey != "" && ec.MailgunDomain != ""
+	case "ses":
+		return ec.SESAccessKey != "" && ec.SESSecretKey != "" && ec.SESRegion != ""
+	default:
+		return false
+	}
 }
 
 // Validate validates functions configuration

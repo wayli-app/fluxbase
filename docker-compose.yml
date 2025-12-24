@@ -28,7 +28,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - fluxbase-network
     healthcheck:
@@ -67,7 +67,7 @@ services:
 
       # Storage (local for development)
       FLUXBASE_STORAGE_PROVIDER: local
-      FLUXBASE_STORAGE_LOCAL_PATH: /home/fluxbase/storage
+      FLUXBASE_STORAGE_LOCAL_PATH: /data/storage
 
       # Server Configuration
       FLUXBASE_SERVER_ADDRESS: "0.0.0.0:8080"
@@ -88,9 +88,7 @@ services:
     ports:
       - "${FLUXBASE_PORT:-8080}:8080"
     volumes:
-      - ./config:/home/fluxbase/config
-      - ./storage:/home/fluxbase/storage
-      - ./functions:/home/fluxbase/functions
+      - ./storage:/data/storage
     networks:
       - fluxbase-network
     restart: unless-stopped

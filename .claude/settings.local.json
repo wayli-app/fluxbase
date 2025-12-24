@@ -74,7 +74,8 @@
       "Bash(do echo \"Run $i\")",
       "Bash(done)",
       "Bash(for:*)",
-      "Bash(do npm test -- src/realtime.test.ts --run)"
+      "Bash(do npm test -- src/realtime.test.ts --run)",
+      "Bash(/usr/local/go/bin/go test:*)"
     ],
     "deny": [],
     "ask": []

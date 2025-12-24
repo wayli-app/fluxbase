@@ -594,7 +594,7 @@ services:
       POSTGRES_USER: fluxbase
       POSTGRES_PASSWORD: password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fluxbase"]
       interval: 5s
