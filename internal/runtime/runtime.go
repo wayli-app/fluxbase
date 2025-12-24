@@ -169,6 +169,11 @@ func (r *DenoRuntime) Execute(
 	// Wrap the user code with our runtime bridge
 	wrappedCode := r.wrapCode(code, req)
 
+	// Ensure Deno cache directory exists (required for Deno to run)
+	if err := os.MkdirAll("/tmp/deno", 0755); err != nil {
+		log.Warn().Err(err).Msg("Failed to create Deno cache directory")
+	}
+
 	// Write code to temporary file to allow Deno to properly handle TypeScript
 	tmpFile, err := os.CreateTemp("", fmt.Sprintf("%s-exec-%s-*.ts", r.runtimeType.String(), req.ID))
 	if err != nil {

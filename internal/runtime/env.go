@@ -21,6 +21,12 @@ var blockedVars = map[string]bool{
 func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToken, serviceToken string, cancelSignal *CancelSignal) []string {
 	env := []string{}
 
+	// Deno requires HOME or DENO_DIR to determine its cache directory.
+	// Set DENO_DIR to a temp directory to avoid permission issues.
+	// Also set HOME as some Deno internals may still look for it.
+	env = append(env, "DENO_DIR=/tmp/deno")
+	env = append(env, "HOME=/tmp")
+
 	// Pass all FLUXBASE_* environment variables except blocked ones
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "FLUXBASE_") {
