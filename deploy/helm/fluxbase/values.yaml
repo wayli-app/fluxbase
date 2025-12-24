@@ -405,7 +405,7 @@ config:
   ## @param config.ai.ocr_languages OCR languages
   ##
   ai:
-    enabled: false
+    enabled: true
     chatbots_dir: "/app/chatbots"
     auto_load_on_boot: true
     default_max_tokens: 4096
