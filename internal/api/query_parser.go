@@ -1510,6 +1510,7 @@ func parseSTDWithinValue(value string) (float64, string, error) {
 	// Find the first comma that's not inside braces/brackets
 	braceDepth := 0
 	commaIdx := -1
+outer:
 	for i, ch := range value {
 		switch ch {
 		case '{', '[':
@@ -1519,11 +1520,8 @@ func parseSTDWithinValue(value string) (float64, string, error) {
 		case ',':
 			if braceDepth == 0 {
 				commaIdx = i
-				break
+				break outer
 			}
-		}
-		if commaIdx >= 0 {
-			break
 		}
 	}
 
