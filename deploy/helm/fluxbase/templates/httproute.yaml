@@ -23,25 +23,27 @@ spec:
     - {{ .Values.httpRoute.hostname | quote }}
   rules:
     {{- if .Values.httpRoute.websocket.enabled }}
-    ## WebSocket route for /realtime endpoint
+    {{- range .Values.httpRoute.websocket.paths }}
+    ## WebSocket route for {{ . }} endpoint
     ## Routes to a separate service with appProtocol: kubernetes.io/ws
     ## This enables proper WebSocket upgrade handling in Gateway API v1.2+
     - matches:
         - path:
             type: PathPrefix
-            value: {{ .Values.httpRoute.websocket.path }}
-      {{- if .Values.httpRoute.timeouts }}
+            value: {{ . }}
+      {{- if $.Values.httpRoute.timeouts }}
       timeouts:
-        {{- if .Values.httpRoute.timeouts.request }}
-        request: {{ .Values.httpRoute.timeouts.request | quote }}
+        {{- if $.Values.httpRoute.timeouts.request }}
+        request: {{ $.Values.httpRoute.timeouts.request | quote }}
         {{- end }}
-        {{- if .Values.httpRoute.timeouts.backendRequest }}
-        backendRequest: {{ .Values.httpRoute.timeouts.backendRequest | quote }}
+        {{- if $.Values.httpRoute.timeouts.backendRequest }}
+        backendRequest: {{ $.Values.httpRoute.timeouts.backendRequest | quote }}
         {{- end }}
       {{- end }}
       backendRefs:
-        - name: {{ include "fluxbase.fullname" . }}-ws
-          port: {{ .Values.service.ports.http }}
+        - name: {{ include "fluxbase.fullname" $ }}-ws
+          port: {{ $.Values.service.ports.http }}
+    {{- end }}
     {{- end }}
     - matches:
         - path:

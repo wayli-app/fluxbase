@@ -983,13 +983,15 @@ ingress:
     ## This forces HTTP/1.1 for backend connections which supports the Upgrade header
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
-  ## WebSocket configuration for /realtime endpoint
-  ## @param ingress.websocket.enabled Enable dedicated WebSocket routing for /realtime
-  ## @param ingress.websocket.path Path prefix for WebSocket connections
+  ## WebSocket configuration for /realtime and /ai/ws endpoints
+  ## @param ingress.websocket.enabled Enable dedicated WebSocket routing
+  ## @param ingress.websocket.paths List of path prefixes for WebSocket connections
   ##
   websocket:
     enabled: true
-    path: /realtime
+    paths:
+      - /realtime
+      - /ai/ws
   ## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname` parameter
   ## TLS certificates will be retrieved from a TLS secret with name: `{{- printf "%s-tls" .Values.ingress.hostname }}`
   ## You can:
@@ -1092,15 +1094,17 @@ httpRoute:
   ## @param httpRoute.annotations Additional annotations for the HTTPRoute resource
   ##
   annotations: {}
-  ## WebSocket configuration for /realtime endpoint
+  ## WebSocket configuration for /realtime and /ai/ws endpoints
   ## Enables proper WebSocket upgrade handling via Gateway API v1.2+ appProtocol
   ## ref: https://gateway-api.sigs.k8s.io/guides/http-routing/#websocket-upgrades
-  ## @param httpRoute.websocket.enabled Enable dedicated WebSocket routing for /realtime
-  ## @param httpRoute.websocket.path Path prefix for WebSocket connections
+  ## @param httpRoute.websocket.enabled Enable dedicated WebSocket routing
+  ## @param httpRoute.websocket.paths List of path prefixes for WebSocket connections
   ##
   websocket:
     enabled: true
-    path: /realtime
+    paths:
+      - /realtime
+      - /ai/ws
   ## Timeout configuration for HTTPRoute rules
   ## Critical for WebSocket connections which are long-lived
   ## @param httpRoute.timeouts.request Total request timeout (use "0s" for no timeout, required for WebSockets)

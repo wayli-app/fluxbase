@@ -155,6 +155,83 @@ func (h *Handler) applyCorsHeaders(c *fiber.Ctx, fn *EdgeFunction) {
 	}
 }
 
+// checkRateLimit checks function-specific rate limits and returns an error response if exceeded.
+// Rate limits are checked per user ID (authenticated) or per IP (anonymous).
+// Uses the global rate limit store which supports memory, PostgreSQL, or Redis backends.
+func (h *Handler) checkRateLimit(c *fiber.Ctx, fn *EdgeFunction) error {
+	// Skip if no rate limits configured
+	if fn.RateLimitPerMinute == nil && fn.RateLimitPerHour == nil && fn.RateLimitPerDay == nil {
+		return nil
+	}
+
+	store := ratelimit.GetGlobalStore()
+	if store == nil {
+		// No rate limit store available, fail open
+		log.Warn().Msg("Rate limit store not available, skipping function rate limit check")
+		return nil
+	}
+
+	// Build rate limit key: fn:{function_id}:{user_id} or fn:{function_id}:ip:{ip}
+	var identifier string
+	if userID := c.Locals("user_id"); userID != nil {
+		if uid, ok := userID.(string); ok && uid != "" {
+			identifier = uid
+		}
+	}
+	if identifier == "" {
+		identifier = "ip:" + c.IP()
+	}
+
+	baseKey := fmt.Sprintf("fn:%s:%s", fn.ID.String(), identifier)
+
+	// Check each rate limit window (most restrictive first for efficiency)
+	type limitCheck struct {
+		limit    *int
+		window   time.Duration
+		suffix   string
+		unitName string
+	}
+
+	checks := []limitCheck{
+		{fn.RateLimitPerMinute, time.Minute, ":min", "minute"},
+		{fn.RateLimitPerHour, time.Hour, ":hour", "hour"},
+		{fn.RateLimitPerDay, 24 * time.Hour, ":day", "day"},
+	}
+
+	for _, check := range checks {
+		if check.limit == nil || *check.limit <= 0 {
+			continue
+		}
+
+		key := baseKey + check.suffix
+		result, err := ratelimit.Check(c.Context(), store, key, int64(*check.limit), check.window)
+		if err != nil {
+			// Fail open on rate limit errors
+			log.Error().Err(err).Str("key", key).Msg("Rate limit check failed")
+			continue
+		}
+
+		if !result.Allowed {
+			retryAfter := int(time.Until(result.ResetAt).Seconds())
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+
+			c.Set("Retry-After", strconv.Itoa(retryAfter))
+			c.Set("X-RateLimit-Limit", strconv.FormatInt(result.Limit, 10))
+			c.Set("X-RateLimit-Remaining", "0")
+			c.Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
+
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":       fmt.Sprintf("Rate limit exceeded: %d requests per %s", *check.limit, check.unitName),
+				"retry_after": retryAfter,
+			})
+		}
+	}
+
+	return nil
+}
+
 // RegisterRoutes registers all edge function routes with authentication
 func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to management endpoints
@@ -217,6 +294,9 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		CorsHeaders          *string `json:"cors_headers"`
 		CorsCredentials      *bool   `json:"cors_credentials"`
 		CorsMaxAge           *int    `json:"cors_max_age"`
+		RateLimitPerMinute   *int    `json:"rate_limit_per_minute"`
+		RateLimitPerHour     *int    `json:"rate_limit_per_hour"`
+		RateLimitPerDay      *int    `json:"rate_limit_per_day"`
 		CronSchedule         *string `json:"cron_schedule"`
 	}
 
@@ -300,6 +380,28 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		corsMaxAge = config.CorsMaxAge
 	}
 
+	// Apply rate limit config with priority: API request > annotations
+	var rateLimitPerMinute *int
+	if req.RateLimitPerMinute != nil {
+		rateLimitPerMinute = req.RateLimitPerMinute
+	} else {
+		rateLimitPerMinute = config.RateLimitPerMinute
+	}
+
+	var rateLimitPerHour *int
+	if req.RateLimitPerHour != nil {
+		rateLimitPerHour = req.RateLimitPerHour
+	} else {
+		rateLimitPerHour = config.RateLimitPerHour
+	}
+
+	var rateLimitPerDay *int
+	if req.RateLimitPerDay != nil {
+		rateLimitPerDay = req.RateLimitPerDay
+	} else {
+		rateLimitPerDay = config.RateLimitPerDay
+	}
+
 	// Bundle function code if it has imports
 	bundler, err := NewBundler()
 	bundledCode := req.Code
@@ -377,6 +479,9 @@ func (h *Handler) CreateFunction(c *fiber.Ctx) error {
 		CorsHeaders:          corsHeaders,
 		CorsCredentials:      corsCredentials,
 		CorsMaxAge:           corsMaxAge,
+		RateLimitPerMinute:   rateLimitPerMinute,
+		RateLimitPerHour:     rateLimitPerHour,
+		RateLimitPerDay:      rateLimitPerDay,
 		CronSchedule:         req.CronSchedule,
 		CreatedBy:            createdBy,
 		Source:               "api",
@@ -654,6 +759,11 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 					"To allow completely unauthenticated access, set allow_unauthenticated=true on the function.",
 			})
 		}
+	}
+
+	// Check function-specific rate limits
+	if err := h.checkRateLimit(c, fn); err != nil {
+		return err
 	}
 
 	// Generate execution ID for tracking

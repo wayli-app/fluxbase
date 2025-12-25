@@ -448,6 +448,10 @@ type FunctionConfig struct {
 	CorsHeaders     *string
 	CorsCredentials *bool
 	CorsMaxAge      *int
+	// Rate limiting configuration (nil means unlimited)
+	RateLimitPerMinute *int
+	RateLimitPerHour   *int
+	RateLimitPerDay    *int
 }
 
 // ParseFunctionConfig parses special @fluxbase directives from function code comments
@@ -460,6 +464,7 @@ type FunctionConfig struct {
 //   - // @fluxbase:cors-headers <headers> - Comma-separated list of allowed headers
 //   - // @fluxbase:cors-credentials <true|false> - Allow credentials (cookies, auth headers)
 //   - // @fluxbase:cors-max-age <seconds> - Max age for preflight cache in seconds
+//   - // @fluxbase:rate-limit <N>/<unit> - Rate limit per user/IP (e.g., 100/min, 1000/hour, 10000/day)
 func ParseFunctionConfig(code string) FunctionConfig {
 	config := FunctionConfig{
 		AllowUnauthenticated: false, // Secure by default
@@ -539,6 +544,25 @@ func ParseFunctionConfig(code string) FunctionConfig {
 		if value, err := strconv.Atoi(matches[1]); err == nil {
 			config.CorsMaxAge = &value
 			log.Debug().Int("max_age", value).Msg("Found @fluxbase:cors-max-age directive")
+		}
+	}
+
+	// Match @fluxbase:rate-limit with value and unit (e.g., 100/min, 1000/hour, 10000/day)
+	rateLimitPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:rate-limit\s+(\d+)/(min|hour|day)\s*$`)
+	if matches := rateLimitPattern.FindStringSubmatch(code); len(matches) > 2 {
+		if value, err := strconv.Atoi(matches[1]); err == nil {
+			unit := matches[2]
+			switch unit {
+			case "min":
+				config.RateLimitPerMinute = &value
+				log.Debug().Int("rate_limit", value).Str("unit", unit).Msg("Found @fluxbase:rate-limit directive")
+			case "hour":
+				config.RateLimitPerHour = &value
+				log.Debug().Int("rate_limit", value).Str("unit", unit).Msg("Found @fluxbase:rate-limit directive")
+			case "day":
+				config.RateLimitPerDay = &value
+				log.Debug().Int("rate_limit", value).Str("unit", unit).Msg("Found @fluxbase:rate-limit directive")
+			}
 		}
 	}
 
