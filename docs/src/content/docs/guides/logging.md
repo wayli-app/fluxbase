@@ -916,6 +916,63 @@ kubectl logs --tail=100 pod-name
 
 ---
 
+## Admin Logs API
+
+Fluxbase provides admin endpoints for querying execution logs (edge functions, jobs, RPC calls) via the API.
+
+### Query Logs
+
+```bash
+GET /api/v1/admin/logs
+Authorization: Bearer <admin-token>
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `category` | string | Filter by log category (execution, ai, security, http) |
+| `level` | string | Filter by log level (debug, info, warn, error) |
+| `execution_id` | string | Filter by execution ID |
+| `limit` | integer | Max results (default: 100) |
+| `offset` | integer | Pagination offset |
+
+**Example:**
+
+```bash
+curl "http://localhost:8080/api/v1/admin/logs?category=execution&level=error&limit=50" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Get Log Statistics
+
+```bash
+GET /api/v1/admin/logs/stats
+Authorization: Bearer <admin-token>
+```
+
+Returns aggregated statistics about log volume by category and level.
+
+### Get Execution Logs
+
+```bash
+GET /api/v1/admin/logs/executions/:execution_id
+Authorization: Bearer <admin-token>
+```
+
+Retrieve all logs for a specific function/job/RPC execution.
+
+### Flush Logs
+
+```bash
+POST /api/v1/admin/logs/flush
+Authorization: Bearer <admin-token>
+```
+
+Manually flush buffered logs to storage. Useful before shutting down or for immediate log persistence.
+
+---
+
 ## Summary
 
 Fluxbase provides comprehensive structured logging:

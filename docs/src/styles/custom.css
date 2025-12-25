@@ -132,6 +132,24 @@
   }
 }
 
+/* Mobile theme toggle - show in header on mobile */
+@media screen and (max-width: 50rem) {
+  /* Make theme toggle visible in header on mobile */
+  header .right-group {
+    display: flex !important;
+  }
+
+  /* Hide social icons on mobile to save space, keep theme toggle */
+  header .right-group .social-icons {
+    display: none;
+  }
+
+  /* Hide language select on mobile if present */
+  header .right-group starlight-lang-select {
+    display: none;
+  }
+}
+
 /* Hide emojis from sidebar if desired */
 /* Uncomment if you want to remove emojis */
 /*

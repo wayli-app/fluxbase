@@ -20,13 +20,14 @@ Rate limiting in Fluxbase provides:
 | Endpoint Type | Anonymous (IP) | Authenticated User | API Key |
 |---------------|----------------|-------------------|---------|
 | **Global API** | 100 req/min | 500 req/min | 1000 req/min |
-| **Login** | 5 req/15min | N/A | N/A |
-| **Signup** | 3 req/hour | N/A | N/A |
-| **Password Reset** | 3 req/hour | N/A | N/A |
-| **Magic Link** | 3 req/hour | N/A | N/A |
+| **Login** | 10 req/15min | N/A | N/A |
+| **Signup** | 10 req/15min | N/A | N/A |
+| **Password Reset** | 5 req/15min | N/A | N/A |
+| **Magic Link** | 5 req/15min | N/A | N/A |
+| **2FA Verification** | 5 req/5min | N/A | N/A |
 | **Token Refresh** | 10 req/min | 10 req/min | N/A |
 | **Admin Setup** | 5 req/15min | N/A | N/A |
-| **Admin Login** | 10 req/min | N/A | N/A |
+| **Admin Login** | 4 req/min | N/A | N/A |
 
 ## Quick Start
 
@@ -139,7 +140,7 @@ Fluxbase applies different rate limits to different endpoints automatically:
 
 #### POST `/api/v1/auth/signin`
 
-**Rate Limit**: 5 requests per 15 minutes per IP
+**Rate Limit**: 10 requests per 15 minutes per IP
 
 **Purpose**: Prevent brute-force login attacks
 
@@ -154,7 +155,7 @@ Fluxbase applies different rate limits to different endpoints automatically:
 
 #### POST `/api/v1/auth/signup`
 
-**Rate Limit**: 3 requests per hour per IP
+**Rate Limit**: 10 requests per 15 minutes per IP
 
 **Purpose**: Prevent spam account creation
 
@@ -162,14 +163,14 @@ Fluxbase applies different rate limits to different endpoints automatically:
 ```json
 {
   "error": "Rate limit exceeded",
-  "message": "Too many signup attempts. Please try again in 1 hour.",
-  "retry_after": 3600
+  "message": "Too many signup attempts. Please try again in 15 minutes.",
+  "retry_after": 900
 }
 ```
 
 #### POST `/api/v1/auth/password/reset`
 
-**Rate Limit**: 3 requests per hour per IP
+**Rate Limit**: 5 requests per 15 minutes per IP
 
 **Purpose**: Prevent email bombing and abuse
 
@@ -179,14 +180,14 @@ Fluxbase applies different rate limits to different endpoints automatically:
 ```json
 {
   "error": "Rate limit exceeded",
-  "message": "Too many password reset requests. Please try again in 1 hour.",
-  "retry_after": 3600
+  "message": "Too many password reset requests. Please try again in 15 minutes.",
+  "retry_after": 900
 }
 ```
 
 #### POST `/api/v1/auth/magiclink`
 
-**Rate Limit**: 3 requests per hour per IP
+**Rate Limit**: 5 requests per 15 minutes per IP
 
 **Purpose**: Prevent email bombing
 
@@ -194,8 +195,23 @@ Fluxbase applies different rate limits to different endpoints automatically:
 ```json
 {
   "error": "Rate limit exceeded",
-  "message": "Too many magic link requests. Please try again in 1 hour.",
-  "retry_after": 3600
+  "message": "Too many magic link requests. Please try again in 15 minutes.",
+  "retry_after": 900
+}
+```
+
+#### POST `/api/v1/auth/2fa/verify`
+
+**Rate Limit**: 5 requests per 5 minutes per IP
+
+**Purpose**: Prevent brute-force attacks on 6-digit TOTP codes
+
+**Response on limit**:
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many 2FA verification attempts. Please try again in 5 minutes.",
+  "retry_after": 300
 }
 ```
 
@@ -226,9 +242,9 @@ Fluxbase applies different rate limits to different endpoints automatically:
 
 #### POST `/api/v1/admin/login`
 
-**Rate Limit**: 10 requests per minute per IP
+**Rate Limit**: 4 requests per minute per IP
 
-**Purpose**: Prevent admin account takeover attempts
+**Purpose**: Prevent admin account takeover attempts. Set to 4 to trigger rate limiting before account lockout (which happens at 5 failed attempts).
 
 ---
 
@@ -355,44 +371,55 @@ Response:
 
 ---
 
-## Distributed Rate Limiting
+## Multi-Instance Deployments
 
-For multi-instance deployments, use a distributed backend for rate limiting:
+:::caution[Important Limitation]
+Fluxbase's built-in rate limiting uses **in-memory storage per instance**. In multi-instance deployments, each instance maintains its own rate limit counters independently. This means attackers could potentially bypass rate limits by targeting different instances.
+:::
 
-### Configure Scaling Backend
+### Current Behavior
 
-```bash
-# Option 1: PostgreSQL (recommended, no extra dependencies)
-FLUXBASE_SCALING_BACKEND=postgres
+| Deployment | Rate Limiting Behavior |
+|------------|------------------------|
+| Single instance | Full protection - all requests share counters |
+| Multi-instance | Per-instance only - counters are NOT shared |
 
-# Option 2: Redis/Dragonfly (for high-scale, 1000+ req/s)
-FLUXBASE_SCALING_BACKEND=redis
-FLUXBASE_SCALING_REDIS_URL=redis://dragonfly:6379
+### Recommended Solutions for Multi-Instance
+
+For production environments with horizontal scaling, use one of these approaches:
+
+**Option 1: Reverse Proxy Rate Limiting (Recommended)**
+
+Use your load balancer or reverse proxy for centralized rate limiting:
+
+```nginx
+# nginx example
+limit_req_zone $binary_remote_addr zone=api:10m rate=100r/m;
+
+server {
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass http://fluxbase;
+    }
+}
 ```
+
+**Option 2: Kubernetes Ingress**
 
 ```yaml
-# fluxbase.yaml
-scaling:
-  backend: postgres  # or "redis"
-  redis_url: ""      # only needed if backend is redis
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
 ```
 
-**Backend Comparison:**
+**Option 3: API Gateway**
 
-| Backend | Use Case | Performance |
-|---------|----------|-------------|
-| `local` | Single instance (default) | Fastest, in-memory |
-| `postgres` | Multi-instance, < 1000 req/s | Good, uses UPSERT |
-| `redis` | High-scale, > 1000 req/s | Best, in-memory distributed |
+Use an API gateway like Kong, Traefik, or AWS API Gateway with built-in distributed rate limiting.
 
-**Dragonfly Recommended:** For the `redis` backend, we recommend [Dragonfly](https://dragonflydb.io/) - a Redis-compatible datastore that is 25x faster with 80% less memory than Redis.
-
-**Benefits**:
-- Shared rate limit state across all Fluxbase instances
-- Consistent rate limiting in horizontal scaling
-- No sticky sessions required
-
-**Architecture**:
+### Architecture with External Rate Limiting
 
 ```
 ┌─────────────┐
@@ -401,22 +428,21 @@ scaling:
        │
   ┌────▼─────────────────────┐
   │   Load Balancer          │
+  │   (Rate Limiting Here)   │
   └────┬─────────────────────┘
        │
   ┌────┴─────┬────────┬──────┐
   │          │        │      │
 ┌─▼──┐   ┌──▼─┐   ┌──▼─┐  ┌─▼──┐
 │FB 1│   │FB 2│   │FB 3│  │FB 4│
-└─┬──┘   └──┬─┘   └──┬─┘  └─┬──┘
-  │         │        │      │
-  └─────────┴────────┴──────┘
-            │
-   ┌────────▼─────────┐
-   │ PostgreSQL or    │
-   │ Dragonfly/Redis  │
-   │  (Shared State)  │
-   └──────────────────┘
+└────┘   └────┘   └────┘  └────┘
 ```
+
+This approach provides:
+
+- Centralized rate limit state
+- Consistent rate limiting across all instances
+- No sticky sessions required
 
 ---
 
@@ -521,9 +547,10 @@ FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT=true
 ### 2. Use Stricter Limits for Sensitive Endpoints
 
 Authentication endpoints have built-in strict limits:
-- Login: 5 attempts per 15 minutes
-- Signup: 3 per hour
-- Password reset: 3 per hour
+- Login: 10 attempts per 15 minutes
+- Signup: 10 per 15 minutes
+- Password reset: 5 per 15 minutes
+- 2FA verification: 5 per 5 minutes
 
 **Do not disable these** unless absolutely necessary.
 
@@ -608,26 +635,11 @@ done
 # 101st should return 429
 ```
 
-### Distributed Setup Not Working
+### Each Instance Has Separate Rate Limits
 
-**Issue**: Each instance has separate rate limits
+**Issue**: In multi-instance deployments, rate limits are not shared across instances.
 
-**Solution**: Enable Redis
-
-```bash
-FLUXBASE_REDIS_ENABLED=true
-FLUXBASE_REDIS_HOST=redis
-FLUXBASE_REDIS_PORT=6379
-```
-
-**Verify**:
-```bash
-# Connect to Redis
-redis-cli
-
-# Check rate limit keys
-KEYS rate_limit:*
-```
+**Solution**: This is expected behavior. Fluxbase uses in-memory rate limiting per instance. For centralized rate limiting, use a reverse proxy or API gateway. See [Multi-Instance Deployments](#multi-instance-deployments) above.
 
 ### False Positives from Load Balancer
 
