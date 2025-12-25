@@ -615,10 +615,9 @@ func TestRLSTokenTablesServiceRoleOnly(t *testing.T) {
 	// Test 1: Regular user cannot access magic_links
 	// Insert a magic link as superuser (for test setup)
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.magic_links (id, email, token, expires_at, created_at)
-		VALUES (gen_random_uuid(), $1, 'test_token_123', NOW() + interval '1 hour', NOW())
-	`, "user@example.com")
-
+		INSERT INTO auth.magic_links (id, email, token_hash, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, $2, NOW() + interval '1 hour', NOW())
+	`, "user@example.com", "D1pFJ0pwJ6tkj3GPoavQs9UNvIY8o4Er7-I32lQ7dqU=")
 	// Try to query as regular user with RLS enforced
 	magicLinks := tc.QuerySQLAsRLSUser(`
 		SELECT * FROM auth.magic_links WHERE email = $1
@@ -629,8 +628,8 @@ func TestRLSTokenTablesServiceRoleOnly(t *testing.T) {
 	// Test 2: Regular user cannot access password_reset_tokens
 	// Insert a password reset token as superuser
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.password_reset_tokens (id, user_id, token, expires_at, created_at)
-		VALUES (gen_random_uuid(), $1, 'reset_token_456', NOW() + interval '1 hour', NOW())
+		INSERT INTO auth.password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+		VALUES (gen_random_uuid(), $1, 'I-8aVT3KJp4TGIItEu6I_2ixlaaJetCSkMPOQZef5m0', NOW() + interval '1 hour', NOW())
 	`, userID)
 
 	// Try to query as regular user with RLS enforced

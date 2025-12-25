@@ -33,11 +33,11 @@ type EdgeFunction struct {
 	IsPublic             bool      `json:"is_public"`              // Whether function is publicly listed
 	DisableExecutionLogs bool      `json:"disable_execution_logs"` // Disable execution log creation
 	// CORS configuration (nil means use global defaults from FLUXBASE_CORS_* env vars)
-	CorsOrigins     *string    `json:"cors_origins"`
-	CorsMethods     *string    `json:"cors_methods"`
-	CorsHeaders     *string    `json:"cors_headers"`
-	CorsCredentials *bool      `json:"cors_credentials"`
-	CorsMaxAge      *int       `json:"cors_max_age"`
+	CorsOrigins     *string `json:"cors_origins"`
+	CorsMethods     *string `json:"cors_methods"`
+	CorsHeaders     *string `json:"cors_headers"`
+	CorsCredentials *bool   `json:"cors_credentials"`
+	CorsMaxAge      *int    `json:"cors_max_age"`
 	// Rate limiting configuration (nil means unlimited)
 	RateLimitPerMinute *int       `json:"rate_limit_per_minute"`
 	RateLimitPerHour   *int       `json:"rate_limit_per_hour"`
