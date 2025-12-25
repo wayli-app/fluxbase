@@ -164,6 +164,18 @@ func (r *DenoRuntime) Execute(
 		if tokenErr != nil {
 			log.Warn().Err(tokenErr).Str("id", req.ID.String()).Msg("Failed to generate service token, SDK will not be available")
 		}
+		log.Debug().
+			Str("id", req.ID.String()).
+			Bool("user_token_generated", userToken != "").
+			Bool("service_token_generated", serviceToken != "").
+			Str("public_url", r.publicURL).
+			Msg("SDK tokens generated for edge function execution")
+	} else {
+		log.Warn().
+			Str("id", req.ID.String()).
+			Bool("has_jwt_secret", r.jwtSecret != "").
+			Bool("has_public_url", r.publicURL != "").
+			Msg("SDK tokens NOT generated - missing jwtSecret or publicURL")
 	}
 
 	// Wrap the user code with our runtime bridge

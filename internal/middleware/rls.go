@@ -112,6 +112,14 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 	// Map application role to database role for SET ROLE
 	dbRole := mapAppRoleToDatabaseRole(role)
 
+	// Enhanced debug logging for service_role troubleshooting
+	log.Debug().
+		Str("input_user_id", userID).
+		Str("input_role", role).
+		Str("mapped_db_role", dbRole).
+		Bool("has_claims", claims != nil).
+		Msg("SetRLSContext: Starting RLS context setup")
+
 	// Validate database role (defense in depth - should always be one of these three)
 	validDBRoles := map[string]bool{
 		"anon":          true,
@@ -235,8 +243,19 @@ func WrapWithRLS(ctx context.Context, conn *database.Connection, c *fiber.Ctx, f
 	// Set RLS context from Fiber context
 	userID := c.Locals("rls_user_id")
 	role := c.Locals("rls_role")
+
+	// Enhanced debug logging for service_role troubleshooting
+	log.Debug().
+		Interface("raw_rls_user_id", userID).
+		Interface("raw_rls_role", role).
+		Str("auth_type", fmt.Sprintf("%v", c.Locals("auth_type"))).
+		Str("user_role", fmt.Sprintf("%v", c.Locals("user_role"))).
+		Str("path", c.Path()).
+		Msg("WrapWithRLS: Raw Fiber locals before processing")
+
 	if role == nil {
 		role = "anon"
+		log.Debug().Msg("WrapWithRLS: rls_role was nil, defaulting to 'anon'")
 	}
 
 	// Extract JWT claims if available
