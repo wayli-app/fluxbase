@@ -170,7 +170,7 @@ func (r *DenoRuntime) Execute(
 	wrappedCode := r.wrapCode(code, req)
 
 	// Ensure Deno cache directory exists (required for Deno to run)
-	if err := os.MkdirAll("/tmp/deno", 0755); err != nil {
+	if err := os.MkdirAll("/tmp/deno", 0750); err != nil {
 		log.Warn().Err(err).Msg("Failed to create Deno cache directory")
 	}
 

@@ -504,11 +504,6 @@ func (e *Executor) executeWithRLS(ctx context.Context, sql string, execCtx *Exec
 	return resultJSON, rowCount, nil
 }
 
-// failExecution marks an execution as failed and returns the error result
-func (e *Executor) failExecution(ctx context.Context, exec *Execution, start time.Time, errorMsg string) (*ExecuteResult, error) {
-	return e.failExecutionWithContext(ctx, exec, nil, start, errorMsg)
-}
-
 // failExecutionWithContext marks an execution as failed and returns the error result
 // When execCtx is provided and DisableExecutionLogs is true, skips updating execution record and appending logs
 func (e *Executor) failExecutionWithContext(ctx context.Context, exec *Execution, execCtx *ExecuteContext, start time.Time, errorMsg string) (*ExecuteResult, error) {

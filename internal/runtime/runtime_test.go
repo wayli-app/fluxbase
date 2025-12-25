@@ -107,8 +107,9 @@ func TestBuildEnvForFunction(t *testing.T) {
 	if _, ok := envMap["PATH"]; ok {
 		t.Error("Expected PATH to be excluded, but it was included")
 	}
-	if _, ok := envMap["HOME"]; ok {
-		t.Error("Expected HOME to be excluded, but it was included")
+	// HOME is intentionally set to /tmp for Deno runtime requirements
+	if envMap["HOME"] != "/tmp" {
+		t.Errorf("Expected HOME=/tmp (for Deno), got HOME=%s", envMap["HOME"])
 	}
 
 	// Test that function-specific variables are included

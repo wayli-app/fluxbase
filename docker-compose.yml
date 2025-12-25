@@ -78,7 +78,7 @@ services:
       FLUXBASE_FUNCTIONS_ENABLED: "true"
 
       # Email (using MailHog for development)
-      FLUXBASE_EMAIL_ENABLED: "false"
+      FLUXBASE_EMAIL_ENABLED: "true"
       FLUXBASE_EMAIL_PROVIDER: smtp
       FLUXBASE_EMAIL_SMTP_HOST: mailhog
       FLUXBASE_EMAIL_SMTP_PORT: 1025

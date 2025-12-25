@@ -87,7 +87,7 @@ realtime:
 
 # Email configuration
 email:
-  enabled: false                        # FLUXBASE_EMAIL_ENABLED
+  enabled: true                        # FLUXBASE_EMAIL_ENABLED
   provider: "smtp"                      # FLUXBASE_EMAIL_PROVIDER (smtp, sendgrid, mailgun, ses)
   from_address: "noreply@localhost"     # FLUXBASE_EMAIL_FROM_ADDRESS
   from_name: "Fluxbase"                 # FLUXBASE_EMAIL_FROM_NAME

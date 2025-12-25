@@ -187,7 +187,7 @@ services:
       # ==========================================================================
       # Email Configuration (optional)
       # ==========================================================================
-      # FLUXBASE_EMAIL_ENABLED: "false"
+      # FLUXBASE_EMAIL_ENABLED: "true"
       # FLUXBASE_EMAIL_PROVIDER: "smtp"  # smtp, sendgrid, mailgun, ses
       # FLUXBASE_EMAIL_FROM_ADDRESS: "noreply@localhost"
       # FLUXBASE_EMAIL_FROM_NAME: "Fluxbase"
