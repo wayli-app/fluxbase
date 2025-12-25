@@ -436,6 +436,9 @@ func (h *Handler) needsUpdate(existing, new *Procedure) bool {
 	if existing.IsPublic != new.IsPublic {
 		return true
 	}
+	if existing.DisableExecutionLogs != new.DisableExecutionLogs {
+		return true
+	}
 	// Compare require_role
 	if (existing.RequireRole == nil) != (new.RequireRole == nil) {
 		return true
@@ -757,13 +760,14 @@ func (h *Handler) Invoke(c *fiber.Ctx) error {
 
 	// Build execution context
 	execCtx := &ExecuteContext{
-		Procedure: procedure,
-		Params:    req.Params,
-		UserID:    userID,
-		UserRole:  userRole,
-		UserEmail: userEmail,
-		Claims:    claims,
-		IsAsync:   req.Async,
+		Procedure:            procedure,
+		Params:               req.Params,
+		UserID:               userID,
+		UserRole:             userRole,
+		UserEmail:            userEmail,
+		Claims:               claims,
+		IsAsync:              req.Async,
+		DisableExecutionLogs: procedure.DisableExecutionLogs,
 	}
 
 	// Execute

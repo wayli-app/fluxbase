@@ -1,0 +1,38 @@
+{{- if and .Values.httpRoute.enabled .Values.httpRoute.upstreamSettings.enabled }}
+apiVersion: gateway.nginx.org/v1alpha1
+kind: UpstreamSettingsPolicy
+metadata:
+  name: {{ .Values.httpRoute.routeName | default (include "fluxbase.fullname" .) }}-upstream-settings
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+  {{- if or .Values.httpRoute.upstreamSettings.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.httpRoute.upstreamSettings.annotations }}
+    {{- toYaml .Values.httpRoute.upstreamSettings.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: {{ include "fluxbase.fullname" . }}
+  zoneSize: {{ .Values.httpRoute.upstreamSettings.zoneSize | quote }}
+  {{- with .Values.httpRoute.upstreamSettings.keepAlive }}
+  keepAlive:
+    {{- if .connections }}
+    connections: {{ .connections }}
+    {{- end }}
+    {{- if .requests }}
+    requests: {{ .requests }}
+    {{- end }}
+    {{- if .time }}
+    time: {{ .time | quote }}
+    {{- end }}
+    {{- if .timeout }}
+    timeout: {{ .timeout | quote }}
+    {{- end }}
+  {{- end }}
+{{- end }}

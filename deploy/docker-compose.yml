@@ -326,7 +326,12 @@ services:
       # ==========================================================================
       # General Configuration
       # ==========================================================================
+      # Internal URL for server-to-server communication (e.g., edge functions calling the API)
       FLUXBASE_BASE_URL: ${FLUXBASE_BASE_URL:-http://localhost:8080}
+      # Public URL for user-facing links (OAuth callbacks, magic links, invitation emails)
+      # Set this when deploying behind a reverse proxy, load balancer, or ingress
+      # Example: FLUXBASE_PUBLIC_BASE_URL: https://api.example.com
+      # FLUXBASE_PUBLIC_BASE_URL: ${FLUXBASE_PUBLIC_BASE_URL:-}
       FLUXBASE_DEBUG: ${FLUXBASE_DEBUG:-false}
 
       # ==========================================================================

@@ -167,7 +167,7 @@ func main() {
 		log.Debug().Msg("Anon key generated for edge functions")
 	}
 
-	// Ensure BASE_URL is set for edge functions
+	// Ensure BASE_URL is set for edge functions (internal URL for server-to-server communication)
 	if os.Getenv("FLUXBASE_BASE_URL") == "" {
 		baseURL := fmt.Sprintf("http://%s", strings.TrimPrefix(cfg.Server.Address, ":"))
 		if strings.HasPrefix(cfg.Server.Address, ":") {
@@ -177,6 +177,14 @@ func main() {
 			log.Warn().Err(err).Msg("Failed to set FLUXBASE_BASE_URL")
 		}
 		log.Debug().Str("url", baseURL).Msg("Base URL set for edge functions")
+	}
+
+	// Log the public URL configuration if it differs from base URL
+	if cfg.PublicBaseURL != "" && cfg.PublicBaseURL != cfg.BaseURL {
+		log.Info().
+			Str("public_url", cfg.PublicBaseURL).
+			Str("internal_url", cfg.BaseURL).
+			Msg("Using separate public and internal URLs")
 	}
 
 	// Validate storage provider health
@@ -321,7 +329,7 @@ func validateStorageHealth(server *api.Server) error {
 // printConfigSummary logs a summary of the current configuration
 func printConfigSummary(cfg *config.Config) {
 	log.Info().Msg("Configuration Summary:")
-	log.Info().Str("base_url", cfg.BaseURL).Msg("  Base URL")
+	log.Info().Str("base_url", cfg.BaseURL).Str("public_base_url", cfg.GetPublicBaseURL()).Msg("  Base URL")
 	log.Info().Str("address", cfg.Server.Address).Msg("  Server Address")
 	log.Info().
 		Str("host", cfg.Database.Host).

@@ -57,7 +57,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
-			allow_unauthenticated, is_public, response_language,
+			allow_unauthenticated, is_public, response_language, disable_execution_logs,
 			version, source, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
@@ -66,8 +66,8 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			$16, $17, $18, $19,
 			$20, $21, $22,
 			$23, $24, $25,
-			$26, $27, $28,
-			$29, $30, $31, $32, $33
+			$26, $27, $28, $29,
+			$30, $31, $32, $33, $34
 		)
 	`
 
@@ -103,7 +103,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.Enabled, chatbot.MaxTokens, chatbot.Temperature, chatbot.ProviderID,
 		chatbot.PersistConversations, chatbot.ConversationTTLHours, chatbot.MaxConversationTurns,
 		chatbot.RateLimitPerMinute, chatbot.DailyRequestLimit, chatbot.DailyTokenBudget,
-		chatbot.AllowUnauthenticated, chatbot.IsPublic, chatbot.ResponseLanguage,
+		chatbot.AllowUnauthenticated, chatbot.IsPublic, chatbot.ResponseLanguage, chatbot.DisableExecutionLogs,
 		chatbot.Version, chatbot.Source,
 		chatbot.CreatedBy, chatbot.CreatedAt, chatbot.UpdatedAt,
 	)
@@ -150,8 +150,9 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			allow_unauthenticated = $24,
 			is_public = $25,
 			response_language = $26,
+			disable_execution_logs = $27,
 			version = version + 1,
-			updated_at = $27
+			updated_at = $28
 		WHERE id = $1
 	`
 
@@ -200,6 +201,7 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.AllowUnauthenticated,
 		chatbot.IsPublic,
 		chatbot.ResponseLanguage,
+		chatbot.DisableExecutionLogs,
 		chatbot.UpdatedAt,
 	)
 
@@ -229,7 +231,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
-			allow_unauthenticated, is_public, response_language,
+			allow_unauthenticated, is_public, response_language, disable_execution_logs,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE id = $1
@@ -247,7 +249,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
-		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage,
+		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
 		&chatbot.Version, &chatbot.Source,
 		&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 	)
@@ -291,7 +293,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
-			allow_unauthenticated, is_public, response_language,
+			allow_unauthenticated, is_public, response_language, disable_execution_logs,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE namespace = $1 AND name = $2
@@ -309,7 +311,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 		&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
-		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage,
+		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
 		&chatbot.Version, &chatbot.Source,
 		&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 	)
@@ -353,7 +355,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
-			allow_unauthenticated, is_public, response_language,
+			allow_unauthenticated, is_public, response_language, disable_execution_logs,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 	`
@@ -384,7 +386,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
-			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage,
+			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
 			&chatbot.Version, &chatbot.Source,
 			&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 		)
@@ -423,7 +425,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 			enabled, max_tokens, temperature, provider_id,
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
-			allow_unauthenticated, is_public, response_language,
+			allow_unauthenticated, is_public, response_language, disable_execution_logs,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE namespace = $1
@@ -450,7 +452,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
-			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage,
+			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
 			&chatbot.Version, &chatbot.Source,
 			&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 		)

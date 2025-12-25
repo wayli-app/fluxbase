@@ -641,6 +641,10 @@ spec:
             - name: FLUXBASE_BASE_URL
               value: {{ .Values.config.base_url | quote }}
             {{- end }}
+            {{- if .Values.config.public_base_url }}
+            - name: FLUXBASE_PUBLIC_BASE_URL
+              value: {{ .Values.config.public_base_url | quote }}
+            {{- end }}
             - name: FLUXBASE_DEBUG
               value: {{ .Values.config.debug | quote }}
             {{- if or .Values.config.encryption_key .Values.existingSecret }}

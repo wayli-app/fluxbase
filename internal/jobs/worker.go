@@ -26,6 +26,7 @@ type Worker struct {
 	currentJobs          sync.Map // jobID -> *runtime.CancelSignal
 	jobLogCounters       sync.Map // jobID -> *int (line counter)
 	jobStartTimes        sync.Map // jobID -> time.Time (for ETA calculation)
+	jobLogsDisabled      sync.Map // jobID -> bool (whether execution logs are disabled)
 	currentJobCount      int
 	currentJobCountMutex sync.RWMutex
 	shutdownChan         chan struct{}
@@ -343,6 +344,12 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		}
 	}
 
+	// Track whether execution logs are disabled for this job
+	if jobFunction.DisableExecutionLogs {
+		w.jobLogsDisabled.Store(job.ID, true)
+		defer w.jobLogsDisabled.Delete(job.ID)
+	}
+
 	// Check if job function is enabled
 	if !jobFunction.Enabled {
 		log.Warn().Str("job_id", job.ID.String()).Str("job_name", job.JobName).Msg("Job function is disabled")
@@ -477,6 +484,11 @@ func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *runtime.Progres
 // handleLogMessage is called when a job outputs a log message
 // Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (w *Worker) handleLogMessage(jobID uuid.UUID, level string, message string) {
+	// Check if execution logs are disabled for this job
+	if _, disabled := w.jobLogsDisabled.Load(jobID); disabled {
+		return
+	}
+
 	// Get and increment the line counter for this job
 	counterVal, ok := w.jobLogCounters.Load(jobID)
 	if !ok {

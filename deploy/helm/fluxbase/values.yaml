@@ -513,10 +513,17 @@ config:
   encryption_key: ""
 
   ## General configuration
-  ## @param config.base_url Public base URL for the application
+  ## @param config.base_url Internal base URL for server-to-server communication (e.g., http://localhost:8080)
+  ## @param config.public_base_url Public base URL for user-facing links (OAuth callbacks, magic links, invitations)
+  ## @descriptionStart
+  ## If public_base_url is not set, it falls back to base_url.
+  ## Set public_base_url when deploying behind a reverse proxy, load balancer, or ingress.
+  ## Example: base_url="http://localhost:8080" and public_base_url="https://api.example.com"
+  ## @descriptionEnd
   ## @param config.debug Enable debug mode
   ##
   base_url: ""
+  public_base_url: ""
   debug: false
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
@@ -961,10 +968,14 @@ ingress:
   ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
   ## e.g:
   ## annotations:
-  ##   kubernetes.io/ingress.class: nginx
   ##   cert-manager.io/cluster-issuer: cluster-issuer-name
   ##
-  annotations: {}
+  ## Default annotations include WebSocket support settings for NGINX Ingress Controller
+  ##
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
   ## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname` parameter
   ## TLS certificates will be retrieved from a TLS secret with name: `{{- printf "%s-tls" .Values.ingress.hostname }}`
   ## You can:
@@ -1084,6 +1095,26 @@ httpRoute:
     enabled: true
     body:
       maxSize: "0"  # 0 = unlimited, matches Fluxbase default 2GB body limit
+    annotations: {}
+  ## Upstream Settings Policy for NGINX Gateway Fabric
+  ## Configures connection pooling and keepalive for backend connections
+  ## Critical for WebSocket connections to prevent premature closure
+  ## @param httpRoute.upstreamSettings.enabled Enable UpstreamSettingsPolicy
+  ## @param httpRoute.upstreamSettings.zoneSize Shared memory zone size for upstream state
+  ## @param httpRoute.upstreamSettings.keepAlive.connections Max idle keepalive connections per worker
+  ## @param httpRoute.upstreamSettings.keepAlive.requests Max requests per keepalive connection
+  ## @param httpRoute.upstreamSettings.keepAlive.time Max time for keepalive connection
+  ## @param httpRoute.upstreamSettings.keepAlive.timeout Idle timeout for keepalive connections
+  ## @param httpRoute.upstreamSettings.annotations Additional annotations for the UpstreamSettingsPolicy resource
+  ##
+  upstreamSettings:
+    enabled: true
+    zoneSize: "512k"
+    keepAlive:
+      connections: 100
+      requests: 1000
+      time: "1h"
+      timeout: "60s"
     annotations: {}
 
 ## @section Persistence Parameters

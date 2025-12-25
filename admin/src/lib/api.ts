@@ -7,9 +7,14 @@ import {
   type AdminUser,
 } from './auth'
 
-// Base URL for the API - can be overridden with environment variable
-// Use empty string (relative URLs) to work with both dev server proxy and production
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+// Base URL for the API - priority order:
+// 1. Runtime config injected by server (FLUXBASE_PUBLIC_BASE_URL)
+// 2. Build-time environment variable (VITE_API_URL)
+// 3. Empty string (relative URLs) - works when dashboard is served from the same domain
+const API_BASE_URL =
+  window.__FLUXBASE_CONFIG__?.publicBaseURL ||
+  import.meta.env.VITE_API_URL ||
+  ''
 
 // Create axios instance with default config
 const api: AxiosInstance = axios.create({
@@ -2594,15 +2599,11 @@ export const knowledgeBasesApi = {
       filename: string
       extracted_length: number
       mime_type: string
-    }>(
-      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/upload`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    )
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/documents/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   },
 
@@ -2699,10 +2700,7 @@ export const knowledgeBasesApi = {
   },
 
   // Unlink knowledge base from chatbot
-  unlinkFromChatbot: async (
-    chatbotId: string,
-    kbId: string
-  ): Promise<void> => {
+  unlinkFromChatbot: async (chatbotId: string, kbId: string): Promise<void> => {
     await api.delete(
       `/api/v1/admin/ai/chatbots/${chatbotId}/knowledge-bases/${kbId}`
     )
@@ -2808,4 +2806,3 @@ export const logsApi = {
     return response.data
   },
 }
-

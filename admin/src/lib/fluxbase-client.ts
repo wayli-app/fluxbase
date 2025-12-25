@@ -5,8 +5,23 @@
 import { createClient } from '@fluxbase/sdk'
 import { getAccessToken } from './auth'
 
-// Base URL for the API - can be overridden with environment variable
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+// Declare the runtime config type injected by the server
+declare global {
+  interface Window {
+    __FLUXBASE_CONFIG__?: {
+      publicBaseURL?: string
+    }
+  }
+}
+
+// Base URL for the API - priority order:
+// 1. Runtime config injected by server (FLUXBASE_PUBLIC_BASE_URL)
+// 2. Build-time environment variable (VITE_API_URL)
+// 3. Current origin (works when dashboard is served from the same domain)
+const API_BASE_URL =
+  window.__FLUXBASE_CONFIG__?.publicBaseURL ||
+  import.meta.env.VITE_API_URL ||
+  window.location.origin
 const API_KEY = import.meta.env.VITE_API_KEY || 'anonymous'
 
 // Helper to get impersonation token if active

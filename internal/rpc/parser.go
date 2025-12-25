@@ -10,17 +10,18 @@ import (
 
 // Annotation patterns for parsing SQL comments
 var (
-	namePattern           = regexp.MustCompile(`(?m)^--\s*@fluxbase:name\s+(.+)$`)
-	descriptionPattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:description\s+(.+)$`)
-	inputPattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:input\s+(.+)$`)
-	outputPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:output\s+(.+)$`)
-	allowedTablesPattern  = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-tables\s+(.+)$`)
-	allowedSchemasPattern = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-schemas\s+(.+)$`)
-	maxExecTimePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:max-execution-time\s+(.+)$`)
-	requireRolePattern    = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
-	publicPattern         = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
-	versionPattern        = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
-	schedulePattern       = regexp.MustCompile(`(?m)^--\s*@fluxbase:schedule\s+(.+)$`)
+	namePattern                 = regexp.MustCompile(`(?m)^--\s*@fluxbase:name\s+(.+)$`)
+	descriptionPattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:description\s+(.+)$`)
+	inputPattern                = regexp.MustCompile(`(?m)^--\s*@fluxbase:input\s+(.+)$`)
+	outputPattern               = regexp.MustCompile(`(?m)^--\s*@fluxbase:output\s+(.+)$`)
+	allowedTablesPattern        = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-tables\s+(.+)$`)
+	allowedSchemasPattern       = regexp.MustCompile(`(?m)^--\s*@fluxbase:allowed-schemas\s+(.+)$`)
+	maxExecTimePattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:max-execution-time\s+(.+)$`)
+	requireRolePattern          = regexp.MustCompile(`(?m)^--\s*@fluxbase:require-role\s+(.+)$`)
+	publicPattern               = regexp.MustCompile(`(?m)^--\s*@fluxbase:public\s+(.+)$`)
+	disableExecutionLogsPattern = regexp.MustCompile(`(?m)^--\s*@fluxbase:disable-execution-logs(?:\s+(true|false))?$`)
+	versionPattern              = regexp.MustCompile(`(?m)^--\s*@fluxbase:version\s+(.+)$`)
+	schedulePattern             = regexp.MustCompile(`(?m)^--\s*@fluxbase:schedule\s+(.+)$`)
 )
 
 // ParseAnnotations parses annotations from SQL code and returns the annotations and cleaned SQL query
@@ -92,6 +93,14 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 	if matches := publicPattern.FindStringSubmatch(code); len(matches) > 1 {
 		value := strings.ToLower(strings.TrimSpace(matches[1]))
 		annotations.IsPublic = value == "true" || value == "yes" || value == "1"
+	}
+
+	// Parse disable-execution-logs flag
+	if matches := disableExecutionLogsPattern.FindStringSubmatch(code); matches != nil {
+		// If no value specified or value is "true", disable logs
+		if len(matches) <= 1 || matches[1] == "" || matches[1] == "true" {
+			annotations.DisableExecutionLogs = true
+		}
 	}
 
 	// Parse version
@@ -223,6 +232,7 @@ func ApplyAnnotations(proc *Procedure, annotations *Annotations) {
 		proc.RequireRole = &annotations.RequireRole
 	}
 	proc.IsPublic = annotations.IsPublic
+	proc.DisableExecutionLogs = annotations.DisableExecutionLogs
 	if annotations.Version > 0 {
 		proc.Version = annotations.Version
 	}

@@ -609,25 +609,27 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 		return fmt.Sprintf("Error executing query: %v", err), nil
 	}
 
-	// Log to audit
-	_ = h.auditLogger.LogFromExecuteResult(
-		ctx,
-		chatbot.ID, conversationID, "", userID,
-		args.SQL, result,
-		chatCtx.Role, chatCtx.IPAddress, chatCtx.UserAgent,
-	)
+	// Log to audit (unless execution logs are disabled)
+	if !chatbot.DisableExecutionLogs {
+		_ = h.auditLogger.LogFromExecuteResult(
+			ctx,
+			chatbot.ID, conversationID, "", userID,
+			args.SQL, result,
+			chatCtx.Role, chatCtx.IPAddress, chatCtx.UserAgent,
+		)
 
-	// Log to central logging service
-	if h.loggingService != nil {
-		h.loggingService.LogAI(ctx, map[string]any{
-			"tool":            "execute_sql",
-			"chatbot_id":      chatbot.ID,
-			"conversation_id": conversationID,
-			"success":         result.Success,
-			"rows_returned":   result.RowCount,
-			"tables":          result.TablesAccessed,
-			"duration_ms":     result.DurationMs,
-		}, "", userID)
+		// Log to central logging service
+		if h.loggingService != nil {
+			h.loggingService.LogAI(ctx, map[string]any{
+				"tool":            "execute_sql",
+				"chatbot_id":      chatbot.ID,
+				"conversation_id": conversationID,
+				"success":         result.Success,
+				"rows_returned":   result.RowCount,
+				"tables":          result.TablesAccessed,
+				"duration_ms":     result.DurationMs,
+			}, "", userID)
+		}
 	}
 
 	// Send result to client for display
@@ -687,32 +689,34 @@ func (h *ChatHandler) executeHttpTool(ctx context.Context, chatCtx *ChatContext,
 	// Execute HTTP request
 	result := h.httpHandler.Execute(ctx, args.URL, args.Method, chatbot.HTTPAllowedDomains)
 
-	// Log to audit (domain + path only, no query params for privacy)
-	logPath := args.URL
-	if parsedURL, err := parseURLForLogging(args.URL); err == nil {
-		logPath = parsedURL
-	}
+	// Log to audit (domain + path only, no query params for privacy) (unless execution logs are disabled)
+	if !chatbot.DisableExecutionLogs {
+		logPath := args.URL
+		if parsedURL, err := parseURLForLogging(args.URL); err == nil {
+			logPath = parsedURL
+		}
 
-	log.Info().
-		Str("chatbot_id", chatbot.ID).
-		Str("conversation_id", conversationID).
-		Str("request_path", logPath).
-		Bool("success", result.Success).
-		Int("status", result.Status).
-		Str("error", result.Error).
-		Msg("HTTP request tool executed")
+		log.Info().
+			Str("chatbot_id", chatbot.ID).
+			Str("conversation_id", conversationID).
+			Str("request_path", logPath).
+			Bool("success", result.Success).
+			Int("status", result.Status).
+			Str("error", result.Error).
+			Msg("HTTP request tool executed")
 
-	// Log to central logging service
-	if h.loggingService != nil {
-		h.loggingService.LogAI(ctx, map[string]any{
-			"tool":            "http_request",
-			"chatbot_id":      chatbot.ID,
-			"conversation_id": conversationID,
-			"method":          args.Method,
-			"url":             logPath,
-			"success":         result.Success,
-			"status":          result.Status,
-		}, "", "")
+		// Log to central logging service
+		if h.loggingService != nil {
+			h.loggingService.LogAI(ctx, map[string]any{
+				"tool":            "http_request",
+				"chatbot_id":      chatbot.ID,
+				"conversation_id": conversationID,
+				"method":          args.Method,
+				"url":             logPath,
+				"success":         result.Success,
+				"status":          result.Status,
+			}, "", "")
+		}
 	}
 
 	// Return result as JSON string for AI
@@ -788,23 +792,25 @@ func (h *ChatHandler) executeVectorSearchTool(ctx context.Context, chatCtx *Chat
 		RowCount:       len(results),
 	})
 
-	// Log the search
-	log.Info().
-		Str("chatbot_id", chatbot.ID).
-		Str("conversation_id", conversationID).
-		Str("query", args.Query).
-		Int("results", len(results)).
-		Msg("Vector search tool executed")
+	// Log the search (unless execution logs are disabled)
+	if !chatbot.DisableExecutionLogs {
+		log.Info().
+			Str("chatbot_id", chatbot.ID).
+			Str("conversation_id", conversationID).
+			Str("query", args.Query).
+			Int("results", len(results)).
+			Msg("Vector search tool executed")
 
-	// Log to central logging service
-	if h.loggingService != nil {
-		h.loggingService.LogAI(ctx, map[string]any{
-			"tool":            "vector_search",
-			"chatbot_id":      chatbot.ID,
-			"conversation_id": conversationID,
-			"query":           args.Query,
-			"results_count":   len(results),
-		}, "", userID)
+		// Log to central logging service
+		if h.loggingService != nil {
+			h.loggingService.LogAI(ctx, map[string]any{
+				"tool":            "vector_search",
+				"chatbot_id":      chatbot.ID,
+				"conversation_id": conversationID,
+				"query":           args.Query,
+				"results_count":   len(results),
+			}, "", userID)
+		}
 	}
 
 	// Format result for LLM

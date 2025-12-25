@@ -64,6 +64,9 @@ type Chatbot struct {
 	// Response language
 	ResponseLanguage string `json:"response_language"` // "auto" (default), ISO code, or language name
 
+	// Logging
+	DisableExecutionLogs bool `json:"disable_execution_logs"` // If true, skip creating execution logs
+
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
 	CreatedBy *string   `json:"created_by,omitempty"`
@@ -113,6 +116,9 @@ type ChatbotConfig struct {
 
 	// Response language
 	ResponseLanguage string // "auto" (default), ISO code, or language name
+
+	// Logging
+	DisableExecutionLogs bool
 
 	// Metadata
 	Version int
@@ -230,6 +236,9 @@ var (
 
 	// @fluxbase:response-language auto | en | German | Deutsch
 	responseLanguagePattern = regexp.MustCompile(`@fluxbase:response-language\s+([^\n*]+)`)
+
+	// @fluxbase:disable-execution-logs true
+	disableExecutionLogsPattern = regexp.MustCompile(`@fluxbase:disable-execution-logs(?:\s+(true|false))?`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -409,6 +418,14 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		config.ResponseLanguage = strings.TrimSpace(matches[1])
 	}
 
+	// Parse disable-execution-logs flag
+	if matches := disableExecutionLogsPattern.FindStringSubmatch(code); matches != nil {
+		// If no value specified or value is "true", disable logs
+		if len(matches) <= 1 || matches[1] == "" || matches[1] == "true" {
+			config.DisableExecutionLogs = true
+		}
+	}
+
 	return config
 }
 
@@ -529,6 +546,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.AllowUnauthenticated = config.AllowUnauthenticated
 	c.IsPublic = config.IsPublic
 	c.ResponseLanguage = config.ResponseLanguage
+	c.DisableExecutionLogs = config.DisableExecutionLogs
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {

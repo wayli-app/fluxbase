@@ -789,9 +789,12 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		Msg("Invoking edge function")
 
 	// Create execution record BEFORE running to enable real-time logging
-	if err := h.storage.CreateExecution(c.Context(), executionID, fn.ID, "http"); err != nil {
-		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
-		// Continue anyway - logging will still work via stderr fallback
+	// Skip if execution logs are disabled for this function
+	if !fn.DisableExecutionLogs {
+		if err := h.storage.CreateExecution(c.Context(), executionID, fn.ID, "http"); err != nil {
+			log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
+			// Continue anyway - logging will still work via stderr fallback
+		}
 	}
 
 	// Initialize log counter for this execution
@@ -824,12 +827,15 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 	}
 
 	// Update execution record asynchronously (don't block response)
-	go func() {
-		ctx := context.Background()
-		if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
-			log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
-		}
-	}()
+	// Skip if execution logs are disabled for this function
+	if !fn.DisableExecutionLogs {
+		go func() {
+			ctx := context.Background()
+			if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
+				log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
+			}
+		}()
+	}
 
 	// Return function result
 	if err != nil {
@@ -1104,6 +1110,7 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 				AllowWrite:           false,
 				AllowUnauthenticated: config.AllowUnauthenticated,
 				IsPublic:             config.IsPublic,
+				DisableExecutionLogs: config.DisableExecutionLogs,
 				Source:               "filesystem",
 			}
 
@@ -1131,14 +1138,15 @@ func (h *Handler) ReloadFunctions(c *fiber.Ctx) error {
 				compareCode = *existingFn.OriginalCode
 			}
 
-			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated || existingFn.IsPublic != config.IsPublic {
+			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated || existingFn.IsPublic != config.IsPublic || existingFn.DisableExecutionLogs != config.DisableExecutionLogs {
 				updates := map[string]interface{}{
-					"code":                  bundledCode,
-					"original_code":         originalCode,
-					"is_bundled":            isBundled,
-					"bundle_error":          bundleError,
-					"allow_unauthenticated": config.AllowUnauthenticated,
-					"is_public":             config.IsPublic,
+					"code":                   bundledCode,
+					"original_code":          originalCode,
+					"is_bundled":             isBundled,
+					"bundle_error":           bundleError,
+					"allow_unauthenticated":  config.AllowUnauthenticated,
+					"is_public":              config.IsPublic,
+					"disable_execution_logs": config.DisableExecutionLogs,
 				}
 
 				if err := h.storage.UpdateFunction(ctx, fileInfo.Name, updates); err != nil {
@@ -1587,6 +1595,7 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 				AllowWrite:           false,
 				AllowUnauthenticated: config.AllowUnauthenticated,
 				IsPublic:             config.IsPublic,
+				DisableExecutionLogs: config.DisableExecutionLogs,
 				Source:               "filesystem",
 			}
 
@@ -1614,14 +1623,15 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 				compareCode = *existingFn.OriginalCode
 			}
 
-			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated || existingFn.IsPublic != config.IsPublic {
+			if existingFn.Code != bundledCode || compareCode != originalCode || existingFn.AllowUnauthenticated != config.AllowUnauthenticated || existingFn.IsPublic != config.IsPublic || existingFn.DisableExecutionLogs != config.DisableExecutionLogs {
 				updates := map[string]interface{}{
-					"code":                  bundledCode,
-					"original_code":         originalCode,
-					"is_bundled":            isBundled,
-					"bundle_error":          bundleError,
-					"allow_unauthenticated": config.AllowUnauthenticated,
-					"is_public":             config.IsPublic,
+					"code":                   bundledCode,
+					"original_code":          originalCode,
+					"is_bundled":             isBundled,
+					"bundle_error":           bundleError,
+					"allow_unauthenticated":  config.AllowUnauthenticated,
+					"is_public":              config.IsPublic,
+					"disable_execution_logs": config.DisableExecutionLogs,
 				}
 
 				if err := h.storage.UpdateFunction(ctx, fileInfo.Name, updates); err != nil {

@@ -293,9 +293,12 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 	}
 
 	// Create execution record BEFORE running to enable real-time logging
-	if err := s.storage.CreateExecution(s.ctx, executionID, fn.ID, "cron"); err != nil {
-		log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
-		// Continue anyway - logging will still work via stderr fallback
+	// Skip if execution logs are disabled for this function
+	if !fn.DisableExecutionLogs {
+		if err := s.storage.CreateExecution(s.ctx, executionID, fn.ID, "cron"); err != nil {
+			log.Error().Err(err).Str("execution_id", executionID.String()).Msg("Failed to create execution record")
+			// Continue anyway - logging will still work via stderr fallback
+		}
 	}
 
 	// Initialize log counter for this execution
@@ -359,15 +362,18 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 	}
 
 	// Complete execution record asynchronously
-	go func() {
-		if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
-			log.Error().
-				Err(updateErr).
-				Str("function", fn.Name).
-				Str("execution_id", executionID.String()).
-				Msg("Failed to complete scheduled execution record")
-		}
-	}()
+	// Skip if execution logs are disabled for this function
+	if !fn.DisableExecutionLogs {
+		go func() {
+			if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
+				log.Error().
+					Err(updateErr).
+					Str("function", fn.Name).
+					Str("execution_id", executionID.String()).
+					Msg("Failed to complete scheduled execution record")
+			}
+		}()
+	}
 }
 
 // GetScheduledFunctions returns a list of all currently scheduled functions

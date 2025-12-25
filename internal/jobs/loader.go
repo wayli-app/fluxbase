@@ -566,6 +566,7 @@ type JobAnnotations struct {
 	AllowRead              bool
 	AllowWrite             bool
 	RequireRole            *string
+	DisableExecutionLogs   bool
 }
 
 // parseAnnotations parses @fluxbase: annotations from job code
@@ -662,6 +663,11 @@ func parseAnnotations(code string) JobAnnotations {
 	if match := regexp.MustCompile(`@fluxbase:require-role\s+(\w+)`).FindStringSubmatch(code); match != nil {
 		role := strings.TrimSpace(match[1])
 		annotations.RequireRole = &role
+	}
+
+	// Parse disable-execution-logs
+	if regexp.MustCompile(`@fluxbase:disable-execution-logs(?:\s+true)?`).MatchString(code) {
+		annotations.DisableExecutionLogs = true
 	}
 
 	return annotations

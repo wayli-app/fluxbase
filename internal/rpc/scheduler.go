@@ -220,9 +220,10 @@ func (s *Scheduler) executeScheduledProcedure(procName, procNamespace string) {
 			"_trigger":      "cron",
 			"_scheduled_at": time.Now().UTC().Format(time.RFC3339),
 		},
-		UserID:   "", // Empty for system/scheduled executions (stored as NULL)
-		UserRole: "service_role",
-		IsAsync:  false,
+		UserID:               "", // Empty for system/scheduled executions (stored as NULL)
+		UserRole:             "service_role",
+		IsAsync:              false,
+		DisableExecutionLogs: proc.DisableExecutionLogs,
 	}
 
 	result, err := s.executor.Execute(s.ctx, execCtx)

@@ -40,14 +40,15 @@ func NewExecutor(db *database.Connection, storage *Storage, metrics *observabili
 
 // ExecuteContext contains the context for an RPC execution
 type ExecuteContext struct {
-	Procedure   *Procedure
-	Params      map[string]interface{}
-	UserID      string
-	UserRole    string
-	UserEmail   string
-	Claims      *auth.TokenClaims
-	IsAsync     bool
-	ExecutionID string // If set, reuse this execution record instead of creating a new one
+	Procedure            *Procedure
+	Params               map[string]interface{}
+	UserID               string
+	UserRole             string
+	UserEmail            string
+	Claims               *auth.TokenClaims
+	IsAsync              bool
+	ExecutionID          string // If set, reuse this execution record instead of creating a new one
+	DisableExecutionLogs bool   // If true, skip creating execution records and logs
 }
 
 // ExecuteResult represents the result of an RPC execution
@@ -82,9 +83,11 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 		now := time.Now()
 		exec.StartedAt = &now
 
-		// Update the existing record to running status
-		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
-			log.Error().Err(err).Msg("Failed to update execution record to running")
+		// Update the existing record to running status (unless logging is disabled)
+		if !execCtx.DisableExecutionLogs {
+			if err := e.storage.UpdateExecution(ctx, exec); err != nil {
+				log.Error().Err(err).Msg("Failed to update execution record to running")
+			}
 		}
 	} else {
 		// Create new execution record (sync case)
@@ -119,21 +122,27 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 		now := time.Now()
 		exec.StartedAt = &now
 
-		// Save execution record
-		if err := e.storage.CreateExecution(ctx, exec); err != nil {
-			log.Error().Err(err).Msg("Failed to create execution record")
+		// Save execution record (unless logging is disabled)
+		if !execCtx.DisableExecutionLogs {
+			if err := e.storage.CreateExecution(ctx, exec); err != nil {
+				log.Error().Err(err).Msg("Failed to create execution record")
+			}
 		}
 	}
 
-	// Log start
-	e.appendLog(ctx, exec.ID, 1, "info", fmt.Sprintf("Starting RPC execution: %s/%s", execCtx.Procedure.Namespace, execCtx.Procedure.Name))
+	// Log start (unless logging is disabled)
+	if !execCtx.DisableExecutionLogs {
+		e.appendLog(ctx, exec.ID, 1, "info", fmt.Sprintf("Starting RPC execution: %s/%s", execCtx.Procedure.Namespace, execCtx.Procedure.Name))
+	}
 
 	// Validate input parameters
 	if err := e.validator.ValidateInput(execCtx.Params, execCtx.Procedure.InputSchema); err != nil {
-		return e.failExecution(ctx, exec, start, fmt.Sprintf("Input validation failed: %s", err.Error()))
+		return e.failExecutionWithContext(ctx, exec, execCtx, start, fmt.Sprintf("Input validation failed: %s", err.Error()))
 	}
 
-	e.appendLog(ctx, exec.ID, 2, "info", "Input validation passed")
+	if !execCtx.DisableExecutionLogs {
+		e.appendLog(ctx, exec.ID, 2, "info", "Input validation passed")
+	}
 
 	// Validate SQL
 	validationResult := e.validator.ValidateSQL(
@@ -143,19 +152,23 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 	)
 
 	if !validationResult.Valid {
-		return e.failExecution(ctx, exec, start, fmt.Sprintf("SQL validation failed: %v", validationResult.Errors))
+		return e.failExecutionWithContext(ctx, exec, execCtx, start, fmt.Sprintf("SQL validation failed: %v", validationResult.Errors))
 	}
 
-	e.appendLog(ctx, exec.ID, 3, "info", fmt.Sprintf("SQL validation passed. Tables: %v, Operations: %v",
-		validationResult.TablesAccessed, validationResult.OperationsUsed))
+	if !execCtx.DisableExecutionLogs {
+		e.appendLog(ctx, exec.ID, 3, "info", fmt.Sprintf("SQL validation passed. Tables: %v, Operations: %v",
+			validationResult.TablesAccessed, validationResult.OperationsUsed))
+	}
 
 	// Build SQL with parameter substitution
 	sql, err := e.buildSQL(execCtx.Procedure.SQLQuery, execCtx.Params, execCtx)
 	if err != nil {
-		return e.failExecution(ctx, exec, start, fmt.Sprintf("Failed to build SQL: %s", err.Error()))
+		return e.failExecutionWithContext(ctx, exec, execCtx, start, fmt.Sprintf("Failed to build SQL: %s", err.Error()))
 	}
 
-	e.appendLog(ctx, exec.ID, 4, "info", "SQL prepared with parameters")
+	if !execCtx.DisableExecutionLogs {
+		e.appendLog(ctx, exec.ID, 4, "info", "SQL prepared with parameters")
+	}
 
 	// Create a context with timeout
 	timeout := time.Duration(execCtx.Procedure.MaxExecutionTimeSeconds) * time.Second
@@ -171,12 +184,14 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 		// Check for timeout
 		if ctx.Err() == context.DeadlineExceeded {
 			exec.Status = StatusTimeout
-			return e.failExecution(ctx, exec, start, "Query execution timed out")
+			return e.failExecutionWithContext(ctx, exec, execCtx, start, "Query execution timed out")
 		}
-		return e.failExecution(ctx, exec, start, fmt.Sprintf("Query execution failed: %s", err.Error()))
+		return e.failExecutionWithContext(ctx, exec, execCtx, start, fmt.Sprintf("Query execution failed: %s", err.Error()))
 	}
 
-	e.appendLog(ctx, exec.ID, 5, "info", fmt.Sprintf("Query executed successfully. Rows returned: %d", rowCount))
+	if !execCtx.DisableExecutionLogs {
+		e.appendLog(ctx, exec.ID, 5, "info", fmt.Sprintf("Query executed successfully. Rows returned: %d", rowCount))
+	}
 
 	// Complete execution
 	duration := int(time.Since(start).Milliseconds())
@@ -188,11 +203,12 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 	exec.DurationMs = &duration
 	exec.CompletedAt = &completedAt
 
-	if err := e.storage.UpdateExecution(ctx, exec); err != nil {
-		log.Error().Err(err).Msg("Failed to update execution record")
+	if !execCtx.DisableExecutionLogs {
+		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
+			log.Error().Err(err).Msg("Failed to update execution record")
+		}
+		e.appendLog(ctx, exec.ID, 6, "info", fmt.Sprintf("Execution completed in %dms", duration))
 	}
-
-	e.appendLog(ctx, exec.ID, 6, "info", fmt.Sprintf("Execution completed in %dms", duration))
 
 	// Record metrics
 	if e.metrics != nil {
@@ -240,9 +256,11 @@ func (e *Executor) ExecuteAsync(ctx context.Context, execCtx *ExecuteContext) (*
 		exec.InputParams = paramsJSON
 	}
 
-	// Save execution record
-	if err := e.storage.CreateExecution(ctx, exec); err != nil {
-		return nil, fmt.Errorf("failed to create execution record: %w", err)
+	// Save execution record (unless logging is disabled)
+	if !execCtx.DisableExecutionLogs {
+		if err := e.storage.CreateExecution(ctx, exec); err != nil {
+			return nil, fmt.Errorf("failed to create execution record: %w", err)
+		}
 	}
 
 	// Pass the execution ID so the background worker updates this record
@@ -488,6 +506,12 @@ func (e *Executor) executeWithRLS(ctx context.Context, sql string, execCtx *Exec
 
 // failExecution marks an execution as failed and returns the error result
 func (e *Executor) failExecution(ctx context.Context, exec *Execution, start time.Time, errorMsg string) (*ExecuteResult, error) {
+	return e.failExecutionWithContext(ctx, exec, nil, start, errorMsg)
+}
+
+// failExecutionWithContext marks an execution as failed and returns the error result
+// When execCtx is provided and DisableExecutionLogs is true, skips updating execution record and appending logs
+func (e *Executor) failExecutionWithContext(ctx context.Context, exec *Execution, execCtx *ExecuteContext, start time.Time, errorMsg string) (*ExecuteResult, error) {
 	duration := int(time.Since(start).Milliseconds())
 	completedAt := time.Now()
 
@@ -496,12 +520,15 @@ func (e *Executor) failExecution(ctx context.Context, exec *Execution, start tim
 	exec.DurationMs = &duration
 	exec.CompletedAt = &completedAt
 
-	if err := e.storage.UpdateExecution(ctx, exec); err != nil {
-		log.Error().Err(err).Msg("Failed to update execution record")
-	}
+	disableLogs := execCtx != nil && execCtx.DisableExecutionLogs
 
-	// Log error
-	e.appendLog(ctx, exec.ID, 99, "error", errorMsg)
+	if !disableLogs {
+		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
+			log.Error().Err(err).Msg("Failed to update execution record")
+		}
+		// Log error
+		e.appendLog(ctx, exec.ID, 99, "error", errorMsg)
+	}
 
 	// Record metrics
 	if e.metrics != nil {

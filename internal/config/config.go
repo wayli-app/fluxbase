@@ -14,26 +14,27 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Auth       AuthConfig       `mapstructure:"auth"`
-	Security   SecurityConfig   `mapstructure:"security"`
-	CORS       CORSConfig       `mapstructure:"cors"`
-	Storage    StorageConfig    `mapstructure:"storage"`
-	Realtime   RealtimeConfig   `mapstructure:"realtime"`
-	Email      EmailConfig      `mapstructure:"email"`
-	Functions  FunctionsConfig  `mapstructure:"functions"`
-	API        APIConfig        `mapstructure:"api"`
-	Migrations MigrationsConfig `mapstructure:"migrations"`
-	Jobs       JobsConfig       `mapstructure:"jobs"`
-	Tracing    TracingConfig    `mapstructure:"tracing"`
-	AI         AIConfig         `mapstructure:"ai"`
-	RPC        RPCConfig        `mapstructure:"rpc"`
-	Scaling    ScalingConfig    `mapstructure:"scaling"`
-	Logging    LoggingConfig    `mapstructure:"logging"`
-	Admin      AdminConfig      `mapstructure:"admin"`
-	BaseURL    string           `mapstructure:"base_url"`
-	Debug      bool             `mapstructure:"debug"`
+	Server        ServerConfig     `mapstructure:"server"`
+	Database      DatabaseConfig   `mapstructure:"database"`
+	Auth          AuthConfig       `mapstructure:"auth"`
+	Security      SecurityConfig   `mapstructure:"security"`
+	CORS          CORSConfig       `mapstructure:"cors"`
+	Storage       StorageConfig    `mapstructure:"storage"`
+	Realtime      RealtimeConfig   `mapstructure:"realtime"`
+	Email         EmailConfig      `mapstructure:"email"`
+	Functions     FunctionsConfig  `mapstructure:"functions"`
+	API           APIConfig        `mapstructure:"api"`
+	Migrations    MigrationsConfig `mapstructure:"migrations"`
+	Jobs          JobsConfig       `mapstructure:"jobs"`
+	Tracing       TracingConfig    `mapstructure:"tracing"`
+	AI            AIConfig         `mapstructure:"ai"`
+	RPC           RPCConfig        `mapstructure:"rpc"`
+	Scaling       ScalingConfig    `mapstructure:"scaling"`
+	Logging       LoggingConfig    `mapstructure:"logging"`
+	Admin         AdminConfig      `mapstructure:"admin"`
+	BaseURL       string           `mapstructure:"base_url"`        // Internal base URL (for server-to-server communication)
+	PublicBaseURL string           `mapstructure:"public_base_url"` // Public base URL (for user-facing links, OAuth callbacks, etc.)
+	Debug         bool             `mapstructure:"debug"`
 
 	// EncryptionKey is used to encrypt sensitive data stored in the database (e.g., API keys, credentials)
 	// Must be exactly 32 bytes for AES-256. Generate with: openssl rand -base64 32 | head -c 32
@@ -714,6 +715,7 @@ func setDefaults() {
 
 	// General defaults
 	viper.SetDefault("base_url", "http://localhost:8080")
+	viper.SetDefault("public_base_url", "") // Empty means use base_url for backward compatibility
 	viper.SetDefault("debug", false)
 }
 
@@ -805,7 +807,28 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate public base URL if set
+	if c.PublicBaseURL != "" {
+		parsedURL, err := url.Parse(c.PublicBaseURL)
+		if err != nil {
+			return fmt.Errorf("invalid public_base_url: %w", err)
+		}
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return fmt.Errorf("public_base_url must use http or https scheme, got: %s", parsedURL.Scheme)
+		}
+	}
+
 	return nil
+}
+
+// GetPublicBaseURL returns the public-facing base URL.
+// If PublicBaseURL is set, it returns that; otherwise, it falls back to BaseURL.
+// This should be used for all user-facing URLs (magic links, OAuth callbacks, invitation links, etc.)
+func (c *Config) GetPublicBaseURL() string {
+	if c.PublicBaseURL != "" {
+		return c.PublicBaseURL
+	}
+	return c.BaseURL
 }
 
 // Validate validates server configuration

@@ -158,14 +158,14 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	// Get a service wrapper that delegates to the manager's current service
 	emailService := emailManager.WrapAsService()
 
-	// Initialize auth service
-	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.BaseURL)
+	// Initialize auth service (use public URL for user-facing links like magic links, password resets)
+	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
 
 	// Initialize API key service
 	apiKeyService := auth.NewAPIKeyService(db.Pool())
 
-	// Initialize storage service
-	storageService, err := storage.NewService(&cfg.Storage, cfg.BaseURL, cfg.Auth.JWTSecret)
+	// Initialize storage service (use public URL for signed URLs that users will access)
+	storageService, err := storage.NewService(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize storage service")
 	}
@@ -214,13 +214,13 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	// Initialize webhook trigger service (4 workers)
 	webhookTriggerService := webhook.NewTriggerService(db, webhookService, 4)
 
-	// Initialize user management service
+	// Initialize user management service (use public URL for password reset links, etc.)
 	userMgmtService := auth.NewUserManagementService(
 		auth.NewUserRepository(db),
 		auth.NewSessionRepository(db),
 		auth.NewPasswordHasherWithConfig(auth.PasswordHasherConfig{MinLength: cfg.Auth.PasswordMinLen, Cost: cfg.Auth.BcryptCost}),
 		emailService,
-		cfg.BaseURL,
+		cfg.GetPublicBaseURL(),
 	)
 
 	// Create handlers
@@ -236,12 +236,12 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	webhookHandler := NewWebhookHandler(webhookService)
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	invitationService := auth.NewInvitationService(db)
-	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.BaseURL)
+	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
 	ddlHandler := NewDDLHandler(db)
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
-	baseURL := fmt.Sprintf("http://%s", cfg.Server.Address)
-	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, baseURL)
+	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
+	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL())
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db)
@@ -266,13 +266,15 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 	sqlHandler := NewSQLHandler(db.Pool(), authService)
 
-	// Determine public URL for functions SDK client (same pattern as jobs)
-	functionsPublicURL := cfg.BaseURL
-	if functionsPublicURL == "" {
-		functionsPublicURL = "http://localhost" + cfg.Server.Address
+	// Determine public URL for functions SDK client
+	// For edge functions running inside the container, they should use the internal BaseURL
+	// to communicate with the API server (faster, avoids external network hops)
+	functionsInternalURL := cfg.BaseURL
+	if functionsInternalURL == "" {
+		functionsInternalURL = "http://localhost" + cfg.Server.Address
 	}
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsPublicURL, authService, loggingService)
-	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsPublicURL)
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsInternalURL, authService, loggingService)
+	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsInternalURL)
 	functionsHandler.SetScheduler(functionsScheduler)
 
 	// Only create jobs components if jobs are enabled
@@ -280,17 +282,18 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	var jobsHandler *jobs.Handler
 	var jobsScheduler *jobs.Scheduler
 	if cfg.Jobs.Enabled {
-		// Determine public URL for jobs SDK client
-		jobsPublicURL := cfg.BaseURL
-		if jobsPublicURL == "" {
+		// Determine internal URL for jobs SDK client
+		// Jobs run inside the container and should use the internal URL
+		jobsInternalURL := cfg.BaseURL
+		if jobsInternalURL == "" {
 			// Fallback to server address
-			jobsPublicURL = "http://localhost" + cfg.Server.Address
+			jobsInternalURL = "http://localhost" + cfg.Server.Address
 		}
 		log.Info().
-			Str("jobs_public_url", jobsPublicURL).
+			Str("jobs_internal_url", jobsInternalURL).
 			Bool("jwt_secret_set", cfg.Auth.JWTSecret != "").
 			Msg("Initializing jobs manager with SDK credentials")
-		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsPublicURL)
+		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsInternalURL)
 		var err error
 		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService, loggingService)
 		if err != nil {
@@ -735,16 +738,25 @@ func (s *Server) setupMiddlewares() {
 	// Note: AllowCredentials cannot be used with AllowOrigins="*" per CORS spec
 	// If AllowOrigins is "*", we must disable credentials
 	corsCredentials := s.config.CORS.AllowCredentials
-	if s.config.CORS.AllowedOrigins == "*" && corsCredentials {
+	corsOrigins := s.config.CORS.AllowedOrigins
+	if corsOrigins == "*" && corsCredentials {
 		log.Warn().Msg("CORS: AllowCredentials disabled because AllowOrigins is '*' (not allowed per CORS spec)")
 		corsCredentials = false
 	}
+	// Automatically add the public base URL to CORS origins if it's not already included
+	// This ensures the dashboard can make API calls when deployed on a public URL
+	if corsOrigins != "*" && s.config.PublicBaseURL != "" {
+		if !strings.Contains(corsOrigins, s.config.PublicBaseURL) {
+			corsOrigins = corsOrigins + "," + s.config.PublicBaseURL
+			log.Debug().Str("public_url", s.config.PublicBaseURL).Msg("Added public base URL to CORS origins")
+		}
+	}
 	log.Debug().
-		Str("origins", s.config.CORS.AllowedOrigins).
+		Str("origins", corsOrigins).
 		Bool("credentials", corsCredentials).
 		Msg("Adding CORS middleware")
 	s.app.Use(cors.New(cors.Config{
-		AllowOrigins:     s.config.CORS.AllowedOrigins,
+		AllowOrigins:     corsOrigins,
 		AllowMethods:     s.config.CORS.AllowedMethods,
 		AllowHeaders:     s.config.CORS.AllowedHeaders,
 		ExposeHeaders:    s.config.CORS.ExposedHeaders,
@@ -766,6 +778,13 @@ func (s *Server) setupMiddlewares() {
 
 // setupRoutes sets up all routes
 func (s *Server) setupRoutes() {
+	// Root path - simple health response
+	s.app.Get("/", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"status": "ok",
+		})
+	})
+
 	// Health check endpoint
 	s.app.Get("/health", s.handleHealth)
 
@@ -990,7 +1009,8 @@ func (s *Server) setupRoutes() {
 			s.setupDashboardAuthRoutes(admin)
 
 			// Admin UI (embedded React app)
-			adminUI := adminui.New()
+			// Pass the public base URL so it can be injected into the frontend at runtime
+			adminUI := adminui.New(s.config.GetPublicBaseURL())
 			adminUI.RegisterRoutes(s.app)
 			log.Info().Msg("Admin UI enabled")
 		}

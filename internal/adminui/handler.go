@@ -1,7 +1,10 @@
 package adminui
 
 import (
+	"bytes"
 	"embed"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -13,12 +16,31 @@ import (
 //go:embed all:dist
 var adminUIFiles embed.FS
 
-// Handler serves the embedded admin UI
-type Handler struct{}
+// Config contains runtime configuration to inject into the admin UI
+type Config struct {
+	PublicBaseURL string `json:"publicBaseURL"`
+}
 
-// New creates a new admin UI handler
-func New() *Handler {
-	return &Handler{}
+// Handler serves the embedded admin UI
+type Handler struct {
+	config       Config
+	configScript []byte // Cached config script to inject into index.html
+}
+
+// New creates a new admin UI handler with runtime configuration
+func New(publicBaseURL string) *Handler {
+	cfg := Config{
+		PublicBaseURL: publicBaseURL,
+	}
+
+	// Pre-compute the config script to inject
+	configJSON, _ := json.Marshal(cfg)
+	configScript := fmt.Sprintf(`<script>window.__FLUXBASE_CONFIG__ = %s;</script>`, configJSON)
+
+	return &Handler{
+		config:       cfg,
+		configScript: []byte(configScript),
+	}
 }
 
 // RegisterRoutes registers admin UI routes
@@ -78,8 +100,28 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 			return c.Status(fiber.StatusInternalServerError).SendString("Internal Server Error")
 		}
 
+		// Inject runtime config script before </head>
+		content = h.injectConfig(content)
+
 		return c.Send(content)
 	})
+}
+
+// injectConfig injects the runtime config script into the HTML content before </head>
+func (h *Handler) injectConfig(content []byte) []byte {
+	// Find </head> and inject the config script before it
+	headClose := []byte("</head>")
+	if idx := bytes.Index(content, headClose); idx != -1 {
+		// Build new content with injected script
+		result := make([]byte, 0, len(content)+len(h.configScript)+1)
+		result = append(result, content[:idx]...)
+		result = append(result, h.configScript...)
+		result = append(result, '\n')
+		result = append(result, content[idx:]...)
+		return result
+	}
+	// If no </head> found, return content unchanged
+	return content
 }
 
 // getContentType returns the appropriate content type for a file path

@@ -48,6 +48,7 @@ type JobFunction struct {
 	AllowRead              bool       `db:"allow_read" json:"allow_read"`
 	AllowWrite             bool       `db:"allow_write" json:"allow_write"`
 	RequireRole            *string    `db:"require_role" json:"require_role,omitempty"` // Required role: "admin", "authenticated", "anon", or null for any
+	DisableExecutionLogs   bool       `db:"disable_execution_logs" json:"disable_execution_logs"`
 	Version                int        `db:"version" json:"version"`
 	CreatedBy              *uuid.UUID `db:"created_by" json:"created_by,omitempty"`
 	Source                 string     `db:"source" json:"source"` // "filesystem" or "api"
@@ -74,6 +75,7 @@ type JobFunctionSummary struct {
 	AllowRead              bool       `db:"allow_read" json:"allow_read"`
 	AllowWrite             bool       `db:"allow_write" json:"allow_write"`
 	RequireRole            *string    `db:"require_role" json:"require_role,omitempty"`
+	DisableExecutionLogs   bool       `db:"disable_execution_logs" json:"disable_execution_logs"`
 	Version                int        `db:"version" json:"version"`
 	CreatedBy              *uuid.UUID `db:"created_by" json:"created_by,omitempty"`
 	Source                 string     `db:"source" json:"source"` // "filesystem" or "api"

@@ -33,13 +33,13 @@ func (s *Storage) CreateProcedure(ctx context.Context, proc *Procedure) error {
 		INSERT INTO rpc.procedures (
 			id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
-			max_execution_time_seconds, require_role, is_public, schedule,
+			max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 			enabled, version, source, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10,
-			$11, $12, $13, $14,
-			$15, $16, $17, $18, $19, $20
+			$11, $12, $13, $14, $15,
+			$16, $17, $18, $19, $20, $21
 		)
 	`
 
@@ -54,7 +54,7 @@ func (s *Storage) CreateProcedure(ctx context.Context, proc *Procedure) error {
 	_, err := s.db.Exec(ctx, query,
 		proc.ID, proc.Name, proc.Namespace, proc.Description, proc.SQLQuery, proc.OriginalCode,
 		proc.InputSchema, proc.OutputSchema, proc.AllowedTables, proc.AllowedSchemas,
-		proc.MaxExecutionTimeSeconds, proc.RequireRole, proc.IsPublic, proc.Schedule,
+		proc.MaxExecutionTimeSeconds, proc.RequireRole, proc.IsPublic, proc.DisableExecutionLogs, proc.Schedule,
 		proc.Enabled, proc.Version, proc.Source, proc.CreatedBy, proc.CreatedAt, proc.UpdatedAt,
 	)
 
@@ -85,10 +85,11 @@ func (s *Storage) UpdateProcedure(ctx context.Context, proc *Procedure) error {
 			max_execution_time_seconds = $9,
 			require_role = $10,
 			is_public = $11,
-			schedule = $12,
-			enabled = $13,
+			disable_execution_logs = $12,
+			schedule = $13,
+			enabled = $14,
 			version = version + 1,
-			updated_at = $14
+			updated_at = $15
 		WHERE id = $1
 	`
 
@@ -106,6 +107,7 @@ func (s *Storage) UpdateProcedure(ctx context.Context, proc *Procedure) error {
 		proc.MaxExecutionTimeSeconds,
 		proc.RequireRole,
 		proc.IsPublic,
+		proc.DisableExecutionLogs,
 		proc.Schedule,
 		proc.Enabled,
 		proc.UpdatedAt,
@@ -132,7 +134,7 @@ func (s *Storage) GetProcedure(ctx context.Context, id string) (*Procedure, erro
 	query := `
 		SELECT id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
-			max_execution_time_seconds, require_role, is_public, schedule,
+			max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 			enabled, version, source, created_by, created_at, updated_at
 		FROM rpc.procedures
 		WHERE id = $1
@@ -142,7 +144,7 @@ func (s *Storage) GetProcedure(ctx context.Context, id string) (*Procedure, erro
 	err := s.db.Pool().QueryRow(ctx, query, id).Scan(
 		&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 		&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
-		&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.Schedule,
+		&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
 		&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedBy, &proc.CreatedAt, &proc.UpdatedAt,
 	)
 
@@ -161,7 +163,7 @@ func (s *Storage) GetProcedureByName(ctx context.Context, namespace, name string
 	query := `
 		SELECT id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
-			max_execution_time_seconds, require_role, is_public, schedule,
+			max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 			enabled, version, source, created_by, created_at, updated_at
 		FROM rpc.procedures
 		WHERE namespace = $1 AND name = $2
@@ -171,7 +173,7 @@ func (s *Storage) GetProcedureByName(ctx context.Context, namespace, name string
 	err := s.db.Pool().QueryRow(ctx, query, namespace, name).Scan(
 		&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 		&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
-		&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.Schedule,
+		&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
 		&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedBy, &proc.CreatedAt, &proc.UpdatedAt,
 	)
 
@@ -194,7 +196,7 @@ func (s *Storage) ListProcedures(ctx context.Context, namespace string) ([]*Proc
 		query = `
 			SELECT id, name, namespace, description, sql_query, original_code,
 				input_schema, output_schema, allowed_tables, allowed_schemas,
-				max_execution_time_seconds, require_role, is_public, schedule,
+				max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 				enabled, version, source, created_by, created_at, updated_at
 			FROM rpc.procedures
 			WHERE namespace = $1
@@ -205,7 +207,7 @@ func (s *Storage) ListProcedures(ctx context.Context, namespace string) ([]*Proc
 		query = `
 			SELECT id, name, namespace, description, sql_query, original_code,
 				input_schema, output_schema, allowed_tables, allowed_schemas,
-				max_execution_time_seconds, require_role, is_public, schedule,
+				max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 				enabled, version, source, created_by, created_at, updated_at
 			FROM rpc.procedures
 			ORDER BY namespace ASC, name ASC
@@ -224,7 +226,7 @@ func (s *Storage) ListProcedures(ctx context.Context, namespace string) ([]*Proc
 		err := rows.Scan(
 			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 			&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
-			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.Schedule,
+			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
 			&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedBy, &proc.CreatedAt, &proc.UpdatedAt,
 		)
 		if err != nil {
@@ -244,7 +246,7 @@ func (s *Storage) ListPublicProcedures(ctx context.Context, namespace string) ([
 	if namespace != "" {
 		query = `
 			SELECT id, name, namespace, description, allowed_tables, allowed_schemas,
-				max_execution_time_seconds, require_role, is_public, schedule,
+				max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 				enabled, version, source, created_at, updated_at
 			FROM rpc.procedures
 			WHERE namespace = $1 AND enabled = true AND is_public = true
@@ -254,7 +256,7 @@ func (s *Storage) ListPublicProcedures(ctx context.Context, namespace string) ([
 	} else {
 		query = `
 			SELECT id, name, namespace, description, allowed_tables, allowed_schemas,
-				max_execution_time_seconds, require_role, is_public, schedule,
+				max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 				enabled, version, source, created_at, updated_at
 			FROM rpc.procedures
 			WHERE enabled = true AND is_public = true
@@ -273,7 +275,7 @@ func (s *Storage) ListPublicProcedures(ctx context.Context, namespace string) ([
 		proc := &ProcedureSummary{}
 		err := rows.Scan(
 			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.AllowedTables, &proc.AllowedSchemas,
-			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.Schedule,
+			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
 			&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedAt, &proc.UpdatedAt,
 		)
 		if err != nil {
@@ -350,7 +352,7 @@ func (s *Storage) ListScheduledProcedures(ctx context.Context) ([]*Procedure, er
 	query := `
 		SELECT id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
-			max_execution_time_seconds, require_role, is_public, schedule,
+			max_execution_time_seconds, require_role, is_public, disable_execution_logs, schedule,
 			enabled, version, source, created_by, created_at, updated_at
 		FROM rpc.procedures
 		WHERE enabled = true AND schedule IS NOT NULL AND schedule != ''
@@ -369,7 +371,7 @@ func (s *Storage) ListScheduledProcedures(ctx context.Context) ([]*Procedure, er
 		err := rows.Scan(
 			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 			&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
-			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.Schedule,
+			&proc.MaxExecutionTimeSeconds, &proc.RequireRole, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
 			&proc.Enabled, &proc.Version, &proc.Source, &proc.CreatedBy, &proc.CreatedAt, &proc.UpdatedAt,
 		)
 		if err != nil {

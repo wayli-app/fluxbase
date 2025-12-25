@@ -30,9 +30,9 @@ func (s *Storage) CreateJobFunction(ctx context.Context, fn *JobFunction) error 
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_role, version, created_by, source
+			require_role, disable_execution_logs, version, created_by, source
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
 		)
 		RETURNING created_at, updated_at
 	`
@@ -42,7 +42,7 @@ func (s *Storage) CreateJobFunction(ctx context.Context, fn *JobFunction) error 
 		fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 		fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
-		fn.RequireRole, fn.Version, fn.CreatedBy, fn.Source,
+		fn.RequireRole, fn.DisableExecutionLogs, fn.Version, fn.CreatedBy, fn.Source,
 	).Scan(&fn.CreatedAt, &fn.UpdatedAt)
 }
 
@@ -53,8 +53,8 @@ func (s *Storage) UpdateJobFunction(ctx context.Context, fn *JobFunction) error 
 			description = $1, code = $2, original_code = $3, is_bundled = $4, bundle_error = $5,
 			enabled = $6, schedule = $7, timeout_seconds = $8, memory_limit_mb = $9,
 			max_retries = $10, progress_timeout_seconds = $11, allow_net = $12, allow_env = $13,
-			allow_read = $14, allow_write = $15, require_role = $16, version = version + 1
-		WHERE id = $17
+			allow_read = $14, allow_write = $15, require_role = $16, disable_execution_logs = $17, version = version + 1
+		WHERE id = $18
 		RETURNING version, updated_at
 	`
 
@@ -62,7 +62,7 @@ func (s *Storage) UpdateJobFunction(ctx context.Context, fn *JobFunction) error 
 		fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
 		fn.Enabled, fn.Schedule, fn.TimeoutSeconds, fn.MemoryLimitMB,
 		fn.MaxRetries, fn.ProgressTimeoutSeconds, fn.AllowNet, fn.AllowEnv,
-		fn.AllowRead, fn.AllowWrite, fn.RequireRole, fn.ID,
+		fn.AllowRead, fn.AllowWrite, fn.RequireRole, fn.DisableExecutionLogs, fn.ID,
 	).Scan(&fn.Version, &fn.UpdatedAt)
 }
 
@@ -73,9 +73,9 @@ func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error 
 			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
 			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write,
-			require_role, version, created_by, source
+			require_role, disable_execution_logs, version, created_by, source
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 1, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 1, $21, $22
 		)
 		ON CONFLICT (name, namespace) DO UPDATE SET
 			description = EXCLUDED.description,
@@ -94,6 +94,7 @@ func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error 
 			allow_read = EXCLUDED.allow_read,
 			allow_write = EXCLUDED.allow_write,
 			require_role = EXCLUDED.require_role,
+			disable_execution_logs = EXCLUDED.disable_execution_logs,
 			version = jobs.functions.version + 1,
 			updated_at = NOW()
 		RETURNING id, version, created_at, updated_at
@@ -104,7 +105,7 @@ func (s *Storage) UpsertJobFunction(ctx context.Context, fn *JobFunction) error 
 		fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 		fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
 		fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite,
-		fn.RequireRole, fn.CreatedBy, fn.Source,
+		fn.RequireRole, fn.DisableExecutionLogs, fn.CreatedBy, fn.Source,
 	).Scan(&fn.ID, &fn.Version, &fn.CreatedAt, &fn.UpdatedAt)
 }
 
@@ -113,7 +114,7 @@ func (s *Storage) GetJobFunction(ctx context.Context, namespace, name string) (*
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
-			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role, disable_execution_logs,
 			version, created_by, source, created_at, updated_at
 		FROM jobs.functions
 		WHERE namespace = $1 AND name = $2
@@ -124,7 +125,7 @@ func (s *Storage) GetJobFunction(ctx context.Context, namespace, name string) (*
 		&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode,
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
-		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole, &fn.DisableExecutionLogs,
 		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
@@ -143,7 +144,7 @@ func (s *Storage) GetJobFunctionByName(ctx context.Context, name string) (*JobFu
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
-			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role, disable_execution_logs,
 			version, created_by, source, created_at, updated_at
 		FROM jobs.functions
 		WHERE name = $1
@@ -156,7 +157,7 @@ func (s *Storage) GetJobFunctionByName(ctx context.Context, name string) (*JobFu
 		&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode,
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
-		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole, &fn.DisableExecutionLogs,
 		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
@@ -174,7 +175,7 @@ func (s *Storage) GetJobFunctionByID(ctx context.Context, id uuid.UUID) (*JobFun
 	query := `
 		SELECT id, name, namespace, description, code, original_code, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
-			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role, disable_execution_logs,
 			version, created_by, source, created_at, updated_at
 		FROM jobs.functions
 		WHERE id = $1
@@ -185,7 +186,7 @@ func (s *Storage) GetJobFunctionByID(ctx context.Context, id uuid.UUID) (*JobFun
 		&fn.ID, &fn.Name, &fn.Namespace, &fn.Description, &fn.Code, &fn.OriginalCode,
 		&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 		&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
-		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+		&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole, &fn.DisableExecutionLogs,
 		&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 	)
 	if err != nil {
@@ -203,7 +204,7 @@ func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*Jo
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
-			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role, disable_execution_logs,
 			version, created_by, source, created_at, updated_at
 		FROM jobs.functions
 		WHERE namespace = $1
@@ -223,7 +224,7 @@ func (s *Storage) ListJobFunctions(ctx context.Context, namespace string) ([]*Jo
 			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description,
 			&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 			&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
-			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole, &fn.DisableExecutionLogs,
 			&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 		)
 		if err != nil {
@@ -240,7 +241,7 @@ func (s *Storage) ListAllJobFunctions(ctx context.Context) ([]*JobFunctionSummar
 	query := `
 		SELECT id, name, namespace, description, is_bundled, bundle_error,
 			enabled, schedule, timeout_seconds, memory_limit_mb, max_retries,
-			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role,
+			progress_timeout_seconds, allow_net, allow_env, allow_read, allow_write, require_role, disable_execution_logs,
 			version, created_by, source, created_at, updated_at
 		FROM jobs.functions
 		ORDER BY namespace, name
@@ -259,7 +260,7 @@ func (s *Storage) ListAllJobFunctions(ctx context.Context) ([]*JobFunctionSummar
 			&fn.ID, &fn.Name, &fn.Namespace, &fn.Description,
 			&fn.IsBundled, &fn.BundleError, &fn.Enabled, &fn.Schedule, &fn.TimeoutSeconds,
 			&fn.MemoryLimitMB, &fn.MaxRetries, &fn.ProgressTimeoutSeconds,
-			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole,
+			&fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.RequireRole, &fn.DisableExecutionLogs,
 			&fn.Version, &fn.CreatedBy, &fn.Source, &fn.CreatedAt, &fn.UpdatedAt,
 		)
 		if err != nil {

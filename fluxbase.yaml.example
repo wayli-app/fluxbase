@@ -197,5 +197,8 @@ ai:
   # - por (Portuguese), rus (Russian), chi_sim (Chinese Simplified), jpn (Japanese), kor (Korean)
 
 # General settings
-base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL (must include http:// or https://)
+base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL - Internal URL for server-to-server communication
+public_base_url: ""                     # FLUXBASE_PUBLIC_BASE_URL - Public URL for user-facing links (OAuth callbacks, magic links, invitations)
+                                        # If not set, falls back to base_url. Set this when deploying behind a reverse proxy or load balancer.
+                                        # Example: "https://api.example.com" while base_url remains "http://localhost:8080"
 debug: false                            # FLUXBASE_DEBUG (enables debug logging)

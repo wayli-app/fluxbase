@@ -441,6 +441,7 @@ func FunctionExists(functionsDir, functionName string) (bool, error) {
 type FunctionConfig struct {
 	AllowUnauthenticated bool
 	IsPublic             bool
+	DisableExecutionLogs bool
 	// CORS configuration (nil means use global defaults)
 	CorsOrigins     *string
 	CorsMethods     *string
@@ -453,6 +454,7 @@ type FunctionConfig struct {
 // Supported directives:
 //   - // @fluxbase:allow-unauthenticated - Allows function invocation without authentication
 //   - // @fluxbase:public [true|false] - Controls whether function is publicly listed (default: true)
+//   - // @fluxbase:disable-execution-logs [true|false] - Disables execution log creation (default: false)
 //   - // @fluxbase:cors-origins <origins> - Comma-separated list of allowed origins
 //   - // @fluxbase:cors-methods <methods> - Comma-separated list of allowed HTTP methods
 //   - // @fluxbase:cors-headers <headers> - Comma-separated list of allowed headers
@@ -462,6 +464,7 @@ func ParseFunctionConfig(code string) FunctionConfig {
 	config := FunctionConfig{
 		AllowUnauthenticated: false, // Secure by default
 		IsPublic:             true,  // Public by default
+		DisableExecutionLogs: false, // Logging enabled by default
 	}
 
 	// Regex to match @fluxbase directives in comments
@@ -484,6 +487,16 @@ func ParseFunctionConfig(code string) FunctionConfig {
 		} else {
 			config.IsPublic = true
 			log.Debug().Msg("Found @fluxbase:public directive in function code")
+		}
+	}
+
+	// Match @fluxbase:disable-execution-logs with boolean value
+	disableLogsPattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:disable-execution-logs(?:\s+(true|false))?`)
+	if matches := disableLogsPattern.FindStringSubmatch(code); matches != nil {
+		// If no value specified or value is "true", disable logs
+		if len(matches) <= 1 || matches[1] == "" || matches[1] == "true" {
+			config.DisableExecutionLogs = true
+			log.Debug().Msg("Found @fluxbase:disable-execution-logs directive in function code")
 		}
 	}
 
