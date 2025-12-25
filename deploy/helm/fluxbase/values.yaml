@@ -191,8 +191,24 @@ config:
       - "PATCH"
       - "OPTIONS"
     allowed_headers:
-      - "*"
-    exposed_headers: []
+      - "Origin"
+      - "Content-Type"
+      - "Accept"
+      - "Authorization"
+      - "X-Request-ID"
+      - "X-CSRF-Token"
+      - "X-Impersonation-Token"
+      - "Prefer"
+      - "apikey"
+      - "x-client-app"
+    exposed_headers:
+      - "Content-Range"
+      - "Content-Encoding"
+      - "Content-Length"
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
     allow_credentials: true
     max_age: 86400
 
