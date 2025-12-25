@@ -220,6 +220,49 @@ The comment directive is parsed when functions are loaded via the `/api/v1/admin
 
 **Note**: Use `allow_unauthenticated: true` only for public webhooks or endpoints that must be accessible without any credentials. For most use cases, anon keys provide better security and usage tracking.
 
+### Rate Limiting
+
+Functions support per-user/IP rate limiting via code annotations or API:
+
+1. **Code Comment** - Add directive in your function code:
+
+   ```typescript
+   // @fluxbase:rate-limit 100/min
+   async function handler(request) {
+     return { status: 200, body: "Rate limited endpoint" };
+   }
+   ```
+
+2. **API Request** - Set rate limits when creating/updating:
+
+   ```json
+   {
+     "name": "api-endpoint",
+     "code": "...",
+     "rate_limit_per_minute": 100,
+     "rate_limit_per_hour": 1000,
+     "rate_limit_per_day": 10000
+   }
+   ```
+
+**Supported time windows:**
+
+- `N/min` - Requests per minute
+- `N/hour` - Requests per hour
+- `N/day` - Requests per day
+
+**Rate limit key:**
+
+- Authenticated users: Limited per user ID
+- Anonymous requests: Limited per IP address
+
+When rate limit is exceeded, the function returns `429 Too Many Requests` with headers:
+
+- `Retry-After`: Seconds until reset
+- `X-RateLimit-Limit`: Configured limit
+- `X-RateLimit-Remaining`: Remaining requests
+- `X-RateLimit-Reset`: Unix timestamp of reset
+
 ## Execution Limits
 
 - **Timeout**: 30 seconds (configurable up to 300s)

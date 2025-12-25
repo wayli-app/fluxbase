@@ -123,7 +123,7 @@ async function handler(req) {
   // Create a service client with elevated permissions
   const client = createClient(
     Deno.env.get("FLUXBASE_BASE_URL")!,
-    Deno.env.get("FLUXBASE_SERVICE_ROLE_KEY")!
+    Deno.env.get("FLUXBASE_SERVICE_ROLE_KEY")!,
   );
 
   // Query the database
@@ -784,7 +784,7 @@ const result = await client.functions.invoke(
   "payment-service/process-payment",
   {
     body: JSON.stringify({ amount: 100 }),
-  }
+  },
 );
 
 // List functions by namespace
@@ -993,6 +993,72 @@ async function handler(req) {
 async function handler(req) {
   // Preflight results cached for 1 hour
   return { status: 200, body: "OK" };
+}
+```
+
+### Rate Limiting Annotations
+
+Control how many requests each user or IP can make to your function within a time window.
+
+**`@fluxbase:rate-limit`** - Limit requests per user/IP with format `N/unit` where unit is `min`, `hour`, or `day`:
+
+```typescript
+/**
+ * API endpoint with rate limiting
+ *
+ * @fluxbase:rate-limit 100/min
+ */
+async function handler(req) {
+  // Each user/IP can make max 100 requests per minute
+  return {
+    status: 200,
+    body: JSON.stringify({ data: "result" }),
+  };
+}
+```
+
+**Hourly and daily limits:**
+
+```typescript
+/**
+ * Expensive AI endpoint with strict limits
+ *
+ * @fluxbase:rate-limit 1000/hour
+ */
+async function handler(req) {
+  // Max 1000 requests per hour per user/IP
+  return { status: 200, body: "OK" };
+}
+```
+
+```typescript
+/**
+ * Free tier endpoint with daily quota
+ *
+ * @fluxbase:rate-limit 10000/day
+ */
+async function handler(req) {
+  // Max 10000 requests per day per user/IP
+  return { status: 200, body: "OK" };
+}
+```
+
+**Rate limit behavior:**
+
+- **Authenticated users**: Limits are tracked per user ID
+- **Anonymous requests**: Limits are tracked per IP address
+- **Exceeded limits**: Returns `429 Too Many Requests` with headers:
+  - `Retry-After`: Seconds until the limit resets
+  - `X-RateLimit-Limit`: The configured limit
+  - `X-RateLimit-Remaining`: Requests remaining (0 when exceeded)
+  - `X-RateLimit-Reset`: Unix timestamp when the limit resets
+
+**Example response when rate limited:**
+
+```json
+{
+  "error": "Rate limit exceeded: 100 requests per minute",
+  "retry_after": 45
 }
 ```
 
