@@ -109,9 +109,12 @@ type TokenBlacklistRepositoryInterface interface {
 // MagicLinkRepositoryInterface defines magic link (passwordless) operations.
 type MagicLinkRepositoryInterface interface {
 	// Create generates a new magic link for an email
-	Create(ctx context.Context, email string, expiryDuration time.Duration) (*MagicLink, error)
+	// Returns MagicLinkWithToken containing the plaintext token (for sending via email)
+	// SECURITY: Only the hash is stored in the database
+	Create(ctx context.Context, email string, expiryDuration time.Duration) (*MagicLinkWithToken, error)
 
 	// GetByToken retrieves a magic link by its token
+	// SECURITY: The incoming token is hashed before lookup
 	GetByToken(ctx context.Context, token string) (*MagicLink, error)
 
 	// Validate checks if a magic link token is valid and not expired
@@ -130,9 +133,12 @@ type MagicLinkRepositoryInterface interface {
 // PasswordResetRepositoryInterface defines password reset token operations.
 type PasswordResetRepositoryInterface interface {
 	// Create generates a new password reset token for a user
-	Create(ctx context.Context, userID string, expiryDuration time.Duration) (*PasswordResetToken, error)
+	// Returns PasswordResetTokenWithPlaintext containing the plaintext token (for sending via email)
+	// SECURITY: Only the hash is stored in the database
+	Create(ctx context.Context, userID string, expiryDuration time.Duration) (*PasswordResetTokenWithPlaintext, error)
 
 	// GetByToken retrieves a password reset token
+	// SECURITY: The incoming token is hashed before lookup
 	GetByToken(ctx context.Context, token string) (*PasswordResetToken, error)
 
 	// Validate checks if a password reset token is valid and not expired

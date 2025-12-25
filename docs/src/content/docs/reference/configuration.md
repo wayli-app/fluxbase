@@ -239,6 +239,7 @@ Environment variables take precedence over configuration file values.
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
 | `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for admin dashboard setup (required to enable dashboard) | `""` | `openssl rand -base64 32` |
+| `FLUXBASE_ENCRYPTION_KEY` | Key for AES-256-GCM encryption of sensitive data (OAuth tokens, API keys). Must be exactly 32 bytes. | `""` | `openssl rand -base64 32 \| head -c 32` |
 | `FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT` | Enable global API rate limiting | `false` | `true`, `false` |
 | `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT` | Max attempts for admin setup | `5` | `5` |
 | `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW` | Time window for admin setup rate limit | `15m` | `15m` |
@@ -263,7 +264,6 @@ Environment variables take precedence over configuration file values.
 | `FLUXBASE_AI_MAX_ROWS_PER_QUERY` | Max rows returned per query | `1000` | `1000` |
 | `FLUXBASE_AI_CONVERSATION_CACHE_TTL` | TTL for conversation cache | `30m` | `1h` |
 | `FLUXBASE_AI_MAX_CONVERSATION_TURNS` | Max turns per conversation | `50` | `50` |
-| `FLUXBASE_AI_ENCRYPTION_KEY` | Key for encrypting provider API keys (32 bytes) | `""` | 32-char string |
 
 **AI Provider Configuration:**
 

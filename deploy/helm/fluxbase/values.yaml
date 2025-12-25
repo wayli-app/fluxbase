@@ -971,11 +971,25 @@ ingress:
   ##   cert-manager.io/cluster-issuer: cluster-issuer-name
   ##
   ## Default annotations include WebSocket support settings for NGINX Ingress Controller
+  ## These annotations enable WebSocket upgrades for the /realtime endpoint
+  ## ref: https://kubernetes.github.io/ingress-nginx/user-guide/miscellaneous/#websockets
   ##
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    ## Required for WebSocket connections - NGINX does not support WebSocket over HTTP/2
+    ## (RFC 8441 not implemented, see https://trac.nginx.org/nginx/ticket/1992)
+    ## This forces HTTP/1.1 for backend connections which supports the Upgrade header
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+  ## WebSocket configuration for /realtime endpoint
+  ## @param ingress.websocket.enabled Enable dedicated WebSocket routing for /realtime
+  ## @param ingress.websocket.path Path prefix for WebSocket connections
+  ##
+  websocket:
+    enabled: true
+    path: /realtime
   ## @param ingress.tls Enable TLS configuration for the host defined at `ingress.hostname` parameter
   ## TLS certificates will be retrieved from a TLS secret with name: `{{- printf "%s-tls" .Values.ingress.hostname }}`
   ## You can:
@@ -1078,6 +1092,15 @@ httpRoute:
   ## @param httpRoute.annotations Additional annotations for the HTTPRoute resource
   ##
   annotations: {}
+  ## WebSocket configuration for /realtime endpoint
+  ## Enables proper WebSocket upgrade handling via Gateway API v1.2+ appProtocol
+  ## ref: https://gateway-api.sigs.k8s.io/guides/http-routing/#websocket-upgrades
+  ## @param httpRoute.websocket.enabled Enable dedicated WebSocket routing for /realtime
+  ## @param httpRoute.websocket.path Path prefix for WebSocket connections
+  ##
+  websocket:
+    enabled: true
+    path: /realtime
   ## Timeout configuration for HTTPRoute rules
   ## Critical for WebSocket connections which are long-lived
   ## @param httpRoute.timeouts.request Total request timeout (use "0s" for no timeout, required for WebSockets)

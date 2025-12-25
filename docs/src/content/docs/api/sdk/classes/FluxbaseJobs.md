@@ -101,6 +101,62 @@ if (job) {
 
 ***
 
+### getLogs()
+
+> **getLogs**(`jobId`, `afterLine`?): `Promise`\<`object`\>
+
+Get execution logs for a job
+
+Returns logs for the specified job. Only returns logs for jobs
+owned by the authenticated user (unless using service_role).
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `jobId` | `string` | Job ID |
+| `afterLine`? | `number` | Optional line number to get logs after (for polling/streaming) |
+
+#### Returns
+
+`Promise`\<`object`\>
+
+Promise resolving to { data, error } tuple with execution logs
+
+| Name | Type |
+| ------ | ------ |
+| `data` | `null` \| [`ExecutionLog`](/api/sdk/interfaces/executionlog/)[] |
+| `error` | `null` \| `Error` |
+
+#### Example
+
+```typescript
+// Get all logs for a job
+const { data: logs, error } = await client.jobs.getLogs('550e8400-e29b-41d4-a716-446655440000')
+
+if (logs) {
+  for (const log of logs) {
+    console.log(`[${log.level}] ${log.message}`)
+  }
+}
+
+// Backfill + stream pattern
+const { data: logs } = await client.jobs.getLogs(jobId)
+let lastLine = Math.max(...(logs?.map(l => l.line_number) ?? []), 0)
+
+const channel = client.realtime
+  .executionLogs(jobId, 'job')
+  .onLog((log) => {
+    if (log.line_number > lastLine) {
+      displayLog(log)
+      lastLine = log.line_number
+    }
+  })
+  .subscribe()
+```
+
+***
+
 ### list()
 
 > **list**(`filters`?): `Promise`\<`object`\>

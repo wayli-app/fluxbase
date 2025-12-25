@@ -288,7 +288,6 @@ type AIConfig struct {
 	MaxRowsPerQuery      int           `mapstructure:"max_rows_per_query"`     // Max rows returned per query
 	ConversationCacheTTL time.Duration `mapstructure:"conversation_cache_ttl"` // TTL for conversation cache
 	MaxConversationTurns int           `mapstructure:"max_conversation_turns"` // Max turns per conversation
-	EncryptionKey        string        `mapstructure:"encryption_key"`         // Key for encrypting API keys (32 bytes)
 	SyncAllowedIPRanges  []string      `mapstructure:"sync_allowed_ip_ranges"` // IP CIDR ranges allowed to sync chatbots
 
 	// Provider Configuration (read-only in dashboard when set)
@@ -1326,16 +1325,6 @@ func (ac *AIConfig) Validate() error {
 	}
 	if ac.MaxConversationTurns <= 0 {
 		return fmt.Errorf("max_conversation_turns must be positive, got: %d", ac.MaxConversationTurns)
-	}
-
-	// Validate encryption key if set (must be 32 bytes for AES-256)
-	if ac.EncryptionKey != "" && len(ac.EncryptionKey) != 32 {
-		return fmt.Errorf("encryption_key must be exactly 32 bytes for AES-256, got: %d bytes", len(ac.EncryptionKey))
-	}
-
-	// Warn if encryption key is not set (API keys will be stored in plaintext)
-	if ac.EncryptionKey == "" {
-		log.Warn().Msg("AI encryption_key is not set - provider API keys will be stored without encryption")
 	}
 
 	// Warn if max rows is very high

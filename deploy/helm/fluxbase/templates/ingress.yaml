@@ -5,15 +5,18 @@ metadata:
   name: {{ include "fluxbase.fullname" . }}
   namespace: {{ include "fluxbase.namespace" . | quote }}
   labels: {{- include "fluxbase.labels" . | nindent 4 }}
-  {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
   annotations:
+    ## WebSocket support: pass Upgrade and Connection headers to backend
+    ## This is required for /realtime WebSocket connections
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
     {{- if .Values.ingress.annotations }}
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
     {{- end }}
     {{- if .Values.commonAnnotations }}
     {{- toYaml .Values.commonAnnotations | nindent 4 }}
     {{- end }}
-  {{- end }}
 spec:
   {{- if .Values.ingress.ingressClassName }}
   ingressClassName: {{ .Values.ingress.ingressClassName }}
@@ -22,6 +25,16 @@ spec:
     - host: {{ .Values.ingress.hostname }}
       http:
         paths:
+          {{- if .Values.ingress.websocket.enabled }}
+          ## WebSocket path for /realtime - routes to dedicated WebSocket service
+          - path: {{ .Values.ingress.websocket.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "fluxbase.fullname" . }}-ws
+                port:
+                  number: {{ .Values.service.ports.http }}
+          {{- end }}
           - path: {{ .Values.ingress.path }}
             pathType: {{ .Values.ingress.pathType }}
             backend:

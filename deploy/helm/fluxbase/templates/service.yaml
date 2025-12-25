@@ -45,3 +45,34 @@ spec:
     {{- toYaml .Values.service.extraPorts | nindent 4 }}
     {{- end }}
   selector: {{- include "fluxbase.selectorLabels" . | nindent 4 }}
+---
+{{- if or (and .Values.httpRoute.enabled .Values.httpRoute.websocket.enabled) (and .Values.ingress.enabled .Values.ingress.websocket.enabled) }}
+## WebSocket Service for Gateway API
+## This service uses appProtocol: kubernetes.io/ws to enable WebSocket upgrades
+## ref: https://gateway-api.sigs.k8s.io/guides/http-routing/#websocket-upgrades
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fluxbase.fullname" . }}-ws
+  namespace: {{ include "fluxbase.namespace" . | quote }}
+  labels: {{- include "fluxbase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: websocket
+  {{- if or .Values.service.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- if .Values.service.annotations }}
+    {{- toYaml .Values.service.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.commonAnnotations }}
+    {{- toYaml .Values.commonAnnotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.ports.http }}
+      targetPort: http
+      protocol: TCP
+      name: ws
+      appProtocol: kubernetes.io/ws
+  selector: {{- include "fluxbase.selectorLabels" . | nindent 4 }}
+{{- end }}

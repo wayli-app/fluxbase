@@ -181,7 +181,7 @@ Promise resolving to { data, error } tuple with execution logs
 
 | Name | Type |
 | ------ | ------ |
-| `data` | `null` \| [`RPCExecutionLog`](/api/sdk/interfaces/rpcexecutionlog/)[] |
+| `data` | `null` \| [`ExecutionLog`](/api/sdk/interfaces/executionlog/)[] |
 | `error` | `null` \| `Error` |
 
 #### Example

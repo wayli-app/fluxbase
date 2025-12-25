@@ -12,7 +12,7 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
 
 ### Single Binary Deployment
 
-- **Simple**: Deploy one ~70MB binary or ~110MB container
+- **Simple**: Deploy one ~50MB binary or ~80MB container
 - **Fast**: Starts in seconds, not minutes
 - **Portable**: Runs anywhere Go runs
 
@@ -100,19 +100,23 @@ WebSocket-based AI chatbot integration:
 
 ## Quick Comparison
 
-| Feature             | Fluxbase              | Supabase                 | Firebase           |
-| ------------------- | --------------------- | ------------------------ | ------------------ |
-| **Deployment**      | Single binary (~70MB) | ~13 containers (~2.5GB)  | Cloud only         |
-| **Dependencies**    | PostgreSQL only       | PostgreSQL + 5+ services | Proprietary        |
-| **Self-hosting**    | ✅ Easy               | ⚠️ Complex               | ❌ No              |
-| **REST API**        | ✅ Auto-generated     | ✅ PostgREST             | ✅ Auto-generated  |
-| **Authentication**  | ✅ Built-in           | ✅ GoTrue                | ✅ Built-in        |
-| **Realtime**        | ✅ WebSocket          | ✅ WebSocket             | ✅ WebSocket       |
-| **Storage**         | ✅ S3 or local        | ✅ S3 or local           | ✅ Cloud Storage   |
-| **Functions**       | ✅ Deno               | ✅ Deno                  | ✅ Cloud Functions |
-| **AI Chatbots**     | ✅ Built-in           | ❌ No                    | ❌ No              |
-| **Background Jobs** | ✅ Built-in           | ✅ pg_cron (ext)         | ❌ No              |
-| **Open Source**     | ✅ ELv2               | ✅ Apache 2.0            | ❌ Proprietary     |
+| Feature                | Fluxbase                       | Supabase                   | Firebase             |
+| ---------------------- | ------------------------------ | -------------------------- | -------------------- |
+| **Deployment**         | ~50MB binary / ~80MB container | ~13 containers (~2.5GB)    | Cloud only           |
+| **Dependencies**       | PostgreSQL only                | PostgreSQL + 5+ services   | Proprietary          |
+| **Self-hosting**       | ✅ Easy                        | ⚠️ Complex                 | ❌ No                |
+| **REST API**           | ✅ Built-in                    | ✅ PostgREST               | ✅ Auto-generated    |
+| **Authentication**     | ✅ Built-in                    | ✅ GoTrue                  | ✅ Built-in          |
+| **Realtime**           | ✅ WebSocket                   | ✅ WebSocket               | ✅ WebSocket         |
+| **Storage**            | ✅ S3 or local                 | ✅ S3 or local             | ✅ Cloud Storage     |
+| **Edge Functions**     | ✅ Deno                        | ✅ Deno                    | ✅ Cloud Functions   |
+| **AI Chatbots**        | ✅ Built-in                    | ❌ No                      | ❌ No                |
+| **Background Jobs**    | ✅ Built-in                    | ✅ pg_cron (ext)           | ❌ No                |
+| **Database**           | PostgreSQL 15+                 | PostgreSQL 15+             | Proprietary (NoSQL)  |
+| **Row-Level Security** | ✅ Yes                         | ✅ Yes                     | ⚠️ Rules-based       |
+| **Client SDK**         | TypeScript/JS                  | TypeScript/JS              | TypeScript/JS        |
+| **Horizontal Scaling** | ✅ Yes (distributed backends)  | ✅ Yes (read replicas)     | ✅ Yes (auto)        |
+| **Open Source**        | ✅ ELv2                        | ✅ Apache 2.0              | ❌ Proprietary       |
 
 ## Getting Started
 

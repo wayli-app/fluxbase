@@ -2,25 +2,27 @@
 title: "Fluxbase vs Supabase"
 ---
 
-Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~110MB container (~70MB binary). If you're evaluating Fluxbase as a Supabase alternative, this guide highlights key differences.
+Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~80MB container (~50MB binary). If you're evaluating Fluxbase as a Supabase or Firebase alternative, this guide highlights key differences.
 
 ## Quick Comparison
 
-| Feature                | Supabase                     | Fluxbase                      |
-| ---------------------- | ---------------------------- | ----------------------------- |
-| **Deployment**         | ~13 containers (~2.5GB)      | 1 binary or container (~110MB) |
-| **REST API**           | PostgREST                    | ✅ Built-in                   |
-| **Authentication**     | GoTrue (JWT)                 | ✅ Built-in                   |
-| **Realtime**           | WebSocket                    | WebSocket                     |
-| **Storage**            | S3 or local                  | S3 or local                   |
-| **AI Chatbots**        | ❌ No                        | ✅ Built-in                   |
-| **Edge Functions**     | Deno runtime                 | Deno runtime                  |
-| **Database**           | PostgreSQL 15+               | PostgreSQL 15+                |
-| **Row-Level Security** | ✅ Yes                       | ✅ Yes                        |
-| **Client SDK**         | TypeScript/JS                | TypeScript/JS                 |
-| **Horizontal Scaling** | ✅ Yes (read replicas)       | ✅ Yes (distributed backends) |
-| **Hosted Service**     | ✅ Yes (free tier available) | ❌ No(t yet?)                 |
-| **Pricing**            | Free/$25+/month              | Open source (ELv2)            |
+| Feature                | Fluxbase                       | Supabase                   | Firebase             |
+| ---------------------- | ------------------------------ | -------------------------- | -------------------- |
+| **Deployment**         | ~50MB binary / ~80MB container | ~13 containers (~2.5GB)    | Cloud only           |
+| **Dependencies**       | PostgreSQL only                | PostgreSQL + 5+ services   | Proprietary          |
+| **Self-hosting**       | ✅ Easy                        | ⚠️ Complex                 | ❌ No                |
+| **REST API**           | ✅ Built-in                    | ✅ PostgREST               | ✅ Auto-generated    |
+| **Authentication**     | ✅ Built-in                    | ✅ GoTrue                  | ✅ Built-in          |
+| **Realtime**           | ✅ WebSocket                   | ✅ WebSocket               | ✅ WebSocket         |
+| **Storage**            | ✅ S3 or local                 | ✅ S3 or local             | ✅ Cloud Storage     |
+| **Edge Functions**     | ✅ Deno                        | ✅ Deno                    | ✅ Cloud Functions   |
+| **AI Chatbots**        | ✅ Built-in                    | ❌ No                      | ❌ No                |
+| **Background Jobs**    | ✅ Built-in                    | ✅ pg_cron (ext)           | ❌ No                |
+| **Database**           | PostgreSQL 15+                 | PostgreSQL 15+             | Proprietary (NoSQL)  |
+| **Row-Level Security** | ✅ Yes                         | ✅ Yes                     | ⚠️ Rules-based       |
+| **Client SDK**         | TypeScript/JS                  | TypeScript/JS              | TypeScript/JS        |
+| **Horizontal Scaling** | ✅ Yes (distributed backends)  | ✅ Yes (read replicas)     | ✅ Yes (auto)        |
+| **Open Source**        | ✅ ELv2                        | ✅ Apache 2.0              | ❌ Proprietary       |
 
 ## SDK Compatibility
 

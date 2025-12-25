@@ -241,7 +241,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
-	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL())
+	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db)

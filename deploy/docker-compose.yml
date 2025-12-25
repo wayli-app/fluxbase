@@ -264,7 +264,6 @@ services:
       # FLUXBASE_AI_DEFAULT_MAX_TOKENS: "4096"
       # FLUXBASE_AI_QUERY_TIMEOUT: "30s"
       # FLUXBASE_AI_MAX_ROWS_PER_QUERY: "1000"
-      # FLUXBASE_AI_ENCRYPTION_KEY: ""  # Generate with: openssl rand -base64 32
 
       # OpenAI Configuration
       # FLUXBASE_AI_OPENAI_API_KEY: ""

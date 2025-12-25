@@ -542,14 +542,6 @@ spec:
               value: {{ .Values.config.ai.conversation_cache_ttl | quote }}
             - name: FLUXBASE_AI_MAX_CONVERSATION_TURNS
               value: {{ .Values.config.ai.max_conversation_turns | quote }}
-            {{- if or .Values.config.encryption_key .Values.existingSecret }}
-            - name: FLUXBASE_AI_ENCRYPTION_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "fluxbase.secretName" . }}
-                  key: {{ include "fluxbase.secretKeyRef.encryptionKey" . }}
-                  optional: true
-            {{- end }}
             {{- if or .Values.config.ai.openai_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_OPENAI_API_KEY
               valueFrom:

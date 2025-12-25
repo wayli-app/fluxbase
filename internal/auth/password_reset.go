@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,6 +13,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+// hashPasswordResetToken creates a SHA-256 hash of a token and returns it as base64.
+// SECURITY: Password reset tokens are stored as hashes to prevent exposure if the database is breached.
+func hashPasswordResetToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return base64.URLEncoding.EncodeToString(hash[:])
+}
 
 var (
 	// ErrPasswordResetTokenNotFound is returned when a password reset token is not found
@@ -26,10 +34,17 @@ var (
 type PasswordResetToken struct {
 	ID        string     `json:"id" db:"id"`
 	UserID    string     `json:"user_id" db:"user_id"`
-	Token     string     `json:"token" db:"token"`
+	TokenHash string     `json:"-" db:"token_hash"` // SECURITY: Only hash is stored, never exposed in JSON
 	ExpiresAt time.Time  `json:"expires_at" db:"expires_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty" db:"used_at"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+}
+
+// PasswordResetTokenWithPlaintext is returned from Create with the plaintext token for sending via email.
+// The plaintext token is never stored in the database.
+type PasswordResetTokenWithPlaintext struct {
+	PasswordResetToken
+	PlaintextToken string // The plaintext token to send to the user (not stored)
 }
 
 // PasswordResetRepository handles database operations for password reset tokens
@@ -43,37 +58,44 @@ func NewPasswordResetRepository(db *database.Connection) *PasswordResetRepositor
 }
 
 // Create creates a new password reset token
-func (r *PasswordResetRepository) Create(ctx context.Context, userID string, expiryDuration time.Duration) (*PasswordResetToken, error) {
-	token, err := GeneratePasswordResetToken()
+// SECURITY: The plaintext token is returned only once for sending via email. Only the hash is stored.
+func (r *PasswordResetRepository) Create(ctx context.Context, userID string, expiryDuration time.Duration) (*PasswordResetTokenWithPlaintext, error) {
+	plaintextToken, err := GeneratePasswordResetToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	passwordResetToken := &PasswordResetToken{
-		ID:        uuid.New().String(),
-		UserID:    userID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(expiryDuration),
-		CreatedAt: time.Now(),
+	// Hash the token before storing
+	tokenHash := hashPasswordResetToken(plaintextToken)
+
+	passwordResetToken := &PasswordResetTokenWithPlaintext{
+		PasswordResetToken: PasswordResetToken{
+			ID:        uuid.New().String(),
+			UserID:    userID,
+			TokenHash: tokenHash,
+			ExpiresAt: time.Now().Add(expiryDuration),
+			CreatedAt: time.Now(),
+		},
+		PlaintextToken: plaintextToken,
 	}
 
 	query := `
-		INSERT INTO auth.password_reset_tokens (id, user_id, token, expires_at, created_at)
+		INSERT INTO auth.password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, token, expires_at, used_at, created_at
+		RETURNING id, user_id, token_hash, expires_at, used_at, created_at
 	`
 
 	err = database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query,
 			passwordResetToken.ID,
 			passwordResetToken.UserID,
-			passwordResetToken.Token,
+			passwordResetToken.TokenHash,
 			passwordResetToken.ExpiresAt,
 			passwordResetToken.CreatedAt,
 		).Scan(
 			&passwordResetToken.ID,
 			&passwordResetToken.UserID,
-			&passwordResetToken.Token,
+			&passwordResetToken.TokenHash,
 			&passwordResetToken.ExpiresAt,
 			&passwordResetToken.UsedAt,
 			&passwordResetToken.CreatedAt,
@@ -88,19 +110,23 @@ func (r *PasswordResetRepository) Create(ctx context.Context, userID string, exp
 }
 
 // GetByToken retrieves a password reset token by token
+// SECURITY: The incoming plaintext token is hashed before lookup
 func (r *PasswordResetRepository) GetByToken(ctx context.Context, token string) (*PasswordResetToken, error) {
+	// Hash the incoming token for comparison
+	tokenHash := hashPasswordResetToken(token)
+
 	query := `
-		SELECT id, user_id, token, expires_at, used_at, created_at
+		SELECT id, user_id, token_hash, expires_at, used_at, created_at
 		FROM auth.password_reset_tokens
-		WHERE token = $1
+		WHERE token_hash = $1
 	`
 
 	passwordResetToken := &PasswordResetToken{}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, token).Scan(
+		return tx.QueryRow(ctx, query, tokenHash).Scan(
 			&passwordResetToken.ID,
 			&passwordResetToken.UserID,
-			&passwordResetToken.Token,
+			&passwordResetToken.TokenHash,
 			&passwordResetToken.ExpiresAt,
 			&passwordResetToken.UsedAt,
 			&passwordResetToken.CreatedAt,
@@ -246,17 +272,17 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email s
 	// Invalidate old password reset tokens for this user
 	_ = s.repo.DeleteByUserID(ctx, user.ID)
 
-	// Create new password reset token
+	// Create new password reset token (returns PasswordResetTokenWithPlaintext containing the plaintext token)
 	resetToken, err := s.repo.Create(ctx, user.ID, s.tokenExpiry)
 	if err != nil {
 		return fmt.Errorf("failed to create password reset token: %w", err)
 	}
 
-	// Generate the full link URL
-	link := fmt.Sprintf("%s/auth/reset-password?token=%s", s.baseURL, resetToken.Token)
+	// Generate the full link URL using the plaintext token (only available at creation time)
+	link := fmt.Sprintf("%s/auth/reset-password?token=%s", s.baseURL, resetToken.PlaintextToken)
 
-	// Send email
-	if err := s.emailSender.SendPasswordReset(ctx, email, resetToken.Token, link); err != nil {
+	// Send email with plaintext token
+	if err := s.emailSender.SendPasswordReset(ctx, email, resetToken.PlaintextToken, link); err != nil {
 		return fmt.Errorf("failed to send password reset email: %w", err)
 	}
 

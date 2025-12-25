@@ -1224,17 +1224,6 @@ func TestAIConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "query_timeout must be positive",
 		},
-		{
-			name:    "encryption key wrong length",
-			modify:  func(c *AIConfig) { c.EncryptionKey = "too-short" },
-			wantErr: true,
-			errMsg:  "encryption_key must be exactly 32 bytes",
-		},
-		{
-			name:    "encryption key correct length",
-			modify:  func(c *AIConfig) { c.EncryptionKey = "12345678901234567890123456789012" }, // exactly 32 bytes
-			wantErr: false,
-		},
 	}
 
 	for _, tt := range tests {

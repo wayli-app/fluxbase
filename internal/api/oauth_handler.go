@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,16 +19,25 @@ import (
 
 // OAuthHandler handles OAuth authentication flow
 type OAuthHandler struct {
-	db         *pgxpool.Pool
-	authSvc    *auth.Service
-	jwtManager *auth.JWTManager
-	stateStore *auth.StateStore
-	baseURL    string
+	db            *pgxpool.Pool
+	authSvc       *auth.Service
+	jwtManager    *auth.JWTManager
+	stateStore    *auth.StateStore
+	baseURL       string
+	encryptionKey string // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 }
 
 // NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL string) *OAuthHandler {
+func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string) *OAuthHandler {
 	stateStore := auth.NewStateStore()
+
+	// Warn if encryption key is not set (OAuth tokens will be stored unencrypted)
+	if encryptionKey == "" {
+		log.Warn().Msg("FLUXBASE_ENCRYPTION_KEY not set: OAuth tokens will be stored unencrypted")
+	} else if len(encryptionKey) != 32 {
+		log.Warn().Msg("FLUXBASE_ENCRYPTION_KEY must be exactly 32 bytes for AES-256: OAuth tokens will be stored unencrypted")
+		encryptionKey = "" // Clear invalid key
+	}
 
 	// Start cleanup goroutine for expired states
 	go func() {
@@ -39,11 +49,12 @@ func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.J
 	}()
 
 	return &OAuthHandler{
-		db:         db,
-		authSvc:    authSvc,
-		jwtManager: jwtManager,
-		stateStore: stateStore,
-		baseURL:    baseURL,
+		db:            db,
+		authSvc:       authSvc,
+		jwtManager:    jwtManager,
+		stateStore:    stateStore,
+		baseURL:       baseURL,
+		encryptionKey: encryptionKey,
 	}
 }
 
@@ -428,6 +439,21 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 		return nil, false, fmt.Errorf("failed to check OAuth link: %w", err)
 	}
 
+	// SECURITY: Encrypt OAuth tokens before storing (if encryption key is configured)
+	accessTokenToStore := token.AccessToken
+	refreshTokenToStore := token.RefreshToken
+	if h.encryptionKey != "" {
+		var encErr error
+		accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
+		if encErr != nil {
+			return nil, false, fmt.Errorf("failed to encrypt access token: %w", encErr)
+		}
+		refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.RefreshToken, h.encryptionKey)
+		if encErr != nil {
+			return nil, false, fmt.Errorf("failed to encrypt refresh token: %w", encErr)
+		}
+	}
+
 	// Store OAuth token
 	query = `
 		INSERT INTO auth.oauth_tokens (user_id, provider, access_token, refresh_token, token_expiry)
@@ -439,7 +465,7 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 			token_expiry = EXCLUDED.token_expiry,
 			updated_at = CURRENT_TIMESTAMP
 	`
-	_, err = tx.Exec(ctx, query, userID, providerName, token.AccessToken, token.RefreshToken, token.Expiry)
+	_, err = tx.Exec(ctx, query, userID, providerName, accessTokenToStore, refreshTokenToStore, token.Expiry)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to store OAuth token: %w", err)
 	}
