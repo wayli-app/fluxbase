@@ -1166,3 +1166,151 @@ func TestFormatVectorValue(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSTDWithinValue(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            string
+		expectedDistance float64
+		expectedGeometry string
+		expectError      bool
+		errorContains    string
+	}{
+		{
+			name:             "valid point with integer distance",
+			input:            `1000,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectedDistance: 1000,
+			expectedGeometry: `{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:      false,
+		},
+		{
+			name:             "valid point with float distance",
+			input:            `1500.5,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectedDistance: 1500.5,
+			expectedGeometry: `{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:      false,
+		},
+		{
+			name:             "valid polygon with distance",
+			input:            `500,{"type":"Polygon","coordinates":[[[-122.5,37.7],[-122.5,37.85],[-122.35,37.85],[-122.35,37.7],[-122.5,37.7]]]}`,
+			expectedDistance: 500,
+			expectedGeometry: `{"type":"Polygon","coordinates":[[[-122.5,37.7],[-122.5,37.85],[-122.35,37.85],[-122.35,37.7],[-122.5,37.7]]]}`,
+			expectError:      false,
+		},
+		{
+			name:             "zero distance",
+			input:            `0,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectedDistance: 0,
+			expectedGeometry: `{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:      false,
+		},
+		{
+			name:          "negative distance",
+			input:         `-100,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:   true,
+			errorContains: "distance cannot be negative",
+		},
+		{
+			name:          "missing distance",
+			input:         `{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:   true,
+			errorContains: "st_dwithin value must be in format",
+		},
+		{
+			name:          "invalid distance - not a number",
+			input:         `abc,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:   true,
+			errorContains: "invalid distance value",
+		},
+		{
+			name:          "missing geometry",
+			input:         `1000,`,
+			expectError:   true,
+			errorContains: "geometry must be a valid GeoJSON object",
+		},
+		{
+			name:          "invalid geometry - not JSON",
+			input:         `1000,not-json`,
+			expectError:   true,
+			errorContains: "geometry must be a valid GeoJSON object",
+		},
+		{
+			name:          "empty input",
+			input:         ``,
+			expectError:   true,
+			errorContains: "st_dwithin value must be in format",
+		},
+		{
+			name:          "only comma",
+			input:         `,`,
+			expectError:   true,
+			errorContains: "st_dwithin value must be in format",
+		},
+		{
+			name:             "distance with spaces",
+			input:            ` 1000 , {"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectedDistance: 1000,
+			expectedGeometry: `{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectError:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			distance, geometry, err := parseSTDWithinValue(tt.input)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedDistance, distance)
+				assert.Equal(t, tt.expectedGeometry, geometry)
+			}
+		})
+	}
+}
+
+func TestSTDWithinFilter(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	tests := []struct {
+		name        string
+		query       string
+		expectSQL   string
+		expectArgs  []interface{}
+		expectError bool
+	}{
+		{
+			name:       "st_dwithin with point",
+			query:      `location.st_dwithin=1000,{"type":"Point","coordinates":[-122.4783,37.8199]}`,
+			expectSQL:  `ST_DWithin("location", ST_GeomFromGeoJSON($1), $2)`,
+			expectArgs: []interface{}{`{"type":"Point","coordinates":[-122.4783,37.8199]}`, float64(1000)},
+		},
+		{
+			name:       "st_dwithin with polygon",
+			query:      `geom.st_dwithin=500.5,{"type":"Polygon","coordinates":[[[-122.5,37.7],[-122.5,37.85],[-122.35,37.85],[-122.5,37.7]]]}`,
+			expectSQL:  `ST_DWithin("geom", ST_GeomFromGeoJSON($1), $2)`,
+			expectArgs: []interface{}{`{"type":"Polygon","coordinates":[[[-122.5,37.7],[-122.5,37.85],[-122.35,37.85],[-122.5,37.7]]]}`, float64(500.5)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			values, err := url.ParseQuery(tt.query)
+			require.NoError(t, err)
+
+			params, err := parser.Parse(values)
+			require.NoError(t, err)
+			require.Len(t, params.Filters, 1)
+
+			argCounter := 1
+			sql, args := params.buildWhereClause(&argCounter)
+
+			assert.Equal(t, tt.expectSQL, sql)
+			assert.Equal(t, tt.expectArgs, args)
+		})
+	}
+}

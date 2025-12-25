@@ -1000,7 +1000,12 @@ func (params *QueryParams) buildWhereClause(argCounter *int) (string, []interfac
 		condition, arg := filter.toSQL(argCounter)
 		filterSQLs[i] = filterSQL{condition: condition, filter: filter}
 		if arg != nil {
-			args = append(args, arg)
+			// Handle multi-argument operators (e.g., ST_DWithin returns []interface{})
+			if argSlice, ok := arg.([]interface{}); ok {
+				args = append(args, argSlice...)
+			} else {
+				args = append(args, arg)
+			}
 		}
 	}
 
@@ -1428,13 +1433,21 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 
 	case OpSTDWithin:
 		// ST_DWithin expects: ST_DWithin(geom1, geom2, distance)
-		// Value should be a map with "geometry" and "distance" fields
-		// For now, we'll expect a GeoJSON string and use a default distance
-		// TODO: Support distance parameter
+		// Value format: "distance,{geojson}" (e.g., "1000,{"type":"Point","coordinates":[-122.4,37.8]}")
+		valueStr, ok := f.Value.(string)
+		if !ok {
+			return "", nil
+		}
+
+		distance, geometry, err := parseSTDWithinValue(valueStr)
+		if err != nil {
+			return "", nil
+		}
+
 		sql := fmt.Sprintf("ST_DWithin(%s, ST_GeomFromGeoJSON($%d), $%d)", colExpr, *argCounter, *argCounter+1)
 		*argCounter += 2
-		// For now, return placeholder - needs proper implementation with distance
-		return sql, f.Value
+		// Return a slice with both arguments (geometry first, then distance)
+		return sql, []interface{}{geometry, distance}
 
 	case OpSTDistance:
 		sql := fmt.Sprintf("ST_Distance(%s, ST_GeomFromGeoJSON($%d))", colExpr, *argCounter)
@@ -1488,6 +1501,54 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		*argCounter++
 		return sql, f.Value
 	}
+}
+
+// parseSTDWithinValue parses a compound value for ST_DWithin operator
+// Format: distance,{geojson} (e.g., "1000,{"type":"Point","coordinates":[-122.4,37.8]}")
+// Returns the distance (float64) and the GeoJSON geometry (string)
+func parseSTDWithinValue(value string) (float64, string, error) {
+	// Find the first comma that's not inside braces/brackets
+	braceDepth := 0
+	commaIdx := -1
+	for i, ch := range value {
+		switch ch {
+		case '{', '[':
+			braceDepth++
+		case '}', ']':
+			braceDepth--
+		case ',':
+			if braceDepth == 0 {
+				commaIdx = i
+				break
+			}
+		}
+		if commaIdx >= 0 {
+			break
+		}
+	}
+
+	if commaIdx <= 0 {
+		return 0, "", fmt.Errorf("st_dwithin value must be in format: distance,{geojson}")
+	}
+
+	distanceStr := strings.TrimSpace(value[:commaIdx])
+	geometry := strings.TrimSpace(value[commaIdx+1:])
+
+	distance, err := strconv.ParseFloat(distanceStr, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid distance value: %w", err)
+	}
+
+	if distance < 0 {
+		return 0, "", fmt.Errorf("distance cannot be negative")
+	}
+
+	// Basic validation that geometry looks like JSON
+	if !strings.HasPrefix(geometry, "{") || !strings.HasSuffix(geometry, "}") {
+		return 0, "", fmt.Errorf("geometry must be a valid GeoJSON object")
+	}
+
+	return distance, geometry, nil
 }
 
 // formatVectorValue converts a vector value to PostgreSQL vector literal format
