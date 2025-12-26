@@ -27,6 +27,27 @@ func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToke
 	env = append(env, "DENO_DIR=/tmp/deno")
 	env = append(env, "HOME=/tmp")
 
+	// Include essential system environment variables for proper subprocess operation
+	// These are needed for DNS resolution, SSL certificates, and basic system functionality
+	systemVars := []string{
+		"PATH",                    // Required for finding executables
+		"SSL_CERT_FILE",           // SSL certificate file location
+		"SSL_CERT_DIR",            // SSL certificate directory
+		"CURL_CA_BUNDLE",          // CA bundle for curl/fetch
+		"RESOLV_CONF",             // DNS resolver configuration
+		"LOCALDOMAIN",             // Local domain for DNS
+		"RES_OPTIONS",             // Resolver options
+		"HOSTALIASES",             // Host aliases file
+		"KUBERNETES_SERVICE_HOST", // Kubernetes API server (for DNS)
+		"KUBERNETES_SERVICE_PORT", // Kubernetes API port
+	}
+
+	for _, key := range systemVars {
+		if val := os.Getenv(key); val != "" {
+			env = append(env, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+
 	// Pass all FLUXBASE_* environment variables except blocked ones
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "FLUXBASE_") {

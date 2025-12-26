@@ -223,6 +223,15 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 // This is the most comprehensive auth middleware that accepts all authentication methods
 func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Debug logging for service_role troubleshooting
+		log.Debug().
+			Str("path", c.Path()).
+			Str("method", c.Method()).
+			Bool("has_auth_header", c.Get("Authorization") != "").
+			Bool("has_apikey_header", c.Get("X-API-Key") != "").
+			Bool("has_service_key_header", c.Get("X-Service-Key") != "").
+			Msg("RequireAuthOrServiceKey: Incoming request")
+
 		// First, try service key authentication (highest privilege)
 		serviceKey := c.Get("X-Service-Key")
 		authHeader := c.Get("Authorization")

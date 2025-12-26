@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -353,6 +354,52 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("directory not found: %s", jobSyncDir)
 	}
 
+	// Check for _shared directory and sync shared modules first
+	sharedDir := filepath.Join(jobSyncDir, "_shared")
+	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
+		sharedEntries, err := os.ReadDir(sharedDir)
+		if err == nil {
+			sharedCount := 0
+			for _, entry := range sharedEntries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+					continue
+				}
+
+				content, err := os.ReadFile(filepath.Join(sharedDir, name)) //nolint:gosec // CLI tool reads user-provided file path
+				if err != nil {
+					fmt.Printf("Warning: failed to read shared module %s: %v\n", name, err)
+					continue
+				}
+
+				modulePath := "_shared/" + name
+
+				// Create or update the shared module via API
+				moduleBody := map[string]interface{}{
+					"module_path": modulePath,
+					"content":     string(content),
+				}
+
+				// Try PUT first (update), fall back to POST (create)
+				err = apiClient.DoPut(ctx, "/api/v1/functions/shared/"+url.PathEscape(modulePath), moduleBody, nil)
+				if err != nil {
+					err = apiClient.DoPost(ctx, "/api/v1/functions/shared/", moduleBody, nil)
+					if err != nil {
+						fmt.Printf("Warning: failed to sync shared module %s: %v\n", modulePath, err)
+						continue
+					}
+				}
+				sharedCount++
+			}
+			if sharedCount > 0 {
+				fmt.Printf("Synced %d shared modules.\n", sharedCount)
+			}
+		}
+	}
+
 	// Read jobs from directory
 	entries, err := os.ReadDir(jobSyncDir)
 	if err != nil {
@@ -372,7 +419,7 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		}
 
 		// Read file
-		content, err := os.ReadFile(jobSyncDir + "/" + name) //nolint:gosec // CLI tool reads user-provided file path
+		content, err := os.ReadFile(filepath.Join(jobSyncDir, name)) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
 			continue
@@ -406,10 +453,35 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		"jobs":      jobs,
 	}
 
-	if err := apiClient.DoPost(ctx, "/api/v1/admin/jobs/sync", body, nil); err != nil {
+	var result map[string]interface{}
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/jobs/sync", body, &result); err != nil {
 		return err
 	}
 
-	fmt.Printf("Synced %d job functions to namespace '%s'.\n", len(jobs), jobNamespace)
+	// Parse the nested summary response
+	summary, ok := result["summary"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format from server")
+	}
+
+	created := getIntValue(summary, "created")
+	updated := getIntValue(summary, "updated")
+	deleted := getIntValue(summary, "deleted")
+	errors := getIntValue(summary, "errors")
+
+	fmt.Printf("Synced jobs to namespace '%s': %d created, %d updated, %d deleted.\n",
+		jobNamespace, created, updated, deleted)
+	if errors > 0 {
+		fmt.Printf("Warning: %d errors occurred during sync.\n", errors)
+		// Print error details if available
+		if errorList, ok := result["errors"].([]interface{}); ok {
+			for _, e := range errorList {
+				if errMap, ok := e.(map[string]interface{}); ok {
+					fmt.Printf("  - %s: %v\n", errMap["job"], errMap["error"])
+				}
+			}
+		}
+	}
+
 	return nil
 }

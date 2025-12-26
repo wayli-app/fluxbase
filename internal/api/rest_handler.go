@@ -55,6 +55,17 @@ func (h *RESTHandler) HandleDynamicTable(c *fiber.Ctx) error {
 	ctx := c.Context()
 	schema, tableName := h.parseTableFromPath(c)
 
+	// Debug logging for service_role troubleshooting
+	log.Debug().
+		Str("method", c.Method()).
+		Str("schema", schema).
+		Str("table", tableName).
+		Str("path", c.Path()).
+		Interface("rls_role", c.Locals("rls_role")).
+		Interface("user_role", c.Locals("user_role")).
+		Str("auth_type", fmt.Sprintf("%v", c.Locals("auth_type"))).
+		Msg("HandleDynamicTable: Incoming REST request")
+
 	// Look up table in cache
 	tableInfo, exists, err := h.schemaCache.GetTable(ctx, schema, tableName)
 	if err != nil {

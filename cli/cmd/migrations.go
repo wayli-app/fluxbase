@@ -366,12 +366,29 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	synced := getIntValue(result, "synced")
-	applied := getIntValue(result, "applied")
+	// Parse the nested summary response
+	summary, ok := result["summary"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response format from server")
+	}
 
-	fmt.Printf("Synced %d migrations.\n", synced)
+	created := getIntValue(summary, "created")
+	updated := getIntValue(summary, "updated")
+	applied := getIntValue(summary, "applied")
+	errors := getIntValue(summary, "errors")
+
+	fmt.Printf("Synced migrations: %d created, %d updated.\n", created, updated)
 	if migAutoApply && applied > 0 {
 		fmt.Printf("Applied %d pending migrations.\n", applied)
+	}
+	if errors > 0 {
+		fmt.Printf("Warning: %d errors occurred during sync.\n", errors)
+		// Print error details if available
+		if errorList, ok := result["errors"].([]interface{}); ok {
+			for _, e := range errorList {
+				fmt.Printf("  - %v\n", e)
+			}
+		}
 	}
 
 	return nil
