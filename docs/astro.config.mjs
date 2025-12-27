@@ -141,6 +141,11 @@ export default defineConfig({
           autogenerate: { directory: "sdk" },
         },
         {
+          label: "CLI",
+          collapsed: true,
+          autogenerate: { directory: "cli" },
+        },
+        {
           label: "Deployment",
           collapsed: true,
           autogenerate: { directory: "deployment" },

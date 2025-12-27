@@ -35,6 +35,7 @@ name: Release
 #   - Publish Go module: Notify pkg.go.dev to index the new Go module version
 #   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
 #   - Publish Postgres images: Build and push fluxbase-postgres images for all supported versions
+#   - Publish CLI package: Publish CLI to package managers (Homebrew, etc.)
 #   Note: For release/tag push triggers, all components are published
 #
 # RC Release behavior:
@@ -115,6 +116,11 @@ on:
         required: false
         type: boolean
         default: false
+      publish_cli:
+        description: "Publish CLI package"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
