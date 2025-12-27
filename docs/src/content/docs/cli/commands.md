@@ -3,11 +3,28 @@ title: CLI Command Reference
 description: Complete reference for all Fluxbase CLI commands
 ---
 
+This page documents all Fluxbase CLI commands, their subcommands, flags, and usage examples.
+
 ## Command Overview
 
 ```
 fluxbase [command] [subcommand] [flags]
 ```
+
+### Global Flags
+
+These flags work with all commands:
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--config` | | Config file path (default: `~/.fluxbase/config.yaml`) |
+| `--profile` | `-p` | Profile to use |
+| `--output` | `-o` | Output format: `table`, `json`, `yaml` |
+| `--no-headers` | | Hide table headers |
+| `--quiet` | `-q` | Minimal output |
+| `--debug` | | Enable debug output |
+
+---
 
 ## Authentication Commands
 
@@ -125,17 +142,51 @@ fluxbase functions invoke my-function --file ./payload.json
 
 ### `fluxbase functions logs`
 
+View execution logs for a function.
+
 ```bash
 fluxbase functions logs my-function
 fluxbase functions logs my-function --tail 50
+fluxbase functions logs my-function --follow
 ```
 
+**Flags:**
+- `--tail` - Number of lines to show (default: 20)
+- `--follow`, `-f` - Stream new log entries in real-time
+
 ### `fluxbase functions sync`
+
+Sync all functions from a local directory to the server.
 
 ```bash
 fluxbase functions sync --dir ./functions
 fluxbase functions sync --dir ./functions --namespace production --dry-run
 ```
+
+**Flags:**
+- `--dir` - Directory containing function files (default: `./functions`)
+- `--namespace` - Target namespace (default: `default`)
+- `--dry-run` - Preview changes without applying
+
+**Shared Modules:**
+
+Place shared code in a `_shared/` subdirectory:
+
+```
+functions/
+├── _shared/
+│   └── utils.ts
+├── api-handler.ts
+└── webhook.ts
+```
+
+Functions can import from shared modules:
+
+```typescript
+import { helper } from "./_shared/utils.ts";
+```
+
+If Deno is installed locally, functions with imports are automatically bundled before upload.
 
 ---
 
@@ -183,9 +234,27 @@ fluxbase jobs logs abc123
 
 ### `fluxbase jobs stats`
 
+Show job queue statistics.
+
 ```bash
 fluxbase jobs stats
 ```
+
+### `fluxbase jobs sync`
+
+Sync job functions from a local directory.
+
+```bash
+fluxbase jobs sync --dir ./jobs
+fluxbase jobs sync --dir ./jobs --namespace production --dry-run
+```
+
+**Flags:**
+- `--dir` - Directory containing job files (default: `./jobs`)
+- `--namespace` - Target namespace (default: `default`)
+- `--dry-run` - Preview changes without applying
+
+Like functions, jobs support a `_shared/` directory for shared modules and JSON/GeoJSON data files.
 
 ---
 
@@ -310,16 +379,54 @@ fluxbase tables delete users --where "id=eq.123"
 
 ## RPC Commands
 
-Invoke stored procedures.
+Manage and invoke stored procedures.
+
+### `fluxbase rpc list`
+
+List all RPC procedures.
 
 ```bash
-# List procedures
 fluxbase rpc list
+fluxbase rpc list --namespace production
+```
 
-# Invoke procedure
+### `fluxbase rpc get`
+
+Get details of a specific procedure.
+
+```bash
+fluxbase rpc get default/calculate_totals
+```
+
+### `fluxbase rpc invoke`
+
+Invoke a stored procedure.
+
+```bash
 fluxbase rpc invoke default/calculate_totals
 fluxbase rpc invoke default/process --params '{"id": 123}'
+fluxbase rpc invoke default/batch_update --file ./params.json --async
 ```
+
+**Flags:**
+- `--params` - JSON parameters to pass
+- `--file` - Load parameters from file
+- `--async` - Run asynchronously (returns immediately)
+
+### `fluxbase rpc sync`
+
+Sync RPC procedures from SQL files in a directory.
+
+```bash
+fluxbase rpc sync --dir ./rpc
+fluxbase rpc sync --dir ./rpc --namespace production --dry-run
+```
+
+**Flags:**
+- `--dir` - Directory containing `.sql` files (default: `./rpc`)
+- `--namespace` - Target namespace (default: `default`)
+- `--dry-run` - Preview changes without applying
+- `--delete-missing` - Delete procedures not in local directory
 
 ---
 
@@ -460,3 +567,184 @@ fluxbase config profiles add staging
 # Remove profile
 fluxbase config profiles remove staging
 ```
+
+---
+
+## Secrets Commands
+
+Manage secrets for edge functions and jobs. Secrets are encrypted at rest and injected as environment variables.
+
+### `fluxbase secrets list`
+
+List all secrets (values are never shown).
+
+```bash
+fluxbase secrets list
+fluxbase secrets list --scope global
+fluxbase secrets list --namespace my-namespace
+```
+
+**Flags:**
+- `--scope` - Filter by scope (`global` or `namespace`)
+- `--namespace` - Filter by namespace
+
+### `fluxbase secrets set`
+
+Create or update a secret.
+
+```bash
+fluxbase secrets set API_KEY "my-secret-key"
+fluxbase secrets set DATABASE_URL "postgres://..." --scope namespace --namespace my-ns
+fluxbase secrets set TEMP_KEY "value" --expires 30d
+```
+
+**Flags:**
+- `--scope` - Secret scope: `global` (default) or `namespace`
+- `--namespace` - Namespace for namespace-scoped secrets
+- `--description` - Description of the secret
+- `--expires` - Expiration duration (e.g., `30d`, `1y`, `24h`)
+
+Secrets are available in functions as `FLUXBASE_SECRET_<NAME>` environment variables.
+
+### `fluxbase secrets get`
+
+Get metadata for a secret (the value is never returned).
+
+```bash
+fluxbase secrets get API_KEY
+fluxbase secrets get DATABASE_URL --namespace my-namespace
+```
+
+### `fluxbase secrets delete`
+
+Delete a secret permanently.
+
+```bash
+fluxbase secrets delete API_KEY
+fluxbase secrets delete DATABASE_URL --namespace my-namespace
+```
+
+### `fluxbase secrets history`
+
+Show version history for a secret.
+
+```bash
+fluxbase secrets history API_KEY
+fluxbase secrets history DATABASE_URL --namespace my-namespace
+```
+
+### `fluxbase secrets rollback`
+
+Rollback a secret to a previous version.
+
+```bash
+fluxbase secrets rollback API_KEY 2
+fluxbase secrets rollback DATABASE_URL 1 --namespace my-namespace
+```
+
+---
+
+## Logs Commands
+
+Query and stream logs from the central logging system.
+
+### `fluxbase logs list`
+
+List logs with filters.
+
+```bash
+fluxbase logs list
+fluxbase logs list --category system --level error
+fluxbase logs list --since 1h --search "database"
+fluxbase logs list --category execution --limit 50
+fluxbase logs list --user-id abc123 -o json
+```
+
+**Flags:**
+- `--category` - Filter by category: `system`, `http`, `security`, `execution`, `ai`, `custom`
+- `--custom-category` - Filter by custom category name (requires `--category=custom`)
+- `--level` - Filter by level: `debug`, `info`, `warn`, `error`
+- `--component` - Filter by component name
+- `--request-id` - Filter by request ID
+- `--user-id` - Filter by user ID
+- `--search` - Full-text search in message
+- `--since` - Show logs since time (e.g., `1h`, `30m`, `2024-01-15T10:00:00Z`)
+- `--until` - Show logs until time
+- `--limit` - Maximum entries to return (default: 100)
+- `--asc` - Sort ascending (oldest first)
+
+### `fluxbase logs tail`
+
+Tail logs in real-time.
+
+```bash
+fluxbase logs tail
+fluxbase logs tail --category security
+fluxbase logs tail --level error
+fluxbase logs tail --category system --component auth
+```
+
+**Flags:**
+- `--category` - Filter by category
+- `--level` - Filter by level
+- `--component` - Filter by component
+- `--lines` - Number of initial lines to show (default: 20)
+
+### `fluxbase logs stats`
+
+Show log statistics.
+
+```bash
+fluxbase logs stats
+fluxbase logs stats -o json
+```
+
+### `fluxbase logs execution`
+
+View logs for a specific function, job, or RPC execution.
+
+```bash
+fluxbase logs execution abc123-def456
+fluxbase logs execution abc123-def456 -o json
+fluxbase logs execution abc123-def456 --follow
+fluxbase logs execution abc123-def456 --tail 50
+```
+
+**Flags:**
+- `--follow`, `-f` - Stream new log entries in real-time
+- `--tail` - Show only last N lines
+
+---
+
+## Sync Command
+
+Unified sync for all resource types.
+
+### `fluxbase sync`
+
+Sync all Fluxbase resources from a directory structure.
+
+```bash
+fluxbase sync                           # Auto-detect from ./fluxbase/ or current dir
+fluxbase sync --dir ./src               # Specify root directory
+fluxbase sync --namespace production    # Apply namespace to all
+fluxbase sync --dry-run                 # Preview all changes
+```
+
+**Flags:**
+- `--dir` - Root directory (default: `./fluxbase` or current directory)
+- `--namespace` - Target namespace for all resources (default: `default`)
+- `--dry-run` - Preview changes without applying
+
+The sync command automatically detects and syncs these subdirectories:
+
+```
+fluxbase/
+├── rpc/           # SQL files for stored procedures
+├── migrations/    # Database migrations (.up.sql, .down.sql)
+├── functions/     # Edge functions (.ts, .js)
+├── jobs/          # Background jobs (.ts, .js)
+└── chatbots/      # Chatbot configurations (.yaml)
+```
+
+Resources are synced in dependency order: RPC → Migrations → Functions → Jobs → Chatbots

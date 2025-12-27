@@ -2,6 +2,7 @@ import { useState } from 'react'
 import z from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import type { EmailProviderSettings } from '@fluxbase/sdk'
 import {
   Mail,
   FileText,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
+import { fluxbaseClient } from '@/lib/fluxbase-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,35 +50,7 @@ export const Route = createFileRoute('/_authenticated/email-settings/')({
 
 const route = getRouteApi('/_authenticated/email-settings/')
 
-// Response from /api/v1/admin/email/settings
-interface EmailProviderSettings {
-  enabled: boolean
-  provider: string
-  from_address: string
-  from_name: string
-
-  // SMTP
-  smtp_host: string
-  smtp_port: number
-  smtp_username: string
-  smtp_password_set: boolean
-  smtp_tls: boolean
-
-  // SendGrid
-  sendgrid_api_key_set: boolean
-
-  // Mailgun
-  mailgun_api_key_set: boolean
-  mailgun_domain: string
-
-  // AWS SES
-  ses_access_key_set: boolean
-  ses_secret_key_set: boolean
-  ses_region: string
-
-  // Override info
-  _overrides: Record<string, { is_overridden: boolean; env_var: string }>
-}
+// EmailProviderSettings type is imported from @fluxbase/sdk
 
 interface EmailTemplate {
   id: string
@@ -147,19 +121,14 @@ function EmailSettingsPage() {
   const [initializedFromDataUpdatedAt, setInitializedFromDataUpdatedAt] =
     useState<number | null>(null)
 
-  // Fetch email settings from new endpoint
+  // Fetch email settings using SDK
   const {
     data: settings,
     isLoading: settingsLoading,
     dataUpdatedAt,
   } = useQuery<EmailProviderSettings>({
     queryKey: ['email-provider-settings'],
-    queryFn: async () => {
-      const response = await apiClient.get<EmailProviderSettings>(
-        '/api/v1/admin/email/settings'
-      )
-      return response.data
-    },
+    queryFn: () => fluxbaseClient.admin.settings.email.get(),
   })
 
   // Initialize form state when settings are first loaded or refetched
@@ -194,30 +163,11 @@ function EmailSettingsPage() {
     },
   })
 
-  // Update email settings mutation (using new endpoint)
+  // Update email settings mutation using SDK
   const updateSettingsMutation = useMutation({
-    mutationFn: async (
-      data: Partial<{
-        enabled: boolean
-        provider: string
-        from_address: string
-        from_name: string
-        smtp_host: string
-        smtp_port: number
-        smtp_username: string
-        smtp_password: string
-        smtp_tls: boolean
-        sendgrid_api_key: string
-        mailgun_api_key: string
-        mailgun_domain: string
-        ses_access_key: string
-        ses_secret_key: string
-        ses_region: string
-      }>
-    ) => {
-      const response = await apiClient.put('/api/v1/admin/email/settings', data)
-      return response.data
-    },
+    mutationFn: (
+      data: Parameters<typeof fluxbaseClient.admin.settings.email.update>[0]
+    ) => fluxbaseClient.admin.settings.email.update(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-provider-settings'] })
       setHasUnsavedChanges(false)
@@ -249,13 +199,10 @@ function EmailSettingsPage() {
     },
   })
 
-  // Test email settings mutation
+  // Test email settings mutation using SDK
   const testSettingsMutation = useMutation({
-    mutationFn: async (email: string) => {
-      await apiClient.post('/api/v1/admin/email/settings/test', {
-        recipient_email: email,
-      })
-    },
+    mutationFn: (email: string) =>
+      fluxbaseClient.admin.settings.email.test(email),
     onSuccess: () => {
       toast.success('Test email sent successfully')
     },
@@ -336,7 +283,9 @@ function EmailSettingsPage() {
   }
 
   const handleProviderChange = (provider: string) => {
-    updateSettingsMutation.mutate({ provider })
+    updateSettingsMutation.mutate({
+      provider: provider as 'smtp' | 'sendgrid' | 'mailgun' | 'ses',
+    })
   }
 
   const handleFormChange = (

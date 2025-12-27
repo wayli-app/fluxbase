@@ -3,7 +3,13 @@ title: CLI Installation
 description: Install the Fluxbase CLI tool
 ---
 
-The Fluxbase CLI provides command-line access to manage your Fluxbase platform, including functions, jobs, storage, AI chatbots, and more.
+The Fluxbase CLI (`fluxbase`) provides command-line access to manage your Fluxbase platform, including functions, jobs, storage, AI chatbots, and more.
+
+## Requirements
+
+- macOS, Linux, or Windows
+- Network access to your Fluxbase server
+- (Optional) [Deno](https://deno.land/) for local function bundling
 
 ## Installation Methods
 
@@ -94,6 +100,50 @@ This installs the `fluxbase` command to `/usr/local/bin`.
 fluxbase version
 ```
 
+Expected output:
+
+```
+fluxbase version 0.0.1-rc.93
+commit: abc1234
+built: 2024-01-15T10:30:00Z
+```
+
+## Updating
+
+### Using the Install Script
+
+Run the install script again to update to the latest version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
+```
+
+### Checking for Updates
+
+Compare your version with the latest release:
+
+```bash
+# Your current version
+fluxbase version
+
+# Check latest release on GitHub
+curl -s https://api.github.com/repos/fluxbase-eu/fluxbase/releases/latest | grep tag_name
+```
+
+## Uninstallation
+
+### macOS / Linux
+
+```bash
+sudo rm /usr/local/bin/fluxbase
+rm -rf ~/.fluxbase  # Remove configuration (optional)
+```
+
+### Windows
+
+1. Delete the `fluxbase.exe` binary from your installation directory
+2. Remove `%USERPROFILE%\.fluxbase` directory (optional, removes configuration)
+
 ## Shell Completion
 
 Enable tab completion for your shell:
@@ -133,8 +183,66 @@ fluxbase completion fish > ~/.config/fish/completions/fluxbase.fish
 fluxbase completion powershell | Out-String | Invoke-Expression
 ```
 
+## Troubleshooting
+
+### "command not found" Error
+
+The binary isn't in your PATH. Either:
+
+1. Move the binary to a directory in your PATH:
+   ```bash
+   sudo mv fluxbase /usr/local/bin/
+   ```
+
+2. Or add the installation directory to your PATH:
+   ```bash
+   # Add to ~/.bashrc or ~/.zshrc
+   export PATH="$PATH:/path/to/fluxbase/directory"
+   ```
+
+### Permission Denied
+
+If you get a permission error during installation:
+
+```bash
+# macOS/Linux: Install with sudo
+sudo curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | sudo bash
+
+# Or install to a user directory
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- --prefix ~/.local
+```
+
+### macOS Gatekeeper Warning
+
+If macOS blocks the binary ("cannot be opened because the developer cannot be verified"):
+
+```bash
+# Remove the quarantine attribute
+xattr -d com.apple.quarantine /usr/local/bin/fluxbase
+```
+
+### Connectivity Issues
+
+If commands fail with connection errors:
+
+1. Check your server URL:
+   ```bash
+   fluxbase config view
+   ```
+
+2. Test connectivity:
+   ```bash
+   curl -v https://your-server.com/health
+   ```
+
+3. Enable debug mode for detailed output:
+   ```bash
+   fluxbase --debug auth status
+   ```
+
 ## Next Steps
 
-- [Getting Started](/cli/getting-started) - Configure and authenticate
-- [Command Reference](/cli/commands) - Full command documentation
-- [Configuration](/cli/configuration) - Configuration options
+- [Getting Started](/cli/getting-started/) - Configure and authenticate
+- [Command Reference](/cli/commands/) - Full command documentation
+- [Configuration](/cli/configuration/) - Configuration options
+- [Workflows](/cli/workflows/) - Common workflows and CI/CD integration

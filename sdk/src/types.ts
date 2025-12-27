@@ -1424,6 +1424,93 @@ export interface ListEmailTemplatesResponse {
 }
 
 // ============================================================================
+// Email Provider Settings Types (Admin API)
+// ============================================================================
+
+/**
+ * Override information for a setting controlled by environment variable
+ */
+export interface EmailSettingOverride {
+  is_overridden: boolean
+  env_var: string
+}
+
+/**
+ * Email provider settings response from /api/v1/admin/email/settings
+ *
+ * This is the flat structure returned by the admin API, which differs from
+ * the nested EmailSettings structure used in AppSettings.
+ */
+export interface EmailProviderSettings {
+  enabled: boolean
+  provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses'
+  from_address: string
+  from_name: string
+
+  // SMTP settings
+  smtp_host: string
+  smtp_port: number
+  smtp_username: string
+  smtp_password_set: boolean // true if password is configured (never returns actual value)
+  smtp_tls: boolean
+
+  // SendGrid
+  sendgrid_api_key_set: boolean // true if API key is configured
+
+  // Mailgun
+  mailgun_api_key_set: boolean // true if API key is configured
+  mailgun_domain: string
+
+  // AWS SES
+  ses_access_key_set: boolean // true if access key is configured
+  ses_secret_key_set: boolean // true if secret key is configured
+  ses_region: string
+
+  /** Settings overridden by environment variables */
+  _overrides: Record<string, EmailSettingOverride>
+}
+
+/**
+ * Request to update email provider settings
+ *
+ * All fields are optional - only provided fields will be updated.
+ * Secret fields (passwords, API keys) are only updated if provided.
+ */
+export interface UpdateEmailProviderSettingsRequest {
+  enabled?: boolean
+  provider?: 'smtp' | 'sendgrid' | 'mailgun' | 'ses'
+  from_address?: string
+  from_name?: string
+
+  // SMTP settings
+  smtp_host?: string
+  smtp_port?: number
+  smtp_username?: string
+  smtp_password?: string // Only set if changing
+  smtp_tls?: boolean
+
+  // SendGrid
+  sendgrid_api_key?: string // Only set if changing
+
+  // Mailgun
+  mailgun_api_key?: string // Only set if changing
+  mailgun_domain?: string
+
+  // AWS SES
+  ses_access_key?: string // Only set if changing
+  ses_secret_key?: string // Only set if changing
+  ses_region?: string
+}
+
+/**
+ * Response from testing email settings
+ */
+export interface TestEmailSettingsResponse {
+  success: boolean
+  message: string
+}
+
+// ============================================================================
 // OAuth Provider Configuration Types
 // ============================================================================
 

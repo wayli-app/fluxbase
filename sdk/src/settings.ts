@@ -10,6 +10,9 @@ import type {
   EmailTemplateType,
   UpdateEmailTemplateRequest,
   ListEmailTemplatesResponse,
+  EmailProviderSettings,
+  UpdateEmailProviderSettingsRequest,
+  TestEmailSettingsResponse,
 } from "./types";
 
 /**
@@ -927,10 +930,199 @@ export class EmailTemplateManager {
 }
 
 /**
+ * Email Settings Manager
+ *
+ * Manages email provider configuration including SMTP, SendGrid, Mailgun, and AWS SES.
+ * Provides direct access to the email settings API with proper handling of sensitive credentials.
+ *
+ * @example
+ * ```typescript
+ * const email = client.admin.settings.email
+ *
+ * // Get current email settings
+ * const settings = await email.get()
+ * console.log(settings.provider) // 'smtp'
+ * console.log(settings.smtp_password_set) // true (password is configured)
+ *
+ * // Update email settings
+ * await email.update({
+ *   provider: 'sendgrid',
+ *   sendgrid_api_key: 'SG.xxx',
+ *   from_address: 'noreply@yourapp.com'
+ * })
+ *
+ * // Test email configuration
+ * const result = await email.test('test@example.com')
+ * console.log(result.success) // true
+ *
+ * // Convenience methods
+ * await email.enable()
+ * await email.disable()
+ * await email.setProvider('smtp')
+ * ```
+ */
+export class EmailSettingsManager {
+  constructor(private fetch: FluxbaseFetch) {}
+
+  /**
+   * Get current email provider settings
+   *
+   * Returns the current email configuration. Sensitive values (passwords, API keys)
+   * are not returned - instead, boolean flags indicate whether they are set.
+   *
+   * @returns Promise resolving to EmailProviderSettings
+   *
+   * @example
+   * ```typescript
+   * const settings = await client.admin.settings.email.get()
+   *
+   * console.log('Provider:', settings.provider)
+   * console.log('From:', settings.from_address)
+   * console.log('SMTP password configured:', settings.smtp_password_set)
+   *
+   * // Check for environment variable overrides
+   * if (settings._overrides.provider?.is_overridden) {
+   *   console.log('Provider is set by env var:', settings._overrides.provider.env_var)
+   * }
+   * ```
+   */
+  async get(): Promise<EmailProviderSettings> {
+    return await this.fetch.get<EmailProviderSettings>(
+      "/api/v1/admin/email/settings",
+    );
+  }
+
+  /**
+   * Update email provider settings
+   *
+   * Supports partial updates - only provide the fields you want to change.
+   * Secret fields (passwords, API keys) are only updated if provided.
+   *
+   * @param request - Settings to update (partial update supported)
+   * @returns Promise resolving to EmailProviderSettings - Updated settings
+   * @throws Error if a setting is overridden by an environment variable
+   *
+   * @example
+   * ```typescript
+   * // Configure SMTP
+   * await client.admin.settings.email.update({
+   *   enabled: true,
+   *   provider: 'smtp',
+   *   from_address: 'noreply@yourapp.com',
+   *   from_name: 'Your App',
+   *   smtp_host: 'smtp.gmail.com',
+   *   smtp_port: 587,
+   *   smtp_username: 'your-email@gmail.com',
+   *   smtp_password: 'your-app-password',
+   *   smtp_tls: true
+   * })
+   *
+   * // Configure SendGrid
+   * await client.admin.settings.email.update({
+   *   provider: 'sendgrid',
+   *   sendgrid_api_key: 'SG.xxx'
+   * })
+   *
+   * // Update just the from address (password unchanged)
+   * await client.admin.settings.email.update({
+   *   from_address: 'new-address@yourapp.com'
+   * })
+   * ```
+   */
+  async update(
+    request: UpdateEmailProviderSettingsRequest,
+  ): Promise<EmailProviderSettings> {
+    return await this.fetch.put<EmailProviderSettings>(
+      "/api/v1/admin/email/settings",
+      request,
+    );
+  }
+
+  /**
+   * Test email configuration by sending a test email
+   *
+   * Sends a test email to verify that the current email configuration is working.
+   *
+   * @param recipientEmail - Email address to send the test email to
+   * @returns Promise resolving to TestEmailSettingsResponse
+   * @throws Error if email sending fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   const result = await client.admin.settings.email.test('admin@yourapp.com')
+   *   console.log('Test email sent:', result.message)
+   * } catch (error) {
+   *   console.error('Email configuration error:', error.message)
+   * }
+   * ```
+   */
+  async test(recipientEmail: string): Promise<TestEmailSettingsResponse> {
+    return await this.fetch.post<TestEmailSettingsResponse>(
+      "/api/v1/admin/email/settings/test",
+      { recipient_email: recipientEmail },
+    );
+  }
+
+  /**
+   * Enable email functionality
+   *
+   * Convenience method to enable the email system.
+   *
+   * @returns Promise resolving to EmailProviderSettings
+   *
+   * @example
+   * ```typescript
+   * await client.admin.settings.email.enable()
+   * ```
+   */
+  async enable(): Promise<EmailProviderSettings> {
+    return await this.update({ enabled: true });
+  }
+
+  /**
+   * Disable email functionality
+   *
+   * Convenience method to disable the email system.
+   *
+   * @returns Promise resolving to EmailProviderSettings
+   *
+   * @example
+   * ```typescript
+   * await client.admin.settings.email.disable()
+   * ```
+   */
+  async disable(): Promise<EmailProviderSettings> {
+    return await this.update({ enabled: false });
+  }
+
+  /**
+   * Set the email provider
+   *
+   * Convenience method to change the email provider.
+   * Note: You'll also need to configure the provider-specific settings.
+   *
+   * @param provider - The email provider to use
+   * @returns Promise resolving to EmailProviderSettings
+   *
+   * @example
+   * ```typescript
+   * await client.admin.settings.email.setProvider('sendgrid')
+   * ```
+   */
+  async setProvider(
+    provider: "smtp" | "sendgrid" | "mailgun" | "ses",
+  ): Promise<EmailProviderSettings> {
+    return await this.update({ provider });
+  }
+}
+
+/**
  * Settings Manager
  *
- * Provides access to system-level and application-level settings.
- * AppSettingsManager now handles both structured framework settings and custom key-value settings.
+ * Provides access to system-level, application-level, and email settings.
+ * AppSettingsManager handles both structured framework settings and custom key-value settings.
+ * EmailSettingsManager provides direct access to email provider configuration.
  *
  * @example
  * ```typescript
@@ -946,15 +1138,22 @@ export class EmailTemplateManager {
  * // Access custom settings (key-value)
  * await settings.app.setSetting('billing.tiers', { free: 1000, pro: 10000 })
  * const tiers = await settings.app.getSetting('billing.tiers')
+ *
+ * // Access email settings
+ * const emailSettings = await settings.email.get()
+ * await settings.email.update({ provider: 'sendgrid', sendgrid_api_key: 'SG.xxx' })
+ * await settings.email.test('admin@yourapp.com')
  * ```
  */
 export class FluxbaseSettings {
   public system: SystemSettingsManager;
   public app: AppSettingsManager;
+  public email: EmailSettingsManager;
 
   constructor(fetch: FluxbaseFetch) {
     this.system = new SystemSettingsManager(fetch);
     this.app = new AppSettingsManager(fetch);
+    this.email = new EmailSettingsManager(fetch);
   }
 }
 

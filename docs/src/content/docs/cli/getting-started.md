@@ -3,7 +3,7 @@ title: CLI Getting Started
 description: Get started with the Fluxbase CLI
 ---
 
-This guide walks you through authenticating and using the Fluxbase CLI.
+This guide walks you through authenticating and using the Fluxbase CLI. Make sure you've [installed the CLI](/cli/installation/) first.
 
 ## Authentication
 
@@ -21,6 +21,16 @@ You'll be prompted for:
 - **Server URL**: Your Fluxbase server (e.g., `https://api.example.com`)
 - **Email**: Your account email
 - **Password**: Your account password
+
+### Two-Factor Authentication (2FA)
+
+If your account has 2FA enabled, you'll be prompted for a verification code after entering your password:
+
+```
+Enter 2FA code: 123456
+```
+
+The CLI supports both TOTP (authenticator app) and email-based verification codes.
 
 ### Non-interactive Login
 
@@ -139,7 +149,52 @@ These flags work with all commands:
 | `--quiet` | `-q` | Minimal output |
 | `--debug` | | Enable debug output |
 
-## Next Steps
+## What's Next?
 
-- [Command Reference](/cli/commands) - Full command documentation
-- [Configuration](/cli/configuration) - Configuration file details
+Choose your path based on what you want to do:
+
+### Deploy Functions and Jobs
+
+```bash
+# Create a function
+echo 'export default (req) => new Response("Hello!")' > hello.ts
+fluxbase functions create hello --code ./hello.ts
+
+# Test it
+fluxbase functions invoke hello
+```
+
+See [Command Reference - Functions](/cli/commands/#functions-commands) for more.
+
+### Work with Data
+
+```bash
+# List your tables
+fluxbase tables list
+
+# Query data
+fluxbase tables query users --select "id,email" --limit 10
+
+# Insert a record
+fluxbase tables insert users --data '{"email": "new@example.com"}'
+```
+
+See [Command Reference - Tables](/cli/commands/#table-commands) for more.
+
+### Set Up CI/CD
+
+Configure automated deployments using environment variables and the `sync` command.
+
+See [Workflows](/cli/workflows/) for GitHub Actions and GitLab CI examples.
+
+### Manage Multiple Environments
+
+Set up profiles for dev, staging, and production servers.
+
+See [Configuration](/cli/configuration/) for profile management.
+
+## Further Reading
+
+- [Command Reference](/cli/commands/) - Full command documentation
+- [Configuration](/cli/configuration/) - Configuration file details
+- [Workflows](/cli/workflows/) - CI/CD and development workflows

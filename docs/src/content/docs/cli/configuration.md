@@ -3,7 +3,16 @@ title: CLI Configuration
 description: Configure the Fluxbase CLI
 ---
 
-The Fluxbase CLI stores its configuration in `~/.fluxbase/config.yaml`.
+The Fluxbase CLI stores its configuration in a YAML file.
+
+## Configuration File Location
+
+| Platform | Path |
+|----------|------|
+| macOS / Linux | `~/.fluxbase/config.yaml` |
+| Windows | `%USERPROFILE%\.fluxbase\config.yaml` |
+
+You can override this with the `--config` flag or `FLUXBASE_CONFIG` environment variable.
 
 ## Configuration File Structure
 
@@ -76,6 +85,18 @@ Environment variables override configuration file settings:
 | `FLUXBASE_SERVER` | Server URL (overrides profile) |
 | `FLUXBASE_TOKEN` | API token (overrides credentials) |
 | `FLUXBASE_PROFILE` | Profile to use (overrides `current_profile`) |
+| `FLUXBASE_CONFIG` | Path to config file (overrides default location) |
+| `FLUXBASE_DEBUG` | Set to `true` to enable debug output |
+
+### CI/CD Example
+
+```bash
+export FLUXBASE_SERVER="https://api.example.com"
+export FLUXBASE_TOKEN="your-api-token"
+
+# Commands will use these credentials
+fluxbase sync --namespace production
+```
 
 ## Credential Storage
 
@@ -179,18 +200,68 @@ fluxbase auth switch prod
 ### Reset Configuration
 
 ```bash
+# macOS / Linux
 rm -rf ~/.fluxbase
+fluxbase auth login
+
+# Windows (PowerShell)
+Remove-Item -Recurse -Force "$env:USERPROFILE\.fluxbase"
 fluxbase auth login
 ```
 
 ### Debug Mode
 
+Enable verbose output to diagnose issues:
+
 ```bash
+# Using flag
 fluxbase --debug functions list
+
+# Using environment variable
+export FLUXBASE_DEBUG=true
+fluxbase functions list
 ```
+
+Debug mode shows:
+- HTTP request/response details
+- Authentication flow
+- Configuration loading
 
 ### Check Credential Status
 
 ```bash
+# Show all profiles and their status
 fluxbase auth status
+
+# Show current user info
+fluxbase auth whoami
 ```
+
+### Token Expiration
+
+If you see authentication errors, your tokens may have expired:
+
+```bash
+# Re-authenticate
+fluxbase auth login
+
+# Or use a fresh API token
+fluxbase auth login --server URL --token NEW_TOKEN
+```
+
+### Configuration Not Loading
+
+1. Check the config file exists:
+   ```bash
+   cat ~/.fluxbase/config.yaml
+   ```
+
+2. Verify file permissions (should be readable by your user):
+   ```bash
+   ls -la ~/.fluxbase/config.yaml
+   ```
+
+3. Try initializing a fresh config:
+   ```bash
+   fluxbase config init
+   ```

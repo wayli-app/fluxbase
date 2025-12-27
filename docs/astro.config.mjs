@@ -143,7 +143,13 @@ export default defineConfig({
         {
           label: "CLI",
           collapsed: true,
-          autogenerate: { directory: "cli" },
+          items: [
+            { label: "Installation", link: "/cli/installation/" },
+            { label: "Getting Started", link: "/cli/getting-started/" },
+            { label: "Configuration", link: "/cli/configuration/" },
+            { label: "Command Reference", link: "/cli/commands/" },
+            { label: "Workflows", link: "/cli/workflows/" },
+          ],
         },
         {
           label: "Deployment",

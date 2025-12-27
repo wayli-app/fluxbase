@@ -119,6 +119,7 @@ export {
   SystemSettingsManager,
   AppSettingsManager,
   EmailTemplateManager,
+  EmailSettingsManager,
   SettingsClient,
 } from "./settings";
 
@@ -326,6 +327,12 @@ export type {
   UpdateEmailTemplateRequest,
   TestEmailTemplateRequest,
   ListEmailTemplatesResponse,
+
+  // Email Provider Settings types (Admin API)
+  EmailSettingOverride,
+  EmailProviderSettings,
+  UpdateEmailProviderSettingsRequest,
+  TestEmailSettingsResponse,
 
   // DDL types
   CreateColumnRequest,

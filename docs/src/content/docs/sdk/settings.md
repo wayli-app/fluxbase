@@ -236,6 +236,135 @@ await client.admin.settings.app.setRateLimiting(false)
 
 ---
 
+## Email Provider Settings
+
+The `EmailSettingsManager` provides direct access to email provider configuration. This API differs from the `email` property in `AppSettings` by providing the full email configuration with override information.
+
+### Get Email Settings
+
+Retrieve the current email provider configuration. Sensitive values (passwords, API keys) are never returned - boolean flags indicate whether they are set.
+
+```typescript
+const settings = await client.admin.settings.email.get()
+
+console.log('Provider:', settings.provider)           // 'smtp'
+console.log('From Address:', settings.from_address)   // 'noreply@yourapp.com'
+console.log('SMTP Host:', settings.smtp_host)         // 'smtp.gmail.com'
+console.log('SMTP Password Set:', settings.smtp_password_set)  // true (actual value hidden)
+
+// Check for environment variable overrides
+if (settings._overrides.provider?.is_overridden) {
+  console.log('Provider is set by:', settings._overrides.provider.env_var)
+  // e.g., 'FLUXBASE_EMAIL_PROVIDER'
+}
+```
+
+**Returns:** `EmailProviderSettings` with:
+- Basic settings: `enabled`, `provider`, `from_address`, `from_name`
+- SMTP settings: `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password_set`, `smtp_tls`
+- SendGrid: `sendgrid_api_key_set`
+- Mailgun: `mailgun_api_key_set`, `mailgun_domain`
+- AWS SES: `ses_access_key_set`, `ses_secret_key_set`, `ses_region`
+- `_overrides`: Map of settings controlled by environment variables
+
+### Update Email Settings
+
+Update email provider configuration. Supports partial updates - only provide the fields you want to change.
+
+```typescript
+// Configure SMTP
+await client.admin.settings.email.update({
+  enabled: true,
+  provider: 'smtp',
+  from_address: 'noreply@yourapp.com',
+  from_name: 'Your App',
+  smtp_host: 'smtp.gmail.com',
+  smtp_port: 587,
+  smtp_username: 'your-email@gmail.com',
+  smtp_password: 'your-app-password',
+  smtp_tls: true
+})
+
+// Configure SendGrid
+await client.admin.settings.email.update({
+  provider: 'sendgrid',
+  sendgrid_api_key: 'SG.xxx',
+  from_address: 'noreply@yourapp.com'
+})
+
+// Configure Mailgun
+await client.admin.settings.email.update({
+  provider: 'mailgun',
+  mailgun_api_key: 'key-xxx',
+  mailgun_domain: 'mg.yourapp.com',
+  from_address: 'noreply@yourapp.com'
+})
+
+// Configure AWS SES
+await client.admin.settings.email.update({
+  provider: 'ses',
+  ses_access_key: 'AKIAIOSFODNN7EXAMPLE',
+  ses_secret_key: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  ses_region: 'us-east-1',
+  from_address: 'noreply@yourapp.com'
+})
+
+// Update just the from address (password unchanged)
+await client.admin.settings.email.update({
+  from_address: 'new-address@yourapp.com'
+})
+```
+
+**Error Handling:**
+
+```typescript
+try {
+  await client.admin.settings.email.update({
+    provider: 'sendgrid'
+  })
+} catch (error) {
+  if (error.message.includes('ENV_OVERRIDE')) {
+    console.error('Setting is controlled by environment variable')
+  }
+}
+```
+
+### Test Email Configuration
+
+Send a test email to verify your email configuration is working correctly.
+
+```typescript
+try {
+  const result = await client.admin.settings.email.test('admin@yourapp.com')
+  console.log('Test email sent:', result.message)
+} catch (error) {
+  console.error('Email configuration error:', error.message)
+  // e.g., 'Failed to send test email: SMTP connection refused'
+}
+```
+
+**Parameters:**
+- `recipientEmail` (required): Email address to send the test email to
+
+**Returns:** `TestEmailSettingsResponse` with `success` and `message`
+
+### Convenience Methods
+
+Quick methods for common email operations:
+
+```typescript
+// Enable email functionality
+await client.admin.settings.email.enable()
+
+// Disable email functionality
+await client.admin.settings.email.disable()
+
+// Switch email provider
+await client.admin.settings.email.setProvider('sendgrid')
+```
+
+---
+
 ## System Settings
 
 System settings provide low-level key-value storage for custom configuration. This is useful for storing application-specific settings that don't fit into the structured application settings.
@@ -711,18 +840,27 @@ The Settings SDK is fully typed for TypeScript users.
 
 ```typescript
 import type {
+  // App settings types
   AppSettings,
   AuthenticationSettings,
   FeatureSettings,
   EmailSettings,
   SecuritySettings,
-  SystemSetting,
   UpdateAppSettingsRequest,
+
+  // System settings types
+  SystemSetting,
   UpdateSystemSettingRequest,
-  ListSystemSettingsResponse
+  ListSystemSettingsResponse,
+
+  // Email provider settings types
+  EmailProviderSettings,
+  UpdateEmailProviderSettingsRequest,
+  TestEmailSettingsResponse,
+  EmailSettingOverride
 } from '@fluxbase/sdk'
 
-// Type-safe settings operations
+// Type-safe app settings operations
 const settings: AppSettings = await client.admin.settings.app.get()
 
 const update: UpdateAppSettingsRequest = {
@@ -732,6 +870,16 @@ const update: UpdateAppSettingsRequest = {
 }
 
 await client.admin.settings.app.update(update)
+
+// Type-safe email settings operations
+const emailSettings: EmailProviderSettings = await client.admin.settings.email.get()
+
+const emailUpdate: UpdateEmailProviderSettingsRequest = {
+  provider: 'sendgrid',
+  sendgrid_api_key: 'SG.xxx'
+}
+
+await client.admin.settings.email.update(emailUpdate)
 ```
 
 ---
