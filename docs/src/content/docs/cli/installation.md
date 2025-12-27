@@ -18,7 +18,7 @@ You can also use the install script for a quick setup:
 curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
 
 # Install specific version
-curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.1.0
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.86
 ```
 
 ### From Source (For Development)
