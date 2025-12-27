@@ -126,6 +126,9 @@ permissions:
   contents: write
   packages: write
 
+env:
+  HOMEBREW_TAP: fluxbase-eu/homebrew-tap
+
 jobs:
   get-version:
     name: Get Version
@@ -1032,3 +1035,29 @@ jobs:
             git commit -m "chore: Update fluxbase-postgres image to ${POSTGRES_VERSION}-v${IMAGE_VERSION}"
             git push origin HEAD:${{ github.ref_name }}
           fi
+
+  # ==========================================================================
+  # CLI Package Publishing (Homebrew)
+  # ==========================================================================
+
+  publish-cli-homebrew:
+    name: Publish CLI to Homebrew
+    needs: [get-version, publish-binaries, publish-cli-cross-platform]
+    runs-on: ubuntu-latest
+    # Only publish stable releases to Homebrew (not RCs)
+    if: |
+      (github.event_name != 'workflow_dispatch' || inputs.publish_cli) &&
+      needs.get-version.outputs.is_prerelease == 'false'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: fluxbase
+          formula-path: Formula/fluxbase.rb
+          homebrew-tap: ${{ env.HOMEBREW_TAP }}
+          tag-name: ${{ needs.get-version.outputs.tag_name }}
+          download-url: https://github.com/${{ github.repository }}/releases/download/${{ needs.get-version.outputs.tag_name }}/fluxbase-darwin-arm64.tar.gz
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

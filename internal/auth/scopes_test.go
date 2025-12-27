@@ -228,9 +228,9 @@ func TestHasAllScopes(t *testing.T) {
 
 func TestAllScopes(t *testing.T) {
 	t.Run("AllScopes contains expected count", func(t *testing.T) {
-		// 21 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 apikeys +
-		// 2 webhooks + 1 monitoring + 2 realtime + 2 rpc + 2 jobs + 2 ai
-		assert.Len(t, AllScopes, 21)
+		// 23 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 apikeys +
+		// 2 webhooks + 1 monitoring + 2 realtime + 2 rpc + 2 jobs + 2 ai + 2 secrets
+		assert.Len(t, AllScopes, 23)
 	})
 
 	t.Run("AllScopes does not contain wildcard", func(t *testing.T) {
