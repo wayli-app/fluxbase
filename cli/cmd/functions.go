@@ -563,42 +563,43 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Bundle functions that have imports
+	// Bundle functions that have imports (if Deno is available)
 	if needsBundling {
 		b, err := bundler.NewBundler(fnSyncDir)
 		if err != nil {
-			return fmt.Errorf("bundling requires Deno: %w", err)
-		}
+			// Deno not available - send unbundled code, server will handle it
+			fmt.Println("Note: Deno not available for local bundling. Server will bundle functions.")
+		} else {
+			for i, fn := range functions {
+				code := fn["code"].(string)
+				fnName := fn["name"].(string)
 
-		for i, fn := range functions {
-			code := fn["code"].(string)
-			fnName := fn["name"].(string)
+				if !b.NeedsBundle(code) {
+					continue // No imports, skip bundling
+				}
 
-			if !b.NeedsBundle(code) {
-				continue // No imports, skip bundling
+				// Validate imports first
+				if err := b.ValidateImports(code); err != nil {
+					return fmt.Errorf("function %s: %w", fnName, err)
+				}
+
+				fmt.Printf("Bundling %s...", fnName)
+
+				result, err := b.Bundle(ctx, code, sharedModulesMap)
+				if err != nil {
+					fmt.Println() // Complete the line
+					return fmt.Errorf("failed to bundle %s: %w", fnName, err)
+				}
+
+				// Print size info
+				originalSize := len(code)
+				bundledSize := len(result.BundledCode)
+				fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
+
+				// Replace code with bundled code
+				functions[i]["code"] = result.BundledCode
+				functions[i]["is_bundled"] = true
 			}
-
-			// Validate imports first
-			if err := b.ValidateImports(code); err != nil {
-				return fmt.Errorf("function %s: %w", fnName, err)
-			}
-
-			fmt.Printf("Bundling %s...", fnName)
-
-			result, err := b.Bundle(ctx, code, sharedModulesMap)
-			if err != nil {
-				fmt.Println() // Complete the line
-				return fmt.Errorf("failed to bundle %s: %w", fnName, err)
-			}
-
-			// Print size info
-			originalSize := len(code)
-			bundledSize := len(result.BundledCode)
-			fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
-
-			// Replace code with bundled code
-			functions[i]["code"] = result.BundledCode
-			functions[i]["is_bundled"] = true
 		}
 	}
 

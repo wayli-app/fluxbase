@@ -498,42 +498,43 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Bundle jobs that have imports
+	// Bundle jobs that have imports (if Deno is available)
 	if needsBundling {
 		b, err := bundler.NewBundler(jobSyncDir)
 		if err != nil {
-			return fmt.Errorf("bundling requires Deno: %w", err)
-		}
+			// Deno not available - send unbundled code, server will handle it
+			fmt.Println("Note: Deno not available for local bundling. Server will bundle jobs.")
+		} else {
+			for i, job := range jobs {
+				code := job["code"].(string)
+				jobName := job["name"].(string)
 
-		for i, job := range jobs {
-			code := job["code"].(string)
-			jobName := job["name"].(string)
+				if !b.NeedsBundle(code) {
+					continue // No imports, skip bundling
+				}
 
-			if !b.NeedsBundle(code) {
-				continue // No imports, skip bundling
+				// Validate imports first
+				if err := b.ValidateImports(code); err != nil {
+					return fmt.Errorf("job %s: %w", jobName, err)
+				}
+
+				fmt.Printf("Bundling %s...", jobName)
+
+				result, err := b.Bundle(ctx, code, sharedModulesMap)
+				if err != nil {
+					fmt.Println() // Complete the line
+					return fmt.Errorf("failed to bundle %s: %w", jobName, err)
+				}
+
+				// Print size info
+				originalSize := len(code)
+				bundledSize := len(result.BundledCode)
+				fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
+
+				// Replace code with bundled code
+				jobs[i]["code"] = result.BundledCode
+				jobs[i]["is_bundled"] = true
 			}
-
-			// Validate imports first
-			if err := b.ValidateImports(code); err != nil {
-				return fmt.Errorf("job %s: %w", jobName, err)
-			}
-
-			fmt.Printf("Bundling %s...", jobName)
-
-			result, err := b.Bundle(ctx, code, sharedModulesMap)
-			if err != nil {
-				fmt.Println() // Complete the line
-				return fmt.Errorf("failed to bundle %s: %w", jobName, err)
-			}
-
-			// Print size info
-			originalSize := len(code)
-			bundledSize := len(result.BundledCode)
-			fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
-
-			// Replace code with bundled code
-			jobs[i]["code"] = result.BundledCode
-			jobs[i]["is_bundled"] = true
 		}
 	}
 

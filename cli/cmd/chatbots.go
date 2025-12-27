@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -103,6 +104,25 @@ Examples:
 	RunE:    runChatbotsChat,
 }
 
+var chatbotsSyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Sync chatbots from a directory",
+	Long: `Sync AI chatbots from YAML configuration files.
+
+Examples:
+  fluxbase chatbots sync --dir ./chatbots
+  fluxbase chatbots sync --dir ./chatbots --namespace production`,
+	PreRunE: requireAuth,
+	RunE:    runChatbotsSync,
+}
+
+var (
+	cbSyncDir       string
+	cbNamespace     string
+	cbDryRun        bool
+	cbDeleteMissing bool
+)
+
 func init() {
 	// Create flags
 	chatbotsCreateCmd.Flags().StringVar(&cbSystemPrompt, "system-prompt", "", "System prompt for the chatbot")
@@ -117,12 +137,19 @@ func init() {
 	chatbotsUpdateCmd.Flags().Float64Var(&cbTemperature, "temperature", 0, "Temperature (0.0-1.0)")
 	chatbotsUpdateCmd.Flags().IntVar(&cbMaxTokens, "max-tokens", 0, "Maximum tokens in response")
 
+	// Sync flags
+	chatbotsSyncCmd.Flags().StringVar(&cbSyncDir, "dir", "./chatbots", "Directory containing chatbot YAML files")
+	chatbotsSyncCmd.Flags().StringVar(&cbNamespace, "namespace", "default", "Target namespace")
+	chatbotsSyncCmd.Flags().BoolVar(&cbDryRun, "dry-run", false, "Preview changes without applying")
+	chatbotsSyncCmd.Flags().BoolVar(&cbDeleteMissing, "delete-missing", false, "Delete chatbots not in directory")
+
 	chatbotsCmd.AddCommand(chatbotsListCmd)
 	chatbotsCmd.AddCommand(chatbotsGetCmd)
 	chatbotsCmd.AddCommand(chatbotsCreateCmd)
 	chatbotsCmd.AddCommand(chatbotsUpdateCmd)
 	chatbotsCmd.AddCommand(chatbotsDeleteCmd)
 	chatbotsCmd.AddCommand(chatbotsChatCmd)
+	chatbotsCmd.AddCommand(chatbotsSyncCmd)
 }
 
 func runChatbotsList(cmd *cobra.Command, args []string) error {
@@ -321,6 +348,96 @@ func runChatbotsChat(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Println()
+	}
+
+	return nil
+}
+
+func runChatbotsSync(cmd *cobra.Command, args []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	// Check if directory exists
+	if _, err := os.Stat(cbSyncDir); os.IsNotExist(err) {
+		return fmt.Errorf("directory not found: %s", cbSyncDir)
+	}
+
+	// Read YAML files from directory
+	entries, err := os.ReadDir(cbSyncDir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var chatbots []map[string]interface{}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+			continue
+		}
+
+		// Read file
+		content, err := os.ReadFile(filepath.Join(cbSyncDir, name)) //nolint:gosec // CLI tool reads user-provided file path
+		if err != nil {
+			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
+			continue
+		}
+
+		// Remove extension for chatbot name
+		cbName := strings.TrimSuffix(strings.TrimSuffix(name, ".yaml"), ".yml")
+
+		chatbots = append(chatbots, map[string]interface{}{
+			"name": cbName,
+			"code": string(content),
+		})
+	}
+
+	if len(chatbots) == 0 {
+		fmt.Println("No chatbot YAML files found in directory.")
+		return nil
+	}
+
+	if cbDryRun {
+		fmt.Println("Dry run - would sync the following chatbots:")
+		for _, cb := range chatbots {
+			fmt.Printf("  - %s\n", cb["name"])
+		}
+		return nil
+	}
+
+	// Build sync request body
+	body := map[string]interface{}{
+		"namespace": cbNamespace,
+		"chatbots":  chatbots,
+		"options": map[string]interface{}{
+			"delete_missing": cbDeleteMissing,
+			"dry_run":        false,
+		},
+	}
+
+	var result map[string]interface{}
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/chatbots/sync", body, &result); err != nil {
+		return err
+	}
+
+	// Parse and display result
+	if summary, ok := result["summary"].(map[string]interface{}); ok {
+		created := getIntValue(summary, "created")
+		updated := getIntValue(summary, "updated")
+		deleted := getIntValue(summary, "deleted")
+		unchanged := getIntValue(summary, "unchanged")
+
+		fmt.Printf("Synced %d chatbots to namespace '%s':\n", len(chatbots), cbNamespace)
+		fmt.Printf("  Created: %d\n", created)
+		fmt.Printf("  Updated: %d\n", updated)
+		fmt.Printf("  Deleted: %d\n", deleted)
+		fmt.Printf("  Unchanged: %d\n", unchanged)
+	} else {
+		fmt.Printf("Synced %d chatbots to namespace '%s'.\n", len(chatbots), cbNamespace)
 	}
 
 	return nil

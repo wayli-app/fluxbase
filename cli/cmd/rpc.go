@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,10 +22,13 @@ var rpcCmd = &cobra.Command{
 }
 
 var (
-	rpcNamespace string
-	rpcParams    string
-	rpcFile      string
-	rpcAsync     bool
+	rpcNamespace  string
+	rpcParams     string
+	rpcFile       string
+	rpcAsync      bool
+	rpcSyncDir    string
+	rpcDryRun     bool
+	rpcDeleteMiss bool
 )
 
 var rpcListCmd = &cobra.Command{
@@ -86,8 +91,10 @@ func init() {
 	rpcInvokeCmd.Flags().BoolVar(&rpcAsync, "async", false, "Execute asynchronously")
 
 	// Sync flags
-	rpcSyncCmd.Flags().StringVar(&fnSyncDir, "dir", "./rpc", "Directory containing RPC SQL files")
+	rpcSyncCmd.Flags().StringVar(&rpcSyncDir, "dir", "./rpc", "Directory containing RPC SQL files")
 	rpcSyncCmd.Flags().StringVar(&rpcNamespace, "namespace", "default", "Target namespace")
+	rpcSyncCmd.Flags().BoolVar(&rpcDryRun, "dry-run", false, "Preview changes without applying")
+	rpcSyncCmd.Flags().BoolVar(&rpcDeleteMiss, "delete-missing", false, "Delete procedures not in directory")
 
 	rpcCmd.AddCommand(rpcListCmd)
 	rpcCmd.AddCommand(rpcGetCmd)
@@ -212,8 +219,108 @@ func runRPCInvoke(cmd *cobra.Command, args []string) error {
 }
 
 func runRPCSync(cmd *cobra.Command, args []string) error {
-	fmt.Println("RPC sync from directory not yet implemented.")
-	fmt.Println("Use the admin dashboard or SDK to sync procedures.")
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	// Check if directory exists
+	if _, err := os.Stat(rpcSyncDir); os.IsNotExist(err) {
+		return fmt.Errorf("directory not found: %s", rpcSyncDir)
+	}
+
+	// Read SQL files from directory
+	entries, err := os.ReadDir(rpcSyncDir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var procedures []map[string]interface{}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+
+		// Read file
+		content, err := os.ReadFile(filepath.Join(rpcSyncDir, name)) //nolint:gosec // CLI tool reads user-provided file path
+		if err != nil {
+			fmt.Printf("Warning: failed to read %s: %v\n", name, err)
+			continue
+		}
+
+		// Remove .sql extension for procedure name
+		procName := strings.TrimSuffix(name, ".sql")
+
+		procedures = append(procedures, map[string]interface{}{
+			"name": procName,
+			"code": string(content),
+		})
+	}
+
+	if len(procedures) == 0 {
+		fmt.Println("No SQL files found in directory.")
+		return nil
+	}
+
+	if rpcDryRun {
+		fmt.Println("Dry run - would sync the following procedures:")
+		for _, proc := range procedures {
+			fmt.Printf("  - %s\n", proc["name"])
+		}
+		return nil
+	}
+
+	// Build sync request body
+	body := map[string]interface{}{
+		"namespace":  rpcNamespace,
+		"procedures": procedures,
+		"options": map[string]interface{}{
+			"delete_missing": rpcDeleteMiss,
+			"dry_run":        false,
+		},
+	}
+
+	var result map[string]interface{}
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/rpc/sync", body, &result); err != nil {
+		return err
+	}
+
+	// Parse and display result
+	if summary, ok := result["summary"].(map[string]interface{}); ok {
+		created := getIntValue(summary, "created")
+		updated := getIntValue(summary, "updated")
+		deleted := getIntValue(summary, "deleted")
+		unchanged := getIntValue(summary, "unchanged")
+		errors := getIntValue(summary, "errors")
+
+		fmt.Printf("Synced %d procedures to namespace '%s':\n", len(procedures), rpcNamespace)
+		fmt.Printf("  Created: %d\n", created)
+		fmt.Printf("  Updated: %d\n", updated)
+		fmt.Printf("  Deleted: %d\n", deleted)
+		fmt.Printf("  Unchanged: %d\n", unchanged)
+		if errors > 0 {
+			fmt.Printf("  Errors: %d\n", errors)
+		}
+	} else {
+		fmt.Printf("Synced %d procedures to namespace '%s'.\n", len(procedures), rpcNamespace)
+	}
+
+	// Print any errors
+	if errs, ok := result["errors"].([]interface{}); ok && len(errs) > 0 {
+		fmt.Println("\nErrors:")
+		for _, e := range errs {
+			if errMap, ok := e.(map[string]interface{}); ok {
+				proc := getStringValue(errMap, "procedure")
+				errMsg := getStringValue(errMap, "error")
+				fmt.Printf("  - %s: %s\n", proc, errMsg)
+			}
+		}
+	}
+
 	return nil
 }
 
