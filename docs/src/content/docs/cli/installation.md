@@ -7,11 +7,9 @@ The Fluxbase CLI provides command-line access to manage your Fluxbase platform, 
 
 ## Installation Methods
 
-### Pre-built Binaries (Recommended)
+### Install Script (Recommended)
 
-Download the latest CLI binary for your platform from the [GitHub Releases page](https://github.com/fluxbase-eu/fluxbase/releases).
-
-You can also use the install script for a quick setup:
+The easiest way to install the Fluxbase CLI:
 
 ```bash
 # Install latest version
@@ -21,24 +19,11 @@ curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-c
 curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.86
 ```
 
-### From Source (For Development)
+The script automatically detects your OS and architecture, downloads the appropriate binary, and installs it to `/usr/local/bin`.
 
-If you have Go installed, you can build the CLI from source:
+### Manual Download
 
-```bash
-# Clone the repository
-git clone https://github.com/fluxbase-eu/fluxbase.git
-cd fluxbase
-
-# Build and install
-make cli-install
-```
-
-This installs the `fluxbase` command to `/usr/local/bin`.
-
-### Pre-built Binaries
-
-Download the latest release for your platform from the [releases page](https://github.com/fluxbase-eu/fluxbase/releases).
+Download the latest CLI binary for your platform from the [GitHub Releases page](https://github.com/fluxbase-eu/fluxbase/releases).
 
 #### macOS
 
@@ -87,6 +72,21 @@ Expand-Archive -Path "fluxbase-windows-amd64.zip" -DestinationPath "."
 # Move to a directory in PATH (run as Administrator)
 Move-Item -Path "fluxbase-windows-amd64.exe" -Destination "C:\Program Files\Fluxbase\fluxbase.exe"
 ```
+
+### From Source
+
+If you have Go 1.25+ installed, you can build the CLI from source:
+
+```bash
+# Clone the repository
+git clone https://github.com/fluxbase-eu/fluxbase.git
+cd fluxbase
+
+# Build and install
+make cli-install
+```
+
+This installs the `fluxbase` command to `/usr/local/bin`.
 
 ### Verify Installation
 

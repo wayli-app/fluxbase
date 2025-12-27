@@ -143,38 +143,13 @@ export FLUXBASE_SERVER_BODY_LIMIT=2147483648  # 2GB (default) - max size for HTT
 
 The Fluxbase CLI provides command-line access to manage your Fluxbase platform.
 
-### Pre-built Binaries (Recommended)
-
-Download the latest release for your platform from the [releases page](https://github.com/fluxbase-eu/fluxbase/releases):
+### Install Script (Recommended)
 
 ```bash
-# macOS (Apple Silicon)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-arm64.tar.gz
-tar -xzf fluxbase-darwin-arm64.tar.gz
-sudo mv fluxbase-darwin-arm64 /usr/local/bin/fluxbase
-
-# macOS (Intel)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-amd64.tar.gz
-tar -xzf fluxbase-darwin-amd64.tar.gz
-sudo mv fluxbase-darwin-amd64 /usr/local/bin/fluxbase
-
-# Linux (x86_64)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64.tar.gz
-tar -xzf fluxbase-linux-amd64.tar.gz
-sudo mv fluxbase-linux-amd64 /usr/local/bin/fluxbase
-
-# Linux (ARM64)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-arm64.tar.gz
-tar -xzf fluxbase-linux-arm64.tar.gz
-sudo mv fluxbase-linux-arm64 /usr/local/bin/fluxbase
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
 ```
 
-### From Source
-
-```bash
-# Build and install to /usr/local/bin
-make cli-install
-```
+The script automatically detects your OS and architecture, downloads the appropriate binary, and installs it to `/usr/local/bin`.
 
 ### Verify Installation
 
@@ -182,7 +157,7 @@ make cli-install
 fluxbase version
 ```
 
-For detailed CLI usage, authentication, and shell completion setup, see the [CLI Documentation](docs/src/content/docs/cli/installation.md).
+For manual installation, platform-specific instructions, and shell completion setup, see the [CLI Documentation](https://fluxbase.eu/cli/installation).
 
 ## API Usage
 
