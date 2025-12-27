@@ -213,6 +213,7 @@ config:
     max_age: 86400
 
   ## Storage configuration
+  ## @param config.storage.enabled Enable storage functionality
   ## @param config.storage.provider Storage provider (local or s3)
   ## @param config.storage.local_path Local storage base path
   ## @param config.storage.max_upload_size Maximum upload size in bytes
@@ -225,6 +226,7 @@ config:
   ## @param config.storage.s3_force_path_style Force S3 path-style URLs (for MinIO)
   ##
   storage:
+    enabled: true
     provider: "local"
     local_path: "/data/storage"
     max_upload_size: "2147483648" # 2GB

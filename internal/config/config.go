@@ -173,6 +173,7 @@ type CORSConfig struct {
 
 // StorageConfig contains file storage settings
 type StorageConfig struct {
+	Enabled          bool     `mapstructure:"enabled"`  // Enable storage functionality
 	Provider         string   `mapstructure:"provider"` // local or s3
 	LocalPath        string   `mapstructure:"local_path"`
 	S3Endpoint       string   `mapstructure:"s3_endpoint"`
@@ -515,6 +516,7 @@ func setDefaults() {
 	viper.SetDefault("cors.max_age", 300)
 
 	// Storage defaults
+	viper.SetDefault("storage.enabled", true)
 	viper.SetDefault("storage.provider", "local")
 	viper.SetDefault("storage.local_path", "./storage")
 	viper.SetDefault("storage.s3_endpoint", "")

@@ -162,6 +162,7 @@ services:
       # ==========================================================================
       # Storage Configuration
       # ==========================================================================
+      FLUXBASE_STORAGE_ENABLED: ${FLUXBASE_STORAGE_ENABLED:-true}
       FLUXBASE_STORAGE_PROVIDER: ${FLUXBASE_STORAGE_PROVIDER:-local}
       FLUXBASE_STORAGE_LOCAL_PATH: ${FLUXBASE_STORAGE_LOCAL_PATH:-/app/storage}
       # FLUXBASE_STORAGE_MAX_UPLOAD_SIZE: "2147483648"  # 2GB

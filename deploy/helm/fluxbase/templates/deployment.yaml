@@ -320,6 +320,8 @@ spec:
             # ===========================================
             # Storage Configuration
             # ===========================================
+            - name: FLUXBASE_STORAGE_ENABLED
+              value: {{ .Values.config.storage.enabled | quote }}
             - name: FLUXBASE_STORAGE_PROVIDER
               value: {{ .Values.config.storage.provider | quote }}
             - name: FLUXBASE_STORAGE_LOCAL_PATH
