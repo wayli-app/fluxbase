@@ -129,9 +129,9 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 		configPath = cliconfig.DefaultConfigPath()
 	}
 
-	// Load config
+	// Load config (use LoadOrCreate to allow env-var-only usage without a config file)
 	var err error
-	cfg, err = cliconfig.Load(configPath)
+	cfg, err = cliconfig.LoadOrCreate(configPath)
 	if err != nil {
 		return err
 	}
@@ -145,9 +145,20 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 		pName = cfg.CurrentProfile
 	}
 
+	// Try to get the profile, or create an empty one if env vars will provide credentials
 	profile, err := cfg.GetProfile(pName)
 	if err != nil {
-		return err
+		// If env vars provide server and token, we can work without a config file profile
+		envServer := viper.GetString("server")
+		envToken := viper.GetString("token")
+		if envServer != "" && envToken != "" {
+			profile = &cliconfig.Profile{
+				Server:      envServer,
+				Credentials: &cliconfig.Credentials{APIKey: envToken},
+			}
+		} else {
+			return err
+		}
 	}
 
 	// Override server from environment if set
