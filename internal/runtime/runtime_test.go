@@ -87,12 +87,14 @@ func TestBuildEnvForFunction(t *testing.T) {
 		}
 	}
 
-	// Test that non-FLUXBASE variables are not included
+	// Test system variables behavior
 	os.Setenv("PATH", "/usr/bin")
 	os.Setenv("HOME", "/home/user")
+	os.Setenv("RANDOM_VAR", "should-be-excluded")
 	defer func() {
 		os.Unsetenv("PATH")
 		os.Unsetenv("HOME")
+		os.Unsetenv("RANDOM_VAR")
 	}()
 
 	env = buildEnv(req, RuntimeTypeFunction, "http://localhost:8080", "user-token", "service-token", nil)
@@ -104,12 +106,17 @@ func TestBuildEnvForFunction(t *testing.T) {
 		}
 	}
 
-	if _, ok := envMap["PATH"]; ok {
-		t.Error("Expected PATH to be excluded, but it was included")
+	// PATH is intentionally included for subprocess operation (finding executables)
+	if envMap["PATH"] != "/usr/bin" {
+		t.Errorf("Expected PATH=/usr/bin (for subprocess operation), got PATH=%s", envMap["PATH"])
 	}
-	// HOME is intentionally set to /tmp for Deno runtime requirements
+	// HOME is intentionally set to /tmp for Deno runtime requirements (overrides any existing value)
 	if envMap["HOME"] != "/tmp" {
 		t.Errorf("Expected HOME=/tmp (for Deno), got HOME=%s", envMap["HOME"])
+	}
+	// Random non-system, non-FLUXBASE variables should be excluded
+	if _, ok := envMap["RANDOM_VAR"]; ok {
+		t.Error("Expected RANDOM_VAR to be excluded, but it was included")
 	}
 
 	// Test that function-specific variables are included
