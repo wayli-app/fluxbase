@@ -222,10 +222,12 @@ func runRPCSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Check if directory exists
-	if _, err := os.Stat(rpcSyncDir); os.IsNotExist(err) {
-		return fmt.Errorf("directory not found: %s", rpcSyncDir)
+	// Auto-detect directory if not explicitly specified
+	dir, err := detectResourceDir("rpc", rpcSyncDir, "./rpc")
+	if err != nil {
+		return err
 	}
+	rpcSyncDir = dir
 
 	// Read SQL files from directory
 	entries, err := os.ReadDir(rpcSyncDir)

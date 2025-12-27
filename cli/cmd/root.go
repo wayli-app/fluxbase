@@ -104,6 +104,7 @@ func init() {
 	rootCmd.AddCommand(settingsCmd)
 	rootCmd.AddCommand(logsCmd)
 	rootCmd.AddCommand(secretsCmd)
+	rootCmd.AddCommand(syncCmd)
 }
 
 func initConfig() {

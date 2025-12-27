@@ -350,10 +350,12 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Check if directory exists
-	if _, err := os.Stat(jobSyncDir); os.IsNotExist(err) {
-		return fmt.Errorf("directory not found: %s", jobSyncDir)
+	// Auto-detect directory if not explicitly specified
+	dir, err := detectResourceDir("jobs", jobSyncDir, "./jobs")
+	if err != nil {
+		return err
 	}
+	jobSyncDir = dir
 
 	// Check for _shared directory and sync shared modules first
 	sharedDir := filepath.Join(jobSyncDir, "_shared")

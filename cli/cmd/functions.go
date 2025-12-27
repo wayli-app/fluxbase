@@ -433,10 +433,12 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Check if directory exists
-	if _, err := os.Stat(fnSyncDir); os.IsNotExist(err) {
-		return fmt.Errorf("directory not found: %s", fnSyncDir)
+	// Auto-detect directory if not explicitly specified
+	dir, err := detectResourceDir("functions", fnSyncDir, "./functions")
+	if err != nil {
+		return err
 	}
+	fnSyncDir = dir
 
 	// Check for _shared directory and sync shared modules first
 	sharedDir := filepath.Join(fnSyncDir, "_shared")

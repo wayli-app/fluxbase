@@ -275,10 +275,12 @@ func runMigrationsApplyPending(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrationsSync(cmd *cobra.Command, args []string) error {
-	// Check if directory exists
-	if _, err := os.Stat(migSyncDir); os.IsNotExist(err) {
-		return fmt.Errorf("directory not found: %s", migSyncDir)
+	// Auto-detect directory if not explicitly specified
+	dir, err := detectResourceDir("migrations", migSyncDir, "./migrations")
+	if err != nil {
+		return err
 	}
+	migSyncDir = dir
 
 	// Read migration files
 	entries, err := os.ReadDir(migSyncDir)

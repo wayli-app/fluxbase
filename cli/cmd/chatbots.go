@@ -357,10 +357,12 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Check if directory exists
-	if _, err := os.Stat(cbSyncDir); os.IsNotExist(err) {
-		return fmt.Errorf("directory not found: %s", cbSyncDir)
+	// Auto-detect directory if not explicitly specified
+	dir, err := detectResourceDir("chatbots", cbSyncDir, "./chatbots")
+	if err != nil {
+		return err
 	}
+	cbSyncDir = dir
 
 	// Read YAML files from directory
 	entries, err := os.ReadDir(cbSyncDir)
