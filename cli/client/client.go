@@ -145,9 +145,18 @@ func (c *Client) RequestWithQuery(ctx context.Context, method, path string, body
 
 // addAuth adds authentication to the request
 func (c *Client) addAuth(req *http.Request) error {
-	creds, err := c.CredentialManager.GetCredentials(c.Profile.Name)
-	if err != nil {
-		return fmt.Errorf("failed to get credentials: %w", err)
+	// First check if profile already has credentials (e.g., from env vars)
+	var creds *config.Credentials
+	if c.Profile != nil && c.Profile.Credentials != nil &&
+		(c.Profile.Credentials.APIKey != "" || c.Profile.Credentials.AccessToken != "") {
+		creds = c.Profile.Credentials
+	} else {
+		// Try to get credentials from credential manager
+		var err error
+		creds, err = c.CredentialManager.GetCredentials(c.Profile.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get credentials: %w", err)
+		}
 	}
 
 	if creds == nil {
