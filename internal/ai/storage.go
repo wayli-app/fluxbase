@@ -666,8 +666,8 @@ func (s *Storage) GetDefaultProvider(ctx context.Context) (*ProviderRecord, erro
 // GetEffectiveDefaultProvider retrieves the effective default provider
 // Checks config-based provider first, then falls back to database
 func (s *Storage) GetEffectiveDefaultProvider(ctx context.Context) (*ProviderRecord, error) {
-	// Check if config-based provider is enabled
-	if s.config != nil && s.config.ProviderEnabled && s.config.ProviderType != "" {
+	// Check if config-based provider is set (enabled is inferred from ProviderType being set)
+	if s.config != nil && s.config.ProviderType != "" {
 		provider := s.buildConfigBasedProvider()
 		if provider != nil {
 			return provider, nil
@@ -679,14 +679,10 @@ func (s *Storage) GetEffectiveDefaultProvider(ctx context.Context) (*ProviderRec
 }
 
 // buildConfigBasedProvider constructs a ProviderRecord from config
+// A config-based provider is enabled if ProviderType is set
 func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 	if s.config == nil {
 		log.Debug().Msg("buildConfigBasedProvider: config is nil")
-		return nil
-	}
-
-	if !s.config.ProviderEnabled {
-		log.Debug().Bool("provider_enabled", s.config.ProviderEnabled).Msg("buildConfigBasedProvider: provider not enabled in config")
 		return nil
 	}
 
@@ -700,7 +696,6 @@ func (s *Storage) buildConfigBasedProvider() *ProviderRecord {
 		Str("provider_type", providerType).
 		Str("provider_name", s.config.ProviderName).
 		Str("provider_model", s.config.ProviderModel).
-		Bool("provider_enabled", s.config.ProviderEnabled).
 		Msg("buildConfigBasedProvider: building config-based provider")
 
 	// Build config map based on provider type

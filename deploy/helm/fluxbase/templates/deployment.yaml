@@ -542,6 +542,18 @@ spec:
               value: {{ .Values.config.ai.conversation_cache_ttl | quote }}
             - name: FLUXBASE_AI_MAX_CONVERSATION_TURNS
               value: {{ .Values.config.ai.max_conversation_turns | quote }}
+            {{- if .Values.config.ai.provider_type }}
+            - name: FLUXBASE_AI_PROVIDER_TYPE
+              value: {{ .Values.config.ai.provider_type | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.provider_name }}
+            - name: FLUXBASE_AI_PROVIDER_NAME
+              value: {{ .Values.config.ai.provider_name | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.provider_model }}
+            - name: FLUXBASE_AI_PROVIDER_MODEL
+              value: {{ .Values.config.ai.provider_model | quote }}
+            {{- end }}
             {{- if or .Values.config.ai.openai_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_OPENAI_API_KEY
               valueFrom:

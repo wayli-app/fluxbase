@@ -399,8 +399,7 @@ config:
   ## @param config.ai.conversation_cache_ttl Conversation cache TTL
   ## @param config.ai.max_conversation_turns Max conversation turns
   ## @param config.ai.sync_allowed_ip_ranges IP ranges allowed for AI sync
-  ## @param config.ai.provider_type AI provider type
-  ## @param config.ai.provider_enabled Enable AI provider
+  ## @param config.ai.provider_type AI provider type (if set, a read-only config-based provider is added)
   ## @param config.ai.provider_name AI provider name
   ## @param config.ai.provider_model AI provider model
   ## @param config.ai.openai_api_key OpenAI API key (use existingSecret)
@@ -431,9 +430,8 @@ config:
     conversation_cache_ttl: "1h"
     max_conversation_turns: 50
     sync_allowed_ip_ranges: []
-    # Provider configuration
+    # Provider configuration (if provider_type is set, a read-only config-based provider is added)
     provider_type: ""
-    provider_enabled: false
     provider_name: ""
     provider_model: ""
     openai_api_key: "" # Use existingSecret in production

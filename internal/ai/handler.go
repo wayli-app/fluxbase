@@ -33,7 +33,7 @@ func NewHandler(storage *Storage, loader *Loader, cfg *config.AIConfig) *Handler
 
 // ValidateConfig checks AI configuration and logs any issues at startup
 func (h *Handler) ValidateConfig() {
-	if h.config == nil || !h.config.ProviderEnabled {
+	if h.config == nil || h.config.ProviderType == "" {
 		return
 	}
 
@@ -719,28 +719,33 @@ func (h *Handler) GetProvider(c *fiber.Ctx) error {
 
 // CreateProviderRequest represents the request to create a provider
 type CreateProviderRequest struct {
-	Name         string            `json:"name"`
-	DisplayName  string            `json:"display_name"`
-	ProviderType string            `json:"provider_type"`
-	IsDefault    bool              `json:"is_default"`
-	Config       map[string]string `json:"config"`
-	Enabled      bool              `json:"enabled"`
+	Name         string         `json:"name"`
+	DisplayName  string         `json:"display_name"`
+	ProviderType string         `json:"provider_type"`
+	IsDefault    bool           `json:"is_default"`
+	Config       map[string]any `json:"config"`
+	Enabled      bool           `json:"enabled"`
 }
 
-// sanitizeConfig removes empty, "undefined", and "null" string values from config
-func sanitizeConfig(config map[string]string) map[string]string {
+// normalizeConfig converts any config values to strings and removes empty/invalid values
+// This allows the API to accept numbers, booleans, etc. while storing as strings
+func normalizeConfig(config map[string]any) map[string]string {
 	if config == nil {
 		return make(map[string]string)
 	}
-	sanitized := make(map[string]string, len(config))
+	normalized := make(map[string]string, len(config))
 	for k, v := range config {
-		// Skip empty values and string representations of undefined/null
-		if v == "" || v == "undefined" || v == "null" {
+		if v == nil {
 			continue
 		}
-		sanitized[k] = v
+		str := fmt.Sprintf("%v", v)
+		// Skip empty values and string representations of undefined/null
+		if str == "" || str == "undefined" || str == "null" {
+			continue
+		}
+		normalized[k] = str
 	}
-	return sanitized
+	return normalized
 }
 
 // CreateProvider creates a new AI provider
@@ -755,8 +760,8 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 		})
 	}
 
-	// Sanitize config to remove empty/invalid values
-	req.Config = sanitizeConfig(req.Config)
+	// Normalize config to convert values to strings and remove empty/invalid values
+	normalizedConfig := normalizeConfig(req.Config)
 
 	// Validate provider type
 	if req.ProviderType != "openai" && req.ProviderType != "azure" && req.ProviderType != "ollama" {
@@ -783,7 +788,7 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 		DisplayName:  req.DisplayName,
 		ProviderType: req.ProviderType,
 		IsDefault:    isDefault,
-		Config:       req.Config,
+		Config:       normalizedConfig,
 		Enabled:      true, // Always enable new providers
 	}
 
@@ -858,9 +863,9 @@ func (h *Handler) DeleteProvider(c *fiber.Ctx) error {
 
 // UpdateProviderRequest represents the request to update a provider
 type UpdateProviderRequest struct {
-	DisplayName *string           `json:"display_name"`
-	Config      map[string]string `json:"config"`
-	Enabled     *bool             `json:"enabled"`
+	DisplayName *string        `json:"display_name"`
+	Config      map[string]any `json:"config"`
+	Enabled     *bool          `json:"enabled"`
 }
 
 // UpdateProvider updates an AI provider
@@ -903,12 +908,12 @@ func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
 		provider.DisplayName = *req.DisplayName
 	}
 	if req.Config != nil {
-		// Sanitize and merge config - only update fields that are provided
-		sanitizedConfig := sanitizeConfig(req.Config)
+		// Normalize and merge config - only update fields that are provided
+		normalizedConfig := normalizeConfig(req.Config)
 		if provider.Config == nil {
 			provider.Config = make(map[string]string)
 		}
-		for k, v := range sanitizedConfig {
+		for k, v := range normalizedConfig {
 			// Skip masked api_key - keep existing value
 			if k == "api_key" && v == "***masked***" {
 				continue

@@ -33,7 +33,7 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 	// Initialize embedding service
 	// Priority:
 	// 1. If EmbeddingEnabled is true, use explicit embedding configuration
-	// 2. If EmbeddingEnabled is false but AI provider is configured (ProviderEnabled=true),
+	// 2. If EmbeddingEnabled is false but AI provider is configured (ProviderType is set),
 	//    try to use AI provider credentials as fallback for embeddings
 	if cfg.EmbeddingEnabled {
 		embeddingCfg, err := buildEmbeddingConfig(cfg)
@@ -48,7 +48,7 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 			handler.embeddingService = service
 			log.Info().Msg("Embedding service initialized from explicit configuration")
 		}
-	} else if cfg.ProviderEnabled && cfg.ProviderType != "" {
+	} else if cfg.ProviderType != "" {
 		// Fallback: Try to use AI provider settings for embeddings
 		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
 		if err != nil {

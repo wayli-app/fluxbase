@@ -291,10 +291,10 @@ type AIConfig struct {
 	SyncAllowedIPRanges  []string      `mapstructure:"sync_allowed_ip_ranges"` // IP CIDR ranges allowed to sync chatbots
 
 	// Provider Configuration (read-only in dashboard when set)
-	ProviderType    string `mapstructure:"provider_type"`    // Provider type: openai, azure, ollama
-	ProviderEnabled bool   `mapstructure:"provider_enabled"` // Enable config-based provider
-	ProviderName    string `mapstructure:"provider_name"`    // Display name for config provider
-	ProviderModel   string `mapstructure:"provider_model"`   // Default model for config provider
+	// If ProviderType is set, a config-based provider will be added to the list
+	ProviderType  string `mapstructure:"provider_type"`  // Provider type: openai, azure, ollama
+	ProviderName  string `mapstructure:"provider_name"`  // Display name for config provider
+	ProviderModel string `mapstructure:"provider_model"` // Default model for config provider
 
 	// Embedding Configuration (for vector search)
 	EmbeddingEnabled  bool   `mapstructure:"embedding_enabled"`  // Enable embedding generation for vector search
@@ -643,8 +643,7 @@ func setDefaults() {
 	})
 
 	// AI Provider Configuration defaults
-	viper.SetDefault("ai.provider_enabled", false)    // Disabled by default
-	viper.SetDefault("ai.provider_type", "")          // No default type
+	viper.SetDefault("ai.provider_type", "")          // No default type (if set, config-based provider is enabled)
 	viper.SetDefault("ai.provider_name", "")          // No default name
 	viper.SetDefault("ai.provider_model", "")         // No default model
 	viper.SetDefault("ai.openai_api_key", "")         // No default API key

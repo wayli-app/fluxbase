@@ -379,7 +379,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Info().
 			Str("chatbots_dir", cfg.AI.ChatbotsDir).
 			Bool("auto_load", cfg.AI.AutoLoadOnBoot).
-			Bool("provider_enabled", cfg.AI.ProviderEnabled).
 			Str("provider_type", cfg.AI.ProviderType).
 			Str("provider_name", cfg.AI.ProviderName).
 			Str("provider_model", cfg.AI.ProviderModel).
