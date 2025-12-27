@@ -410,6 +410,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
           VERSION=${{ needs.get-version.outputs.version }}
           output_name="fluxbase-${{ matrix.goos }}-${{ matrix.goarch }}"
@@ -467,6 +468,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
         run: |
           VERSION=${{ needs.get-version.outputs.version }}
           if [ "${{ matrix.goos }}" = "windows" ]; then
