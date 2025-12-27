@@ -35,8 +35,8 @@ name: Release
 #   - Publish Go module: Notify pkg.go.dev to index the new Go module version
 #   - Publish Helm chart: Package and publish Helm chart to GHCR and GitHub Pages
 #   - Publish Postgres images: Build and push fluxbase-postgres images for all supported versions
-#   - Publish CLI package: Publish CLI to package managers (Homebrew, etc.)
 #   Note: For release/tag push triggers, all components are published
+#   Note: CLI binaries are always published as part of "Publish binaries"
 #
 # RC Release behavior:
 #   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v0.1.1-rc.1, v0.1.1-rc.2)
@@ -116,18 +116,10 @@ on:
         required: false
         type: boolean
         default: false
-      publish_cli:
-        description: "Publish CLI package"
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: write
   packages: write
-
-env:
-  HOMEBREW_TAP: fluxbase-eu/homebrew-tap
 
 jobs:
   get-version:
@@ -1036,28 +1028,3 @@ jobs:
             git push origin HEAD:${{ github.ref_name }}
           fi
 
-  # ==========================================================================
-  # CLI Package Publishing (Homebrew)
-  # ==========================================================================
-
-  publish-cli-homebrew:
-    name: Publish CLI to Homebrew
-    needs: [get-version, publish-binaries, publish-cli-cross-platform]
-    runs-on: ubuntu-latest
-    # Only publish stable releases to Homebrew (not RCs)
-    if: |
-      (github.event_name != 'workflow_dispatch' || inputs.publish_cli) &&
-      needs.get-version.outputs.is_prerelease == 'false'
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
-        with:
-          formula-name: fluxbase
-          formula-path: Formula/fluxbase.rb
-          homebrew-tap: ${{ env.HOMEBREW_TAP }}
-          tag-name: ${{ needs.get-version.outputs.tag_name }}
-          download-url: https://github.com/${{ github.repository }}/releases/download/${{ needs.get-version.outputs.tag_name }}/fluxbase-darwin-arm64.tar.gz
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

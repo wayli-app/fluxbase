@@ -7,7 +7,21 @@ The Fluxbase CLI provides command-line access to manage your Fluxbase platform, 
 
 ## Installation Methods
 
-### From Source (Recommended for Development)
+### Pre-built Binaries (Recommended)
+
+Download the latest CLI binary for your platform from the [GitHub Releases page](https://github.com/fluxbase-eu/fluxbase/releases).
+
+You can also use the install script for a quick setup:
+
+```bash
+# Install latest version
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
+
+# Install specific version
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.1.0
+```
+
+### From Source (For Development)
 
 If you have Go installed, you can build the CLI from source:
 
