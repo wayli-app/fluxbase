@@ -198,6 +198,7 @@ function EdgeFunctionsTab() {
   const [logsWordWrap, setLogsWordWrap] = useState(false)
   const [reloading, setReloading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [fetchingFunction, setFetchingFunction] = useState(false)
   const [namespaces, setNamespaces] = useState<string[]>(['default'])
   const [selectedNamespace, setSelectedNamespace] = useState<string>('default')
 
@@ -580,21 +581,31 @@ async function handler(req: Request) {
     }
   }
 
-  const openEditDialog = (fn: EdgeFunction) => {
+  const openEditDialog = async (fn: EdgeFunction) => {
     setSelectedFunction(fn)
-    setFormData({
-      name: fn.name,
-      description: fn.description || '',
-      code: fn.code,
-      timeout_seconds: fn.timeout_seconds,
-      memory_limit_mb: fn.memory_limit_mb,
-      allow_net: fn.allow_net,
-      allow_env: fn.allow_env,
-      allow_read: fn.allow_read,
-      allow_write: fn.allow_write,
-      cron_schedule: fn.cron_schedule || '',
-    })
+    setFetchingFunction(true)
     setShowEditDialog(true)
+    try {
+      // Fetch full function details including code
+      const fullFunction = await functionsApi.get(fn.name)
+      setFormData({
+        name: fullFunction.name,
+        description: fullFunction.description || '',
+        code: fullFunction.code || '',
+        timeout_seconds: fullFunction.timeout_seconds,
+        memory_limit_mb: fullFunction.memory_limit_mb,
+        allow_net: fullFunction.allow_net,
+        allow_env: fullFunction.allow_env,
+        allow_read: fullFunction.allow_read,
+        allow_write: fullFunction.allow_write,
+        cron_schedule: fullFunction.cron_schedule || '',
+      })
+    } catch {
+      toast.error('Failed to load function details')
+      setShowEditDialog(false)
+    } finally {
+      setFetchingFunction(false)
+    }
   }
 
   const openInvokeDialog = (fn: EdgeFunction) => {
@@ -1288,6 +1299,11 @@ async function handler(req: Request) {
             </DialogDescription>
           </DialogHeader>
 
+          {fetchingFunction ? (
+            <div className='flex items-center justify-center py-12'>
+              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            </div>
+          ) : (
           <div className='space-y-4'>
             <div>
               <Label htmlFor='edit-description'>Description</Label>
@@ -1392,12 +1408,13 @@ async function handler(req: Request) {
               </div>
             </div>
           </div>
+          )}
 
           <DialogFooter>
             <Button variant='outline' onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={updateFunction}>Update Function</Button>
+            <Button onClick={updateFunction} disabled={fetchingFunction}>Update Function</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

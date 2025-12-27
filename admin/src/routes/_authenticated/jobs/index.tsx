@@ -17,6 +17,9 @@ import {
   Play,
   Copy,
   ChevronDown,
+  History,
+  Edit,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useImpersonationStore } from '@/stores/impersonation-store'
@@ -33,6 +36,16 @@ import {
   type ExecutionLog,
   type ExecutionLogLevel,
 } from '@/hooks/use-execution-logs'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -44,6 +57,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -94,6 +112,25 @@ function JobsPage() {
   const [jobPayload, setJobPayload] = useState('')
   const [submittingJob, setSubmittingJob] = useState(false)
   const [togglingJob, setTogglingJob] = useState<string | null>(null)
+
+  // Edit job function dialog state
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [fetchingFunction, setFetchingFunction] = useState(false)
+  const [editFormData, setEditFormData] = useState({
+    description: '',
+    code: '',
+    timeout_seconds: 30,
+    max_retries: 3,
+    schedule: '',
+  })
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState<{ namespace: string; name: string } | null>(null)
+
+  // Execution history dialog state
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [historyJobs, setHistoryJobs] = useState<Job[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   // Execution logs state
   const [logLevelFilter, setLogLevelFilter] = useState<LogLevel | 'all'>('all')
@@ -548,6 +585,82 @@ function JobsPage() {
       toast.error('Failed to update job function')
     } finally {
       setTogglingJob(null)
+    }
+  }
+
+  // View execution history for a job function
+  const viewHistory = async (fn: JobFunction) => {
+    setSelectedFunction(fn)
+    setHistoryLoading(true)
+    setShowHistoryDialog(true)
+    try {
+      // Fetch jobs that match this job function name
+      const jobs = await jobsApi.listJobs({
+        namespace: fn.namespace,
+        limit: 50,
+        offset: 0,
+      })
+      // Filter to only jobs matching this function name
+      const functionJobs = jobs.filter((j) => j.job_name === fn.name)
+      setHistoryJobs(functionJobs)
+    } catch {
+      toast.error('Failed to fetch execution history')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  // Open edit dialog for job function
+  const openEditDialog = async (fn: JobFunction) => {
+    setSelectedFunction(fn)
+    setFetchingFunction(true)
+    setShowEditDialog(true)
+    try {
+      const fullFunction = await jobsApi.getFunction(fn.namespace, fn.name)
+      setEditFormData({
+        description: fullFunction.description || '',
+        code: fullFunction.code || '',
+        timeout_seconds: fullFunction.timeout_seconds,
+        max_retries: fullFunction.max_retries,
+        schedule: fullFunction.schedule || '',
+      })
+    } catch {
+      toast.error('Failed to load job function details')
+      setShowEditDialog(false)
+    } finally {
+      setFetchingFunction(false)
+    }
+  }
+
+  // Update job function
+  const updateJobFunction = async () => {
+    if (!selectedFunction) return
+    try {
+      await jobsApi.updateFunction(selectedFunction.namespace, selectedFunction.name, {
+        description: editFormData.description || undefined,
+        code: editFormData.code || undefined,
+        timeout_seconds: editFormData.timeout_seconds,
+        max_retries: editFormData.max_retries,
+        schedule: editFormData.schedule || undefined,
+      })
+      toast.success('Job function updated')
+      setShowEditDialog(false)
+      await fetchJobFunctions()
+    } catch {
+      toast.error('Failed to update job function')
+    }
+  }
+
+  // Delete job function
+  const deleteJobFunction = async () => {
+    if (!deleteConfirm) return
+    try {
+      await jobsApi.deleteFunction(deleteConfirm.namespace, deleteConfirm.name)
+      toast.success(`Job function "${deleteConfirm.name}" deleted`)
+      setDeleteConfirm(null)
+      await fetchJobFunctions()
+    } catch {
+      toast.error('Failed to delete job function')
     }
   }
 
@@ -1260,27 +1373,71 @@ function JobsPage() {
                         className='scale-75'
                       />
                     </div>
-                    <div className='flex shrink-0 items-center gap-1'>
+                    <div className='flex shrink-0 items-center gap-0.5'>
                       {fn.source === 'filesystem' && fn.updated_at && (
                         <span
-                          className='text-muted-foreground text-[10px]'
+                          className='text-muted-foreground text-[10px] mr-1'
                           title={`Last synced: ${new Date(fn.updated_at).toLocaleString()}`}
                         >
                           synced {new Date(fn.updated_at).toLocaleDateString()}
                         </span>
                       )}
-                      <span className='text-muted-foreground text-[10px]'>
+                      <span className='text-muted-foreground text-[10px] mr-1'>
                         {fn.timeout_seconds}s / {fn.max_retries}r
                       </span>
-                      <Button
-                        size='sm'
-                        variant='default'
-                        onClick={() => openRunDialog(fn)}
-                        disabled={!fn.enabled}
-                        className='h-6 px-2 text-xs'
-                      >
-                        <Play className='h-3 w-3' />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => viewHistory(fn)}
+                            variant='ghost'
+                            size='sm'
+                            className='h-6 w-6 p-0'
+                          >
+                            <History className='h-3 w-3' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View history</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => openRunDialog(fn)}
+                            size='sm'
+                            variant='ghost'
+                            className='h-6 w-6 p-0'
+                            disabled={!fn.enabled}
+                          >
+                            <Play className='h-3 w-3' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Run job</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => openEditDialog(fn)}
+                            size='sm'
+                            variant='ghost'
+                            className='h-6 w-6 p-0'
+                          >
+                            <Edit className='h-3 w-3' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit job function</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            onClick={() => setDeleteConfirm({ namespace: fn.namespace, name: fn.name })}
+                            size='sm'
+                            variant='ghost'
+                            className='h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10'
+                          >
+                            <Trash2 className='h-3 w-3' />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete job function</TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 ))
@@ -1709,6 +1866,194 @@ function JobsPage() {
                   Run Job
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Job Function Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Edit Job Function</DialogTitle>
+            <DialogDescription>
+              Update job function code and settings for "{selectedFunction?.name}"
+            </DialogDescription>
+          </DialogHeader>
+
+          {fetchingFunction ? (
+            <div className='flex items-center justify-center py-12'>
+              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            </div>
+          ) : (
+          <div className='space-y-4'>
+            <div>
+              <Label htmlFor='edit-description'>Description</Label>
+              <Input
+                id='edit-description'
+                value={editFormData.description}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, description: e.target.value })
+                }
+              />
+            </div>
+
+            <div>
+              <Label htmlFor='edit-code'>Code</Label>
+              <Textarea
+                id='edit-code'
+                className='min-h-[400px] font-mono text-sm'
+                value={editFormData.code}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, code: e.target.value })
+                }
+              />
+            </div>
+
+            <div className='grid grid-cols-3 gap-4'>
+              <div>
+                <Label htmlFor='edit-timeout'>Timeout (seconds)</Label>
+                <Input
+                  id='edit-timeout'
+                  type='number'
+                  min={1}
+                  max={3600}
+                  value={editFormData.timeout_seconds}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      timeout_seconds: parseInt(e.target.value),
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor='edit-retries'>Max Retries</Label>
+                <Input
+                  id='edit-retries'
+                  type='number'
+                  min={0}
+                  max={10}
+                  value={editFormData.max_retries}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      max_retries: parseInt(e.target.value),
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor='edit-schedule'>Schedule (cron)</Label>
+                <Input
+                  id='edit-schedule'
+                  placeholder='0 0 * * *'
+                  value={editFormData.schedule}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, schedule: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+          )}
+
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateJobFunction} disabled={fetchingFunction}>
+              Update Job Function
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Job Function</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteJobFunction}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Execution History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className='max-h-[90vh] max-w-4xl overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <History className='h-5 w-5' />
+              Execution History
+            </DialogTitle>
+            <DialogDescription>
+              Recent executions for "{selectedFunction?.name}"
+            </DialogDescription>
+          </DialogHeader>
+
+          {historyLoading ? (
+            <div className='flex items-center justify-center py-12'>
+              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            </div>
+          ) : historyJobs.length === 0 ? (
+            <div className='text-center py-12'>
+              <Activity className='mx-auto h-12 w-12 text-muted-foreground mb-4' />
+              <p className='text-muted-foreground'>No executions found</p>
+            </div>
+          ) : (
+            <ScrollArea className='h-[400px]'>
+              <div className='space-y-2'>
+                {historyJobs.map((job) => (
+                  <div
+                    key={job.id}
+                    className='flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 cursor-pointer'
+                    onClick={() => {
+                      setShowHistoryDialog(false)
+                      viewJobDetails(job)
+                    }}
+                  >
+                    <div className='flex items-center gap-3'>
+                      {getStatusIcon(job.status)}
+                      <div>
+                        <div className='flex items-center gap-2'>
+                          <span className='text-sm font-medium'>{job.id.slice(0, 8)}...</span>
+                          <Badge variant={getStatusBadgeVariant(job.status)}>{job.status}</Badge>
+                        </div>
+                        <span className='text-xs text-muted-foreground'>
+                          {new Date(job.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      {job.started_at && job.completed_at && (
+                        <span className='text-xs text-muted-foreground'>
+                          {new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()}ms
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setShowHistoryDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

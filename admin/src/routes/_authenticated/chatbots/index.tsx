@@ -231,11 +231,6 @@ function ChatbotsPage() {
                       synced {new Date(chatbot.updated_at).toLocaleDateString()}
                     </span>
                   )}
-                  {chatbot.description && (
-                    <span className='text-[10px] text-muted-foreground mr-2 max-w-[200px] truncate'>
-                      {chatbot.description}
-                    </span>
-                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button

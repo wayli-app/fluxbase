@@ -793,6 +793,12 @@ export const functionsApi = {
     return response.data
   },
 
+  // Get a single edge function by name (includes code)
+  get: async (name: string): Promise<EdgeFunction> => {
+    const response = await api.get<EdgeFunction>(`/api/v1/functions/${name}`)
+    return response.data
+  },
+
   // Create edge function
   create: async (data: CreateEdgeFunctionRequest): Promise<EdgeFunction> => {
     const response = await api.post<EdgeFunction>('/api/v1/functions', data)
@@ -2857,10 +2863,7 @@ export interface SecretsStats {
 // Secrets API
 export const secretsApi = {
   // List all secrets (metadata only, never includes values)
-  list: async (
-    scope?: string,
-    namespace?: string
-  ): Promise<Secret[]> => {
+  list: async (scope?: string, namespace?: string): Promise<Secret[]> => {
     const params = new URLSearchParams()
     if (scope) params.set('scope', scope)
     if (namespace) params.set('namespace', namespace)

@@ -376,15 +376,22 @@ spec:
             # ===========================================
             # Email Configuration
             # ===========================================
+            {{- if .Values.config.email.enabled }}
             - name: FLUXBASE_EMAIL_ENABLED
               value: {{ .Values.config.email.enabled | quote }}
-            {{- if .Values.config.email.enabled }}
+            {{- end }}
+            {{- if .Values.config.email.provider }}
             - name: FLUXBASE_EMAIL_PROVIDER
               value: {{ .Values.config.email.provider | quote }}
+            {{- end }}
+            {{- if .Values.config.email.from_address }}
             - name: FLUXBASE_EMAIL_FROM_ADDRESS
               value: {{ .Values.config.email.from_address | quote }}
+            {{- end }}
+            {{- if .Values.config.email.from_name }}
             - name: FLUXBASE_EMAIL_FROM_NAME
               value: {{ .Values.config.email.from_name | quote }}
+            {{- end }}
             {{- if .Values.config.email.reply_to_address }}
             - name: FLUXBASE_EMAIL_REPLY_TO_ADDRESS
               value: {{ .Values.config.email.reply_to_address | quote }}
@@ -435,7 +442,6 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.sesSecretKey" . }}
             - name: FLUXBASE_EMAIL_SES_REGION
               value: {{ .Values.config.email.ses_region | quote }}
-            {{- end }}
             {{- end }}
 
             # ===========================================
