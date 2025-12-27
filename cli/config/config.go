@@ -2,7 +2,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -148,19 +147,13 @@ func LoadOrCreate(path string) (*Config, error) {
 		path = DefaultConfigPath()
 	}
 
+	// Check if file exists first - if not, return empty config without error
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		return New(), nil
+	}
+
 	cfg, err := Load(path)
 	if err != nil {
-		if os.IsNotExist(err) || errors.Is(err, os.ErrNotExist) {
-			return New(), nil
-		}
-		// Check if the error message contains "not found"
-		if errors.As(err, new(*os.PathError)) || os.IsNotExist(err) {
-			return New(), nil
-		}
-		// If config doesn't exist, create a new one
-		if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-			return New(), nil
-		}
 		return nil, err
 	}
 
