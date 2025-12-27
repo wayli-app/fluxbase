@@ -116,6 +116,7 @@ func (r *DenoRuntime) RuntimeType() RuntimeType {
 
 // Execute runs user code with the given request context
 // timeoutOverride allows callers to specify a custom timeout; if nil, defaultTimeout is used
+// secrets is a map of secret name -> decrypted value that will be injected as FLUXBASE_SECRET_<NAME>
 func (r *DenoRuntime) Execute(
 	ctx context.Context,
 	code string,
@@ -123,6 +124,7 @@ func (r *DenoRuntime) Execute(
 	permissions Permissions,
 	cancelSignal *CancelSignal,
 	timeoutOverride *time.Duration,
+	secrets map[string]string,
 ) (*ExecutionResult, error) {
 	start := time.Now()
 
@@ -238,7 +240,12 @@ func (r *DenoRuntime) Execute(
 		args = append(args, "--allow-env")
 	} else {
 		// Always allow specific env vars for SDK access
-		args = append(args, fmt.Sprintf("--allow-env=%s", allowedEnvVars(r.runtimeType)))
+		// Also include secret names so they're accessible
+		secretNames := make([]string, 0, len(secrets))
+		for name := range secrets {
+			secretNames = append(secretNames, name)
+		}
+		args = append(args, fmt.Sprintf("--allow-env=%s", allowedEnvVars(r.runtimeType, secretNames)))
 	}
 	if permissions.AllowRead {
 		args = append(args, "--allow-read")
@@ -252,8 +259,8 @@ func (r *DenoRuntime) Execute(
 	// Create command
 	cmd := exec.CommandContext(execCtx, r.denoPath, args...)
 
-	// Set environment variables
-	cmd.Env = buildEnv(req, r.runtimeType, r.publicURL, userToken, serviceToken, cancelSignal)
+	// Set environment variables (including secrets)
+	cmd.Env = buildEnv(req, r.runtimeType, r.publicURL, userToken, serviceToken, cancelSignal, secrets)
 
 	// Capture stdout and stderr with streaming
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -338,7 +345,10 @@ func (r *DenoRuntime) Execute(
 			stderrBuilder.WriteString(line + "\n")
 
 			if r.onLog != nil && line != "" {
-				r.onLog(req.ID, "error", line)
+				// Determine log level based on content
+				// Deno writes informational messages (like download progress) to stderr
+				level := classifyStderrLine(line)
+				r.onLog(req.ID, level, line)
 			}
 		}
 
@@ -594,4 +604,57 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// classifyStderrLine determines the appropriate log level for a stderr line.
+// Deno writes informational messages (like download progress, warnings) to stderr,
+// so we need to classify them appropriately rather than treating all as errors.
+func classifyStderrLine(line string) string {
+	// Strip ANSI color codes for pattern matching
+	stripped := stripAnsiCodes(line)
+
+	// Deno informational messages (not errors)
+	infoPatterns := []string{
+		"Download ",
+		"Downloading ",
+		"Check ",
+		"Checking ",
+		"Compile ",
+		"Compiling ",
+	}
+	for _, pattern := range infoPatterns {
+		if strings.Contains(stripped, pattern) {
+			return "info"
+		}
+	}
+
+	// Deno warnings
+	if strings.Contains(stripped, "Warning") || strings.Contains(stripped, "warning:") {
+		return "warn"
+	}
+
+	// Default to error for other stderr content
+	return "error"
+}
+
+// stripAnsiCodes removes ANSI escape sequences from a string
+func stripAnsiCodes(s string) string {
+	// Simple state machine to strip ANSI codes
+	var result strings.Builder
+	inEscape := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			inEscape = true
+			continue
+		}
+		if inEscape {
+			// ANSI sequences end with a letter
+			if (s[i] >= 'a' && s[i] <= 'z') || (s[i] >= 'A' && s[i] <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+		result.WriteByte(s[i])
+	}
+	return result.String()
 }

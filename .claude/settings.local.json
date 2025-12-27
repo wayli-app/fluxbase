@@ -75,7 +75,8 @@
       "Bash(for:*)",
       "Bash(do npm test -- src/realtime.test.ts --run)",
       "Bash(/usr/local/go/bin/go test:*)",
-      "Bash(/tmp/fluxbase-cli:*)"
+      "Bash(/tmp/fluxbase-cli:*)",
+      "Bash(go vet:*)"
     ],
     "deny": [],
     "ask": []

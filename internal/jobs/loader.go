@@ -485,7 +485,9 @@ func (l *Loader) loadNestedFiles(dirPath, relativePath string) (map[string]strin
 		}
 
 		fileName := entry.Name()
-		if !strings.HasSuffix(fileName, ".ts") && !strings.HasSuffix(fileName, ".js") {
+		// Include TypeScript, JavaScript, JSON, and GeoJSON files
+		if !strings.HasSuffix(fileName, ".ts") && !strings.HasSuffix(fileName, ".js") &&
+			!strings.HasSuffix(fileName, ".json") && !strings.HasSuffix(fileName, ".geojson") {
 			continue
 		}
 

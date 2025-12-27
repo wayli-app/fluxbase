@@ -227,9 +227,9 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	result.BundledCode = string(bundled)
 	result.IsBundled = true
 
-	// Validate bundled size (20MB limit)
-	if len(result.BundledCode) > 20*1024*1024 {
-		result.Error = fmt.Sprintf("Bundled code exceeds 20MB limit (got %d bytes)", len(result.BundledCode))
+	// Validate bundled size (50MB limit - allows for embedded GeoJSON data)
+	if len(result.BundledCode) > 50*1024*1024 {
+		result.Error = fmt.Sprintf("Bundled code exceeds 50MB limit (got %d bytes)", len(result.BundledCode))
 		return nil, fmt.Errorf("%s", result.Error)
 	}
 
@@ -442,6 +442,8 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		"--external:https://*",
 		"--external:http://*",
 		"--external:jsr:*",
+		// Enable JSON loader for .geojson files (used for embedded geodata)
+		"--loader:.geojson=json",
 	}
 
 	log.Debug().
@@ -492,9 +494,9 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	result.BundledCode = string(bundled)
 	result.IsBundled = true
 
-	// Validate bundled size (20MB limit)
-	if len(result.BundledCode) > 20*1024*1024 {
-		result.Error = fmt.Sprintf("Bundled code exceeds 20MB limit (got %d bytes)", len(result.BundledCode))
+	// Validate bundled size (50MB limit - allows for embedded GeoJSON data)
+	if len(result.BundledCode) > 50*1024*1024 {
+		result.Error = fmt.Sprintf("Bundled code exceeds 50MB limit (got %d bytes)", len(result.BundledCode))
 		return nil, fmt.Errorf("%s", result.Error)
 	}
 

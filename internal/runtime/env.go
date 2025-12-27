@@ -15,10 +15,12 @@ var blockedVars = map[string]bool{
 	"FLUXBASE_STORAGE_S3_ACCESS_KEY":   true,
 	"FLUXBASE_EMAIL_SMTP_PASSWORD":     true,
 	"FLUXBASE_SECURITY_SETUP_TOKEN":    true,
+	"FLUXBASE_ENCRYPTION_KEY":          true, // Used for encrypting secrets at rest
 }
 
 // buildEnv creates the environment variable list for execution
-func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToken, serviceToken string, cancelSignal *CancelSignal) []string {
+// secrets is a map of secret name -> decrypted value that will be injected as FLUXBASE_SECRET_<NAME>
+func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToken, serviceToken string, cancelSignal *CancelSignal, secrets map[string]string) []string {
 	env := []string{}
 
 	// Deno requires HOME or DENO_DIR to determine its cache directory.
@@ -107,17 +109,33 @@ func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToke
 		}
 	}
 
+	// Inject secrets as FLUXBASE_SECRET_<NAME> environment variables
+	for name, value := range secrets {
+		// Convert name to uppercase and replace any invalid characters
+		envName := fmt.Sprintf("FLUXBASE_SECRET_%s", strings.ToUpper(name))
+		env = append(env, fmt.Sprintf("%s=%s", envName, value))
+	}
+
 	return env
 }
 
 // allowedEnvVars returns the list of allowed environment variables for Deno permissions
-func allowedEnvVars(runtimeType RuntimeType) string {
+// secretNames is a list of secret names that should be accessible (without the FLUXBASE_SECRET_ prefix)
+func allowedEnvVars(runtimeType RuntimeType, secretNames []string) string {
+	var base string
 	switch runtimeType {
 	case RuntimeTypeFunction:
-		return "FLUXBASE_URL,FLUXBASE_USER_TOKEN,FLUXBASE_SERVICE_TOKEN,FLUXBASE_EXECUTION_ID,FLUXBASE_FUNCTION_NAME,FLUXBASE_FUNCTION_NAMESPACE,FLUXBASE_FUNCTION_CANCELLED"
+		base = "FLUXBASE_URL,FLUXBASE_USER_TOKEN,FLUXBASE_SERVICE_TOKEN,FLUXBASE_EXECUTION_ID,FLUXBASE_FUNCTION_NAME,FLUXBASE_FUNCTION_NAMESPACE,FLUXBASE_FUNCTION_CANCELLED"
 	case RuntimeTypeJob:
-		return "FLUXBASE_URL,FLUXBASE_JOB_TOKEN,FLUXBASE_SERVICE_TOKEN,FLUXBASE_JOB_ID,FLUXBASE_JOB_NAME,FLUXBASE_JOB_NAMESPACE,FLUXBASE_JOB_CANCELLED"
+		base = "FLUXBASE_URL,FLUXBASE_JOB_TOKEN,FLUXBASE_SERVICE_TOKEN,FLUXBASE_JOB_ID,FLUXBASE_JOB_NAME,FLUXBASE_JOB_NAMESPACE,FLUXBASE_JOB_CANCELLED"
 	default:
 		return ""
 	}
+
+	// Add secret env vars to the allowed list
+	for _, name := range secretNames {
+		base += fmt.Sprintf(",FLUXBASE_SECRET_%s", strings.ToUpper(name))
+	}
+
+	return base
 }

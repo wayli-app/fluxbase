@@ -48,8 +48,11 @@ Get started:
   fluxbase --help        Show available commands
 
 For more information, visit https://fluxbase.eu/docs/cli`,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	SilenceUsage: true,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Silence errors only when --quiet is used
+		cmd.SilenceErrors = quiet
+	},
 }
 
 // Execute runs the CLI
@@ -100,6 +103,7 @@ func init() {
 	rootCmd.AddCommand(realtimeCmd)
 	rootCmd.AddCommand(settingsCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(secretsCmd)
 }
 
 func initConfig() {

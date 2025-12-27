@@ -10,6 +10,7 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
+	"github.com/fluxbase-eu/fluxbase/internal/secrets"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
@@ -21,6 +22,7 @@ type Worker struct {
 	Config               *config.JobsConfig
 	Storage              *Storage
 	Runtime              *runtime.DenoRuntime
+	SecretsStorage       *secrets.Storage
 	MaxConcurrent        int
 	publicURL            string
 	currentJobs          sync.Map // jobID -> *runtime.CancelSignal
@@ -34,7 +36,7 @@ type Worker struct {
 }
 
 // NewWorker creates a new worker
-func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL string) *Worker {
+func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL string, secretsStorage *secrets.Storage) *Worker {
 	workerID := uuid.New()
 	hostname, _ := os.Hostname()
 
@@ -53,6 +55,7 @@ func NewWorker(cfg *config.JobsConfig, storage *Storage, jwtSecret, publicURL st
 		Config:           cfg,
 		Storage:          storage,
 		Runtime:          jobRuntime,
+		SecretsStorage:   secretsStorage,
 		MaxConcurrent:    cfg.MaxConcurrentPerWorker,
 		publicURL:        publicURL,
 		shutdownChan:     make(chan struct{}),
@@ -383,8 +386,19 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		timeoutOverride = &timeout
 	}
 
+	// Load secrets for job's namespace
+	var jobSecrets map[string]string
+	if w.SecretsStorage != nil {
+		var err error
+		jobSecrets, err = w.SecretsStorage.GetSecretsForNamespace(ctx, job.Namespace)
+		if err != nil {
+			log.Warn().Err(err).Str("namespace", job.Namespace).Msg("Failed to load secrets for job execution")
+			// Continue without secrets - don't fail the job
+		}
+	}
+
 	// Execute job in runtime
-	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride)
+	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride, jobSecrets)
 
 	// Check if job was cancelled
 	if cancelSignal.IsCancelled() {

@@ -565,7 +565,7 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 
 	// Bundle functions that have imports
 	if needsBundling {
-		b, err := bundler.NewBundler()
+		b, err := bundler.NewBundler(fnSyncDir)
 		if err != nil {
 			return fmt.Errorf("bundling requires Deno: %w", err)
 		}
@@ -583,12 +583,18 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("function %s: %w", fnName, err)
 			}
 
-			fmt.Printf("Bundling %s...\n", fnName)
+			fmt.Printf("Bundling %s...", fnName)
 
 			result, err := b.Bundle(ctx, code, sharedModulesMap)
 			if err != nil {
+				fmt.Println() // Complete the line
 				return fmt.Errorf("failed to bundle %s: %w", fnName, err)
 			}
+
+			// Print size info
+			originalSize := len(code)
+			bundledSize := len(result.BundledCode)
+			fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
 
 			// Replace code with bundled code
 			functions[i]["code"] = result.BundledCode
@@ -658,4 +664,19 @@ func getIntValue(m map[string]interface{}, key string) int {
 		}
 	}
 	return 0
+}
+
+func formatBytes(bytes int) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+	)
+	switch {
+	case bytes >= MB:
+		return fmt.Sprintf("%.1fMB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1fKB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%dB", bytes)
+	}
 }

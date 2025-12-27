@@ -24,6 +24,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/realtime"
 	"github.com/fluxbase-eu/fluxbase/internal/rpc"
 	"github.com/fluxbase-eu/fluxbase/internal/scaling"
+	"github.com/fluxbase-eu/fluxbase/internal/secrets"
 	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/fluxbase-eu/fluxbase/internal/webhook"
@@ -86,6 +87,8 @@ type Server struct {
 	loggingHandler        *LoggingHandler
 	retentionService      *logging.RetentionService
 	schemaCache           *database.SchemaCache
+	secretsHandler        *secrets.Handler
+	secretsStorage        *secrets.Storage
 
 	// Leader election for schedulers (used in multi-instance deployments)
 	jobsSchedulerLeader      *scaling.LeaderElector
@@ -234,6 +237,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
 	storageHandler := NewStorageHandler(storageService, db)
 	webhookHandler := NewWebhookHandler(webhookService)
+
+	// Initialize secrets storage and handler
+	secretsStorage := secrets.NewStorage(db, cfg.EncryptionKey)
+	secretsHandler := secrets.NewHandler(secretsStorage)
+
 	userMgmtHandler := NewUserManagementHandler(userMgmtService, authService)
 	invitationService := auth.NewInvitationService(db)
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
@@ -273,8 +281,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	if functionsInternalURL == "" {
 		functionsInternalURL = "http://localhost" + cfg.Server.Address
 	}
-	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsInternalURL, authService, loggingService)
-	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsInternalURL)
+	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsInternalURL, authService, loggingService, secretsStorage)
+	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsInternalURL, secretsStorage)
 	functionsHandler.SetScheduler(functionsScheduler)
 
 	// Only create jobs components if jobs are enabled
@@ -293,7 +301,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Str("jobs_internal_url", jobsInternalURL).
 			Bool("jwt_secret_set", cfg.Auth.JWTSecret != "").
 			Msg("Initializing jobs manager with SDK credentials")
-		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsInternalURL)
+		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsInternalURL, secretsStorage)
 		var err error
 		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService, loggingService)
 		if err != nil {
@@ -513,6 +521,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		loggingHandler:        loggingHandler,
 		retentionService:      retentionService,
 		schemaCache:           schemaCache,
+		secretsHandler:        secretsHandler,
+		secretsStorage:        secretsStorage,
 	}
 
 	// Start realtime listener (unless disabled or in worker-only mode)
@@ -831,6 +841,9 @@ func (s *Server) setupRoutes() {
 
 	// API Keys routes - require authentication
 	s.apiKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+
+	// Secrets routes - require authentication
+	s.secretsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Webhook routes - require authentication
 	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)

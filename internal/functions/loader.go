@@ -163,9 +163,10 @@ func loadNestedFiles(dirPath, relativePath string) (map[string]string, error) {
 
 		fileName := entry.Name()
 
-		// Only process TypeScript/JavaScript files
+		// Only process TypeScript/JavaScript/JSON/GeoJSON files
 		if !strings.HasSuffix(fileName, ".ts") && !strings.HasSuffix(fileName, ".js") &&
-			!strings.HasSuffix(fileName, ".mts") && !strings.HasSuffix(fileName, ".mjs") {
+			!strings.HasSuffix(fileName, ".mts") && !strings.HasSuffix(fileName, ".mjs") &&
+			!strings.HasSuffix(fileName, ".json") && !strings.HasSuffix(fileName, ".geojson") {
 			continue
 		}
 

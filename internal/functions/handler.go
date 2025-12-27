@@ -15,6 +15,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
+	"github.com/fluxbase-eu/fluxbase/internal/secrets"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,7 @@ type Handler struct {
 	scheduler      *Scheduler
 	authService    *auth.Service
 	loggingService *logging.Service
+	secretsStorage *secrets.Storage
 	functionsDir   string
 	corsConfig     config.CORSConfig
 	publicURL      string
@@ -36,12 +38,13 @@ type Handler struct {
 }
 
 // NewHandler creates a new edge functions handler
-func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string, authService *auth.Service, loggingService *logging.Service) *Handler {
+func NewHandler(db *database.Connection, functionsDir string, corsConfig config.CORSConfig, jwtSecret, publicURL string, authService *auth.Service, loggingService *logging.Service, secretsStorage *secrets.Storage) *Handler {
 	h := &Handler{
 		storage:        NewStorage(db),
 		runtime:        runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
 		authService:    authService,
 		loggingService: loggingService,
+		secretsStorage: secretsStorage,
 		functionsDir:   functionsDir,
 		corsConfig:     corsConfig,
 		publicURL:      publicURL,
@@ -919,8 +922,19 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		timeoutOverride = &timeout
 	}
 
+	// Load secrets for this function's namespace
+	var functionSecrets map[string]string
+	if h.secretsStorage != nil {
+		var err error
+		functionSecrets, err = h.secretsStorage.GetSecretsForNamespace(c.Context(), fn.Namespace)
+		if err != nil {
+			log.Warn().Err(err).Str("namespace", fn.Namespace).Msg("Failed to load secrets for function execution")
+			// Continue without secrets - don't fail the function invocation
+		}
+	}
+
 	// Execute function (nil cancel signal for basic invocation - streaming endpoint will use actual signal)
-	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil, timeoutOverride)
+	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil, timeoutOverride, functionSecrets)
 
 	// Complete execution record
 	durationMs := int(result.DurationMs)

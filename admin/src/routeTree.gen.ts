@@ -33,6 +33,7 @@ import { Route as AuthenticatedStorageConfigIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedSqlEditorIndexRouteImport } from './routes/_authenticated/sql-editor/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes/_authenticated/security-settings/index'
+import { Route as AuthenticatedSecretsIndexRouteImport } from './routes/_authenticated/secrets/index'
 import { Route as AuthenticatedRpcIndexRouteImport } from './routes/_authenticated/rpc/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
@@ -179,6 +180,12 @@ const AuthenticatedSecuritySettingsIndexRoute =
   AuthenticatedSecuritySettingsIndexRouteImport.update({
     id: '/security-settings/',
     path: '/security-settings/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSecretsIndexRoute =
+  AuthenticatedSecretsIndexRouteImport.update({
+    id: '/secrets/',
+    path: '/secrets/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRpcIndexRoute = AuthenticatedRpcIndexRouteImport.update({
@@ -338,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
+  '/secrets': typeof AuthenticatedSecretsIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
@@ -384,6 +392,7 @@ export interface FileRoutesByTo {
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
+  '/secrets': typeof AuthenticatedSecretsIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
@@ -432,6 +441,7 @@ export interface FileRoutesById {
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
   '/_authenticated/rpc/': typeof AuthenticatedRpcIndexRoute
+  '/_authenticated/secrets/': typeof AuthenticatedSecretsIndexRoute
   '/_authenticated/security-settings/': typeof AuthenticatedSecuritySettingsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/sql-editor/': typeof AuthenticatedSqlEditorIndexRoute
@@ -480,6 +490,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/realtime'
     | '/rpc'
+    | '/secrets'
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
@@ -526,6 +537,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/realtime'
     | '/rpc'
+    | '/secrets'
     | '/security-settings'
     | '/settings'
     | '/sql-editor'
@@ -573,6 +585,7 @@ export interface FileRouteTypes {
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
     | '/_authenticated/rpc/'
+    | '/_authenticated/secrets/'
     | '/_authenticated/security-settings/'
     | '/_authenticated/settings/'
     | '/_authenticated/sql-editor/'
@@ -774,6 +787,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSecuritySettingsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/secrets/': {
+      id: '/_authenticated/secrets/'
+      path: '/secrets'
+      fullPath: '/secrets'
+      preLoaderRoute: typeof AuthenticatedSecretsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/rpc/': {
       id: '/_authenticated/rpc/'
       path: '/rpc'
@@ -944,6 +964,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
   AuthenticatedRpcIndexRoute: typeof AuthenticatedRpcIndexRoute
+  AuthenticatedSecretsIndexRoute: typeof AuthenticatedSecretsIndexRoute
   AuthenticatedSecuritySettingsIndexRoute: typeof AuthenticatedSecuritySettingsIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSqlEditorIndexRoute: typeof AuthenticatedSqlEditorIndexRoute
@@ -977,6 +998,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
   AuthenticatedRpcIndexRoute: AuthenticatedRpcIndexRoute,
+  AuthenticatedSecretsIndexRoute: AuthenticatedSecretsIndexRoute,
   AuthenticatedSecuritySettingsIndexRoute:
     AuthenticatedSecuritySettingsIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,

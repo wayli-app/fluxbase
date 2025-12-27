@@ -448,24 +448,42 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Read shared modules for bundling
+	// Read shared modules for bundling (recursively, including JSON/GeoJSON)
 	sharedModulesMap := make(map[string]string)
 	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
-		sharedEntries, err := os.ReadDir(sharedDir)
-		if err == nil {
-			for _, entry := range sharedEntries {
-				if entry.IsDir() {
-					continue
-				}
-				name := entry.Name()
-				if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
-					continue
-				}
-				content, err := os.ReadFile(filepath.Join(sharedDir, name)) //nolint:gosec // CLI tool reads user-provided file path
-				if err == nil {
-					sharedModulesMap["_shared/"+name] = string(content)
-				}
+		err := filepath.WalkDir(sharedDir, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil // Skip files we can't access
 			}
+			if d.IsDir() {
+				return nil // Continue into directories
+			}
+
+			name := d.Name()
+			// Include TypeScript, JavaScript, JSON, and GeoJSON files
+			if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") &&
+				!strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".geojson") {
+				return nil
+			}
+
+			content, err := os.ReadFile(path) //nolint:gosec // CLI tool reads user-provided file path
+			if err != nil {
+				return nil // Skip files we can't read
+			}
+
+			// Calculate relative path from jobSyncDir (e.g., "_shared/services/utils.ts")
+			relPath, err := filepath.Rel(jobSyncDir, path)
+			if err != nil {
+				return nil
+			}
+			// Normalize to forward slashes for consistent module paths
+			relPath = filepath.ToSlash(relPath)
+
+			sharedModulesMap[relPath] = string(content)
+			return nil
+		})
+		if err != nil {
+			fmt.Printf("Warning: error walking shared directory: %v\n", err)
 		}
 	}
 
@@ -482,7 +500,7 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 
 	// Bundle jobs that have imports
 	if needsBundling {
-		b, err := bundler.NewBundler()
+		b, err := bundler.NewBundler(jobSyncDir)
 		if err != nil {
 			return fmt.Errorf("bundling requires Deno: %w", err)
 		}
@@ -500,12 +518,18 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("job %s: %w", jobName, err)
 			}
 
-			fmt.Printf("Bundling %s...\n", jobName)
+			fmt.Printf("Bundling %s...", jobName)
 
 			result, err := b.Bundle(ctx, code, sharedModulesMap)
 			if err != nil {
+				fmt.Println() // Complete the line
 				return fmt.Errorf("failed to bundle %s: %w", jobName, err)
 			}
+
+			// Print size info
+			originalSize := len(code)
+			bundledSize := len(result.BundledCode)
+			fmt.Printf(" %s → %s\n", formatBytes(originalSize), formatBytes(bundledSize))
 
 			// Replace code with bundled code
 			jobs[i]["code"] = result.BundledCode

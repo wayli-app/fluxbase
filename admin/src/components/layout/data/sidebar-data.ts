@@ -23,6 +23,7 @@ import {
   Puzzle,
   BookOpen,
   ScrollText,
+  Lock,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -167,6 +168,11 @@ export const sidebarData: SidebarData = {
           title: 'Security Settings',
           url: '/security-settings',
           icon: ShieldCheck,
+        },
+        {
+          title: 'Secrets',
+          url: '/secrets',
+          icon: Lock,
         },
         {
           title: 'API Keys',

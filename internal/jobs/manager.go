@@ -7,30 +7,33 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/secrets"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
 // Manager manages multiple workers
 type Manager struct {
-	Config    *config.JobsConfig
-	Storage   *Storage
-	Workers   []*Worker
-	jwtSecret string
-	publicURL string
-	wg        sync.WaitGroup
-	stopCh    chan struct{}
+	Config         *config.JobsConfig
+	Storage        *Storage
+	SecretsStorage *secrets.Storage
+	Workers        []*Worker
+	jwtSecret      string
+	publicURL      string
+	wg             sync.WaitGroup
+	stopCh         chan struct{}
 }
 
 // NewManager creates a new worker manager
-func NewManager(cfg *config.JobsConfig, conn *database.Connection, jwtSecret, publicURL string) *Manager {
+func NewManager(cfg *config.JobsConfig, conn *database.Connection, jwtSecret, publicURL string, secretsStorage *secrets.Storage) *Manager {
 	return &Manager{
-		Config:    cfg,
-		Storage:   NewStorage(conn),
-		Workers:   make([]*Worker, 0),
-		jwtSecret: jwtSecret,
-		publicURL: publicURL,
-		stopCh:    make(chan struct{}),
+		Config:         cfg,
+		Storage:        NewStorage(conn),
+		SecretsStorage: secretsStorage,
+		Workers:        make([]*Worker, 0),
+		jwtSecret:      jwtSecret,
+		publicURL:      publicURL,
+		stopCh:         make(chan struct{}),
 	}
 }
 
@@ -47,7 +50,7 @@ func (m *Manager) Start(ctx context.Context, workerCount int) error {
 
 	// Start workers
 	for i := 0; i < workerCount; i++ {
-		worker := NewWorker(m.Config, m.Storage, m.jwtSecret, m.publicURL)
+		worker := NewWorker(m.Config, m.Storage, m.jwtSecret, m.publicURL, m.SecretsStorage)
 		m.Workers = append(m.Workers, worker)
 
 		m.wg.Add(1)

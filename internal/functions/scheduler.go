@@ -8,6 +8,7 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
+	"github.com/fluxbase-eu/fluxbase/internal/secrets"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 	"github.com/rs/zerolog/log"
@@ -15,23 +16,24 @@ import (
 
 // Scheduler manages scheduled execution of edge functions via cron
 type Scheduler struct {
-	cron          *cron.Cron
-	storage       *Storage
-	runtime       *runtime.DenoRuntime
-	maxConcurrent int
-	activeMu      sync.Mutex
-	activeCount   int
-	functionJobs  map[string]cron.EntryID // function name -> cron entry ID
-	jobsMu        sync.RWMutex
-	ctx           context.Context
-	cancel        context.CancelFunc
-	jwtSecret     string
-	publicURL     string
-	logCounters   sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
+	cron           *cron.Cron
+	storage        *Storage
+	runtime        *runtime.DenoRuntime
+	secretsStorage *secrets.Storage
+	maxConcurrent  int
+	activeMu       sync.Mutex
+	activeCount    int
+	functionJobs   map[string]cron.EntryID // function name -> cron entry ID
+	jobsMu         sync.RWMutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	jwtSecret      string
+	publicURL      string
+	logCounters    sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
 }
 
 // NewScheduler creates a new scheduler for edge functions
-func NewScheduler(db *database.Connection, jwtSecret, publicURL string) *Scheduler {
+func NewScheduler(db *database.Connection, jwtSecret, publicURL string, secretsStorage *secrets.Storage) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Use a parser that supports both standard 5-field cron expressions
@@ -43,15 +45,16 @@ func NewScheduler(db *database.Connection, jwtSecret, publicURL string) *Schedul
 	)
 
 	s := &Scheduler{
-		cron:          cron.New(cron.WithParser(parser)),
-		storage:       NewStorage(db),
-		runtime:       runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
-		maxConcurrent: 10,
-		functionJobs:  make(map[string]cron.EntryID),
-		ctx:           ctx,
-		cancel:        cancel,
-		jwtSecret:     jwtSecret,
-		publicURL:     publicURL,
+		cron:           cron.New(cron.WithParser(parser)),
+		storage:        NewStorage(db),
+		runtime:        runtime.NewRuntime(runtime.RuntimeTypeFunction, jwtSecret, publicURL),
+		secretsStorage: secretsStorage,
+		maxConcurrent:  10,
+		functionJobs:   make(map[string]cron.EntryID),
+		ctx:            ctx,
+		cancel:         cancel,
+		jwtSecret:      jwtSecret,
+		publicURL:      publicURL,
 	}
 
 	// Set up log callback to capture console.log output
@@ -321,8 +324,19 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		timeoutOverride = &timeout
 	}
 
+	// Load secrets for this function's namespace
+	var functionSecrets map[string]string
+	if s.secretsStorage != nil {
+		var err error
+		functionSecrets, err = s.secretsStorage.GetSecretsForNamespace(s.ctx, fn.Namespace)
+		if err != nil {
+			log.Warn().Err(err).Str("namespace", fn.Namespace).Msg("Failed to load secrets for scheduled function execution")
+			// Continue without secrets - don't fail the function invocation
+		}
+	}
+
 	// Execute (nil cancel signal for scheduled executions)
-	result, err := s.runtime.Execute(s.ctx, fn.Code, req, perms, nil, timeoutOverride)
+	result, err := s.runtime.Execute(s.ctx, fn.Code, req, perms, nil, timeoutOverride, functionSecrets)
 	duration := time.Since(start)
 
 	// Determine final status
