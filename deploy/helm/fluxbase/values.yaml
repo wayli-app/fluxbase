@@ -277,13 +277,13 @@ config:
   ## @param config.email.ses_region AWS SES region
   ##
   email:
-    enabled: false
-    provider: "smtp"
-    from_address: "noreply@localhost"
-    from_name: "Fluxbase"
+    enabled: true
+    provider: ~ # As soon as this is set, this read-only config-based provider is added to the system.
+    from_address: ~
+    from_name: ~
     reply_to_address: ""
     smtp_host: ""
-    smtp_port: 587
+    smtp_port: ~
     smtp_username: ""
     smtp_password: "" # Use existingSecret in production
     smtp_tls: true
@@ -292,7 +292,7 @@ config:
     mailgun_domain: ""
     ses_access_key: "" # Use existingSecret in production
     ses_secret_key: "" # Use existingSecret in production
-    ses_region: "us-east-1"
+    ses_region: ~
 
   ## Edge Functions configuration
   ## @param config.functions.enabled Enable edge functions
@@ -1127,7 +1127,7 @@ httpRoute:
   ## @param httpRoute.timeouts.backendRequest Backend request timeout
   ##
   timeouts:
-    request: "0s"  # No timeout - required for WebSocket connections
+    request: "0s" # No timeout - required for WebSocket connections
     backendRequest: "0s"
   ## Client Settings Policy for NGINX Gateway Fabric
   ## @param httpRoute.clientSettings.enabled Enable ClientSettingsPolicy for body size configuration
@@ -1137,7 +1137,7 @@ httpRoute:
   clientSettings:
     enabled: true
     body:
-      maxSize: "0"  # 0 = unlimited, matches Fluxbase default 2GB body limit
+      maxSize: "0" # 0 = unlimited, matches Fluxbase default 2GB body limit
     annotations: {}
   ## Upstream Settings Policy for NGINX Gateway Fabric
   ## Configures connection pooling and keepalive for backend connections
