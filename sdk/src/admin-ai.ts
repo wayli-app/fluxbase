@@ -288,10 +288,13 @@ export class FluxbaseAdminAI {
   ): Promise<{ data: AIProvider | null; error: Error | null }> {
     try {
       // Convert all config values to strings (API requires map[string]string)
+      // Skip undefined/null values as they shouldn't be sent to the API
       const normalizedConfig: Record<string, string> = {};
       if (request.config) {
         for (const [key, value] of Object.entries(request.config)) {
-          normalizedConfig[key] = String(value);
+          if (value !== undefined && value !== null) {
+            normalizedConfig[key] = String(value);
+          }
         }
       }
 
@@ -333,11 +336,14 @@ export class FluxbaseAdminAI {
   ): Promise<{ data: AIProvider | null; error: Error | null }> {
     try {
       // Convert all config values to strings (API requires map[string]string)
+      // Skip undefined/null values as they shouldn't be sent to the API
       let normalizedUpdates = updates;
       if (updates.config) {
         const normalizedConfig: Record<string, string> = {};
         for (const [key, value] of Object.entries(updates.config)) {
-          normalizedConfig[key] = String(value);
+          if (value !== undefined && value !== null) {
+            normalizedConfig[key] = String(value);
+          }
         }
         normalizedUpdates = { ...updates, config: normalizedConfig };
       }

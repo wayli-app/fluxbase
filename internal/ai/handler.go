@@ -727,6 +727,22 @@ type CreateProviderRequest struct {
 	Enabled      bool              `json:"enabled"`
 }
 
+// sanitizeConfig removes empty, "undefined", and "null" string values from config
+func sanitizeConfig(config map[string]string) map[string]string {
+	if config == nil {
+		return make(map[string]string)
+	}
+	sanitized := make(map[string]string, len(config))
+	for k, v := range config {
+		// Skip empty values and string representations of undefined/null
+		if v == "" || v == "undefined" || v == "null" {
+			continue
+		}
+		sanitized[k] = v
+	}
+	return sanitized
+}
+
 // CreateProvider creates a new AI provider
 // POST /api/v1/admin/ai/providers
 func (h *Handler) CreateProvider(c *fiber.Ctx) error {
@@ -738,6 +754,9 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 			"error": "Invalid request body",
 		})
 	}
+
+	// Sanitize config to remove empty/invalid values
+	req.Config = sanitizeConfig(req.Config)
 
 	// Validate provider type
 	if req.ProviderType != "openai" && req.ProviderType != "azure" && req.ProviderType != "ollama" {
@@ -884,11 +903,12 @@ func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
 		provider.DisplayName = *req.DisplayName
 	}
 	if req.Config != nil {
-		// Merge config - only update fields that are provided
+		// Sanitize and merge config - only update fields that are provided
+		sanitizedConfig := sanitizeConfig(req.Config)
 		if provider.Config == nil {
 			provider.Config = make(map[string]string)
 		}
-		for k, v := range req.Config {
+		for k, v := range sanitizedConfig {
 			// Skip masked api_key - keep existing value
 			if k == "api_key" && v == "***masked***" {
 				continue

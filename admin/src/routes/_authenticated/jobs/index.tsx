@@ -1261,6 +1261,14 @@ function JobsPage() {
                       />
                     </div>
                     <div className='flex shrink-0 items-center gap-1'>
+                      {fn.source === 'filesystem' && fn.updated_at && (
+                        <span
+                          className='text-muted-foreground text-[10px]'
+                          title={`Last synced: ${new Date(fn.updated_at).toLocaleString()}`}
+                        >
+                          synced {new Date(fn.updated_at).toLocaleDateString()}
+                        </span>
+                      )}
                       <span className='text-muted-foreground text-[10px]'>
                         {fn.timeout_seconds}s / {fn.max_retries}r
                       </span>

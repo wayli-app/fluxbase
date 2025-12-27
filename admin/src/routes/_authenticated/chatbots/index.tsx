@@ -223,6 +223,14 @@ function ChatbotsPage() {
                   />
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>
+                  {chatbot.source === 'filesystem' && chatbot.updated_at && (
+                    <span
+                      className='text-muted-foreground text-[10px] mr-2'
+                      title={`Last synced: ${new Date(chatbot.updated_at).toLocaleString()}`}
+                    >
+                      synced {new Date(chatbot.updated_at).toLocaleDateString()}
+                    </span>
+                  )}
                   {chatbot.description && (
                     <span className='text-[10px] text-muted-foreground mr-2 max-w-[200px] truncate'>
                       {chatbot.description}

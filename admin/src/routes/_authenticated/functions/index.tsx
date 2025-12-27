@@ -1046,6 +1046,14 @@ async function handler(req: Request) {
                   />
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>
+                  {fn.source === 'filesystem' && fn.updated_at && (
+                    <span
+                      className='text-muted-foreground text-[10px] mr-1'
+                      title={`Last synced: ${new Date(fn.updated_at).toLocaleString()}`}
+                    >
+                      synced {new Date(fn.updated_at).toLocaleDateString()}
+                    </span>
+                  )}
                   <span className='text-[10px] text-muted-foreground mr-1'>{fn.timeout_seconds}s</span>
                   <Tooltip>
                     <TooltipTrigger asChild>

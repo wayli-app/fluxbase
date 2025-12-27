@@ -766,6 +766,14 @@ function RPCContent() {
                       />
                     </div>
                     <div className='flex items-center gap-2 shrink-0'>
+                      {proc.source === 'filesystem' && proc.updated_at && (
+                        <span
+                          className='text-muted-foreground text-[10px]'
+                          title={`Last synced: ${new Date(proc.updated_at).toLocaleString()}`}
+                        >
+                          synced {new Date(proc.updated_at).toLocaleDateString()}
+                        </span>
+                      )}
                       <span className='text-[10px] text-muted-foreground'>
                         {proc.max_execution_time_seconds}s max
                       </span>

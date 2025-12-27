@@ -79,6 +79,7 @@ func init() {
 	_ = viper.BindEnv("server")  // FLUXBASE_SERVER
 	_ = viper.BindEnv("token")   // FLUXBASE_TOKEN
 	_ = viper.BindEnv("profile") // FLUXBASE_PROFILE
+	_ = viper.BindEnv("debug")   // FLUXBASE_DEBUG
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)
@@ -156,6 +157,11 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 			profile.Credentials = &cliconfig.Credentials{}
 		}
 		profile.Credentials.APIKey = envToken
+	}
+
+	// Override debug from environment if set
+	if viper.GetBool("debug") {
+		debug = true
 	}
 
 	// Create API client

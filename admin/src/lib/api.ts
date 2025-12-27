@@ -662,6 +662,7 @@ export interface EdgeFunction {
   allow_env: boolean
   allow_read: boolean
   allow_write: boolean
+  source: string
   created_at: string
   updated_at: string
 }
@@ -919,6 +920,7 @@ export interface JobFunction {
   require_role?: string
   version: number
   created_by?: string
+  source: string
   created_at: string
   updated_at: string
 }
