@@ -114,7 +114,7 @@ on:
         description: "Publish Postgres Docker images"
         required: false
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
