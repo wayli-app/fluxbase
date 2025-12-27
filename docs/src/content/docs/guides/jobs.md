@@ -677,7 +677,7 @@ The following environment variables are automatically available in jobs:
 | `FLUXBASE_JOB_NAMESPACE` | Job namespace                                 |
 | `FLUXBASE_JOB_CANCELLED` | `"true"` if job was cancelled                 |
 
-Custom `FLUXBASE_*` variables from your server environment are also available (except secrets).
+Custom `FLUXBASE_*` variables from your server environment are also available (except blocked secrets like JWT keys).
 
 ```typescript
 // Read job-specific environment variables
@@ -690,6 +690,51 @@ const apiKey = Deno.env.get("FLUXBASE_EXTERNAL_API_KEY");
 console.log("Info message");
 console.error("Error message");
 ```
+
+#### Secrets
+
+Jobs can access secrets the same way as Edge Functions. Secrets are stored encrypted and injected as `FLUXBASE_SECRET_<NAME>` environment variables:
+
+```typescript
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  // Access secrets via Deno.env
+  const stripeKey = Deno.env.get("FLUXBASE_SECRET_STRIPE_KEY");
+  const webhookSecret = Deno.env.get("FLUXBASE_SECRET_WEBHOOK_SECRET");
+
+  if (!stripeKey) {
+    throw new Error("STRIPE_KEY secret not configured");
+  }
+
+  job.reportProgress(25, "Processing payment...");
+
+  // Use the secret for external API calls
+  const response = await fetch("https://api.stripe.com/v1/charges", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeKey}`,
+    },
+    body: new URLSearchParams({ amount: "1000", currency: "usd" }),
+  });
+
+  job.reportProgress(100, "Complete");
+  return { success: true };
+}
+```
+
+**Managing secrets:** Use the CLI to create, update, and delete secrets:
+
+```bash
+fluxbase secrets set STRIPE_KEY "sk_live_..."
+fluxbase secrets set WEBHOOK_SECRET "whsec_..." --scope namespace --namespace payments
+fluxbase secrets list
+```
+
+See the [Edge Functions guide](./edge-functions.md#secrets) for full CLI reference and scope details.
 
 :::note[SDK Configuration]
 The SDK clients are automatically configured using `FLUXBASE_URL`. If your `fluxbase` or `fluxbaseService` parameters are `null`, check that:

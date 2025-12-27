@@ -1219,6 +1219,97 @@ const s3Secret = Deno.env.get("FLUXBASE_STORAGE_S3_SECRET_KEY");
 - `FLUXBASE_EMAIL_SMTP_PASSWORD`
 - `FLUXBASE_SECURITY_SETUP_TOKEN`
 
+## Secrets
+
+Secrets provide secure storage for sensitive values like API keys, database credentials, and tokens. Secrets are encrypted at rest and injected into functions as environment variables at runtime.
+
+### Creating Secrets
+
+Use the CLI to manage secrets:
+
+```bash
+# Create a global secret (available to all functions)
+fluxbase secrets set API_KEY "sk-your-api-key"
+
+# Create a namespace-scoped secret (overrides global for that namespace)
+fluxbase secrets set DATABASE_URL "postgres://..." --scope namespace --namespace my-service
+
+# Set an expiring secret
+fluxbase secrets set TEMP_TOKEN "token123" --expires 30d
+
+# List all secrets (values are never shown)
+fluxbase secrets list
+
+# View secret metadata
+fluxbase secrets get API_KEY
+
+# Delete a secret
+fluxbase secrets delete API_KEY
+
+# View version history
+fluxbase secrets history API_KEY
+
+# Rollback to a previous version
+fluxbase secrets rollback API_KEY 2
+```
+
+### Accessing Secrets in Functions
+
+Secrets are injected as `FLUXBASE_SECRET_<NAME>` environment variables (name is uppercased):
+
+```typescript
+async function handler(req) {
+  // Access secrets via Deno.env
+  const apiKey = Deno.env.get("FLUXBASE_SECRET_API_KEY");
+  const dbUrl = Deno.env.get("FLUXBASE_SECRET_DATABASE_URL");
+
+  if (!apiKey) {
+    return {
+      status: 500,
+      body: JSON.stringify({ error: "API_KEY secret not configured" }),
+    };
+  }
+
+  // Use the secret
+  const response = await fetch("https://api.example.com/data", {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  return {
+    status: 200,
+    body: JSON.stringify(await response.json()),
+  };
+}
+```
+
+### Secret Scopes
+
+| Scope       | Description                                            |
+| ----------- | ------------------------------------------------------ |
+| `global`    | Available to all functions across all namespaces       |
+| `namespace` | Available only to functions in that specific namespace |
+
+**Priority:** Namespace-scoped secrets override global secrets with the same name.
+
+```bash
+# Global secret
+fluxbase secrets set STRIPE_KEY "sk_test_global"
+
+# Namespace override for production
+fluxbase secrets set STRIPE_KEY "sk_live_prod" --scope namespace --namespace production
+```
+
+Functions in the `production` namespace will receive `sk_live_prod`, while all other functions receive `sk_test_global`.
+
+### Security Notes
+
+- Secret values are **never logged** or returned by the API
+- Secrets are **encrypted at rest** using the server's encryption key
+- Version history allows **rollback** without exposing previous values
+- Expired secrets are automatically excluded from function execution
+
 ## REST API
 
 For direct HTTP access without the SDK, see the [SDK Documentation](/docs/api/sdk).
