@@ -311,7 +311,7 @@ jobs:
           sed -i "s|image: ghcr.io/fluxbase-eu/fluxbase:.*|image: ghcr.io/fluxbase-eu/fluxbase:${VERSION}|g" deploy/docker-compose.yml
 
           # Update CLI installation docs with new version
-          sed -i "s|install-cli.sh | bash -s -- v[0-9.]*-*[a-z0-9.]*|install-cli.sh | bash -s -- ${TAG}|g" docs/src/content/docs/cli/installation.md
+          sed -i "s#install-cli.sh | bash -s -- v[0-9.]*-*[a-z0-9.]*#install-cli.sh | bash -s -- ${TAG}#g" docs/src/content/docs/cli/installation.md
 
           # Update NPM package versions
           cd sdk && npm version ${VERSION} --no-git-tag-version && cd ..
