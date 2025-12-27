@@ -73,7 +73,14 @@ detect_platform() {
 
 # Get the latest version from GitHub releases
 get_latest_version() {
-    LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    # First try to get the latest stable release
+    LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+    # If no stable release exists, get the most recent release (including prereleases)
+    if [ -z "$LATEST" ]; then
+        LATEST=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+    fi
+
     if [ -z "$LATEST" ]; then
         error "Failed to fetch latest version"
     fi
