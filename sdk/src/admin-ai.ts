@@ -287,9 +287,20 @@ export class FluxbaseAdminAI {
     request: CreateAIProviderRequest,
   ): Promise<{ data: AIProvider | null; error: Error | null }> {
     try {
+      // Convert all config values to strings (API requires map[string]string)
+      const normalizedConfig: Record<string, string> = {};
+      if (request.config) {
+        for (const [key, value] of Object.entries(request.config)) {
+          normalizedConfig[key] = String(value);
+        }
+      }
+
       const data = await this.fetch.post<AIProvider>(
         "/api/v1/admin/ai/providers",
-        request,
+        {
+          ...request,
+          config: normalizedConfig,
+        },
       );
       return { data, error: null };
     } catch (error) {
@@ -321,9 +332,19 @@ export class FluxbaseAdminAI {
     updates: UpdateAIProviderRequest,
   ): Promise<{ data: AIProvider | null; error: Error | null }> {
     try {
+      // Convert all config values to strings (API requires map[string]string)
+      let normalizedUpdates = updates;
+      if (updates.config) {
+        const normalizedConfig: Record<string, string> = {};
+        for (const [key, value] of Object.entries(updates.config)) {
+          normalizedConfig[key] = String(value);
+        }
+        normalizedUpdates = { ...updates, config: normalizedConfig };
+      }
+
       const data = await this.fetch.put<AIProvider>(
         `/api/v1/admin/ai/providers/${id}`,
-        updates,
+        normalizedUpdates,
       );
       return { data, error: null };
     } catch (error) {

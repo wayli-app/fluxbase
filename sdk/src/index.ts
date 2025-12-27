@@ -138,6 +138,22 @@ export { ImpersonationManager } from "./impersonation";
 // HTTP client (advanced users)
 export { FluxbaseFetch } from "./fetch";
 
+// Type guards
+export {
+  isFluxbaseError,
+  isFluxbaseSuccess,
+  isAuthError,
+  isAuthSuccess,
+  hasPostgrestError,
+  isPostgrestSuccess,
+  isObject,
+  isArray,
+  isString,
+  isNumber,
+  isBoolean,
+  assertType,
+} from "./type-guards";
+
 // Types
 export type {
   // Client options

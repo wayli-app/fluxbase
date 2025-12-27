@@ -74,7 +74,7 @@ export class FluxbaseFunctions {
    * })
    * ```
    */
-  async invoke<T = any>(
+  async invoke<T = unknown>(
     functionName: string,
     options?: FunctionInvokeOptions
   ): Promise<{ data: T | null; error: Error | null }> {

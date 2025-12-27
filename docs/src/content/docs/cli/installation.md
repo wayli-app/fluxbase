@@ -26,26 +26,52 @@ This installs the `fluxbase` command to `/usr/local/bin`.
 
 Download the latest release for your platform from the [releases page](https://github.com/fluxbase-eu/fluxbase/releases).
 
+#### macOS
+
 ```bash
 # macOS (Apple Silicon)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-arm64
-chmod +x fluxbase-darwin-arm64
+curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-arm64.tar.gz
+tar -xzf fluxbase-darwin-arm64.tar.gz
 sudo mv fluxbase-darwin-arm64 /usr/local/bin/fluxbase
 
 # macOS (Intel)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-amd64
-chmod +x fluxbase-darwin-amd64
+curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-darwin-amd64.tar.gz
+tar -xzf fluxbase-darwin-amd64.tar.gz
 sudo mv fluxbase-darwin-amd64 /usr/local/bin/fluxbase
+```
 
+#### Linux
+
+```bash
 # Linux (x86_64)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64
-chmod +x fluxbase-linux-amd64
+curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-amd64.tar.gz
+tar -xzf fluxbase-linux-amd64.tar.gz
 sudo mv fluxbase-linux-amd64 /usr/local/bin/fluxbase
 
 # Linux (ARM64)
-curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-arm64
-chmod +x fluxbase-linux-arm64
+curl -LO https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-linux-arm64.tar.gz
+tar -xzf fluxbase-linux-arm64.tar.gz
 sudo mv fluxbase-linux-arm64 /usr/local/bin/fluxbase
+```
+
+#### Windows
+
+Download from the [releases page](https://github.com/fluxbase-eu/fluxbase/releases):
+
+1. Download `fluxbase-windows-amd64.zip`
+2. Extract the archive
+3. Move `fluxbase-windows-amd64.exe` to a directory in your PATH (e.g., `C:\Program Files\Fluxbase\`)
+4. Rename to `fluxbase.exe` for convenience
+
+Or using PowerShell:
+
+```powershell
+# Download and extract
+Invoke-WebRequest -Uri "https://github.com/fluxbase-eu/fluxbase/releases/latest/download/fluxbase-windows-amd64.zip" -OutFile "fluxbase-windows-amd64.zip"
+Expand-Archive -Path "fluxbase-windows-amd64.zip" -DestinationPath "."
+
+# Move to a directory in PATH (run as Administrator)
+Move-Item -Path "fluxbase-windows-amd64.exe" -Destination "C:\Program Files\Fluxbase\fluxbase.exe"
 ```
 
 ### Verify Installation

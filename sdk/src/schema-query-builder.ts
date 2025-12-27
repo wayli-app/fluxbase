@@ -27,7 +27,7 @@ export class SchemaQueryBuilder {
    * @param table - The table name (without schema prefix)
    * @returns A query builder instance for constructing and executing queries
    */
-  from<T = any>(table: string): QueryBuilder<T> {
+  from<T = unknown>(table: string): QueryBuilder<T> {
     return new QueryBuilder<T>(this.fetch, table, this.schemaName);
   }
 }

@@ -79,7 +79,7 @@ export class FluxbaseJobs {
    */
   async submit(
     jobName: string,
-    payload?: any,
+    payload?: unknown,
     options?: {
       priority?: number;
       namespace?: string;

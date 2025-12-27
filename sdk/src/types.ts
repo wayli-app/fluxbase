@@ -321,8 +321,8 @@ export interface RealtimeMessage {
   payload?: unknown
   error?: string
   config?: PostgresChangesConfig // Alternative format for postgres_changes
-  presence?: any // Presence state data
-  broadcast?: any // Broadcast message data
+  presence?: unknown // Presence state data
+  broadcast?: unknown // Broadcast message data
   messageId?: string // Message ID for acknowledgments
   status?: string // Status for acknowledgment messages
   subscription_id?: string // Subscription ID for unsubscribe
@@ -340,7 +340,7 @@ export interface PostgresChangesConfig {
  * Realtime postgres_changes payload structure
  * Compatible with Supabase realtime payloads
  */
-export interface RealtimePostgresChangesPayload<T = any> {
+export interface RealtimePostgresChangesPayload<T = unknown> {
   /** Event type (Supabase-compatible field name) */
   eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*'
   /** Database schema */
@@ -393,7 +393,7 @@ export interface RealtimeChannelConfig {
  * Presence state for a user
  */
 export interface PresenceState {
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**
@@ -418,7 +418,7 @@ export type PresenceCallback = (payload: RealtimePresencePayload) => void
 export interface BroadcastMessage {
   type: 'broadcast'
   event: string
-  payload: any
+  payload: unknown
 }
 
 /**
@@ -426,7 +426,7 @@ export interface BroadcastMessage {
  */
 export interface RealtimeBroadcastPayload {
   event: string
-  payload: any
+  payload: unknown
 }
 
 /**
@@ -446,7 +446,7 @@ export interface FileObject {
   created_at?: string
   updated_at?: string
   last_accessed_at?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -813,7 +813,7 @@ export interface SignInWithOtpCredentials {
   options?: {
     emailRedirectTo?: string
     shouldCreateUser?: boolean
-    data?: Record<string, any>
+    data?: Record<string, unknown>
     captchaToken?: string
   }
 }
@@ -849,7 +849,7 @@ export interface OTPResponse {
 export interface UserIdentity {
   id: string
   user_id: string
-  identity_data?: Record<string, any>
+  identity_data?: Record<string, unknown>
   provider: string
   created_at: string
   updated_at: string
@@ -948,7 +948,7 @@ export interface EnrichedUser {
   last_login_at?: string
   session_count?: number
   is_anonymous?: boolean
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface ListUsersResponse {
@@ -1085,7 +1085,7 @@ export interface WebhookDelivery {
   id: string
   webhook_id: string
   event: string
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   status_code?: number
   response_body?: string
   error?: string
@@ -1794,7 +1794,7 @@ export interface FunctionInvokeOptions {
   /**
    * Request body to send to the function
    */
-  body?: any
+  body?: unknown
 
   /**
    * Custom headers to include in the request
@@ -2068,8 +2068,8 @@ export interface Job {
   job_function_id?: string
   job_name: string
   status: JobStatus
-  payload?: any
-  result?: any
+  payload?: unknown
+  result?: unknown
   error?: string
   logs?: string
   priority: number
@@ -2077,7 +2077,7 @@ export interface Job {
   progress_timeout_seconds?: number
   progress_percent?: number
   progress_message?: string
-  progress_data?: any
+  progress_data?: unknown
   max_retries: number
   retry_count: number
   worker_id?: string
@@ -2114,7 +2114,7 @@ export interface OnBehalfOf {
 export interface SubmitJobRequest {
   job_name: string
   namespace?: string
-  payload?: any
+  payload?: unknown
   priority?: number
   scheduled?: string
   /**
@@ -2369,6 +2369,7 @@ export interface AIProvider {
 
 /**
  * Request to create an AI provider
+ * Note: config values can be strings, numbers, or booleans - they will be converted to strings automatically
  */
 export interface CreateAIProviderRequest {
   name: string
@@ -2376,15 +2377,16 @@ export interface CreateAIProviderRequest {
   provider_type: AIProviderType
   is_default?: boolean
   enabled?: boolean
-  config: Record<string, string>
+  config: Record<string, string | number | boolean>
 }
 
 /**
  * Request to update an AI provider
+ * Note: config values can be strings, numbers, or booleans - they will be converted to strings automatically
  */
 export interface UpdateAIProviderRequest {
   display_name?: string
-  config?: Record<string, string>
+  config?: Record<string, string | number | boolean>
   enabled?: boolean
 }
 
@@ -2516,7 +2518,7 @@ export interface AIChatServerMessage {
   query?: string
   summary?: string
   row_count?: number
-  data?: Record<string, any>[]
+  data?: Record<string, unknown>[]
   usage?: AIUsageStats
   error?: string
   code?: string

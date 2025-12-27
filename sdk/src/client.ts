@@ -72,7 +72,7 @@ export type CallableRPC = {
    * const { data, error } = await client.rpc('get_user_orders', { user_id: '123' })
    * ```
    */
-  <T = any>(
+  <T = unknown>(
     fn: string,
     params?: Record<string, unknown>,
   ): Promise<{ data: T | null; error: Error | null }>;
@@ -83,8 +83,8 @@ export type CallableRPC = {
  * @category Client
  */
 export class FluxbaseClient<
-  Database = any,
-  _SchemaName extends string & keyof Database = any,
+  Database = unknown,
+  _SchemaName extends string & keyof Database = string & keyof Database,
 > {
   /** Internal HTTP client for making requests */
   private fetch: FluxbaseFetch;
@@ -256,7 +256,7 @@ export class FluxbaseClient<
     const rpcInstance = new FluxbaseRPC(this.fetch);
 
     // Create callable function that wraps invoke() for Supabase-style calls
-    const rpcCallable = async <T = any>(
+    const rpcCallable = async <T = unknown>(
       fn: string,
       params?: Record<string, unknown>,
     ): Promise<{ data: T | null; error: Error | null }> => {
@@ -306,7 +306,7 @@ export class FluxbaseClient<
    *
    * @category Database
    */
-  from<T = any>(table: string): QueryBuilder<T> {
+  from<T = unknown>(table: string): QueryBuilder<T> {
     return new QueryBuilder<T>(this.fetch, table);
   }
 
@@ -532,8 +532,8 @@ function getEnvVar(name: string): string | undefined {
  * @category Client
  */
 export function createClient<
-  Database = any,
-  SchemaName extends string & keyof Database = any,
+  Database = unknown,
+  SchemaName extends string & keyof Database = string & keyof Database,
 >(
   fluxbaseUrl?: string,
   fluxbaseKey?: string,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fluxbase-eu/fluxbase/cli/bundler"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -528,6 +529,71 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  - %s\n", fn["name"])
 		}
 		return nil
+	}
+
+	// Read shared modules for bundling
+	sharedModulesMap := make(map[string]string)
+	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
+		sharedEntries, err := os.ReadDir(sharedDir)
+		if err == nil {
+			for _, entry := range sharedEntries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+					continue
+				}
+				content, err := os.ReadFile(filepath.Join(sharedDir, name)) //nolint:gosec // CLI tool reads user-provided file path
+				if err == nil {
+					sharedModulesMap["_shared/"+name] = string(content)
+				}
+			}
+		}
+	}
+
+	// Check if any function needs bundling
+	needsBundling := false
+	for _, fn := range functions {
+		code := fn["code"].(string)
+		// Simple check for imports
+		if strings.Contains(code, "import ") {
+			needsBundling = true
+			break
+		}
+	}
+
+	// Bundle functions that have imports
+	if needsBundling {
+		b, err := bundler.NewBundler()
+		if err != nil {
+			return fmt.Errorf("bundling requires Deno: %w", err)
+		}
+
+		for i, fn := range functions {
+			code := fn["code"].(string)
+			fnName := fn["name"].(string)
+
+			if !b.NeedsBundle(code) {
+				continue // No imports, skip bundling
+			}
+
+			// Validate imports first
+			if err := b.ValidateImports(code); err != nil {
+				return fmt.Errorf("function %s: %w", fnName, err)
+			}
+
+			fmt.Printf("Bundling %s...\n", fnName)
+
+			result, err := b.Bundle(ctx, code, sharedModulesMap)
+			if err != nil {
+				return fmt.Errorf("failed to bundle %s: %w", fnName, err)
+			}
+
+			// Replace code with bundled code
+			functions[i]["code"] = result.BundledCode
+			functions[i]["is_bundled"] = true
+		}
 	}
 
 	// Call sync API

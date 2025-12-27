@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fluxbase-eu/fluxbase/cli/bundler"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
 
@@ -445,6 +446,71 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  - %s\n", job["name"])
 		}
 		return nil
+	}
+
+	// Read shared modules for bundling
+	sharedModulesMap := make(map[string]string)
+	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
+		sharedEntries, err := os.ReadDir(sharedDir)
+		if err == nil {
+			for _, entry := range sharedEntries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+					continue
+				}
+				content, err := os.ReadFile(filepath.Join(sharedDir, name)) //nolint:gosec // CLI tool reads user-provided file path
+				if err == nil {
+					sharedModulesMap["_shared/"+name] = string(content)
+				}
+			}
+		}
+	}
+
+	// Check if any job needs bundling
+	needsBundling := false
+	for _, job := range jobs {
+		code := job["code"].(string)
+		// Simple check for imports
+		if strings.Contains(code, "import ") {
+			needsBundling = true
+			break
+		}
+	}
+
+	// Bundle jobs that have imports
+	if needsBundling {
+		b, err := bundler.NewBundler()
+		if err != nil {
+			return fmt.Errorf("bundling requires Deno: %w", err)
+		}
+
+		for i, job := range jobs {
+			code := job["code"].(string)
+			jobName := job["name"].(string)
+
+			if !b.NeedsBundle(code) {
+				continue // No imports, skip bundling
+			}
+
+			// Validate imports first
+			if err := b.ValidateImports(code); err != nil {
+				return fmt.Errorf("job %s: %w", jobName, err)
+			}
+
+			fmt.Printf("Bundling %s...\n", jobName)
+
+			result, err := b.Bundle(ctx, code, sharedModulesMap)
+			if err != nil {
+				return fmt.Errorf("failed to bundle %s: %w", jobName, err)
+			}
+
+			// Replace code with bundled code
+			jobs[i]["code"] = result.BundledCode
+			jobs[i]["is_bundled"] = true
+		}
 	}
 
 	// Call sync API
