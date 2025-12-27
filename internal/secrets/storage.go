@@ -186,7 +186,6 @@ func (s *Storage) ListSecrets(ctx context.Context, scope *string, namespace *str
 	if namespace != nil {
 		query += fmt.Sprintf(" AND namespace = $%d", argIdx)
 		args = append(args, *namespace)
-		argIdx++
 	}
 
 	query += " ORDER BY scope, namespace NULLS FIRST, name"
@@ -249,7 +248,6 @@ func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *st
 	if expiresAt != nil {
 		updates += fmt.Sprintf(", expires_at = $%d", argIdx)
 		args = append(args, *expiresAt)
-		argIdx++
 	}
 
 	query := fmt.Sprintf(`
