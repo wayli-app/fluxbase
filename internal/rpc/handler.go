@@ -427,6 +427,9 @@ func (h *Handler) needsUpdate(existing, new *Procedure) bool {
 	if existing.SQLQuery != new.SQLQuery {
 		return true
 	}
+	if existing.OriginalCode != new.OriginalCode {
+		return true
+	}
 	if existing.Description != new.Description {
 		return true
 	}

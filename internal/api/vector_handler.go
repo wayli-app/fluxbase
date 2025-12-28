@@ -34,7 +34,7 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 	// Priority:
 	// 1. If EmbeddingEnabled is explicitly true, use explicit embedding configuration
 	// 2. If EmbeddingProvider is set (even without EmbeddingEnabled), use it
-	// 3. If AI provider is configured (ProviderType), automatically use it for embeddings
+	// 3. If AI provider is configured (ProviderType or inferred from API keys), automatically use it for embeddings
 	if cfg.EmbeddingEnabled || cfg.EmbeddingProvider != "" {
 		// Explicit embedding configuration
 		embeddingCfg, err := buildEmbeddingConfig(cfg)
@@ -54,15 +54,19 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 				}
 			} else {
 				handler.embeddingService = service
+				// Log the actual provider being used (may fall back to ProviderType or inferred)
+				actualProvider := inferProviderType(cfg)
 				log.Info().
-					Str("provider", cfg.EmbeddingProvider).
+					Str("provider", actualProvider).
 					Msg("Embedding service initialized from explicit configuration")
 			}
 		}
 	}
 
 	// Auto-enable from AI provider if no embedding service yet and AI provider is configured
-	if handler.embeddingService == nil && cfg.ProviderType != "" {
+	// Try explicit ProviderType first, then infer from API keys
+	inferredProvider := inferProviderType(cfg)
+	if handler.embeddingService == nil && inferredProvider != "" {
 		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
 		if err != nil {
 			log.Debug().Err(err).Msg("Could not auto-enable embedding from AI provider")
@@ -73,7 +77,7 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 			} else {
 				handler.embeddingService = service
 				log.Info().
-					Str("provider", cfg.ProviderType).
+					Str("provider", inferredProvider).
 					Msg("Embedding service auto-enabled from AI provider")
 			}
 		}
@@ -82,13 +86,33 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 	return handler, nil
 }
 
+// inferProviderType determines the AI provider type from explicit config or API keys
+func inferProviderType(cfg *config.AIConfig) string {
+	// First check explicit embedding provider
+	if cfg.EmbeddingProvider != "" {
+		return cfg.EmbeddingProvider
+	}
+	// Then check explicit AI provider type
+	if cfg.ProviderType != "" {
+		return cfg.ProviderType
+	}
+	// Infer from configured API keys (in order of preference)
+	if cfg.OpenAIAPIKey != "" {
+		return "openai"
+	}
+	if cfg.AzureAPIKey != "" && cfg.AzureEndpoint != "" {
+		return "azure"
+	}
+	if cfg.OllamaEndpoint != "" {
+		return "ollama"
+	}
+	return ""
+}
+
 // buildEmbeddingConfig builds the embedding service config from AI config
 func buildEmbeddingConfig(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, error) {
-	// Determine provider type (fallback to main provider if embedding provider not specified)
-	providerType := cfg.EmbeddingProvider
-	if providerType == "" {
-		providerType = cfg.ProviderType
-	}
+	// Determine provider type (fallback to main provider or infer from API keys)
+	providerType := inferProviderType(cfg)
 
 	// Determine default model based on provider if not explicitly set
 	defaultModel := cfg.EmbeddingModel
@@ -145,8 +169,9 @@ func buildEmbeddingConfig(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, erro
 
 // buildEmbeddingConfigFromAIProvider builds embedding config using AI provider settings as fallback
 // This allows embeddings to work when only the main AI provider is configured (e.g., OpenAI for chatbots)
+// or when the provider can be inferred from API keys
 func buildEmbeddingConfigFromAIProvider(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, error) {
-	providerType := cfg.ProviderType
+	providerType := inferProviderType(cfg)
 
 	// Build provider config using the main AI provider credentials
 	providerCfg := ai.ProviderConfig{
