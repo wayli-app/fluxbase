@@ -276,10 +276,22 @@ services:
       # FLUXBASE_AI_AZURE_ENDPOINT: ""
       # FLUXBASE_AI_AZURE_DEPLOYMENT_NAME: ""
       # FLUXBASE_AI_AZURE_API_VERSION: ""
+      # FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME: ""
 
       # Ollama Configuration
       # FLUXBASE_AI_OLLAMA_ENDPOINT: ""
       # FLUXBASE_AI_OLLAMA_MODEL: ""
+
+      # Embedding Configuration (for vector search / knowledge bases)
+      # Embeddings are auto-enabled when an AI provider with embedding support is configured
+      # FLUXBASE_AI_EMBEDDING_ENABLED: "false"
+      # FLUXBASE_AI_EMBEDDING_PROVIDER: ""  # openai, azure, ollama (defaults to provider_type)
+      # FLUXBASE_AI_EMBEDDING_MODEL: "text-embedding-3-small"
+
+      # OCR Configuration (for image-based PDF extraction in knowledge bases)
+      # FLUXBASE_AI_OCR_ENABLED: "false"
+      # FLUXBASE_AI_OCR_PROVIDER: "tesseract"
+      # FLUXBASE_AI_OCR_LANGUAGES: "eng"  # Comma-separated, e.g., "eng,deu"
 
       # ==========================================================================
       # Logging Configuration

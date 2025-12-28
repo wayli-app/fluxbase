@@ -570,6 +570,14 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.openaiApiKey" . }}
                   optional: true
             {{- end }}
+            {{- if .Values.config.ai.openai_organization_id }}
+            - name: FLUXBASE_AI_OPENAI_ORGANIZATION_ID
+              value: {{ .Values.config.ai.openai_organization_id | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.openai_base_url }}
+            - name: FLUXBASE_AI_OPENAI_BASE_URL
+              value: {{ .Values.config.ai.openai_base_url | quote }}
+            {{- end }}
             {{- if or .Values.config.ai.azure_api_key .Values.existingSecret }}
             - name: FLUXBASE_AI_AZURE_API_KEY
               valueFrom:
@@ -578,6 +586,22 @@ spec:
                   key: {{ include "fluxbase.secretKeyRef.azureApiKey" . }}
                   optional: true
             {{- end }}
+            {{- if .Values.config.ai.azure_endpoint }}
+            - name: FLUXBASE_AI_AZURE_ENDPOINT
+              value: {{ .Values.config.ai.azure_endpoint | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.azure_deployment_name }}
+            - name: FLUXBASE_AI_AZURE_DEPLOYMENT_NAME
+              value: {{ .Values.config.ai.azure_deployment_name | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.azure_api_version }}
+            - name: FLUXBASE_AI_AZURE_API_VERSION
+              value: {{ .Values.config.ai.azure_api_version | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.azure_embedding_deployment_name }}
+            - name: FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME
+              value: {{ .Values.config.ai.azure_embedding_deployment_name | quote }}
+            {{- end }}
             {{- if .Values.config.ai.ollama_endpoint }}
             - name: FLUXBASE_AI_OLLAMA_ENDPOINT
               value: {{ .Values.config.ai.ollama_endpoint | quote }}
@@ -585,6 +609,28 @@ spec:
             {{- if .Values.config.ai.ollama_model }}
             - name: FLUXBASE_AI_OLLAMA_MODEL
               value: {{ .Values.config.ai.ollama_model | quote }}
+            {{- end }}
+            # Embedding Configuration
+            - name: FLUXBASE_AI_EMBEDDING_ENABLED
+              value: {{ .Values.config.ai.embedding_enabled | quote }}
+            {{- if .Values.config.ai.embedding_provider }}
+            - name: FLUXBASE_AI_EMBEDDING_PROVIDER
+              value: {{ .Values.config.ai.embedding_provider | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.embedding_model }}
+            - name: FLUXBASE_AI_EMBEDDING_MODEL
+              value: {{ .Values.config.ai.embedding_model | quote }}
+            {{- end }}
+            # OCR Configuration
+            - name: FLUXBASE_AI_OCR_ENABLED
+              value: {{ .Values.config.ai.ocr_enabled | quote }}
+            {{- if .Values.config.ai.ocr_provider }}
+            - name: FLUXBASE_AI_OCR_PROVIDER
+              value: {{ .Values.config.ai.ocr_provider | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.ocr_languages }}
+            - name: FLUXBASE_AI_OCR_LANGUAGES
+              value: {{ .Values.config.ai.ocr_languages | join "," | quote }}
             {{- end }}
             {{- end }}
 
