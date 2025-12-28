@@ -33,6 +33,39 @@ const _fluxbaseUrl = Deno.env.get('FLUXBASE_URL') || '';
 const _userToken = Deno.env.get('FLUXBASE_USER_TOKEN') || '';
 const _serviceToken = Deno.env.get('FLUXBASE_SERVICE_TOKEN') || '';
 
+// Secrets helper for accessing encrypted settings secrets
+// User secrets (FLUXBASE_USER_*) and system secrets (FLUXBASE_SETTING_*)
+const secrets = {
+  // Normalize key: "openai_api_key" or "ai.openai.key" -> "OPENAI_API_KEY" or "AI_OPENAI_KEY"
+  _normalize(key) {
+    return key.toUpperCase().replace(/\./g, '_');
+  },
+
+  // Get user-specific secret only (no fallback)
+  getUser(key) {
+    return Deno.env.get('FLUXBASE_USER_' + this._normalize(key));
+  },
+
+  // Get system-level secret only (no fallback)
+  getSystem(key) {
+    return Deno.env.get('FLUXBASE_SETTING_' + this._normalize(key));
+  },
+
+  // Get with automatic fallback: user -> system
+  get(key) {
+    return this.getUser(key) ?? this.getSystem(key);
+  },
+
+  // Get required with automatic fallback, throws if not found
+  getRequired(key) {
+    const value = this.get(key);
+    if (value === undefined) {
+      throw new Error("Required secret '" + key + "' not found. Set it via SDK or CLI.");
+    }
+    return value;
+  }
+};
+
 // Embedded Fluxbase SDK for function runtime
 %s
 
@@ -188,6 +221,39 @@ func (r *DenoRuntime) wrapJobCode(userCode string, req ExecutionRequest) string 
 const _fluxbaseUrl = Deno.env.get('FLUXBASE_URL') || '';
 const _jobToken = Deno.env.get('FLUXBASE_JOB_TOKEN') || '';
 const _serviceToken = Deno.env.get('FLUXBASE_SERVICE_TOKEN') || '';
+
+// Secrets helper for accessing encrypted settings secrets
+// User secrets (FLUXBASE_USER_*) and system secrets (FLUXBASE_SETTING_*)
+const secrets = {
+  // Normalize key: "openai_api_key" or "ai.openai.key" -> "OPENAI_API_KEY" or "AI_OPENAI_KEY"
+  _normalize(key) {
+    return key.toUpperCase().replace(/\./g, '_');
+  },
+
+  // Get user-specific secret only (no fallback)
+  getUser(key) {
+    return Deno.env.get('FLUXBASE_USER_' + this._normalize(key));
+  },
+
+  // Get system-level secret only (no fallback)
+  getSystem(key) {
+    return Deno.env.get('FLUXBASE_SETTING_' + this._normalize(key));
+  },
+
+  // Get with automatic fallback: user -> system
+  get(key) {
+    return this.getUser(key) ?? this.getSystem(key);
+  },
+
+  // Get required with automatic fallback, throws if not found
+  getRequired(key) {
+    const value = this.get(key);
+    if (value === undefined) {
+      throw new Error("Required secret '" + key + "' not found. Set it via SDK or CLI.");
+    }
+    return value;
+  }
+};
 
 // Embedded Fluxbase SDK for job runtime
 %s

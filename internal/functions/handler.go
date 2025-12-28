@@ -16,6 +16,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
 	"github.com/fluxbase-eu/fluxbase/internal/secrets"
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,16 +26,17 @@ import (
 
 // Handler manages HTTP endpoints for edge functions
 type Handler struct {
-	storage        *Storage
-	runtime        *runtime.DenoRuntime
-	scheduler      *Scheduler
-	authService    *auth.Service
-	loggingService *logging.Service
-	secretsStorage *secrets.Storage
-	functionsDir   string
-	corsConfig     config.CORSConfig
-	publicURL      string
-	logCounters    sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
+	storage                *Storage
+	runtime                *runtime.DenoRuntime
+	scheduler              *Scheduler
+	authService            *auth.Service
+	loggingService         *logging.Service
+	secretsStorage         *secrets.Storage
+	settingsSecretsService *settings.SecretsService
+	functionsDir           string
+	corsConfig             config.CORSConfig
+	publicURL              string
+	logCounters            sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
 }
 
 // NewHandler creates a new edge functions handler
@@ -59,6 +61,11 @@ func NewHandler(db *database.Connection, functionsDir string, corsConfig config.
 // SetScheduler sets the scheduler for this handler
 func (h *Handler) SetScheduler(scheduler *Scheduler) {
 	h.scheduler = scheduler
+}
+
+// SetSettingsSecretsService sets the settings secrets service for accessing user/system secrets
+func (h *Handler) SetSettingsSecretsService(svc *settings.SecretsService) {
+	h.settingsSecretsService = svc
 }
 
 // handleLogMessage is called when a function outputs a log message via console.log/console.error
@@ -933,8 +940,27 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		}
 	}
 
+	// Load settings secrets (user-specific and system-level)
+	// These are injected as FLUXBASE_USER_* and FLUXBASE_SETTING_* env vars
+	var userIDPtr *uuid.UUID
+	if req.UserID != "" {
+		if parsed, err := uuid.Parse(req.UserID); err == nil {
+			userIDPtr = &parsed
+		}
+	}
+	settingsSecrets := h.loadSettingsSecrets(c.Context(), userIDPtr)
+
+	// Merge all secrets: function secrets first, then settings secrets (which include the env var prefix already)
+	allSecrets := make(map[string]string)
+	for k, v := range functionSecrets {
+		allSecrets[k] = v
+	}
+	for k, v := range settingsSecrets {
+		allSecrets[k] = v
+	}
+
 	// Execute function (nil cancel signal for basic invocation - streaming endpoint will use actual signal)
-	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil, timeoutOverride, functionSecrets)
+	result, err := h.runtime.Execute(c.Context(), fn.Code, req, perms, nil, timeoutOverride, allSecrets)
 
 	// Complete execution record
 	durationMs := int(result.DurationMs)
@@ -1781,6 +1807,51 @@ func (h *Handler) LoadFromFilesystem(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// loadSettingsSecrets loads settings secrets (user-specific and system-level) for function execution.
+// Returns a map of environment variable name -> decrypted value.
+// User secrets use prefix FLUXBASE_USER_, system secrets use prefix FLUXBASE_SETTING_.
+func (h *Handler) loadSettingsSecrets(ctx context.Context, userID *uuid.UUID) map[string]string {
+	if h.settingsSecretsService == nil {
+		return nil
+	}
+
+	envVars := make(map[string]string)
+
+	// Load system-level settings secrets
+	systemSecrets, err := h.settingsSecretsService.GetSystemSecrets(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load system settings secrets for function execution")
+	} else {
+		for key, value := range systemSecrets {
+			envName := "FLUXBASE_SETTING_" + normalizeSettingsKey(key)
+			envVars[envName] = value
+		}
+	}
+
+	// Load user-specific settings secrets (if user is authenticated)
+	if userID != nil {
+		userSecrets, err := h.settingsSecretsService.GetUserSecrets(ctx, *userID)
+		if err != nil {
+			log.Warn().Err(err).Str("user_id", userID.String()).Msg("Failed to load user settings secrets for function execution")
+		} else {
+			for key, value := range userSecrets {
+				envName := "FLUXBASE_USER_" + normalizeSettingsKey(key)
+				envVars[envName] = value
+			}
+		}
+	}
+
+	return envVars
+}
+
+// normalizeSettingsKey converts a settings key to an environment variable suffix.
+// Example: "openai_api_key" -> "OPENAI_API_KEY", "ai.openai.api_key" -> "AI_OPENAI_API_KEY"
+func normalizeSettingsKey(key string) string {
+	// Replace dots with underscores, then uppercase
+	normalized := strings.ReplaceAll(key, ".", "_")
+	return strings.ToUpper(normalized)
 }
 
 // Helper functions

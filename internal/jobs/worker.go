@@ -5,34 +5,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/runtime"
 	"github.com/fluxbase-eu/fluxbase/internal/secrets"
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
 // Worker executes jobs from the queue
 type Worker struct {
-	ID                   uuid.UUID
-	Name                 string
-	Config               *config.JobsConfig
-	Storage              *Storage
-	Runtime              *runtime.DenoRuntime
-	SecretsStorage       *secrets.Storage
-	MaxConcurrent        int
-	publicURL            string
-	currentJobs          sync.Map // jobID -> *runtime.CancelSignal
-	jobLogCounters       sync.Map // jobID -> *int (line counter)
-	jobStartTimes        sync.Map // jobID -> time.Time (for ETA calculation)
-	jobLogsDisabled      sync.Map // jobID -> bool (whether execution logs are disabled)
-	currentJobCount      int
-	currentJobCountMutex sync.RWMutex
-	shutdownChan         chan struct{}
-	shutdownComplete     chan struct{}
+	ID                     uuid.UUID
+	Name                   string
+	Config                 *config.JobsConfig
+	Storage                *Storage
+	Runtime                *runtime.DenoRuntime
+	SecretsStorage         *secrets.Storage
+	SettingsSecretsService *settings.SecretsService
+	MaxConcurrent          int
+	publicURL              string
+	currentJobs            sync.Map // jobID -> *runtime.CancelSignal
+	jobLogCounters         sync.Map // jobID -> *int (line counter)
+	jobStartTimes          sync.Map // jobID -> time.Time (for ETA calculation)
+	jobLogsDisabled        sync.Map // jobID -> bool (whether execution logs are disabled)
+	currentJobCount        int
+	currentJobCountMutex   sync.RWMutex
+	shutdownChan           chan struct{}
+	shutdownComplete       chan struct{}
 }
 
 // NewWorker creates a new worker
@@ -397,8 +400,21 @@ func (w *Worker) executeJob(ctx context.Context, job *Job) {
 		}
 	}
 
+	// Load settings secrets (user-specific and system-level)
+	// These are injected as FLUXBASE_USER_* and FLUXBASE_SETTING_* env vars
+	settingsSecrets := w.loadSettingsSecrets(ctx, job.CreatedBy)
+
+	// Merge all secrets: job secrets first, then settings secrets (which include the env var prefix already)
+	allSecrets := make(map[string]string)
+	for k, v := range jobSecrets {
+		allSecrets[k] = v
+	}
+	for k, v := range settingsSecrets {
+		allSecrets[k] = v
+	}
+
 	// Execute job in runtime
-	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride, jobSecrets)
+	result, err := w.Runtime.Execute(ctx, *jobFunction.Code, execReq, permissions, cancelSignal, timeoutOverride, allSecrets)
 
 	// Check if job was cancelled
 	if cancelSignal.IsCancelled() {
@@ -570,6 +586,51 @@ func (w *Worker) decrementJobCount() {
 	w.currentJobCountMutex.Lock()
 	defer w.currentJobCountMutex.Unlock()
 	w.currentJobCount--
+}
+
+// loadSettingsSecrets loads settings secrets (user-specific and system-level) for job execution.
+// Returns a map of environment variable name -> decrypted value.
+// User secrets use prefix FLUXBASE_USER_, system secrets use prefix FLUXBASE_SETTING_.
+func (w *Worker) loadSettingsSecrets(ctx context.Context, userID *uuid.UUID) map[string]string {
+	if w.SettingsSecretsService == nil {
+		return nil
+	}
+
+	envVars := make(map[string]string)
+
+	// Load system-level settings secrets
+	systemSecrets, err := w.SettingsSecretsService.GetSystemSecrets(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load system settings secrets for job execution")
+	} else {
+		for key, value := range systemSecrets {
+			envName := "FLUXBASE_SETTING_" + normalizeSettingsKey(key)
+			envVars[envName] = value
+		}
+	}
+
+	// Load user-specific settings secrets (if user is authenticated)
+	if userID != nil {
+		userSecrets, err := w.SettingsSecretsService.GetUserSecrets(ctx, *userID)
+		if err != nil {
+			log.Warn().Err(err).Str("user_id", userID.String()).Msg("Failed to load user settings secrets for job execution")
+		} else {
+			for key, value := range userSecrets {
+				envName := "FLUXBASE_USER_" + normalizeSettingsKey(key)
+				envVars[envName] = value
+			}
+		}
+	}
+
+	return envVars
+}
+
+// normalizeSettingsKey converts a settings key to an environment variable suffix.
+// Example: "openai_api_key" -> "OPENAI_API_KEY", "ai.openai.api_key" -> "AI_OPENAI_API_KEY"
+func normalizeSettingsKey(key string) string {
+	// Replace dots with underscores, then uppercase
+	normalized := strings.ReplaceAll(key, ".", "_")
+	return strings.ToUpper(normalized)
 }
 
 // jobToExecutionRequest converts a Job to a runtime.ExecutionRequest

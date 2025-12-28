@@ -8,20 +8,22 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/secrets"
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
 // Manager manages multiple workers
 type Manager struct {
-	Config         *config.JobsConfig
-	Storage        *Storage
-	SecretsStorage *secrets.Storage
-	Workers        []*Worker
-	jwtSecret      string
-	publicURL      string
-	wg             sync.WaitGroup
-	stopCh         chan struct{}
+	Config                 *config.JobsConfig
+	Storage                *Storage
+	SecretsStorage         *secrets.Storage
+	SettingsSecretsService *settings.SecretsService
+	Workers                []*Worker
+	jwtSecret              string
+	publicURL              string
+	wg                     sync.WaitGroup
+	stopCh                 chan struct{}
 }
 
 // NewManager creates a new worker manager
@@ -51,6 +53,7 @@ func (m *Manager) Start(ctx context.Context, workerCount int) error {
 	// Start workers
 	for i := 0; i < workerCount; i++ {
 		worker := NewWorker(m.Config, m.Storage, m.jwtSecret, m.publicURL, m.SecretsStorage)
+		worker.SettingsSecretsService = m.SettingsSecretsService
 		m.Workers = append(m.Workers, worker)
 
 		m.wg.Add(1)
@@ -90,6 +93,11 @@ func (m *Manager) Stop() {
 // GetWorkerCount returns the number of active workers
 func (m *Manager) GetWorkerCount() int {
 	return len(m.Workers)
+}
+
+// SetSettingsSecretsService sets the settings secrets service for accessing user/system secrets
+func (m *Manager) SetSettingsSecretsService(svc *settings.SecretsService) {
+	m.SettingsSecretsService = svc
 }
 
 // CancelJob cancels a running job by signaling all workers

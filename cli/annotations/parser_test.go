@@ -121,11 +121,11 @@ export function handler() {}`
 
 func TestParseFunctionAnnotations_RateLimit(t *testing.T) {
 	tests := []struct {
-		name               string
-		code               string
-		expectedPerMinute  *int
-		expectedPerHour    *int
-		expectedPerDay     *int
+		name              string
+		code              string
+		expectedPerMinute *int
+		expectedPerHour   *int
+		expectedPerDay    *int
 	}{
 		{
 			name:              "Per minute",
@@ -177,8 +177,10 @@ export function handler() {}`
 
 	config := ParseJobAnnotations(code)
 
-	if config.Schedule == nil || *config.Schedule != "0 2 * * *" {
-		t.Errorf("Schedule = %v, want '0 2 * * *'", config.Schedule)
+	if config.Schedule == nil {
+		t.Error("Schedule is nil, want '0 2 * * *'")
+	} else if *config.Schedule != "0 2 * * *" {
+		t.Errorf("Schedule = '%s', want '0 2 * * *'", *config.Schedule)
 	}
 	if config.TimeoutSeconds == nil || *config.TimeoutSeconds != 600 {
 		t.Errorf("TimeoutSeconds = %v, want 600", config.TimeoutSeconds)

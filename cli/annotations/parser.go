@@ -135,7 +135,8 @@ func ParseJobAnnotations(code string) JobConfig {
 
 	// Parse schedule (cron expression)
 	// Supports: @fluxbase:schedule 0 2 * * *
-	if match := regexp.MustCompile(`@fluxbase:schedule\s+([0-9*,/\-\s]+)`).FindStringSubmatch(code); match != nil {
+	// Use [^\n]+ to match until end of line, then extract the cron part
+	if match := regexp.MustCompile(`@fluxbase:schedule\s+([0-9*,/\- ]+)`).FindStringSubmatch(code); match != nil {
 		schedule := strings.TrimSpace(match[1])
 		config.Schedule = &schedule
 	}

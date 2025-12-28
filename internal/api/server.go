@@ -287,6 +287,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		functionsInternalURL = "http://localhost" + cfg.Server.Address
 	}
 	functionsHandler := functions.NewHandler(db, cfg.Functions.FunctionsDir, cfg.CORS, cfg.Auth.JWTSecret, functionsInternalURL, authService, loggingService, secretsStorage)
+	functionsHandler.SetSettingsSecretsService(secretsService)
 	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsInternalURL, secretsStorage)
 	functionsHandler.SetScheduler(functionsScheduler)
 
@@ -307,6 +308,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Bool("jwt_secret_set", cfg.Auth.JWTSecret != "").
 			Msg("Initializing jobs manager with SDK credentials")
 		jobsManager = jobs.NewManager(&cfg.Jobs, db, cfg.Auth.JWTSecret, jobsInternalURL, secretsStorage)
+		jobsManager.SetSettingsSecretsService(secretsService)
 		var err error
 		jobsHandler, err = jobs.NewHandler(db, &cfg.Jobs, jobsManager, authService, loggingService)
 		if err != nil {

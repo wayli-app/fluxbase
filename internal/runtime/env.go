@@ -20,6 +20,7 @@ var blockedVars = map[string]bool{
 
 // buildEnv creates the environment variable list for execution
 // secrets is a map of secret name -> decrypted value that will be injected as FLUXBASE_SECRET_<NAME>
+// Keys starting with "FLUXBASE_" are injected as-is (raw env vars), other keys get the FLUXBASE_SECRET_ prefix
 func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToken, serviceToken string, cancelSignal *CancelSignal, secrets map[string]string) []string {
 	env := []string{}
 
@@ -109,10 +110,18 @@ func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToke
 		}
 	}
 
-	// Inject secrets as FLUXBASE_SECRET_<NAME> environment variables
+	// Inject secrets as environment variables
+	// Keys already starting with "FLUXBASE_" are used as-is (for settings secrets)
+	// Other keys get the FLUXBASE_SECRET_<NAME> prefix (for edge function secrets)
 	for name, value := range secrets {
-		// Convert name to uppercase and replace any invalid characters
-		envName := fmt.Sprintf("FLUXBASE_SECRET_%s", strings.ToUpper(name))
+		var envName string
+		if strings.HasPrefix(name, "FLUXBASE_") {
+			// Raw env var - use as-is (e.g., FLUXBASE_USER_*, FLUXBASE_SETTING_*)
+			envName = name
+		} else {
+			// Legacy secrets - add FLUXBASE_SECRET_ prefix
+			envName = fmt.Sprintf("FLUXBASE_SECRET_%s", strings.ToUpper(name))
+		}
 		env = append(env, fmt.Sprintf("%s=%s", envName, value))
 	}
 
@@ -120,7 +129,8 @@ func buildEnv(req ExecutionRequest, runtimeType RuntimeType, publicURL, userToke
 }
 
 // allowedEnvVars returns the list of allowed environment variables for Deno permissions
-// secretNames is a list of secret names that should be accessible (without the FLUXBASE_SECRET_ prefix)
+// secretNames is a list of secret names that should be accessible
+// Names starting with "FLUXBASE_" are used as-is, other names get the FLUXBASE_SECRET_ prefix
 func allowedEnvVars(runtimeType RuntimeType, secretNames []string) string {
 	var base string
 	switch runtimeType {
@@ -134,7 +144,13 @@ func allowedEnvVars(runtimeType RuntimeType, secretNames []string) string {
 
 	// Add secret env vars to the allowed list
 	for _, name := range secretNames {
-		base += fmt.Sprintf(",FLUXBASE_SECRET_%s", strings.ToUpper(name))
+		if strings.HasPrefix(name, "FLUXBASE_") {
+			// Raw env var - use as-is (e.g., FLUXBASE_USER_*, FLUXBASE_SETTING_*)
+			base += "," + name
+		} else {
+			// Legacy secrets - add FLUXBASE_SECRET_ prefix
+			base += fmt.Sprintf(",FLUXBASE_SECRET_%s", strings.ToUpper(name))
+		}
 	}
 
 	return base
