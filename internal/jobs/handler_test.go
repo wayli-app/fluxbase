@@ -13,7 +13,19 @@ func TestRoleSatisfiesRequirement(t *testing.T) {
 		requiredRole string
 		expected     bool
 	}{
-		// Admin can access everything
+		// service_role can access everything (highest privilege)
+		{"service_role satisfies admin", "service_role", "admin", true},
+		{"service_role satisfies authenticated", "service_role", "authenticated", true},
+		{"service_role satisfies anon", "service_role", "anon", true},
+		{"service_role satisfies custom role", "service_role", "moderator", true},
+
+		// dashboard_admin can access everything (highest privilege)
+		{"dashboard_admin satisfies admin", "dashboard_admin", "admin", true},
+		{"dashboard_admin satisfies authenticated", "dashboard_admin", "authenticated", true},
+		{"dashboard_admin satisfies anon", "dashboard_admin", "anon", true},
+		{"dashboard_admin satisfies custom role", "dashboard_admin", "editor", true},
+
+		// Admin can access everything except service_role/dashboard_admin level
 		{"admin satisfies admin", "admin", "admin", true},
 		{"admin satisfies authenticated", "admin", "authenticated", true},
 		{"admin satisfies anon", "admin", "anon", true},

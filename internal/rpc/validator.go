@@ -260,6 +260,10 @@ func (v *Validator) ValidateAccess(proc *Procedure, userRole string, isAuthentic
 			// Anonymous access allowed
 			return nil
 		case "authenticated":
+			// service_role and dashboard_admin are always considered authenticated
+			if userRole == "service_role" || userRole == "dashboard_admin" {
+				return nil
+			}
 			if !isAuthenticated {
 				return fmt.Errorf("procedure requires authentication")
 			}

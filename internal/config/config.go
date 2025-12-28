@@ -658,10 +658,10 @@ func setDefaults() {
 	viper.SetDefault("ai.ollama_model", "")           // No default model
 
 	// AI Embedding Configuration defaults (for vector search)
-	viper.SetDefault("ai.embedding_enabled", false)                  // Disabled by default
-	viper.SetDefault("ai.embedding_provider", "")                    // Defaults to ai.provider_type if empty
-	viper.SetDefault("ai.embedding_model", "text-embedding-3-small") // Default OpenAI embedding model
-	viper.SetDefault("ai.azure_embedding_deployment_name", "")       // Optional separate Azure embedding deployment
+	viper.SetDefault("ai.embedding_enabled", false)            // Disabled by default
+	viper.SetDefault("ai.embedding_provider", "")              // Defaults to ai.provider_type if empty
+	viper.SetDefault("ai.embedding_model", "")                 // Empty = use provider-specific default (openai: text-embedding-3-small, azure: text-embedding-ada-002, ollama: nomic-embed-text)
+	viper.SetDefault("ai.azure_embedding_deployment_name", "") // Optional separate Azure embedding deployment
 
 	// AI OCR Configuration defaults (for image-based PDF extraction)
 	viper.SetDefault("ai.ocr_enabled", true)              // Enabled by default (will gracefully degrade if Tesseract not installed)

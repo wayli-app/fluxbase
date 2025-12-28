@@ -286,7 +286,7 @@ services:
       # Embeddings are auto-enabled when an AI provider with embedding support is configured
       # FLUXBASE_AI_EMBEDDING_ENABLED: "false"
       # FLUXBASE_AI_EMBEDDING_PROVIDER: ""  # openai, azure, ollama (defaults to provider_type)
-      # FLUXBASE_AI_EMBEDDING_MODEL: "text-embedding-3-small"
+      # FLUXBASE_AI_EMBEDDING_MODEL: ""  # Empty = provider default (openai: text-embedding-3-small, azure: text-embedding-ada-002, ollama: nomic-embed-text)
 
       # OCR Configuration (for image-based PDF extraction in knowledge bases)
       # FLUXBASE_AI_OCR_ENABLED: "false"

@@ -180,20 +180,26 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 }
 
 // roleSatisfiesRequirement checks if the user's role satisfies the required role
-// using a hierarchy where: admin > authenticated > anon
+// using a hierarchy where: service_role/dashboard_admin > admin > authenticated > anon
 func roleSatisfiesRequirement(userRole, requiredRole string) bool {
 	// Define role hierarchy levels (higher number = more privileged)
 	roleLevel := map[string]int{
-		"anon":          0,
-		"authenticated": 1,
-		"admin":         2,
+		"anon":            0,
+		"authenticated":   1,
+		"admin":           2,
+		"dashboard_admin": 3,
+		"service_role":    3,
 	}
 
 	userLevel, userOk := roleLevel[userRole]
 	requiredLevel, requiredOk := roleLevel[requiredRole]
 
 	// If the required role is not in the hierarchy, require exact match
+	// unless user has service_role or dashboard_admin (which bypass all checks)
 	if !requiredOk {
+		if userRole == "service_role" || userRole == "dashboard_admin" {
+			return true
+		}
 		return userRole == requiredRole
 	}
 

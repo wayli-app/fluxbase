@@ -32,36 +32,49 @@ func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInsp
 
 	// Initialize embedding service
 	// Priority:
-	// 1. If EmbeddingEnabled is true, use explicit embedding configuration
-	// 2. If EmbeddingEnabled is false but AI provider is configured (ProviderType is set),
-	//    try to use AI provider credentials as fallback for embeddings
-	if cfg.EmbeddingEnabled {
+	// 1. If EmbeddingEnabled is explicitly true, use explicit embedding configuration
+	// 2. If EmbeddingProvider is set (even without EmbeddingEnabled), use it
+	// 3. If AI provider is configured (ProviderType), automatically use it for embeddings
+	if cfg.EmbeddingEnabled || cfg.EmbeddingProvider != "" {
+		// Explicit embedding configuration
 		embeddingCfg, err := buildEmbeddingConfig(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build embedding config: %w", err)
-		}
-
-		service, err := ai.NewEmbeddingService(embeddingCfg)
-		if err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize embedding service")
-		} else {
-			handler.embeddingService = service
-			log.Info().Msg("Embedding service initialized from explicit configuration")
-		}
-	} else if cfg.ProviderType != "" {
-		// Fallback: Try to use AI provider settings for embeddings
-		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
-		if err != nil {
-			log.Debug().Err(err).Msg("Could not initialize embedding from AI provider (fallback)")
+			if cfg.EmbeddingEnabled {
+				// Only error if explicitly enabled
+				return nil, fmt.Errorf("failed to build embedding config: %w", err)
+			}
+			log.Debug().Err(err).Msg("Could not initialize explicit embedding configuration")
 		} else {
 			service, err := ai.NewEmbeddingService(embeddingCfg)
 			if err != nil {
-				log.Debug().Err(err).Msg("Failed to initialize embedding service from AI provider fallback")
+				if cfg.EmbeddingEnabled {
+					log.Warn().Err(err).Msg("Failed to initialize embedding service")
+				} else {
+					log.Debug().Err(err).Msg("Failed to initialize embedding service")
+				}
+			} else {
+				handler.embeddingService = service
+				log.Info().
+					Str("provider", cfg.EmbeddingProvider).
+					Msg("Embedding service initialized from explicit configuration")
+			}
+		}
+	}
+
+	// Auto-enable from AI provider if no embedding service yet and AI provider is configured
+	if handler.embeddingService == nil && cfg.ProviderType != "" {
+		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
+		if err != nil {
+			log.Debug().Err(err).Msg("Could not auto-enable embedding from AI provider")
+		} else {
+			service, err := ai.NewEmbeddingService(embeddingCfg)
+			if err != nil {
+				log.Debug().Err(err).Msg("Failed to initialize embedding service from AI provider")
 			} else {
 				handler.embeddingService = service
 				log.Info().
 					Str("provider", cfg.ProviderType).
-					Msg("Embedding service initialized from AI provider settings (fallback)")
+					Msg("Embedding service auto-enabled from AI provider")
 			}
 		}
 	}
@@ -77,10 +90,23 @@ func buildEmbeddingConfig(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, erro
 		providerType = cfg.ProviderType
 	}
 
+	// Determine default model based on provider if not explicitly set
+	defaultModel := cfg.EmbeddingModel
+	if defaultModel == "" {
+		switch providerType {
+		case "openai":
+			defaultModel = "text-embedding-3-small"
+		case "azure":
+			defaultModel = "text-embedding-ada-002"
+		case "ollama":
+			defaultModel = "nomic-embed-text"
+		}
+	}
+
 	// Build provider config using the map-based configuration
 	providerCfg := ai.ProviderConfig{
 		Type:   ai.ProviderType(providerType),
-		Model:  cfg.EmbeddingModel,
+		Model:  defaultModel,
 		Config: make(map[string]string),
 	}
 
@@ -112,7 +138,7 @@ func buildEmbeddingConfig(cfg *config.AIConfig) (ai.EmbeddingServiceConfig, erro
 
 	return ai.EmbeddingServiceConfig{
 		Provider:     providerCfg,
-		DefaultModel: cfg.EmbeddingModel,
+		DefaultModel: defaultModel,
 		CacheEnabled: true,
 	}, nil
 }

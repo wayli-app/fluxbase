@@ -551,6 +551,24 @@ func (r *DenoRuntime) parseJobResult(resultLine, stdout, stderr string, lines []
 		if !jobResult.Success {
 			result.Error = jobResult.Error
 		}
+
+		// Check if the nested result indicates failure (e.g., result.success: false)
+		// This handles cases where the wrapper reports success but the actual
+		// business logic returned a failure
+		if result.Success && jobResult.Result != nil {
+			if nestedSuccess, ok := jobResult.Result["success"]; ok {
+				if success, isBool := nestedSuccess.(bool); isBool && !success {
+					result.Success = false
+					// Extract error from nested result if available
+					if nestedError, ok := jobResult.Result["error"]; ok {
+						if errStr, isString := nestedError.(string); isString {
+							result.Error = errStr
+						}
+					}
+				}
+			}
+		}
+
 		return result, nil
 	}
 
@@ -593,6 +611,20 @@ func (r *DenoRuntime) parseJobResult(resultLine, stdout, stderr string, lines []
 	result.Result = jobResult.Result
 	if !jobResult.Success {
 		result.Error = jobResult.Error
+	}
+
+	// Check if the nested result indicates failure (legacy parsing)
+	if result.Success && jobResult.Result != nil {
+		if nestedSuccess, ok := jobResult.Result["success"]; ok {
+			if success, isBool := nestedSuccess.(bool); isBool && !success {
+				result.Success = false
+				if nestedError, ok := jobResult.Result["error"]; ok {
+					if errStr, isString := nestedError.(string); isString {
+						result.Error = errStr
+					}
+				}
+			}
+		}
 	}
 
 	return result, nil
