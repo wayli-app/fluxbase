@@ -245,7 +245,7 @@ func TestCustomSettingErrors(t *testing.T) {
 func TestNewCustomSettingsService(t *testing.T) {
 	// Just test that it doesn't panic with nil db
 	// Real database integration tests would use an actual connection
-	svc := NewCustomSettingsService(nil)
+	svc := NewCustomSettingsService(nil, "12345678901234567890123456789012")
 	assert.NotNil(t, svc)
 }
 

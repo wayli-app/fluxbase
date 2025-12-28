@@ -59,8 +59,10 @@ type Server struct {
 	adminSessionHandler   *AdminSessionHandler
 	systemSettingsHandler *SystemSettingsHandler
 	customSettingsHandler *CustomSettingsHandler
+	userSettingsHandler   *UserSettingsHandler
 	appSettingsHandler    *AppSettingsHandler
 	settingsHandler       *SettingsHandler
+	secretsService        *settings.SecretsService
 	emailTemplateHandler  *EmailTemplateHandler
 	emailSettingsHandler  *EmailSettingsHandler
 	sqlHandler            *SQLHandler
@@ -156,8 +158,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 
 	// Initialize email manager (handles dynamic refresh from settings)
-	// The settings cache will be injected later once auth service is initialized
-	emailManager := email.NewManager(&cfg.Email, nil, cfg.EncryptionKey)
+	// The settings cache and secrets service will be injected later once they're initialized
+	emailManager := email.NewManager(&cfg.Email, nil, nil)
 	// Get a service wrapper that delegates to the manager's current service
 	emailService := emailManager.WrapAsService()
 
@@ -252,8 +254,10 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
-	customSettingsService := settings.NewCustomSettingsService(db)
+	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
+	userSettingsHandler := NewUserSettingsHandler(customSettingsService)
+	secretsService := settings.NewSecretsService(db, cfg.EncryptionKey)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db, emailService)
@@ -263,12 +267,13 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		systemSettingsService,
 		authService.GetSettingsCache(),
 		emailManager,
-		cfg.EncryptionKey,
+		secretsService,
 		&cfg.Email,
 	)
 
-	// Refresh email manager with settings cache now that it's available
+	// Refresh email manager with settings cache and secrets service now that they're available
 	emailManager.SetSettingsCache(authService.GetSettingsCache())
+	emailManager.SetSecretsService(secretsService)
 	if err := emailManager.RefreshFromSettings(context.Background()); err != nil {
 		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
 	}
@@ -493,8 +498,10 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		adminSessionHandler:   adminSessionHandler,
 		systemSettingsHandler: systemSettingsHandler,
 		customSettingsHandler: customSettingsHandler,
+		userSettingsHandler:   userSettingsHandler,
 		appSettingsHandler:    appSettingsHandler,
 		settingsHandler:       settingsHandler,
+		secretsService:        secretsService,
 		emailTemplateHandler:  emailTemplateHandler,
 		emailSettingsHandler:  emailSettingsHandler,
 		sqlHandler:            sqlHandler,
@@ -835,6 +842,17 @@ func (s *Server) setupRoutes() {
 	settings := v1.Group("/settings", OptionalAuthMiddleware(s.authHandler.authService))
 	settings.Get("/:key", s.settingsHandler.GetSetting)
 	settings.Post("/batch", s.settingsHandler.GetSettings)
+
+	// User secret settings routes - require authentication
+	// Users can only access their own secrets (encrypted, server-side decryption only)
+	userSecrets := v1.Group("/settings/secret",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+	)
+	userSecrets.Post("/", s.userSettingsHandler.CreateSecret)
+	userSecrets.Get("/", s.userSettingsHandler.ListSecrets)
+	userSecrets.Get("/*", s.userSettingsHandler.GetSecret)
+	userSecrets.Put("/*", s.userSettingsHandler.UpdateSecret)
+	userSecrets.Delete("/*", s.userSettingsHandler.DeleteSecret)
 
 	// Dashboard auth routes (separate from application auth)
 	s.dashboardAuthHandler.RegisterRoutes(s.app)
@@ -1297,6 +1315,15 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	// Custom settings routes (require admin, dashboard_admin, or service_role)
 	router.Post("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.CreateSetting)
 	router.Get("/settings/custom", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.ListSettings)
+
+	// System secret settings routes (must come before wildcard routes)
+	router.Post("/settings/custom/secret", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.CreateSecretSetting)
+	router.Get("/settings/custom/secrets", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.ListSecretSettings)
+	router.Get("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.GetSecretSetting)
+	router.Put("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.UpdateSecretSetting)
+	router.Delete("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.DeleteSecretSetting)
+
+	// Regular custom settings wildcard routes
 	router.Get("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.GetSetting)
 	router.Put("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.UpdateSetting)
 	router.Delete("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.DeleteSetting)

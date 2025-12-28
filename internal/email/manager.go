@@ -6,25 +6,25 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
-	"github.com/fluxbase-eu/fluxbase/internal/crypto"
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/rs/zerolog/log"
 )
 
 // Manager manages the email service with support for dynamic configuration refresh
 type Manager struct {
-	mu            sync.RWMutex
-	service       Service
-	settingsCache *auth.SettingsCache
-	encryptionKey string
-	envConfig     *config.EmailConfig // Fallback to env config
+	mu             sync.RWMutex
+	service        Service
+	settingsCache  *auth.SettingsCache
+	secretsService *settings.SecretsService
+	envConfig      *config.EmailConfig // Fallback to env config
 }
 
 // NewManager creates a new email service manager
-func NewManager(envConfig *config.EmailConfig, settingsCache *auth.SettingsCache, encryptionKey string) *Manager {
+func NewManager(envConfig *config.EmailConfig, settingsCache *auth.SettingsCache, secretsService *settings.SecretsService) *Manager {
 	m := &Manager{
-		settingsCache: settingsCache,
-		encryptionKey: encryptionKey,
-		envConfig:     envConfig,
+		settingsCache:  settingsCache,
+		secretsService: secretsService,
+		envConfig:      envConfig,
 	}
 
 	// Initialize with env config first
@@ -50,6 +50,13 @@ func (m *Manager) SetSettingsCache(cache *auth.SettingsCache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.settingsCache = cache
+}
+
+// SetSecretsService sets the secrets service for encrypted credential storage
+func (m *Manager) SetSecretsService(svc *settings.SecretsService) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.secretsService = svc
 }
 
 // RefreshFromSettings rebuilds the email service from database settings
@@ -105,67 +112,41 @@ func (m *Manager) buildConfigFromSettings(ctx context.Context) *config.EmailConf
 	cfg.SMTPUsername = m.settingsCache.GetString(ctx, "app.email.smtp_username", cfg.SMTPUsername)
 	cfg.SMTPTLS = m.settingsCache.GetBool(ctx, "app.email.smtp_tls", cfg.SMTPTLS)
 
-	// Decrypt SMTP password if encrypted
-	smtpPassword := m.settingsCache.GetString(ctx, "app.email.smtp_password", cfg.SMTPPassword)
-	if smtpPassword != "" && m.encryptionKey != "" {
-		decrypted, err := crypto.DecryptIfNotEmpty(smtpPassword, m.encryptionKey)
-		if err != nil {
-			// If decryption fails, it might be a plaintext password from env
-			log.Debug().Err(err).Msg("SMTP password decryption failed, using as-is")
-		} else {
-			smtpPassword = decrypted
+	// Get secrets from SecretsService (env config takes precedence if set)
+	// SMTP password
+	if cfg.SMTPPassword == "" && m.secretsService != nil {
+		if secret, err := m.secretsService.GetSystemSecret(ctx, "app.email.smtp_password"); err == nil {
+			cfg.SMTPPassword = secret
 		}
 	}
-	cfg.SMTPPassword = smtpPassword
 
-	// SendGrid
-	sendgridKey := m.settingsCache.GetString(ctx, "app.email.sendgrid_api_key", cfg.SendGridAPIKey)
-	if sendgridKey != "" && m.encryptionKey != "" {
-		decrypted, err := crypto.DecryptIfNotEmpty(sendgridKey, m.encryptionKey)
-		if err != nil {
-			log.Debug().Err(err).Msg("SendGrid API key decryption failed, using as-is")
-		} else {
-			sendgridKey = decrypted
+	// SendGrid API key
+	if cfg.SendGridAPIKey == "" && m.secretsService != nil {
+		if secret, err := m.secretsService.GetSystemSecret(ctx, "app.email.sendgrid_api_key"); err == nil {
+			cfg.SendGridAPIKey = secret
 		}
 	}
-	cfg.SendGridAPIKey = sendgridKey
 
 	// Mailgun
-	mailgunKey := m.settingsCache.GetString(ctx, "app.email.mailgun_api_key", cfg.MailgunAPIKey)
-	if mailgunKey != "" && m.encryptionKey != "" {
-		decrypted, err := crypto.DecryptIfNotEmpty(mailgunKey, m.encryptionKey)
-		if err != nil {
-			log.Debug().Err(err).Msg("Mailgun API key decryption failed, using as-is")
-		} else {
-			mailgunKey = decrypted
+	cfg.MailgunDomain = m.settingsCache.GetString(ctx, "app.email.mailgun_domain", cfg.MailgunDomain)
+	if cfg.MailgunAPIKey == "" && m.secretsService != nil {
+		if secret, err := m.secretsService.GetSystemSecret(ctx, "app.email.mailgun_api_key"); err == nil {
+			cfg.MailgunAPIKey = secret
 		}
 	}
-	cfg.MailgunAPIKey = mailgunKey
-	cfg.MailgunDomain = m.settingsCache.GetString(ctx, "app.email.mailgun_domain", cfg.MailgunDomain)
 
 	// AWS SES
-	sesAccessKey := m.settingsCache.GetString(ctx, "app.email.ses_access_key", cfg.SESAccessKey)
-	if sesAccessKey != "" && m.encryptionKey != "" {
-		decrypted, err := crypto.DecryptIfNotEmpty(sesAccessKey, m.encryptionKey)
-		if err != nil {
-			log.Debug().Err(err).Msg("SES access key decryption failed, using as-is")
-		} else {
-			sesAccessKey = decrypted
-		}
-	}
-	cfg.SESAccessKey = sesAccessKey
-
-	sesSecretKey := m.settingsCache.GetString(ctx, "app.email.ses_secret_key", cfg.SESSecretKey)
-	if sesSecretKey != "" && m.encryptionKey != "" {
-		decrypted, err := crypto.DecryptIfNotEmpty(sesSecretKey, m.encryptionKey)
-		if err != nil {
-			log.Debug().Err(err).Msg("SES secret key decryption failed, using as-is")
-		} else {
-			sesSecretKey = decrypted
-		}
-	}
-	cfg.SESSecretKey = sesSecretKey
 	cfg.SESRegion = m.settingsCache.GetString(ctx, "app.email.ses_region", cfg.SESRegion)
+	if cfg.SESAccessKey == "" && m.secretsService != nil {
+		if secret, err := m.secretsService.GetSystemSecret(ctx, "app.email.ses_access_key"); err == nil {
+			cfg.SESAccessKey = secret
+		}
+	}
+	if cfg.SESSecretKey == "" && m.secretsService != nil {
+		if secret, err := m.secretsService.GetSystemSecret(ctx, "app.email.ses_secret_key"); err == nil {
+			cfg.SESSecretKey = secret
+		}
+	}
 
 	return cfg
 }

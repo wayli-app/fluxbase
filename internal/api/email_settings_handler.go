@@ -5,8 +5,8 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
-	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/fluxbase-eu/fluxbase/internal/email"
+	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
@@ -16,7 +16,7 @@ type EmailSettingsHandler struct {
 	settingsService *auth.SystemSettingsService
 	settingsCache   *auth.SettingsCache
 	emailManager    *email.Manager
-	encryptionKey   string
+	secretsService  *settings.SecretsService
 	envConfig       *config.EmailConfig // Fallback config from environment
 }
 
@@ -25,14 +25,14 @@ func NewEmailSettingsHandler(
 	settingsService *auth.SystemSettingsService,
 	settingsCache *auth.SettingsCache,
 	emailManager *email.Manager,
-	encryptionKey string,
+	secretsService *settings.SecretsService,
 	envConfig *config.EmailConfig,
 ) *EmailSettingsHandler {
 	return &EmailSettingsHandler{
 		settingsService: settingsService,
 		settingsCache:   settingsCache,
 		emailManager:    emailManager,
-		encryptionKey:   encryptionKey,
+		secretsService:  secretsService,
 		envConfig:       envConfig,
 	}
 }
@@ -242,7 +242,7 @@ func (h *EmailSettingsHandler) UpdateSettings(c *fiber.Ctx) error {
 		return nil
 	}
 
-	// Helper to encrypt and update a secret
+	// Helper to encrypt and update a secret using SecretsService
 	updateSecret := func(key string, value *string) error {
 		if value == nil {
 			return nil // Not updating this field
@@ -257,21 +257,19 @@ func (h *EmailSettingsHandler) UpdateSettings(c *fiber.Ctx) error {
 			})
 		}
 
-		// Encrypt the value if encryption key is available
-		storedValue := *value
-		if h.encryptionKey != "" && *value != "" {
-			encrypted, err := crypto.Encrypt(*value, h.encryptionKey)
-			if err != nil {
-				log.Error().Err(err).Str("key", key).Msg("Failed to encrypt secret")
+		// Use SecretsService to encrypt and store the secret
+		if h.secretsService != nil && *value != "" {
+			if err := h.secretsService.SetSystemSecret(ctx, key, *value, "Email provider secret"); err != nil {
+				log.Error().Err(err).Str("key", key).Msg("Failed to store secret")
 				return err
 			}
-			storedValue = encrypted
+		} else if *value == "" {
+			// Clear the secret by deleting it
+			if h.secretsService != nil {
+				_ = h.secretsService.DeleteSystemSecret(ctx, key) // Ignore not found errors
+			}
 		}
 
-		if err := h.settingsService.SetSetting(ctx, key, map[string]interface{}{"value": storedValue}, ""); err != nil {
-			log.Error().Err(err).Str("key", key).Msg("Failed to update secret")
-			return err
-		}
 		updatedKeys = append(updatedKeys, key)
 		return nil
 	}

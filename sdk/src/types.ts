@@ -1254,6 +1254,38 @@ export interface ListCustomSettingsResponse {
   settings: CustomSetting[]
 }
 
+/**
+ * Metadata for a secret setting (value is never exposed via API)
+ * Secret values can only be accessed server-side (in edge functions, jobs, handlers)
+ */
+export interface SecretSettingMetadata {
+  id: string
+  key: string
+  description?: string
+  user_id?: string
+  created_by?: string
+  updated_by?: string
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Request to create a secret setting
+ */
+export interface CreateSecretSettingRequest {
+  key: string
+  value: string
+  description?: string
+}
+
+/**
+ * Request to update a secret setting
+ */
+export interface UpdateSecretSettingRequest {
+  value?: string
+  description?: string
+}
+
 // ============================================================================
 // Application Settings Types
 // ============================================================================

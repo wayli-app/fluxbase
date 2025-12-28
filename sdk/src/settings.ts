@@ -6,6 +6,7 @@ import type {
   AppSettings,
   UpdateAppSettingsRequest,
   CustomSetting,
+  SecretSettingMetadata,
   EmailTemplate,
   EmailTemplateType,
   UpdateEmailTemplateRequest,
@@ -784,6 +785,110 @@ export class AppSettingsManager {
   async deleteSetting(key: string): Promise<void> {
     await this.fetch.delete(`/api/v1/admin/settings/custom/${key}`);
   }
+
+  // ============================================================================
+  // System Secret Settings (encrypted, server-side access only)
+  // ============================================================================
+
+  /**
+   * Set a system-level secret setting (encrypted)
+   *
+   * Creates or updates an encrypted system secret. The value is encrypted server-side
+   * and can only be accessed by edge functions, background jobs, or custom handlers.
+   * The SDK never returns the decrypted value.
+   *
+   * @param key - Secret key
+   * @param value - Secret value (will be encrypted server-side)
+   * @param options - Optional description
+   * @returns Promise resolving to SecretSettingMetadata (never includes the value)
+   *
+   * @example
+   * ```typescript
+   * await client.admin.settings.app.setSecretSetting('stripe_api_key', 'sk-live-xxx', {
+   *   description: 'Stripe API key for payment processing'
+   * })
+   * ```
+   */
+  async setSecretSetting(
+    key: string,
+    value: string,
+    options?: { description?: string },
+  ): Promise<SecretSettingMetadata> {
+    // Try to update first, if not found, create
+    try {
+      return await this.fetch.put<SecretSettingMetadata>(
+        `/api/v1/admin/settings/custom/secret/${key}`,
+        {
+          value,
+          description: options?.description,
+        },
+      );
+    } catch (error: any) {
+      // If not found (404), create new secret
+      if (error.status === 404 || error.message?.includes("not found")) {
+        return await this.fetch.post<SecretSettingMetadata>(
+          "/api/v1/admin/settings/custom/secret",
+          {
+            key,
+            value,
+            description: options?.description,
+          },
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get metadata for a system secret setting (never returns the value)
+   *
+   * @param key - Secret key
+   * @returns Promise resolving to SecretSettingMetadata
+   *
+   * @example
+   * ```typescript
+   * const metadata = await client.admin.settings.app.getSecretSetting('stripe_api_key')
+   * console.log(metadata.key, metadata.updated_at)
+   * // Note: metadata.value is never included
+   * ```
+   */
+  async getSecretSetting(key: string): Promise<SecretSettingMetadata> {
+    return await this.fetch.get<SecretSettingMetadata>(
+      `/api/v1/admin/settings/custom/secret/${key}`,
+    );
+  }
+
+  /**
+   * List all system secret settings (metadata only, never includes values)
+   *
+   * @returns Promise resolving to array of SecretSettingMetadata
+   *
+   * @example
+   * ```typescript
+   * const secrets = await client.admin.settings.app.listSecretSettings()
+   * secrets.forEach(s => console.log(s.key, s.description))
+   * ```
+   */
+  async listSecretSettings(): Promise<SecretSettingMetadata[]> {
+    return await this.fetch.get<SecretSettingMetadata[]>(
+      "/api/v1/admin/settings/custom/secrets",
+    );
+  }
+
+  /**
+   * Delete a system secret setting
+   *
+   * @param key - Secret key to delete
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await client.admin.settings.app.deleteSecretSetting('stripe_api_key')
+   * ```
+   */
+  async deleteSecretSetting(key: string): Promise<void> {
+    await this.fetch.delete(`/api/v1/admin/settings/custom/secret/${key}`);
+  }
 }
 
 /**
@@ -1256,6 +1361,114 @@ export class SettingsClient {
         return acc;
       },
       {} as Record<string, any>,
+    );
+  }
+
+  // ============================================================================
+  // User Secret Settings (encrypted, user-specific, server-side access only)
+  // ============================================================================
+
+  /**
+   * Set a user secret setting (encrypted)
+   *
+   * Creates or updates an encrypted secret that belongs to the current user.
+   * The value is encrypted server-side with a user-specific key and can only be
+   * accessed by edge functions, background jobs, or custom handlers running on
+   * behalf of this user. Even admins cannot see the decrypted value.
+   *
+   * @param key - Secret key
+   * @param value - Secret value (will be encrypted server-side)
+   * @param options - Optional description
+   * @returns Promise resolving to SecretSettingMetadata (never includes the value)
+   *
+   * @example
+   * ```typescript
+   * // Store user's API key for a third-party service
+   * await client.settings.setSecret('openai_api_key', 'sk-abc123', {
+   *   description: 'My OpenAI API key'
+   * })
+   * ```
+   */
+  async setSecret(
+    key: string,
+    value: string,
+    options?: { description?: string },
+  ): Promise<SecretSettingMetadata> {
+    // Try to update first, if not found, create
+    try {
+      return await this.fetch.put<SecretSettingMetadata>(
+        `/api/v1/settings/secret/${encodeURIComponent(key)}`,
+        {
+          value,
+          description: options?.description,
+        },
+      );
+    } catch (error: any) {
+      // If not found (404), create new secret
+      if (error.status === 404 || error.message?.includes("not found")) {
+        return await this.fetch.post<SecretSettingMetadata>(
+          "/api/v1/settings/secret/",
+          {
+            key,
+            value,
+            description: options?.description,
+          },
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get metadata for a user secret setting (never returns the value)
+   *
+   * @param key - Secret key
+   * @returns Promise resolving to SecretSettingMetadata
+   *
+   * @example
+   * ```typescript
+   * const metadata = await client.settings.getSecret('openai_api_key')
+   * console.log(metadata.key, metadata.updated_at)
+   * // Note: The actual secret value is never returned
+   * ```
+   */
+  async getSecret(key: string): Promise<SecretSettingMetadata> {
+    return await this.fetch.get<SecretSettingMetadata>(
+      `/api/v1/settings/secret/${encodeURIComponent(key)}`,
+    );
+  }
+
+  /**
+   * List all user's secret settings (metadata only, never includes values)
+   *
+   * @returns Promise resolving to array of SecretSettingMetadata
+   *
+   * @example
+   * ```typescript
+   * const secrets = await client.settings.listSecrets()
+   * secrets.forEach(s => console.log(s.key, s.description))
+   * ```
+   */
+  async listSecrets(): Promise<SecretSettingMetadata[]> {
+    return await this.fetch.get<SecretSettingMetadata[]>(
+      "/api/v1/settings/secret/",
+    );
+  }
+
+  /**
+   * Delete a user secret setting
+   *
+   * @param key - Secret key to delete
+   * @returns Promise<void>
+   *
+   * @example
+   * ```typescript
+   * await client.settings.deleteSecret('openai_api_key')
+   * ```
+   */
+  async deleteSecret(key: string): Promise<void> {
+    await this.fetch.delete(
+      `/api/v1/settings/secret/${encodeURIComponent(key)}`,
     );
   }
 }

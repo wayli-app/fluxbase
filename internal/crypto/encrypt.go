@@ -4,10 +4,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/google/uuid"
+	"golang.org/x/crypto/hkdf"
 )
 
 var (
@@ -115,4 +119,25 @@ func ValidateKey(key string) error {
 		return ErrInvalidKey
 	}
 	return nil
+}
+
+// DeriveUserKey derives a user-specific encryption key from the master key using HKDF.
+// This ensures that user secrets cannot be decrypted without knowing both the master key AND user ID.
+// The derived key is deterministic for the same master key and user ID combination.
+func DeriveUserKey(masterKey string, userID uuid.UUID) (string, error) {
+	if len(masterKey) != 32 {
+		return "", ErrInvalidKey
+	}
+
+	// Use HKDF (HMAC-based Key Derivation Function) to derive a user-specific key
+	// Salt: user ID as bytes
+	// Info: context string to bind the key to this specific purpose
+	hkdfReader := hkdf.New(sha256.New, []byte(masterKey), []byte(userID.String()), []byte("fluxbase-user-settings-v1"))
+
+	derivedKey := make([]byte, 32)
+	if _, err := io.ReadFull(hkdfReader, derivedKey); err != nil {
+		return "", fmt.Errorf("failed to derive user key: %w", err)
+	}
+
+	return string(derivedKey), nil
 }
