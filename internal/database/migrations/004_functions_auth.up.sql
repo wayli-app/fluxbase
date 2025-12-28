@@ -36,6 +36,9 @@ CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS UUID AS $$
 BEGIN
     RETURN auth.current_user_id();
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
 END;
 $$ LANGUAGE plpgsql STABLE;
 
