@@ -469,6 +469,122 @@ await client.admin.settings.system.delete('custom.feature.beta')
 
 ---
 
+## Secret Settings
+
+Secret settings provide encrypted storage for sensitive application configuration such as API keys, credentials, and tokens. Values are encrypted at rest and never returned via the API - only metadata is accessible.
+
+### Secret Types
+
+**System secrets** are global application secrets managed by admins:
+- Stored with the master encryption key
+- Used for application-wide credentials (payment gateways, email providers, etc.)
+
+**User secrets** are per-user secrets with additional protection:
+- Encrypted with a user-derived key (HKDF)
+- Even admins cannot decrypt other users' secrets
+- Ideal for user-provided API keys (OpenAI, etc.)
+
+### Create/Update System Secret (Admin)
+
+Store an encrypted system-level secret.
+
+```typescript
+// Create a system secret
+const metadata = await client.admin.settings.app.setSecretSetting(
+  'stripe_api_key',
+  'sk-live-xxx',
+  { description: 'Stripe production API key' }
+)
+
+console.log('Created:', metadata.key)
+console.log('Updated at:', metadata.updated_at)
+// Note: The actual value is never returned
+```
+
+**Parameters:**
+- `key` (required): Secret key name
+- `value` (required): Secret value (will be encrypted)
+- `options.description` (optional): Human-readable description
+
+**Returns:** `SecretSettingMetadata` with key, description, and timestamps (never the value)
+
+### Get System Secret Metadata (Admin)
+
+Retrieve metadata for a system secret (value is never returned).
+
+```typescript
+const metadata = await client.admin.settings.app.getSecretSetting('stripe_api_key')
+
+console.log('Key:', metadata.key)
+console.log('Description:', metadata.description)
+console.log('Created:', metadata.created_at)
+console.log('Updated:', metadata.updated_at)
+// Note: The value is not available via SDK
+```
+
+### List System Secrets (Admin)
+
+List all system secrets (metadata only).
+
+```typescript
+const secrets = await client.admin.settings.app.listSecretSettings()
+
+secrets.forEach(secret => {
+  console.log(`${secret.key}: ${secret.description || 'No description'}`)
+})
+```
+
+### Delete System Secret (Admin)
+
+Permanently delete a system secret.
+
+```typescript
+await client.admin.settings.app.deleteSecretSetting('stripe_api_key')
+```
+
+### User Secrets
+
+Regular users can manage their own secrets through the `settings` client.
+
+```typescript
+// Set user's own secret
+await client.settings.setSecret('openai_api_key', 'sk-proj-xxx', {
+  description: 'My OpenAI API key'
+})
+
+// Get secret metadata
+const metadata = await client.settings.getSecret('openai_api_key')
+
+// List user's secrets
+const mySecrets = await client.settings.listSecrets()
+
+// Delete secret
+await client.settings.deleteSecret('openai_api_key')
+```
+
+### Server-Side Usage
+
+Secrets are decrypted server-side only. They are never returned to clients via the SDK. To use secrets in your application:
+
+**In Edge Functions:**
+Secrets are injected as environment variables:
+```typescript
+// In an edge function
+const stripeKey = Deno.env.get('STRIPE_API_KEY')
+```
+
+**In Custom Handlers (Go):**
+Use the `SecretsService`:
+```go
+// Get system secret
+apiKey, err := secretsService.GetSystemSecret(ctx, "stripe_api_key")
+
+// Get user's secret
+userKey, err := secretsService.GetUserSecret(ctx, userID, "openai_api_key")
+```
+
+---
+
 ## Settings Structure Reference
 
 ### Authentication Settings
@@ -853,6 +969,11 @@ import type {
   UpdateSystemSettingRequest,
   ListSystemSettingsResponse,
 
+  // Secret settings types
+  SecretSettingMetadata,
+  CreateSecretSettingRequest,
+  UpdateSecretSettingRequest,
+
   // Email provider settings types
   EmailProviderSettings,
   UpdateEmailProviderSettingsRequest,
@@ -880,6 +1001,13 @@ const emailUpdate: UpdateEmailProviderSettingsRequest = {
 }
 
 await client.admin.settings.email.update(emailUpdate)
+
+// Type-safe secret settings operations
+const secretMetadata: SecretSettingMetadata = await client.admin.settings.app.getSecretSetting('stripe_api_key')
+
+// Note: Secrets are encrypted - the value is never returned via the SDK
+console.log(secretMetadata.key)        // 'stripe_api_key'
+console.log(secretMetadata.updated_at) // timestamp
 ```
 
 ---

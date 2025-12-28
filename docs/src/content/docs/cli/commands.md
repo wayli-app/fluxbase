@@ -15,14 +15,14 @@ fluxbase [command] [subcommand] [flags]
 
 These flags work with all commands:
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--config` | | Config file path (default: `~/.fluxbase/config.yaml`) |
-| `--profile` | `-p` | Profile to use |
-| `--output` | `-o` | Output format: `table`, `json`, `yaml` |
-| `--no-headers` | | Hide table headers |
-| `--quiet` | `-q` | Minimal output |
-| `--debug` | | Enable debug output |
+| Flag           | Short | Description                                           |
+| -------------- | ----- | ----------------------------------------------------- |
+| `--config`     |       | Config file path (default: `~/.fluxbase/config.yaml`) |
+| `--profile`    | `-p`  | Profile to use                                        |
+| `--output`     | `-o`  | Output format: `table`, `json`, `yaml`                |
+| `--no-headers` |       | Hide table headers                                    |
+| `--quiet`      | `-q`  | Minimal output                                        |
+| `--debug`      |       | Enable debug output                                   |
 
 ---
 
@@ -47,6 +47,7 @@ fluxbase auth login --profile prod --server URL
 ```
 
 **Flags:**
+
 - `--server` - Fluxbase server URL
 - `--email` - Email address
 - `--password` - Password
@@ -114,6 +115,7 @@ fluxbase functions create my-function --code ./function.ts --timeout 60 --memory
 ```
 
 **Flags:**
+
 - `--code` - Path to function code file (required)
 - `--description` - Function description
 - `--timeout` - Execution timeout in seconds (default: 30)
@@ -151,6 +153,7 @@ fluxbase functions logs my-function --follow
 ```
 
 **Flags:**
+
 - `--tail` - Number of lines to show (default: 20)
 - `--follow`, `-f` - Stream new log entries in real-time
 
@@ -164,6 +167,7 @@ fluxbase functions sync --dir ./functions --namespace production --dry-run
 ```
 
 **Flags:**
+
 - `--dir` - Directory containing function files (default: `./functions`)
 - `--namespace` - Target namespace (default: `default`)
 - `--dry-run` - Preview changes without applying
@@ -250,6 +254,7 @@ fluxbase jobs sync --dir ./jobs --namespace production --dry-run
 ```
 
 **Flags:**
+
 - `--dir` - Directory containing job files (default: `./jobs`)
 - `--namespace` - Target namespace (default: `default`)
 - `--dry-run` - Preview changes without applying
@@ -409,6 +414,7 @@ fluxbase rpc invoke default/batch_update --file ./params.json --async
 ```
 
 **Flags:**
+
 - `--params` - JSON parameters to pass
 - `--file` - Load parameters from file
 - `--async` - Run asynchronously (returns immediately)
@@ -423,6 +429,7 @@ fluxbase rpc sync --dir ./rpc --namespace production --dry-run
 ```
 
 **Flags:**
+
 - `--dir` - Directory containing `.sql` files (default: `./rpc`)
 - `--namespace` - Target namespace (default: `default`)
 - `--dry-run` - Preview changes without applying
@@ -544,6 +551,97 @@ fluxbase settings set auth.signup_enabled true
 
 ---
 
+## Settings Secrets Commands
+
+Manage encrypted application settings secrets. These are separate from the function secrets (`fluxbase secrets`) and are used for storing sensitive application configuration such as API keys and credentials.
+
+Settings secrets support two scopes:
+
+- **System secrets** - Global application secrets (admin only)
+- **User secrets** - Per-user secrets encrypted with user-specific keys
+
+### `fluxbase settings secrets list`
+
+List all secrets (values are never shown).
+
+```bash
+# List system secrets (admin)
+fluxbase settings secrets list
+
+# List user's own secrets
+fluxbase settings secrets list --user
+```
+
+**Flags:**
+
+- `--user` - List user-specific secrets instead of system secrets
+
+### `fluxbase settings secrets set`
+
+Create or update a secret.
+
+```bash
+# Set a system secret (admin only)
+fluxbase settings secrets set stripe_api_key "sk-live-xxx"
+fluxbase settings secrets set openai_key "sk-proj-xxx" --description "OpenAI API key"
+
+# Set a user-specific secret
+fluxbase settings secrets set my_api_key "user-key-xxx" --user
+fluxbase settings secrets set my_api_key "user-key-xxx" --user --description "My personal API key"
+```
+
+**Flags:**
+
+- `--user` - Create/update a user-specific secret instead of a system secret
+- `--description` - Description of the secret
+
+User secrets are encrypted with a user-derived key, ensuring that even admins cannot decrypt other users' secrets.
+
+### `fluxbase settings secrets get`
+
+Get metadata for a secret (the value is never returned).
+
+```bash
+# Get system secret metadata
+fluxbase settings secrets get stripe_api_key
+
+# Get user secret metadata
+fluxbase settings secrets get my_api_key --user
+```
+
+**Flags:**
+
+- `--user` - Get a user-specific secret instead of a system secret
+
+### `fluxbase settings secrets delete`
+
+Delete a secret permanently.
+
+```bash
+# Delete system secret
+fluxbase settings secrets delete stripe_api_key
+
+# Delete user secret
+fluxbase settings secrets delete my_api_key --user
+```
+
+**Flags:**
+
+- `--user` - Delete a user-specific secret instead of a system secret
+
+### Differences from Function Secrets
+
+| Feature               | `fluxbase secrets`        | `fluxbase settings secrets` |
+| --------------------- | ------------------------- | --------------------------- |
+| Storage               | `functions.secrets` table | `app.settings` table        |
+| Purpose               | Edge functions & jobs     | Application settings        |
+| Scopes                | Global, namespace         | System, user                |
+| User-specific         | No                        | Yes (with HKDF encryption)  |
+| Version history       | Yes                       | No                          |
+| Environment injection | `FLUXBASE_SECRET_*`       | Via SecretsService          |
+
+---
+
 ## Config Commands
 
 Manage CLI configuration.
@@ -585,6 +683,7 @@ fluxbase secrets list --namespace my-namespace
 ```
 
 **Flags:**
+
 - `--scope` - Filter by scope (`global` or `namespace`)
 - `--namespace` - Filter by namespace
 
@@ -599,6 +698,7 @@ fluxbase secrets set TEMP_KEY "value" --expires 30d
 ```
 
 **Flags:**
+
 - `--scope` - Secret scope: `global` (default) or `namespace`
 - `--namespace` - Namespace for namespace-scoped secrets
 - `--description` - Description of the secret
@@ -661,6 +761,7 @@ fluxbase logs list --user-id abc123 -o json
 ```
 
 **Flags:**
+
 - `--category` - Filter by category: `system`, `http`, `security`, `execution`, `ai`, `custom`
 - `--custom-category` - Filter by custom category name (requires `--category=custom`)
 - `--level` - Filter by level: `debug`, `info`, `warn`, `error`
@@ -685,6 +786,7 @@ fluxbase logs tail --category system --component auth
 ```
 
 **Flags:**
+
 - `--category` - Filter by category
 - `--level` - Filter by level
 - `--component` - Filter by component
@@ -711,6 +813,7 @@ fluxbase logs execution abc123-def456 --tail 50
 ```
 
 **Flags:**
+
 - `--follow`, `-f` - Stream new log entries in real-time
 - `--tail` - Show only last N lines
 
@@ -732,6 +835,7 @@ fluxbase sync --dry-run                 # Preview all changes
 ```
 
 **Flags:**
+
 - `--dir` - Root directory (default: `./fluxbase` or current directory)
 - `--namespace` - Target namespace for all resources (default: `default`)
 - `--dry-run` - Preview changes without applying

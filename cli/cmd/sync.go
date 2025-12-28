@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fluxbase-eu/fluxbase/cli/annotations"
 	"github.com/fluxbase-eu/fluxbase/cli/bundler"
 )
 
@@ -324,10 +325,16 @@ func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun boo
 		}
 
 		fnName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
-		functions = append(functions, map[string]interface{}{
+
+		// Parse @fluxbase: annotations BEFORE bundling (esbuild strips comments)
+		fn := map[string]interface{}{
 			"name": fnName,
 			"code": string(content),
-		})
+		}
+		config := annotations.ParseFunctionAnnotations(string(content))
+		annotations.ApplyFunctionConfig(fn, config)
+
+		functions = append(functions, fn)
 	}
 
 	if len(functions) == 0 {
@@ -447,10 +454,16 @@ func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun bool) er
 		}
 
 		jobName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
-		jobs = append(jobs, map[string]interface{}{
+
+		// Parse @fluxbase: annotations BEFORE bundling (esbuild strips comments)
+		job := map[string]interface{}{
 			"name": jobName,
 			"code": string(content),
-		})
+		}
+		jobConfig := annotations.ParseJobAnnotations(string(content))
+		annotations.ApplyJobConfig(job, jobConfig)
+
+		jobs = append(jobs, job)
 	}
 
 	if len(jobs) == 0 {

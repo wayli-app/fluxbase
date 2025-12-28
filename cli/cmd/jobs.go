@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fluxbase-eu/fluxbase/cli/annotations"
 	"github.com/fluxbase-eu/fluxbase/cli/bundler"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
@@ -431,10 +432,15 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 		// Remove extension for job name
 		jobName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
 
-		jobs = append(jobs, map[string]interface{}{
+		// Parse @fluxbase: annotations BEFORE bundling (esbuild strips comments)
+		job := map[string]interface{}{
 			"name": jobName,
 			"code": string(content),
-		})
+		}
+		config := annotations.ParseJobAnnotations(string(content))
+		annotations.ApplyJobConfig(job, config)
+
+		jobs = append(jobs, job)
 	}
 
 	if len(jobs) == 0 {

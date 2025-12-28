@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/fluxbase-eu/fluxbase/cli/annotations"
 	"github.com/fluxbase-eu/fluxbase/cli/bundler"
 	"github.com/fluxbase-eu/fluxbase/cli/output"
 )
@@ -514,10 +515,15 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 		// Remove extension for function name
 		fnName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
 
-		functions = append(functions, map[string]interface{}{
+		// Parse @fluxbase: annotations BEFORE bundling (esbuild strips comments)
+		fn := map[string]interface{}{
 			"name": fnName,
 			"code": string(content),
-		})
+		}
+		config := annotations.ParseFunctionAnnotations(string(content))
+		annotations.ApplyFunctionConfig(fn, config)
+
+		functions = append(functions, fn)
 	}
 
 	if len(functions) == 0 {
