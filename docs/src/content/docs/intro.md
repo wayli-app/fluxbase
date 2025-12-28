@@ -208,8 +208,7 @@ graph TB
 
 ## Next Steps
 
-- [Installation Guide](getting-started/installation) - Set up Fluxbase in your environment
-- [Quick Start Tutorial](getting-started/quick-start) - Build your first application
+- [Quick Start](getting-started/quick-start) - Get Fluxbase running in 5 minutes
 - [AI Chatbots Guide](guides/ai-chatbots) - Build natural language interfaces to your database
 - [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
 - [SDK Documentation](api/sdk) - TypeScript SDK API reference

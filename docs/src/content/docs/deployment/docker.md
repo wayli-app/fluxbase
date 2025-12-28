@@ -33,7 +33,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgis/postgis:18-3.6
+    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres
@@ -153,7 +153,7 @@ version: "3.8"
 
 services:
   postgres:
-    image: postgis/postgis:18-3.6
+    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
     container_name: fluxbase-postgres
     environment:
       POSTGRES_USER: postgres
@@ -183,18 +183,20 @@ services:
           cpus: "1"
           memory: 2G
 
-  redis:
-    image: redis:7-alpine
-    container_name: fluxbase-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+  # Dragonfly - Redis-compatible in-memory store (25x faster than Redis)
+  # Can be replaced with redis:7-alpine if preferred
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    container_name: fluxbase-dragonfly
+    command: dragonfly --requirepass ${DRAGONFLY_PASSWORD}
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - redis_data:/data
+      - dragonfly_data:/data
     networks:
       - fluxbase-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${DRAGONFLY_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -206,7 +208,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      dragonfly:
         condition: service_healthy
     environment:
       # Database
@@ -224,11 +226,11 @@ services:
       FLUXBASE_AUTH_JWT_EXPIRY: 15m
       FLUXBASE_AUTH_REFRESH_EXPIRY: 168h
 
-      # Redis
+      # Dragonfly (Redis-compatible)
       FLUXBASE_REDIS_ENABLED: "true"
-      FLUXBASE_REDIS_HOST: redis
+      FLUXBASE_REDIS_HOST: dragonfly
       FLUXBASE_REDIS_PORT: 6379
-      FLUXBASE_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      FLUXBASE_REDIS_PASSWORD: ${DRAGONFLY_PASSWORD}
 
       # Server
       FLUXBASE_BASE_URL: https://api.yourdomain.com
@@ -300,7 +302,7 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
+  dragonfly_data:
 
 networks:
   fluxbase-network:
@@ -313,8 +315,8 @@ Create `.env` file:
 # PostgreSQL
 POSTGRES_PASSWORD=your-very-secure-postgres-password
 
-# Redis
-REDIS_PASSWORD=your-very-secure-redis-password
+# Dragonfly (Redis-compatible)
+DRAGONFLY_PASSWORD=your-very-secure-dragonfly-password
 
 # Fluxbase Auth
 JWT_SECRET=your-jwt-secret-at-least-32-characters-long

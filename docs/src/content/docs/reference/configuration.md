@@ -588,7 +588,7 @@ services:
       - ./fluxbase.yaml:/app/fluxbase.yaml
 
   postgres:
-    image: postgis/postgis:18-3.6
+    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
     environment:
       POSTGRES_DB: fluxbase
       POSTGRES_USER: fluxbase
@@ -707,6 +707,5 @@ If you see CORS errors in the browser:
 
 ## Next Steps
 
-- [Installation Guide](../getting-started/installation.md) - Install Fluxbase
-- [Quick Start](../getting-started/quick-start.md) - Build your first app
+- [Quick Start](../getting-started/quick-start.md) - Get Fluxbase running in 5 minutes
 - [Authentication](../guides/authentication.md) - Set up JWT authentication

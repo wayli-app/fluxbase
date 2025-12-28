@@ -1221,94 +1221,99 @@ const s3Secret = Deno.env.get("FLUXBASE_STORAGE_S3_SECRET_KEY");
 
 ## Secrets
 
-Secrets provide secure storage for sensitive values like API keys, database credentials, and tokens. Secrets are encrypted at rest and injected into functions as environment variables at runtime.
+Secrets provide secure storage for sensitive values like API keys, database credentials, and tokens. Secrets are encrypted at rest and made available to functions via the built-in `secrets` object.
 
 ### Creating Secrets
 
-Use the CLI to manage secrets:
+Use the CLI or SDK to manage secrets. There are two types of secrets:
+
+**System secrets** (admin-only, available to all functions):
 
 ```bash
-# Create a global secret (available to all functions)
-fluxbase secrets set API_KEY "sk-your-api-key"
+fluxbase settings secrets set stripe_api_key "sk_live_xxx"
+fluxbase settings secrets set openai_api_key "sk-proj-xxx"
+fluxbase settings secrets list
+```
 
-# Create a namespace-scoped secret (overrides global for that namespace)
-fluxbase secrets set DATABASE_URL "postgres://..." --scope namespace --namespace my-service
+**User secrets** (per-user, set by users via SDK):
 
-# Set an expiring secret
-fluxbase secrets set TEMP_TOKEN "token123" --expires 30d
-
-# List all secrets (values are never shown)
-fluxbase secrets list
-
-# View secret metadata
-fluxbase secrets get API_KEY
-
-# Delete a secret
-fluxbase secrets delete API_KEY
-
-# View version history
-fluxbase secrets history API_KEY
-
-# Rollback to a previous version
-fluxbase secrets rollback API_KEY 2
+```typescript
+// Users can set their own secrets via the SDK
+await client.settings.setSecret("openai_api_key", "sk-proj-user-key");
 ```
 
 ### Accessing Secrets in Functions
 
-Secrets are injected as `FLUXBASE_SECRET_<NAME>` environment variables (name is uppercased):
+The `secrets` object is automatically available in all functions - no import needed:
 
 ```typescript
-async function handler(req) {
-  // Access secrets via Deno.env
-  const apiKey = Deno.env.get("FLUXBASE_SECRET_API_KEY");
-  const dbUrl = Deno.env.get("FLUXBASE_SECRET_DATABASE_URL");
+// The 'secrets' object is automatically available - no import needed
 
-  if (!apiKey) {
-    return {
-      status: 500,
-      body: JSON.stringify({ error: "API_KEY secret not configured" }),
-    };
-  }
+export default async function handler(req: Request): Promise<Response> {
+  // Get with automatic fallback: user secret -> system secret
+  const openaiKey = secrets.getRequired("openai_api_key");
 
-  // Use the secret
-  const response = await fetch("https://api.example.com/data", {
+  // Get without throwing (returns undefined if not found)
+  const stripeKey = secrets.get("stripe_api_key");
+
+  // Explicit access to user vs system secrets
+  const userKey = secrets.getUser("openai_api_key");
+  const systemKey = secrets.getSystem("stripe_api_key");
+
+  // Use the OpenAI API
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${openaiKey}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      model: "gpt-4",
+      messages: [{ role: "user", content: "Hello!" }],
+    }),
   });
 
-  return {
-    status: 200,
-    body: JSON.stringify(await response.json()),
-  };
+  const data = await response.json();
+
+  return new Response(
+    JSON.stringify({
+      message: data.choices[0].message.content,
+    }),
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 }
 ```
 
-### Secret Scopes
+### Secrets API Reference
 
-| Scope       | Description                                            |
-| ----------- | ------------------------------------------------------ |
-| `global`    | Available to all functions across all namespaces       |
-| `namespace` | Available only to functions in that specific namespace |
+| Method                        | Description                                                 |
+| ----------------------------- | ----------------------------------------------------------- |
+| `secrets.get(key)`            | Get secret with fallback: user → system. Returns undefined. |
+| `secrets.getRequired(key)`    | Same as `get()` but throws if not found.                    |
+| `secrets.getUser(key)`        | Get user-specific secret only (no fallback).                |
+| `secrets.getSystem(key)`      | Get system-level secret only (no fallback).                 |
 
-**Priority:** Namespace-scoped secrets override global secrets with the same name.
+### User vs System Secrets
 
-```bash
-# Global secret
-fluxbase secrets set STRIPE_KEY "sk_test_global"
+| Type   | Set by        | Scope                 | Use case                                    |
+| ------ | ------------- | --------------------- | ------------------------------------------- |
+| System | Admin (CLI)   | All functions, shared | Shared API keys (Stripe, SendGrid)          |
+| User   | User (SDK)    | Per-user, private     | User's own API keys (OpenAI, custom tokens) |
 
-# Namespace override for production
-fluxbase secrets set STRIPE_KEY "sk_live_prod" --scope namespace --namespace production
-```
+When a function calls `secrets.get("openai_api_key")`:
 
-Functions in the `production` namespace will receive `sk_live_prod`, while all other functions receive `sk_test_global`.
+1. First checks for user-specific secret (if user is authenticated)
+2. Falls back to system secret if user secret not found
+3. Returns `undefined` if neither exists
 
 ### Security Notes
 
 - Secret values are **never logged** or returned by the API
 - Secrets are **encrypted at rest** using the server's encryption key
-- Version history allows **rollback** without exposing previous values
-- Expired secrets are automatically excluded from function execution
+- User secrets use per-user encryption (HKDF) - even admins can't decrypt other users' secrets
+- System secrets are admin-only and shared across all function executions
 
 ## REST API
 

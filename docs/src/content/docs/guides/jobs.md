@@ -693,7 +693,7 @@ console.error("Error message");
 
 #### Secrets
 
-Jobs can access secrets the same way as Edge Functions. Secrets are stored encrypted and injected as `FLUXBASE_SECRET_<NAME>` environment variables:
+Jobs can access secrets the same way as Edge Functions. The `secrets` object is automatically available - no import needed:
 
 ```typescript
 export async function handler(
@@ -702,13 +702,9 @@ export async function handler(
   fluxbaseService: FluxbaseClient,
   job: JobUtils
 ) {
-  // Access secrets via Deno.env
-  const stripeKey = Deno.env.get("FLUXBASE_SECRET_STRIPE_KEY");
-  const webhookSecret = Deno.env.get("FLUXBASE_SECRET_WEBHOOK_SECRET");
-
-  if (!stripeKey) {
-    throw new Error("STRIPE_KEY secret not configured");
-  }
+  // Get secrets with automatic fallback: user -> system
+  const stripeKey = secrets.getRequired("stripe_api_key");
+  const webhookSecret = secrets.get("webhook_secret");
 
   job.reportProgress(25, "Processing payment...");
 
@@ -726,15 +722,15 @@ export async function handler(
 }
 ```
 
-**Managing secrets:** Use the CLI to create, update, and delete secrets:
+**Managing secrets:** Use the CLI to create system secrets:
 
 ```bash
-fluxbase secrets set STRIPE_KEY "sk_live_..."
-fluxbase secrets set WEBHOOK_SECRET "whsec_..." --scope namespace --namespace payments
-fluxbase secrets list
+fluxbase settings secrets set stripe_api_key "sk_live_..."
+fluxbase settings secrets set webhook_secret "whsec_..."
+fluxbase settings secrets list
 ```
 
-See the [Edge Functions guide](./edge-functions.md#secrets) for full CLI reference and scope details.
+See the [Edge Functions guide](./edge-functions.md#secrets) for full secrets API reference.
 
 :::note[SDK Configuration]
 The SDK clients are automatically configured using `FLUXBASE_URL`. If your `fluxbase` or `fluxbaseService` parameters are `null`, check that:

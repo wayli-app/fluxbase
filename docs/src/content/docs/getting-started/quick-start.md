@@ -7,15 +7,16 @@ Get Fluxbase running in under 5 minutes using Docker.
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed
+- 500MB disk space (plus space for your data)
 
 ## 1. Create docker-compose.yml
 
-Create a `docker-compose.yml` file with the following content:
+Create a `docker-compose.yml` file:
 
 ```yaml
 services:
   postgres:
-    image: postgis/postgis:18-3.6
+    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
     environment:
       POSTGRES_DB: fluxbase
       POSTGRES_USER: fluxbase
@@ -75,6 +76,16 @@ Wait a few seconds for the services to start. Check logs with:
 docker compose logs fluxbase
 ```
 
+You should see output like:
+
+```
+🚀 Fluxbase starting...
+✅ Database connected
+✅ Migrations applied
+✅ Admin UI available at: http://localhost:8080/admin
+🎉 Fluxbase is ready!
+```
+
 ## 4. Complete Setup
 
 1. Open [http://localhost:8080/admin/setup](http://localhost:8080/admin/setup) in your browser
@@ -92,10 +103,28 @@ After logging in at [http://localhost:8080/admin](http://localhost:8080/admin), 
 - **Functions** - Deploy edge functions
 - **Realtime** - Monitor WebSocket connections
 
+## 6. Test the API
+
+Verify everything is working:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "healthy",
+  "database": "connected"
+}
+```
+
 ## Next Steps
 
 - [TypeScript SDK Guide](/docs/sdk/getting-started) - Build applications with the SDK
 - [Authentication Guide](/docs/guides/authentication) - Set up user authentication
 - [Row-Level Security](/docs/guides/row-level-security) - Secure your data
-- [AI Chatbots](/docs/guides/ai-chatbots) - Build natural language interfaces
+- [Edge Functions](/docs/guides/edge-functions) - Deploy serverless functions
 - [Configuration Reference](/docs/reference/configuration) - All configuration options
+- [Docker Deployment](/docs/deployment/docker) - Production deployment guide

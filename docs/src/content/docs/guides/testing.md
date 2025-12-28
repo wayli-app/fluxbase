@@ -410,7 +410,7 @@ jobs:
 
     services:
       postgres:
-        image: postgis/postgis:18-3.6
+        image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
         env:
           POSTGRES_PASSWORD: postgres
         options: >-
