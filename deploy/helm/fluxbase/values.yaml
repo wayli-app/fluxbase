@@ -447,7 +447,7 @@ config:
     ollama_endpoint: ""
     ollama_model: ""
     # Embeddings
-    embedding_enabled: false
+    embedding_enabled: true
     embedding_provider: ""
     embedding_model: ""
     # OCR

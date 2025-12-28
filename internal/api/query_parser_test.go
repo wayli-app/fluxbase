@@ -995,6 +995,12 @@ func TestQueryParser_NestedLogicalFilters(t *testing.T) {
 			expectedCount:  6,
 			expectOrGroups: true,
 		},
+		{
+			name:           "or filter with is.null",
+			query:          "or=(name.is.null,name.eq.)",
+			expectedCount:  2,
+			expectOrGroups: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1017,6 +1023,40 @@ func TestQueryParser_NestedLogicalFilters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestQueryParser_OrFilterIsNullValueParsing(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	// Test that is.null in OR filters gets properly parsed to nil, not string "null"
+	values, _ := url.ParseQuery("or=(name.is.null,status.is.true,active.is.false)")
+	params, err := parser.Parse(values)
+
+	require.NoError(t, err)
+	require.Equal(t, 3, len(params.Filters))
+
+	// Find each filter and verify its value
+	for _, f := range params.Filters {
+		switch f.Column {
+		case "name":
+			assert.Equal(t, OpIs, f.Operator)
+			assert.Nil(t, f.Value, "is.null should parse to nil, not string 'null'")
+		case "status":
+			assert.Equal(t, OpIs, f.Operator)
+			assert.Equal(t, true, f.Value, "is.true should parse to bool true")
+		case "active":
+			assert.Equal(t, OpIs, f.Operator)
+			assert.Equal(t, false, f.Value, "is.false should parse to bool false")
+		}
+	}
+
+	// Verify SQL generation produces IS NULL, not IS $1
+	argCounter := 1
+	whereClause, args := params.buildWhereClause(&argCounter)
+	assert.Contains(t, whereClause, "IS NULL")
+	assert.Contains(t, whereClause, "IS $1") // for true
+	assert.Contains(t, whereClause, "IS $2") // for false
+	assert.Equal(t, 2, len(args), "should have 2 args (true, false), null should not be parameterized")
 }
 
 func TestQueryParser_ParseNestedFilters(t *testing.T) {

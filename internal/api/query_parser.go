@@ -743,10 +743,36 @@ func (qp *QueryParser) parseLogicalFilter(value string, params *QueryParams, isO
 			return fmt.Errorf("invalid filter format in logical group: %s", filter)
 		}
 
+		column := parts[0]
+		operator := FilterOperator(parts[1])
+		rawValue := parts[2]
+
+		// Parse value based on operator (same logic as regular filter parsing)
+		var parsedValue interface{}
+		switch operator {
+		case OpIn:
+			// Parse array values: (1,2,3) or ["a","b","c"]
+			parsedValue = qp.parseArrayValue(rawValue)
+		case OpIs:
+			// Parse null/true/false
+			switch rawValue {
+			case "null":
+				parsedValue = nil
+			case "true":
+				parsedValue = true
+			case "false":
+				parsedValue = false
+			default:
+				parsedValue = rawValue
+			}
+		default:
+			parsedValue = rawValue
+		}
+
 		params.Filters = append(params.Filters, Filter{
-			Column:   parts[0],
-			Operator: FilterOperator(parts[1]),
-			Value:    parts[2],
+			Column:   column,
+			Operator: operator,
+			Value:    parsedValue,
 			IsOr:     isOr,
 		})
 	}
@@ -778,10 +804,36 @@ func (qp *QueryParser) parseNestedOrGroup(value string, params *QueryParams) err
 			return fmt.Errorf("invalid filter format in OR group: %s", filter)
 		}
 
+		column := parts[0]
+		operator := FilterOperator(parts[1])
+		rawValue := parts[2]
+
+		// Parse value based on operator (same logic as regular filter parsing)
+		var parsedValue interface{}
+		switch operator {
+		case OpIn:
+			// Parse array values: (1,2,3) or ["a","b","c"]
+			parsedValue = qp.parseArrayValue(rawValue)
+		case OpIs:
+			// Parse null/true/false
+			switch rawValue {
+			case "null":
+				parsedValue = nil
+			case "true":
+				parsedValue = true
+			case "false":
+				parsedValue = false
+			default:
+				parsedValue = rawValue
+			}
+		default:
+			parsedValue = rawValue
+		}
+
 		params.Filters = append(params.Filters, Filter{
-			Column:    parts[0],
-			Operator:  FilterOperator(parts[1]),
-			Value:     parts[2],
+			Column:    column,
+			Operator:  operator,
+			Value:     parsedValue,
 			IsOr:      true,
 			OrGroupID: groupID,
 		})
