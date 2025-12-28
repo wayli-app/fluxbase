@@ -629,16 +629,16 @@ fluxbase settings secrets delete my_api_key --user
 
 - `--user` - Delete a user-specific secret instead of a system secret
 
-### Differences from Function Secrets
+### Comparison: Settings Secrets vs Legacy Secrets
 
-| Feature               | `fluxbase secrets`        | `fluxbase settings secrets` |
-| --------------------- | ------------------------- | --------------------------- |
-| Storage               | `functions.secrets` table | `app.settings` table        |
-| Purpose               | Edge functions & jobs     | Application settings        |
-| Scopes                | Global, namespace         | System, user                |
-| User-specific         | No                        | Yes (with HKDF encryption)  |
-| Version history       | Yes                       | No                          |
-| Environment injection | `FLUXBASE_SECRET_*`       | Via SecretsService          |
+| Feature             | `fluxbase settings secrets` (Recommended) | `fluxbase secrets` (Legacy)         |
+| ------------------- | ----------------------------------------- | ----------------------------------- |
+| Storage             | `app.settings` table                      | `functions.secrets` table           |
+| Scopes              | System, user                              | Global, namespace                   |
+| User-specific       | Yes (with HKDF encryption)                | No                                  |
+| Version history     | No                                        | Yes                                 |
+| Access in functions | `secrets.get()`, `secrets.getRequired()`  | `Deno.env.get("FLUXBASE_SECRET_*")` |
+| Fallback            | User → System automatic fallback          | Namespace → Global                  |
 
 ---
 
@@ -668,9 +668,13 @@ fluxbase config profiles remove staging
 
 ---
 
-## Secrets Commands
+## Secrets Commands (Legacy)
 
-Manage secrets for edge functions and jobs. Secrets are encrypted at rest and injected as environment variables.
+:::note[Recommended: Use Settings Secrets]
+For new projects, use `fluxbase settings secrets` instead. Settings secrets provide user-specific encryption and integrate with the `secrets` object in functions. See [Settings Secrets Commands](#settings-secrets-commands) above.
+:::
+
+The legacy `fluxbase secrets` commands manage namespace-scoped secrets stored in the `functions.secrets` table.
 
 ### `fluxbase secrets list`
 
@@ -704,7 +708,7 @@ fluxbase secrets set TEMP_KEY "value" --expires 30d
 - `--description` - Description of the secret
 - `--expires` - Expiration duration (e.g., `30d`, `1y`, `24h`)
 
-Secrets are available in functions as `FLUXBASE_SECRET_<NAME>` environment variables.
+Legacy secrets are available in functions as `FLUXBASE_SECRET_<NAME>` environment variables via `Deno.env.get()`.
 
 ### `fluxbase secrets get`
 

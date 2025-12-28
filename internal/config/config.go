@@ -636,7 +636,6 @@ func setDefaults() {
 	viper.SetDefault("ai.max_rows_per_query", 1000)      // Max 1000 rows per query
 	viper.SetDefault("ai.conversation_cache_ttl", "30m") // 30 minute cache TTL
 	viper.SetDefault("ai.max_conversation_turns", 50)    // Max 50 turns per conversation
-	viper.SetDefault("ai.encryption_key", "")            // Must be set if providers are configured
 	viper.SetDefault("ai.sync_allowed_ip_ranges", []string{
 		"172.16.0.0/12",  // Docker default bridge networks
 		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)
@@ -717,6 +716,7 @@ func setDefaults() {
 	viper.SetDefault("base_url", "http://localhost:8080")
 	viper.SetDefault("public_base_url", "") // Empty means use base_url for backward compatibility
 	viper.SetDefault("debug", false)
+	viper.SetDefault("encryption_key", "") // REQUIRED: Must be exactly 32 bytes for AES-256
 }
 
 // Validate validates the configuration

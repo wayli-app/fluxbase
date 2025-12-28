@@ -27,16 +27,19 @@ fi
 # Prompt for key type
 echo -e "${BLUE}Select key type to generate:${NC}"
 echo ""
-echo "1) JWT Secret    - Master secret for signing JWT tokens"
-echo "                   (Required for Fluxbase to generate tokens)"
+echo "1) JWT Secret      - Master secret for signing JWT tokens"
+echo "                     (Required for Fluxbase to generate tokens)"
 echo ""
-echo "2) Service Key   - For backend services, cron jobs, admin scripts"
-echo "                   (Bypasses RLS, full database access)"
+echo "2) Service Key     - For backend services, cron jobs, admin scripts"
+echo "                     (Bypasses RLS, full database access)"
 echo ""
-echo "3) Anon Key      - For client-side anonymous access"
-echo "                   (JWT token with 'anon' role, respects RLS)"
+echo "3) Anon Key        - For client-side anonymous access"
+echo "                     (JWT token with 'anon' role, respects RLS)"
 echo ""
-read -p "Enter choice [1-3]: " KEY_TYPE
+echo "4) Encryption Key  - For encrypting secrets at rest"
+echo "                     (Required for storing secrets, OAuth tokens, etc.)"
+echo ""
+read -p "Enter choice [1-4]: " KEY_TYPE
 
 case $KEY_TYPE in
     1)
@@ -409,6 +412,85 @@ EOF
         echo -e "${YELLOW}Note: Anon keys are safe for client-side use but still respect RLS policies.${NC}"
         echo -e "${YELLOW}Users will only see data allowed by your anon role policies.${NC}"
         echo ""
+        ;;
+
+    4)
+        # ============================================================
+        # ENCRYPTION KEY GENERATION
+        # ============================================================
+
+        echo ""
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${BLUE}           Encryption Key Generation${NC}"
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+
+        echo -e "${YELLOW}The encryption key is used to encrypt sensitive data at rest:${NC}"
+        echo -e "${YELLOW}- Secrets stored via the admin dashboard or CLI${NC}"
+        echo -e "${YELLOW}- OAuth tokens and credentials${NC}"
+        echo -e "${YELLOW}- API keys for external services${NC}"
+        echo ""
+        echo -e "${YELLOW}This key must be exactly 32 characters for AES-256-GCM encryption.${NC}"
+        echo ""
+
+        # Generate secure random key (exactly 32 bytes)
+        ENCRYPTION_KEY=$(openssl rand -base64 32 | head -c 32)
+
+        echo -e "${GREEN}✓ Encryption key generated${NC}"
+        echo ""
+
+        # Display the key
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                  YOUR ENCRYPTION KEY${NC}"
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠️  SAVE THIS KEY NOW - IT WILL ONLY BE SHOWN ONCE ⚠️${NC}"
+        echo ""
+        echo -e "${BLUE}Encryption Key:${NC}"
+        echo -e "${GREEN}${ENCRYPTION_KEY}${NC}"
+        echo ""
+        echo -e "${BLUE}Length:${NC} $(echo -n "$ENCRYPTION_KEY" | wc -c) characters"
+        echo ""
+        echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+
+        # Usage instructions
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${BLUE}           Configuration Instructions${NC}"
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+
+        echo -e "${BLUE}1. Environment Variable:${NC}"
+        cat <<'EOF'
+export FLUXBASE_ENCRYPTION_KEY="<your-encryption-key>"
+EOF
+        echo ""
+
+        echo -e "${BLUE}2. Configuration File (fluxbase.yaml):${NC}"
+        cat <<'EOF'
+encryption_key: "<your-encryption-key>"
+EOF
+        echo ""
+
+        echo -e "${BLUE}3. Docker Compose:${NC}"
+        cat <<'EOF'
+environment:
+  - FLUXBASE_ENCRYPTION_KEY=<your-encryption-key>
+EOF
+        echo ""
+
+        echo -e "${BLUE}4. Kubernetes Secret:${NC}"
+        cat <<EOF
+kubectl create secret generic fluxbase-secrets \\
+  --from-literal=encryption-key="${ENCRYPTION_KEY}"
+EOF
+        echo ""
+
+        echo -e "${YELLOW}⚠️  CRITICAL SECURITY WARNINGS:${NC}"
+        echo -e "${YELLOW}- Never commit the encryption key to version control${NC}"
+        echo -e "${YELLOW}- Store in a secrets manager (Vault, AWS Secrets Manager, etc.)${NC}"
+        echo -e "${YELLOW}- If lost, all encrypted secrets become unrecoverable${NC}"
+        echo -e "${YELLOW}- Changing this key will make existing encrypted data unreadable${NC}"
         ;;
 
     *)

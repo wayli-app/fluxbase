@@ -316,12 +316,13 @@ services:
       FLUXBASE_ADMIN_ENABLED: ${FLUXBASE_ADMIN_ENABLED:-true}
 
       # ==========================================================================
-      # Encryption Configuration
+      # Encryption Configuration (REQUIRED)
       # ==========================================================================
-      # Encryption key for credentials stored via dashboard UI (e.g., email provider secrets, AI API keys)
-      # Only required if you configure providers through the admin dashboard instead of environment variables
+      # REQUIRED: Encryption key for sensitive data at rest (secrets, OAuth tokens, API keys)
+      # Fluxbase will not start without this key set.
+      # Must be exactly 32 characters for AES-256-GCM encryption.
       # Generate with: openssl rand -base64 32 | head -c 32
-      # FLUXBASE_ENCRYPTION_KEY: ""
+      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY:-your-32-character-encryption-key}
 
       # ==========================================================================
       # General Configuration

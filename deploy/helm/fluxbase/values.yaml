@@ -518,11 +518,12 @@ config:
   admin:
     enabled: true
 
-  ## Encryption configuration
-  ## @param config.encryption_key Encryption key for credentials stored via dashboard UI
+  ## Encryption configuration (REQUIRED)
+  ## @param config.encryption_key REQUIRED: Encryption key for sensitive data at rest
   ## @descriptionStart
-  ## Only required if you configure providers (Email, AI) through the admin dashboard instead of secrets/env vars.
-  ## Must be exactly 32 characters for AES-256. Generate with: openssl rand -base64 32 | head -c 32
+  ## REQUIRED: Fluxbase will not start without this key set.
+  ## Used to encrypt secrets, OAuth tokens, API keys, and other sensitive data at rest.
+  ## Must be exactly 32 characters for AES-256-GCM. Generate with: openssl rand -base64 32 | head -c 32
   ## Use existingSecret in production.
   ## @descriptionEnd
   ##
@@ -569,20 +570,20 @@ config:
 ##   - ses-access-key: AWS SES access key (when email.provider=ses)
 ##   - ses-secret-key: AWS SES secret key (when email.provider=ses)
 ##
-## Encryption (when configuring providers via dashboard):
-##   - encryption-key: Encryption key for dashboard-configured credentials (32 chars)
+## Encryption (REQUIRED):
+##   - encryption-key: REQUIRED - Encryption key for sensitive data at rest (32 chars)
 ##
 ## AI (when ai.enabled=true):
 ##   - openai-api-key: OpenAI API key (when using OpenAI provider)
 ##   - azure-api-key: Azure OpenAI API key (when using Azure provider)
 ##
-## Example secret creation:
+## Example secret creation (jwt-secret, setup-token, and encryption-key are REQUIRED):
 ##   kubectl create secret generic fluxbase-secrets \
 ##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
-##     --from-literal=anon-key=<generated-anon-jwt> \
-##     --from-literal=service-role-key=<generated-service-role-jwt> \
 ##     --from-literal=setup-token=$(openssl rand -base64 32) \
 ##     --from-literal=encryption-key=$(openssl rand -base64 32 | head -c 32) \
+##     --from-literal=anon-key=<generated-anon-jwt> \
+##     --from-literal=service-role-key=<generated-service-role-jwt> \
 ##     --from-literal=openai-api-key=sk-xxx
 ## @descriptionEnd
 ##

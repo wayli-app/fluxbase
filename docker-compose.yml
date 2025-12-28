@@ -63,6 +63,12 @@ services:
       # Generate with: openssl rand -base64 32
       FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:-change-me-in-production}
 
+      # Encryption Key (REQUIRED)
+      # Fluxbase will not start without this key set.
+      # Must be exactly 32 characters for AES-256-GCM encryption.
+      # Generate with: openssl rand -base64 32 | head -c 32
+      FLUXBASE_ENCRYPTION_KEY: ${FLUXBASE_ENCRYPTION_KEY:-dev-encryption-key-change-me123}
+
       # Storage (local for development)
       FLUXBASE_STORAGE_PROVIDER: local
       FLUXBASE_STORAGE_LOCAL_PATH: /data/storage
