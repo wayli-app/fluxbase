@@ -258,6 +258,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
 	userSettingsHandler := NewUserSettingsHandler(customSettingsService)
 	secretsService := settings.NewSecretsService(db, cfg.EncryptionKey)
+	userSettingsHandler.SetSecretsService(secretsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)
 	settingsHandler := NewSettingsHandler(db)
 	emailTemplateHandler := NewEmailTemplateHandler(db, emailService)
@@ -1324,6 +1325,9 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Get("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.GetSecretSetting)
 	router.Put("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.UpdateSecretSetting)
 	router.Delete("/settings/custom/secret/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.DeleteSecretSetting)
+
+	// User secret decryption route (service_role only - used by edge functions to decrypt user secrets)
+	router.Get("/settings/user/:user_id/secret/:key/decrypt", unifiedAuth, RequireRole("service_role"), s.userSettingsHandler.GetUserSecretValue)
 
 	// Regular custom settings wildcard routes
 	router.Get("/settings/custom/*", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.customSettingsHandler.GetSetting)

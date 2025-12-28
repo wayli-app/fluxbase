@@ -889,6 +889,36 @@ export class AppSettingsManager {
   async deleteSecretSetting(key: string): Promise<void> {
     await this.fetch.delete(`/api/v1/admin/settings/custom/secret/${key}`);
   }
+
+  /**
+   * Get the decrypted value of a user's secret setting
+   *
+   * This is a privileged operation that requires service_role.
+   * Use this to retrieve user-specific secrets when running as a service
+   * (e.g., in edge functions or background jobs).
+   *
+   * @param userId - The user ID whose secret to retrieve
+   * @param key - Secret key
+   * @returns Promise resolving to the decrypted secret value
+   *
+   * @example
+   * ```typescript
+   * // In an edge function, get a user's API key for validation
+   * const apiKey = await fluxbaseService.admin.settings.app.getUserSecretValue(
+   *   userId,
+   *   'owntracks_api_key'
+   * )
+   * if (apiKey !== providedKey) {
+   *   throw new Error('Invalid API key')
+   * }
+   * ```
+   */
+  async getUserSecretValue(userId: string, key: string): Promise<string> {
+    const response = await this.fetch.get<{ value: string }>(
+      `/api/v1/admin/settings/user/${encodeURIComponent(userId)}/secret/${encodeURIComponent(key)}/decrypt`,
+    );
+    return response.value;
+  }
 }
 
 /**

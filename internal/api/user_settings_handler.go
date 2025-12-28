@@ -13,6 +13,7 @@ import (
 // UserSettingsHandler handles user-specific secret settings operations
 type UserSettingsHandler struct {
 	settingsService *settings.CustomSettingsService
+	secretsService  *settings.SecretsService
 }
 
 // NewUserSettingsHandler creates a new user settings handler
@@ -20,6 +21,11 @@ func NewUserSettingsHandler(settingsService *settings.CustomSettingsService) *Us
 	return &UserSettingsHandler{
 		settingsService: settingsService,
 	}
+}
+
+// SetSecretsService sets the secrets service for decryption operations
+func (h *UserSettingsHandler) SetSecretsService(secretsService *settings.SecretsService) {
+	h.secretsService = secretsService
 }
 
 // CreateSecret creates a new encrypted user-specific secret setting
@@ -277,4 +283,73 @@ func (h *UserSettingsHandler) ListSecrets(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(secrets)
+}
+
+// GetUserSecretValue retrieves the decrypted value of a specific user's secret
+// This is a privileged operation that requires service_role
+// GET /api/v1/admin/settings/user/:user_id/secret/:key/decrypt
+func (h *UserSettingsHandler) GetUserSecretValue(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	// Require service_role for this privileged operation
+	role := c.Locals("user_role")
+	if role != "service_role" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "This operation requires service_role",
+		})
+	}
+
+	// Check if secrets service is configured
+	if h.secretsService == nil {
+		log.Error().Msg("SecretsService not configured for UserSettingsHandler")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Secrets service not configured",
+		})
+	}
+
+	// Parse target user ID from URL
+	targetUserIDStr := c.Params("user_id")
+	targetUserID, err := uuid.Parse(targetUserIDStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user_id format",
+		})
+	}
+
+	// Get secret key from URL
+	key := c.Params("key")
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Secret key is required",
+		})
+	}
+
+	// Retrieve and decrypt the secret
+	value, err := h.secretsService.GetUserSecret(ctx, targetUserID, key)
+	if err != nil {
+		if errors.Is(err, settings.ErrSecretNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Secret not found",
+			})
+		}
+		if errors.Is(err, settings.ErrDecryptionFailed) {
+			log.Error().Err(err).Str("key", key).Str("user_id", targetUserID.String()).Msg("Failed to decrypt user secret")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to decrypt secret",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Str("user_id", targetUserID.String()).Msg("Failed to retrieve user secret")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve secret",
+		})
+	}
+
+	log.Debug().
+		Str("key", key).
+		Str("target_user_id", targetUserID.String()).
+		Msg("User secret decrypted via service role")
+
+	return c.JSON(fiber.Map{
+		"value": value,
+	})
 }
