@@ -147,6 +147,15 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check if email verification is required (don't set cookies, no tokens returned)
+	if resp.RequiresEmailVerification {
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"user":                        resp.User,
+			"requires_email_verification": true,
+			"message":                     "Please check your email to verify your account before signing in.",
+		})
+	}
+
 	// Set httpOnly cookies for tokens
 	h.setAuthCookies(c, resp.AccessToken, resp.RefreshToken, resp.ExpiresIn)
 
@@ -179,6 +188,16 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 			log.Warn().Str("email", req.Email).Msg("Login attempt on locked account")
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Account locked due to too many failed login attempts. Please contact support.",
+				"code":  "ACCOUNT_LOCKED",
+			})
+		}
+		// Check for email not verified
+		if errors.Is(err, auth.ErrEmailNotVerified) {
+			log.Warn().Str("email", req.Email).Msg("Login attempt with unverified email")
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":                       "Please verify your email address before signing in. Check your inbox for the verification link.",
+				"code":                        "EMAIL_NOT_VERIFIED",
+				"requires_email_verification": true,
 			})
 		}
 		log.Error().Err(err).Str("email", req.Email).Msg("Failed to sign in user")
@@ -521,6 +540,104 @@ func (h *AuthHandler) VerifyPasswordResetToken(c *fiber.Ctx) error {
 	})
 }
 
+// VerifyEmail verifies a user's email address using a verification token
+// POST /auth/verify-email
+func (h *AuthHandler) VerifyEmail(c *fiber.Ctx) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Token is required",
+		})
+	}
+
+	user, err := h.authService.VerifyEmailToken(c.Context(), req.Token)
+	if err != nil {
+		// Check for specific token errors
+		if errors.Is(err, auth.ErrEmailVerificationTokenNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid or expired verification token",
+				"code":  "INVALID_TOKEN",
+			})
+		}
+		if errors.Is(err, auth.ErrEmailVerificationTokenExpired) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Verification token has expired. Please request a new one.",
+				"code":  "TOKEN_EXPIRED",
+			})
+		}
+		if errors.Is(err, auth.ErrEmailVerificationTokenUsed) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "This verification token has already been used",
+				"code":  "TOKEN_USED",
+			})
+		}
+		log.Error().Err(err).Msg("Failed to verify email")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Email verified successfully. You can now sign in.",
+		"user":    user,
+	})
+}
+
+// ResendVerificationEmail resends the verification email to a user
+// POST /auth/verify-email/resend
+func (h *AuthHandler) ResendVerificationEmail(c *fiber.Ctx) error {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Email is required",
+		})
+	}
+
+	// Get user by email
+	user, err := h.authService.GetUserByEmail(c.Context(), req.Email)
+	if err != nil {
+		// Don't reveal if email exists - return generic success message
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "If an account exists with this email, a verification link has been sent.",
+		})
+	}
+
+	// Check if already verified
+	if user.EmailVerified {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Email is already verified. You can sign in.",
+		})
+	}
+
+	// Send verification email
+	if err := h.authService.SendEmailVerification(c.Context(), user.ID, user.Email); err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to resend verification email")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to send verification email. Please try again later.",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Verification email sent. Please check your inbox.",
+	})
+}
+
 // RegisterRoutes registers all authentication routes with rate limiting
 func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[string]fiber.Handler) {
 	// Register routes directly on the provided router (which should already be /api/v1/auth or similar)
@@ -539,6 +656,10 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	router.Post("/password/reset", rateLimiters["password_reset"], h.RequestPasswordReset)
 	router.Post("/password/reset/confirm", h.ResetPassword)           // No rate limit on actual reset (token is single-use)
 	router.Post("/password/reset/verify", h.VerifyPasswordResetToken) // No rate limit on verification
+
+	// Email verification routes (public)
+	router.Post("/verify-email", h.VerifyEmail)                                               // No rate limit on verification (token is single-use)
+	router.Post("/verify-email/resend", rateLimiters["magiclink"], h.ResendVerificationEmail) // Use magiclink rate limiter
 
 	// 2FA verification (public - used during login) with rate limiting
 	// Rate limited to prevent brute-force attacks on 6-digit TOTP codes

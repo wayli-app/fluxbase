@@ -23,6 +23,9 @@ type Service interface {
 
 	// Send sends a generic email
 	Send(ctx context.Context, to, subject, body string) error
+
+	// IsConfigured returns true if the email service is properly configured and can send emails
+	IsConfigured() bool
 }
 
 // NewService creates an email service based on configuration
@@ -87,4 +90,8 @@ func (s *NoOpService) SendInvitationEmail(ctx context.Context, to, inviterName, 
 
 func (s *NoOpService) Send(ctx context.Context, to, subject, body string) error {
 	return fmt.Errorf("cannot send email: %s", s.reason)
+}
+
+func (s *NoOpService) IsConfigured() bool {
+	return false
 }

@@ -96,3 +96,8 @@ func (s *SendGridService) Send(ctx context.Context, to, subject, body string) er
 
 	return nil
 }
+
+// IsConfigured returns true if the SendGrid service is properly configured
+func (s *SendGridService) IsConfigured() bool {
+	return s.config.Enabled && s.config.IsConfigured()
+}

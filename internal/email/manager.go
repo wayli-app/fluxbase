@@ -186,3 +186,8 @@ func (w *ServiceWrapper) SendInvitationEmail(ctx context.Context, to, inviterNam
 func (w *ServiceWrapper) Send(ctx context.Context, to, subject, body string) error {
 	return w.manager.GetService().Send(ctx, to, subject, body)
 }
+
+// IsConfigured implements Service
+func (w *ServiceWrapper) IsConfigured() bool {
+	return w.manager.GetService().IsConfigured()
+}

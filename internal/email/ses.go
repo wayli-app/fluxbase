@@ -120,3 +120,8 @@ func (s *SESService) Send(ctx context.Context, to, subject, body string) error {
 
 	return nil
 }
+
+// IsConfigured returns true if the SES service is properly configured
+func (s *SESService) IsConfigured() bool {
+	return s.config.Enabled && s.config.IsConfigured()
+}

@@ -14,23 +14,27 @@ import (
 
 // Service provides a high-level authentication API
 type Service struct {
-	userRepo              *UserRepository
-	sessionRepo           *SessionRepository
-	magicLinkRepo         *MagicLinkRepository
-	jwtManager            *JWTManager
-	passwordHasher        *PasswordHasher
-	oauthManager          *OAuthManager
-	magicLinkService      *MagicLinkService
-	passwordResetService  *PasswordResetService
-	tokenBlacklistService *TokenBlacklistService
-	impersonationService  *ImpersonationService
-	otpService            *OTPService
-	identityService       *IdentityService
-	systemSettings        *SystemSettingsService
-	settingsCache         *SettingsCache
-	nonceRepo             *NonceRepository
-	oidcVerifier          *OIDCVerifier
-	config                *config.AuthConfig
+	userRepo                *UserRepository
+	sessionRepo             *SessionRepository
+	magicLinkRepo           *MagicLinkRepository
+	emailVerificationRepo   *EmailVerificationRepository
+	jwtManager              *JWTManager
+	passwordHasher          *PasswordHasher
+	oauthManager            *OAuthManager
+	magicLinkService        *MagicLinkService
+	passwordResetService    *PasswordResetService
+	tokenBlacklistService   *TokenBlacklistService
+	impersonationService    *ImpersonationService
+	otpService              *OTPService
+	identityService         *IdentityService
+	systemSettings          *SystemSettingsService
+	settingsCache           *SettingsCache
+	nonceRepo               *NonceRepository
+	oidcVerifier            *OIDCVerifier
+	config                  *config.AuthConfig
+	emailService            RealEmailService
+	baseURL                 string
+	emailVerificationExpiry time.Duration
 }
 
 // FullEmailService is a complete email service interface
@@ -135,24 +139,34 @@ func NewService(
 		}
 	}
 
+	// Email verification token expiry (default 24 hours)
+	emailVerificationExpiry := 24 * time.Hour
+
+	// Create email verification repository
+	emailVerificationRepo := NewEmailVerificationRepository(db)
+
 	return &Service{
-		userRepo:              userRepo,
-		sessionRepo:           sessionRepo,
-		magicLinkRepo:         magicLinkRepo,
-		jwtManager:            jwtManager,
-		passwordHasher:        passwordHasher,
-		oauthManager:          oauthManager,
-		magicLinkService:      magicLinkService,
-		passwordResetService:  passwordResetService,
-		tokenBlacklistService: tokenBlacklistService,
-		impersonationService:  impersonationService,
-		otpService:            otpService,
-		identityService:       identityService,
-		systemSettings:        systemSettingsService,
-		settingsCache:         settingsCache,
-		nonceRepo:             nonceRepo,
-		oidcVerifier:          oidcVerifier,
-		config:                cfg,
+		userRepo:                userRepo,
+		sessionRepo:             sessionRepo,
+		magicLinkRepo:           magicLinkRepo,
+		emailVerificationRepo:   emailVerificationRepo,
+		jwtManager:              jwtManager,
+		passwordHasher:          passwordHasher,
+		oauthManager:            oauthManager,
+		magicLinkService:        magicLinkService,
+		passwordResetService:    passwordResetService,
+		tokenBlacklistService:   tokenBlacklistService,
+		impersonationService:    impersonationService,
+		otpService:              otpService,
+		identityService:         identityService,
+		systemSettings:          systemSettingsService,
+		settingsCache:           settingsCache,
+		nonceRepo:               nonceRepo,
+		oidcVerifier:            oidcVerifier,
+		config:                  cfg,
+		emailService:            realEmailService,
+		baseURL:                 baseURL,
+		emailVerificationExpiry: emailVerificationExpiry,
 	}
 }
 
@@ -166,10 +180,11 @@ type SignUpRequest struct {
 
 // SignUpResponse represents a successful registration response
 type SignUpResponse struct {
-	User         *User  `json:"user"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"` // seconds
+	User                      *User  `json:"user"`
+	AccessToken               string `json:"access_token,omitempty"`
+	RefreshToken              string `json:"refresh_token,omitempty"`
+	ExpiresIn                 int64  `json:"expires_in,omitempty"` // seconds
+	RequiresEmailVerification bool   `json:"requires_email_verification,omitempty"`
 }
 
 // SignUp registers a new user with email and password
@@ -206,6 +221,29 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 	}, hashedPassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Check if email verification is required
+	if s.IsEmailVerificationRequired(ctx) {
+		// Send verification email (don't fail signup if email fails)
+		if err := s.SendEmailVerification(ctx, user.ID, user.Email); err != nil {
+			// Log error but don't fail the signup - user was created successfully
+			LogSecurityEvent(ctx, SecurityEvent{
+				Type:   SecurityEventLoginFailed,
+				UserID: user.ID,
+				Email:  user.Email,
+				Details: map[string]interface{}{
+					"reason": "failed_to_send_verification_email",
+					"error":  err.Error(),
+				},
+			})
+		}
+
+		// Return response WITHOUT tokens - user needs to verify email first
+		return &SignUpResponse{
+			User:                      user,
+			RequiresEmailVerification: true,
+		}, nil
 	}
 
 	// Generate tokens with metadata
@@ -339,6 +377,19 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 			// Log error but continue with login
 			_ = err
 		}
+	}
+
+	// Check if email verification is required and user's email is not verified
+	if s.IsEmailVerificationRequired(ctx) && !user.EmailVerified {
+		LogSecurityEvent(ctx, SecurityEvent{
+			Type:   SecurityEventLoginFailed,
+			UserID: user.ID,
+			Email:  user.Email,
+			Details: map[string]interface{}{
+				"reason": "email_not_verified",
+			},
+		})
+		return nil, ErrEmailNotVerified
 	}
 
 	// Log successful login
@@ -1174,4 +1225,72 @@ func (s *Service) CreateUser(ctx context.Context, email, password string) (*User
 		Role:     "user",
 	}
 	return s.userRepo.Create(ctx, req, hashedPassword)
+}
+
+// IsEmailVerificationRequired checks if email verification is required based on settings and email configuration
+func (s *Service) IsEmailVerificationRequired(ctx context.Context) bool {
+	// Check if the setting is enabled
+	required := s.settingsCache.GetBool(ctx, "app.auth.require_email_verification", false)
+	if !required {
+		return false
+	}
+
+	// Also check if email is configured - can't require verification without email
+	if s.emailService == nil {
+		return false
+	}
+	return s.emailService.IsConfigured()
+}
+
+// SendEmailVerification sends a verification email to the user
+func (s *Service) SendEmailVerification(ctx context.Context, userID, email string) error {
+	if s.emailService == nil || !s.emailService.IsConfigured() {
+		return fmt.Errorf("email service is not configured")
+	}
+
+	// Delete any existing tokens for this user
+	_ = s.emailVerificationRepo.DeleteByUserID(ctx, userID)
+
+	// Create new verification token
+	tokenWithPlaintext, err := s.emailVerificationRepo.Create(ctx, userID, s.emailVerificationExpiry)
+	if err != nil {
+		return fmt.Errorf("failed to create verification token: %w", err)
+	}
+
+	// Build verification link
+	link := fmt.Sprintf("%s/auth/verify-email?token=%s", s.baseURL, tokenWithPlaintext.PlaintextToken)
+
+	// Send verification email
+	if err := s.emailService.SendVerificationEmail(ctx, email, tokenWithPlaintext.PlaintextToken, link); err != nil {
+		return fmt.Errorf("failed to send verification email: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyEmailToken validates the verification token and marks the user's email as verified
+func (s *Service) VerifyEmailToken(ctx context.Context, token string) (*User, error) {
+	// Validate the token
+	emailToken, err := s.emailVerificationRepo.Validate(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mark token as used
+	if err := s.emailVerificationRepo.MarkAsUsed(ctx, emailToken.ID); err != nil {
+		return nil, fmt.Errorf("failed to mark token as used: %w", err)
+	}
+
+	// Mark user's email as verified
+	if err := s.userRepo.VerifyEmail(ctx, emailToken.UserID); err != nil {
+		return nil, fmt.Errorf("failed to verify email: %w", err)
+	}
+
+	// Get updated user
+	user, err := s.userRepo.GetByID(ctx, emailToken.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return user, nil
 }

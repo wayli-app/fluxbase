@@ -12,6 +12,7 @@ type RealEmailService interface {
 	SendMagicLink(ctx context.Context, to, token, link string) error
 	SendPasswordReset(ctx context.Context, to, token, link string) error
 	SendVerificationEmail(ctx context.Context, to, token, link string) error
+	IsConfigured() bool
 }
 
 // DefaultOTPSender implements OTPSender using email service

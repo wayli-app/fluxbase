@@ -290,3 +290,8 @@ const defaultInvitationTemplate = `
 </body>
 </html>
 `
+
+// IsConfigured returns true if the SMTP service is properly configured
+func (s *SMTPService) IsConfigured() bool {
+	return s.config.Enabled && s.config.IsConfigured()
+}

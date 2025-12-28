@@ -101,3 +101,8 @@ func (s *MailgunService) Send(ctx context.Context, to, subject, body string) err
 
 	return nil
 }
+
+// IsConfigured returns true if the Mailgun service is properly configured
+func (s *MailgunService) IsConfigured() bool {
+	return s.config.Enabled && s.config.IsConfigured()
+}
