@@ -13,6 +13,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// isAdminUser checks if the request is from an admin or dashboard_admin user
+func isAdminUser(c *fiber.Ctx) bool {
+	role, ok := c.Locals("user_role").(string)
+	return ok && (role == "admin" || role == "dashboard_admin")
+}
+
 // makeGetHandler creates a GET handler for listing records
 func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -30,7 +36,9 @@ func (h *RESTHandler) makeGetHandler(table database.TableInfo) fiber.Handler {
 		}
 
 		// Parse query parameters
-		params, err := h.parser.Parse(urlValues)
+		// Admin users bypass max_total_results to allow browsing all data
+		opts := ParseOptions{BypassMaxTotalResults: isAdminUser(c)}
+		params, err := h.parser.ParseWithOptions(urlValues, opts)
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{
 				"error": fmt.Sprintf("Invalid query parameters: %v", err),

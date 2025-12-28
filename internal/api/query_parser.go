@@ -146,6 +146,13 @@ type QueryParser struct {
 	config *config.Config
 }
 
+// ParseOptions configures query parsing behavior
+type ParseOptions struct {
+	// BypassMaxTotalResults skips the max_total_results enforcement.
+	// Use for admin/dashboard requests that should have unlimited access.
+	BypassMaxTotalResults bool
+}
+
 // NewQueryParser creates a new query parser
 func NewQueryParser(cfg *config.Config) *QueryParser {
 	return &QueryParser{
@@ -153,8 +160,13 @@ func NewQueryParser(cfg *config.Config) *QueryParser {
 	}
 }
 
-// Parse parses URL query parameters into QueryParams
+// Parse parses URL query parameters into QueryParams with default options
 func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
+	return qp.ParseWithOptions(values, ParseOptions{})
+}
+
+// ParseWithOptions parses URL query parameters into QueryParams with custom options
+func (qp *QueryParser) ParseWithOptions(values url.Values, opts ParseOptions) (*QueryParams, error) {
 	params := &QueryParams{
 		Filters: []Filter{},
 		Order:   []OrderBy{},
@@ -240,7 +252,8 @@ func (qp *QueryParser) Parse(values url.Values) (*QueryParams, error) {
 	}
 
 	// Validate total results limit (offset + limit <= max_total_results)
-	if qp.config.API.MaxTotalResults > 0 {
+	// Skip this check if BypassMaxTotalResults is set (e.g., for admin users)
+	if !opts.BypassMaxTotalResults && qp.config.API.MaxTotalResults > 0 {
 		offset := 0
 		if params.Offset != nil {
 			offset = *params.Offset
