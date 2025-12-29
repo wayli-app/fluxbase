@@ -28,6 +28,7 @@ import api, {
   oauthProviderApi,
   authSettingsApi,
   samlProviderApi,
+  dashboardAuthAPI,
   type OAuthProviderConfig,
   type CreateOAuthProviderRequest,
   type UpdateOAuthProviderRequest,
@@ -1458,6 +1459,14 @@ function AuthSettingsTab() {
     queryFn: authSettingsApi.get,
   })
 
+  // Fetch SSO providers to check if dashboard SSO is available
+  const { data: ssoData } = useQuery({
+    queryKey: ['dashboard-sso-providers'],
+    queryFn: dashboardAuthAPI.getSSOProviders,
+  })
+
+  const hasDashboardSSOProviders = (ssoData?.providers?.length ?? 0) > 0
+
   // Use useMemo to derive the initial settings value from fetched data
   const initialSettings = useMemo(
     () => fetchedSettings || null,
@@ -1678,6 +1687,52 @@ function AuthSettingsTab() {
               }
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard Login</CardTitle>
+          <CardDescription>
+            Configure authentication methods for dashboard admins
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <div className='flex-1 pr-4'>
+              <Label htmlFor='disablePasswordLogin'>
+                Disable Password Login
+              </Label>
+              <p className='text-muted-foreground text-sm'>
+                Require SSO for all dashboard admin logins. Password authentication will be disabled.
+              </p>
+              {!hasDashboardSSOProviders && (
+                <p className='text-sm text-amber-600 mt-2'>
+                  Configure at least one OAuth or SAML provider with "Allow dashboard login" enabled before you can disable password login.
+                </p>
+              )}
+            </div>
+            <Switch
+              id='disablePasswordLogin'
+              checked={settings.disable_dashboard_password_login}
+              onCheckedChange={(checked) =>
+                setSettings({
+                  ...settings,
+                  disable_dashboard_password_login: checked,
+                })
+              }
+              disabled={!hasDashboardSSOProviders && !settings.disable_dashboard_password_login}
+            />
+          </div>
+          {settings.disable_dashboard_password_login && (
+            <div className='bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3'>
+              <p className='text-sm text-amber-800 dark:text-amber-200'>
+                <strong>Recovery:</strong> If you get locked out, set the environment variable{' '}
+                <code className='bg-amber-100 dark:bg-amber-900 px-1 rounded'>FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN=true</code>{' '}
+                to temporarily re-enable password login.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

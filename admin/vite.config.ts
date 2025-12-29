@@ -131,6 +131,16 @@ export default defineConfig({
           })
         },
       },
+      // Proxy dashboard auth endpoints
+      '/dashboard': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            handleProxyError(err, res as ServerResponse)
+          })
+        },
+      },
     },
   },
 })

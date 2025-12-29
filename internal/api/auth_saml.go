@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -279,13 +278,15 @@ func (h *SAMLHandler) HandleSAMLAssertion(c *fiber.Ctx) error {
 	}
 
 	// Generate JWT tokens
-	accessToken, refreshToken, err := h.authService.GenerateTokensForUser(ctx, user)
+	signInResp, err := h.authService.GenerateTokensForUser(ctx, user.ID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", user.ID).Msg("Failed to generate tokens")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "failed to generate tokens",
 		})
 	}
+	accessToken := signInResp.AccessToken
+	refreshToken := signInResp.RefreshToken
 
 	// Determine response type
 	// If RelayState contains a redirect URL, redirect with token in fragment

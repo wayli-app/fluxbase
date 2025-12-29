@@ -35,6 +35,8 @@ RUN apt-get update && apt-get install -y \
     libleptonica-dev \
     tesseract-ocr-eng \
     poppler-utils \
+    # Image processing library for govips
+    libvips-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locale

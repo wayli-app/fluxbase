@@ -105,8 +105,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{"Chatbots", "chatbots", syncChatbotsFromDir},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+
+	// Increase HTTP client timeout for sync operations (large bundled payloads)
+	originalTimeout := apiClient.HTTPClient.Timeout
+	apiClient.HTTPClient.Timeout = 5 * time.Minute
+	defer func() { apiClient.HTTPClient.Timeout = originalTimeout }()
 
 	foundAny := false
 	for _, res := range resources {

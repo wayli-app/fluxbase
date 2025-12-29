@@ -509,6 +509,68 @@ Frontend shows all providers:
 ))}
 ```
 
+## Dashboard SSO (Admin Login)
+
+SAML and OAuth providers can be used for dashboard admin authentication, enabling SSO-only mode where password login is disabled.
+
+### Enable Dashboard SSO
+
+When creating or editing an SSO provider, enable "Allow dashboard login":
+
+```yaml
+auth:
+  saml_providers:
+    - name: corporate-sso
+      enabled: true
+      idp_metadata_url: "https://company.okta.com/metadata"
+      allow_dashboard_login: true   # Enable for admin login
+      allow_app_login: true         # Also allow for app users
+```
+
+### Disable Password Login
+
+Once SSO is configured for dashboard login, you can disable password authentication:
+
+1. Go to **Authentication** → **Auth Settings** in the dashboard
+2. Enable **Disable Password Login** under "Dashboard Login"
+3. Save settings
+
+When enabled:
+- The login page shows only SSO buttons
+- Password form is hidden
+- Backend rejects password login attempts
+
+### CLI SSO Login
+
+With password login disabled, use the `--sso` flag for CLI authentication:
+
+```bash
+# SSO login (opens browser)
+fluxbase auth login --server https://api.example.com --sso
+
+# Or use an API token
+fluxbase auth login --server https://api.example.com --token your-api-token
+```
+
+The CLI automatically detects when password login is disabled and initiates SSO flow.
+
+### Emergency Recovery
+
+If you're locked out due to misconfigured SSO, set the environment variable to bypass the setting:
+
+```bash
+FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN=true
+```
+
+This temporarily re-enables password login regardless of the database setting.
+
+### Security Considerations
+
+1. **Require at least one SSO provider** - Cannot disable password login without configured SSO
+2. **Test SSO login first** - Verify SSO works before disabling passwords
+3. **Document recovery procedures** - Ensure administrators know about the env var override
+4. **Audit SSO provider changes** - Monitor for accidental removal of SSO providers
+
 ## Next Steps
 
 - [Authentication](/docs/guides/authentication) - Authentication overview

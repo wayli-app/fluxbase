@@ -46,34 +46,6 @@ CREATE INDEX IF NOT EXISTS idx_saml_sessions_name_id ON auth.saml_sessions(name_
 -- Index for provider lookups
 CREATE INDEX IF NOT EXISTS idx_saml_sessions_provider_name ON auth.saml_sessions(provider_name);
 
--- Extend auth.identities to support SAML identity linking
--- Add saml-specific columns if they don't exist
-DO $$
-BEGIN
-    -- Add saml_name_id column if it doesn't exist
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'auth'
-        AND table_name = 'identities'
-        AND column_name = 'saml_name_id'
-    ) THEN
-        ALTER TABLE auth.identities ADD COLUMN saml_name_id TEXT;
-    END IF;
-
-    -- Add saml_attributes column if it doesn't exist
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'auth'
-        AND table_name = 'identities'
-        AND column_name = 'saml_attributes'
-    ) THEN
-        ALTER TABLE auth.identities ADD COLUMN saml_attributes JSONB;
-    END IF;
-END $$;
-
--- Create index for SAML name_id lookups
-CREATE INDEX IF NOT EXISTS idx_identities_saml_name_id ON auth.identities(saml_name_id) WHERE saml_name_id IS NOT NULL;
-
 -- SAML assertion replay prevention table
 -- Stores assertion IDs to prevent replay attacks
 CREATE TABLE IF NOT EXISTS auth.saml_assertion_ids (

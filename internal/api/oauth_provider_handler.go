@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -82,17 +83,18 @@ type UpdateOAuthProviderRequest struct {
 
 // Auth settings types
 type AuthSettings struct {
-	EnableSignup             bool                       `json:"enable_signup"`
-	RequireEmailVerification bool                       `json:"require_email_verification"`
-	EnableMagicLink          bool                       `json:"enable_magic_link"`
-	PasswordMinLength        int                        `json:"password_min_length"`
-	PasswordRequireUppercase bool                       `json:"password_require_uppercase"`
-	PasswordRequireLowercase bool                       `json:"password_require_lowercase"`
-	PasswordRequireNumber    bool                       `json:"password_require_number"`
-	PasswordRequireSpecial   bool                       `json:"password_require_special"`
-	SessionTimeoutMinutes    int                        `json:"session_timeout_minutes"`
-	MaxSessionsPerUser       int                        `json:"max_sessions_per_user"`
-	Overrides                map[string]SettingOverride `json:"_overrides,omitempty"`
+	EnableSignup                  bool                       `json:"enable_signup"`
+	RequireEmailVerification      bool                       `json:"require_email_verification"`
+	EnableMagicLink               bool                       `json:"enable_magic_link"`
+	PasswordMinLength             int                        `json:"password_min_length"`
+	PasswordRequireUppercase      bool                       `json:"password_require_uppercase"`
+	PasswordRequireLowercase      bool                       `json:"password_require_lowercase"`
+	PasswordRequireNumber         bool                       `json:"password_require_number"`
+	PasswordRequireSpecial        bool                       `json:"password_require_special"`
+	SessionTimeoutMinutes         int                        `json:"session_timeout_minutes"`
+	MaxSessionsPerUser            int                        `json:"max_sessions_per_user"`
+	DisableDashboardPasswordLogin bool                       `json:"disable_dashboard_password_login"`
+	Overrides                     map[string]SettingOverride `json:"_overrides,omitempty"`
 }
 
 // SettingOverride contains override information for a specific setting
@@ -507,6 +509,10 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 			if v, ok := value.(float64); ok {
 				settings.MaxSessionsPerUser = int(v)
 			}
+		case "disable_dashboard_password_login":
+			if v, ok := value.(bool); ok {
+				settings.DisableDashboardPasswordLogin = v
+			}
 		}
 	}
 
@@ -571,17 +577,35 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 		SET value = EXCLUDED.value, updated_at = NOW()
 	`
 
+	// If trying to disable password login, verify SSO providers exist
+	if req.DisableDashboardPasswordLogin {
+		hasSSO, err := h.hasDashboardSSOProviders(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to check SSO providers")
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Failed to verify SSO providers",
+			})
+		}
+		if !hasSSO {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Cannot disable password login: No SSO providers are configured for dashboard login. Configure at least one OAuth or SAML provider with 'Allow dashboard login' enabled first.",
+				"code":  "NO_SSO_PROVIDERS",
+			})
+		}
+	}
+
 	updates := map[string]interface{}{
-		"enable_signup":              req.EnableSignup,
-		"require_email_verification": req.RequireEmailVerification,
-		"enable_magic_link":          req.EnableMagicLink,
-		"password_min_length":        req.PasswordMinLength,
-		"password_require_uppercase": req.PasswordRequireUppercase,
-		"password_require_lowercase": req.PasswordRequireLowercase,
-		"password_require_number":    req.PasswordRequireNumber,
-		"password_require_special":   req.PasswordRequireSpecial,
-		"session_timeout_minutes":    req.SessionTimeoutMinutes,
-		"max_sessions_per_user":      req.MaxSessionsPerUser,
+		"enable_signup":                    req.EnableSignup,
+		"require_email_verification":       req.RequireEmailVerification,
+		"enable_magic_link":                req.EnableMagicLink,
+		"password_min_length":              req.PasswordMinLength,
+		"password_require_uppercase":       req.PasswordRequireUppercase,
+		"password_require_lowercase":       req.PasswordRequireLowercase,
+		"password_require_number":          req.PasswordRequireNumber,
+		"password_require_special":         req.PasswordRequireSpecial,
+		"session_timeout_minutes":          req.SessionTimeoutMinutes,
+		"max_sessions_per_user":            req.MaxSessionsPerUser,
+		"disable_dashboard_password_login": req.DisableDashboardPasswordLogin,
 	}
 
 	for key, value := range updates {
@@ -600,6 +624,34 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Authentication settings updated successfully",
 	})
+}
+
+// hasDashboardSSOProviders checks if any SSO providers are configured for dashboard login
+func (h *OAuthProviderHandler) hasDashboardSSOProviders(ctx context.Context) (bool, error) {
+	// Check OAuth providers
+	var oauthCount int
+	err := h.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM dashboard.oauth_providers
+		WHERE enabled = true AND allow_dashboard_login = true
+	`).Scan(&oauthCount)
+	if err != nil {
+		return false, err
+	}
+	if oauthCount > 0 {
+		return true, nil
+	}
+
+	// Check SAML providers
+	var samlCount int
+	err = h.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM auth.saml_providers
+		WHERE enabled = true AND allow_dashboard_login = true
+	`).Scan(&samlCount)
+	if err != nil {
+		return false, err
+	}
+
+	return samlCount > 0, nil
 }
 
 // Helper function to get user ID from context (set by auth middleware)

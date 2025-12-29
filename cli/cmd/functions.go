@@ -431,8 +431,13 @@ func runFunctionsLogs(cmd *cobra.Command, args []string) error {
 }
 
 func runFunctionsSync(cmd *cobra.Command, args []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+
+	// Increase HTTP client timeout for sync operations (large bundled payloads)
+	originalTimeout := apiClient.HTTPClient.Timeout
+	apiClient.HTTPClient.Timeout = 5 * time.Minute
+	defer func() { apiClient.HTTPClient.Timeout = originalTimeout }()
 
 	// Auto-detect directory if not explicitly specified
 	dir, err := detectResourceDir("functions", fnSyncDir, "./functions")

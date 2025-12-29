@@ -29,12 +29,13 @@ var (
 	loginToken    string
 	loginProfile  string
 	useKeychain   bool
+	useSSO        bool
 )
 
 var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with a Fluxbase server",
-	Long: `Authenticate with a Fluxbase server using email/password or an API token.
+	Long: `Authenticate with a Fluxbase server using email/password, API token, or SSO.
 
 Examples:
   # Interactive login (prompts for server, email, password)
@@ -45,6 +46,9 @@ Examples:
 
   # Login with an API token
   fluxbase auth login --server https://api.example.com --token your-api-token
+
+  # Login with SSO (opens browser)
+  fluxbase auth login --server https://api.example.com --sso
 
   # Save to a named profile
   fluxbase auth login --profile prod --server https://api.example.com`,
@@ -96,6 +100,7 @@ func init() {
 	authLoginCmd.Flags().StringVar(&loginToken, "token", "", "API token for authentication")
 	authLoginCmd.Flags().StringVar(&loginProfile, "profile", "default", "Profile name to save credentials")
 	authLoginCmd.Flags().BoolVar(&useKeychain, "use-keychain", false, "Store credentials in system keychain")
+	authLoginCmd.Flags().BoolVar(&useSSO, "sso", false, "Login via SSO (opens browser)")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authLogoutCmd)
@@ -143,28 +148,44 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 			APIKey: loginToken,
 		}
 		fmt.Println("Using API token for authentication")
-	} else {
-		// Email/password authentication
-		email := loginEmail
-		if email == "" {
-			email, err = util.ReadLine("Email: ")
-			if err != nil {
-				return err
-			}
-		}
-
-		password := loginPassword
-		if password == "" {
-			password, err = util.ReadPassword("Password: ")
-			if err != nil {
-				return err
-			}
-		}
-
-		// Perform login
-		creds, userInfo, err = performLogin(server, email, password)
+	} else if useSSO {
+		// SSO authentication
+		creds, userInfo, err = performSSOAuthentication(server)
 		if err != nil {
-			return fmt.Errorf("login failed: %w", err)
+			return fmt.Errorf("SSO login failed: %w", err)
+		}
+	} else {
+		// Check if password login is disabled on the server
+		ssoInfo, ssoErr := getSSOProviders(server)
+		if ssoErr == nil && ssoInfo.PasswordLoginDisabled {
+			fmt.Println("Password login is disabled on this server. Initiating SSO login...")
+			creds, userInfo, err = performSSOAuthentication(server)
+			if err != nil {
+				return fmt.Errorf("SSO login failed: %w", err)
+			}
+		} else {
+			// Email/password authentication
+			email := loginEmail
+			if email == "" {
+				email, err = util.ReadLine("Email: ")
+				if err != nil {
+					return err
+				}
+			}
+
+			password := loginPassword
+			if password == "" {
+				password, err = util.ReadPassword("Password: ")
+				if err != nil {
+					return err
+				}
+			}
+
+			// Perform login
+			creds, userInfo, err = performLogin(server, email, password)
+			if err != nil {
+				return fmt.Errorf("login failed: %w", err)
+			}
 		}
 	}
 

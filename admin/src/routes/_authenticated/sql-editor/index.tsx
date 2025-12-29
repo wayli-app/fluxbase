@@ -89,12 +89,10 @@ const ROWS_PER_PAGE = 100
 
 const DEFAULT_SQL = '-- Write your SQL query here\nSELECT * FROM auth.users LIMIT 10;'
 const DEFAULT_GRAPHQL = `# Write your GraphQL query here
+# GraphQL exposes tables from the 'public' schema
+# Use the _health query to test connectivity
 query {
-  users(limit: 10) {
-    id
-    email
-    createdAt
-  }
+  _health
 }`
 
 function SQLEditorPage() {
@@ -113,6 +111,7 @@ function SQLEditorPage() {
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
   const sqlCompletionProviderRef = useRef<IDisposable | null>(null)
   const graphqlCompletionProviderRef = useRef<IDisposable | null>(null)
+  const executeQueryRef = useRef<() => void>(() => {})
 
   // Fetch schema metadata for autocompletion
   const { schemas, tables } = useSchemaMetadata()
@@ -280,6 +279,9 @@ function SQLEditorPage() {
       setIsExecuting(false)
     }
   }
+
+  // Keep ref updated so keyboard shortcut always uses latest function
+  executeQueryRef.current = executeQuery
 
   // Clear all history
   const clearHistory = () => {
@@ -456,10 +458,11 @@ function SQLEditorPage() {
     monaco.editor.setTheme(resolvedTheme === 'dark' ? 'fluxbase-dark' : 'fluxbase-light')
 
     // Register Ctrl/Cmd + Enter to execute query
+    // Use ref to always call the latest version of executeQuery
     editor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       () => {
-        executeQuery()
+        executeQueryRef.current()
       }
     )
   }

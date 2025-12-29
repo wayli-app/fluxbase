@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,11 @@ func (h *DashboardAuthHandler) Signup(c *fiber.Ctx) error {
 
 // Login authenticates a dashboard user
 func (h *DashboardAuthHandler) Login(c *fiber.Ctx) error {
+	// Check if password login is disabled
+	if h.isPasswordLoginDisabled(c.Context()) {
+		return fiber.NewError(fiber.StatusForbidden, "Password login is disabled. Please use SSO to sign in.")
+	}
+
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -498,6 +504,32 @@ func getIPAddress(c *fiber.Ctx) net.IP {
 	return net.ParseIP(c.IP())
 }
 
+// isPasswordLoginDisabled checks if password login is disabled for the dashboard
+// This can be overridden by the FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN environment variable
+func (h *DashboardAuthHandler) isPasswordLoginDisabled(ctx context.Context) bool {
+	// Emergency override via environment variable
+	if os.Getenv("FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN") == "true" {
+		return false // Password login forced enabled
+	}
+
+	// Check database setting
+	var disabled bool
+	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT COALESCE(value::boolean, false)
+			FROM app.settings
+			WHERE key = 'disable_dashboard_password_login' AND category = 'auth'
+		`).Scan(&disabled)
+	})
+
+	if err != nil {
+		// If setting doesn't exist or error, default to allowing password login
+		return false
+	}
+
+	return disabled
+}
+
 // SSOProvider represents an SSO provider available for dashboard login
 type SSOProvider struct {
 	ID       string `json:"id"`
@@ -530,8 +562,12 @@ func (h *DashboardAuthHandler) GetSSOProviders(c *fiber.Ctx) error {
 		}
 	}
 
+	// Check if password login is disabled
+	passwordLoginDisabled := h.isPasswordLoginDisabled(ctx)
+
 	return c.JSON(fiber.Map{
-		"providers": providers,
+		"providers":               providers,
+		"password_login_disabled": passwordLoginDisabled,
 	})
 }
 
@@ -541,7 +577,7 @@ func (h *DashboardAuthHandler) getOAuthProvidersForDashboard(ctx context.Context
 
 	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT id, name, provider
+			SELECT id, display_name, provider_name
 			FROM dashboard.oauth_providers
 			WHERE enabled = true AND allow_dashboard_login = true
 		`)
@@ -552,15 +588,15 @@ func (h *DashboardAuthHandler) getOAuthProvidersForDashboard(ctx context.Context
 
 		for rows.Next() {
 			var id uuid.UUID
-			var name, provider string
-			if err := rows.Scan(&id, &name, &provider); err != nil {
+			var displayName, providerName string
+			if err := rows.Scan(&id, &displayName, &providerName); err != nil {
 				return err
 			}
 			providers = append(providers, SSOProvider{
 				ID:       id.String(),
-				Name:     name,
+				Name:     displayName,
 				Type:     "oauth",
-				Provider: provider,
+				Provider: providerName,
 			})
 		}
 		return rows.Err()
@@ -579,14 +615,14 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	ctx := c.Context()
 
 	// Fetch the OAuth provider configuration
-	var clientID, clientSecret, provider string
+	var clientID, clientSecret, providerName string
 	var scopes []string
 	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT client_id, client_secret, provider, scopes
+			SELECT client_id, client_secret, provider_name, scopes
 			FROM dashboard.oauth_providers
-			WHERE (id::text = $1 OR name = $1) AND enabled = true AND allow_dashboard_login = true
-		`, providerID).Scan(&clientID, &clientSecret, &provider, &scopes)
+			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
+		`, providerID).Scan(&clientID, &clientSecret, &providerName, &scopes)
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -596,7 +632,7 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	}
 
 	// Build OAuth config
-	config := h.buildOAuthConfig(provider, clientID, clientSecret, scopes)
+	config := h.buildOAuthConfig(providerName, clientID, clientSecret, scopes)
 	if config == nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Unsupported OAuth provider")
 	}

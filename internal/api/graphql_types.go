@@ -249,8 +249,6 @@ func parseASTValue(v ast.Value) interface{} {
 		return parseObjectValue(val)
 	case *ast.ListValue:
 		return parseListValue(val)
-	case *ast.NullValue:
-		return nil
 	default:
 		return nil
 	}

@@ -1755,8 +1755,13 @@ export const dashboardAuthAPI = {
   },
 
   // Get SSO providers available for dashboard login
-  getSSOProviders: async (): Promise<{ providers: SSOProvider[] }> => {
-    const response = await axios.get(`${API_BASE_URL}/dashboard/auth/sso/providers`)
+  getSSOProviders: async (): Promise<{
+    providers: SSOProvider[]
+    password_login_disabled: boolean
+  }> => {
+    const response = await axios.get(
+      `${API_BASE_URL}/dashboard/auth/sso/providers`
+    )
     return response.data
   },
 }
@@ -1830,6 +1835,7 @@ export interface AuthSettings {
   password_require_special: boolean
   session_timeout_minutes: number
   max_sessions_per_user: number
+  disable_dashboard_password_login: boolean
 }
 
 // OAuth Provider Management API

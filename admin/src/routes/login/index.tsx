@@ -35,6 +35,7 @@ function LoginPage() {
   })
 
   const ssoProviders = ssoData?.providers || []
+  const passwordLoginDisabled = ssoData?.password_login_disabled || false
 
   // Show error from URL (e.g., SSO callback error)
   useEffect(() => {
@@ -156,43 +157,52 @@ function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your admin credentials to continue</CardDescription>
+            <CardDescription>
+              {passwordLoginDisabled
+                ? "Use your organization's SSO to sign in"
+                : 'Enter your admin credentials to continue'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='email'>Email</Label>
-                <Input
-                  id='email'
-                  type='email'
-                  placeholder='admin@example.com'
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  disabled={isLoading}
-                  autoComplete='email'
-                  autoFocus
-                />
-              </div>
+            {/* Password Form - only show if not disabled */}
+            {!passwordLoginDisabled && (
+              <form onSubmit={handleSubmit} className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='email'>Email</Label>
+                  <Input
+                    id='email'
+                    type='email'
+                    placeholder='admin@example.com'
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    disabled={isLoading}
+                    autoComplete='email'
+                    autoFocus
+                  />
+                </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='password'>Password</Label>
-                <PasswordInput
-                  id='password'
-                  placeholder='Enter your password'
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  disabled={isLoading}
-                  autoComplete='current-password'
-                />
-              </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='password'>Password</Label>
+                  <PasswordInput
+                    id='password'
+                    placeholder='Enter your password'
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    disabled={isLoading}
+                    autoComplete='current-password'
+                  />
+                </div>
 
-              <Button type='submit' className='w-full' disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
-              </Button>
+                <Button type='submit' className='w-full' disabled={isLoading}>
+                  {isLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
+              </form>
+            )}
 
-              {/* SSO Login Options */}
-              {ssoProviders.length > 0 && (
-                <>
+            {/* SSO Login Options */}
+            {ssoProviders.length > 0 && (
+              <>
+                {!passwordLoginDisabled && (
                   <div className="relative my-4">
                     <div className="absolute inset-0 flex items-center">
                       <Separator className="w-full" />
@@ -203,25 +213,35 @@ function LoginPage() {
                       </span>
                     </div>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    {ssoProviders.map((provider) => (
-                      <Button
-                        key={provider.id}
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleSSOLogin(provider)}
-                        disabled={isLoading}
-                      >
-                        {getSSOProviderIcon(provider)}
-                        Continue with {provider.name}
-                      </Button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </form>
+                <div className={`space-y-2 ${passwordLoginDisabled ? '' : 'mt-4'}`}>
+                  {ssoProviders.map((provider) => (
+                    <Button
+                      key={provider.id}
+                      type="button"
+                      variant={passwordLoginDisabled ? 'default' : 'outline'}
+                      className="w-full"
+                      onClick={() => handleSSOLogin(provider)}
+                      disabled={isLoading}
+                    >
+                      {getSSOProviderIcon(provider)}
+                      Continue with {provider.name}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Show error message if password disabled but no SSO providers */}
+            {passwordLoginDisabled && ssoProviders.length === 0 && (
+              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-4 text-center">
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  Password login is disabled but no SSO providers are available.
+                  Contact your administrator.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

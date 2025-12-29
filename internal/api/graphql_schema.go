@@ -142,6 +142,16 @@ func (g *GraphQLSchemaGenerator) regenerateSchema(ctx context.Context) (*graphql
 
 	// Build query fields
 	queryFields := graphql.Fields{}
+
+	// Always add a _health field for introspection even when no tables are exposed
+	queryFields["_health"] = &graphql.Field{
+		Type:        graphql.String,
+		Description: "Health check endpoint - returns 'ok' if the GraphQL API is functioning",
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			return "ok", nil
+		},
+	}
+
 	for _, table := range publicTables {
 		typeName := g.tableToTypeName(table.Schema, table.Name)
 		objType := g.objectTypes[typeName]

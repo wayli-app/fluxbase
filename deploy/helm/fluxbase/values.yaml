@@ -211,6 +211,9 @@ config:
   ##       name: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
   ##     auto_create_users: true
   ##     default_role: "authenticated"
+  ##     # Login target options:
+  ##     allow_app_login: true              # Allow for app user authentication (default: true)
+  ##     allow_dashboard_login: false       # Allow for dashboard admin SSO login (default: false)
   ##     # Security options (recommended defaults shown):
   ##     allow_idp_initiated: false         # Reject IdP-initiated SSO (prevents replay attacks)
   ##     allowed_redirect_hosts: []         # Whitelist for RelayState redirects (e.g., ["app.example.com"])

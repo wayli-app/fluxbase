@@ -42,6 +42,9 @@ fluxbase auth login --server URL --email EMAIL --password PASSWORD
 # With API token
 fluxbase auth login --server URL --token TOKEN
 
+# SSO login (opens browser)
+fluxbase auth login --server URL --sso
+
 # Save to named profile
 fluxbase auth login --profile prod --server URL
 ```
@@ -52,8 +55,11 @@ fluxbase auth login --profile prod --server URL
 - `--email` - Email address
 - `--password` - Password
 - `--token` - API token (alternative to email/password)
+- `--sso` - Login via SSO (opens browser for OAuth/SAML authentication)
 - `--profile` - Profile name (default: "default")
 - `--use-keychain` - Store credentials in system keychain
+
+**Note:** When password login is disabled on the server, the CLI automatically detects this and initiates SSO login.
 
 ### `fluxbase auth logout`
 

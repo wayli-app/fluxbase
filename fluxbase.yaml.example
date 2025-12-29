@@ -73,6 +73,11 @@ auth:
   #     auto_create_users: true           # Create users on first login
   #     default_role: "authenticated"     # Role for new SAML users
   #
+  #     # Login target options:
+  #     allow_app_login: true             # Allow for app user authentication (default: true)
+  #     allow_dashboard_login: false      # Allow for dashboard admin SSO login (default: false)
+  #                                       # When enabled, this provider appears on the dashboard login page
+  #
   #     # Security options (recommended defaults shown):
   #     allow_idp_initiated: false        # Allow IdP-initiated SSO (security risk, default: false)
   #     allowed_redirect_hosts: []        # Whitelist for RelayState redirects (prevent open redirects)
