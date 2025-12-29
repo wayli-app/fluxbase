@@ -46,7 +46,8 @@ FROM golang:1.25-alpine AS go-builder
 
 # Install build dependencies (including tesseract-dev for gosseract CGO bindings)
 # g++ is required because gosseract uses C++ code via CGO
-RUN apk add --no-cache git make gcc g++ musl-dev tesseract-ocr-dev leptonica-dev
+# vips-dev is required for govips image transformation support
+RUN apk add --no-cache git make gcc g++ musl-dev tesseract-ocr-dev leptonica-dev vips-dev
 
 WORKDIR /build
 
@@ -98,6 +99,7 @@ LABEL maintainer="Fluxbase Team" \
 # - tesseract-ocr: For OCR text extraction from image-based PDFs
 # - tesseract-ocr-data-eng: English language data for OCR
 # - leptonica: Image processing library required by tesseract (dynamic linking)
+# - vips: Image processing library for image transformations (dynamic linking)
 # - poppler-utils: For PDF to image conversion (pdftoppm)
 # - deno: JavaScript/TypeScript runtime for jobs and functions (installed via apk)
 RUN apk add --no-cache \
@@ -106,6 +108,7 @@ RUN apk add --no-cache \
     tesseract-ocr \
     tesseract-ocr-data-eng \
     leptonica \
+    vips \
     poppler-utils \
     deno \
     && deno --version
