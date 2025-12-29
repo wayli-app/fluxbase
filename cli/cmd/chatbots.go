@@ -107,7 +107,7 @@ Examples:
 var chatbotsSyncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync chatbots from a directory",
-	Long: `Sync AI chatbots from YAML configuration files.
+	Long: `Sync AI chatbots from TypeScript files.
 
 Examples:
   fluxbase chatbots sync --dir ./chatbots
@@ -378,9 +378,11 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 		}
 
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+		// Only support .ts files
+		if !strings.HasSuffix(name, ".ts") {
 			continue
 		}
+		cbName := strings.TrimSuffix(name, ".ts")
 
 		// Read file
 		content, err := os.ReadFile(filepath.Join(cbSyncDir, name)) //nolint:gosec // CLI tool reads user-provided file path
@@ -389,9 +391,6 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// Remove extension for chatbot name
-		cbName := strings.TrimSuffix(strings.TrimSuffix(name, ".yaml"), ".yml")
-
 		chatbots = append(chatbots, map[string]interface{}{
 			"name": cbName,
 			"code": string(content),
@@ -399,7 +398,7 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(chatbots) == 0 {
-		fmt.Println("No chatbot YAML files found in directory.")
+		fmt.Println("No chatbot TypeScript files (.ts) found in directory.")
 		return nil
 	}
 
