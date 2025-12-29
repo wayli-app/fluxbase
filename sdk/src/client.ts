@@ -50,6 +50,7 @@ import { FluxbaseManagement } from "./management";
 import { SettingsClient } from "./settings";
 import { FluxbaseAI } from "./ai";
 import { FluxbaseVector } from "./vector";
+import { FluxbaseGraphQL } from "./graphql";
 import { QueryBuilder } from "./query-builder";
 import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
@@ -144,6 +145,39 @@ export class FluxbaseClient<
    * @category Vector Search
    */
   public vector: FluxbaseVector;
+
+  /**
+   * GraphQL module for executing queries and mutations
+   *
+   * Provides a type-safe interface for the auto-generated GraphQL schema
+   * from your database tables.
+   *
+   * @example
+   * ```typescript
+   * // Execute a query
+   * const { data, errors } = await client.graphql.query(`
+   *   query GetUsers($limit: Int) {
+   *     users(limit: $limit) {
+   *       id
+   *       email
+   *     }
+   *   }
+   * `, { limit: 10 })
+   *
+   * // Execute a mutation
+   * const { data, errors } = await client.graphql.mutation(`
+   *   mutation CreateUser($data: UserInput!) {
+   *     insertUser(data: $data) {
+   *       id
+   *       email
+   *     }
+   *   }
+   * `, { data: { email: 'user@example.com' } })
+   * ```
+   *
+   * @category GraphQL
+   */
+  public graphql: FluxbaseGraphQL;
 
   /**
    * RPC module for calling PostgreSQL functions - Supabase compatible
@@ -251,6 +285,9 @@ export class FluxbaseClient<
 
     // Initialize vector search module
     this.vector = new FluxbaseVector(this.fetch);
+
+    // Initialize GraphQL module
+    this.graphql = new FluxbaseGraphQL(this.fetch);
 
     // Initialize RPC module with callable wrapper (Supabase-compatible)
     const rpcInstance = new FluxbaseRPC(this.fetch);

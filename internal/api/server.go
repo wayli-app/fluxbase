@@ -56,6 +56,8 @@ type Server struct {
 	ddlHandler            *DDLHandler
 	oauthProviderHandler  *OAuthProviderHandler
 	oauthHandler          *OAuthHandler
+	samlProviderHandler   *SAMLProviderHandler
+	samlService           *auth.SAMLService
 	adminSessionHandler   *AdminSessionHandler
 	systemSettingsHandler *SystemSettingsHandler
 	customSettingsHandler *CustomSettingsHandler
@@ -83,6 +85,7 @@ type Server struct {
 	knowledgeBaseHandler  *ai.KnowledgeBaseHandler
 	rpcHandler            *rpc.Handler
 	rpcScheduler          *rpc.Scheduler
+	graphqlHandler        *GraphQLHandler
 	extensionsHandler     *extensions.Handler
 	vectorHandler         *VectorHandler
 	loggingService        *logging.Service
@@ -228,16 +231,23 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		cfg.GetPublicBaseURL(),
 	)
 
+	// Create CAPTCHA service
+	captchaService, err := auth.NewCaptchaService(&cfg.Security.Captcha)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize CAPTCHA service - CAPTCHA protection disabled")
+		captchaService = nil
+	}
+
 	// Create handlers
-	authHandler := NewAuthHandler(authService)
+	authHandler := NewAuthHandler(authService, captchaService)
 	// Create dashboard JWT manager first (shared between auth service and handler)
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	dashboardAuthService := auth.NewDashboardAuthService(db, dashboardJWTManager, cfg.Auth.TOTPIssuer)
 	systemSettingsService := auth.NewSystemSettingsService(db)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
-	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager)
+	// Note: dashboardAuthHandler is initialized later after samlService is created
 	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
-	storageHandler := NewStorageHandler(storageService, db)
+	storageHandler := NewStorageHandler(storageService, db, &cfg.Storage.Transforms)
 	webhookHandler := NewWebhookHandler(webhookService)
 
 	// Initialize secrets storage and handler
@@ -252,6 +262,24 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
+
+	// Initialize SAML service and handler
+	var samlService *auth.SAMLService
+	var samlProviderHandler *SAMLProviderHandler
+	var samlErr error
+	samlService, samlErr = auth.NewSAMLService(db.Pool(), cfg.GetPublicBaseURL(), cfg.Auth.SAMLProviders)
+	if samlErr != nil {
+		log.Warn().Err(samlErr).Msg("Failed to initialize SAML service from config")
+	}
+	// Load SAML providers from database
+	if samlService != nil {
+		if err := samlService.LoadProvidersFromDB(context.Background()); err != nil {
+			log.Warn().Err(err).Msg("Failed to load SAML providers from database")
+		}
+	}
+	samlProviderHandler = NewSAMLProviderHandler(db.Pool(), samlService)
+	// Initialize dashboard auth handler now that samlService is available
+	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, cfg.GetPublicBaseURL())
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)
@@ -498,6 +526,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		ddlHandler:            ddlHandler,
 		oauthProviderHandler:  oauthProviderHandler,
 		oauthHandler:          oauthHandler,
+		samlProviderHandler:   samlProviderHandler,
+		samlService:           samlService,
 		adminSessionHandler:   adminSessionHandler,
 		systemSettingsHandler: systemSettingsHandler,
 		customSettingsHandler: customSettingsHandler,
@@ -533,6 +563,16 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		schemaCache:           schemaCache,
 		secretsHandler:        secretsHandler,
 		secretsStorage:        secretsStorage,
+	}
+
+	// Create GraphQL handler (if enabled)
+	if cfg.GraphQL.Enabled {
+		server.graphqlHandler = NewGraphQLHandler(db, schemaCache, &cfg.GraphQL)
+		log.Info().
+			Int("max_depth", cfg.GraphQL.MaxDepth).
+			Int("max_complexity", cfg.GraphQL.MaxComplexity).
+			Bool("introspection", cfg.GraphQL.Introspection).
+			Msg("GraphQL API enabled")
 	}
 
 	// Start realtime listener (unless disabled or in worker-only mode)
@@ -1022,6 +1062,21 @@ func (s *Server) setupRoutes() {
 		log.Info().Msg("Vector search routes registered")
 	}
 
+	// GraphQL endpoint (if enabled)
+	if s.graphqlHandler != nil {
+		// GraphQL uses its own auth handling to set up RLS context
+		s.app.Post("/api/v1/graphql",
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.graphqlHandler.HandleGraphQL,
+		)
+		// Introspection endpoint (GET)
+		s.app.Get("/api/v1/graphql",
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.graphqlHandler.HandleIntrospection,
+		)
+		log.Info().Msg("GraphQL endpoint registered at /api/v1/graphql")
+	}
+
 	// Admin API routes - always available (protected by their own auth middleware)
 	admin := v1.Group("/admin")
 	s.setupAdminRoutes(admin)
@@ -1213,6 +1268,9 @@ func (s *Server) setupStorageRoutes(router fiber.Router) {
 	// Signed URL download (PUBLIC - no auth required, token provides authorization)
 	router.Get("/object", s.storageHandler.DownloadSignedObject)
 
+	// Transform config (PUBLIC - no auth required, just returns config info)
+	router.Get("/config/transforms", s.storageHandler.GetTransformConfig)
+
 	// Bucket management with scope enforcement
 	router.Get("/buckets", middleware.RequireScope(auth.ScopeStorageRead), s.storageHandler.ListBuckets)
 	router.Post("/buckets/:bucket", middleware.RequireScope(auth.ScopeStorageWrite), s.storageHandler.CreateBucket)
@@ -1299,6 +1357,15 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/oauth/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.CreateOAuthProvider)
 	router.Put("/oauth/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.UpdateOAuthProvider)
 	router.Delete("/oauth/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.DeleteOAuthProvider)
+
+	// SAML provider management routes (require admin or dashboard_admin role)
+	router.Get("/saml/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.ListSAMLProviders)
+	router.Get("/saml/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.GetSAMLProvider)
+	router.Post("/saml/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.CreateSAMLProvider)
+	router.Put("/saml/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.UpdateSAMLProvider)
+	router.Delete("/saml/providers/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.DeleteSAMLProvider)
+	router.Post("/saml/validate-metadata", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.ValidateMetadata)
+	router.Post("/saml/upload-metadata", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.samlProviderHandler.UploadMetadata)
 
 	// Auth settings routes (require admin or dashboard_admin role)
 	router.Get("/auth/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.GetAuthSettings)

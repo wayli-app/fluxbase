@@ -95,6 +95,7 @@ func init() {
 	rootCmd.AddCommand(chatbotsCmd)
 	rootCmd.AddCommand(kbCmd)
 	rootCmd.AddCommand(tablesCmd)
+	rootCmd.AddCommand(graphqlCmd)
 	rootCmd.AddCommand(rpcCmd)
 	rootCmd.AddCommand(webhooksCmd)
 	rootCmd.AddCommand(apikeysCmd)

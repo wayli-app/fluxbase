@@ -1,14 +1,17 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
-import { dashboardAuthAPI } from '@/lib/api'
+import { Separator } from '@/components/ui/separator'
+import { dashboardAuthAPI, type SSOProvider } from '@/lib/api'
 import { setAuthToken } from '@/lib/fluxbase-client'
 import { useAuthStore } from '@/stores/auth-store'
+import { KeyRound, Shield } from 'lucide-react'
 
 export const Route = createFileRoute('/login/')({
   component: LoginPage,
@@ -23,6 +26,29 @@ function LoginPage() {
     password: '',
   })
 
+  // Fetch SSO providers available for dashboard login
+  const { data: ssoData } = useQuery({
+    queryKey: ['sso-providers'],
+    queryFn: () => dashboardAuthAPI.getSSOProviders(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false, // Don't retry on failure - SSO is optional
+  })
+
+  const ssoProviders = ssoData?.providers || []
+
+  // Show error from URL (e.g., SSO callback error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlError = params.get('error')
+    if (urlError) {
+      toast.error('Authentication Error', {
+        description: urlError,
+      })
+      // Clear the error from URL
+      window.history.replaceState({}, '', '/login')
+    }
+  }, [])
+
   // Redirect to OTP page if there's a pending 2FA session
   useEffect(() => {
     const pendingUserId = sessionStorage.getItem('2fa_user_id')
@@ -30,6 +56,29 @@ function LoginPage() {
       navigate({ to: '/login/otp' })
     }
   }, [navigate])
+
+  // Handle SSO login
+  const handleSSOLogin = (provider: SSOProvider) => {
+    const baseURL = window.__FLUXBASE_CONFIG__?.publicBaseURL || import.meta.env.VITE_API_URL || ''
+    const redirectTo = '/'
+
+    if (provider.type === 'oauth') {
+      // Redirect to OAuth login endpoint
+      window.location.href = `${baseURL}/dashboard/auth/sso/oauth/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
+    } else if (provider.type === 'saml') {
+      // Redirect to SAML login endpoint
+      window.location.href = `${baseURL}/dashboard/auth/sso/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
+    }
+  }
+
+  // Get icon for SSO provider
+  const getSSOProviderIcon = (provider: SSOProvider) => {
+    if (provider.type === 'saml') {
+      return <Shield className="h-4 w-4 mr-2" />
+    }
+    // For OAuth providers, we could add specific icons for each provider
+    return <KeyRound className="h-4 w-4 mr-2" />
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,6 +189,38 @@ function LoginPage() {
               <Button type='submit' className='w-full' disabled={isLoading}>
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
+
+              {/* SSO Login Options */}
+              {ssoProviders.length > 0 && (
+                <>
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <Separator className="w-full" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        Or continue with
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {ssoProviders.map((provider) => (
+                      <Button
+                        key={provider.id}
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleSSOLogin(provider)}
+                        disabled={isLoading}
+                      >
+                        {getSSOProviderIcon(provider)}
+                        Continue with {provider.name}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
             </form>
           </CardContent>
         </Card>

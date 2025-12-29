@@ -340,3 +340,30 @@ func (s *IdentityService) UnlinkIdentity(ctx context.Context, userID, identityID
 
 	return nil
 }
+
+// LinkIdentity creates or updates an identity link for a user (used for SAML/SSO)
+func (s *IdentityService) LinkIdentity(ctx context.Context, userID, provider, providerUserID string, email *string, metadata map[string]interface{}) (*UserIdentity, error) {
+	// Check if this provider identity is already linked
+	existingIdentity, err := s.repo.GetByProviderAndUserID(ctx, provider, providerUserID)
+	if err != nil && !errors.Is(err, ErrIdentityNotFound) {
+		return nil, fmt.Errorf("failed to check existing identity: %w", err)
+	}
+
+	// If already linked to another user, return error
+	if existingIdentity != nil && existingIdentity.UserID != userID {
+		return nil, ErrIdentityAlreadyLinked
+	}
+
+	// If already linked to this user, return existing identity
+	if existingIdentity != nil {
+		return existingIdentity, nil
+	}
+
+	// Create new identity link
+	identity, err := s.repo.Create(ctx, userID, provider, providerUserID, email, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create identity link: %w", err)
+	}
+
+	return identity, nil
+}

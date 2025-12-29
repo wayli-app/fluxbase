@@ -5,8 +5,10 @@ import type { editor, IDisposable } from 'monaco-editor'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { useSchemaMetadata } from '@/features/sql-editor/hooks/use-schema-metadata'
 import { createSqlCompletionProvider } from '@/features/sql-editor/utils/sql-completion-provider'
+import { createGraphQLCompletionProvider } from '@/features/sql-editor/utils/graphql-completion-provider'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -35,6 +37,7 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   X,
+  Braces,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
@@ -46,6 +49,8 @@ import { ImpersonationPopover } from '@/features/impersonation/components/impers
 export const Route = createFileRoute('/_authenticated/sql-editor/')({
   component: SQLEditorPage,
 })
+
+type EditorMode = 'sql' | 'graphql'
 
 interface SQLResult {
   columns?: string[]
@@ -61,18 +66,44 @@ interface SQLExecutionResponse {
   results: SQLResult[]
 }
 
+interface GraphQLResponse {
+  data?: unknown
+  errors?: Array<{
+    message: string
+    locations?: Array<{ line: number; column: number }>
+    path?: (string | number)[]
+  }>
+}
+
 interface QueryHistory {
   id: string
   timestamp: Date
-  results: SQLResult[]
+  mode: EditorMode
+  results?: SQLResult[]
+  graphqlResponse?: GraphQLResponse
   query: string
+  executionTime?: number
 }
 
 const ROWS_PER_PAGE = 100
 
+const DEFAULT_SQL = '-- Write your SQL query here\nSELECT * FROM auth.users LIMIT 10;'
+const DEFAULT_GRAPHQL = `# Write your GraphQL query here
+query {
+  users(limit: 10) {
+    id
+    email
+    createdAt
+  }
+}`
+
 function SQLEditorPage() {
   const { resolvedTheme } = useTheme()
-  const [query, setQuery] = useState('-- Write your SQL query here\nSELECT * FROM auth.users LIMIT 10;')
+  const [editorMode, setEditorMode] = useState<EditorMode>('sql')
+  const [sqlQuery, setSqlQuery] = useState(DEFAULT_SQL)
+  const [graphqlQuery, setGraphqlQuery] = useState(DEFAULT_GRAPHQL)
+  const query = editorMode === 'sql' ? sqlQuery : graphqlQuery
+  const setQuery = editorMode === 'sql' ? setSqlQuery : setGraphqlQuery
   const [isExecuting, setIsExecuting] = useState(false)
   const [queryHistory, setQueryHistory] = useState<QueryHistory[]>([])
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
@@ -80,32 +111,55 @@ function SQLEditorPage() {
   const [currentPages, setCurrentPages] = useState<Record<string, number>>({})
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
-  const completionProviderRef = useRef<IDisposable | null>(null)
+  const sqlCompletionProviderRef = useRef<IDisposable | null>(null)
+  const graphqlCompletionProviderRef = useRef<IDisposable | null>(null)
 
   // Fetch schema metadata for autocompletion
   const { schemas, tables } = useSchemaMetadata()
 
-  // Update completion provider when metadata changes
+  // Update SQL completion provider when metadata changes
   useEffect(() => {
     if (monacoRef.current && (schemas.length > 0 || tables.length > 0)) {
-      // Dispose old provider
-      if (completionProviderRef.current) {
-        completionProviderRef.current.dispose()
+      // Dispose old SQL provider
+      if (sqlCompletionProviderRef.current) {
+        sqlCompletionProviderRef.current.dispose()
       }
 
-      // Register new provider with updated metadata
-      completionProviderRef.current = monacoRef.current.languages.registerCompletionItemProvider(
+      // Register SQL provider with updated metadata
+      sqlCompletionProviderRef.current = monacoRef.current.languages.registerCompletionItemProvider(
         'sql',
         createSqlCompletionProvider(monacoRef.current, { schemas, tables })
       )
     }
 
     return () => {
-      if (completionProviderRef.current) {
-        completionProviderRef.current.dispose()
+      if (sqlCompletionProviderRef.current) {
+        sqlCompletionProviderRef.current.dispose()
       }
     }
   }, [schemas, tables])
+
+  // Update GraphQL completion provider when metadata changes
+  useEffect(() => {
+    if (monacoRef.current && tables.length > 0) {
+      // Dispose old GraphQL provider
+      if (graphqlCompletionProviderRef.current) {
+        graphqlCompletionProviderRef.current.dispose()
+      }
+
+      // Register GraphQL provider with updated metadata
+      graphqlCompletionProviderRef.current = monacoRef.current.languages.registerCompletionItemProvider(
+        'graphql',
+        createGraphQLCompletionProvider(monacoRef.current, { tables })
+      )
+    }
+
+    return () => {
+      if (graphqlCompletionProviderRef.current) {
+        graphqlCompletionProviderRef.current.dispose()
+      }
+    }
+  }, [tables])
 
   // Update Monaco theme when app theme changes
   useEffect(() => {
@@ -121,13 +175,13 @@ function SQLEditorPage() {
     ? queryHistory.find((h) => h.id === selectedHistoryId)
     : queryHistory[0]
 
-  // Execute SQL query
+  // Execute SQL or GraphQL query
   const executeQuery = async () => {
     // Get current value from editor if available, otherwise use state
     const currentQuery = editorRef.current?.getValue() || query
 
     if (!currentQuery.trim()) {
-      toast.error('Please enter a SQL query')
+      toast.error(`Please enter a ${editorMode === 'sql' ? 'SQL' : 'GraphQL'} query`)
       return
     }
 
@@ -135,11 +189,10 @@ function SQLEditorPage() {
     setQuery(currentQuery)
 
     setIsExecuting(true)
+    const startTime = performance.now()
+
     try {
       // Build request config with optional impersonation context
-      // Note: We keep the admin token for auth, but pass impersonation token separately
-      // so the backend can set RLS context while still verifying admin permissions
-      // Use getState() to get fresh state at execution time (avoids stale closure issues)
       const { isImpersonating: isImpersonatingNow, impersonationToken: tokenNow } =
         useImpersonationStore.getState()
       const config: { headers?: Record<string, string> } = {}
@@ -149,36 +202,72 @@ function SQLEditorPage() {
         }
       }
 
-      const response = await api.post<SQLExecutionResponse>(
-        '/api/v1/admin/sql/execute',
-        { query: currentQuery },
-        config
-      )
+      if (editorMode === 'sql') {
+        // Execute SQL query
+        const response = await api.post<SQLExecutionResponse>(
+          '/api/v1/admin/sql/execute',
+          { query: currentQuery },
+          config
+        )
 
-      // Add to history
-      const historyItem: QueryHistory = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        results: response.data.results,
-        query: currentQuery,
-      }
-      setQueryHistory((prev) => [historyItem, ...prev.slice(0, 9)]) // Keep last 10
-      setSelectedHistoryId(historyItem.id)
-      setHistoryOpen(false)
+        const executionTime = performance.now() - startTime
 
-      // Initialize pagination for each result
-      const pages: Record<string, number> = {}
-      response.data.results.forEach((_, idx) => {
-        pages[`${historyItem.id}-${idx}`] = 1
-      })
-      setCurrentPages((prev) => ({ ...prev, ...pages }))
+        // Add to history
+        const historyItem: QueryHistory = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          mode: 'sql',
+          results: response.data.results,
+          query: currentQuery,
+          executionTime,
+        }
+        setQueryHistory((prev) => [historyItem, ...prev.slice(0, 9)])
+        setSelectedHistoryId(historyItem.id)
+        setHistoryOpen(false)
 
-      // Show success toast
-      const hasErrors = response.data.results.some((r) => r.error)
-      if (hasErrors) {
-        toast.warning('Query executed with errors')
+        // Initialize pagination for each result
+        const pages: Record<string, number> = {}
+        response.data.results.forEach((_, idx) => {
+          pages[`${historyItem.id}-${idx}`] = 1
+        })
+        setCurrentPages((prev) => ({ ...prev, ...pages }))
+
+        // Show success toast
+        const hasErrors = response.data.results.some((r) => r.error)
+        if (hasErrors) {
+          toast.warning('Query executed with errors')
+        } else {
+          toast.success('Query executed successfully')
+        }
       } else {
-        toast.success('Query executed successfully')
+        // Execute GraphQL query
+        const response = await api.post<GraphQLResponse>(
+          '/api/v1/graphql',
+          { query: currentQuery },
+          config
+        )
+
+        const executionTime = performance.now() - startTime
+
+        // Add to history
+        const historyItem: QueryHistory = {
+          id: Date.now().toString(),
+          timestamp: new Date(),
+          mode: 'graphql',
+          graphqlResponse: response.data,
+          query: currentQuery,
+          executionTime,
+        }
+        setQueryHistory((prev) => [historyItem, ...prev.slice(0, 9)])
+        setSelectedHistoryId(historyItem.id)
+        setHistoryOpen(false)
+
+        // Show success/error toast
+        if (response.data.errors && response.data.errors.length > 0) {
+          toast.warning('GraphQL query returned errors')
+        } else {
+          toast.success('GraphQL query executed successfully')
+        }
       }
     } catch (error: unknown) {
       const errorMessage =
@@ -186,7 +275,7 @@ function SQLEditorPage() {
           ? (error as { response?: { data?: { error?: string } } }).response?.data
               ?.error
           : undefined
-      toast.error(errorMessage || 'Failed to execute query')
+      toast.error(errorMessage || `Failed to execute ${editorMode === 'sql' ? 'SQL' : 'GraphQL'} query`)
     } finally {
       setIsExecuting(false)
     }
@@ -257,7 +346,7 @@ function SQLEditorPage() {
     toast.success('Exported as JSON')
   }
 
-  // Handle editor mount - register keyboard shortcut and completion provider
+  // Handle editor mount - register keyboard shortcut and completion providers
   const handleEditorDidMount = (
     editor: editor.IStandaloneCodeEditor,
     monaco: typeof import('monaco-editor')
@@ -265,11 +354,55 @@ function SQLEditorPage() {
     editorRef.current = editor
     monacoRef.current = monaco
 
-    // Register initial completion provider if metadata is already loaded
+    // Register GraphQL language if not already registered
+    if (!monaco.languages.getLanguages().some(lang => lang.id === 'graphql')) {
+      monaco.languages.register({ id: 'graphql' })
+
+      // GraphQL syntax highlighting
+      monaco.languages.setMonarchTokensProvider('graphql', {
+        keywords: ['query', 'mutation', 'subscription', 'fragment', 'on', 'type', 'interface', 'union', 'enum', 'input', 'scalar', 'directive', 'extend', 'schema', 'implements'],
+        operators: ['=', '!', ':', '@', '|', '&', '...'],
+        symbols: /[=!:@|&]+/,
+        tokenizer: {
+          root: [
+            [/#.*$/, 'comment'],
+            [/"([^"\\]|\\.)*$/, 'string.invalid'],
+            [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
+            [/\$[a-zA-Z_]\w*/, 'variable'],
+            [/@[a-zA-Z_]\w*/, 'annotation'],
+            [/[a-zA-Z_]\w*/, {
+              cases: {
+                '@keywords': 'keyword',
+                '@default': 'identifier'
+              }
+            }],
+            [/[{}()[\]]/, '@brackets'],
+            [/[0-9]+/, 'number'],
+            [/@symbols/, 'operator'],
+            [/[,:]/, 'delimiter'],
+          ],
+          string: [
+            [/[^\\"]+/, 'string'],
+            [/\\./, 'string.escape'],
+            [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
+          ],
+        }
+      })
+    }
+
+    // Register initial SQL completion provider if metadata is already loaded
     if (schemas.length > 0 || tables.length > 0) {
-      completionProviderRef.current = monaco.languages.registerCompletionItemProvider(
+      sqlCompletionProviderRef.current = monaco.languages.registerCompletionItemProvider(
         'sql',
         createSqlCompletionProvider(monaco, { schemas, tables })
+      )
+    }
+
+    // Register initial GraphQL completion provider if metadata is already loaded
+    if (tables.length > 0) {
+      graphqlCompletionProviderRef.current = monaco.languages.registerCompletionItemProvider(
+        'graphql',
+        createGraphQLCompletionProvider(monaco, { tables })
       )
     }
 
@@ -283,10 +416,12 @@ function SQLEditorPage() {
         { token: 'string', foreground: 'CE9178' },
         { token: 'number', foreground: 'B5CEA8' },
         { token: 'operator', foreground: 'D4D4D4' },
+        { token: 'variable', foreground: '9CDCFE' },
+        { token: 'annotation', foreground: 'DCDCAA' },
       ],
       colors: {
-        'editor.background': '#09090b', // Match dashboard dark background
-        'editor.foreground': '#e4e4e7', // Match dashboard text
+        'editor.background': '#09090b',
+        'editor.foreground': '#e4e4e7',
         'editor.lineHighlightBackground': '#18181b',
         'editorLineNumber.foreground': '#71717a',
         'editorLineNumber.activeForeground': '#a1a1aa',
@@ -303,6 +438,8 @@ function SQLEditorPage() {
         { token: 'keyword', foreground: '0000FF', fontStyle: 'bold' },
         { token: 'string', foreground: 'A31515' },
         { token: 'number', foreground: '098658' },
+        { token: 'variable', foreground: '001080' },
+        { token: 'annotation', foreground: '795E26' },
       ],
       colors: {
         'editor.background': '#ffffff',
@@ -325,6 +462,18 @@ function SQLEditorPage() {
         executeQuery()
       }
     )
+  }
+
+  // Handle mode switch
+  const handleModeChange = (mode: EditorMode) => {
+    setEditorMode(mode)
+    // Update editor language if mounted
+    if (editorRef.current && monacoRef.current) {
+      const model = editorRef.current.getModel()
+      if (model) {
+        monacoRef.current.editor.setModelLanguage(model, mode === 'sql' ? 'sql' : 'graphql')
+      }
+    }
   }
 
   // Get paginated rows for a result
@@ -351,20 +500,38 @@ function SQLEditorPage() {
       <div className="flex items-center justify-between border-b bg-background px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Database className="h-5 w-5 text-primary" />
+            {editorMode === 'sql' ? (
+              <Database className="h-5 w-5 text-primary" />
+            ) : (
+              <Braces className="h-5 w-5 text-primary" />
+            )}
           </div>
           <div>
-            <h1 className="text-xl font-semibold">SQL Editor</h1>
+            <h1 className="text-xl font-semibold">Query Editor</h1>
             <p className="text-sm text-muted-foreground">
-              Execute SQL queries directly on the database
+              Execute {editorMode === 'sql' ? 'SQL' : 'GraphQL'} queries on the database
             </p>
           </div>
         </div>
 
+        {/* Mode Toggle */}
+        <Tabs value={editorMode} onValueChange={(v) => handleModeChange(v as EditorMode)}>
+          <TabsList>
+            <TabsTrigger value="sql" className="gap-2">
+              <Database className="h-4 w-4" />
+              SQL
+            </TabsTrigger>
+            <TabsTrigger value="graphql" className="gap-2">
+              <Braces className="h-4 w-4" />
+              GraphQL
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Impersonation UI */}
         <ImpersonationPopover
           contextLabel="Executing as"
-          defaultReason="Testing RLS policies in SQL Editor"
+          defaultReason={`Testing RLS policies in ${editorMode === 'sql' ? 'SQL' : 'GraphQL'} Editor`}
           onImpersonationStart={() => syncAuthToken()}
           onImpersonationStop={() => syncAuthToken()}
         />
@@ -390,12 +557,12 @@ function SQLEditorPage() {
       {/* Editor and Results */}
       <div className="flex flex-1 overflow-hidden p-6">
         <PanelGroup direction="vertical">
-          {/* SQL Editor */}
+          {/* Query Editor */}
           <Panel defaultSize={35} minSize={20}>
             <Card className="h-full overflow-hidden">
               <Editor
                 height="100%"
-                defaultLanguage="sql"
+                language={editorMode === 'sql' ? 'sql' : 'graphql'}
                 value={query}
                 onChange={(value) => setQuery(value || '')}
                 theme={resolvedTheme === 'dark' ? 'fluxbase-dark' : 'fluxbase-light'}
@@ -407,7 +574,6 @@ function SQLEditorPage() {
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                   tabSize: 2,
-                  // Enable autocomplete on trigger characters
                   quickSuggestions: true,
                   suggestOnTriggerCharacters: true,
                   acceptSuggestionOnCommitCharacter: true,
@@ -472,16 +638,30 @@ function SQLEditorPage() {
                             >
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  {history.mode === 'sql' ? (
+                                    <Database className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  ) : (
+                                    <Braces className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  )}
+                                  <Badge variant="outline" className="text-xs">
+                                    {history.mode.toUpperCase()}
+                                  </Badge>
                                   <span className="text-xs text-muted-foreground">
                                     {history.timestamp.toLocaleString()}
                                   </span>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {history.results.length}
-                                  </Badge>
+                                  {history.mode === 'sql' && history.results && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {history.results.length} result(s)
+                                    </Badge>
+                                  )}
+                                  {history.executionTime && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {history.executionTime.toFixed(0)}ms
+                                    </Badge>
+                                  )}
                                 </div>
                                 <code className="text-xs text-muted-foreground block truncate mt-1">
-                                  {history.query.split('\n')[0].substring(0, 80)}
+                                  {history.query.split('\n').find(l => l.trim() && !l.trim().startsWith('--') && !l.trim().startsWith('#'))?.substring(0, 80) || history.query.split('\n')[0].substring(0, 80)}
                                 </code>
                               </div>
                               <Button
@@ -506,7 +686,8 @@ function SQLEditorPage() {
                   {currentHistory && (
                     <div className="flex-1 overflow-auto">
                       <div className="p-4 space-y-4">
-                        {currentHistory.results.map((result, idx) => {
+                        {/* SQL Results */}
+                        {currentHistory.mode === 'sql' && currentHistory.results?.map((result, idx) => {
                           const pageKey = `${currentHistory.id}-${idx}`
                           const currentPage = currentPages[pageKey] || 1
                           const totalPages = result.rows ? getTotalPages(result.rows.length) : 0
@@ -642,6 +823,87 @@ function SQLEditorPage() {
                             </div>
                           )
                         })}
+
+                        {/* GraphQL Results */}
+                        {currentHistory.mode === 'graphql' && currentHistory.graphqlResponse && (
+                          <div className="space-y-4">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {currentHistory.graphqlResponse.errors && currentHistory.graphqlResponse.errors.length > 0 ? (
+                                  <AlertCircle className="h-4 w-4 text-destructive" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                                )}
+                                <span className="text-sm font-medium">GraphQL Response</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {currentHistory.executionTime && (
+                                  <Badge variant="outline">
+                                    {currentHistory.executionTime.toFixed(0)}ms
+                                  </Badge>
+                                )}
+                                {currentHistory.graphqlResponse.data !== undefined && currentHistory.graphqlResponse.data !== null ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const json = JSON.stringify(currentHistory.graphqlResponse, null, 2)
+                                      const blob = new Blob([json], { type: 'application/json' })
+                                      const url = URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `graphql-result-${Date.now()}.json`
+                                      a.click()
+                                      URL.revokeObjectURL(url)
+                                      toast.success('Exported as JSON')
+                                    }}
+                                  >
+                                    <Download className="mr-1 h-3 w-3" />
+                                    JSON
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {/* GraphQL Errors */}
+                            {currentHistory.graphqlResponse.errors && currentHistory.graphqlResponse.errors.length > 0 ? (
+                              <div className="space-y-2">
+                                {currentHistory.graphqlResponse.errors.map((error, idx) => (
+                                  <div key={idx} className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                                    <div className="font-medium">{error.message}</div>
+                                    {error.locations && error.locations.length > 0 && (
+                                      <div className="text-xs mt-1 text-destructive/80">
+                                        Location: Line {error.locations[0].line}, Column {error.locations[0].column}
+                                      </div>
+                                    )}
+                                    {error.path && error.path.length > 0 && (
+                                      <div className="text-xs mt-1 text-destructive/80">
+                                        Path: {error.path.join(' → ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {/* GraphQL Data */}
+                            {currentHistory.graphqlResponse.data !== undefined && currentHistory.graphqlResponse.data !== null ? (
+                              <div className="rounded-md border bg-muted/30 p-4 overflow-auto max-h-[500px]">
+                                <pre className="text-xs font-mono whitespace-pre-wrap">
+                                  {JSON.stringify(currentHistory.graphqlResponse.data, null, 2)}
+                                </pre>
+                              </div>
+                            ) : null}
+
+                            {/* Success with no data */}
+                            {currentHistory.graphqlResponse.data === undefined && (!currentHistory.graphqlResponse.errors || currentHistory.graphqlResponse.errors.length === 0) ? (
+                              <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600">
+                                GraphQL query executed successfully (no data returned)
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

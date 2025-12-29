@@ -14,15 +14,27 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  Copy,
+  Plus,
+  Upload,
+  Pencil,
+  Trash2,
+  FileText,
+  Link,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api, {
   oauthProviderApi,
   authSettingsApi,
+  samlProviderApi,
   type OAuthProviderConfig,
   type CreateOAuthProviderRequest,
   type UpdateOAuthProviderRequest,
   type AuthSettings,
+  type SAMLProviderConfig,
+  type CreateSAMLProviderRequest,
+  type UpdateSAMLProviderRequest,
 } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -102,10 +114,14 @@ function AuthenticationPage() {
         onValueChange={(tab) => navigate({ search: { tab } })}
         className='w-full'
       >
-        <TabsList className='grid w-full grid-cols-3'>
+        <TabsList className='grid w-full grid-cols-4'>
           <TabsTrigger value='providers'>
             <Key className='mr-2 h-4 w-4' />
             OAuth Providers
+          </TabsTrigger>
+          <TabsTrigger value='saml'>
+            <Building2 className='mr-2 h-4 w-4' />
+            SAML SSO
           </TabsTrigger>
           <TabsTrigger value='settings'>
             <Settings className='mr-2 h-4 w-4' />
@@ -119,6 +135,10 @@ function AuthenticationPage() {
 
         <TabsContent value='providers' className='space-y-4'>
           <OAuthProvidersTab />
+        </TabsContent>
+
+        <TabsContent value='saml' className='space-y-4'>
+          <SAMLProvidersTab />
         </TabsContent>
 
         <TabsContent value='settings' className='space-y-4'>
@@ -719,6 +739,711 @@ function OAuthProvidersTab() {
             })
           }
         }}
+      />
+    </div>
+  )
+}
+
+function SAMLProvidersTab() {
+  const queryClient = useQueryClient()
+  const baseUrl = window.location.origin
+  const [showAddProvider, setShowAddProvider] = useState(false)
+  const [showEditProvider, setShowEditProvider] = useState(false)
+  const [editingProvider, setEditingProvider] = useState<SAMLProviderConfig | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletingProvider, setDeletingProvider] = useState<SAMLProviderConfig | null>(null)
+
+  // Form state
+  const [providerName, setProviderName] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [metadataSource, setMetadataSource] = useState<'url' | 'xml'>('url')
+  const [metadataUrl, setMetadataUrl] = useState('')
+  const [metadataXml, setMetadataXml] = useState('')
+  const [autoCreateUsers, setAutoCreateUsers] = useState(true)
+  const [defaultRole, setDefaultRole] = useState('authenticated')
+  const [allowDashboardLogin, setAllowDashboardLogin] = useState(false)
+  const [allowAppLogin, setAllowAppLogin] = useState(true)
+  const [allowIdpInitiated, setAllowIdpInitiated] = useState(false)
+  const [validatingMetadata, setValidatingMetadata] = useState(false)
+  const [metadataValid, setMetadataValid] = useState<boolean | null>(null)
+  const [metadataError, setMetadataError] = useState<string | null>(null)
+
+  // Fetch SAML providers
+  const { data: providers = [], isLoading } = useQuery({
+    queryKey: ['samlProviders'],
+    queryFn: samlProviderApi.list,
+  })
+
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: CreateSAMLProviderRequest) => samlProviderApi.create(data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['samlProviders'] })
+      setShowAddProvider(false)
+      resetForm()
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create SAML provider'
+          : 'Failed to create SAML provider'
+      toast.error(errorMessage)
+    },
+  })
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateSAMLProviderRequest }) =>
+      samlProviderApi.update(id, data),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['samlProviders'] })
+      setShowEditProvider(false)
+      setEditingProvider(null)
+      resetForm()
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update SAML provider'
+          : 'Failed to update SAML provider'
+      toast.error(errorMessage)
+    },
+  })
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => samlProviderApi.delete(id),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['samlProviders'] })
+      setShowDeleteConfirm(false)
+      setDeletingProvider(null)
+    },
+    onError: (error: unknown) => {
+      const errorMessage =
+        error instanceof Error && 'response' in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete SAML provider'
+          : 'Failed to delete SAML provider'
+      toast.error(errorMessage)
+    },
+  })
+
+  const resetForm = () => {
+    setProviderName('')
+    setDisplayName('')
+    setMetadataSource('url')
+    setMetadataUrl('')
+    setMetadataXml('')
+    setAutoCreateUsers(true)
+    setDefaultRole('authenticated')
+    setAllowDashboardLogin(false)
+    setAllowAppLogin(true)
+    setAllowIdpInitiated(false)
+    setMetadataValid(null)
+    setMetadataError(null)
+  }
+
+  const validateMetadata = async () => {
+    setValidatingMetadata(true)
+    setMetadataValid(null)
+    setMetadataError(null)
+    try {
+      const result = await samlProviderApi.validateMetadata(
+        metadataSource === 'url' ? metadataUrl : undefined,
+        metadataSource === 'xml' ? metadataXml : undefined
+      )
+      if (result.valid) {
+        setMetadataValid(true)
+        toast.success(`Metadata valid! IdP Entity ID: ${result.entity_id}`)
+      } else {
+        setMetadataValid(false)
+        setMetadataError(result.error || 'Invalid metadata')
+        toast.error(result.error || 'Invalid metadata')
+      }
+    } catch {
+      setMetadataValid(false)
+      setMetadataError('Failed to validate metadata')
+      toast.error('Failed to validate metadata')
+    } finally {
+      setValidatingMetadata(false)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const result = await samlProviderApi.uploadMetadata(file)
+      if (result.valid && result.metadata) {
+        setMetadataXml(result.metadata)
+        setMetadataValid(true)
+        toast.success(`Metadata uploaded! IdP Entity ID: ${result.entity_id}`)
+      } else {
+        setMetadataValid(false)
+        setMetadataError(result.error || 'Invalid metadata file')
+        toast.error(result.error || 'Invalid metadata file')
+      }
+    } catch {
+      toast.error('Failed to upload metadata file')
+    }
+  }
+
+  const handleCreateProvider = () => {
+    if (!providerName) {
+      toast.error('Provider name is required')
+      return
+    }
+    if (metadataSource === 'url' && !metadataUrl) {
+      toast.error('Metadata URL is required')
+      return
+    }
+    if (metadataSource === 'xml' && !metadataXml) {
+      toast.error('Metadata XML is required')
+      return
+    }
+
+    createMutation.mutate({
+      name: providerName.toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
+      display_name: displayName || providerName,
+      enabled: true,
+      idp_metadata_url: metadataSource === 'url' ? metadataUrl : undefined,
+      idp_metadata_xml: metadataSource === 'xml' ? metadataXml : undefined,
+      auto_create_users: autoCreateUsers,
+      default_role: defaultRole,
+      allow_dashboard_login: allowDashboardLogin,
+      allow_app_login: allowAppLogin,
+      allow_idp_initiated: allowIdpInitiated,
+    })
+  }
+
+  const handleEditProvider = (provider: SAMLProviderConfig) => {
+    setEditingProvider(provider)
+    setProviderName(provider.name)
+    setDisplayName(provider.display_name)
+    setMetadataUrl(provider.idp_metadata_url || '')
+    setMetadataXml(provider.idp_metadata_xml || '')
+    setMetadataSource(provider.idp_metadata_url ? 'url' : 'xml')
+    setAutoCreateUsers(provider.auto_create_users)
+    setDefaultRole(provider.default_role)
+    setAllowDashboardLogin(provider.allow_dashboard_login)
+    setAllowAppLogin(provider.allow_app_login)
+    setAllowIdpInitiated(provider.allow_idp_initiated)
+    setShowEditProvider(true)
+  }
+
+  const handleUpdateProvider = () => {
+    if (!editingProvider) return
+
+    updateMutation.mutate({
+      id: editingProvider.id,
+      data: {
+        display_name: displayName || undefined,
+        idp_metadata_url: metadataSource === 'url' ? metadataUrl : undefined,
+        idp_metadata_xml: metadataSource === 'xml' ? metadataXml : undefined,
+        auto_create_users: autoCreateUsers,
+        default_role: defaultRole,
+        allow_dashboard_login: allowDashboardLogin,
+        allow_app_login: allowAppLogin,
+        allow_idp_initiated: allowIdpInitiated,
+      },
+    })
+  }
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied to clipboard`)
+  }
+
+  if (isLoading) {
+    return (
+      <div className='flex justify-center p-8'>
+        <Loader2 className='h-6 w-6 animate-spin' />
+      </div>
+    )
+  }
+
+  return (
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <div className='flex items-center justify-between'>
+            <div>
+              <CardTitle className='flex items-center gap-2'>
+                <Building2 className='h-5 w-5' />
+                SAML SSO Providers
+              </CardTitle>
+              <CardDescription>
+                Enterprise Single Sign-On via SAML 2.0. Configure Identity Providers like Okta, Azure AD, or OneLogin.
+              </CardDescription>
+            </div>
+            <Button onClick={() => setShowAddProvider(true)}>
+              <Plus className='h-4 w-4 mr-2' />
+              Add Provider
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {providers.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-12 text-center'>
+              <Building2 className='text-muted-foreground mb-4 h-12 w-12' />
+              <p className='text-muted-foreground mb-2'>No SAML providers configured</p>
+              <Button variant='outline' onClick={() => setShowAddProvider(true)}>
+                <Plus className='h-4 w-4 mr-2' />
+                Add your first SAML provider
+              </Button>
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {providers.map((provider) => (
+                <Card key={provider.id} className={provider.source === 'config' ? 'border-dashed' : ''}>
+                  <CardContent className='pt-6'>
+                    <div className='flex items-start justify-between'>
+                      <div className='flex-1 space-y-4'>
+                        <div className='flex items-center gap-2 flex-wrap'>
+                          <h3 className='text-lg font-semibold'>
+                            {provider.display_name || provider.name}
+                          </h3>
+                          {provider.enabled ? (
+                            <Badge variant='default' className='gap-1'>
+                              <Check className='h-3 w-3' />
+                              Enabled
+                            </Badge>
+                          ) : (
+                            <Badge variant='secondary'>Disabled</Badge>
+                          )}
+                          {provider.source === 'config' && (
+                            <Badge variant='outline'>
+                              <FileText className='h-3 w-3 mr-1' />
+                              Config File
+                            </Badge>
+                          )}
+                          {provider.allow_dashboard_login && (
+                            <Badge variant='outline'>Dashboard Login</Badge>
+                          )}
+                          {provider.allow_app_login && (
+                            <Badge variant='outline'>App Login</Badge>
+                          )}
+                          {provider.auto_create_users && (
+                            <Badge variant='outline'>Auto-create Users</Badge>
+                          )}
+                        </div>
+
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
+                          <div>
+                            <Label className='text-muted-foreground'>Provider Name</Label>
+                            <p className='font-mono text-xs mt-1'>{provider.name}</p>
+                          </div>
+                          <div>
+                            <Label className='text-muted-foreground'>Default Role</Label>
+                            <p className='font-mono text-xs mt-1'>{provider.default_role}</p>
+                          </div>
+                          <div>
+                            <Label className='text-muted-foreground'>Entity ID (SP)</Label>
+                            <div className='flex items-center gap-2 mt-1'>
+                              <p className='font-mono text-xs break-all flex-1'>{provider.entity_id}</p>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 w-6 p-0'
+                                onClick={() => copyToClipboard(provider.entity_id, 'Entity ID')}
+                              >
+                                <Copy className='h-3 w-3' />
+                              </Button>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className='text-muted-foreground'>ACS URL</Label>
+                            <div className='flex items-center gap-2 mt-1'>
+                              <p className='font-mono text-xs break-all flex-1'>{provider.acs_url}</p>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-6 w-6 p-0'
+                                onClick={() => copyToClipboard(provider.acs_url, 'ACS URL')}
+                              >
+                                <Copy className='h-3 w-3' />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* SP Metadata */}
+                        <div className='border-t pt-4 mt-4'>
+                          <Label className='text-muted-foreground'>SP Metadata URL</Label>
+                          <div className='flex items-center gap-2 mt-1'>
+                            <code className='bg-muted px-2 py-1 rounded text-xs flex-1'>
+                              {baseUrl}/api/v1/auth/saml/metadata/{provider.name}
+                            </code>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => copyToClipboard(`${baseUrl}/api/v1/auth/saml/metadata/${provider.name}`, 'SP Metadata URL')}
+                            >
+                              <Copy className='h-3 w-3 mr-1' />
+                              Copy
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      {provider.source !== 'config' && (
+                        <div className='flex gap-2 ml-4'>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => handleEditProvider(provider)}
+                          >
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => {
+                              setDeletingProvider(provider)
+                              setShowDeleteConfirm(true)
+                            }}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add Provider Dialog */}
+      <Dialog open={showAddProvider} onOpenChange={setShowAddProvider}>
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Add SAML Provider</DialogTitle>
+            <DialogDescription>
+              Configure a new SAML 2.0 Identity Provider for enterprise SSO.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4'>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-2'>
+                <Label>Provider Name *</Label>
+                <Input
+                  placeholder='okta'
+                  value={providerName}
+                  onChange={(e) => setProviderName(e.target.value)}
+                />
+                <p className='text-xs text-muted-foreground'>
+                  Lowercase letters, numbers, underscores, hyphens only
+                </p>
+              </div>
+              <div className='space-y-2'>
+                <Label>Display Name</Label>
+                <Input
+                  placeholder='Okta SSO'
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className='space-y-2'>
+              <Label>IdP Metadata Source *</Label>
+              <div className='flex gap-4'>
+                <Button
+                  type='button'
+                  variant={metadataSource === 'url' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setMetadataSource('url')}
+                >
+                  <Link className='h-4 w-4 mr-2' />
+                  URL
+                </Button>
+                <Button
+                  type='button'
+                  variant={metadataSource === 'xml' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setMetadataSource('xml')}
+                >
+                  <Upload className='h-4 w-4 mr-2' />
+                  Upload XML
+                </Button>
+              </div>
+            </div>
+
+            {metadataSource === 'url' ? (
+              <div className='space-y-2'>
+                <Label>IdP Metadata URL *</Label>
+                <div className='flex gap-2'>
+                  <Input
+                    placeholder='https://company.okta.com/app/xxx/sso/saml/metadata'
+                    value={metadataUrl}
+                    onChange={(e) => {
+                      setMetadataUrl(e.target.value)
+                      setMetadataValid(null)
+                    }}
+                    className='flex-1'
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={validateMetadata}
+                    disabled={!metadataUrl || validatingMetadata}
+                  >
+                    {validatingMetadata ? (
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                    ) : metadataValid ? (
+                      <Check className='h-4 w-4 text-green-500' />
+                    ) : metadataValid === false ? (
+                      <X className='h-4 w-4 text-red-500' />
+                    ) : (
+                      'Validate'
+                    )}
+                  </Button>
+                </div>
+                {metadataError && (
+                  <p className='text-xs text-red-500'>{metadataError}</p>
+                )}
+              </div>
+            ) : (
+              <div className='space-y-2'>
+                <Label>IdP Metadata XML *</Label>
+                <div className='space-y-2'>
+                  <Input
+                    type='file'
+                    accept='.xml,text/xml,application/xml'
+                    onChange={handleFileUpload}
+                  />
+                  <textarea
+                    className='w-full h-32 p-2 text-xs font-mono border rounded-md'
+                    placeholder='Paste IdP metadata XML here...'
+                    value={metadataXml}
+                    onChange={(e) => {
+                      setMetadataXml(e.target.value)
+                      setMetadataValid(null)
+                    }}
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={validateMetadata}
+                    disabled={!metadataXml || validatingMetadata}
+                  >
+                    {validatingMetadata ? (
+                      <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                    ) : null}
+                    Validate XML
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-2'>
+                <Label>Default Role</Label>
+                <Input
+                  placeholder='authenticated'
+                  value={defaultRole}
+                  onChange={(e) => setDefaultRole(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className='space-y-4 border-t pt-4'>
+              <Label className='text-base font-semibold'>Options</Label>
+              <div className='grid grid-cols-2 gap-4'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Auto-create Users</Label>
+                    <p className='text-xs text-muted-foreground'>Create user if not exists</p>
+                  </div>
+                  <Switch checked={autoCreateUsers} onCheckedChange={setAutoCreateUsers} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow IdP-Initiated SSO</Label>
+                    <p className='text-xs text-muted-foreground'>Less secure</p>
+                  </div>
+                  <Switch checked={allowIdpInitiated} onCheckedChange={setAllowIdpInitiated} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for App Users</Label>
+                    <p className='text-xs text-muted-foreground'>End-user authentication</p>
+                  </div>
+                  <Switch checked={allowAppLogin} onCheckedChange={setAllowAppLogin} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for Dashboard</Label>
+                    <p className='text-xs text-muted-foreground'>Admin login</p>
+                  </div>
+                  <Switch checked={allowDashboardLogin} onCheckedChange={setAllowDashboardLogin} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant='outline' onClick={() => { setShowAddProvider(false); resetForm(); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateProvider} disabled={createMutation.isPending}>
+              {createMutation.isPending ? (
+                <Loader2 className='h-4 w-4 animate-spin mr-2' />
+              ) : null}
+              Create Provider
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Provider Dialog */}
+      <Dialog open={showEditProvider} onOpenChange={setShowEditProvider}>
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Edit SAML Provider</DialogTitle>
+            <DialogDescription>
+              Update the configuration for {editingProvider?.display_name || editingProvider?.name}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <Label>Display Name</Label>
+              <Input
+                placeholder='Okta SSO'
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+
+            <div className='space-y-2'>
+              <Label>IdP Metadata Source</Label>
+              <div className='flex gap-4'>
+                <Button
+                  type='button'
+                  variant={metadataSource === 'url' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setMetadataSource('url')}
+                >
+                  <Link className='h-4 w-4 mr-2' />
+                  URL
+                </Button>
+                <Button
+                  type='button'
+                  variant={metadataSource === 'xml' ? 'default' : 'outline'}
+                  size='sm'
+                  onClick={() => setMetadataSource('xml')}
+                >
+                  <Upload className='h-4 w-4 mr-2' />
+                  Upload XML
+                </Button>
+              </div>
+            </div>
+
+            {metadataSource === 'url' ? (
+              <div className='space-y-2'>
+                <Label>IdP Metadata URL</Label>
+                <div className='flex gap-2'>
+                  <Input
+                    placeholder='https://company.okta.com/app/xxx/sso/saml/metadata'
+                    value={metadataUrl}
+                    onChange={(e) => setMetadataUrl(e.target.value)}
+                    className='flex-1'
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={validateMetadata}
+                    disabled={!metadataUrl || validatingMetadata}
+                  >
+                    {validatingMetadata ? <Loader2 className='h-4 w-4 animate-spin' /> : 'Validate'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className='space-y-2'>
+                <Label>IdP Metadata XML</Label>
+                <Input
+                  type='file'
+                  accept='.xml,text/xml,application/xml'
+                  onChange={handleFileUpload}
+                />
+                <textarea
+                  className='w-full h-32 p-2 text-xs font-mono border rounded-md'
+                  placeholder='Paste IdP metadata XML here...'
+                  value={metadataXml}
+                  onChange={(e) => setMetadataXml(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className='space-y-2'>
+              <Label>Default Role</Label>
+              <Input
+                placeholder='authenticated'
+                value={defaultRole}
+                onChange={(e) => setDefaultRole(e.target.value)}
+              />
+            </div>
+
+            <div className='space-y-4 border-t pt-4'>
+              <Label className='text-base font-semibold'>Options</Label>
+              <div className='grid grid-cols-2 gap-4'>
+                <div className='flex items-center justify-between'>
+                  <Label>Auto-create Users</Label>
+                  <Switch checked={autoCreateUsers} onCheckedChange={setAutoCreateUsers} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <Label>Allow IdP-Initiated SSO</Label>
+                  <Switch checked={allowIdpInitiated} onCheckedChange={setAllowIdpInitiated} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <Label>Allow for App Users</Label>
+                  <Switch checked={allowAppLogin} onCheckedChange={setAllowAppLogin} />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <Label>Allow for Dashboard</Label>
+                  <Switch checked={allowDashboardLogin} onCheckedChange={setAllowDashboardLogin} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant='outline' onClick={() => { setShowEditProvider(false); resetForm(); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProvider} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title='Delete SAML Provider'
+        desc={`Are you sure you want to delete the SAML provider "${deletingProvider?.display_name || deletingProvider?.name}"? This action cannot be undone.`}
+        confirmText='Delete'
+        handleConfirm={() => {
+          if (deletingProvider) {
+            deleteMutation.mutate(deletingProvider.id)
+          }
+        }}
+        isLoading={deleteMutation.isPending}
+        destructive
       />
     </div>
   )

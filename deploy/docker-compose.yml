@@ -95,7 +95,7 @@ services:
       # ==========================================================================
       # Database Configuration
       # ==========================================================================
-      FLUXBASE_DATABASE_HOST: ${POSTGRES_HOST:-postgres}
+      FLUXBASE_DATABASE_HOST: ${POSTGRES_HOST:-fluxbase-postgres}
       FLUXBASE_DATABASE_PORT: ${POSTGRES_PORT:-5432}
       FLUXBASE_DATABASE_DATABASE: ${POSTGRES_DB:-fluxbase}
       FLUXBASE_DATABASE_USER: ${POSTGRES_USER:-fluxbase}
@@ -234,11 +234,34 @@ services:
       # FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER: "10"
 
       # ==========================================================================
+      # CAPTCHA Configuration (optional)
+      # ==========================================================================
+      # Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
+      # FLUXBASE_SECURITY_CAPTCHA_ENABLED: "false"
+      # FLUXBASE_SECURITY_CAPTCHA_PROVIDER: "hcaptcha"
+      # FLUXBASE_SECURITY_CAPTCHA_SITE_KEY: ""
+      # FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY: ""
+      # FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD: "0.5"  # reCAPTCHA v3 only
+      # FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS: "signup,login,password_reset,magic_link"
+      # Cap provider settings (self-hosted proof-of-work CAPTCHA - https://capjs.js.org/)
+      # FLUXBASE_SECURITY_CAPTCHA_CAP_SERVER_URL: "http://localhost:3000"
+      # FLUXBASE_SECURITY_CAPTCHA_CAP_API_KEY: ""
+
+      # ==========================================================================
       # REST API Configuration
       # ==========================================================================
       # FLUXBASE_API_MAX_PAGE_SIZE: "1000"
       # FLUXBASE_API_MAX_TOTAL_RESULTS: "10000"
       # FLUXBASE_API_DEFAULT_PAGE_SIZE: "1000"
+
+      # ==========================================================================
+      # GraphQL Configuration
+      # ==========================================================================
+      FLUXBASE_GRAPHQL_ENABLED: ${FLUXBASE_GRAPHQL_ENABLED:-true}
+      FLUXBASE_GRAPHQL_MAX_DEPTH: ${FLUXBASE_GRAPHQL_MAX_DEPTH:-10}
+      FLUXBASE_GRAPHQL_MAX_COMPLEXITY: ${FLUXBASE_GRAPHQL_MAX_COMPLEXITY:-1000}
+      # Disable introspection in production for security
+      FLUXBASE_GRAPHQL_INTROSPECTION: ${FLUXBASE_GRAPHQL_INTROSPECTION:-false}
 
       # ==========================================================================
       # Migrations Configuration

@@ -16,6 +16,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -99,6 +100,21 @@ func main() {
 			Bool("leader_election", cfg.Scaling.EnableSchedulerLeaderElection).
 			Str("backend", cfg.Scaling.Backend).
 			Msg("Scaling configuration active")
+	}
+
+	// Initialize image transformation library (vips) if enabled
+	if cfg.Storage.Transforms.Enabled {
+		log.Info().Msg("Initializing image transformation library (libvips)...")
+		storage.InitVips()
+		defer func() {
+			log.Debug().Msg("Shutting down image transformation library...")
+			storage.ShutdownVips()
+		}()
+		log.Info().
+			Int("max_width", cfg.Storage.Transforms.MaxWidth).
+			Int("max_height", cfg.Storage.Transforms.MaxHeight).
+			Int("default_quality", cfg.Storage.Transforms.DefaultQuality).
+			Msg("Image transformations enabled")
 	}
 
 	// If validate flag is set, exit after validation

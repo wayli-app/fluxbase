@@ -77,7 +77,8 @@
       "Bash(/usr/local/go/bin/go test:*)",
       "Bash(/tmp/fluxbase-cli:*)",
       "Bash(go vet:*)",
-      "Bash(gofmt:*)"
+      "Bash(gofmt:*)",
+      "Bash(git rev-list:*)"
     ],
     "deny": [],
     "ask": []

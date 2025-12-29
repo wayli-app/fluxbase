@@ -57,9 +57,89 @@ auth:
   #
   # service_key: ""                     # FLUXBASE_AUTH_SERVICE_KEY (optional, backend only)
 
+  # SAML SSO Configuration (Enterprise Single Sign-On)
+  # Configure SAML Identity Providers (IdPs) like Okta, Azure AD, OneLogin
+  #
+  # saml_providers:
+  #   - name: okta                        # Provider identifier (used in URLs)
+  #     enabled: true                     # Enable/disable this provider
+  #     idp_metadata_url: "https://company.okta.com/app/xxx/sso/saml/metadata"
+  #                                       # OR use idp_metadata_xml for inline XML
+  #     entity_id: "https://your-app.com/auth/saml"  # SP Entity ID
+  #     acs_url: "https://your-app.com/api/v1/auth/saml/acs"  # Assertion Consumer Service URL
+  #     attribute_mapping:                # Map SAML attributes to user fields
+  #       email: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+  #       name: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+  #     auto_create_users: true           # Create users on first login
+  #     default_role: "authenticated"     # Role for new SAML users
+  #
+  #     # Security options (recommended defaults shown):
+  #     allow_idp_initiated: false        # Allow IdP-initiated SSO (security risk, default: false)
+  #     allowed_redirect_hosts: []        # Whitelist for RelayState redirects (prevent open redirects)
+  #                                       # Example: ["app.example.com", "dashboard.example.com"]
+  #     allow_insecure_metadata_url: false  # Allow HTTP metadata URLs (default: false, requires HTTPS)
+  #
+  # SAML Setup Steps:
+  # 1. Get your IdP metadata URL from Okta/Azure AD/OneLogin
+  # 2. Configure a SAML application in your IdP with:
+  #    - SP Entity ID: https://your-app.com/auth/saml
+  #    - ACS URL: https://your-app.com/api/v1/auth/saml/acs
+  #    - Name ID format: EmailAddress
+  # 3. Add the provider configuration below
+  # 4. Download SP metadata from: /api/v1/auth/saml/metadata/{provider}
+  #
+  # Security Considerations:
+  # - IdP-initiated SSO is disabled by default to prevent replay attacks
+  # - Metadata URLs must use HTTPS to prevent man-in-the-middle attacks
+  # - RelayState redirects are validated against allowed_redirect_hosts to prevent open redirects
+  # - User attributes (names) are sanitized to prevent XSS attacks
+
 # Security settings
 security:
   enable_global_rate_limit: false       # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT
+
+  # CAPTCHA configuration for bot protection on authentication endpoints
+  captcha:
+    enabled: false                      # FLUXBASE_SECURITY_CAPTCHA_ENABLED
+    provider: "hcaptcha"                # FLUXBASE_SECURITY_CAPTCHA_PROVIDER
+                                        # Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
+    site_key: ""                        # FLUXBASE_SECURITY_CAPTCHA_SITE_KEY (public key for frontend)
+    secret_key: ""                      # FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY (private key for verification)
+    score_threshold: 0.5                # FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD (reCAPTCHA v3 only, 0.0-1.0)
+    endpoints:                          # FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS (comma-separated)
+      - signup                          # Require CAPTCHA on user registration
+      - login                           # Require CAPTCHA on sign in
+      - password_reset                  # Require CAPTCHA on password reset request
+      - magic_link                      # Require CAPTCHA on magic link request
+
+    # Cap provider settings (self-hosted proof-of-work CAPTCHA)
+    # Cap is a privacy-first, self-hosted alternative that uses proof-of-work instead of visual puzzles
+    # See: https://capjs.js.org/
+    # cap_server_url: "http://localhost:3000"  # FLUXBASE_SECURITY_CAPTCHA_CAP_SERVER_URL
+    # cap_api_key: ""                          # FLUXBASE_SECURITY_CAPTCHA_CAP_API_KEY
+
+    # Provider Setup Instructions:
+    #
+    # hCaptcha (privacy-focused, recommended):
+    #   1. Sign up at https://www.hcaptcha.com/
+    #   2. Create a new site and get your site key and secret key
+    #   3. Set provider: "hcaptcha" and enter your keys
+    #
+    # reCAPTCHA v3 (invisible, risk scoring):
+    #   1. Go to https://www.google.com/recaptcha/admin
+    #   2. Register a new site with reCAPTCHA v3
+    #   3. Set provider: "recaptcha_v3" and enter your keys
+    #   4. Adjust score_threshold as needed (higher = stricter)
+    #
+    # Cloudflare Turnstile (free, privacy-friendly):
+    #   1. Go to https://dash.cloudflare.com/?to=/:account/turnstile
+    #   2. Add a new site and get your site key and secret key
+    #   3. Set provider: "turnstile" and enter your keys
+    #
+    # Cap (self-hosted, proof-of-work):
+    #   1. Run Cap server: docker run -p 3000:3000 ghcr.io/tiagozip/cap:latest
+    #   2. Set provider: "cap" and cap_server_url to your Cap server URL
+    #   3. Optionally set cap_api_key if you configured one in Cap
 
 # Storage configuration
 storage:
@@ -73,6 +153,23 @@ storage:
   # s3_secret_key: ""                   # FLUXBASE_STORAGE_S3_SECRET_KEY
   # s3_bucket: ""                       # FLUXBASE_STORAGE_S3_BUCKET
   # s3_region: "us-east-1"              # FLUXBASE_STORAGE_S3_REGION
+
+  # Image transformation configuration (requires libvips)
+  # On-the-fly resize, crop, and format conversion
+  # Usage: GET /api/v1/storage/bucket/image.jpg?w=300&h=200&fmt=webp&q=85&fit=cover
+  transforms:
+    enabled: true                       # FLUXBASE_STORAGE_TRANSFORMS_ENABLED
+    default_quality: 80                 # FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY (1-100)
+    max_width: 4096                     # FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH
+    max_height: 4096                    # FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT
+    max_total_pixels: 16000000          # FLUXBASE_STORAGE_TRANSFORMS_MAX_TOTAL_PIXELS (16 megapixels)
+    bucket_size: 50                     # FLUXBASE_STORAGE_TRANSFORMS_BUCKET_SIZE (dimension rounding)
+    rate_limit: 60                      # FLUXBASE_STORAGE_TRANSFORMS_RATE_LIMIT (transforms/min/user)
+    timeout: "30s"                      # FLUXBASE_STORAGE_TRANSFORMS_TIMEOUT
+    max_concurrent: 4                   # FLUXBASE_STORAGE_TRANSFORMS_MAX_CONCURRENT
+    cache_enabled: true                 # FLUXBASE_STORAGE_TRANSFORMS_CACHE_ENABLED
+    cache_ttl: "24h"                    # FLUXBASE_STORAGE_TRANSFORMS_CACHE_TTL
+    cache_max_size: 1073741824          # FLUXBASE_STORAGE_TRANSFORMS_CACHE_MAX_SIZE (1GB)
 
 # Realtime/WebSocket configuration
 realtime:
@@ -137,6 +234,20 @@ api:
   # - If a client requests ?offset=9500&limit=1000 and max_total_results=10000, they receive 500 rows
   # - If a client doesn't specify ?limit and default_page_size=1000, they receive 1000 rows
   # - Set any value to -1 to disable that limit (allows unlimited queries)
+
+# GraphQL API configuration
+graphql:
+  enabled: true                         # FLUXBASE_GRAPHQL_ENABLED
+  introspection: false                  # FLUXBASE_GRAPHQL_INTROSPECTION (disable in production)
+  max_depth: 10                         # FLUXBASE_GRAPHQL_MAX_DEPTH (max query nesting depth)
+  max_complexity: 1000                  # FLUXBASE_GRAPHQL_MAX_COMPLEXITY (max query complexity score)
+
+  # Security notes:
+  # - max_depth prevents deeply nested queries that cause exponential resource usage
+  # - max_complexity limits total query cost (list fields cost more than scalar fields)
+  # - introspection should be disabled in production to prevent schema discovery
+  # - Example rejected query at depth 5:
+  #   { users { posts { comments { author { posts { title } } } } } }
 
 # AI/Chatbot configuration
 ai:

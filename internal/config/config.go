@@ -29,6 +29,7 @@ type Config struct {
 	Tracing       TracingConfig    `mapstructure:"tracing"`
 	AI            AIConfig         `mapstructure:"ai"`
 	RPC           RPCConfig        `mapstructure:"rpc"`
+	GraphQL       GraphQLConfig    `mapstructure:"graphql"`
 	Scaling       ScalingConfig    `mapstructure:"scaling"`
 	Logging       LoggingConfig    `mapstructure:"logging"`
 	Admin         AdminConfig      `mapstructure:"admin"`
@@ -136,6 +137,27 @@ type AuthConfig struct {
 
 	// Custom OIDC providers (e.g., Authelia, Keycloak, Auth0, Okta)
 	OIDCProviders []OIDCProviderConfig `mapstructure:"oidc_providers"`
+
+	// SAML SSO providers for enterprise authentication
+	SAMLProviders []SAMLProviderConfig `mapstructure:"saml_providers"`
+}
+
+// SAMLProviderConfig represents a SAML 2.0 Identity Provider configuration
+type SAMLProviderConfig struct {
+	Name             string            `mapstructure:"name"`              // Provider name (e.g., "okta", "azure-ad")
+	Enabled          bool              `mapstructure:"enabled"`           // Enable this provider
+	IdPMetadataURL   string            `mapstructure:"idp_metadata_url"`  // IdP metadata URL (recommended)
+	IdPMetadataXML   string            `mapstructure:"idp_metadata_xml"`  // IdP metadata XML (alternative to URL)
+	EntityID         string            `mapstructure:"entity_id"`         // SP entity ID (unique identifier for this app)
+	AcsURL           string            `mapstructure:"acs_url"`           // Assertion Consumer Service URL (callback)
+	AttributeMapping map[string]string `mapstructure:"attribute_mapping"` // Map SAML attributes to user fields
+	AutoCreateUsers  bool              `mapstructure:"auto_create_users"` // Create user if not exists
+	DefaultRole      string            `mapstructure:"default_role"`      // Default role for new users (authenticated)
+
+	// Security options
+	AllowIDPInitiated        bool     `mapstructure:"allow_idp_initiated"`         // Allow IdP-initiated SSO (default: false for security)
+	AllowedRedirectHosts     []string `mapstructure:"allowed_redirect_hosts"`      // Whitelist for RelayState redirect URLs
+	AllowInsecureMetadataURL bool     `mapstructure:"allow_insecure_metadata_url"` // Allow HTTP metadata URLs (default: false)
 }
 
 // OIDCProviderConfig represents a custom OIDC provider configuration
@@ -159,6 +181,22 @@ type SecurityConfig struct {
 	AuthLoginRateWindow  time.Duration `mapstructure:"auth_login_rate_window"`  // Time window for auth login rate limit
 	AdminLoginRateLimit  int           `mapstructure:"admin_login_rate_limit"`  // Max attempts for admin login
 	AdminLoginRateWindow time.Duration `mapstructure:"admin_login_rate_window"` // Time window for admin login rate limit
+
+	// CAPTCHA configuration for bot protection
+	Captcha CaptchaConfig `mapstructure:"captcha"`
+}
+
+// CaptchaConfig contains CAPTCHA verification settings for bot protection
+type CaptchaConfig struct {
+	Enabled        bool     `mapstructure:"enabled"`         // Enable CAPTCHA verification
+	Provider       string   `mapstructure:"provider"`        // Provider: hcaptcha, recaptcha_v3, turnstile, cap
+	SiteKey        string   `mapstructure:"site_key"`        // Public site key (sent to frontend)
+	SecretKey      string   `mapstructure:"secret_key"`      // Secret key for server-side verification
+	ScoreThreshold float64  `mapstructure:"score_threshold"` // Min score for reCAPTCHA v3 (0.0-1.0, default 0.5)
+	Endpoints      []string `mapstructure:"endpoints"`       // Endpoints requiring CAPTCHA: signup, login, password_reset, magic_link
+	// Cap provider settings (self-hosted proof-of-work CAPTCHA)
+	CapServerURL string `mapstructure:"cap_server_url"` // URL of Cap server (e.g., http://localhost:3000)
+	CapAPIKey    string `mapstructure:"cap_api_key"`    // API key for Cap server authentication
 }
 
 // CORSConfig contains CORS settings
@@ -184,6 +222,30 @@ type StorageConfig struct {
 	S3ForcePathStyle bool     `mapstructure:"s3_force_path_style"` // Use path-style addressing (required for MinIO, R2, Spaces, etc.)
 	DefaultBuckets   []string `mapstructure:"default_buckets"`     // Buckets to auto-create on startup
 	MaxUploadSize    int64    `mapstructure:"max_upload_size"`
+
+	// Image transformation settings
+	Transforms TransformConfig `mapstructure:"transforms"`
+}
+
+// TransformConfig contains image transformation settings
+type TransformConfig struct {
+	Enabled        bool     `mapstructure:"enabled"`         // Enable on-the-fly image transformations
+	DefaultQuality int      `mapstructure:"default_quality"` // Default output quality (1-100)
+	MaxWidth       int      `mapstructure:"max_width"`       // Maximum output width in pixels
+	MaxHeight      int      `mapstructure:"max_height"`      // Maximum output height in pixels
+	AllowedFormats []string `mapstructure:"allowed_formats"` // Allowed output formats (webp, jpg, png, avif)
+
+	// Security settings
+	MaxTotalPixels int           `mapstructure:"max_total_pixels"` // Maximum total pixels (width * height), default 16M
+	BucketSize     int           `mapstructure:"bucket_size"`      // Dimension bucketing size (default 50px)
+	RateLimit      int           `mapstructure:"rate_limit"`       // Transforms per minute per user (default 60)
+	Timeout        time.Duration `mapstructure:"timeout"`          // Max transform duration (default 30s)
+	MaxConcurrent  int           `mapstructure:"max_concurrent"`   // Max concurrent transforms (default 4)
+
+	// Caching settings
+	CacheEnabled bool          `mapstructure:"cache_enabled"`  // Enable transform caching
+	CacheTTL     time.Duration `mapstructure:"cache_ttl"`      // Cache TTL (default 24h)
+	CacheMaxSize int64         `mapstructure:"cache_max_size"` // Max cache size in bytes (default 1GB)
 }
 
 // RealtimeConfig contains realtime/websocket settings
@@ -504,6 +566,14 @@ func setDefaults() {
 	viper.SetDefault("security.admin_login_rate_limit", 10)      // 10 attempts
 	viper.SetDefault("security.admin_login_rate_window", "1m")   // per minute
 
+	// CAPTCHA defaults
+	viper.SetDefault("security.captcha.enabled", false)       // Disabled by default
+	viper.SetDefault("security.captcha.provider", "hcaptcha") // Default to hCaptcha (privacy-focused)
+	viper.SetDefault("security.captcha.site_key", "")         // Must be configured
+	viper.SetDefault("security.captcha.secret_key", "")       // Must be configured
+	viper.SetDefault("security.captcha.score_threshold", 0.5) // For reCAPTCHA v3
+	viper.SetDefault("security.captcha.endpoints", []string{"signup", "login", "password_reset", "magic_link"})
+
 	// Admin defaults
 	viper.SetDefault("admin.enabled", false) // Admin dashboard disabled by default
 
@@ -527,6 +597,23 @@ func setDefaults() {
 	viper.SetDefault("storage.s3_force_path_style", true) // Default true for S3-compatible services (MinIO, R2, Spaces, etc.)
 	viper.SetDefault("storage.default_buckets", []string{"uploads", "temp-files", "public"})
 	viper.SetDefault("storage.max_upload_size", 2*1024*1024*1024) // 2GB
+
+	// Storage transform defaults
+	viper.SetDefault("storage.transforms.enabled", true)
+	viper.SetDefault("storage.transforms.default_quality", 80)
+	viper.SetDefault("storage.transforms.max_width", 4096)
+	viper.SetDefault("storage.transforms.max_height", 4096)
+	viper.SetDefault("storage.transforms.allowed_formats", []string{"webp", "jpg", "png", "avif"})
+	// Security settings
+	viper.SetDefault("storage.transforms.max_total_pixels", 16_000_000) // 16 megapixels
+	viper.SetDefault("storage.transforms.bucket_size", 50)              // Round dimensions to 50px
+	viper.SetDefault("storage.transforms.rate_limit", 60)               // 60 transforms/min/user
+	viper.SetDefault("storage.transforms.timeout", "30s")               // 30 second timeout
+	viper.SetDefault("storage.transforms.max_concurrent", 4)            // 4 concurrent transforms
+	// Caching settings
+	viper.SetDefault("storage.transforms.cache_enabled", true)
+	viper.SetDefault("storage.transforms.cache_ttl", "24h")
+	viper.SetDefault("storage.transforms.cache_max_size", 1024*1024*1024) // 1GB
 
 	// Realtime defaults
 	viper.SetDefault("realtime.enabled", true)
@@ -682,6 +769,12 @@ func setDefaults() {
 		"127.0.0.0/8",    // Loopback (localhost)
 	})
 
+	// GraphQL defaults
+	viper.SetDefault("graphql.enabled", true)        // Enabled by default
+	viper.SetDefault("graphql.max_depth", 10)        // Maximum query depth
+	viper.SetDefault("graphql.max_complexity", 1000) // Maximum query complexity
+	viper.SetDefault("graphql.introspection", true)  // Enable introspection (disable in production for security)
+
 	// Scaling defaults (for multi-instance deployments)
 	viper.SetDefault("scaling.worker_only", false)                      // Run full server by default
 	viper.SetDefault("scaling.disable_scheduler", false)                // Run schedulers by default
@@ -783,6 +876,13 @@ func (c *Config) Validate() error {
 	if c.AI.Enabled {
 		if err := c.AI.Validate(); err != nil {
 			return fmt.Errorf("ai configuration error: %w", err)
+		}
+	}
+
+	// Validate GraphQL configuration if enabled
+	if c.GraphQL.Enabled {
+		if err := c.GraphQL.Validate(); err != nil {
+			return fmt.Errorf("graphql configuration error: %w", err)
 		}
 	}
 

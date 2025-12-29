@@ -68,11 +68,15 @@ export interface User {
 export interface SignInCredentials {
   email: string
   password: string
+  /** CAPTCHA token for bot protection (optional, required if CAPTCHA is enabled) */
+  captchaToken?: string
 }
 
 export interface SignUpCredentials {
   email: string
   password: string
+  /** CAPTCHA token for bot protection (optional, required if CAPTCHA is enabled) */
+  captchaToken?: string
   options?: {
     /** User metadata to store in raw_user_meta_data (Supabase-compatible) */
     data?: Record<string, unknown>
@@ -500,7 +504,10 @@ export interface ListOptions {
 }
 
 export interface SignedUrlOptions {
-  expiresIn?: number // seconds
+  /** Expiration time in seconds (default: 3600 = 1 hour) */
+  expiresIn?: number
+  /** Image transformation options (only applies to images) */
+  transform?: TransformOptions
 }
 
 export interface DownloadOptions {
@@ -718,6 +725,8 @@ export interface Bucket {
 // Password Reset Types
 export interface PasswordResetRequest {
   email: string
+  /** CAPTCHA token for bot protection (optional, required if CAPTCHA is enabled) */
+  captcha_token?: string
 }
 
 /**
@@ -756,11 +765,14 @@ export type ResetPasswordResponse = AuthResponseData
 // Magic Link Types
 export interface MagicLinkOptions {
   redirect_to?: string
+  /** CAPTCHA token for bot protection (optional, required if CAPTCHA is enabled) */
+  captchaToken?: string
 }
 
 export interface MagicLinkRequest {
   email: string
   redirect_to?: string
+  captcha_token?: string
 }
 
 /**
@@ -802,6 +814,72 @@ export interface OAuthOptions {
 export interface OAuthUrlResponse {
   url: string
   provider: string
+}
+
+// SAML SSO Types
+/**
+ * SAML Identity Provider configuration
+ */
+export interface SAMLProvider {
+  /** Unique provider identifier (slug name) */
+  id: string
+  /** Display name of the provider */
+  name: string
+  /** Whether the provider is enabled */
+  enabled: boolean
+  /** Provider's entity ID (used for SP metadata) */
+  entity_id: string
+  /** SSO endpoint URL */
+  sso_url: string
+  /** Single Logout endpoint URL (optional) */
+  slo_url?: string
+}
+
+/**
+ * Response containing list of SAML providers
+ */
+export interface SAMLProvidersResponse {
+  providers: SAMLProvider[]
+}
+
+/**
+ * Options for initiating SAML login
+ */
+export interface SAMLLoginOptions {
+  /** URL to redirect after successful authentication */
+  redirectUrl?: string
+}
+
+/**
+ * Response containing SAML login URL
+ */
+export interface SAMLLoginResponse {
+  /** URL to redirect user to for SAML authentication */
+  url: string
+  /** Provider name */
+  provider: string
+}
+
+/**
+ * SAML session information
+ */
+export interface SAMLSession {
+  /** Session ID */
+  id: string
+  /** User ID */
+  user_id: string
+  /** Provider name */
+  provider_name: string
+  /** SAML NameID */
+  name_id: string
+  /** Session index from IdP */
+  session_index?: string
+  /** SAML attributes */
+  attributes?: Record<string, string[]>
+  /** Session expiration time */
+  expires_at?: string
+  /** Session creation time */
+  created_at: string
 }
 
 // OTP (One-Time Password) Types
@@ -1874,6 +1952,72 @@ export interface ListImpersonationSessionsOptions {
 export interface ListImpersonationSessionsResponse {
   sessions: ImpersonationSession[]
   total: number
+}
+
+// ============================================================================
+// Image Transform Types
+// ============================================================================
+
+/**
+ * Fit mode for image transformations
+ * - cover: Resize to cover target dimensions, cropping if needed (default)
+ * - contain: Resize to fit within target dimensions, letterboxing if needed
+ * - fill: Stretch to exactly fill target dimensions
+ * - inside: Resize to fit within target, only scale down
+ * - outside: Resize to be at least as large as target
+ */
+export type ImageFitMode = 'cover' | 'contain' | 'fill' | 'inside' | 'outside'
+
+/**
+ * Output format for image transformations
+ */
+export type ImageFormat = 'webp' | 'jpg' | 'png' | 'avif'
+
+/**
+ * Options for on-the-fly image transformations
+ * Applied to storage downloads via query parameters
+ */
+export interface TransformOptions {
+  /** Target width in pixels (0 or undefined = auto based on height) */
+  width?: number
+  /** Target height in pixels (0 or undefined = auto based on width) */
+  height?: number
+  /** Output format (defaults to original format) */
+  format?: ImageFormat
+  /** Output quality 1-100 (default: 80) */
+  quality?: number
+  /** How to fit the image within target dimensions (default: cover) */
+  fit?: ImageFitMode
+}
+
+// ============================================================================
+// CAPTCHA Types
+// ============================================================================
+
+/**
+ * CAPTCHA provider types supported by Fluxbase
+ * - hcaptcha: Privacy-focused visual challenge
+ * - recaptcha_v3: Google's invisible risk-based CAPTCHA
+ * - turnstile: Cloudflare's invisible CAPTCHA
+ * - cap: Self-hosted proof-of-work CAPTCHA (https://capjs.js.org/)
+ */
+export type CaptchaProvider = 'hcaptcha' | 'recaptcha_v3' | 'turnstile' | 'cap'
+
+/**
+ * Public CAPTCHA configuration returned from the server
+ * Used by clients to know which CAPTCHA provider to load
+ */
+export interface CaptchaConfig {
+  /** Whether CAPTCHA is enabled */
+  enabled: boolean
+  /** CAPTCHA provider name */
+  provider?: CaptchaProvider
+  /** Public site key for the CAPTCHA widget (hcaptcha, recaptcha, turnstile) */
+  site_key?: string
+  /** Endpoints that require CAPTCHA verification */
+  endpoints?: string[]
+  /** Cap server URL - only present when provider is 'cap' */
+  cap_server_url?: string
 }
 
 // ============================================================================

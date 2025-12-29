@@ -9,93 +9,68 @@ Get Fluxbase running in under 5 minutes using Docker.
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose installed
 - 500MB disk space (plus space for your data)
 
-## 1. Create docker-compose.yml
-
-Create a `docker-compose.yml` file:
-
-```yaml
-services:
-  postgres:
-    image: ghcr.io/fluxbase-eu/fluxbase-postgres:18
-    environment:
-      POSTGRES_DB: fluxbase
-      POSTGRES_USER: fluxbase
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql
-
-  fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:latest
-    depends_on:
-      - postgres
-    environment:
-      FLUXBASE_DATABASE_HOST: postgres
-      FLUXBASE_DATABASE_PORT: 5432
-      FLUXBASE_DATABASE_USER: fluxbase
-      FLUXBASE_DATABASE_PASSWORD: postgres
-      FLUXBASE_DATABASE_DATABASE: fluxbase
-      FLUXBASE_DATABASE_SSL_MODE: disable
-      FLUXBASE_AUTH_JWT_SECRET: change-this-to-a-secure-random-string-min-32-chars
-      FLUXBASE_SECURITY_SETUP_TOKEN: change-this-to-another-secure-random-string
-    ports:
-      - "8080:8080"
-
-volumes:
-  postgres_data:
-```
-
-## 2. Set Secure Secrets
-
-Generate secure values for the secrets:
+## 1. Clone the Repository
 
 ```bash
-# Generate JWT secret (copy output to FLUXBASE_AUTH_JWT_SECRET)
-openssl rand -base64 32
-
-# Generate setup token (copy output to FLUXBASE_SECURITY_SETUP_TOKEN)
-openssl rand -base64 32
+git clone https://github.com/fluxbase-eu/fluxbase.git
+cd fluxbase/deploy
 ```
 
-Update `docker-compose.yml` with your generated secrets.
+## 2. Generate Secrets
 
-:::caution[Security Warning]
-Never use the example secrets in production. Both secrets should be strong, random strings of at least 32 characters.
+Run the secrets generator:
+
+```bash
+./generate-keys.sh
+```
+
+Select option **1** (Docker Compose) when prompted. This creates a `.env` file with all required secrets.
+
+:::tip[Save Your Setup Token]
+The script displays your **Setup Token** once. Save it - you'll need it to access the admin dashboard.
 :::
 
 ## 3. Start Fluxbase
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.minimal.yaml up -d
 ```
 
-Wait a few seconds for the services to start. Check logs with:
+Wait for the services to start (first run takes ~30 seconds for migrations). Check the logs:
 
 ```bash
-docker compose logs fluxbase
+docker logs -f fluxbase
 ```
 
-You should see output like:
+You should see:
 
 ```
-🚀 Fluxbase starting...
-✅ Database connected
-✅ Migrations applied
-✅ Admin UI available at: http://localhost:8080/admin
-🎉 Fluxbase is ready!
+Fluxbase starting...
+Database connected
+Migrations applied
+Fluxbase is ready!
 ```
 
 ## 4. Complete Setup
 
-1. Open [http://localhost:8080/admin/setup](http://localhost:8080/admin/setup) in your browser
-2. Enter your **Setup Token** (the `FLUXBASE_SECURITY_SETUP_TOKEN` value)
-3. Create your admin account (email and password)
-4. You'll be redirected to the admin dashboard
+1. Open [http://localhost:8080/admin/setup](http://localhost:8080/admin/setup)
+2. Enter your **Setup Token** (from step 2)
+3. Create your admin account
+4. You're in!
 
-## 5. Explore the Admin Dashboard
+## Test the API
 
-After logging in at [http://localhost:8080/admin](http://localhost:8080/admin), you can:
+```bash
+curl http://localhost:8080/health
+```
+
+```json
+{"status": "healthy", "database": "connected"}
+```
+
+## Explore the Admin Dashboard
+
+At [http://localhost:8080/admin](http://localhost:8080/admin):
 
 - **Tables Browser** - Create tables and manage data
 - **Authentication** - View and manage users
@@ -103,22 +78,16 @@ After logging in at [http://localhost:8080/admin](http://localhost:8080/admin), 
 - **Functions** - Deploy edge functions
 - **Realtime** - Monitor WebSocket connections
 
-## 6. Test the API
+## Troubleshooting
 
-Verify everything is working:
+**Database connection errors after changing secrets:**
 
 ```bash
-curl http://localhost:8080/health
+docker compose -f docker-compose.minimal.yaml down -v
+docker compose -f docker-compose.minimal.yaml up -d
 ```
 
-Expected response:
-
-```json
-{
-  "status": "healthy",
-  "database": "connected"
-}
-```
+The `-v` flag resets volumes so PostgreSQL reinitializes with the new password.
 
 ## Next Steps
 

@@ -30,48 +30,54 @@ func NewOAuthProviderHandler(db *pgxpool.Pool, settingsCache *auth.SettingsCache
 
 // OAuthProvider represents an OAuth provider configuration
 type OAuthProvider struct {
-	ID               uuid.UUID `json:"id"`
-	ProviderName     string    `json:"provider_name"`
-	DisplayName      string    `json:"display_name"`
-	Enabled          bool      `json:"enabled"`
-	ClientID         string    `json:"client_id"`
-	ClientSecret     string    `json:"client_secret,omitempty"` // Omitted in GET responses
-	RedirectURL      string    `json:"redirect_url"`
-	Scopes           []string  `json:"scopes"`
-	IsCustom         bool      `json:"is_custom"`
-	AuthorizationURL *string   `json:"authorization_url,omitempty"`
-	TokenURL         *string   `json:"token_url,omitempty"`
-	UserInfoURL      *string   `json:"user_info_url,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                  uuid.UUID `json:"id"`
+	ProviderName        string    `json:"provider_name"`
+	DisplayName         string    `json:"display_name"`
+	Enabled             bool      `json:"enabled"`
+	ClientID            string    `json:"client_id"`
+	ClientSecret        string    `json:"client_secret,omitempty"` // Omitted in GET responses
+	RedirectURL         string    `json:"redirect_url"`
+	Scopes              []string  `json:"scopes"`
+	IsCustom            bool      `json:"is_custom"`
+	AuthorizationURL    *string   `json:"authorization_url,omitempty"`
+	TokenURL            *string   `json:"token_url,omitempty"`
+	UserInfoURL         *string   `json:"user_info_url,omitempty"`
+	AllowDashboardLogin bool      `json:"allow_dashboard_login"`
+	AllowAppLogin       bool      `json:"allow_app_login"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // CreateOAuthProviderRequest represents a request to create an OAuth provider
 type CreateOAuthProviderRequest struct {
-	ProviderName     string   `json:"provider_name"`
-	DisplayName      string   `json:"display_name"`
-	Enabled          bool     `json:"enabled"`
-	ClientID         string   `json:"client_id"`
-	ClientSecret     string   `json:"client_secret"`
-	RedirectURL      string   `json:"redirect_url"`
-	Scopes           []string `json:"scopes"`
-	IsCustom         bool     `json:"is_custom"`
-	AuthorizationURL *string  `json:"authorization_url,omitempty"`
-	TokenURL         *string  `json:"token_url,omitempty"`
-	UserInfoURL      *string  `json:"user_info_url,omitempty"`
+	ProviderName        string   `json:"provider_name"`
+	DisplayName         string   `json:"display_name"`
+	Enabled             bool     `json:"enabled"`
+	ClientID            string   `json:"client_id"`
+	ClientSecret        string   `json:"client_secret"`
+	RedirectURL         string   `json:"redirect_url"`
+	Scopes              []string `json:"scopes"`
+	IsCustom            bool     `json:"is_custom"`
+	AuthorizationURL    *string  `json:"authorization_url,omitempty"`
+	TokenURL            *string  `json:"token_url,omitempty"`
+	UserInfoURL         *string  `json:"user_info_url,omitempty"`
+	AllowDashboardLogin *bool    `json:"allow_dashboard_login,omitempty"`
+	AllowAppLogin       *bool    `json:"allow_app_login,omitempty"`
 }
 
 // UpdateOAuthProviderRequest represents a request to update an OAuth provider
 type UpdateOAuthProviderRequest struct {
-	DisplayName      *string  `json:"display_name,omitempty"`
-	Enabled          *bool    `json:"enabled,omitempty"`
-	ClientID         *string  `json:"client_id,omitempty"`
-	ClientSecret     *string  `json:"client_secret,omitempty"`
-	RedirectURL      *string  `json:"redirect_url,omitempty"`
-	Scopes           []string `json:"scopes,omitempty"`
-	AuthorizationURL *string  `json:"authorization_url,omitempty"`
-	TokenURL         *string  `json:"token_url,omitempty"`
-	UserInfoURL      *string  `json:"user_info_url,omitempty"`
+	DisplayName         *string  `json:"display_name,omitempty"`
+	Enabled             *bool    `json:"enabled,omitempty"`
+	ClientID            *string  `json:"client_id,omitempty"`
+	ClientSecret        *string  `json:"client_secret,omitempty"`
+	RedirectURL         *string  `json:"redirect_url,omitempty"`
+	Scopes              []string `json:"scopes,omitempty"`
+	AuthorizationURL    *string  `json:"authorization_url,omitempty"`
+	TokenURL            *string  `json:"token_url,omitempty"`
+	UserInfoURL         *string  `json:"user_info_url,omitempty"`
+	AllowDashboardLogin *bool    `json:"allow_dashboard_login,omitempty"`
+	AllowAppLogin       *bool    `json:"allow_app_login,omitempty"`
 }
 
 // Auth settings types
@@ -103,7 +109,9 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 
 	query := `
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
-		       is_custom, authorization_url, token_url, user_info_url, created_at, updated_at
+		       is_custom, authorization_url, token_url, user_info_url,
+		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
+		       created_at, updated_at
 		FROM dashboard.oauth_providers
 		ORDER BY display_name
 	`
@@ -123,7 +131,8 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		err := rows.Scan(
 			&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 			&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
-			&p.TokenURL, &p.UserInfoURL, &p.CreatedAt, &p.UpdatedAt,
+			&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+			&p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan OAuth provider")
@@ -151,7 +160,9 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 
 	query := `
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
-		       is_custom, authorization_url, token_url, user_info_url, created_at, updated_at
+		       is_custom, authorization_url, token_url, user_info_url,
+		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
+		       created_at, updated_at
 		FROM dashboard.oauth_providers
 		WHERE id = $1
 	`
@@ -160,7 +171,8 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 	err = h.db.QueryRow(ctx, query, providerID).Scan(
 		&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 		&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
-		&p.TokenURL, &p.UserInfoURL, &p.CreatedAt, &p.UpdatedAt,
+		&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+		&p.CreatedAt, &p.UpdatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -217,12 +229,22 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 	// Get user ID from context (set by auth middleware)
 	userID := getUserIDFromContext(c)
 
+	// Set defaults for new fields
+	allowDashboardLogin := false
+	if req.AllowDashboardLogin != nil {
+		allowDashboardLogin = *req.AllowDashboardLogin
+	}
+	allowAppLogin := true
+	if req.AllowAppLogin != nil {
+		allowAppLogin = *req.AllowAppLogin
+	}
+
 	query := `
 		INSERT INTO dashboard.oauth_providers (
 			provider_name, display_name, enabled, client_id, client_secret,
 			redirect_url, scopes, is_custom, authorization_url, token_url,
-			user_info_url, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+			user_info_url, allow_dashboard_login, allow_app_login, created_by, updated_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -232,7 +254,7 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		ctx, query,
 		req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, req.ClientSecret,
 		req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
-		req.UserInfoURL, userID,
+		req.UserInfoURL, allowDashboardLogin, allowAppLogin, userID,
 	).Scan(&id, &createdAt, &updatedAt)
 
 	if err != nil {
@@ -326,6 +348,16 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c *fiber.Ctx) error {
 	if req.UserInfoURL != nil {
 		updates = append(updates, fmt.Sprintf("user_info_url = $%d", argPos))
 		args = append(args, req.UserInfoURL)
+		argPos++
+	}
+	if req.AllowDashboardLogin != nil {
+		updates = append(updates, fmt.Sprintf("allow_dashboard_login = $%d", argPos))
+		args = append(args, *req.AllowDashboardLogin)
+		argPos++
+	}
+	if req.AllowAppLogin != nil {
+		updates = append(updates, fmt.Sprintf("allow_app_login = $%d", argPos))
+		args = append(args, *req.AllowAppLogin)
 		argPos++
 	}
 

@@ -1753,6 +1753,20 @@ export const dashboardAuthAPI = {
     const response = await api.post('/dashboard/auth/2fa/disable', data)
     return response.data
   },
+
+  // Get SSO providers available for dashboard login
+  getSSOProviders: async (): Promise<{ providers: SSOProvider[] }> => {
+    const response = await axios.get(`${API_BASE_URL}/dashboard/auth/sso/providers`)
+    return response.data
+  },
+}
+
+// SSO Provider type for dashboard login
+export interface SSOProvider {
+  id: string
+  name: string
+  type: 'oauth' | 'saml'
+  provider?: string // For OAuth: google, github, etc.
 }
 
 // OAuth Provider Management Types
@@ -1769,6 +1783,8 @@ export interface OAuthProviderConfig {
   authorization_url?: string
   token_url?: string
   user_info_url?: string
+  allow_dashboard_login: boolean
+  allow_app_login: boolean
   created_at: string
   updated_at: string
 }
@@ -1785,6 +1801,8 @@ export interface CreateOAuthProviderRequest {
   authorization_url?: string
   token_url?: string
   user_info_url?: string
+  allow_dashboard_login?: boolean
+  allow_app_login?: boolean
 }
 
 export interface UpdateOAuthProviderRequest {
@@ -1797,6 +1815,8 @@ export interface UpdateOAuthProviderRequest {
   authorization_url?: string
   token_url?: string
   user_info_url?: string
+  allow_dashboard_login?: boolean
+  allow_app_login?: boolean
 }
 
 export interface AuthSettings {
@@ -1874,6 +1894,152 @@ export const authSettingsApi = {
     data: AuthSettings
   ): Promise<{ success: boolean; message: string }> => {
     const response = await api.put('/api/v1/admin/auth/settings', data)
+    return response.data
+  },
+}
+
+// SAML Provider Management Types
+export interface SAMLProviderConfig {
+  id: string
+  name: string
+  display_name: string
+  enabled: boolean
+  entity_id: string
+  acs_url: string
+  idp_metadata_url?: string
+  idp_metadata_xml?: string
+  idp_entity_id?: string
+  idp_sso_url?: string
+  attribute_mapping: Record<string, string>
+  auto_create_users: boolean
+  default_role: string
+  allow_dashboard_login: boolean
+  allow_app_login: boolean
+  allow_idp_initiated: boolean
+  allowed_redirect_hosts: string[]
+  source: 'database' | 'config'
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateSAMLProviderRequest {
+  name: string
+  display_name?: string
+  enabled: boolean
+  idp_metadata_url?: string
+  idp_metadata_xml?: string
+  attribute_mapping?: Record<string, string>
+  auto_create_users?: boolean
+  default_role?: string
+  allow_dashboard_login?: boolean
+  allow_app_login?: boolean
+  allow_idp_initiated?: boolean
+  allowed_redirect_hosts?: string[]
+}
+
+export interface UpdateSAMLProviderRequest {
+  display_name?: string
+  enabled?: boolean
+  idp_metadata_url?: string
+  idp_metadata_xml?: string
+  attribute_mapping?: Record<string, string>
+  auto_create_users?: boolean
+  default_role?: string
+  allow_dashboard_login?: boolean
+  allow_app_login?: boolean
+  allow_idp_initiated?: boolean
+  allowed_redirect_hosts?: string[]
+}
+
+export interface ValidateMetadataResponse {
+  valid: boolean
+  entity_id?: string
+  sso_url?: string
+  slo_url?: string
+  certificate?: string
+  error?: string
+}
+
+// SAML Provider Management API
+export const samlProviderApi = {
+  // List all SAML providers
+  list: async (): Promise<SAMLProviderConfig[]> => {
+    const response = await api.get<SAMLProviderConfig[]>(
+      '/api/v1/admin/saml/providers'
+    )
+    return response.data
+  },
+
+  // Get single SAML provider
+  get: async (id: string): Promise<SAMLProviderConfig> => {
+    const response = await api.get<SAMLProviderConfig>(
+      `/api/v1/admin/saml/providers/${id}`
+    )
+    return response.data
+  },
+
+  // Create SAML provider
+  create: async (
+    data: CreateSAMLProviderRequest
+  ): Promise<{
+    success: boolean
+    id: string
+    provider: string
+    entity_id: string
+    acs_url: string
+    message: string
+  }> => {
+    const response = await api.post('/api/v1/admin/saml/providers', data)
+    return response.data
+  },
+
+  // Update SAML provider
+  update: async (
+    id: string,
+    data: UpdateSAMLProviderRequest
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.put(`/api/v1/admin/saml/providers/${id}`, data)
+    return response.data
+  },
+
+  // Delete SAML provider
+  delete: async (
+    id: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/api/v1/admin/saml/providers/${id}`)
+    return response.data
+  },
+
+  // Validate metadata URL or XML
+  validateMetadata: async (
+    metadataUrl?: string,
+    metadataXml?: string
+  ): Promise<ValidateMetadataResponse> => {
+    const response = await api.post<ValidateMetadataResponse>(
+      '/api/v1/admin/saml/validate-metadata',
+      {
+        metadata_url: metadataUrl,
+        metadata_xml: metadataXml,
+      }
+    )
+    return response.data
+  },
+
+  // Upload metadata XML file
+  uploadMetadata: async (
+    file: File
+  ): Promise<ValidateMetadataResponse & { metadata?: string }> => {
+    const formData = new FormData()
+    formData.append('metadata', file)
+    const response = await api.post(
+      '/api/v1/admin/saml/upload-metadata',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
     return response.data
   },
 }

@@ -161,6 +161,14 @@ config:
   ## @param config.security.auth_login_rate_window Auth login rate window
   ## @param config.security.admin_login_rate_limit Admin login rate limit (requests)
   ## @param config.security.admin_login_rate_window Admin login rate window
+  ## @param config.security.captcha.enabled Enable CAPTCHA protection for auth endpoints
+  ## @param config.security.captcha.provider CAPTCHA provider (hcaptcha, recaptcha_v3, turnstile, cap)
+  ## @param config.security.captcha.site_key CAPTCHA site key (public)
+  ## @param config.security.captcha.secret_key CAPTCHA secret key (use existingSecret)
+  ## @param config.security.captcha.score_threshold reCAPTCHA v3 score threshold (0.0-1.0)
+  ## @param config.security.captcha.endpoints Endpoints requiring CAPTCHA verification
+  ## @param config.security.captcha.cap_server_url Cap server URL (for cap provider only)
+  ## @param config.security.captcha.cap_api_key Cap API key (for cap provider only)
   ##
   security:
     enable_global_rate_limit: false
@@ -171,6 +179,44 @@ config:
     auth_login_rate_window: "1m"
     admin_login_rate_limit: 5
     admin_login_rate_window: "1m"
+    ## CAPTCHA configuration for bot protection on auth endpoints
+    ## Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
+    ## Cap is a self-hosted proof-of-work CAPTCHA (https://capjs.js.org/)
+    captcha:
+      enabled: false
+      provider: "hcaptcha"
+      site_key: ""
+      secret_key: "" # Use existingSecret in production
+      score_threshold: 0.5 # reCAPTCHA v3 only (0.0-1.0)
+      endpoints:
+        - signup
+        - login
+        - password_reset
+        - magic_link
+      # Cap provider settings (self-hosted proof-of-work CAPTCHA)
+      cap_server_url: "" # URL of Cap server (e.g., http://cap:3000)
+      cap_api_key: "" # API key for Cap server (optional)
+
+  ## SAML SSO Configuration
+  ## @param config.auth.saml_providers SAML Identity Provider configurations
+  ##
+  ## saml_providers:
+  ##   - name: okta
+  ##     enabled: true
+  ##     idp_metadata_url: "https://company.okta.com/app/xxx/sso/saml/metadata"
+  ##     entity_id: "https://your-app.com/auth/saml"
+  ##     acs_url: "https://your-app.com/api/v1/auth/saml/acs"
+  ##     attribute_mapping:
+  ##       email: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+  ##       name: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+  ##     auto_create_users: true
+  ##     default_role: "authenticated"
+  ##     # Security options (recommended defaults shown):
+  ##     allow_idp_initiated: false         # Reject IdP-initiated SSO (prevents replay attacks)
+  ##     allowed_redirect_hosts: []         # Whitelist for RelayState redirects (e.g., ["app.example.com"])
+  ##     allow_insecure_metadata_url: false # Require HTTPS for metadata URLs
+  ##
+  saml_providers: []
 
   ## CORS configuration
   ## @param config.cors.allowed_origins Allowed origins for CORS
@@ -237,6 +283,18 @@ config:
     s3_bucket: ""
     s3_region: ""
     s3_force_path_style: false
+
+    ## Image Transformation configuration
+    ## @param config.storage.transforms.enabled Enable on-the-fly image transformations (requires libvips)
+    ## @param config.storage.transforms.default_quality Default JPEG/WebP quality (1-100)
+    ## @param config.storage.transforms.max_width Maximum output image width in pixels
+    ## @param config.storage.transforms.max_height Maximum output image height in pixels
+    ##
+    transforms:
+      enabled: true
+      default_quality: 80
+      max_width: 4096
+      max_height: 4096
 
   ## Realtime/WebSocket configuration
   ## @param config.realtime.enabled Enable realtime subscriptions
@@ -361,6 +419,18 @@ config:
     max_page_size: 1000
     max_total_results: 10000
     default_page_size: 1000
+
+  ## GraphQL configuration
+  ## @param config.graphql.enabled Enable GraphQL API endpoint
+  ## @param config.graphql.max_depth Maximum query depth (default: 10)
+  ## @param config.graphql.max_complexity Maximum query complexity score (default: 1000)
+  ## @param config.graphql.introspection Enable GraphQL introspection (disable in production)
+  ##
+  graphql:
+    enabled: true
+    max_depth: 10
+    max_complexity: 1000
+    introspection: false
 
   ## Migrations configuration
   ## @param config.migrations.enabled Enable migrations API
@@ -556,6 +626,9 @@ config:
 ##   - service-role-key: Pre-generated JWT with 'service_role' for backend services
 ##   - setup-token: Admin setup token (REQUIRED to enable dashboard)
 ##
+## CAPTCHA (when captcha.enabled=true):
+##   - captcha-secret-key: CAPTCHA provider secret key
+##
 ## Database (only when postgresql.mode=none):
 ##   - database-password: PostgreSQL database password
 ##
@@ -584,6 +657,7 @@ config:
 ##     --from-literal=encryption-key=$(openssl rand -base64 32 | head -c 32) \
 ##     --from-literal=anon-key=<generated-anon-jwt> \
 ##     --from-literal=service-role-key=<generated-service-role-jwt> \
+##     --from-literal=captcha-secret-key=your-captcha-secret \
 ##     --from-literal=openai-api-key=sk-xxx
 ## @descriptionEnd
 ##
@@ -606,6 +680,8 @@ existingSecretKeyRef:
   anonKey: "anon-key"
   serviceRoleKey: "service-role-key"
   setupToken: "setup-token"
+  ## CAPTCHA
+  captchaSecretKey: "captcha-secret-key"
   ## Database
   databasePassword: "db-password"
   ## Storage (S3)

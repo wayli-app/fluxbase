@@ -30,7 +30,7 @@
  */
 
 // Context and provider
-export { FluxbaseProvider, useFluxbaseClient } from './context'
+export { FluxbaseProvider, useFluxbaseClient } from "./context";
 
 // Auth hooks
 export {
@@ -41,7 +41,34 @@ export {
   useSignUp,
   useSignOut,
   useUpdateUser,
-} from './use-auth'
+} from "./use-auth";
+
+// CAPTCHA hooks
+export {
+  useCaptchaConfig,
+  useCaptcha,
+  isCaptchaRequiredForEndpoint,
+  type CaptchaState,
+} from "./use-captcha";
+
+// SAML SSO hooks
+export {
+  useSAMLProviders,
+  useGetSAMLLoginUrl,
+  useSignInWithSAML,
+  useHandleSAMLCallback,
+  useSAMLMetadataUrl,
+} from "./use-saml";
+
+// GraphQL hooks
+export {
+  useGraphQLQuery,
+  useGraphQLMutation,
+  useGraphQLIntrospection,
+  useGraphQL,
+  type UseGraphQLQueryOptions,
+  type UseGraphQLMutationOptions,
+} from "./use-graphql";
 
 // Database query hooks
 export {
@@ -51,7 +78,7 @@ export {
   useUpdate,
   useUpsert,
   useDelete,
-} from './use-query'
+} from "./use-query";
 
 // Realtime hooks
 export {
@@ -60,32 +87,35 @@ export {
   useTableInserts,
   useTableUpdates,
   useTableDeletes,
-} from './use-realtime'
+} from "./use-realtime";
 
 // Storage hooks
 export {
   useStorageList,
   useStorageUpload,
+  useStorageUploadWithProgress,
   useStorageDownload,
   useStorageDelete,
   useStoragePublicUrl,
+  useStorageTransformUrl,
   useStorageSignedUrl,
+  useStorageSignedUrlWithOptions,
   useStorageMove,
   useStorageCopy,
   useStorageBuckets,
   useCreateBucket,
   useDeleteBucket,
-} from './use-storage'
+} from "./use-storage";
 
 // Admin hooks
-export { useAdminAuth } from './use-admin-auth'
-export { useUsers } from './use-users'
-export { useAPIKeys } from './use-api-keys'
+export { useAdminAuth } from "./use-admin-auth";
+export { useUsers } from "./use-users";
+export { useAPIKeys } from "./use-api-keys";
 export {
   useWebhooks,
   useAppSettings,
   useSystemSettings,
-} from './use-admin-hooks'
+} from "./use-admin-hooks";
 
 // Re-export types from SDK
 export type {
@@ -103,4 +133,19 @@ export type {
   Webhook,
   AppSettings,
   SystemSetting,
-} from '@fluxbase/sdk'
+  CaptchaConfig,
+  CaptchaProvider,
+  TransformOptions,
+  ImageFitMode,
+  ImageFormat,
+  SignedUrlOptions,
+  SAMLProvider,
+  SAMLProvidersResponse,
+  SAMLLoginOptions,
+  SAMLLoginResponse,
+  SAMLSession,
+  GraphQLResponse,
+  GraphQLError,
+  GraphQLErrorLocation,
+  GraphQLRequestOptions,
+} from "@fluxbase/sdk";

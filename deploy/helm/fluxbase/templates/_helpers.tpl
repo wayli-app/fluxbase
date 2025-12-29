@@ -274,6 +274,17 @@ Return the secret key for setup token
 {{- end }}
 
 {{/*
+Return the secret key for CAPTCHA secret key
+*/}}
+{{- define "fluxbase.secretKeyRef.captchaSecretKey" -}}
+{{- if .Values.existingSecret }}
+    {{- .Values.existingSecretKeyRef.captchaSecretKey | default "captcha-secret-key" -}}
+{{- else }}
+    {{- print "captcha-secret-key" -}}
+{{- end }}
+{{- end }}
+
+{{/*
 Return the secret key for S3 access key
 */}}
 {{- define "fluxbase.secretKeyRef.s3AccessKey" -}}

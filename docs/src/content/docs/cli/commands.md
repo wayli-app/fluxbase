@@ -382,6 +382,111 @@ fluxbase tables delete users --where "id=eq.123"
 
 ---
 
+## GraphQL Commands
+
+Execute GraphQL queries and mutations against the auto-generated GraphQL API.
+
+### `fluxbase graphql query`
+
+Execute a GraphQL query.
+
+```bash
+# Simple query
+fluxbase graphql query '{ users { id email created_at } }'
+
+# Query with filtering
+fluxbase graphql query '{ users(where: {role: {_eq: "admin"}}) { id email } }'
+
+# Query with ordering and pagination
+fluxbase graphql query '{ users(limit: 10, order_by: {created_at: desc}) { id email } }'
+
+# Query from file
+fluxbase graphql query --file ./get-users.graphql
+
+# Query with variables
+fluxbase graphql query 'query GetUser($id: ID!) { user(id: $id) { id email } }' --var 'id=abc-123'
+
+# Multiple variables
+fluxbase graphql query 'query($limit: Int, $offset: Int) { users(limit: $limit, offset: $offset) { id } }' \
+  --var 'limit=10' --var 'offset=20'
+
+# Output as JSON
+fluxbase graphql query '{ users { id } }' -o json
+```
+
+**Flags:**
+
+- `--file`, `-f` - File containing the GraphQL query
+- `--var` - Variables in format `name=value` (can be repeated)
+- `--pretty` - Pretty print JSON output (default: true)
+
+### `fluxbase graphql mutation`
+
+Execute a GraphQL mutation.
+
+```bash
+# Insert a record
+fluxbase graphql mutation 'mutation {
+  insert_users(objects: [{email: "new@example.com", name: "New User"}]) {
+    returning { id email }
+  }
+}'
+
+# Update records
+fluxbase graphql mutation 'mutation {
+  update_users(where: {id: {_eq: "user-id"}}, _set: {name: "Updated Name"}) {
+    affected_rows
+    returning { id name }
+  }
+}'
+
+# Delete records
+fluxbase graphql mutation 'mutation {
+  delete_users(where: {id: {_eq: "user-id"}}) {
+    affected_rows
+  }
+}'
+
+# Mutation with variables
+fluxbase graphql mutation 'mutation CreateUser($email: String!, $name: String!) {
+  insert_users(objects: [{email: $email, name: $name}]) {
+    returning { id }
+  }
+}' --var 'email=test@example.com' --var 'name=Test User'
+
+# Mutation from file
+fluxbase graphql mutation --file ./create-user.graphql --var 'email=user@example.com'
+```
+
+**Flags:**
+
+- `--file`, `-f` - File containing the GraphQL mutation
+- `--var` - Variables in format `name=value` (can be repeated)
+- `--pretty` - Pretty print JSON output (default: true)
+
+### `fluxbase graphql introspect`
+
+Fetch and display the GraphQL schema via introspection.
+
+```bash
+# Full introspection query
+fluxbase graphql introspect
+
+# List only type names
+fluxbase graphql introspect --types
+
+# Output as JSON
+fluxbase graphql introspect -o json
+```
+
+**Flags:**
+
+- `--types` - List only type names (simplified output)
+
+**Note:** Introspection must be enabled on the server. It's enabled by default in development but should be disabled in production for security.
+
+---
+
 ## RPC Commands
 
 Manage and invoke stored procedures.

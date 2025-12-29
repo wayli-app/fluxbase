@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -271,28 +273,127 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 			"error": "failed to download file",
 		})
 	}
-	// Note: Don't defer reader.Close() here - SendStream handles closing the reader
+
+	// Parse transform options from query parameters
+	transformOpts := storage.ParseTransformOptions(
+		c.QueryInt("w", c.QueryInt("width", 0)),
+		c.QueryInt("h", c.QueryInt("height", 0)),
+		c.Query("fmt", c.Query("format", "")),
+		c.QueryInt("q", c.QueryInt("quality", 0)),
+		c.Query("fit", ""),
+	)
+
+	// Apply image transformation if enabled and requested
+	var responseReader io.ReadCloser = reader
+	var responseContentType = object.ContentType
+	var responseSize = object.Size
+
+	if transformOpts != nil && h.transformer != nil && storage.CanTransform(object.ContentType) {
+		// Check rate limit for transforms
+		limiterKey := c.IP() + ":" + getUserID(c)
+		if limiter := h.getTransformLimiter(limiterKey); limiter != nil && !limiter.Allow() {
+			reader.Close()
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "transform rate limit exceeded",
+			})
+		}
+
+		// Check cache first (before acquiring transform slot)
+		if h.transformCache != nil {
+			if cached, contentType, ok := h.transformCache.Get(ctx, bucket, key, transformOpts); ok {
+				reader.Close() // Close original reader since we're using cache
+				responseReader = io.NopCloser(bytes.NewReader(cached))
+				responseContentType = contentType
+				responseSize = int64(len(cached))
+				log.Debug().Str("bucket", bucket).Str("key", key).Msg("Serving transformed image from cache")
+				goto sendResponse
+			}
+		}
+
+		// Acquire transform slot (concurrency limit)
+		if !h.acquireTransformSlot(5 * time.Second) {
+			reader.Close()
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "transform service busy, try again later",
+			})
+		}
+		defer h.releaseTransformSlot()
+
+		// Apply transformation
+		result, err := h.transformer.Transform(reader, object.ContentType, transformOpts)
+		reader.Close() // Close original reader since we read all data
+
+		if err != nil {
+			// Log the error but return the original if transform fails
+			log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Image transform failed, returning original")
+
+			// Re-download original since we consumed the reader
+			reader, object, err = h.storage.Provider.Download(ctx, bucket, key, opts)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "failed to download file",
+				})
+			}
+			responseReader = reader
+		} else if result != nil {
+			// Cache the transformed result
+			if h.transformCache != nil {
+				if err := h.transformCache.Set(ctx, bucket, key, transformOpts, result.Data, result.ContentType); err != nil {
+					log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to cache transformed image")
+				}
+			}
+
+			responseReader = io.NopCloser(bytes.NewReader(result.Data))
+			responseContentType = result.ContentType
+			responseSize = int64(len(result.Data))
+		} else {
+			// No transformation was applied (result is nil)
+			// Re-download original since we consumed the reader
+			reader, object, err = h.storage.Provider.Download(ctx, bucket, key, opts)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "failed to download file",
+				})
+			}
+			responseReader = reader
+		}
+	}
+
+sendResponse:
+	// Note: Don't defer responseReader.Close() here - SendStream handles closing the reader
 
 	// Set response headers
-	c.Set("Content-Type", object.ContentType)
-	c.Set("Content-Length", strconv.FormatInt(object.Size, 10))
+	c.Set("Content-Type", responseContentType)
+	c.Set("Content-Length", strconv.FormatInt(responseSize, 10))
 	c.Set("Last-Modified", object.LastModified.Format(time.RFC1123))
 	c.Set("ETag", object.ETag)
 	c.Set("Accept-Ranges", "bytes")
 
-	// Handle range request response
-	if rangeHeader := c.Get("Range"); rangeHeader != "" {
-		// Parse range to set Content-Range header
-		var start, end int64
-		if _, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end); err == nil {
-			c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/*", start, start+object.Size-1))
-			c.Status(fiber.StatusPartialContent)
+	// Disable range requests for transformed images (size is different)
+	if transformOpts != nil && h.transformer != nil && storage.CanTransform(object.ContentType) {
+		c.Set("Accept-Ranges", "none")
+	} else {
+		// Handle range request response for non-transformed images
+		if rangeHeader := c.Get("Range"); rangeHeader != "" {
+			// Parse range to set Content-Range header
+			var start, end int64
+			if _, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end); err == nil {
+				c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/*", start, start+object.Size-1))
+				c.Status(fiber.StatusPartialContent)
+			}
 		}
 	}
 
 	// Set content disposition (for downloads)
 	if c.Query("download") == "true" {
 		filename := filepath.Base(key)
+		// If format was changed, update the filename extension
+		if transformOpts != nil && transformOpts.Format != "" {
+			ext := filepath.Ext(filename)
+			if ext != "" {
+				filename = strings.TrimSuffix(filename, ext) + "." + transformOpts.Format
+			}
+		}
 		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	}
 
@@ -300,11 +401,15 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 		Str("bucket", bucket).
 		Str("key", key).
 		Str("user_id", getUserID(c)).
+		Bool("transformed", transformOpts != nil && h.transformer != nil).
 		Msg("File downloaded")
 
 	// Stream the file (SendStream will close the reader)
-	return c.SendStream(reader)
+	return c.SendStream(responseReader)
 }
+
+// Suppress unused import warning for bytes package (used for transformed image streaming)
+var _ = bytes.NewReader
 
 // DeleteFile handles file deletion
 // DELETE /api/v1/storage/:bucket/:key

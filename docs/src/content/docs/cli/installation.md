@@ -22,7 +22,7 @@ The easiest way to install the Fluxbase CLI:
 curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
 
 # Install specific version
-curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1-rc.106
+curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash -s -- v0.0.1
 ```
 
 The script automatically detects your OS and architecture, downloads the appropriate binary, and installs it to `/usr/local/bin`.
@@ -103,7 +103,7 @@ fluxbase version
 Expected output:
 
 ```
-fluxbase version 0.0.1-rc.93
+fluxbase version 0.0.1
 commit: abc1234
 built: 2024-01-15T10:30:00Z
 ```

@@ -18,15 +18,17 @@ const (
 
 // AuthHandler handles authentication HTTP requests
 type AuthHandler struct {
-	authService  *auth.Service
-	secureCookie bool // Whether to set Secure flag on cookies (true in production)
+	authService    *auth.Service
+	captchaService *auth.CaptchaService
+	secureCookie   bool // Whether to set Secure flag on cookies (true in production)
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(authService *auth.Service) *AuthHandler {
+func NewAuthHandler(authService *auth.Service, captchaService *auth.CaptchaService) *AuthHandler {
 	return &AuthHandler{
-		authService:  authService,
-		secureCookie: false, // Will be set based on environment
+		authService:    authService,
+		captchaService: captchaService,
+		secureCookie:   false, // Will be set based on environment
 	}
 }
 
@@ -126,6 +128,23 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 		})
 	}
 
+	// Verify CAPTCHA if enabled for signup
+	if h.captchaService != nil {
+		if err := h.captchaService.VerifyForEndpoint(c.Context(), "signup", req.CaptchaToken, c.IP()); err != nil {
+			if errors.Is(err, auth.ErrCaptchaRequired) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "CAPTCHA verification required",
+					"code":  "CAPTCHA_REQUIRED",
+				})
+			}
+			log.Warn().Err(err).Str("email", req.Email).Msg("CAPTCHA verification failed for signup")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "CAPTCHA verification failed",
+				"code":  "CAPTCHA_INVALID",
+			})
+		}
+	}
+
 	// Validate required fields
 	if req.Email == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -171,6 +190,23 @@ func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
+	}
+
+	// Verify CAPTCHA if enabled for login
+	if h.captchaService != nil {
+		if err := h.captchaService.VerifyForEndpoint(c.Context(), "login", req.CaptchaToken, c.IP()); err != nil {
+			if errors.Is(err, auth.ErrCaptchaRequired) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "CAPTCHA verification required",
+					"code":  "CAPTCHA_REQUIRED",
+				})
+			}
+			log.Warn().Err(err).Str("email", req.Email).Msg("CAPTCHA verification failed for login")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "CAPTCHA verification failed",
+				"code":  "CAPTCHA_INVALID",
+			})
+		}
 	}
 
 	// Validate required fields
@@ -361,13 +397,31 @@ func (h *AuthHandler) UpdateUser(c *fiber.Ctx) error {
 // POST /auth/magiclink
 func (h *AuthHandler) SendMagicLink(c *fiber.Ctx) error {
 	var req struct {
-		Email string `json:"email"`
+		Email        string `json:"email"`
+		CaptchaToken string `json:"captcha_token,omitempty"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		log.Error().Err(err).Msg("Failed to parse magic link request")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
+	}
+
+	// Verify CAPTCHA if enabled for magic_link
+	if h.captchaService != nil {
+		if err := h.captchaService.VerifyForEndpoint(c.Context(), "magic_link", req.CaptchaToken, c.IP()); err != nil {
+			if errors.Is(err, auth.ErrCaptchaRequired) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "CAPTCHA verification required",
+					"code":  "CAPTCHA_REQUIRED",
+				})
+			}
+			log.Warn().Err(err).Str("email", req.Email).Msg("CAPTCHA verification failed for magic link")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "CAPTCHA verification failed",
+				"code":  "CAPTCHA_INVALID",
+			})
+		}
 	}
 
 	// Validate email
@@ -428,7 +482,8 @@ func (h *AuthHandler) VerifyMagicLink(c *fiber.Ctx) error {
 // POST /auth/password/reset
 func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 	var req struct {
-		Email string `json:"email"`
+		Email        string `json:"email"`
+		CaptchaToken string `json:"captcha_token,omitempty"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -436,6 +491,23 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
+	}
+
+	// Verify CAPTCHA if enabled for password_reset
+	if h.captchaService != nil {
+		if err := h.captchaService.VerifyForEndpoint(c.Context(), "password_reset", req.CaptchaToken, c.IP()); err != nil {
+			if errors.Is(err, auth.ErrCaptchaRequired) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": "CAPTCHA verification required",
+					"code":  "CAPTCHA_REQUIRED",
+				})
+			}
+			log.Warn().Err(err).Str("email", req.Email).Msg("CAPTCHA verification failed for password reset")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "CAPTCHA verification failed",
+				"code":  "CAPTCHA_INVALID",
+			})
+		}
 	}
 
 	// Validate email
@@ -645,6 +717,9 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 	// CSRF token endpoint - clients should call this first to get a CSRF token
 	// The CSRF middleware will set the csrf_token cookie on this request
 	router.Get("/csrf", h.GetCSRFToken)
+
+	// CAPTCHA configuration endpoint - returns public config (provider, site key)
+	router.Get("/captcha/config", h.GetCaptchaConfig)
 
 	// Public routes with rate limiting
 	router.Post("/signup", rateLimiters["signup"], h.SignUp)
@@ -1428,4 +1503,17 @@ func (h *AuthHandler) SignInWithIDToken(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+// GetCaptchaConfig returns the public CAPTCHA configuration for clients
+// GET /auth/captcha/config
+func (h *AuthHandler) GetCaptchaConfig(c *fiber.Ctx) error {
+	if h.captchaService == nil {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"enabled": false,
+		})
+	}
+
+	config := h.captchaService.GetConfig()
+	return c.Status(fiber.StatusOK).JSON(config)
 }

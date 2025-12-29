@@ -7,6 +7,8 @@ This guide provides comprehensive security best practices for deploying and main
 ## Table of Contents
 
 - [Authentication & Authorization](#authentication--authorization)
+- [SAML SSO Security](#saml-sso-security)
+- [GraphQL API Security](#graphql-api-security)
 - [Database Security](#database-security)
 - [Network Security](#network-security)
 - [Secrets Management](#secrets-management)
@@ -126,6 +128,162 @@ CREATE POLICY user_isolation ON public.user_data
 ```
 
 [Learn more about RLS →](../guides/row-level-security.md)
+
+---
+
+## SAML SSO Security
+
+When configuring SAML SSO providers, follow these security best practices to prevent common attacks.
+
+### 1. Disable IdP-Initiated SSO
+
+IdP-initiated SSO is vulnerable to assertion replay attacks. Only enable it if your IdP requires it.
+
+```yaml
+# fluxbase.yaml
+auth:
+  saml_providers:
+    - name: okta
+      enabled: true
+      allow_idp_initiated: false  # Recommended - prevents replay attacks
+```
+
+### 2. Validate Audience Restrictions
+
+Fluxbase automatically validates that SAML assertions are intended for your service provider by checking the Audience element. This prevents attackers from replaying assertions meant for other applications.
+
+### 3. Configure RelayState Redirect Whitelist
+
+Prevent open redirect attacks by configuring allowed redirect hosts for SAML authentication.
+
+```yaml
+auth:
+  saml_providers:
+    - name: okta
+      enabled: true
+      # Only allow redirects to your application domains
+      allowed_redirect_hosts:
+        - "app.example.com"
+        - "dashboard.example.com"
+```
+
+Without this configuration, only relative URLs (same-origin) are allowed for redirects.
+
+### 4. Require HTTPS for Metadata URLs
+
+Always use HTTPS for IdP metadata URLs to prevent man-in-the-middle attacks.
+
+```yaml
+auth:
+  saml_providers:
+    - name: okta
+      enabled: true
+      idp_metadata_url: "https://company.okta.com/app/xxx/sso/saml/metadata"
+      allow_insecure_metadata_url: false  # Default - requires HTTPS
+```
+
+### 5. User Attribute Sanitization
+
+Fluxbase automatically sanitizes user attributes (like display names) from SAML assertions to prevent XSS attacks from malicious IdP responses.
+
+---
+
+## GraphQL API Security
+
+Fluxbase implements several security measures for the GraphQL API to prevent abuse and resource exhaustion.
+
+### 1. Query Depth Limiting
+
+Deeply nested queries can cause exponential resource consumption. Configure maximum query depth.
+
+```yaml
+# fluxbase.yaml
+graphql:
+  enabled: true
+  max_depth: 10  # Maximum nesting depth
+```
+
+**Example rejected query (depth > 5):**
+
+```graphql
+{
+  users {           # depth 1
+    posts {         # depth 2
+      comments {    # depth 3
+        author {    # depth 4
+          posts {   # depth 5
+            title   # depth 6 - REJECTED
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### 2. Query Complexity Analysis
+
+Fluxbase calculates a complexity score for each query based on fields and list traversals.
+
+```yaml
+graphql:
+  max_complexity: 1000  # Maximum complexity score
+```
+
+The complexity score accounts for:
+- Base cost per field (1 point)
+- Higher cost for list fields (10 points)
+- Multiplied cost for nested lists
+
+### 3. Disable Introspection in Production
+
+GraphQL introspection exposes your entire schema. Disable it in production.
+
+```yaml
+graphql:
+  introspection: false  # Disable schema introspection
+```
+
+### 4. Row Level Security (RLS) Enforcement
+
+The GraphQL endpoint enforces PostgreSQL Row Level Security for all operations:
+
+**How it works:**
+- GraphQL resolvers execute queries with `SET LOCAL ROLE` set to the appropriate database role
+- JWT claims are passed via `request.jwt.claims` for use in RLS policies
+- All queries, mutations, and foreign key traversals respect RLS policies
+- Anonymous requests use the `anon` role
+- Authenticated users use the `authenticated` role
+- Service keys use the `service_role` (bypasses RLS)
+
+**Role Mapping:**
+| Application Role | Database Role |
+|-----------------|---------------|
+| `service_role`, `dashboard_admin` | `service_role` (bypasses RLS) |
+| `anon`, empty | `anon` |
+| All others (`user`, `admin`, etc.) | `authenticated` |
+
+**Configure RLS on your tables:**
+
+```sql
+-- Enable RLS on tables accessed via GraphQL
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.posts FORCE ROW LEVEL SECURITY;
+
+-- Create appropriate policies
+CREATE POLICY posts_select ON public.posts
+  FOR SELECT
+  USING (user_id = auth.uid() OR is_public = true);
+
+-- Use JWT claims for fine-grained access
+CREATE POLICY admin_full_access ON public.posts
+  FOR ALL
+  USING (
+    current_setting('request.jwt.claims', true)::jsonb->>'role' = 'admin'
+  );
+```
+
+**Important:** Foreign key traversals also respect RLS. A user cannot access related records through GraphQL joins if they don't have permission to view those records directly.
 
 ---
 

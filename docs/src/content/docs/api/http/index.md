@@ -52,6 +52,16 @@ Endpoints for file storage operations.
 | `DELETE` | `/storage/{bucket}/{key}` | Delete file |
 | `POST` | `/storage/{bucket}/{key}/signed-url` | Generate signed URL |
 
+### GraphQL
+
+A full GraphQL API auto-generated from your database schema.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/graphql` | Execute GraphQL queries and mutations |
+
+See the [GraphQL API documentation](/docs/api/http/graphql) for complete details on queries, mutations, filtering, and SDK usage.
+
 ### Database Tables
 
 Auto-generated CRUD endpoints for your PostgreSQL tables. Endpoints are pluralized automatically.

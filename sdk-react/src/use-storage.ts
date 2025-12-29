@@ -10,7 +10,13 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import { useFluxbaseClient } from "./context";
-import type { ListOptions, UploadOptions, UploadProgress } from "@fluxbase/sdk";
+import type {
+  ListOptions,
+  UploadOptions,
+  UploadProgress,
+  TransformOptions,
+  SignedUrlOptions,
+} from "@fluxbase/sdk";
 
 /**
  * Hook to list files in a bucket
@@ -232,7 +238,47 @@ export function useStoragePublicUrl(bucket: string, path: string | null) {
 }
 
 /**
+ * Hook to get a public URL for an image with transformations applied
+ *
+ * Only works for image files (JPEG, PNG, WebP, GIF, AVIF, etc.)
+ *
+ * @param bucket - The storage bucket name
+ * @param path - The file path (or null to disable)
+ * @param transform - Transformation options (width, height, format, quality, fit)
+ *
+ * @example
+ * ```tsx
+ * function ImageThumbnail({ path }: { path: string }) {
+ *   const url = useStorageTransformUrl('images', path, {
+ *     width: 300,
+ *     height: 200,
+ *     format: 'webp',
+ *     quality: 85,
+ *     fit: 'cover'
+ *   });
+ *
+ *   return <img src={url || ''} alt="Thumbnail" />;
+ * }
+ * ```
+ */
+export function useStorageTransformUrl(
+  bucket: string,
+  path: string | null,
+  transform: TransformOptions,
+): string | null {
+  const client = useFluxbaseClient();
+
+  if (!path) {
+    return null;
+  }
+
+  return client.storage.from(bucket).getTransformUrl(path, transform);
+}
+
+/**
  * Hook to create a signed URL
+ *
+ * @deprecated Use useStorageSignedUrlWithOptions for more control including transforms
  */
 export function useStorageSignedUrl(
   bucket: string,
@@ -251,6 +297,74 @@ export function useStorageSignedUrl(
       const { data, error } = await client.storage
         .from(bucket)
         .createSignedUrl(path, { expiresIn });
+
+      if (error) {
+        throw error;
+      }
+
+      return data?.signedUrl || null;
+    },
+    enabled: !!path,
+    staleTime: expiresIn ? expiresIn * 1000 - 60000 : 1000 * 60 * 50, // Refresh 1 minute before expiry
+  });
+}
+
+/**
+ * Hook to create a signed URL with full options including image transformations
+ *
+ * @param bucket - The storage bucket name
+ * @param path - The file path (or null to disable)
+ * @param options - Signed URL options including expiration and transforms
+ *
+ * @example
+ * ```tsx
+ * function SecureThumbnail({ path }: { path: string }) {
+ *   const { data: url } = useStorageSignedUrlWithOptions('images', path, {
+ *     expiresIn: 3600,
+ *     transform: {
+ *       width: 400,
+ *       height: 300,
+ *       format: 'webp',
+ *       quality: 85,
+ *       fit: 'cover'
+ *     }
+ *   });
+ *
+ *   return <img src={url || ''} alt="Secure Thumbnail" />;
+ * }
+ * ```
+ */
+export function useStorageSignedUrlWithOptions(
+  bucket: string,
+  path: string | null,
+  options?: SignedUrlOptions,
+) {
+  const client = useFluxbaseClient();
+  const expiresIn = options?.expiresIn;
+
+  // Create a stable cache key from transform options
+  const transformKey = options?.transform
+    ? JSON.stringify(options.transform)
+    : null;
+
+  return useQuery({
+    queryKey: [
+      "fluxbase",
+      "storage",
+      bucket,
+      "signed-url",
+      path,
+      expiresIn,
+      transformKey,
+    ],
+    queryFn: async () => {
+      if (!path) {
+        return null;
+      }
+
+      const { data, error } = await client.storage
+        .from(bucket)
+        .createSignedUrl(path, options);
 
       if (error) {
         throw error;

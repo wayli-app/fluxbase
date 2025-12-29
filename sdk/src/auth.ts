@@ -44,6 +44,10 @@ import type {
   UnlinkIdentityParams,
   ReauthenticateResponse,
   SignInWithIdTokenCredentials,
+  CaptchaConfig,
+  SAMLProvidersResponse,
+  SAMLLoginOptions,
+  SAMLLoginResponse,
 } from "./types";
 import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
@@ -236,9 +240,20 @@ export class FluxbaseAuth {
     credentials: SignInCredentials,
   ): Promise<FluxbaseResponse<AuthResponseData | SignInWith2FAResponse>> {
     return wrapAsync(async () => {
+      // Build request body with proper field names for backend
+      const requestBody: any = {
+        email: credentials.email,
+        password: credentials.password,
+      };
+
+      // Include CAPTCHA token if provided (transform camelCase to snake_case)
+      if (credentials.captchaToken) {
+        requestBody.captcha_token = credentials.captchaToken;
+      }
+
       const response = await this.fetch.post<
         AuthResponse | SignInWith2FAResponse
-      >("/api/v1/auth/signin", credentials);
+      >("/api/v1/auth/signin", requestBody);
 
       // Check if 2FA is required
       if ("requires_2fa" in response && response.requires_2fa) {
@@ -286,6 +301,11 @@ export class FluxbaseAuth {
         requestBody.user_metadata = credentials.options.data;
       }
 
+      // Include CAPTCHA token if provided
+      if (credentials.captchaToken) {
+        requestBody.captcha_token = credentials.captchaToken;
+      }
+
       const response = await this.fetch.post<AuthResponse>(
         "/api/v1/auth/signup",
         requestBody,
@@ -304,6 +324,17 @@ export class FluxbaseAuth {
 
       // Email confirmation required - return user without session
       return { user: response.user, session: null };
+    });
+  }
+
+  /**
+   * Get CAPTCHA configuration from the server
+   * Use this to determine which CAPTCHA provider to load and configure
+   * @returns Promise with CAPTCHA configuration (provider, site key, enabled endpoints)
+   */
+  async getCaptchaConfig(): Promise<DataResponse<CaptchaConfig>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<CaptchaConfig>("/api/v1/auth/captcha/config");
     });
   }
 
@@ -571,13 +602,22 @@ export class FluxbaseAuth {
    * Send password reset email (Supabase-compatible)
    * Sends a password reset link to the provided email address
    * @param email - Email address to send reset link to
+   * @param options - Optional configuration including CAPTCHA token
    * @returns Promise with OTP-style response
    */
   async sendPasswordReset(
     email: string,
+    options?: { captchaToken?: string },
   ): Promise<DataResponse<PasswordResetResponse>> {
     return wrapAsync(async () => {
-      await this.fetch.post("/api/v1/auth/password/reset", { email });
+      const requestBody: any = { email };
+
+      // Include CAPTCHA token if provided
+      if (options?.captchaToken) {
+        requestBody.captcha_token = options.captchaToken;
+      }
+
+      await this.fetch.post("/api/v1/auth/password/reset", requestBody);
       // Return Supabase-compatible OTP response
       return { user: null, session: null };
     });
@@ -586,14 +626,16 @@ export class FluxbaseAuth {
   /**
    * Supabase-compatible alias for sendPasswordReset()
    * @param email - Email address to send reset link to
-   * @param _options - Optional redirect configuration (currently not used)
+   * @param options - Optional redirect and CAPTCHA configuration
    * @returns Promise with OTP-style response
    */
   async resetPasswordForEmail(
     email: string,
-    _options?: { redirectTo?: string },
+    options?: { redirectTo?: string; captchaToken?: string },
   ): Promise<DataResponse<PasswordResetResponse>> {
-    return this.sendPasswordReset(email);
+    return this.sendPasswordReset(email, {
+      captchaToken: options?.captchaToken,
+    });
   }
 
   /**
@@ -655,10 +697,17 @@ export class FluxbaseAuth {
     options?: MagicLinkOptions,
   ): Promise<DataResponse<MagicLinkResponse>> {
     return wrapAsync(async () => {
-      await this.fetch.post("/api/v1/auth/magiclink", {
+      const requestBody: any = {
         email,
         redirect_to: options?.redirect_to,
-      });
+      };
+
+      // Include CAPTCHA token if provided
+      if (options?.captchaToken) {
+        requestBody.captcha_token = options.captchaToken;
+      }
+
+      await this.fetch.post("/api/v1/auth/magiclink", requestBody);
       // Return Supabase-compatible OTP response
       return { user: null, session: null };
     });
@@ -954,6 +1003,164 @@ export class FluxbaseAuth {
       this.setSessionInternal(session);
       return { user: session.user, session };
     });
+  }
+
+  // ==========================================================================
+  // SAML SSO Methods
+  // ==========================================================================
+
+  /**
+   * Get list of available SAML SSO providers
+   * @returns Promise with list of configured SAML providers
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.auth.getSAMLProviders()
+   * if (!error) {
+   *   console.log('Available providers:', data.providers)
+   * }
+   * ```
+   */
+  async getSAMLProviders(): Promise<DataResponse<SAMLProvidersResponse>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<SAMLProvidersResponse>(
+        "/api/v1/auth/saml/providers",
+      );
+    });
+  }
+
+  /**
+   * Get SAML login URL for a specific provider
+   * Use this to redirect the user to the IdP for authentication
+   * @param provider - SAML provider name/ID
+   * @param options - Optional login configuration
+   * @returns Promise with SAML login URL
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.auth.getSAMLLoginUrl('okta')
+   * if (!error) {
+   *   window.location.href = data.url
+   * }
+   * ```
+   */
+  async getSAMLLoginUrl(
+    provider: string,
+    options?: SAMLLoginOptions,
+  ): Promise<DataResponse<SAMLLoginResponse>> {
+    return wrapAsync(async () => {
+      const params = new URLSearchParams();
+      if (options?.redirectUrl) {
+        params.append("redirect_url", options.redirectUrl);
+      }
+
+      const queryString = params.toString();
+      const url = queryString
+        ? `/api/v1/auth/saml/login/${provider}?${queryString}`
+        : `/api/v1/auth/saml/login/${provider}`;
+
+      const response = await this.fetch.get<SAMLLoginResponse>(url);
+      return response;
+    });
+  }
+
+  /**
+   * Initiate SAML login and redirect to IdP
+   * This is a convenience method that redirects the user to the SAML IdP
+   * @param provider - SAML provider name/ID
+   * @param options - Optional login configuration
+   * @returns Promise with provider and URL (browser will redirect)
+   *
+   * @example
+   * ```typescript
+   * // In browser, this will redirect to the SAML IdP
+   * await client.auth.signInWithSAML('okta')
+   * ```
+   */
+  async signInWithSAML(
+    provider: string,
+    options?: SAMLLoginOptions,
+  ): Promise<DataResponse<{ provider: string; url: string }>> {
+    return wrapAsync(async () => {
+      const result = await this.getSAMLLoginUrl(provider, options);
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      const url = result.data.url;
+
+      if (typeof window !== "undefined") {
+        window.location.href = url;
+      } else {
+        throw new Error(
+          "signInWithSAML can only be called in a browser environment",
+        );
+      }
+
+      return { provider, url };
+    });
+  }
+
+  /**
+   * Handle SAML callback after IdP authentication
+   * Call this from your SAML callback page to complete authentication
+   * @param samlResponse - Base64-encoded SAML response from the ACS endpoint
+   * @param provider - SAML provider name (optional, extracted from RelayState)
+   * @returns Promise with user and session
+   *
+   * @example
+   * ```typescript
+   * // In your SAML callback page
+   * const urlParams = new URLSearchParams(window.location.search)
+   * const samlResponse = urlParams.get('SAMLResponse')
+   *
+   * if (samlResponse) {
+   *   const { data, error } = await client.auth.handleSAMLCallback(samlResponse)
+   *   if (!error) {
+   *     console.log('Logged in:', data.user)
+   *   }
+   * }
+   * ```
+   */
+  async handleSAMLCallback(
+    samlResponse: string,
+    provider?: string,
+  ): Promise<FluxbaseAuthResponse> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<AuthResponse>(
+        "/api/v1/auth/saml/acs",
+        {
+          saml_response: samlResponse,
+          provider,
+        },
+      );
+
+      const session: AuthSession = {
+        ...response,
+        expires_at: Date.now() + response.expires_in * 1000,
+      };
+
+      this.setSessionInternal(session);
+      return { user: session.user, session };
+    });
+  }
+
+  /**
+   * Get SAML Service Provider metadata for a specific provider configuration
+   * Use this when configuring your IdP to download the SP metadata XML
+   * @param provider - SAML provider name/ID
+   * @returns Promise with SP metadata URL
+   *
+   * @example
+   * ```typescript
+   * const metadataUrl = client.auth.getSAMLMetadataUrl('okta')
+   * // Share this URL with your IdP administrator
+   * ```
+   */
+  getSAMLMetadataUrl(provider: string): string {
+    const baseUrl = this.fetch["baseUrl"];
+    return `${baseUrl}/api/v1/auth/saml/metadata/${provider}`;
   }
 
   /**

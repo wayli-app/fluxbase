@@ -96,6 +96,22 @@ export type { AIChatOptions, AIChatEvent, AIChatEventType } from "./ai";
 // Vector search module
 export { FluxbaseVector } from "./vector";
 
+// GraphQL module
+export { FluxbaseGraphQL } from "./graphql";
+export type {
+  GraphQLResponse,
+  GraphQLError,
+  GraphQLErrorLocation,
+  GraphQLRequestOptions,
+  IntrospectionSchema,
+  IntrospectionType,
+  IntrospectionField,
+  IntrospectionInputValue,
+  IntrospectionTypeRef,
+  IntrospectionEnumValue,
+  IntrospectionDirective,
+} from "./graphql";
+
 // Admin Migrations module
 export { FluxbaseAdminMigrations } from "./admin-migrations";
 
@@ -172,6 +188,15 @@ export type {
   TwoFactorStatusResponse,
   TwoFactorVerifyRequest,
   SignInWith2FAResponse,
+  CaptchaConfig,
+  CaptchaProvider,
+
+  // SAML SSO types
+  SAMLProvider,
+  SAMLProvidersResponse,
+  SAMLLoginOptions,
+  SAMLLoginResponse,
+  SAMLSession,
 
   // Database types
   PostgrestResponse,
@@ -220,6 +245,11 @@ export type {
   ResumableUploadOptions,
   ResumableUploadProgress,
   ChunkedUploadSession,
+
+  // Image Transform types
+  TransformOptions,
+  ImageFitMode,
+  ImageFormat,
 
   // Functions types
   FunctionInvokeOptions,

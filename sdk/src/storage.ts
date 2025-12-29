@@ -20,6 +20,7 @@ import type {
   FileShare,
   BucketSettings,
   Bucket,
+  TransformOptions,
 } from "./types";
 
 export class StorageBucket {
@@ -1095,9 +1096,91 @@ export class StorageBucket {
   }
 
   /**
-   * Create a signed URL for temporary access to a file
+   * Build query string from transform options
+   * @private
+   */
+  private buildTransformQuery(transform: TransformOptions): string {
+    const params = new URLSearchParams();
+
+    if (transform.width !== undefined && transform.width > 0) {
+      params.set("w", String(transform.width));
+    }
+    if (transform.height !== undefined && transform.height > 0) {
+      params.set("h", String(transform.height));
+    }
+    if (transform.format) {
+      params.set("fmt", transform.format);
+    }
+    if (transform.quality !== undefined && transform.quality > 0) {
+      params.set("q", String(transform.quality));
+    }
+    if (transform.fit) {
+      params.set("fit", transform.fit);
+    }
+
+    return params.toString();
+  }
+
+  /**
+   * Get a public URL for a file with image transformations applied
+   * Only works for image files (JPEG, PNG, WebP, GIF, AVIF, etc.)
+   *
    * @param path - The file path
-   * @param options - Signed URL options
+   * @param transform - Transformation options (width, height, format, quality, fit)
+   *
+   * @example
+   * ```typescript
+   * // Get a 300x200 WebP thumbnail
+   * const url = storage.from('images').getTransformUrl('photo.jpg', {
+   *   width: 300,
+   *   height: 200,
+   *   format: 'webp',
+   *   quality: 85,
+   *   fit: 'cover'
+   * });
+   *
+   * // Get a resized image maintaining aspect ratio
+   * const url = storage.from('images').getTransformUrl('photo.jpg', {
+   *   width: 800,
+   *   format: 'webp'
+   * });
+   * ```
+   */
+  getTransformUrl(path: string, transform: TransformOptions): string {
+    const baseUrl = `${this.fetch["baseUrl"]}/api/v1/storage/${this.bucketName}/${path}`;
+    const queryString = this.buildTransformQuery(transform);
+    return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+  }
+
+  /**
+   * Create a signed URL for temporary access to a file
+   * Optionally include image transformation parameters
+   *
+   * @param path - The file path
+   * @param options - Signed URL options including expiration and transforms
+   *
+   * @example
+   * ```typescript
+   * // Simple signed URL (1 hour expiry)
+   * const { data, error } = await storage.from('images').createSignedUrl('photo.jpg');
+   *
+   * // Signed URL with custom expiry
+   * const { data, error } = await storage.from('images').createSignedUrl('photo.jpg', {
+   *   expiresIn: 7200 // 2 hours
+   * });
+   *
+   * // Signed URL with image transformation
+   * const { data, error } = await storage.from('images').createSignedUrl('photo.jpg', {
+   *   expiresIn: 3600,
+   *   transform: {
+   *     width: 400,
+   *     height: 300,
+   *     format: 'webp',
+   *     quality: 85,
+   *     fit: 'cover'
+   *   }
+   * });
+   * ```
    */
   async createSignedUrl(
     path: string,
@@ -1106,9 +1189,31 @@ export class StorageBucket {
     try {
       const expiresIn = options?.expiresIn || 3600; // Default 1 hour
 
+      // Build request body with transform options if provided
+      const requestBody: Record<string, unknown> = { expires_in: expiresIn };
+
+      if (options?.transform) {
+        const transform = options.transform;
+        if (transform.width !== undefined && transform.width > 0) {
+          requestBody.width = transform.width;
+        }
+        if (transform.height !== undefined && transform.height > 0) {
+          requestBody.height = transform.height;
+        }
+        if (transform.format) {
+          requestBody.format = transform.format;
+        }
+        if (transform.quality !== undefined && transform.quality > 0) {
+          requestBody.quality = transform.quality;
+        }
+        if (transform.fit) {
+          requestBody.fit = transform.fit;
+        }
+      }
+
       const data = await this.fetch.post<{ signed_url: string }>(
         `/api/v1/storage/${this.bucketName}/sign/${path}`,
-        { expires_in: expiresIn },
+        requestBody,
       );
 
       return { data: { signedUrl: data.signed_url }, error: null };

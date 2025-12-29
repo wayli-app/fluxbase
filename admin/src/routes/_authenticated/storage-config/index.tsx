@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { HardDrive } from 'lucide-react'
+import { HardDrive, ImageIcon, Info, Lock } from 'lucide-react'
 import { useState } from 'react'
-import { monitoringApi } from '@/lib/api'
+import api, { monitoringApi } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/storage-config/')({
   component: StorageConfigPage,
@@ -20,6 +20,14 @@ interface StorageConfig {
   max_upload_size_mb: number
 }
 
+interface TransformConfig {
+  enabled: boolean
+  default_quality: number
+  max_width: number
+  max_height: number
+  allowed_formats?: string[]
+}
+
 function StorageConfigPage() {
   const [storageConfig] = useState<StorageConfig>({
     provider: 'local',
@@ -31,6 +39,15 @@ function StorageConfigPage() {
     queryKey: ['system-info'],
     queryFn: monitoringApi.getMetrics,
     refetchInterval: 30000,
+  })
+
+  // Fetch transform config from storage config endpoint
+  const { data: transformConfig, isLoading: isLoadingTransform } = useQuery<TransformConfig>({
+    queryKey: ['storage-transform-config'],
+    queryFn: async () => {
+      const response = await api.get('/api/v1/storage/config/transforms')
+      return response.data
+    },
   })
 
   const getStorageProviderBadge = (provider: string) => {
@@ -137,6 +154,135 @@ function StorageConfigPage() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Image Transformations Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className='flex items-center gap-2'>
+            <ImageIcon className='h-5 w-5' />
+            Image Transformations
+          </CardTitle>
+          <CardDescription>
+            On-the-fly image resize, crop, and format conversion using libvips
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-6'>
+          {isLoadingTransform ? (
+            <div className='flex items-center justify-center py-8'>
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary' />
+            </div>
+          ) : transformConfig?.enabled ? (
+            <>
+              {/* Status */}
+              <div className='flex items-center gap-2'>
+                <Badge variant='default' className='bg-green-600'>Enabled</Badge>
+                <span className='text-sm text-muted-foreground flex items-center gap-1'>
+                  <span title='Read-only (set via config)'><Lock className='h-3 w-3' /></span>
+                  Configured via YAML or environment variables
+                </span>
+              </div>
+
+              {/* Transform Settings */}
+              <div className='space-y-4'>
+                <h3 className='text-sm font-semibold'>Transformation Settings</h3>
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+                  <div className='space-y-2'>
+                    <Label>Default Quality</Label>
+                    <Input value={transformConfig.default_quality} disabled />
+                    <p className='text-xs text-muted-foreground'>1-100, used when not specified</p>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>Max Width</Label>
+                    <Input value={`${transformConfig.max_width}px`} disabled />
+                    <p className='text-xs text-muted-foreground'>Maximum output width</p>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>Max Height</Label>
+                    <Input value={`${transformConfig.max_height}px`} disabled />
+                    <p className='text-xs text-muted-foreground'>Maximum output height</p>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>Supported Formats</Label>
+                    <div className='flex flex-wrap gap-1'>
+                      {['webp', 'jpg', 'png', 'avif'].map((fmt) => (
+                        <Badge key={fmt} variant='secondary' className='text-xs'>{fmt.toUpperCase()}</Badge>
+                      ))}
+                    </div>
+                    <p className='text-xs text-muted-foreground'>Output formats available</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Usage Examples */}
+              <div className='space-y-4 pt-4 border-t'>
+                <h3 className='text-sm font-semibold'>Usage Examples</h3>
+                <div className='bg-muted rounded-lg p-4 space-y-3'>
+                  <div>
+                    <p className='text-xs font-medium text-muted-foreground mb-1'>Resize to 300x200 WebP:</p>
+                    <code className='text-xs bg-background px-2 py-1 rounded block overflow-x-auto'>
+                      GET /api/v1/storage/bucket/image.jpg?w=300&h=200&fmt=webp
+                    </code>
+                  </div>
+                  <div>
+                    <p className='text-xs font-medium text-muted-foreground mb-1'>Resize width only (maintain aspect ratio):</p>
+                    <code className='text-xs bg-background px-2 py-1 rounded block overflow-x-auto'>
+                      GET /api/v1/storage/bucket/image.jpg?w=800
+                    </code>
+                  </div>
+                  <div>
+                    <p className='text-xs font-medium text-muted-foreground mb-1'>With fit mode and quality:</p>
+                    <code className='text-xs bg-background px-2 py-1 rounded block overflow-x-auto'>
+                      GET /api/v1/storage/bucket/image.jpg?w=400&h=400&fit=cover&q=85
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fit Modes Reference */}
+              <div className='space-y-4 pt-4 border-t'>
+                <h3 className='text-sm font-semibold'>Fit Modes</h3>
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
+                  <div className='border rounded-lg p-3'>
+                    <p className='font-medium text-sm'>cover</p>
+                    <p className='text-xs text-muted-foreground'>Resize to cover target, cropping if needed (default)</p>
+                  </div>
+                  <div className='border rounded-lg p-3'>
+                    <p className='font-medium text-sm'>contain</p>
+                    <p className='text-xs text-muted-foreground'>Resize to fit within target, letterboxing if needed</p>
+                  </div>
+                  <div className='border rounded-lg p-3'>
+                    <p className='font-medium text-sm'>fill</p>
+                    <p className='text-xs text-muted-foreground'>Stretch to exactly fill target dimensions</p>
+                  </div>
+                  <div className='border rounded-lg p-3'>
+                    <p className='font-medium text-sm'>inside</p>
+                    <p className='text-xs text-muted-foreground'>Resize to fit within target, only scale down</p>
+                  </div>
+                  <div className='border rounded-lg p-3'>
+                    <p className='font-medium text-sm'>outside</p>
+                    <p className='text-xs text-muted-foreground'>Resize to be at least as large as target</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className='flex flex-col items-center justify-center py-8 text-center'>
+              <ImageIcon className='h-12 w-12 text-muted-foreground mb-4' />
+              <p className='text-muted-foreground mb-2'>Image transformations are disabled</p>
+              <div className='bg-muted rounded-lg p-4 text-left max-w-md'>
+                <p className='text-sm font-medium mb-2 flex items-center gap-1'>
+                  <Info className='h-4 w-4' /> To enable image transformations:
+                </p>
+                <ol className='text-xs text-muted-foreground space-y-1 list-decimal list-inside'>
+                  <li>Install libvips on your server</li>
+                  <li>Set <code className='bg-background px-1 rounded'>FLUXBASE_STORAGE_TRANSFORMS_ENABLED=true</code></li>
+                  <li>Restart the Fluxbase server</li>
+                </ol>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

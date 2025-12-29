@@ -298,6 +298,40 @@ spec:
               value: {{ .Values.config.security.admin_login_rate_limit | quote }}
             - name: FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW
               value: {{ .Values.config.security.admin_login_rate_window | quote }}
+            {{- if .Values.config.security.captcha }}
+            # CAPTCHA Configuration
+            - name: FLUXBASE_SECURITY_CAPTCHA_ENABLED
+              value: {{ .Values.config.security.captcha.enabled | quote }}
+            {{- if .Values.config.security.captcha.enabled }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_PROVIDER
+              value: {{ .Values.config.security.captcha.provider | quote }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_SITE_KEY
+              value: {{ .Values.config.security.captcha.site_key | quote }}
+            {{- if or .Values.config.security.captcha.secret_key .Values.existingSecret }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.secretName" . }}
+                  key: {{ include "fluxbase.secretKeyRef.captchaSecretKey" . }}
+                  optional: true
+            {{- end }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD
+              value: {{ .Values.config.security.captcha.score_threshold | quote }}
+            {{- if .Values.config.security.captcha.endpoints }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS
+              value: {{ .Values.config.security.captcha.endpoints | join "," | quote }}
+            {{- end }}
+            {{- /* Cap provider settings (self-hosted proof-of-work CAPTCHA) */}}
+            {{- if .Values.config.security.captcha.cap_server_url }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_CAP_SERVER_URL
+              value: {{ .Values.config.security.captcha.cap_server_url | quote }}
+            {{- end }}
+            {{- if .Values.config.security.captcha.cap_api_key }}
+            - name: FLUXBASE_SECURITY_CAPTCHA_CAP_API_KEY
+              value: {{ .Values.config.security.captcha.cap_api_key | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
 
             # ===========================================
             # CORS Configuration
@@ -352,6 +386,16 @@ spec:
             - name: FLUXBASE_STORAGE_S3_FORCE_PATH_STYLE
               value: {{ .Values.config.storage.s3_force_path_style | quote }}
             {{- end }}
+
+            # Image Transformation Configuration
+            - name: FLUXBASE_STORAGE_TRANSFORMS_ENABLED
+              value: {{ .Values.config.storage.transforms.enabled | quote }}
+            - name: FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY
+              value: {{ .Values.config.storage.transforms.default_quality | quote }}
+            - name: FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH
+              value: {{ .Values.config.storage.transforms.max_width | quote }}
+            - name: FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT
+              value: {{ .Values.config.storage.transforms.max_height | quote }}
 
             # ===========================================
             # Realtime Configuration
@@ -501,6 +545,18 @@ spec:
               value: {{ .Values.config.api.max_total_results | quote }}
             - name: FLUXBASE_API_DEFAULT_PAGE_SIZE
               value: {{ .Values.config.api.default_page_size | quote }}
+
+            # ===========================================
+            # GraphQL Configuration
+            # ===========================================
+            - name: FLUXBASE_GRAPHQL_ENABLED
+              value: {{ .Values.config.graphql.enabled | quote }}
+            - name: FLUXBASE_GRAPHQL_MAX_DEPTH
+              value: {{ .Values.config.graphql.max_depth | quote }}
+            - name: FLUXBASE_GRAPHQL_MAX_COMPLEXITY
+              value: {{ .Values.config.graphql.max_complexity | quote }}
+            - name: FLUXBASE_GRAPHQL_INTROSPECTION
+              value: {{ .Values.config.graphql.introspection | quote }}
 
             # ===========================================
             # Migrations Configuration

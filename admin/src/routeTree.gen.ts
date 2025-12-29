@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as LoginOtpRouteImport } from './routes/login/otp'
+import { Route as LoginCallbackRouteImport } from './routes/login/callback'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -78,6 +79,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const LoginOtpRoute = LoginOtpRouteImport.update({
   id: '/login/otp',
   path: '/login/otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginCallbackRoute = LoginCallbackRouteImport.update({
+  id: '/login/callback',
+  path: '/login/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const errors503Route = errors503RouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/login/callback': typeof LoginCallbackRoute
   '/login/otp': typeof LoginOtpRoute
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginIndexRoute
@@ -371,6 +378,7 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/login/callback': typeof LoginCallbackRoute
   '/login/otp': typeof LoginOtpRoute
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginIndexRoute
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/login/callback': typeof LoginCallbackRoute
   '/login/otp': typeof LoginOtpRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/login/callback'
     | '/login/otp'
     | '/'
     | '/login'
@@ -516,6 +526,7 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/login/callback'
     | '/login/otp'
     | '/'
     | '/login'
@@ -564,6 +575,7 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/login/callback'
     | '/login/otp'
     | '/_authenticated/'
     | '/login/'
@@ -613,6 +625,7 @@ export interface RootRouteChildren {
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
+  LoginCallbackRoute: typeof LoginCallbackRoute
   LoginOtpRoute: typeof LoginOtpRoute
   LoginIndexRoute: typeof LoginIndexRoute
 }
@@ -652,6 +665,13 @@ declare module '@tanstack/react-router' {
       path: '/login/otp'
       fullPath: '/login/otp'
       preLoaderRoute: typeof LoginOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login/callback': {
+      id: '/login/callback'
+      path: '/login/callback'
+      fullPath: '/login/callback'
+      preLoaderRoute: typeof LoginCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/(errors)/503': {
@@ -1033,6 +1053,7 @@ const rootRouteChildren: RootRouteChildren = {
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,
+  LoginCallbackRoute: LoginCallbackRoute,
   LoginOtpRoute: LoginOtpRoute,
   LoginIndexRoute: LoginIndexRoute,
 }

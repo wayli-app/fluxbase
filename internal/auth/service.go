@@ -176,6 +176,7 @@ type SignUpRequest struct {
 	Password     string                 `json:"password"`
 	UserMetadata map[string]interface{} `json:"user_metadata,omitempty"` // User-editable metadata
 	AppMetadata  map[string]interface{} `json:"app_metadata,omitempty"`  // Application/admin-only metadata
+	CaptchaToken string                 `json:"captcha_token,omitempty"` // CAPTCHA verification token
 }
 
 // SignUpResponse represents a successful registration response
@@ -275,8 +276,9 @@ func (s *Service) SignUp(ctx context.Context, req SignUpRequest) (*SignUpRespons
 
 // SignInRequest represents a login request
 type SignInRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	CaptchaToken string `json:"captcha_token,omitempty"` // CAPTCHA verification token
 }
 
 // SignInResponse represents a successful login response
@@ -1293,4 +1295,75 @@ func (s *Service) VerifyEmailToken(ctx context.Context, token string) (*User, er
 	}
 
 	return user, nil
+}
+
+// =============================================================================
+// SAML SSO Methods
+// =============================================================================
+
+// CreateSAMLUser creates a new user from a SAML assertion
+func (s *Service) CreateSAMLUser(ctx context.Context, email, name, provider, nameID string, attrs map[string][]string) (*User, error) {
+	// Validate email format
+	if err := ValidateEmail(email); err != nil {
+		return nil, fmt.Errorf("invalid email: %w", err)
+	}
+
+	// Build user metadata with name if provided
+	userMetadata := make(map[string]interface{})
+	if name != "" {
+		userMetadata["full_name"] = name
+	}
+
+	// Create user without password (SAML users authenticate via IdP)
+	req := CreateUserRequest{
+		Email:        email,
+		Password:     "",
+		Role:         "authenticated",
+		UserMetadata: userMetadata,
+	}
+
+	user, err := s.userRepo.Create(ctx, req, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Link SAML identity using identity service
+	if err := s.LinkSAMLIdentity(ctx, user.ID, provider, nameID, attrs); err != nil {
+		// Log warning but don't fail - user was created successfully
+		_ = err // Ignore error, user is still valid
+	}
+
+	// Refresh user to get updated data
+	user, err = s.userRepo.GetByID(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get created user: %w", err)
+	}
+
+	return user, nil
+}
+
+// LinkSAMLIdentity links or updates a SAML identity for a user
+func (s *Service) LinkSAMLIdentity(ctx context.Context, userID, provider, nameID string, attrs map[string][]string) error {
+	// Create identity data that includes SAML-specific fields
+	identityData := map[string]interface{}{
+		"saml_name_id":    nameID,
+		"saml_attributes": attrs,
+	}
+
+	// Extract email from SAML attributes if present
+	var email *string
+	if emails, ok := attrs["email"]; ok && len(emails) > 0 {
+		email = &emails[0]
+	}
+
+	// Use the identity service to link the SAML identity
+	// Provider format: "saml:{provider_name}"
+	_, err := s.identityService.LinkIdentity(ctx, userID, "saml:"+provider, nameID, email, identityData)
+	return err
+}
+
+// GenerateTokensForSAMLUser generates tokens for a SAML-authenticated user
+// This is a wrapper around GenerateTokensForUser that takes a User object
+func (s *Service) GenerateTokensForSAMLUser(ctx context.Context, user *User) (*SignInResponse, error) {
+	return s.GenerateTokensForUser(ctx, user.ID)
 }
