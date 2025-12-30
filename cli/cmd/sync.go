@@ -270,7 +270,9 @@ func syncMigrationsFromDir(ctx context.Context, dir, namespace string, dryRun bo
 	body := map[string]interface{}{
 		"namespace":  namespace,
 		"migrations": migList,
-		"auto_apply": false,
+		"options": map[string]interface{}{
+			"auto_apply": true,
+		},
 	}
 
 	var result map[string]interface{}

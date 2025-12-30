@@ -79,11 +79,6 @@ func NewOpenAPIHandler(db *database.Connection) *OpenAPIHandler {
 	return &OpenAPIHandler{db: db}
 }
 
-// RegisterRoutes registers OpenAPI routes
-func (h *OpenAPIHandler) RegisterRoutes(app *fiber.App) {
-	app.Get("/openapi.json", h.GetOpenAPISpec)
-}
-
 // GetOpenAPISpec generates and returns the OpenAPI specification
 // Admin users get full spec with database schema; non-admin users get minimal spec
 func (h *OpenAPIHandler) GetOpenAPISpec(c *fiber.Ctx) error {

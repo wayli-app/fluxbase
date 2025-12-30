@@ -1171,8 +1171,13 @@ func (s *Server) setupRoutes() {
 	}
 
 	// OpenAPI specification
+	// Uses optional auth middleware to detect admin users and provide full spec with database schema
+	// Non-admin users get minimal spec with only auth endpoints
 	openAPIHandler := NewOpenAPIHandler(s.db)
-	openAPIHandler.RegisterRoutes(s.app)
+	s.app.Get("/openapi.json",
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		openAPIHandler.GetOpenAPISpec,
+	)
 
 	// 404 handler
 	s.app.Use(func(c *fiber.Ctx) error {

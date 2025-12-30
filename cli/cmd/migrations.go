@@ -26,7 +26,7 @@ var (
 	migUpSQL     string
 	migDownSQL   string
 	migSyncDir   string
-	migAutoApply bool
+	migNoApply bool
 	migDryRun    bool
 )
 
@@ -112,7 +112,7 @@ Migration files should follow the naming convention:
 
 Examples:
   fluxbase migrations sync --dir ./migrations
-  fluxbase migrations sync --dir ./migrations --auto-apply`,
+  fluxbase migrations sync --dir ./migrations --no-apply`,
 	PreRunE: requireAuth,
 	RunE:    runMigrationsSync,
 }
@@ -129,7 +129,7 @@ func init() {
 	// Sync flags
 	migrationsSyncCmd.Flags().StringVar(&migSyncDir, "dir", "./migrations", "Directory containing migration files")
 	migrationsSyncCmd.Flags().StringVar(&migNamespace, "namespace", "default", "Target namespace")
-	migrationsSyncCmd.Flags().BoolVar(&migAutoApply, "auto-apply", false, "Automatically apply after sync")
+	migrationsSyncCmd.Flags().BoolVar(&migNoApply, "no-apply", false, "Do not apply migrations after sync")
 	migrationsSyncCmd.Flags().BoolVar(&migDryRun, "dry-run", false, "Preview changes without applying")
 
 	migrationsCmd.AddCommand(migrationsListCmd)
@@ -360,7 +360,9 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 	body := map[string]interface{}{
 		"namespace":  migNamespace,
 		"migrations": migList,
-		"auto_apply": migAutoApply,
+		"options": map[string]interface{}{
+			"auto_apply": !migNoApply,
+		},
 	}
 
 	var result map[string]interface{}
@@ -380,7 +382,7 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 	errors := getIntValue(summary, "errors")
 
 	fmt.Printf("Synced migrations: %d created, %d updated.\n", created, updated)
-	if migAutoApply && applied > 0 {
+	if !migNoApply && applied > 0 {
 		fmt.Printf("Applied %d pending migrations.\n", applied)
 	}
 	if errors > 0 {
