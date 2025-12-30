@@ -35,11 +35,62 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate file size
+	// Validate file size against global limit
 	if err := h.storage.ValidateUploadSize(file.Size); err != nil {
 		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
 			"error": err.Error(),
 		})
+	}
+
+	// Get bucket settings for additional validation
+	var bucketMaxFileSize *int64
+	var bucketAllowedMimeTypes []string
+	err = h.db.Pool().QueryRow(c.Context(),
+		`SELECT max_file_size, allowed_mime_types FROM storage.buckets WHERE name = $1`,
+		bucket,
+	).Scan(&bucketMaxFileSize, &bucketAllowedMimeTypes)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Error().Err(err).Str("bucket", bucket).Msg("Failed to get bucket settings")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to validate bucket settings",
+		})
+	}
+
+	// Validate file size against bucket-specific limit
+	if bucketMaxFileSize != nil && *bucketMaxFileSize > 0 && file.Size > *bucketMaxFileSize {
+		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
+			"error": fmt.Sprintf("file size %d exceeds bucket maximum of %d bytes", file.Size, *bucketMaxFileSize),
+		})
+	}
+
+	// Detect content type early for MIME validation
+	contentType := file.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = detectContentType(file.Filename)
+	}
+
+	// Validate MIME type against bucket-specific allowed types
+	if len(bucketAllowedMimeTypes) > 0 {
+		mimeAllowed := false
+		for _, allowedType := range bucketAllowedMimeTypes {
+			if allowedType == contentType || allowedType == "*/*" {
+				mimeAllowed = true
+				break
+			}
+			// Support wildcard matching (e.g., "image/*")
+			if strings.HasSuffix(allowedType, "/*") {
+				prefix := strings.TrimSuffix(allowedType, "/*")
+				if strings.HasPrefix(contentType, prefix+"/") {
+					mimeAllowed = true
+					break
+				}
+			}
+		}
+		if !mimeAllowed {
+			return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+				"error": fmt.Sprintf("file type %s is not allowed for this bucket", contentType),
+			})
+		}
 	}
 
 	// Open the uploaded file
@@ -50,12 +101,6 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 		})
 	}
 	defer func() { _ = src.Close() }()
-
-	// Detect content type
-	contentType := file.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = detectContentType(file.Filename)
-	}
 
 	// Parse metadata from form
 	metadata := parseMetadata(c)
@@ -384,18 +429,34 @@ sendResponse:
 		}
 	}
 
-	// Set content disposition (for downloads)
-	if c.Query("download") == "true" {
-		filename := filepath.Base(key)
-		// If format was changed, update the filename extension
-		if transformOpts != nil && transformOpts.Format != "" {
-			ext := filepath.Ext(filename)
-			if ext != "" {
-				filename = strings.TrimSuffix(filename, ext) + "." + transformOpts.Format
-			}
+	// Set content disposition - default to attachment for security
+	// Only allow inline for safe MIME types when explicitly requested
+	filename := filepath.Base(key)
+	// If format was changed, update the filename extension
+	if transformOpts != nil && transformOpts.Format != "" {
+		ext := filepath.Ext(filename)
+		if ext != "" {
+			filename = strings.TrimSuffix(filename, ext) + "." + transformOpts.Format
 		}
-		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	}
+
+	disposition := "attachment"
+	if c.Query("inline") == "true" {
+		// Only allow inline for safe content types
+		safeTypes := map[string]bool{
+			"image/jpeg":      true,
+			"image/png":       true,
+			"image/gif":       true,
+			"image/webp":      true,
+			"application/pdf": true,
+			"video/mp4":       true,
+			"audio/mpeg":      true,
+		}
+		if safeTypes[object.ContentType] {
+			disposition = "inline"
+		}
+	}
+	c.Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, filename))
 
 	log.Debug().
 		Str("bucket", bucket).

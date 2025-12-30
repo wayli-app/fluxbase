@@ -136,7 +136,12 @@ func RequireServiceKeyOnly(db *pgxpool.Pool, authService *auth.Service) fiber.Ha
 
 		// Try X-Service-Key header first (most explicit)
 		serviceKey = c.Get("X-Service-Key")
-		log.Debug().Str("X-Service-Key", serviceKey).Msg("Checking X-Service-Key header")
+		// Only log prefix of service key for security
+		keyPrefix := ""
+		if len(serviceKey) > 0 {
+			keyPrefix = serviceKey[:min(16, len(serviceKey))] + "..."
+		}
+		log.Debug().Str("key_prefix", keyPrefix).Msg("Checking X-Service-Key header")
 
 		// Try Authorization header (ServiceKey or Bearer with service key)
 		if serviceKey == "" && strings.HasPrefix(authHeader, "ServiceKey ") {

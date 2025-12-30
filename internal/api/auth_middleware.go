@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
@@ -308,22 +307,7 @@ func getUserRoleFromDB(ctx context.Context, db *pgxpool.Pool, userID string) (st
 		return "", err
 	}
 
-	// If role column is admin or service_role, return it
-	if role == "admin" || role == "service_role" {
-		return role, nil
-	}
-
-	// Check app_metadata.role as fallback
-	if len(appMetadata) > 0 {
-		var metadata map[string]interface{}
-		if json.Unmarshal(appMetadata, &metadata) == nil {
-			if metaRole, ok := metadata["role"].(string); ok {
-				if metaRole == "admin" || metaRole == "service_role" {
-					return metaRole, nil
-				}
-			}
-		}
-	}
-
+	// Only use the explicit database role column for authorization
+	// app_metadata.role is NOT used for privilege elevation as it could be user-editable
 	return role, nil
 }

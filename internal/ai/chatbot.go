@@ -160,7 +160,7 @@ var (
 	// @fluxbase:allowed-schemas public,app
 	allowedSchemasPattern = regexp.MustCompile(`@fluxbase:allowed-schemas\s+([^\n*]+)`)
 
-	// @fluxbase:http-allowed-domains pelias.wayli.app,api.example.com
+	// @fluxbase:http-allowed-domains api.fake-domain.com,api.fake-example.com
 	httpAllowedDomainsPattern = regexp.MustCompile(`@fluxbase:http-allowed-domains\s+([^\n*]+)`)
 
 	// @fluxbase:max-tokens 4096

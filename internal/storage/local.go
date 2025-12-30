@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -790,11 +791,12 @@ func (ls *LocalStorage) InitChunkedUpload(ctx context.Context, bucket, key strin
 		return nil, fmt.Errorf("invalid path: %w", err)
 	}
 
-	// Generate unique upload ID
-	uploadID := fmt.Sprintf("%d-%s", time.Now().UnixNano(), key)
-	// Replace slashes with underscores to create a valid directory name
-	uploadID = strings.ReplaceAll(uploadID, "/", "_")
-	uploadID = strings.ReplaceAll(uploadID, "\\", "_")
+	// Generate cryptographically secure upload ID to prevent session hijacking
+	randomBytes := make([]byte, 16)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate secure upload ID: %w", err)
+	}
+	uploadID := hex.EncodeToString(randomBytes)
 
 	// Create chunked upload directory
 	chunkDir := ls.getChunkedUploadDir(uploadID)

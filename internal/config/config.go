@@ -121,6 +121,8 @@ type AuthConfig struct {
 	JWTSecret           string        `mapstructure:"jwt_secret"`
 	JWTExpiry           time.Duration `mapstructure:"jwt_expiry"`
 	RefreshExpiry       time.Duration `mapstructure:"refresh_expiry"`
+	ServiceRoleTTL      time.Duration `mapstructure:"service_role_ttl"` // TTL for service role tokens (default: 24h)
+	AnonTTL             time.Duration `mapstructure:"anon_ttl"`         // TTL for anonymous tokens (default: 24h)
 	MagicLinkExpiry     time.Duration `mapstructure:"magic_link_expiry"`
 	PasswordResetExpiry time.Duration `mapstructure:"password_reset_expiry"`
 	PasswordMinLen      int           `mapstructure:"password_min_length"`
@@ -551,10 +553,12 @@ func setDefaults() {
 	// Auth defaults
 	viper.SetDefault("auth.jwt_secret", "your-secret-key-change-in-production")
 	viper.SetDefault("auth.jwt_expiry", "15m")
-	viper.SetDefault("auth.refresh_expiry", "168h") // 7 days in hours
+	viper.SetDefault("auth.refresh_expiry", "168h")  // 7 days in hours
+	viper.SetDefault("auth.service_role_ttl", "24h") // Service role tokens: 24 hours (was 365 days)
+	viper.SetDefault("auth.anon_ttl", "24h")         // Anonymous tokens: 24 hours (was 365 days)
 	viper.SetDefault("auth.magic_link_expiry", "15m")
 	viper.SetDefault("auth.password_reset_expiry", "1h")
-	viper.SetDefault("auth.password_min_length", 8)
+	viper.SetDefault("auth.password_min_length", 12) // Increased for better security
 	viper.SetDefault("auth.bcrypt_cost", 10)
 	viper.SetDefault("auth.enable_signup", true) // Default to enabled to allow user registration
 	viper.SetDefault("auth.enable_magic_link", true)
@@ -582,7 +586,7 @@ func setDefaults() {
 	viper.SetDefault("admin.enabled", false) // Admin dashboard disabled by default
 
 	// CORS defaults
-	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080,https://pelias.wayli.app")
+	viper.SetDefault("cors.allowed_origins", "http://localhost:5173,http://localhost:8080")
 	viper.SetDefault("cors.allowed_methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 	viper.SetDefault("cors.allowed_headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,X-Impersonation-Token,Prefer,apikey,x-client-app")
 	viper.SetDefault("cors.exposed_headers", "Content-Range,Content-Encoding,Content-Length,X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset")
@@ -898,6 +902,14 @@ func (c *Config) Validate() error {
 	// Validate logging configuration
 	if err := c.Logging.Validate(); err != nil {
 		return fmt.Errorf("logging configuration error: %w", err)
+	}
+
+	// Validate encryption key - required for secure secrets storage
+	if c.EncryptionKey == "" {
+		return fmt.Errorf("encryption_key is required for AES-256 encryption (must be exactly 32 bytes)")
+	}
+	if len(c.EncryptionKey) != 32 {
+		return fmt.Errorf("encryption_key must be exactly 32 bytes for AES-256, got %d bytes", len(c.EncryptionKey))
 	}
 
 	// Validate base URL

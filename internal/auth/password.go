@@ -16,7 +16,7 @@ var (
 
 const (
 	// MinPasswordLength is the minimum required password length
-	MinPasswordLength = 8
+	MinPasswordLength = 12 // Increased from 8 for better security
 	// MaxPasswordLength is the maximum allowed password length (bcrypt limit is 72)
 	MaxPasswordLength = 72
 	// DefaultBcryptCost is the default cost for bcrypt hashing
@@ -44,14 +44,15 @@ type PasswordHasherConfig struct {
 }
 
 // NewPasswordHasher creates a new password hasher with default settings
+// Default requires uppercase, lowercase, and digit (no symbol for mobile usability)
 func NewPasswordHasher() *PasswordHasher {
 	return &PasswordHasher{
 		cost:          DefaultBcryptCost,
 		minLength:     MinPasswordLength,
-		requireUpper:  false,
-		requireLower:  false,
-		requireDigit:  false,
-		requireSymbol: false,
+		requireUpper:  true,  // Require at least one uppercase letter
+		requireLower:  true,  // Require at least one lowercase letter
+		requireDigit:  true,  // Require at least one digit
+		requireSymbol: false, // No symbol required for mobile usability
 	}
 }
 

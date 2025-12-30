@@ -86,20 +86,28 @@ func pgxRowsToJSON(rows pgx.Rows) ([]map[string]interface{}, error) {
 }
 
 // getConflictTarget determines the conflict target for ON CONFLICT clause
-// Returns the primary key columns as a comma-separated string, or empty string if no PK exists
+// Returns the primary key columns as a comma-separated quoted string, or empty string if no PK exists
 func (h *RESTHandler) getConflictTarget(table database.TableInfo) string {
 	if len(table.PrimaryKey) == 0 {
 		return ""
 	}
-	return strings.Join(table.PrimaryKey, ", ")
+	// Quote each column name to prevent SQL injection
+	quotedColumns := make([]string, 0, len(table.PrimaryKey))
+	for _, col := range table.PrimaryKey {
+		quotedColumns = append(quotedColumns, quoteIdentifier(col))
+	}
+	return strings.Join(quotedColumns, ", ")
 }
 
-// isInConflictTarget checks if a column is part of the conflict target
-func (h *RESTHandler) isInConflictTarget(column string, conflictTarget string) bool {
-	// Split conflict target by comma and check if column is in the list
-	targets := strings.Split(conflictTarget, ", ")
-	for _, target := range targets {
-		if strings.TrimSpace(target) == column {
+// getConflictTargetUnquoted returns unquoted column names for comparison purposes
+func (h *RESTHandler) getConflictTargetUnquoted(table database.TableInfo) []string {
+	return table.PrimaryKey
+}
+
+// isInConflictTarget checks if a column is part of the conflict target columns
+func (h *RESTHandler) isInConflictTarget(column string, conflictTargetColumns []string) bool {
+	for _, target := range conflictTargetColumns {
+		if target == column {
 			return true
 		}
 	}

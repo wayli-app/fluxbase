@@ -36,6 +36,8 @@ type JWTManager struct {
 	secretKey       []byte
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
+	serviceRoleTTL  time.Duration
+	anonTTL         time.Duration
 	issuer          string
 }
 
@@ -45,6 +47,20 @@ func NewJWTManager(secretKey string, accessTTL, refreshTTL time.Duration) *JWTMa
 		secretKey:       []byte(secretKey),
 		accessTokenTTL:  accessTTL,
 		refreshTokenTTL: refreshTTL,
+		serviceRoleTTL:  24 * time.Hour, // Default 24 hours
+		anonTTL:         24 * time.Hour, // Default 24 hours
+		issuer:          "fluxbase",
+	}
+}
+
+// NewJWTManagerWithConfig creates a new JWT manager with full configuration
+func NewJWTManagerWithConfig(secretKey string, accessTTL, refreshTTL, serviceRoleTTL, anonTTL time.Duration) *JWTManager {
+	return &JWTManager{
+		secretKey:       []byte(secretKey),
+		accessTokenTTL:  accessTTL,
+		refreshTokenTTL: refreshTTL,
+		serviceRoleTTL:  serviceRoleTTL,
+		anonTTL:         anonTTL,
 		issuer:          "fluxbase",
 	}
 }
@@ -304,9 +320,9 @@ func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims,
 		return nil, ErrInvalidToken
 	}
 
-	// Accept known issuers for service role tokens
+	// Strict issuer validation - only accept tokens issued by fluxbase
 	issuer := claims.Issuer
-	if issuer != "" && issuer != "fluxbase" && issuer != "supabase-demo" && issuer != "supabase" {
+	if issuer != "fluxbase" {
 		return nil, ErrInvalidToken
 	}
 
@@ -330,7 +346,7 @@ func (m *JWTManager) GenerateServiceRoleToken() (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    m.issuer,
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)), // Long-lived
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.serviceRoleTTL)), // Configurable, default 24h
 			NotBefore: jwt.NewNumericDate(now),
 			ID:        uuid.New().String(),
 		},
@@ -351,7 +367,7 @@ func (m *JWTManager) GenerateAnonToken() (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    m.issuer,
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)), // Long-lived
+			ExpiresAt: jwt.NewNumericDate(now.Add(m.anonTTL)), // Configurable, default 24h
 			NotBefore: jwt.NewNumericDate(now),
 			ID:        uuid.New().String(),
 		},

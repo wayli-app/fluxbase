@@ -5,12 +5,57 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
+
+// signedURLRateLimiter provides simple IP-based rate limiting for signed URL downloads
+// This prevents DoS attacks via shared signed URLs
+var signedURLRateLimiter = &ipRateLimiter{
+	requests: make(map[string]*rateLimitEntry),
+	limit:    100,             // 100 requests per window
+	window:   time.Minute * 1, // 1 minute window
+}
+
+type ipRateLimiter struct {
+	mu       sync.Mutex
+	requests map[string]*rateLimitEntry
+	limit    int
+	window   time.Duration
+}
+
+type rateLimitEntry struct {
+	count     int
+	windowEnd time.Time
+}
+
+func (r *ipRateLimiter) allow(ip string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	entry, exists := r.requests[ip]
+
+	if !exists || now.After(entry.windowEnd) {
+		// New window
+		r.requests[ip] = &rateLimitEntry{
+			count:     1,
+			windowEnd: now.Add(r.window),
+		}
+		return true
+	}
+
+	if entry.count >= r.limit {
+		return false
+	}
+
+	entry.count++
+	return true
+}
 
 // GenerateSignedURL generates a presigned URL for temporary access
 // POST /api/v1/storage/:bucket/sign/*
@@ -68,6 +113,15 @@ func (h *StorageHandler) GenerateSignedURL(c *fiber.Ctx) error {
 // GET /api/v1/storage/object?token=...
 // This is a PUBLIC endpoint - authentication is provided by the signed token
 func (h *StorageHandler) DownloadSignedObject(c *fiber.Ctx) error {
+	// Rate limit by IP to prevent DoS via shared signed URLs
+	clientIP := c.IP()
+	if !signedURLRateLimiter.allow(clientIP) {
+		log.Warn().Str("ip", clientIP).Msg("Rate limit exceeded for signed URL download")
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"error": "rate limit exceeded, please try again later",
+		})
+	}
+
 	token := c.Query("token")
 	if token == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

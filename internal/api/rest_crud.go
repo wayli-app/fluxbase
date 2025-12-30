@@ -162,7 +162,8 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		}
 
 		// Build INSERT query
-		columns := make([]string, 0, len(data))
+		columns := make([]string, 0, len(data))     // Quoted column names for SQL
+		columnNames := make([]string, 0, len(data)) // Unquoted column names for conflict checking
 		values := make([]interface{}, 0, len(data))
 		placeholders := make([]string, 0, len(data))
 
@@ -175,7 +176,8 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 				})
 			}
 
-			columns = append(columns, col)
+			columns = append(columns, quoteIdentifier(col))
+			columnNames = append(columnNames, col)
 
 			// Check if value is GeoJSON and needs PostGIS conversion
 			if isGeoJSON(val) {
@@ -201,7 +203,7 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		}
 
 		query := fmt.Sprintf(
-			"INSERT INTO %s.%s (%s) VALUES (%s)",
+			`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
 			table.Schema, table.Name,
 			strings.Join(columns, ", "),
 			strings.Join(placeholders, ", "),
@@ -210,9 +212,27 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		// Add ON CONFLICT clause for upsert
 		if isUpsert {
 			// Use custom conflict target if provided, otherwise auto-detect
-			conflictTarget := onConflict
-			if conflictTarget == "" {
+			var conflictTarget string
+			var conflictTargetColumns []string
+
+			if onConflict != "" {
+				// Validate and quote custom conflict target columns
+				conflictCols := strings.Split(onConflict, ",")
+				quotedConflictCols := make([]string, 0, len(conflictCols))
+				for _, col := range conflictCols {
+					col = strings.TrimSpace(col)
+					if !h.columnExists(table, col) {
+						return c.Status(400).JSON(fiber.Map{
+							"error": fmt.Sprintf("Unknown column in on_conflict: %s", col),
+						})
+					}
+					quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
+					conflictTargetColumns = append(conflictTargetColumns, col)
+				}
+				conflictTarget = strings.Join(quotedConflictCols, ", ")
+			} else {
 				conflictTarget = h.getConflictTarget(table)
+				conflictTargetColumns = h.getConflictTargetUnquoted(table)
 			}
 
 			if conflictTarget == "" {
@@ -230,11 +250,10 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 			} else {
 				// Build UPDATE SET clause (all columns except conflict target)
 				updateClauses := make([]string, 0)
-				for _, col := range columns {
-					// Skip columns that are part of the conflict target
-					if !h.isInConflictTarget(col, conflictTarget) {
-						// If defaultToNull is true, set missing columns to NULL explicitly
-						// (This doesn't apply here since we're setting all provided columns)
+				for i, col := range columns {
+					// Skip columns that are part of the conflict target (use unquoted name for comparison)
+					if !h.isInConflictTarget(columnNames[i], conflictTargetColumns) {
+						// col is already quoted
 						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
 					}
 				}
@@ -321,6 +340,7 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 			}
 
 			// Check if value is GeoJSON and needs PostGIS conversion
+			quotedCol := quoteIdentifier(col)
 			if isGeoJSON(val) {
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
 				geoJSON, err := json.Marshal(val)
@@ -329,10 +349,10 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
 					})
 				}
-				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", col, i))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", quotedCol, i))
 				values = append(values, string(geoJSON))
 			} else {
-				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, i))
+				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", quotedCol, i))
 				values = append(values, val)
 			}
 			i++
@@ -341,10 +361,10 @@ func (h *RESTHandler) makePutHandler(table database.TableInfo) fiber.Handler {
 		values = append(values, id)
 
 		query := fmt.Sprintf(
-			`UPDATE "%s"."%s" SET %s WHERE "%s" = $%d`,
+			`UPDATE "%s"."%s" SET %s WHERE %s = $%d`,
 			table.Schema, table.Name,
 			strings.Join(setClauses, ", "),
-			pkColumn, i,
+			quoteIdentifier(pkColumn), i,
 		) + buildReturningClause(table)
 
 		// Execute query with RLS context

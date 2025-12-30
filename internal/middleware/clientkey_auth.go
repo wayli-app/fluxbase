@@ -13,21 +13,16 @@ import (
 )
 
 // ClientKeyAuth creates middleware that authenticates requests using client keys
-// Checks for client key in X-Client-Key header or clientkey query parameter
+// Client key must be provided via X-Client-Key header (query parameter removed for security)
 func ClientKeyAuth(clientKeyService *auth.ClientKeyService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Try to get client key from X-Client-Key header first
+		// Get client key from X-Client-Key header only (query parameter removed for security)
 		clientKey := c.Get("X-Client-Key")
-
-		// If not in header, try query parameter (less secure, but convenient for testing)
-		if clientKey == "" {
-			clientKey = c.Query("clientkey")
-		}
 
 		// If no client key provided, return unauthorized
 		if clientKey == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing client key. Provide via X-Client-Key header or clientkey query parameter",
+				"error": "Missing client key. Provide via X-Client-Key header",
 			})
 		}
 
@@ -95,11 +90,8 @@ func OptionalClientKeyAuth(authService *auth.Service, clientKeyService *auth.Cli
 			}
 		}
 
-		// Try client key authentication
+		// Try client key authentication (header only, query parameter removed for security)
 		clientKey := c.Get("X-Client-Key")
-		if clientKey == "" {
-			clientKey = c.Query("clientkey")
-		}
 
 		if clientKey != "" {
 			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
@@ -150,11 +142,8 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 			}
 		}
 
-		// Try client key authentication
+		// Try client key authentication (header only, query parameter removed for security)
 		clientKey := c.Get("X-Client-Key")
-		if clientKey == "" {
-			clientKey = c.Query("clientkey")
-		}
 
 		if clientKey != "" {
 			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
@@ -303,11 +292,8 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 			})
 		}
 
-		// Try client key authentication
+		// Try client key authentication (header only, query parameter removed for security)
 		clientKey := c.Get("X-Client-Key")
-		if clientKey == "" {
-			clientKey = c.Query("clientkey")
-		}
 
 		if clientKey != "" {
 			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)

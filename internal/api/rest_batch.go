@@ -24,14 +24,16 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 
 	// Get all unique columns from the first record
 	firstRecord := dataArray[0]
-	columns := make([]string, 0, len(firstRecord))
+	columns := make([]string, 0, len(firstRecord))     // Quoted column names for SQL
+	columnNames := make([]string, 0, len(firstRecord)) // Unquoted column names for conflict checking
 	for col := range firstRecord {
 		if !h.columnExists(table, col) {
 			return c.Status(400).JSON(fiber.Map{
 				"error": fmt.Sprintf("Unknown column: %s", col),
 			})
 		}
-		columns = append(columns, col)
+		columns = append(columns, quoteIdentifier(col))
+		columnNames = append(columnNames, col)
 	}
 
 	// Build VALUES clauses
@@ -40,8 +42,8 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 	argCounter := 1
 
 	for _, record := range dataArray {
-		placeholders := make([]string, len(columns))
-		for i, col := range columns {
+		placeholders := make([]string, len(columnNames))
+		for i, col := range columnNames {
 			val, exists := record[col]
 			if !exists {
 				val = nil // Use NULL for missing columns
@@ -68,7 +70,7 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 	}
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s.%s (%s) VALUES %s",
+		`INSERT INTO "%s"."%s" (%s) VALUES %s`,
 		table.Schema, table.Name,
 		strings.Join(columns, ", "),
 		strings.Join(valueClauses, ", "),
@@ -77,9 +79,27 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 	// Add ON CONFLICT clause for upsert
 	if isUpsert {
 		// Use custom conflict target if provided, otherwise auto-detect
-		conflictTarget := onConflict
-		if conflictTarget == "" {
+		var conflictTarget string
+		var conflictTargetColumns []string
+
+		if onConflict != "" {
+			// Validate and quote custom conflict target columns
+			conflictCols := strings.Split(onConflict, ",")
+			quotedConflictCols := make([]string, 0, len(conflictCols))
+			for _, col := range conflictCols {
+				col = strings.TrimSpace(col)
+				if !h.columnExists(table, col) {
+					return c.Status(400).JSON(fiber.Map{
+						"error": fmt.Sprintf("Unknown column in on_conflict: %s", col),
+					})
+				}
+				quotedConflictCols = append(quotedConflictCols, quoteIdentifier(col))
+				conflictTargetColumns = append(conflictTargetColumns, col)
+			}
+			conflictTarget = strings.Join(quotedConflictCols, ", ")
+		} else {
 			conflictTarget = h.getConflictTarget(table)
+			conflictTargetColumns = h.getConflictTargetUnquoted(table)
 		}
 
 		if conflictTarget == "" {
@@ -104,13 +124,15 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 				for _, tableCol := range table.Columns {
 					colName := tableCol.Name
 					// Skip columns that are part of the conflict target
-					if h.isInConflictTarget(colName, conflictTarget) {
+					if h.isInConflictTarget(colName, conflictTargetColumns) {
 						continue
 					}
 
+					quotedColName := quoteIdentifier(colName)
+
 					// Check if column was provided in the data
 					columnProvided := false
-					for _, providedCol := range columns {
+					for _, providedCol := range columnNames {
 						if providedCol == colName {
 							columnProvided = true
 							break
@@ -119,17 +141,18 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 
 					if columnProvided {
 						// Use the provided value
-						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", colName, colName))
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", quotedColName, quotedColName))
 					} else {
 						// Set to NULL (missing column)
-						updateClauses = append(updateClauses, fmt.Sprintf("%s = NULL", colName))
+						updateClauses = append(updateClauses, fmt.Sprintf("%s = NULL", quotedColName))
 					}
 				}
 			} else {
 				// Only update columns that were provided
-				for _, col := range columns {
-					// Skip columns that are part of the conflict target
-					if !h.isInConflictTarget(col, conflictTarget) {
+				for i, col := range columns {
+					// Skip columns that are part of the conflict target (use unquoted name for comparison)
+					if !h.isInConflictTarget(columnNames[i], conflictTargetColumns) {
+						// col is already quoted
 						updateClauses = append(updateClauses, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
 					}
 				}
@@ -221,6 +244,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 				})
 			}
 
+			quotedCol := quoteIdentifier(col)
 			// Check if value is GeoJSON and needs PostGIS conversion
 			if isGeoJSON(val) {
 				// Convert GeoJSON to JSON string and use ST_GeomFromGeoJSON
@@ -230,10 +254,10 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 						"error": fmt.Sprintf("Invalid GeoJSON for column %s: %v", col, err),
 					})
 				}
-				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", col, argCounter))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ST_GeomFromGeoJSON($%d)", quotedCol, argCounter))
 				values = append(values, string(geoJSON))
 			} else {
-				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, argCounter))
+				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", quotedCol, argCounter))
 				values = append(values, val)
 			}
 			argCounter++
@@ -245,7 +269,7 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 
 		// Build UPDATE query
 		query := fmt.Sprintf(
-			"UPDATE %s.%s SET %s",
+			`UPDATE "%s"."%s" SET %s`,
 			table.Schema, table.Name,
 			strings.Join(setClauses, ", "),
 		)
@@ -313,7 +337,7 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 
 		// Build DELETE query
 		query := fmt.Sprintf(
-			"DELETE FROM %s.%s WHERE %s",
+			`DELETE FROM "%s"."%s" WHERE %s`,
 			table.Schema, table.Name, whereSQL,
 		) + buildReturningClause(table)
 

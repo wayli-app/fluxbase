@@ -15,9 +15,10 @@ func TestNewPasswordHasher(t *testing.T) {
 	assert.NotNil(t, hasher)
 	assert.Equal(t, DefaultBcryptCost, hasher.cost)
 	assert.Equal(t, MinPasswordLength, hasher.minLength)
-	assert.False(t, hasher.requireUpper)
-	assert.False(t, hasher.requireLower)
-	assert.False(t, hasher.requireDigit)
+	// New secure defaults require upper, lower, and digit (but not symbol)
+	assert.True(t, hasher.requireUpper)
+	assert.True(t, hasher.requireLower)
+	assert.True(t, hasher.requireDigit)
 	assert.False(t, hasher.requireSymbol)
 }
 

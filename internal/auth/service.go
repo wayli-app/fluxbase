@@ -55,7 +55,7 @@ func NewService(
 	sessionRepo := NewSessionRepository(db)
 	magicLinkRepo := NewMagicLinkRepository(db)
 
-	jwtManager := NewJWTManager(cfg.JWTSecret, cfg.JWTExpiry, cfg.RefreshExpiry)
+	jwtManager := NewJWTManagerWithConfig(cfg.JWTSecret, cfg.JWTExpiry, cfg.RefreshExpiry, cfg.ServiceRoleTTL, cfg.AnonTTL)
 	passwordHasher := NewPasswordHasherWithConfig(PasswordHasherConfig{MinLength: cfg.PasswordMinLen, Cost: cfg.BcryptCost})
 	oauthManager := NewOAuthManager()
 

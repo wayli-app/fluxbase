@@ -58,11 +58,15 @@ func isGeometryColumn(dataType string) bool {
 func buildSelectColumns(table database.TableInfo) string {
 	columns := make([]string, 0, len(table.Columns))
 	for _, col := range table.Columns {
+		quotedName := quoteIdentifier(col.Name)
+		if quotedName == "" {
+			continue // Skip invalid column names
+		}
 		if isGeometryColumn(col.DataType) {
 			// Convert geometry to GeoJSON
-			columns = append(columns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col.Name, col.Name))
+			columns = append(columns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", quotedName, quotedName))
 		} else {
-			columns = append(columns, col.Name)
+			columns = append(columns, quotedName)
 		}
 	}
 	return strings.Join(columns, ", ")

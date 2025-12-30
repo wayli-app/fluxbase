@@ -159,7 +159,13 @@ func main() {
 
 	// Generate and set service role and anon keys for edge functions
 	// These are JWT tokens that edge functions can use to call the Fluxbase API
-	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
+	jwtManager := auth.NewJWTManagerWithConfig(
+		cfg.Auth.JWTSecret,
+		cfg.Auth.JWTExpiry,
+		cfg.Auth.RefreshExpiry,
+		cfg.Auth.ServiceRoleTTL,
+		cfg.Auth.AnonTTL,
+	)
 
 	// Generate service role token (full admin access, bypasses RLS)
 	serviceRoleKey, err := jwtManager.GenerateServiceRoleToken()
