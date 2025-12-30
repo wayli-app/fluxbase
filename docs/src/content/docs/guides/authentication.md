@@ -268,7 +268,7 @@ await client.auth.updatePassword({
 });
 ```
 
-## API Keys
+## client keys
 
 ```typescript
 // Create API key for server-to-server auth

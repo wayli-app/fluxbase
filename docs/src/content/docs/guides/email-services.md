@@ -87,7 +87,7 @@ FLUXBASE_EMAIL_SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxx
 **Setup:**
 
 1. Sign up at [sendgrid.com](https://sendgrid.com)
-2. Settings → API Keys → Create API Key (Mail Send permission)
+2. Settings → client keys → Create API Key (Mail Send permission)
 3. Verify domain: Settings → Sender Authentication → Add DNS records
 
 ---
@@ -104,7 +104,7 @@ FLUXBASE_EMAIL_MAILGUN_DOMAIN=mg.yourapp.com
 
 1. Sign up at [mailgun.com](https://www.mailgun.com)
 2. Add domain: Sending → Domains → Add DNS records
-3. Get API key: Settings → API Keys → Copy Private API key
+3. Get API key: Settings → client keys → Copy Private API key
 
 ---
 
@@ -152,7 +152,7 @@ email:
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Emails not sending**          | Check logs for "Email service initialized", verify SMTP connection with `telnet smtp.gmail.com 587`, confirm credentials are correct |
 | **Gmail "Less secure app"**     | Use [App Password](https://myaccount.google.com/apppasswords): Enable 2FA → Generate app password → Use in config                    |
-| **SendGrid 401**                | Verify API key has "Mail Send" permission: Settings → API Keys → Check permissions                                                   |
+| **SendGrid 401**                | Verify API key has "Mail Send" permission: Settings → client keys → Check permissions                                                   |
 | **Mailgun domain not verified** | Add DNS records: Copy TXT/MX records → Add to DNS provider → Wait 5-10 min → Verify                                                  |
 | **AWS SES sandbox**             | In sandbox, only sends to verified addresses. Request production access or verify recipients                                         |
 | **SMTP timeout**                | Check firewall allows port 587/465, verify host/port, try different ports, check if hosting provider blocks SMTP                     |
@@ -163,7 +163,7 @@ email:
 
 | Practice                      | Description                                                                              |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
-| **Use environment variables** | Never commit API keys/passwords to version control. Use `FLUXBASE_EMAIL_*` env vars      |
+| **Use environment variables** | Never commit client keys/passwords to version control. Use `FLUXBASE_EMAIL_*` env vars      |
 | **Verify domain**             | Always verify sending domain in production to improve deliverability and avoid spam      |
 | **Separate dev/prod**         | Use SMTP/MailHog for development, SendGrid/Mailgun/SES for production                    |
 | **Monitor delivery**          | Set up webhooks to track bounces/complaints. Keep bounce rate < 5%                       |

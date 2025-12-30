@@ -33,7 +33,7 @@ COMMENT ON COLUMN app.settings.value IS 'Setting value stored as JSONB for flexi
 COMMENT ON COLUMN app.settings.value_type IS 'Type hint for the value: string, number, boolean, json, or array';
 COMMENT ON COLUMN app.settings.category IS 'Category of setting: auth, system, storage, functions, realtime, or custom';
 COMMENT ON COLUMN app.settings.is_public IS 'Whether this setting can be read by public/anon users';
-COMMENT ON COLUMN app.settings.is_secret IS 'Whether this setting contains sensitive data (e.g., API keys, secrets)';
+COMMENT ON COLUMN app.settings.is_secret IS 'Whether this setting contains sensitive data (e.g., client keys, secrets)';
 COMMENT ON COLUMN app.settings.editable_by IS 'Array of roles that can edit this setting';
 COMMENT ON COLUMN app.settings.metadata IS 'Additional metadata about the setting (validation rules, UI hints, etc.)';
 

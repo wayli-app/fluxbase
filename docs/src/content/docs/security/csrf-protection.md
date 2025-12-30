@@ -570,11 +570,11 @@ CSRF protection doesn't prevent XSS attacks. Always:
 - Use secure templating
 - Enable security headers
 
-### CSRF vs API Keys
+### CSRF vs client keys
 
 API key authentication bypasses CSRF protection:
 
-- API keys are not stored in cookies
+- Client keys are not stored in cookies
 - Intended for server-to-server communication
 - Still need proper authentication and authorization
 

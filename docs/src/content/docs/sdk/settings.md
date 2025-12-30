@@ -242,7 +242,7 @@ The `EmailSettingsManager` provides direct access to email provider configuratio
 
 ### Get Email Settings
 
-Retrieve the current email provider configuration. Sensitive values (passwords, API keys) are never returned - boolean flags indicate whether they are set.
+Retrieve the current email provider configuration. Sensitive values (passwords, client keys) are never returned - boolean flags indicate whether they are set.
 
 ```typescript
 const settings = await client.admin.settings.email.get()
@@ -471,7 +471,7 @@ await client.admin.settings.system.delete('custom.feature.beta')
 
 ## Secret Settings
 
-Secret settings provide encrypted storage for sensitive application configuration such as API keys, credentials, and tokens. Values are encrypted at rest and never returned via the API - only metadata is accessible.
+Secret settings provide encrypted storage for sensitive application configuration such as client keys, credentials, and tokens. Values are encrypted at rest and never returned via the API - only metadata is accessible.
 
 ### Secret Types
 
@@ -482,7 +482,7 @@ Secret settings provide encrypted storage for sensitive application configuratio
 **User secrets** are per-user secrets with additional protection:
 - Encrypted with a user-derived key (HKDF)
 - Even admins cannot decrypt other users' secrets
-- Ideal for user-provided API keys (OpenAI, etc.)
+- Ideal for user-provided client keys (OpenAI, etc.)
 
 ### Create/Update System Secret (Admin)
 
@@ -1015,6 +1015,6 @@ console.log(secretMetadata.updated_at) // timestamp
 ## Next Steps
 
 - Learn about [Admin SDK](/docs/sdk/admin) for user management and authentication
-- Explore [Management SDK](/docs/sdk/management) for API keys and webhooks
+- Explore [Management SDK](/docs/sdk/management) for client keys and webhooks
 - Read about [Database](/docs/guides/typescript-sdk/database) operations
 - Check out [Authentication](/docs/guides/authentication) for user-facing auth flows

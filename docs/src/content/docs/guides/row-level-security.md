@@ -101,7 +101,7 @@ This table shows the default table-level permissions for each schema. Actual row
 
 #### auth
 
-Anonymous users have no direct access to auth tables. All authentication operations (signup, signin, password reset) are performed internally using the service role. Authenticated users can view and update their own profile, manage their sessions and API keys. Dashboard admins can view all users and perform administrative actions.
+Anonymous users have no direct access to auth tables. All authentication operations (signup, signin, password reset) are performed internally using the service role. Authenticated users can view and update their own profile, manage their sessions and client keys. Dashboard admins can view all users and perform administrative actions.
 
 #### app
 

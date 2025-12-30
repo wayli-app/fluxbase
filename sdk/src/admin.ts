@@ -60,7 +60,7 @@ export class FluxbaseAdmin {
   public impersonation: ImpersonationManager;
 
   /**
-   * Management namespace for API keys, webhooks, and invitations
+   * Management namespace for client keys, webhooks, and invitations
    */
   public management: FluxbaseManagement;
 

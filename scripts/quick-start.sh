@@ -77,7 +77,7 @@ POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 # Authentication
 FLUXBASE_AUTH_JWT_SECRET=$JWT_SECRET
 
-# Encryption (for secrets, OAuth tokens, API keys)
+# Encryption (for secrets, OAuth tokens, client keys)
 FLUXBASE_ENCRYPTION_KEY=$ENCRYPTION_KEY
 
 # Admin Dashboard Access

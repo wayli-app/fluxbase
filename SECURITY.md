@@ -93,7 +93,7 @@ When deploying Fluxbase:
    - `SameSite=Strict` for CSRF protection
    - `Secure` flag in production (HTTPS only)
 
-7. **API Keys**: Rotate API keys and tokens regularly
+7. **Client keys**: Rotate client keys and tokens regularly
 
 ### Operational Security
 

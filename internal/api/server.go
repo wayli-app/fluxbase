@@ -917,7 +917,7 @@ func (s *Server) setupRoutes() {
 	// Dashboard auth routes (separate from application auth)
 	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
-	// API Keys routes - require authentication
+	// client keys routes - require authentication
 	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Secrets routes - require authentication
@@ -1584,7 +1584,7 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		// Build secure middleware stack for migrations API
 		// Layer 1: Feature flag check
 		// Layer 2: IP allowlist (only allow app container)
-		// Layer 3: Service key authentication (no JWT/API keys)
+		// Layer 3: Service key authentication (no JWT/client keys)
 		// Layer 4: Scope validation (migrations:execute)
 		// Layer 5: Rate limiting (10 req/hour)
 		// Layer 6: Audit logging

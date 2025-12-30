@@ -3,7 +3,7 @@
 -- ============================================================================
 -- This file contains all Row Level Security (RLS) policies for the Auth schema.
 -- These policies control access to authentication-related tables such as users,
--- sessions, API keys, OAuth, 2FA, webhooks, and impersonation.
+-- sessions, client keys, OAuth, 2FA, webhooks, and impersonation.
 -- ============================================================================
 
 -- Auth users table
@@ -114,7 +114,7 @@ CREATE POLICY auth_sessions_delete_own ON auth.sessions
 
 COMMENT ON POLICY auth_sessions_delete_own ON auth.sessions IS 'Users can delete their own sessions (logout). Dashboard admins can delete any session.';
 
--- Auth API keys table
+-- Auth client keys table
 ALTER TABLE auth.api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth.api_keys FORCE ROW LEVEL SECURITY;
 
@@ -150,7 +150,7 @@ CREATE POLICY api_key_usage_user_read ON auth.api_key_usage
         OR auth.current_user_role() = 'service_role'
     );
 
-COMMENT ON POLICY api_key_usage_user_read ON auth.api_key_usage IS 'Users can view usage for their own API keys. Admins can view all usage.';
+COMMENT ON POLICY api_key_usage_user_read ON auth.api_key_usage IS 'Users can view usage for their own client keys. Admins can view all usage.';
 
 -- Auth magic links
 ALTER TABLE auth.magic_links ENABLE ROW LEVEL SECURITY;

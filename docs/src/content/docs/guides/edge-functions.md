@@ -35,7 +35,7 @@ import { FluxbaseClient } from "@fluxbase/sdk";
 
 const client = new FluxbaseClient({
   url: "http://localhost:8080",
-  apiKey: process.env.FLUXBASE_API_KEY,
+  apiKey: process.env.FLUXBASE_CLIENT_KEY,
 });
 
 // Create function
@@ -1221,7 +1221,7 @@ const s3Secret = Deno.env.get("FLUXBASE_STORAGE_S3_SECRET_KEY");
 
 ## Secrets
 
-Secrets provide secure storage for sensitive values like API keys, database credentials, and tokens. Secrets are encrypted at rest and made available to functions via the built-in `secrets` object.
+Secrets provide secure storage for sensitive values like client keys, database credentials, and tokens. Secrets are encrypted at rest and made available to functions via the built-in `secrets` object.
 
 ### Creating Secrets
 
@@ -1299,8 +1299,8 @@ export default async function handler(req: Request): Promise<Response> {
 
 | Type   | Set by        | Scope                 | Use case                                    |
 | ------ | ------------- | --------------------- | ------------------------------------------- |
-| System | Admin (CLI)   | All functions, shared | Shared API keys (Stripe, SendGrid)          |
-| User   | User (SDK)    | Per-user, private     | User's own API keys (OpenAI, custom tokens) |
+| System | Admin (CLI)   | All functions, shared | Shared client keys (Stripe, SendGrid)          |
+| User   | User (SDK)    | Per-user, private     | User's own client keys (OpenAI, custom tokens) |
 
 When a function calls `secrets.get("openai_api_key")`:
 

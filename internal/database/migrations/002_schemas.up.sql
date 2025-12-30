@@ -3,7 +3,7 @@
 
 --
 -- AUTH SCHEMA
--- Handles application user authentication, API keys, and sessions
+-- Handles application user authentication, client keys, and sessions
 --
 
 CREATE SCHEMA IF NOT EXISTS auth;

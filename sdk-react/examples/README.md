@@ -146,7 +146,7 @@ const { keys }: { keys: APIKey[] } = useAPIKeys({ autoFetch: true })
 ## Next Steps
 
 1. **Customize the UI** - Adapt the styling to match your design system
-2. **Add more features** - Implement API keys, webhooks, and settings tabs
+2. **Add more features** - Implement client keys, webhooks, and settings tabs
 3. **Add validation** - Add form validation for user inputs
 4. **Add loading states** - Improve loading and error states
 5. **Add notifications** - Show success/error toasts for mutations

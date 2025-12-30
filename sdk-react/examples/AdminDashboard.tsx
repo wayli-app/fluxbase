@@ -143,7 +143,7 @@ function Overview() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm font-medium text-gray-500">API Keys</div>
+          <div className="text-sm font-medium text-gray-500">client keys</div>
           <div className="mt-2 text-3xl font-semibold text-gray-900">{activeKeys}</div>
           <div className="mt-2 text-xs text-gray-500">{keys.length - activeKeys} expired</div>
         </div>
@@ -449,7 +449,7 @@ export default function AdminDashboard() {
   const tabs: { id: TabType; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'users', label: 'Users' },
-    { id: 'keys', label: 'API Keys' },
+    { id: 'keys', label: 'client keys' },
     { id: 'webhooks', label: 'Webhooks' },
     { id: 'settings', label: 'Settings' }
   ]
@@ -504,7 +504,7 @@ export default function AdminDashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && <Overview />}
         {activeTab === 'users' && <UserManagement />}
-        {activeTab === 'keys' && <div className="text-center py-8">API Keys management (implement using useAPIKeys)</div>}
+        {activeTab === 'keys' && <div className="text-center py-8">client keys management (implement using useAPIKeys)</div>}
         {activeTab === 'webhooks' && <div className="text-center py-8">Webhooks management (implement using useWebhooks)</div>}
         {activeTab === 'settings' && <div className="text-center py-8">Settings management (implement using useAppSettings and useSystemSettings)</div>}
       </main>

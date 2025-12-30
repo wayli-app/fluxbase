@@ -5,10 +5,10 @@ prev: false
 title: "APIKeysManager"
 ---
 
-API Keys management client
+Client keys management client
 
-Provides methods for managing API keys for service-to-service authentication.
-API keys allow external services to authenticate without user credentials.
+Provides methods for managing client keys for service-to-service authentication.
+client keys allow external services to authenticate without user credentials.
 
 ## Example
 
@@ -23,7 +23,7 @@ const { api_key, key } = await client.management.apiKeys.create({
   rate_limit_per_minute: 100
 })
 
-// List API keys
+// List client keys
 const { api_keys } = await client.management.apiKeys.list()
 ```
 
@@ -140,13 +140,13 @@ console.log('Last used:', apiKey.last_used_at)
 
 > **list**(): `Promise`\<[`ListAPIKeysResponse`](/api/sdk/interfaces/listapikeysresponse/)\>
 
-List all API keys for the authenticated user
+List all client keys for the authenticated user
 
 #### Returns
 
 `Promise`\<[`ListAPIKeysResponse`](/api/sdk/interfaces/listapikeysresponse/)\>
 
-List of API keys (without full key values)
+List of client keys (without full key values)
 
 #### Example
 

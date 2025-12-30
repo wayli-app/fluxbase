@@ -1102,7 +1102,7 @@ export class EmailSettingsManager {
   /**
    * Get current email provider settings
    *
-   * Returns the current email configuration. Sensitive values (passwords, API keys)
+   * Returns the current email configuration. Sensitive values (passwords, client keys)
    * are not returned - instead, boolean flags indicate whether they are set.
    *
    * @returns Promise resolving to EmailProviderSettings
@@ -1131,7 +1131,7 @@ export class EmailSettingsManager {
    * Update email provider settings
    *
    * Supports partial updates - only provide the fields you want to change.
-   * Secret fields (passwords, API keys) are only updated if provided.
+   * Secret fields (passwords, client keys) are only updated if provided.
    *
    * @param request - Settings to update (partial update supported)
    * @returns Promise resolving to EmailProviderSettings - Updated settings

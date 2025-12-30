@@ -37,7 +37,7 @@ type Config struct {
 	PublicBaseURL string           `mapstructure:"public_base_url"` // Public base URL (for user-facing links, OAuth callbacks, etc.)
 	Debug         bool             `mapstructure:"debug"`
 
-	// EncryptionKey is used to encrypt sensitive data stored in the database (e.g., API keys, credentials)
+	// EncryptionKey is used to encrypt sensitive data stored in the database (e.g., client keys, credentials)
 	// Must be exactly 32 bytes for AES-256. Generate with: openssl rand -base64 32 | head -c 32
 	// Only required if you configure providers (Email, AI) through the admin dashboard instead of env vars
 	EncryptionKey string `mapstructure:"encryption_key"`

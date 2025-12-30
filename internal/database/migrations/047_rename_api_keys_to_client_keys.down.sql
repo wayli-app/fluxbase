@@ -1,5 +1,5 @@
 -- ============================================================================
--- REVERT: RENAME CLIENT KEYS BACK TO API KEYS
+-- REVERT: RENAME CLIENT KEYS BACK TO client keys
 -- ============================================================================
 
 -- Revert RLS policies for client_key_usage table
@@ -15,7 +15,7 @@ CREATE POLICY api_key_usage_user_read ON auth.client_key_usage
         OR auth.current_user_role() = 'service_role'
     );
 
-COMMENT ON POLICY api_key_usage_user_read ON auth.client_key_usage IS 'Users can view usage for their own API keys. Admins can view all usage.';
+COMMENT ON POLICY api_key_usage_user_read ON auth.client_key_usage IS 'Users can view usage for their own client keys. Admins can view all usage.';
 
 DROP POLICY IF EXISTS client_key_usage_service_write ON auth.client_key_usage;
 CREATE POLICY api_key_usage_service_write ON auth.client_key_usage
@@ -39,14 +39,23 @@ DROP TRIGGER IF EXISTS update_auth_client_keys_updated_at ON auth.client_keys;
 CREATE TRIGGER update_auth_api_keys_updated_at BEFORE UPDATE ON auth.client_keys
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
--- Revert indexes on client_key_usage table
-ALTER INDEX idx_auth_client_key_usage_created_at RENAME TO idx_auth_api_key_usage_created_at;
-ALTER INDEX idx_auth_client_key_usage_client_key_id RENAME TO idx_auth_api_key_usage_api_key_id;
+-- Revert indexes on client_key_usage table (use IF EXISTS for safety)
+ALTER INDEX IF EXISTS idx_auth_client_key_usage_created_at RENAME TO idx_auth_api_key_usage_created_at;
+ALTER INDEX IF EXISTS idx_auth_client_key_usage_client_key_id RENAME TO idx_auth_api_key_usage_api_key_id;
 
--- Revert indexes on client_keys table
-ALTER INDEX idx_auth_client_keys_key_prefix RENAME TO idx_auth_api_keys_key_prefix;
-ALTER INDEX idx_auth_client_keys_user_id RENAME TO idx_auth_api_keys_user_id;
-ALTER INDEX idx_auth_client_keys_key_hash RENAME TO idx_auth_api_keys_key_hash;
+-- Create the usage indexes if they don't exist
+CREATE INDEX IF NOT EXISTS idx_auth_api_key_usage_api_key_id ON auth.client_key_usage(client_key_id);
+CREATE INDEX IF NOT EXISTS idx_auth_api_key_usage_created_at ON auth.client_key_usage(created_at DESC);
+
+-- Revert indexes on client_keys table (use IF EXISTS for safety)
+ALTER INDEX IF EXISTS idx_auth_client_keys_key_prefix RENAME TO idx_auth_api_keys_key_prefix;
+ALTER INDEX IF EXISTS idx_auth_client_keys_user_id RENAME TO idx_auth_api_keys_user_id;
+ALTER INDEX IF EXISTS idx_auth_client_keys_key_hash RENAME TO idx_auth_api_keys_key_hash;
+
+-- Create the indexes if they don't exist
+CREATE INDEX IF NOT EXISTS idx_auth_api_keys_key_hash ON auth.client_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_api_keys_user_id ON auth.client_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_api_keys_key_prefix ON auth.client_keys(key_prefix);
 
 -- Revert foreign key column name
 ALTER TABLE auth.client_key_usage RENAME COLUMN client_key_id TO api_key_id;

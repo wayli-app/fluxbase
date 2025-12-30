@@ -17,10 +17,10 @@ Core admin authentication and user management capabilities.
 **Learn More:** [Admin SDK](/docs/sdk/admin)
 ---
 
-### 2. API Keys & Webhooks
+### 2. client keys & Webhooks
 Programmatic access and event-driven integrations.
 
-**API Keys:**
+**client keys:**
 - Generate service keys for backend integrations
 - Set expiration dates and permissions
 - Revoke keys when needed
@@ -220,7 +220,7 @@ setupAdminDashboard().catch(console.error)
 ### 1. API Key Management
 
 ```typescript
-// Rotate API keys regularly
+// Rotate client keys regularly
 async function rotateAPIKey(oldKeyId: string) {
   // Create new key
   const { key: newKey } = await client.admin.management.apiKeys.create({
@@ -479,7 +479,7 @@ function handleRequest() {
 When creating multiple resources, batch them:
 
 ```typescript
-// Create multiple API keys at once
+// Create multiple client keys at once
 const apiKeys = await Promise.all([
   client.admin.management.apiKeys.create({ name: 'Service A' }),
   client.admin.management.apiKeys.create({ name: 'Service B' }),
@@ -632,7 +632,7 @@ await client.admin.settings.app.update({
 ## Related Resources
 
 - [Admin SDK](/docs/sdk/admin) - Admin authentication and user management
-- [Management SDK](/docs/sdk/management) - API keys, webhooks, and invitations
+- [Management SDK](/docs/sdk/management) - client keys, webhooks, and invitations
 - [Settings SDK](/docs/sdk/settings) - Application and system configuration
 - [DDL SDK](/docs/sdk/ddl) - Database schema operations
 - [OAuth SDK](/docs/sdk/oauth) - Authentication provider configuration

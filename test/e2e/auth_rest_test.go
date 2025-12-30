@@ -95,7 +95,7 @@ func TestRESTWithBearerToken(t *testing.T) {
 	}
 }
 
-// TestRESTWithInvalidAPIKey verifies that invalid API keys are rejected
+// TestRESTWithInvalidAPIKey verifies that invalid client keys are rejected
 func TestRESTWithInvalidAPIKey(t *testing.T) {
 	tc := test.NewTestContext(t)
 	defer tc.Close()
@@ -225,12 +225,12 @@ func TestRESTAPIKeyScopes(t *testing.T) {
 		Send()
 }
 
-// TestRESTMultipleAPIKeys verifies that multiple API keys can coexist
+// TestRESTMultipleAPIKeys verifies that multiple client keys can coexist
 func TestRESTMultipleAPIKeys(t *testing.T) {
 	tc := test.NewTestContext(t)
 	defer tc.Close()
 
-	// Create multiple API keys
+	// Create multiple client keys
 	apiKey1 := tc.CreateAPIKey("API Key 1", nil)
 	apiKey2 := tc.CreateAPIKey("API Key 2", nil)
 

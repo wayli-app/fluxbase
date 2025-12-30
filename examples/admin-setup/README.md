@@ -7,7 +7,7 @@ This example demonstrates how to use all the advanced admin features in Fluxbase
 - OAuth provider configuration
 - Settings management (system and app)
 - DDL operations for multi-tenancy
-- API keys and webhooks
+- client keys and webhooks
 - User impersonation for debugging
 
 ## Prerequisites
@@ -54,7 +54,7 @@ This will:
 3. Update authentication settings (password requirements, session timeout)
 4. Configure app settings (enable features, rate limiting)
 5. Create multi-tenant database schemas
-6. Generate API keys for services
+6. Generate client keys for services
 7. Set up webhooks for events
 8. Store custom configuration
 
@@ -75,7 +75,7 @@ npm run example:settings
 # DDL operations (multi-tenancy)
 npm run example:ddl
 
-# API keys and webhooks
+# client keys and webhooks
 npm run example:management
 
 # User impersonation
@@ -125,10 +125,10 @@ Demonstrates:
 - Listing schemas and tables
 - Building multi-tenant architectures
 
-### 6. API Keys & Webhooks (`src/06-management.ts`)
+### 6. client keys & Webhooks (`src/06-management.ts`)
 
 Shows how to:
-- Generate API keys for backend services
+- Generate client keys for backend services
 - Set expiration dates
 - Revoke keys
 - Create webhooks for database events
@@ -247,7 +247,7 @@ await client.admin.management.webhooks.create({
 ## Best Practices
 
 1. **Secure Credentials**: Always use environment variables, never hardcode secrets
-2. **Rotate Keys**: Regularly rotate API keys and OAuth credentials
+2. **Rotate Keys**: Regularly rotate client keys and OAuth credentials
 3. **Audit Trail**: Review impersonation sessions regularly
 4. **Strong Passwords**: Enforce strong password policies in production
 5. **Rate Limiting**: Enable rate limiting to prevent abuse

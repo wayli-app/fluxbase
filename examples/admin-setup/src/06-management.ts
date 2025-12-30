@@ -1,9 +1,9 @@
 /**
- * Example 6: API Keys & Webhooks Management
+ * Example 6: client keys & Webhooks Management
  *
  * This example demonstrates:
- * - Creating API keys
- * - Listing and managing API keys
+ * - Creating client keys
+ * - Listing and managing client keys
  * - Revoking keys
  * - Creating webhooks
  * - Webhook delivery tracking
@@ -15,7 +15,7 @@ import { getClient, authenticateAdmin } from './utils/client.js'
 import { logger } from './utils/logger.js'
 
 async function main() {
-  logger.section('API Keys & Webhooks Management Example')
+  logger.section('client keys & Webhooks Management Example')
 
   const client = getClient()
 
@@ -23,10 +23,10 @@ async function main() {
     await authenticateAdmin(client)
     logger.success('Admin authenticated')
 
-    // Step 1: List Existing API Keys
-    logger.step(1, 'List Existing API Keys')
+    // Step 1: List Existing client keys
+    logger.step(1, 'List Existing client keys')
     const { keys } = await client.admin.management.apiKeys.list()
-    logger.success(`Found ${keys.length} API keys`)
+    logger.success(`Found ${keys.length} client keys`)
     keys.forEach(k => {
       logger.item(`${k.name} (${k.id.substring(0, 8)}...)`)
       logger.item(`  Created: ${new Date(k.created_at).toLocaleString()}`)
@@ -142,7 +142,7 @@ async function main() {
 
     logger.section('✅ Management Example Complete')
     logger.info('Key takeaways:')
-    logger.item('Create API keys for backend services')
+    logger.item('Create client keys for backend services')
     logger.item('Set expiration dates for security')
     logger.item('Webhooks notify you of database events')
     logger.item('Monitor webhook delivery status')

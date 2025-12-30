@@ -40,7 +40,7 @@ test/e2e/                # End-to-end tests
 
 ## Database Schemas
 
-- `auth.*` - Users, sessions, identities, API keys
+- `auth.*` - Users, sessions, identities, client keys
 - `storage.*` - Buckets, objects, access policies
 - `jobs.*` - Background job storage
 - `functions.*` - Edge functions registry

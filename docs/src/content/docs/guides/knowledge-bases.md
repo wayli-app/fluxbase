@@ -643,7 +643,7 @@ console.log('Document Stats:', stats)
 
 **Check embedding provider configuration:**
 - Verify `FLUXBASE_AI_EMBEDDING_ENABLED=true`
-- Confirm API keys are valid
+- Confirm client keys are valid
 - Check provider endpoint is accessible
 
 **Check document status:**

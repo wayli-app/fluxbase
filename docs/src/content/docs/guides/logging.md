@@ -798,14 +798,14 @@ if level == "debug" && rand.Float64() > 0.1 {
 Fluxbase automatically redacts:
 
 - Passwords
-- API keys
+- Client keys
 - JWT tokens
 - Credit card numbers
 
 Never log:
 
 - ❌ User passwords (plaintext or hashed)
-- ❌ API keys or secrets
+- ❌ Client keys or secrets
 - ❌ JWT tokens (except for debugging)
 - ❌ Credit card information
 - ❌ Social security numbers

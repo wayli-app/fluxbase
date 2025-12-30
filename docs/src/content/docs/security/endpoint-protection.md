@@ -24,7 +24,7 @@ Fluxbase implements a **multi-layered security model** to protect API endpoints 
 | Layer | Protection | Description |
 |-------|------------|-------------|
 | **Layer 1** | Network | IP allowlists, rate limiting, CORS, TLS/HTTPS |
-| **Layer 2** | Authentication | JWT tokens, API keys, service keys, CSRF protection |
+| **Layer 2** | Authentication | JWT tokens, client keys, service keys, CSRF protection |
 | **Layer 3** | Authorization | Role-based access (RBAC), scope enforcement, feature flags |
 | **Layer 4** | Database | Row-Level Security (RLS), PostgreSQL policies |
 | **Layer 5** | Data | Password hashing, token hashing, audit logging |

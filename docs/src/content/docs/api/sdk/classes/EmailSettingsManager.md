@@ -61,7 +61,7 @@ await email.setProvider("smtp");
 
 Get current email provider settings
 
-Returns the current email configuration. Sensitive values (passwords, API keys)
+Returns the current email configuration. Sensitive values (passwords, client keys)
 are not returned - instead, boolean flags indicate whether they are set.
 
 #### Returns
@@ -97,7 +97,7 @@ if (settings._overrides.provider?.is_overridden) {
 Update email provider settings
 
 Supports partial updates - only provide the fields you want to change.
-Secret fields (passwords, API keys) are only updated if provided.
+Secret fields (passwords, client keys) are only updated if provided.
 
 #### Parameters
 

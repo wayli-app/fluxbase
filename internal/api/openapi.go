@@ -1045,19 +1045,19 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// GET /api/v1/api-keys - List API keys
-	spec.Paths["/api/v1/api-keys"] = OpenAPIPath{
+	// GET /api/v1/client-keys - List client keys
+	spec.Paths["/api/v1/client-keys"] = OpenAPIPath{
 		"get": OpenAPIOperation{
-			Summary:     "List API keys",
-			Description: "Get all API keys for the authenticated user",
+			Summary:     "List client keys",
+			Description: "Get all client keys for the authenticated user",
 			OperationID: "apikeys_list",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
 			Responses: map[string]OpenAPIResponse{
 				"200": {
-					Description: "List of API keys",
+					Description: "List of client keys",
 					Content: map[string]OpenAPIMedia{
 						"application/json": {
 							Schema: map[string]interface{}{
@@ -1073,7 +1073,7 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 			Summary:     "Create API key",
 			Description: "Create a new API key",
 			OperationID: "apikeys_create",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1098,13 +1098,13 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// GET/PATCH/DELETE /api/v1/api-keys/:id
-	spec.Paths["/api/v1/api-keys/{id}"] = OpenAPIPath{
+	// GET/PATCH/DELETE /api/v1/client-keys/:id
+	spec.Paths["/api/v1/client-keys/{id}"] = OpenAPIPath{
 		"get": OpenAPIOperation{
 			Summary:     "Get API key",
 			Description: "Get details of a specific API key",
 			OperationID: "apikeys_get",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1134,7 +1134,7 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 			Summary:     "Update API key",
 			Description: "Update an existing API key",
 			OperationID: "apikeys_update",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1172,7 +1172,7 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 			Summary:     "Delete API key",
 			Description: "Delete an API key",
 			OperationID: "apikeys_delete",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1187,13 +1187,13 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 	}
 
-	// POST /api/v1/api-keys/:id/revoke
-	spec.Paths["/api/v1/api-keys/{id}/revoke"] = OpenAPIPath{
+	// POST /api/v1/client-keys/:id/revoke
+	spec.Paths["/api/v1/client-keys/{id}/revoke"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Revoke API key",
 			Description: "Revoke an API key (deactivate without deleting)",
 			OperationID: "apikeys_revoke",
-			Tags:        []string{"API Keys"},
+			Tags:        []string{"client keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},

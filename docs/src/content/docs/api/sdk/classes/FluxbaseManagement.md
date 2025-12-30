@@ -5,7 +5,7 @@ prev: false
 title: "FluxbaseManagement"
 ---
 
-Management client for API keys, webhooks, and invitations
+Management client for client keys, webhooks, and invitations
 
 ## Constructors
 
@@ -27,6 +27,6 @@ Management client for API keys, webhooks, and invitations
 
 | Property | Modifier | Type | Description |
 | ------ | ------ | ------ | ------ |
-| `apiKeys` | `public` | [`APIKeysManager`](/api/sdk/classes/apikeysmanager/) | API Keys management |
+| `apiKeys` | `public` | [`APIKeysManager`](/api/sdk/classes/apikeysmanager/) | client keys management |
 | `invitations` | `public` | [`InvitationsManager`](/api/sdk/classes/invitationsmanager/) | Invitations management |
 | `webhooks` | `public` | [`WebhooksManager`](/api/sdk/classes/webhooksmanager/) | Webhooks management |

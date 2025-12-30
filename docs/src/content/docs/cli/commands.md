@@ -664,7 +664,7 @@ fluxbase settings set auth.signup_enabled true
 
 ## Settings Secrets Commands
 
-Manage encrypted application settings secrets. These are separate from the function secrets (`fluxbase secrets`) and are used for storing sensitive application configuration such as API keys and credentials.
+Manage encrypted application settings secrets. These are separate from the function secrets (`fluxbase secrets`) and are used for storing sensitive application configuration such as client keys and credentials.
 
 Settings secrets support two scopes:
 

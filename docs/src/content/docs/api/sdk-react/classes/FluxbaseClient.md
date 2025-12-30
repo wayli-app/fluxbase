@@ -237,7 +237,7 @@ Jobs module for submitting and monitoring background jobs
 
 > **management**: `FluxbaseManagement`
 
-Management module for API keys, webhooks, and invitations
+Management module for client keys, webhooks, and invitations
 
 ---
 

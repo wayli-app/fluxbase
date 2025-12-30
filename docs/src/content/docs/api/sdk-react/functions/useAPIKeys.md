@@ -7,7 +7,7 @@ title: "useAPIKeys"
 
 > **useAPIKeys**(`options`): `UseAPIKeysReturn`
 
-Hook for managing API keys
+Hook for managing client keys
 
 Provides API key list and management functions.
 

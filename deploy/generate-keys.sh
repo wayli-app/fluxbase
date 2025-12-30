@@ -91,7 +91,7 @@ POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 # Authentication - JWT signing secret
 FLUXBASE_AUTH_JWT_SECRET=$JWT_SECRET
 
-# Encryption - For secrets, OAuth tokens, API keys at rest
+# Encryption - For secrets, OAuth tokens, client keys at rest
 # Must be exactly 32 characters for AES-256-GCM
 FLUXBASE_ENCRYPTION_KEY=$ENCRYPTION_KEY
 

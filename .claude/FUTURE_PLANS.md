@@ -17,7 +17,7 @@ Implement an embedded MCP server in Fluxbase that enables AI assistants to inter
 ### Benefits
 
 1. **Standardized AI Integration**: Any MCP-compatible AI client can interact with Fluxbase
-2. **Security**: Inherits Fluxbase auth (JWT, API keys, RLS)
+2. **Security**: Inherits Fluxbase auth (JWT, client keys, RLS)
 3. **Unified Interface**: Single protocol for database, functions, storage, and more
 4. **Tool Discovery**: AI agents can discover available capabilities dynamically
 5. **Competitive Advantage**: Positions Fluxbase as an "AI-native" BaaS

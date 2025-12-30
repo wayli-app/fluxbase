@@ -1118,7 +1118,7 @@ export interface DeleteClientKeyResponse {
 }
 
 // ============================================================================
-// API Keys Management Types (Deprecated - use Client Keys instead)
+// client keys Management Types (Deprecated - use Client Keys instead)
 // ============================================================================
 
 /** @deprecated Use ClientKey instead */
@@ -1609,7 +1609,7 @@ export interface EmailProviderSettings {
  * Request to update email provider settings
  *
  * All fields are optional - only provided fields will be updated.
- * Secret fields (passwords, API keys) are only updated if provided.
+ * Secret fields (passwords, client keys) are only updated if provided.
  */
 export interface UpdateEmailProviderSettingsRequest {
   enabled?: boolean

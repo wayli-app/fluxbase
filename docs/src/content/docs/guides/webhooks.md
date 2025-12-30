@@ -29,7 +29,7 @@ import { FluxbaseClient } from "@fluxbase/sdk";
 // Initialize client (requires authentication)
 const client = new FluxbaseClient({
   url: "http://localhost:8080",
-  apiKey: process.env.FLUXBASE_API_KEY, // Or use service key for backend
+  apiKey: process.env.FLUXBASE_CLIENT_KEY, // Or use service key for backend
 });
 
 // Create a webhook

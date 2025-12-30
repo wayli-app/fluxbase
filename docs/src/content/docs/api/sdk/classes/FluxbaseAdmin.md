@@ -33,7 +33,7 @@ Admin client for managing Fluxbase instance
 | `functions` | `public` | [`FluxbaseAdminFunctions`](/api/sdk/classes/fluxbaseadminfunctions/) | Functions manager for edge function management (create, update, delete, sync) |
 | `impersonation` | `public` | [`ImpersonationManager`](/api/sdk/classes/impersonationmanager/) | Impersonation manager for user impersonation and audit trail |
 | `jobs` | `public` | [`FluxbaseAdminJobs`](/api/sdk/classes/fluxbaseadminjobs/) | Jobs manager for background job management (create, update, delete, sync, monitoring) |
-| `management` | `public` | [`FluxbaseManagement`](/api/sdk/classes/fluxbasemanagement/) | Management namespace for API keys, webhooks, and invitations |
+| `management` | `public` | [`FluxbaseManagement`](/api/sdk/classes/fluxbasemanagement/) | Management namespace for client keys, webhooks, and invitations |
 | `migrations` | `public` | [`FluxbaseAdminMigrations`](/api/sdk/classes/fluxbaseadminmigrations/) | Migrations manager for database migration operations (create, apply, rollback, sync) |
 | `oauth` | `public` | [`FluxbaseOAuth`](/api/sdk/classes/fluxbaseoauth/) | OAuth configuration manager for provider and auth settings |
 | `rpc` | `public` | [`FluxbaseAdminRPC`](/api/sdk/classes/fluxbaseadminrpc/) | RPC manager for procedure management (create, update, delete, sync, execution monitoring) |

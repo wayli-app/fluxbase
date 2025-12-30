@@ -7,7 +7,7 @@
  * 3. Update authentication settings
  * 4. Configure application settings
  * 5. Create multi-tenant database schema
- * 6. Generate API keys
+ * 6. Generate client keys
  * 7. Set up webhooks
  * 8. Store custom configuration
  * 9. Test with user impersonation
@@ -39,7 +39,7 @@ async function main() {
     // Step 5: Create Multi-Tenant Database
     await createTenantDatabase(client)
 
-    // Step 6: Generate API Keys
+    // Step 6: Generate client keys
     await generateAPIKeys(client)
 
     // Step 7: Set Up Webhooks
@@ -233,7 +233,7 @@ async function createTenantDatabase(client: FluxbaseClient) {
 }
 
 async function generateAPIKeys(client: FluxbaseClient) {
-  logger.step(6, 'Generate API Keys')
+  logger.step(6, 'Generate client keys')
 
   try {
     // Create backend service key
@@ -260,11 +260,11 @@ async function generateAPIKeys(client: FluxbaseClient) {
 
     // List all keys
     const { keys } = await client.admin.management.apiKeys.list()
-    logger.info(`Total API keys: ${keys.length}`)
+    logger.info(`Total client keys: ${keys.length}`)
 
   } catch (error: any) {
     if (error.status === 409) {
-      logger.warn('API keys may already exist')
+      logger.warn('client keys may already exist')
     } else {
       throw error
     }

@@ -1,6 +1,6 @@
 --
 -- AUTH SCHEMA TABLES
--- Application user authentication, API keys, sessions, and webhooks
+-- Application user authentication, client keys, sessions, and webhooks
 --
 
 -- Users table (with 2FA and split metadata support)
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS auth.token_blacklist (
 CREATE INDEX IF NOT EXISTS idx_auth_token_blacklist_token_jti ON auth.token_blacklist(token_jti);
 CREATE INDEX IF NOT EXISTS idx_auth_token_blacklist_expires_at ON auth.token_blacklist(expires_at);
 
--- API keys table
+-- client keys table
 CREATE TABLE IF NOT EXISTS auth.api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,

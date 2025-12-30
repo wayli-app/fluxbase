@@ -235,13 +235,13 @@ rate_limiting:
       per_minute: 5 # Stricter limit for sensitive endpoints
 ```
 
-#### 6. Use API Keys Securely
+#### 6. Use client keys Securely
 
 ```typescript
-// ✅ GOOD: Store API keys in environment variables
-const apiKey = process.env.FLUXBASE_API_KEY;
+// ✅ GOOD: Store client keys in environment variables
+const apiKey = process.env.FLUXBASE_CLIENT_KEY;
 
-// ❌ BAD: Don't commit API keys to source control
+// ❌ BAD: Don't commit client keys to source control
 const apiKey = "fb_live_abc123def456";
 ```
 

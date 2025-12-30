@@ -104,7 +104,7 @@ func setupStorageTestServer(t *testing.T) (*fiber.App, string, *database.Connect
 	})
 
 	// Setup storage routes
-	storageHandler := NewStorageHandler(storageService, db)
+	storageHandler := NewStorageHandler(storageService, db, nil)
 	api := app.Group("/api/v1")
 	storageRoutes := api.Group("/storage")
 

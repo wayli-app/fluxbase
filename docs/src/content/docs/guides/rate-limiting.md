@@ -281,7 +281,7 @@ curl http://localhost:8080/api/v1/tables/posts \
 # Rate limit key: user:user-uuid-here:500
 ```
 
-### API Keys
+### client keys
 
 **Limit**: 1,000 requests per minute (configurable per key)
 
@@ -343,11 +343,11 @@ Retry-After: 60
 
 ## API Key Rate Limits
 
-When creating API keys, you can set custom rate limits:
+When creating client keys, you can set custom rate limits:
 
 ```bash
 # Create API key with custom rate limit
-curl -X POST http://localhost:8080/api/v1/admin/api-keys \
+curl -X POST http://localhost:8080/api/v1/admin/client-keys \
   -H "Authorization: Bearer admin-token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -571,13 +571,13 @@ groups:
           description: "More than 10 rate limit violations per second for 5 minutes"
 ```
 
-### 4. Use API Keys for Server-to-Server
+### 4. Use client keys for Server-to-Server
 
 For integrations requiring high throughput:
 
 ```bash
 # Create API key with appropriate limits
-curl -X POST /api/v1/admin/api-keys \
+curl -X POST /api/v1/admin/client-keys \
   -d '{"name": "Partner API", "rate_limit_rpm": 5000}'
 ```
 
@@ -596,11 +596,11 @@ curl -X POST /api/v1/admin/api-keys \
 # If using custom implementation, adjust accordingly
 ```
 
-**Solution 2**: Use API keys for high-traffic clients
+**Solution 2**: Use client keys for high-traffic clients
 
 ```bash
 # Create API key with higher limit
-curl -X POST /api/v1/admin/api-keys \
+curl -X POST /api/v1/admin/client-keys \
   -H "Authorization: Bearer admin-token" \
   -d '{"name": "High Traffic Client", "rate_limit_rpm": 10000}'
 ```
@@ -722,6 +722,6 @@ Firebase rate limits are per-function. Fluxbase applies global + endpoint-specif
 ## Next Steps
 
 - [Authentication](/docs/guides/authentication) - Secure your API endpoints
-- [SDK Admin Documentation](/docs/api/sdk/classes/APIKeysManager) - Create API keys for integrations
+- [SDK Admin Documentation](/docs/api/sdk/classes/APIKeysManager) - Create client keys for integrations
 - [Monitoring](/docs/guides/monitoring-observability) - Set up observability
 - [Security](/docs/security/overview) - Additional security measures

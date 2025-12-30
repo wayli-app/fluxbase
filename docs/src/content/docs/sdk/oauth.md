@@ -666,7 +666,7 @@ const excessiveScopes = ['user', 'repo', 'admin:org', 'delete_repo']
 ## Related Resources
 
 - [Admin SDK](/docs/sdk/admin) - Admin authentication and user management
-- [Management SDK](/docs/sdk/management) - API keys, webhooks, and invitations
+- [Management SDK](/docs/sdk/management) - client keys, webhooks, and invitations
 - [Settings SDK](/docs/sdk/settings) - Application configuration
 - [Advanced Features](/docs/sdk/advanced-features) - Complete feature overview
 - [Authentication Guide](/docs/guides/authentication) - End-user authentication

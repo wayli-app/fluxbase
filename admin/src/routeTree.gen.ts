@@ -49,7 +49,7 @@ import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedDatabaseConfigIndexRouteImport } from './routes/_authenticated/database-config/index'
 import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
-import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/api-keys/index'
+import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/client-keys/index'
 import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_authenticated/ai-providers/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -278,8 +278,8 @@ const AuthenticatedAuthenticationIndexRoute =
   } as any)
 const AuthenticatedApiKeysIndexRoute =
   AuthenticatedApiKeysIndexRouteImport.update({
-    id: '/api-keys/',
-    path: '/api-keys/',
+    id: '/client-keys/',
+    path: '/client-keys/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAiProvidersIndexRoute =
@@ -345,7 +345,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
-  '/api-keys': typeof AuthenticatedApiKeysIndexRoute
+  '/client-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
@@ -394,7 +394,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
-  '/api-keys': typeof AuthenticatedApiKeysIndexRoute
+  '/client-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
@@ -445,7 +445,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
-  '/_authenticated/api-keys/': typeof AuthenticatedApiKeysIndexRoute
+  '/_authenticated/client-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
   '/_authenticated/database-config/': typeof AuthenticatedDatabaseConfigIndexRoute
@@ -496,7 +496,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/settings/appearance'
     | '/ai-providers'
-    | '/api-keys'
+    | '/client-keys'
     | '/authentication'
     | '/chatbots'
     | '/database-config'
@@ -545,7 +545,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/settings/appearance'
     | '/ai-providers'
-    | '/api-keys'
+    | '/client-keys'
     | '/authentication'
     | '/chatbots'
     | '/database-config'
@@ -595,7 +595,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/ai-providers/'
-    | '/_authenticated/api-keys/'
+    | '/_authenticated/client-keys/'
     | '/_authenticated/authentication/'
     | '/_authenticated/chatbots/'
     | '/_authenticated/database-config/'
@@ -925,10 +925,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuthenticationIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/api-keys/': {
-      id: '/_authenticated/api-keys/'
-      path: '/api-keys'
-      fullPath: '/api-keys'
+    '/_authenticated/client-keys/': {
+      id: '/_authenticated/client-keys/'
+      path: '/client-keys'
+      fullPath: '/client-keys'
       preLoaderRoute: typeof AuthenticatedApiKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }

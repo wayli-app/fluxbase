@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { FluxbaseManagement, APIKeysManager, WebhooksManager, InvitationsManager } from './management'
+import { FluxbaseManagement, ClientKeysManager, WebhooksManager, InvitationsManager } from './management'
 import { FluxbaseFetch } from './fetch'
 import type {
-  APIKey,
-  CreateAPIKeyResponse,
-  ListAPIKeysResponse,
+  ClientKey,
+  CreateClientKeyResponse,
+  ListClientKeysResponse,
   Webhook,
   ListWebhooksResponse,
   TestWebhookResponse,
@@ -18,8 +18,8 @@ import type {
 // Mock FluxbaseFetch
 vi.mock('./fetch')
 
-describe('APIKeysManager', () => {
-  let manager: APIKeysManager
+describe('ClientKeysManager', () => {
+  let manager: ClientKeysManager
   let mockFetch: any
 
   beforeEach(() => {
@@ -30,13 +30,13 @@ describe('APIKeysManager', () => {
       delete: vi.fn(),
     }
 
-    manager = new APIKeysManager(mockFetch as unknown as FluxbaseFetch)
+    manager = new ClientKeysManager(mockFetch as unknown as FluxbaseFetch)
   })
 
   describe('create()', () => {
-    it('should create a new API key', async () => {
-      const response: CreateAPIKeyResponse = {
-        api_key: {
+    it('should create a new client key', async () => {
+      const response: CreateClientKeyResponse = {
+        client_key: {
           id: 'key-123',
           name: 'Production Key',
           description: 'Key for production service',
@@ -58,7 +58,7 @@ describe('APIKeysManager', () => {
         rate_limit_per_minute: 100,
       })
 
-      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/api-keys', {
+      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/client-keys', {
         name: 'Production Key',
         description: 'Key for production service',
         scopes: ['read:users', 'write:users'],
@@ -66,12 +66,12 @@ describe('APIKeysManager', () => {
       })
 
       expect(result.key).toBe('fb_live_abc123def456ghi789jkl')
-      expect(result.api_key.name).toBe('Production Key')
+      expect(result.client_key.name).toBe('Production Key')
     })
 
-    it('should create API key with expiration', async () => {
-      const response: CreateAPIKeyResponse = {
-        api_key: {
+    it('should create client key with expiration', async () => {
+      const response: CreateClientKeyResponse = {
+        client_key: {
           id: 'key-123',
           name: 'Temporary Key',
           key_prefix: 'fb_test_xyz',
@@ -93,14 +93,14 @@ describe('APIKeysManager', () => {
         expires_at: '2025-12-31T23:59:59Z',
       })
 
-      expect(result.api_key.expires_at).toBe('2025-12-31T23:59:59Z')
+      expect(result.client_key.expires_at).toBe('2025-12-31T23:59:59Z')
     })
   })
 
   describe('list()', () => {
-    it('should list all API keys', async () => {
-      const response: ListAPIKeysResponse = {
-        api_keys: [
+    it('should list all client keys', async () => {
+      const response: ListClientKeysResponse = {
+        client_keys: [
           {
             id: 'key-1',
             name: 'Key 1',
@@ -127,15 +127,15 @@ describe('APIKeysManager', () => {
 
       const result = await manager.list()
 
-      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/api-keys')
-      expect(result.api_keys).toHaveLength(2)
+      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/client-keys')
+      expect(result.client_keys).toHaveLength(2)
       expect(result.total).toBe(2)
     })
   })
 
   describe('get()', () => {
-    it('should get a specific API key', async () => {
-      const apiKey: APIKey = {
+    it('should get a specific client key', async () => {
+      const clientKey: ClientKey = {
         id: 'key-123',
         name: 'Production Key',
         key_prefix: 'fb_live_abc',
@@ -146,19 +146,19 @@ describe('APIKeysManager', () => {
         user_id: 'user-123',
       }
 
-      vi.mocked(mockFetch.get).mockResolvedValue(apiKey)
+      vi.mocked(mockFetch.get).mockResolvedValue(clientKey)
 
       const result = await manager.get('key-123')
 
-      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/api-keys/key-123')
+      expect(mockFetch.get).toHaveBeenCalledWith('/api/v1/client-keys/key-123')
       expect(result.id).toBe('key-123')
       expect(result.last_used_at).toBe('2024-01-27T15:30:00Z')
     })
   })
 
   describe('update()', () => {
-    it('should update an API key', async () => {
-      const updated: APIKey = {
+    it('should update a client key', async () => {
+      const updated: ClientKey = {
         id: 'key-123',
         name: 'Updated Key Name',
         key_prefix: 'fb_live_abc',
@@ -176,7 +176,7 @@ describe('APIKeysManager', () => {
         rate_limit_per_minute: 200,
       })
 
-      expect(mockFetch.patch).toHaveBeenCalledWith('/api/v1/api-keys/key-123', {
+      expect(mockFetch.patch).toHaveBeenCalledWith('/api/v1/client-keys/key-123', {
         name: 'Updated Key Name',
         rate_limit_per_minute: 200,
       })
@@ -187,24 +187,24 @@ describe('APIKeysManager', () => {
   })
 
   describe('revoke()', () => {
-    it('should revoke an API key', async () => {
-      vi.mocked(mockFetch.post).mockResolvedValue({ message: 'API key revoked successfully' })
+    it('should revoke a client key', async () => {
+      vi.mocked(mockFetch.post).mockResolvedValue({ message: 'Client key revoked successfully' })
 
       const result = await manager.revoke('key-123')
 
-      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/api-keys/key-123/revoke', {})
-      expect(result.message).toBe('API key revoked successfully')
+      expect(mockFetch.post).toHaveBeenCalledWith('/api/v1/client-keys/key-123/revoke', {})
+      expect(result.message).toBe('Client key revoked successfully')
     })
   })
 
   describe('delete()', () => {
-    it('should delete an API key', async () => {
-      vi.mocked(mockFetch.delete).mockResolvedValue({ message: 'API key deleted successfully' })
+    it('should delete a client key', async () => {
+      vi.mocked(mockFetch.delete).mockResolvedValue({ message: 'Client key deleted successfully' })
 
       const result = await manager.delete('key-123')
 
-      expect(mockFetch.delete).toHaveBeenCalledWith('/api/v1/api-keys/key-123')
-      expect(result.message).toBe('API key deleted successfully')
+      expect(mockFetch.delete).toHaveBeenCalledWith('/api/v1/client-keys/key-123')
+      expect(result.message).toBe('Client key deleted successfully')
     })
   })
 })
@@ -676,15 +676,15 @@ describe('FluxbaseManagement', () => {
   })
 
   it('should initialize all managers', () => {
-    expect(management.apiKeys).toBeInstanceOf(APIKeysManager)
+    expect(management.clientKeys).toBeInstanceOf(ClientKeysManager)
     expect(management.webhooks).toBeInstanceOf(WebhooksManager)
     expect(management.invitations).toBeInstanceOf(InvitationsManager)
   })
 
   it('should share the same fetch client across managers', async () => {
-    vi.mocked(mockFetch.get).mockResolvedValue({ api_keys: [], total: 0 })
+    vi.mocked(mockFetch.get).mockResolvedValue({ client_keys: [], total: 0 })
 
-    await management.apiKeys.list()
+    await management.clientKeys.list()
 
     expect(mockFetch.get).toHaveBeenCalled()
   })

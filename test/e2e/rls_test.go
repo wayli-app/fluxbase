@@ -788,7 +788,7 @@ func TestRLSImpersonationSessionsAdminOnly(t *testing.T) {
 	t.Log("Impersonation sessions correctly restricted to dashboard_admin only")
 }
 
-// TestRLSAPIKeyUsageRestriction tests that users can only see usage for their own API keys
+// TestRLSAPIKeyUsageRestriction tests that users can only see usage for their own client keys
 func TestRLSAPIKeyUsageRestriction(t *testing.T) {
 	tc := setupRLSTest(t)
 	defer tc.Close()
@@ -807,7 +807,7 @@ func TestRLSAPIKeyUsageRestriction(t *testing.T) {
 		VALUES ($1, 'user2@example.com', 'hash2', true, NOW())
 	`, user2ID)
 
-	// Create API keys for both users as superuser
+	// Create client keys for both users as superuser
 	apiKey1ID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 	apiKey2ID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 

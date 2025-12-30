@@ -231,7 +231,7 @@ cd ../..  # Back to repo root
 
 **Issue**: Authentication not working
 
-**Solution**: Verify API keys in `.env.local`:
+**Solution**: Verify client keys in `.env.local`:
 
 ```bash
 # Generate new keys

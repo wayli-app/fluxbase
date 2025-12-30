@@ -1,1 +1,1 @@
-{"root":["./src/context.tsx","./src/index.ts","./src/use-admin-auth.ts","./src/use-admin-hooks.ts","./src/use-api-keys.ts","./src/use-auth.ts","./src/use-query.ts","./src/use-realtime.ts","./src/use-rpc.ts","./src/use-storage.ts","./src/use-users.ts"],"version":"5.9.3"}
+{"root":["./src/context.tsx","./src/index.ts","./src/use-admin-auth.ts","./src/use-admin-hooks.ts","./src/use-client-keys.ts","./src/use-auth.ts","./src/use-query.ts","./src/use-realtime.ts","./src/use-rpc.ts","./src/use-storage.ts","./src/use-users.ts"],"version":"5.9.3"}

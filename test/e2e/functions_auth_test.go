@@ -102,7 +102,7 @@ func TestFunctionAnonKeyRequired(t *testing.T) {
 	// Note: May return 500 if Deno not installed, but should NOT return 401/403
 	t.Run("APIKeyPassesAuth", func(t *testing.T) {
 		// Create an API key
-		apiKeyResp := tc.NewRequest("POST", "/api/v1/api-keys").
+		apiKeyResp := tc.NewRequest("POST", "/api/v1/client-keys").
 			WithAuth(adminToken).
 			WithJSON(map[string]interface{}{
 				"name":   "test-api-key",
@@ -299,7 +299,7 @@ func TestFunctionAuthenticationTypes(t *testing.T) {
 		{
 			name: "APIKey",
 			setupAuth: func(tc *test.TestContext) string {
-				resp := tc.NewRequest("POST", "/api/v1/api-keys").
+				resp := tc.NewRequest("POST", "/api/v1/client-keys").
 					WithAuth(adminToken).
 					WithJSON(map[string]interface{}{
 						"name":   fmt.Sprintf("key-%d", time.Now().UnixNano()),

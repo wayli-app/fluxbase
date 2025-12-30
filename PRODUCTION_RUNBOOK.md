@@ -553,7 +553,7 @@ curl -H "Authorization: ServiceKey sk_live_abc123..." https://api.example.com/ap
 - ❌ Never commit to version control
 - ❌ Never log in plaintext
 
-For detailed service key documentation, see [docs/guides/authentication.md](docs/docs/guides/authentication.md#api-keys--service-keys).
+For detailed service key documentation, see [docs/guides/authentication.md](docs/docs/guides/authentication.md#client-keys--service-keys).
 
 ### Implemented Protections
 
@@ -848,7 +848,7 @@ location /realtime {
 **Monthly**:
 
 - [ ] Update dependencies (`go get -u`)
-- [ ] Rotate API keys
+- [ ] Rotate client keys
 - [ ] Review and archive old logs
 - [ ] Capacity planning review
 

@@ -108,7 +108,7 @@ export class FluxbaseClient<
   /** Admin module for instance management (requires admin authentication) */
   public admin: FluxbaseAdmin;
 
-  /** Management module for API keys, webhooks, and invitations */
+  /** Management module for client keys, webhooks, and invitations */
   public management: FluxbaseManagement;
 
   /** Settings module for reading public application settings (respects RLS policies) */

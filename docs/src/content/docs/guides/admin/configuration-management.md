@@ -31,7 +31,7 @@ When you try to update an overridden setting, you'll receive an error: _"This se
 These **must** be configured via environment variables (cannot be set in UI):
 
 - Database connection (host, port, credentials)
-- SMTP credentials (password, API keys)
+- SMTP credentials (password, client keys)
 - JWT secrets
 - Storage provider credentials
 
@@ -139,7 +139,7 @@ To allow UI control of a setting:
 
 1. **Production**: Use env vars for all settings to ensure consistency
 2. **Development**: Use UI for quick testing, env vars for team-shared config
-3. **Security**: Always use env vars for credentials (SMTP passwords, API keys, JWT secrets)
+3. **Security**: Always use env vars for credentials (SMTP passwords, client keys, JWT secrets)
 4. **Documentation**: Document which env vars your deployment uses
 
 ## See Also

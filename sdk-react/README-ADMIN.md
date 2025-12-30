@@ -8,7 +8,7 @@ Comprehensive React hooks for building admin dashboards and management interface
 - [Quick Start](#quick-start)
 - [Admin Authentication](#admin-authentication)
 - [User Management](#user-management)
-- [API Keys](#api-keys)
+- [client keys](#client-keys)
 - [Webhooks](#webhooks)
 - [Settings Management](#settings-management)
 - [Complete Examples](#complete-examples)
@@ -311,11 +311,11 @@ function UserSearch() {
 }
 ```
 
-## API Keys
+## client keys
 
 ### useAPIKeys
 
-Hook for managing API keys.
+Hook for managing client keys.
 
 ```tsx
 import { useAPIKeys } from '@fluxbase/sdk-react'
@@ -367,13 +367,13 @@ function APIKeyManagement() {
     }
   }
 
-  if (isLoading) return <div>Loading API keys...</div>
+  if (isLoading) return <div>Loading client keys...</div>
   if (error) return <div>Error: {error.message}</div>
 
   return (
     <div>
       <div className="header">
-        <h2>API Keys ({keys.length})</h2>
+        <h2>client keys ({keys.length})</h2>
         <button onClick={() => setShowCreateForm(!showCreateForm)}>
           {showCreateForm ? 'Cancel' : 'Create New Key'}
         </button>
@@ -853,7 +853,7 @@ function AdminDashboard() {
       <nav>
         <button onClick={() => setActiveTab('overview')}>Overview</button>
         <button onClick={() => setActiveTab('users')}>Users</button>
-        <button onClick={() => setActiveTab('keys')}>API Keys</button>
+        <button onClick={() => setActiveTab('keys')}>client keys</button>
         <button onClick={() => setActiveTab('webhooks')}>Webhooks</button>
         <button onClick={() => setActiveTab('settings')}>Settings</button>
       </nav>
@@ -868,7 +868,7 @@ function AdminDashboard() {
                 <p className="stat-value">{totalUsers}</p>
               </div>
               <div className="stat-card">
-                <h3>API Keys</h3>
+                <h3>client keys</h3>
                 <p className="stat-value">{keys.length}</p>
               </div>
               <div className="stat-card">
@@ -923,7 +923,7 @@ function AdminTabs() {
     <Tabs>
       <TabList>
         <Tab>Users</Tab>
-        <Tab>API Keys</Tab>
+        <Tab>client keys</Tab>
         <Tab>Webhooks</Tab>
         <Tab>App Settings</Tab>
         <Tab>System Settings</Tab>

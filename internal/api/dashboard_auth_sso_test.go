@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
-	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -71,19 +70,8 @@ func setupDashboardAuthTestServer(t *testing.T) (*fiber.App, *DashboardAuthHandl
 	err = db.Health(ctx)
 	require.NoError(t, err)
 
-	dashboardConfig := &config.DashboardConfig{
-		JWTSecret:            "test-dashboard-jwt-secret",
-		JWTExpiry:            15 * time.Minute,
-		RefreshExpiry:        7 * 24 * time.Hour,
-		SessionTimeoutMins:   60,
-		MaxSessionsPerUser:   5,
-		EnableSignup:         true,
-		PasswordMinLength:    8,
-		BCryptCost:           4,
-		AllowedRedirectHosts: []string{"http://localhost:3000"},
-	}
-
-	dashboardAuth := auth.NewDashboardAuth(db, dashboardConfig)
+	jwtManager := auth.NewJWTManager("test-dashboard-jwt-secret", 15*time.Minute, 7*24*time.Hour)
+	dashboardAuth := auth.NewDashboardAuthService(db, jwtManager, "FluxbaseTest")
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -97,7 +85,7 @@ func setupDashboardAuthTestServer(t *testing.T) (*fiber.App, *DashboardAuthHandl
 		},
 	})
 
-	handler := NewDashboardAuthHandler(db, dashboardAuth, nil)
+	handler := NewDashboardAuthHandler(dashboardAuth, jwtManager, db, nil, "http://localhost:3000")
 
 	dashboard := app.Group("/dashboard/auth")
 	dashboard.Post("/login", handler.Login)

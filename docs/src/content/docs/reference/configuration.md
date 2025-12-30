@@ -239,7 +239,7 @@ Environment variables take precedence over configuration file values.
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
 | `FLUXBASE_SECURITY_SETUP_TOKEN` | Token for admin dashboard setup (required to enable dashboard) | `""` | `openssl rand -base64 32` |
-| `FLUXBASE_ENCRYPTION_KEY` | Key for AES-256-GCM encryption of sensitive data (OAuth tokens, API keys). Must be exactly 32 bytes. | `""` | `openssl rand -base64 32 \| head -c 32` |
+| `FLUXBASE_ENCRYPTION_KEY` | Key for AES-256-GCM encryption of sensitive data (OAuth tokens, client keys). Must be exactly 32 bytes. | `""` | `openssl rand -base64 32 \| head -c 32` |
 | `FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT` | Enable global API rate limiting | `false` | `true`, `false` |
 | `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT` | Max attempts for admin setup | `5` | `5` |
 | `FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW` | Time window for admin setup rate limit | `15m` | `15m` |

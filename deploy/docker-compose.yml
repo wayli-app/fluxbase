@@ -353,7 +353,7 @@ services:
       # ==========================================================================
       # Encryption Configuration (REQUIRED)
       # ==========================================================================
-      # REQUIRED: Encryption key for sensitive data at rest (secrets, OAuth tokens, API keys)
+      # REQUIRED: Encryption key for sensitive data at rest (secrets, OAuth tokens, client keys)
       # Fluxbase will not start without this key set.
       # Must be exactly 32 characters for AES-256-GCM encryption.
       # Generate with: openssl rand -base64 32 | head -c 32

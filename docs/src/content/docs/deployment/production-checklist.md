@@ -29,7 +29,7 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
   FLUXBASE_ADMIN_PASSWORD=secure-password
   ```
 
-- [ ] **API Keys**: Rotated and stored in secrets manager
+- [ ] **client keys**: Rotated and stored in secrets manager
 - [ ] **Row Level Security (RLS)**: Enabled and policies configured
   ```sql
   ALTER TABLE users ENABLE ROW LEVEL SECURITY;
