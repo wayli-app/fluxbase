@@ -243,9 +243,9 @@ func (h *Handler) checkRateLimit(c *fiber.Ctx, fn *EdgeFunction) error {
 }
 
 // RegisterRoutes registers all edge function routes with authentication
-func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
+func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to management endpoints
-	authMiddleware := middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
+	authMiddleware := middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager)
 
 	// Apply feature flag middleware to all functions routes
 	functions := app.Group("/api/v1/functions",
@@ -266,7 +266,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiK
 	// We use OptionalAuthOrServiceKey so auth context is set if token provided (including anon key JWTs),
 	// but the handler will check the function's allow_unauthenticated setting
 	// Scope enforcement for execute:functions
-	optionalAuth := middleware.OptionalAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
+	optionalAuth := middleware.OptionalAuthOrServiceKey(authService, clientKeyService, db, jwtManager)
 	functions.Post("/:name/invoke", optionalAuth, middleware.RequireScope(auth.ScopeFunctionsExecute), h.InvokeFunction)
 	functions.Get("/:name/invoke", optionalAuth, middleware.RequireScope(auth.ScopeFunctionsExecute), h.InvokeFunction) // Also support GET for health checks
 

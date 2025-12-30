@@ -23,9 +23,9 @@ const (
 	ScopeAuthRead  = "read:auth"
 	ScopeAuthWrite = "write:auth"
 
-	// API Keys
-	ScopeAPIKeysRead  = "read:apikeys"
-	ScopeAPIKeysWrite = "write:apikeys"
+	// Client Keys
+	ScopeClientKeysRead  = "read:clientkeys"
+	ScopeClientKeysWrite = "write:clientkeys"
 
 	// Webhooks
 	ScopeWebhooksRead  = "read:webhooks"
@@ -68,8 +68,8 @@ var AllScopes = []string{
 	ScopeFunctionsExecute,
 	ScopeAuthRead,
 	ScopeAuthWrite,
-	ScopeAPIKeysRead,
-	ScopeAPIKeysWrite,
+	ScopeClientKeysRead,
+	ScopeClientKeysWrite,
 	ScopeWebhooksRead,
 	ScopeWebhooksWrite,
 	ScopeMonitoringRead,

@@ -11,6 +11,7 @@ import {
   List,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getAccessToken } from '@/lib/auth'
 import { useImpersonationStore } from '@/stores/impersonation-store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -142,7 +143,7 @@ function RestAPIExplorer() {
     }
 
     // Load auth token if available
-    const token = localStorage.getItem('fluxbase-auth-token')
+    const token = getAccessToken()
     if (token) {
       setHeaders((prev) => ({ ...prev, Authorization: `Bearer ${token}` }))
     }
@@ -156,7 +157,7 @@ function RestAPIExplorer() {
     const token =
       isImpersonating && impersonationToken
         ? impersonationToken
-        : localStorage.getItem('fluxbase-auth-token')
+        : getAccessToken()
 
     if (token) {
       setHeaders((prev) => ({ ...prev, Authorization: `Bearer ${token}` }))
@@ -166,7 +167,7 @@ function RestAPIExplorer() {
   const fetchOpenAPISpec = async () => {
     try {
       // Include auth token to get the full spec (with database tables)
-      const token = localStorage.getItem('fluxbase-auth-token')
+      const token = getAccessToken()
       const res = await fetch('/openapi.json', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })

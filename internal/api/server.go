@@ -46,8 +46,8 @@ type Server struct {
 	authHandler           *AuthHandler
 	adminAuthHandler      *AdminAuthHandler
 	dashboardAuthHandler  *DashboardAuthHandler
-	apiKeyService         *auth.APIKeyService // Added for service-wide access
-	apiKeyHandler         *APIKeyHandler
+	clientKeyService      *auth.ClientKeyService // Added for service-wide access
+	clientKeyHandler      *ClientKeyHandler
 	storageHandler        *StorageHandler
 	webhookHandler        *WebhookHandler
 	monitoringHandler     *MonitoringHandler
@@ -171,7 +171,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
 
 	// Initialize API key service
-	apiKeyService := auth.NewAPIKeyService(db.Pool())
+	clientKeyService := auth.NewClientKeyService(db.Pool())
 
 	// Initialize storage service (use public URL for signed URLs that users will access)
 	storageService, err := storage.NewService(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret)
@@ -247,7 +247,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	systemSettingsService := auth.NewSystemSettingsService(db)
 	adminAuthHandler := NewAdminAuthHandler(authService, auth.NewUserRepository(db), dashboardAuthService, systemSettingsService, cfg)
 	// Note: dashboardAuthHandler is initialized later after samlService is created
-	apiKeyHandler := NewAPIKeyHandler(apiKeyService)
+	clientKeyHandler := NewClientKeyHandler(clientKeyService)
 	storageHandler := NewStorageHandler(storageService, db, &cfg.Storage.Transforms)
 	webhookHandler := NewWebhookHandler(webhookService)
 
@@ -518,8 +518,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		authHandler:           authHandler,
 		adminAuthHandler:      adminAuthHandler,
 		dashboardAuthHandler:  dashboardAuthHandler,
-		apiKeyService:         apiKeyService, // Added for service-wide access
-		apiKeyHandler:         apiKeyHandler,
+		clientKeyService:      clientKeyService, // Added for service-wide access
+		clientKeyHandler:      clientKeyHandler,
 		storageHandler:        storageHandler,
 		webhookHandler:        webhookHandler,
 		monitoringHandler:     monitoringHandler,
@@ -877,7 +877,7 @@ func (s *Server) setupRoutes() {
 	// Metadata listing (GET /) requires admin role; data operations use RLS filtering
 	// Pass jwtManager to support dashboard admin tokens (maps to service_role for full access)
 	rest := v1.Group("/tables",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RLSMiddleware(rlsConfig),
 	)
 	s.setupRESTRoutes(rest)
@@ -906,7 +906,7 @@ func (s *Server) setupRoutes() {
 	// User secret settings routes - require authentication
 	// Users can only access their own secrets (encrypted, server-side decryption only)
 	userSecrets := v1.Group("/settings/secret",
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 	)
 	userSecrets.Post("/", s.userSettingsHandler.CreateSecret)
 	userSecrets.Get("/", s.userSettingsHandler.ListSecrets)
@@ -918,33 +918,33 @@ func (s *Server) setupRoutes() {
 	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
 	// API Keys routes - require authentication
-	s.apiKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Secrets routes - require authentication
-	s.secretsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	s.secretsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Webhook routes - require authentication
-	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Monitoring routes - require authentication
-	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	s.monitoringHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Edge functions routes - require authentication by default, but per-function config can override
 	// Protected by feature flag middleware
-	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	s.functionsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 
 	// Jobs routes - require authentication
 	// Protected by feature flag middleware
 	// Note: Admin routes are registered in setupAdminRoutes with proper auth middleware
 	if s.jobsHandler != nil {
-		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
 	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
 	// Protected by feature flag middleware
 	storage := v1.Group("/storage",
 		middleware.RequireStorageEnabled(s.authHandler.authService.GetSettingsCache()),
-		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool()),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool()),
 	)
 	s.setupStorageRoutes(storage)
 
@@ -953,7 +953,7 @@ func (s *Server) setupRoutes() {
 	// Protected by feature flag middleware and realtime:connect scope
 	s.app.Get("/realtime",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
-		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RequireScope(auth.ScopeRealtimeConnect),
 		s.realtimeHandler.HandleWebSocket,
 	)
@@ -962,7 +962,7 @@ func (s *Server) setupRoutes() {
 	// Protected by feature flag middleware
 	s.app.Get("/api/v1/realtime/stats",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RequireScope(auth.ScopeRealtimeConnect),
 		s.handleRealtimeStats,
 	)
@@ -971,7 +971,7 @@ func (s *Server) setupRoutes() {
 	// Protected by feature flag middleware
 	s.app.Post("/api/v1/realtime/broadcast",
 		middleware.RequireRealtimeEnabled(s.authHandler.authService.GetSettingsCache()),
-		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RequireScope(auth.ScopeRealtimeBroadcast),
 		s.handleRealtimeBroadcast,
 	)
@@ -980,45 +980,45 @@ func (s *Server) setupRoutes() {
 	if s.aiChatHandler != nil {
 		s.app.Get("/ai/ws",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiChatHandler.HandleWebSocket,
 		)
 
 		// Public AI chatbot list endpoint
 		s.app.Get("/api/v1/ai/chatbots",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.ListPublicChatbots,
 		)
 
 		s.app.Get("/api/v1/ai/chatbots/:id",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.GetPublicChatbot,
 		)
 
 		// User conversation history endpoints (require authentication)
 		s.app.Get("/api/v1/ai/conversations",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.ListUserConversations,
 		)
 
 		s.app.Get("/api/v1/ai/conversations/:id",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.GetUserConversation,
 		)
 
 		s.app.Delete("/api/v1/ai/conversations/:id",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.DeleteUserConversation,
 		)
 
 		s.app.Patch("/api/v1/ai/conversations/:id",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.aiHandler.UpdateUserConversation,
 		)
 	}
@@ -1028,7 +1028,7 @@ func (s *Server) setupRoutes() {
 		// List public procedures - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/procedures",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.ListPublicProcedures,
 		)
@@ -1036,7 +1036,7 @@ func (s *Server) setupRoutes() {
 		// Invoke RPC procedure - requires execute:rpc scope
 		s.app.Post("/api/v1/rpc/:namespace/:name",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			middleware.RequireScope(auth.ScopeRPCExecute),
 			s.rpcHandler.Invoke,
 		)
@@ -1044,7 +1044,7 @@ func (s *Server) setupRoutes() {
 		// Get execution status (public - users can see their own) - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/executions/:id",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.GetPublicExecution,
 		)
@@ -1052,7 +1052,7 @@ func (s *Server) setupRoutes() {
 		// Get execution logs (public - users can see their own) - requires read:rpc scope
 		s.app.Get("/api/v1/rpc/executions/:id/logs",
 			middleware.RequireRPCEnabled(s.authHandler.authService.GetSettingsCache()),
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			middleware.RequireScope(auth.ScopeRPCRead),
 			s.rpcHandler.GetPublicExecutionLogs,
 		)
@@ -1066,13 +1066,13 @@ func (s *Server) setupRoutes() {
 
 		// Embedding endpoint (requires authentication)
 		s.app.Post("/api/v1/vector/embed",
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.vectorHandler.HandleEmbed,
 		)
 
 		// Vector search endpoint (requires authentication)
 		s.app.Post("/api/v1/vector/search",
-			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.vectorHandler.HandleSearch,
 		)
 
@@ -1083,12 +1083,12 @@ func (s *Server) setupRoutes() {
 	if s.graphqlHandler != nil {
 		// GraphQL uses its own auth handling to set up RLS context
 		s.app.Post("/api/v1/graphql",
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.graphqlHandler.HandleGraphQL,
 		)
 		// Introspection endpoint (GET)
 		s.app.Get("/api/v1/graphql",
-			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 			s.graphqlHandler.HandleIntrospection,
 		)
 		log.Info().Msg("GraphQL endpoint registered at /api/v1/graphql")
@@ -1178,7 +1178,7 @@ func (s *Server) setupRoutes() {
 	// Non-admin users get minimal spec with only auth endpoints
 	openAPIHandler := NewOpenAPIHandler(s.db)
 	s.app.Get("/openapi.json",
-		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.apiKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		openAPIHandler.GetOpenAPISpec,
 	)
 

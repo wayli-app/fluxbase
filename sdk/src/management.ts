@@ -1,13 +1,13 @@
 import type { FluxbaseFetch } from './fetch'
 import type {
-  // API Keys
-  APIKey,
-  CreateAPIKeyRequest,
-  CreateAPIKeyResponse,
-  DeleteAPIKeyResponse,
-  ListAPIKeysResponse,
-  RevokeAPIKeyResponse,
-  UpdateAPIKeyRequest,
+  // Client Keys
+  ClientKey,
+  CreateClientKeyRequest,
+  CreateClientKeyResponse,
+  DeleteClientKeyResponse,
+  ListClientKeysResponse,
+  RevokeClientKeyResponse,
+  UpdateClientKeyRequest,
   // Webhooks
   CreateWebhookRequest,
   DeleteWebhookResponse,
@@ -28,30 +28,30 @@ import type {
 } from './types'
 
 /**
- * API Keys management client
+ * Client Keys management client
  *
- * Provides methods for managing API keys for service-to-service authentication.
- * API keys allow external services to authenticate without user credentials.
+ * Provides methods for managing client keys for service-to-service authentication.
+ * Client keys allow external services to authenticate without user credentials.
  *
  * @example
  * ```typescript
  * const client = createClient({ url: 'http://localhost:8080' })
  * await client.auth.login({ email: 'user@example.com', password: 'password' })
  *
- * // Create an API key
- * const { api_key, key } = await client.management.apiKeys.create({
+ * // Create a client key
+ * const { client_key, key } = await client.management.clientKeys.create({
  *   name: 'Production Service',
  *   scopes: ['read:users', 'write:users'],
  *   rate_limit_per_minute: 100
  * })
  *
- * // List API keys
- * const { api_keys } = await client.management.apiKeys.list()
+ * // List client keys
+ * const { client_keys } = await client.management.clientKeys.list()
  * ```
  *
  * @category Management
  */
-export class APIKeysManager {
+export class ClientKeysManager {
   private fetch: FluxbaseFetch
 
   constructor(fetch: FluxbaseFetch) {
@@ -59,118 +59,123 @@ export class APIKeysManager {
   }
 
   /**
-   * Create a new API key
+   * Create a new client key
    *
-   * @param request - API key configuration
-   * @returns Created API key with the full key value (only shown once)
+   * @param request - Client key configuration
+   * @returns Created client key with the full key value (only shown once)
    *
    * @example
    * ```typescript
-   * const { api_key, key } = await client.management.apiKeys.create({
+   * const { client_key, key } = await client.management.clientKeys.create({
    *   name: 'Production Service',
-   *   description: 'API key for production service',
+   *   description: 'Client key for production service',
    *   scopes: ['read:users', 'write:users'],
    *   rate_limit_per_minute: 100,
    *   expires_at: '2025-12-31T23:59:59Z'
    * })
    *
    * // Store the key securely - it won't be shown again
-   * console.log('API Key:', key)
+   * console.log('Client Key:', key)
    * ```
    */
-  async create(request: CreateAPIKeyRequest): Promise<CreateAPIKeyResponse> {
-    return await this.fetch.post<CreateAPIKeyResponse>('/api/v1/api-keys', request)
+  async create(request: CreateClientKeyRequest): Promise<CreateClientKeyResponse> {
+    return await this.fetch.post<CreateClientKeyResponse>('/api/v1/client-keys', request)
   }
 
   /**
-   * List all API keys for the authenticated user
+   * List all client keys for the authenticated user
    *
-   * @returns List of API keys (without full key values)
+   * @returns List of client keys (without full key values)
    *
    * @example
    * ```typescript
-   * const { api_keys, total } = await client.management.apiKeys.list()
+   * const { client_keys, total } = await client.management.clientKeys.list()
    *
-   * api_keys.forEach(key => {
+   * client_keys.forEach(key => {
    *   console.log(`${key.name}: ${key.key_prefix}... (expires: ${key.expires_at})`)
    * })
    * ```
    */
-  async list(): Promise<ListAPIKeysResponse> {
-    return await this.fetch.get<ListAPIKeysResponse>('/api/v1/api-keys')
+  async list(): Promise<ListClientKeysResponse> {
+    return await this.fetch.get<ListClientKeysResponse>('/api/v1/client-keys')
   }
 
   /**
-   * Get a specific API key by ID
+   * Get a specific client key by ID
    *
-   * @param keyId - API key ID
-   * @returns API key details
+   * @param keyId - Client key ID
+   * @returns Client key details
    *
    * @example
    * ```typescript
-   * const apiKey = await client.management.apiKeys.get('key-uuid')
-   * console.log('Last used:', apiKey.last_used_at)
+   * const clientKey = await client.management.clientKeys.get('key-uuid')
+   * console.log('Last used:', clientKey.last_used_at)
    * ```
    */
-  async get(keyId: string): Promise<APIKey> {
-    return await this.fetch.get<APIKey>(`/api/v1/api-keys/${keyId}`)
+  async get(keyId: string): Promise<ClientKey> {
+    return await this.fetch.get<ClientKey>(`/api/v1/client-keys/${keyId}`)
   }
 
   /**
-   * Update an API key
+   * Update a client key
    *
-   * @param keyId - API key ID
+   * @param keyId - Client key ID
    * @param updates - Fields to update
-   * @returns Updated API key
+   * @returns Updated client key
    *
    * @example
    * ```typescript
-   * const updated = await client.management.apiKeys.update('key-uuid', {
+   * const updated = await client.management.clientKeys.update('key-uuid', {
    *   name: 'Updated Name',
    *   rate_limit_per_minute: 200
    * })
    * ```
    */
-  async update(keyId: string, updates: UpdateAPIKeyRequest): Promise<APIKey> {
-    return await this.fetch.patch<APIKey>(`/api/v1/api-keys/${keyId}`, updates)
+  async update(keyId: string, updates: UpdateClientKeyRequest): Promise<ClientKey> {
+    return await this.fetch.patch<ClientKey>(`/api/v1/client-keys/${keyId}`, updates)
   }
 
   /**
-   * Revoke an API key
+   * Revoke a client key
    *
    * Revoked keys can no longer be used but remain in the system for audit purposes.
    *
-   * @param keyId - API key ID
+   * @param keyId - Client key ID
    * @returns Revocation confirmation
    *
    * @example
    * ```typescript
-   * await client.management.apiKeys.revoke('key-uuid')
-   * console.log('API key revoked')
+   * await client.management.clientKeys.revoke('key-uuid')
+   * console.log('Client key revoked')
    * ```
    */
-  async revoke(keyId: string): Promise<RevokeAPIKeyResponse> {
-    return await this.fetch.post<RevokeAPIKeyResponse>(`/api/v1/api-keys/${keyId}/revoke`, {})
+  async revoke(keyId: string): Promise<RevokeClientKeyResponse> {
+    return await this.fetch.post<RevokeClientKeyResponse>(`/api/v1/client-keys/${keyId}/revoke`, {})
   }
 
   /**
-   * Delete an API key
+   * Delete a client key
    *
-   * Permanently removes the API key from the system.
+   * Permanently removes the client key from the system.
    *
-   * @param keyId - API key ID
+   * @param keyId - Client key ID
    * @returns Deletion confirmation
    *
    * @example
    * ```typescript
-   * await client.management.apiKeys.delete('key-uuid')
-   * console.log('API key deleted')
+   * await client.management.clientKeys.delete('key-uuid')
+   * console.log('Client key deleted')
    * ```
    */
-  async delete(keyId: string): Promise<DeleteAPIKeyResponse> {
-    return await this.fetch.delete<DeleteAPIKeyResponse>(`/api/v1/api-keys/${keyId}`)
+  async delete(keyId: string): Promise<DeleteClientKeyResponse> {
+    return await this.fetch.delete<DeleteClientKeyResponse>(`/api/v1/client-keys/${keyId}`)
   }
 }
+
+/**
+ * @deprecated Use ClientKeysManager instead
+ */
+export const APIKeysManager = ClientKeysManager
 
 /**
  * Webhooks management client
@@ -486,13 +491,16 @@ export class InvitationsManager {
 }
 
 /**
- * Management client for API keys, webhooks, and invitations
+ * Management client for client keys, webhooks, and invitations
  *
  * @category Management
  */
 export class FluxbaseManagement {
-  /** API Keys management */
-  public apiKeys: APIKeysManager
+  /** Client Keys management */
+  public clientKeys: ClientKeysManager
+
+  /** @deprecated Use clientKeys instead */
+  public apiKeys: ClientKeysManager
 
   /** Webhooks management */
   public webhooks: WebhooksManager
@@ -501,7 +509,8 @@ export class FluxbaseManagement {
   public invitations: InvitationsManager
 
   constructor(fetch: FluxbaseFetch) {
-    this.apiKeys = new APIKeysManager(fetch)
+    this.clientKeys = new ClientKeysManager(fetch)
+    this.apiKeys = this.clientKeys // Backwards compatibility alias
     this.webhooks = new WebhooksManager(fetch)
     this.invitations = new InvitationsManager(fetch)
   }

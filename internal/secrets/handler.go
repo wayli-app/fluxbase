@@ -41,10 +41,10 @@ type UpdateSecretRequest struct {
 }
 
 // RegisterRoutes registers secrets routes with authentication
-func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
+func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware to all secrets routes
 	secrets := app.Group("/api/v1/secrets",
-		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
+		middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager),
 	)
 
 	// Read operations require read:secrets scope

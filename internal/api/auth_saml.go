@@ -325,7 +325,9 @@ func (h *SAMLHandler) HandleSAMLAssertion(c *fiber.Ctx) error {
 }
 
 // HandleSAMLLogout handles SAML Single Logout (SLO)
+// This endpoint handles both IdP-initiated logout (SAMLRequest) and SP-initiated logout callback (SAMLResponse)
 // POST /auth/saml/slo
+// GET /auth/saml/slo
 func (h *SAMLHandler) HandleSAMLLogout(c *fiber.Ctx) error {
 	if h.samlService == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -333,11 +335,275 @@ func (h *SAMLHandler) HandleSAMLLogout(c *fiber.Ctx) error {
 		})
 	}
 
-	// SLO can be initiated by IdP or SP
-	// For now, just return success - full SLO implementation requires more work
+	// Check for SAMLRequest (IdP-initiated logout) or SAMLResponse (SP-initiated callback)
+	var samlRequest, samlResponse, relayState string
+
+	if c.Method() == "POST" {
+		samlRequest = c.FormValue("SAMLRequest")
+		samlResponse = c.FormValue("SAMLResponse")
+		relayState = c.FormValue("RelayState")
+	} else {
+		samlRequest = c.Query("SAMLRequest")
+		samlResponse = c.Query("SAMLResponse")
+		relayState = c.Query("RelayState")
+	}
+
+	// IdP-initiated logout - IdP sends LogoutRequest
+	if samlRequest != "" {
+		return h.handleIdPInitiatedLogout(c, samlRequest, relayState, c.Method() == "GET")
+	}
+
+	// SP-initiated logout callback - IdP sends LogoutResponse
+	if samlResponse != "" {
+		return h.handleSPLogoutCallback(c, samlResponse, relayState, c.Method() == "GET")
+	}
+
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": "Missing SAMLRequest or SAMLResponse",
+	})
+}
+
+// handleIdPInitiatedLogout processes a LogoutRequest from the IdP
+func (h *SAMLHandler) handleIdPInitiatedLogout(c *fiber.Ctx, samlRequest, relayState string, isDeflated bool) error {
+	ctx := c.Context()
+
+	// Parse the LogoutRequest
+	parsedRequest, providerName, err := h.samlService.ParseLogoutRequest(samlRequest, relayState, isDeflated)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to parse SAML LogoutRequest")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "invalid LogoutRequest",
+			"details": err.Error(),
+		})
+	}
+
+	log.Info().
+		Str("provider", providerName).
+		Str("name_id", parsedRequest.NameID).
+		Str("session_index", parsedRequest.SessionIndex).
+		Msg("Processing IdP-initiated SAML logout")
+
+	// Find the SAML session by NameID
+	samlSession, err := h.samlService.GetSAMLSessionByNameID(ctx, providerName, parsedRequest.NameID)
+	if err != nil {
+		log.Warn().Err(err).Str("name_id", parsedRequest.NameID).Msg("SAML session not found for logout")
+		// Still send success response - IdP expects confirmation even if we don't have the session
+	} else {
+		// Invalidate the user's JWT sessions
+		if err := h.authService.RevokeAllUserTokens(ctx, samlSession.UserID, "SAML IdP-initiated logout"); err != nil {
+			log.Warn().Err(err).Str("user_id", samlSession.UserID).Msg("Failed to revoke user tokens during SAML logout")
+		}
+
+		// Delete the SAML session
+		if err := h.samlService.DeleteSAMLSessionByNameID(ctx, providerName, parsedRequest.NameID); err != nil {
+			log.Warn().Err(err).Msg("Failed to delete SAML session")
+		}
+	}
+
+	// Generate LogoutResponse to send back to IdP
+	provider, err := h.samlService.GetProvider(providerName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to get provider for logout response",
+		})
+	}
+
+	// Get IdP's SLO URL to send the response
+	idpSloURL := provider.IdPSloURL
+	if idpSloURL == "" {
+		// No SLO URL, just return success
+		return c.JSON(fiber.Map{
+			"message": "logout successful",
+		})
+	}
+
+	// Generate signed LogoutResponse
+	responseURL, err := h.samlService.GenerateLogoutResponse(providerName, parsedRequest.ID, relayState)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate LogoutResponse")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to generate logout response",
+		})
+	}
+
+	// Redirect to IdP with the LogoutResponse
+	return c.Redirect(responseURL.String(), fiber.StatusFound)
+}
+
+// handleSPLogoutCallback processes the LogoutResponse from IdP after SP-initiated logout
+func (h *SAMLHandler) handleSPLogoutCallback(c *fiber.Ctx, samlResponse, relayState string, isDeflated bool) error {
+	// Parse the LogoutResponse
+	parsedResponse, providerName, err := h.samlService.ParseLogoutResponse(samlResponse, isDeflated)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to parse SAML LogoutResponse")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "invalid LogoutResponse",
+			"details": err.Error(),
+		})
+	}
+
+	log.Info().
+		Str("provider", providerName).
+		Str("status", parsedResponse.Status).
+		Str("in_response_to", parsedResponse.InResponseTo).
+		Msg("Received SAML LogoutResponse")
+
+	// Check status
+	if parsedResponse.Status != "urn:oasis:names:tc:SAML:2.0:status:Success" {
+		log.Warn().
+			Str("status", parsedResponse.Status).
+			Str("message", parsedResponse.StatusMessage).
+			Msg("SAML logout failed at IdP")
+	}
+
+	// Redirect to the original destination if RelayState is provided
+	if relayState != "" {
+		redirectURL, err := url.QueryUnescape(relayState)
+		if err == nil && redirectURL != "" {
+			provider, _ := h.samlService.GetProvider(providerName)
+			var allowedHosts []string
+			if provider != nil {
+				allowedHosts = provider.AllowedRedirectHosts
+			}
+
+			validatedURL, err := auth.ValidateRelayState(redirectURL, allowedHosts)
+			if err == nil && validatedURL != "" {
+				return c.Redirect(validatedURL, fiber.StatusFound)
+			}
+		}
+	}
+
+	// Return JSON response
 	return c.JSON(fiber.Map{
 		"message": "logout successful",
+		"status":  parsedResponse.Status,
 	})
+}
+
+// InitiateSAMLLogout initiates SP-initiated SAML logout
+// GET /auth/saml/logout/:provider
+func (h *SAMLHandler) InitiateSAMLLogout(c *fiber.Ctx) error {
+	if h.samlService == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "SAML is not configured",
+		})
+	}
+
+	providerName := c.Params("provider")
+	if providerName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "provider name is required",
+		})
+	}
+
+	// Get the current user from the JWT token
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "authentication required",
+		})
+	}
+
+	ctx := c.Context()
+
+	// Get the user's SAML session
+	samlSession, err := h.samlService.GetSAMLSessionByUserID(ctx, userID)
+	if err != nil {
+		log.Debug().Err(err).Str("user_id", userID).Msg("No SAML session found for user")
+		// No SAML session - just do local logout
+		return c.JSON(fiber.Map{
+			"message":     "local logout successful",
+			"saml_logout": false,
+		})
+	}
+
+	// Check if the provider matches
+	if samlSession.ProviderName != providerName {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "provider mismatch",
+		})
+	}
+
+	// Check if IdP supports SLO
+	idpSloURL, err := h.samlService.GetIdPSloURL(providerName)
+	if err != nil || idpSloURL == "" {
+		// No SLO support - do local logout only
+		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
+			log.Warn().Err(err).Msg("Failed to delete SAML session")
+		}
+		if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML logout (no SLO support)"); err != nil {
+			log.Warn().Err(err).Msg("Failed to revoke user tokens")
+		}
+		return c.JSON(fiber.Map{
+			"message":     "local logout successful",
+			"saml_logout": false,
+		})
+	}
+
+	// Check if SP signing keys are configured
+	if !h.samlService.HasSigningKey(providerName) {
+		// No signing key - do local logout only
+		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
+			log.Warn().Err(err).Msg("Failed to delete SAML session")
+		}
+		if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML logout (no signing key)"); err != nil {
+			log.Warn().Err(err).Msg("Failed to revoke user tokens")
+		}
+		return c.JSON(fiber.Map{
+			"message":     "local logout successful",
+			"saml_logout": false,
+			"warning":     "SP signing key not configured for SAML SLO",
+		})
+	}
+
+	// Get redirect URL from query parameter (where to redirect after logout)
+	redirectURL := c.Query("redirect_url", c.Query("redirect", ""))
+	relayState := ""
+	if redirectURL != "" {
+		relayState = url.QueryEscape(redirectURL)
+	}
+
+	// Generate the LogoutRequest
+	result, err := h.samlService.GenerateLogoutRequest(
+		providerName,
+		samlSession.NameID,
+		samlSession.NameIDFormat,
+		samlSession.SessionIndex,
+		relayState,
+	)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to generate SAML LogoutRequest")
+		// Fall back to local logout
+		if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
+			log.Warn().Err(err).Msg("Failed to delete SAML session")
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "failed to initiate SAML logout",
+			"details": err.Error(),
+		})
+	}
+
+	// Delete local session before redirecting (IdP will confirm logout)
+	if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
+		log.Warn().Err(err).Msg("Failed to delete SAML session")
+	}
+
+	// Revoke JWT tokens
+	if err := h.authService.RevokeAllUserTokens(ctx, userID, "SAML SP-initiated logout"); err != nil {
+		log.Warn().Err(err).Msg("Failed to revoke user tokens")
+	}
+
+	// Check if client wants JSON response or redirect
+	acceptHeader := c.Get("Accept")
+	if strings.Contains(acceptHeader, "application/json") {
+		return c.JSON(fiber.Map{
+			"redirect_url": result.RedirectURL,
+			"saml_logout":  true,
+		})
+	}
+
+	// Redirect to IdP for logout
+	return c.Redirect(result.RedirectURL, fiber.StatusFound)
 }
 
 // Helper function to convert map[string][]string to map[string]interface{}
@@ -362,7 +628,11 @@ func (h *SAMLHandler) RegisterRoutes(router fiber.Router) {
 	saml.Get("/metadata/:provider", h.GetSPMetadata)
 	saml.Get("/login/:provider", h.InitiateSAMLLogin)
 	saml.Post("/acs", h.HandleSAMLAssertion)
-	saml.Post("/slo", h.HandleSAMLLogout)
+
+	// SLO endpoints
+	saml.Get("/logout/:provider", h.InitiateSAMLLogout) // SP-initiated logout (requires auth)
+	saml.Post("/slo", h.HandleSAMLLogout)               // IdP-initiated logout & SP callback
+	saml.Get("/slo", h.HandleSAMLLogout)                // Some IdPs use GET for SLO
 }
 
 // Helper for JSON encoding errors

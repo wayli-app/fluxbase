@@ -11,20 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// APIKeyHandler handles API key-related requests
-type APIKeyHandler struct {
-	apiKeyService *auth.APIKeyService
+// ClientKeyHandler handles client key-related requests
+type ClientKeyHandler struct {
+	clientKeyService *auth.ClientKeyService
 }
 
-// NewAPIKeyHandler creates a new API key handler
-func NewAPIKeyHandler(apiKeyService *auth.APIKeyService) *APIKeyHandler {
-	return &APIKeyHandler{
-		apiKeyService: apiKeyService,
+// NewClientKeyHandler creates a new client key handler
+func NewClientKeyHandler(clientKeyService *auth.ClientKeyService) *ClientKeyHandler {
+	return &ClientKeyHandler{
+		clientKeyService: clientKeyService,
 	}
 }
 
-// CreateAPIKeyRequest represents a request to create an API key
-type CreateAPIKeyRequest struct {
+// CreateClientKeyRequest represents a request to create a client key
+type CreateClientKeyRequest struct {
 	Name               string     `json:"name"`
 	Description        *string    `json:"description,omitempty"`
 	Scopes             []string   `json:"scopes"`
@@ -32,35 +32,35 @@ type CreateAPIKeyRequest struct {
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
 }
 
-// UpdateAPIKeyRequest represents a request to update an API key
-type UpdateAPIKeyRequest struct {
+// UpdateClientKeyRequest represents a request to update a client key
+type UpdateClientKeyRequest struct {
 	Name               *string  `json:"name,omitempty"`
 	Description        *string  `json:"description,omitempty"`
 	Scopes             []string `json:"scopes,omitempty"`
 	RateLimitPerMinute *int     `json:"rate_limit_per_minute,omitempty"`
 }
 
-// RegisterRoutes registers API key routes with authentication
-func (h *APIKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
-	// Apply authentication middleware to all API key routes
-	apiKeys := app.Group("/api/v1/api-keys",
-		middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager),
+// RegisterRoutes registers client key routes with authentication
+func (h *ClientKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
+	// Apply authentication middleware to all client key routes
+	clientKeys := app.Group("/api/v1/client-keys",
+		middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager),
 	)
 
-	// Read operations require read:apikeys scope
-	apiKeys.Get("/", middleware.RequireScope(auth.ScopeAPIKeysRead), h.ListAPIKeys)
-	apiKeys.Get("/:id", middleware.RequireScope(auth.ScopeAPIKeysRead), h.GetAPIKey)
+	// Read operations require read:clientkeys scope
+	clientKeys.Get("/", middleware.RequireScope(auth.ScopeClientKeysRead), h.ListClientKeys)
+	clientKeys.Get("/:id", middleware.RequireScope(auth.ScopeClientKeysRead), h.GetClientKey)
 
-	// Write operations require write:apikeys scope
-	apiKeys.Post("/", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.CreateAPIKey)
-	apiKeys.Patch("/:id", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.UpdateAPIKey)
-	apiKeys.Delete("/:id", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.DeleteAPIKey)
-	apiKeys.Post("/:id/revoke", middleware.RequireScope(auth.ScopeAPIKeysWrite), h.RevokeAPIKey)
+	// Write operations require write:clientkeys scope
+	clientKeys.Post("/", middleware.RequireScope(auth.ScopeClientKeysWrite), h.CreateClientKey)
+	clientKeys.Patch("/:id", middleware.RequireScope(auth.ScopeClientKeysWrite), h.UpdateClientKey)
+	clientKeys.Delete("/:id", middleware.RequireScope(auth.ScopeClientKeysWrite), h.DeleteClientKey)
+	clientKeys.Post("/:id/revoke", middleware.RequireScope(auth.ScopeClientKeysWrite), h.RevokeClientKey)
 }
 
-// CreateAPIKey creates a new API key
-func (h *APIKeyHandler) CreateAPIKey(c *fiber.Ctx) error {
-	var req CreateAPIKeyRequest
+// CreateClientKey creates a new client key
+func (h *ClientKeyHandler) CreateClientKey(c *fiber.Ctx) error {
+	var req CreateClientKeyRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
@@ -80,7 +80,7 @@ func (h *APIKeyHandler) CreateAPIKey(c *fiber.Ctx) error {
 		userIDPtr = &userID
 	}
 
-	apiKey, err := h.apiKeyService.GenerateAPIKey(
+	clientKey, err := h.clientKeyService.GenerateClientKey(
 		c.Context(),
 		req.Name,
 		req.Description,
@@ -91,16 +91,16 @@ func (h *APIKeyHandler) CreateAPIKey(c *fiber.Ctx) error {
 	)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to create API key: %v", err),
+			"error": fmt.Sprintf("Failed to create client key: %v", err),
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(apiKey)
+	return c.Status(fiber.StatusCreated).JSON(clientKey)
 }
 
-// ListAPIKeys lists API keys
+// ListClientKeys lists client keys
 // Non-admin users can only see their own keys
-func (h *APIKeyHandler) ListAPIKeys(c *fiber.Ctx) error {
+func (h *ClientKeyHandler) ListClientKeys(c *fiber.Ctx) error {
 	// Get current user info
 	currentUserID, _ := c.Locals("user_id").(string)
 	role, _ := c.Locals("user_role").(string)
@@ -121,7 +121,7 @@ func (h *APIKeyHandler) ListAPIKeys(c *fiber.Ctx) error {
 		// Non-admin users can only view their own keys
 		if !isAdmin && userIDStr != currentUserID {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Cannot view other users' API keys",
+				"error": "Cannot view other users' client keys",
 			})
 		}
 		userID = &id
@@ -134,24 +134,24 @@ func (h *APIKeyHandler) ListAPIKeys(c *fiber.Ctx) error {
 	}
 	// Admins without filter: show all keys (userID stays nil)
 
-	apiKeys, err := h.apiKeyService.ListAPIKeys(c.Context(), userID)
+	clientKeys, err := h.clientKeyService.ListClientKeys(c.Context(), userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to list API keys: %v", err),
+			"error": fmt.Sprintf("Failed to list client keys: %v", err),
 		})
 	}
 
-	return c.JSON(apiKeys)
+	return c.JSON(clientKeys)
 }
 
-// GetAPIKey retrieves a single API key
+// GetClientKey retrieves a single client key
 // Non-admin users can only view their own keys
-func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
+func (h *ClientKeyHandler) GetClientKey(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid API key ID",
+			"error": "Invalid client key ID",
 		})
 	}
 
@@ -161,19 +161,19 @@ func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
 	isAdmin := role == "admin" || role == "dashboard_admin" || role == "service_role"
 
 	// For simplicity, we'll just list and filter (in production, add a GetByID method)
-	apiKeys, err := h.apiKeyService.ListAPIKeys(c.Context(), nil)
+	clientKeys, err := h.clientKeyService.ListClientKeys(c.Context(), nil)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to get API key: %v", err),
+			"error": fmt.Sprintf("Failed to get client key: %v", err),
 		})
 	}
 
-	for _, key := range apiKeys {
+	for _, key := range clientKeys {
 		if key.ID == id {
 			// Non-admin users can only view their own keys
 			if !isAdmin && key.UserID != nil && key.UserID.String() != currentUserID {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "Cannot view other users' API keys",
+					"error": "Cannot view other users' client keys",
 				})
 			}
 			return c.JSON(key)
@@ -181,77 +181,77 @@ func (h *APIKeyHandler) GetAPIKey(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-		"error": "API key not found",
+		"error": "Client key not found",
 	})
 }
 
-// UpdateAPIKey updates an API key's metadata
-func (h *APIKeyHandler) UpdateAPIKey(c *fiber.Ctx) error {
+// UpdateClientKey updates a client key's metadata
+func (h *ClientKeyHandler) UpdateClientKey(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid API key ID",
+			"error": "Invalid client key ID",
 		})
 	}
 
-	var req UpdateAPIKeyRequest
+	var req UpdateClientKeyRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
-	err = h.apiKeyService.UpdateAPIKey(c.Context(), id, req.Name, req.Description, req.Scopes, req.RateLimitPerMinute)
+	err = h.clientKeyService.UpdateClientKey(c.Context(), id, req.Name, req.Description, req.Scopes, req.RateLimitPerMinute)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to update API key: %v", err),
+			"error": fmt.Sprintf("Failed to update client key: %v", err),
 		})
 	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "API key updated successfully",
+		"message": "Client key updated successfully",
 	})
 }
 
-// RevokeAPIKey revokes an API key
-func (h *APIKeyHandler) RevokeAPIKey(c *fiber.Ctx) error {
+// RevokeClientKey revokes a client key
+func (h *ClientKeyHandler) RevokeClientKey(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid API key ID",
+			"error": "Invalid client key ID",
 		})
 	}
 
-	err = h.apiKeyService.RevokeAPIKey(c.Context(), id)
+	err = h.clientKeyService.RevokeClientKey(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to revoke API key: %v", err),
+			"error": fmt.Sprintf("Failed to revoke client key: %v", err),
 		})
 	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "API key revoked successfully",
+		"message": "Client key revoked successfully",
 	})
 }
 
-// DeleteAPIKey permanently deletes an API key
-func (h *APIKeyHandler) DeleteAPIKey(c *fiber.Ctx) error {
+// DeleteClientKey permanently deletes a client key
+func (h *ClientKeyHandler) DeleteClientKey(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid API key ID",
+			"error": "Invalid client key ID",
 		})
 	}
 
-	err = h.apiKeyService.DeleteAPIKey(c.Context(), id)
+	err = h.clientKeyService.DeleteClientKey(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to delete API key: %v", err),
+			"error": fmt.Sprintf("Failed to delete client key: %v", err),
 		})
 	}
 

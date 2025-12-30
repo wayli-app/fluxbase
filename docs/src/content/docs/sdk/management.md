@@ -2,9 +2,9 @@
 title: Management SDK
 ---
 
-The Management SDK provides tools for managing API keys, webhooks, and invitations in your Fluxbase instance. These features allow you to:
+The Management SDK provides tools for managing client keys, webhooks, and invitations in your Fluxbase instance. These features allow you to:
 
-- **API Keys**: Create and manage API keys for service-to-service authentication
+- **Client Keys**: Create and manage client keys for service-to-service authentication
 - **Webhooks**: Set up event-driven integrations with external services
 - **Invitations**: Invite new users to join your dashboard
 
@@ -32,8 +32,8 @@ await client.auth.login({
   password: "password",
 });
 
-// Create an API key
-const { api_key, key } = await client.management.apiKeys.create({
+// Create a client key
+const { client_key, key } = await client.management.clientKeys.create({
   name: "Production Service",
   scopes: ["read:users", "write:users"],
   rate_limit_per_minute: 100,
@@ -59,31 +59,31 @@ const invitation = await client.management.invitations.create({
 
 ---
 
-## API Keys Management
+## Client Keys Management
 
-API keys provide a secure way for external services to authenticate with your Fluxbase instance without using user credentials.
+Client keys provide a secure way for external services to authenticate with your Fluxbase instance without using user credentials.
 
-### Create API Key
+### Create Client Key
 
-Create a new API key with specific scopes and rate limits.
+Create a new client key with specific scopes and rate limits.
 
 ```typescript
-const { api_key, key } = await client.management.apiKeys.create({
+const { client_key, key } = await client.management.clientKeys.create({
   name: "Production Service",
-  description: "API key for production microservice",
+  description: "Client key for production microservice",
   scopes: ["read:users", "write:users", "read:products"],
   rate_limit_per_minute: 100,
   expires_at: "2025-12-31T23:59:59Z", // Optional expiration
 });
 
 // ⚠️ IMPORTANT: Store the full key securely - it won't be shown again
-console.log("API Key:", key); // fb_live_abc123def456...
-console.log("Key Prefix:", api_key.key_prefix); // fb_live_abc
+console.log("Client Key:", key); // fbk_abc123def456...
+console.log("Key Prefix:", client_key.key_prefix); // fbk_abc
 ```
 
 **Parameters:**
 
-- `name` (required): Human-readable name for the API key
+- `name` (required): Human-readable name for the client key
 - `description` (optional): Detailed description
 - `scopes` (required): Array of permission scopes
 - `rate_limit_per_minute` (required): Maximum requests per minute
@@ -91,17 +91,17 @@ console.log("Key Prefix:", api_key.key_prefix); // fb_live_abc
 
 **Returns:** Object containing:
 
-- `api_key`: API key metadata
-- `key`: Full API key value (only returned once)
+- `client_key`: Client key metadata
+- `key`: Full client key value (only returned once)
 
-### List API Keys
+### List Client Keys
 
-Retrieve all API keys for the authenticated user.
+Retrieve all client keys for the authenticated user.
 
 ```typescript
-const { api_keys, total } = await client.management.apiKeys.list();
+const { client_keys, total } = await client.management.clientKeys.list();
 
-api_keys.forEach((key) => {
+client_keys.forEach((key) => {
   console.log(`${key.name}: ${key.key_prefix}...`);
   console.log(`  Scopes: ${key.scopes.join(", ")}`);
   console.log(`  Rate Limit: ${key.rate_limit_per_minute}/min`);
@@ -117,25 +117,25 @@ api_keys.forEach((key) => {
 });
 ```
 
-### Get API Key
+### Get Client Key
 
-Retrieve details for a specific API key.
+Retrieve details for a specific client key.
 
 ```typescript
-const apiKey = await client.management.apiKeys.get("key-uuid");
+const clientKey = await client.management.clientKeys.get("key-uuid");
 
-console.log("Name:", apiKey.name);
-console.log("Scopes:", apiKey.scopes);
-console.log("Created:", apiKey.created_at);
-console.log("Last Used:", apiKey.last_used_at);
+console.log("Name:", clientKey.name);
+console.log("Scopes:", clientKey.scopes);
+console.log("Created:", clientKey.created_at);
+console.log("Last Used:", clientKey.last_used_at);
 ```
 
-### Update API Key
+### Update Client Key
 
-Update API key properties (name, description, scopes, rate limit).
+Update client key properties (name, description, scopes, rate limit).
 
 ```typescript
-const updated = await client.management.apiKeys.update("key-uuid", {
+const updated = await client.management.clientKeys.update("key-uuid", {
   name: "Updated Service Name",
   description: "New description",
   scopes: ["read:users", "write:users", "read:orders"],
@@ -145,15 +145,15 @@ const updated = await client.management.apiKeys.update("key-uuid", {
 console.log("Updated:", updated.name);
 ```
 
-**Note:** Updating scopes immediately affects API key permissions. Update rate limits to handle increased/decreased traffic.
+**Note:** Updating scopes immediately affects client key permissions. Update rate limits to handle increased/decreased traffic.
 
-### Revoke API Key
+### Revoke Client Key
 
-Revoke an API key to prevent further use while keeping it for audit logs.
+Revoke a client key to prevent further use while keeping it for audit logs.
 
 ```typescript
-await client.management.apiKeys.revoke("key-uuid");
-console.log("API key revoked successfully");
+await client.management.clientKeys.revoke("key-uuid");
+console.log("Client key revoked successfully");
 ```
 
 **Difference between Revoke and Delete:**
@@ -161,13 +161,13 @@ console.log("API key revoked successfully");
 - **Revoke**: Disables the key but keeps it in the database for audit trails
 - **Delete**: Permanently removes the key from the system
 
-### Delete API Key
+### Delete Client Key
 
-Permanently delete an API key.
+Permanently delete a client key.
 
 ```typescript
-await client.management.apiKeys.delete("key-uuid");
-console.log("API key deleted successfully");
+await client.management.clientKeys.delete("key-uuid");
+console.log("Client key deleted successfully");
 ```
 
 ⚠️ **Warning:** This action cannot be undone. Consider revoking instead of deleting for audit purposes.
@@ -542,17 +542,17 @@ console.log("Invitation revoked");
 
 ## Complete Examples
 
-### API Key Management Dashboard
+### Client Key Management Dashboard
 
 ```typescript
 import { createClient } from "@fluxbase/sdk";
 
 const client = createClient(
   "http://localhost:8080",
-  "your-api-key"
+  "your-client-key"
 );
 
-async function setupAPIKeyDashboard() {
+async function setupClientKeyDashboard() {
   // Authenticate
   await client.auth.login({
     email: "user@example.com",
@@ -560,10 +560,10 @@ async function setupAPIKeyDashboard() {
   });
 
   // List existing keys
-  const { api_keys } = await client.management.apiKeys.list();
+  const { client_keys } = await client.management.clientKeys.list();
 
-  console.log("=== API Keys ===");
-  api_keys.forEach((key) => {
+  console.log("=== Client Keys ===");
+  client_keys.forEach((key) => {
     const status = key.revoked_at
       ? "🔴 REVOKED"
       : key.expires_at && new Date(key.expires_at) < new Date()
@@ -577,18 +577,18 @@ async function setupAPIKeyDashboard() {
   });
 
   // Create a new key
-  const { api_key, key } = await client.management.apiKeys.create({
+  const { client_key, key } = await client.management.clientKeys.create({
     name: "New Integration",
     scopes: ["read:users"],
     rate_limit_per_minute: 60,
   });
 
-  console.log("\n✅ New API Key Created");
+  console.log("\n✅ New Client Key Created");
   console.log("Key:", key);
   console.log("Save this key securely - it won't be shown again!");
 
   // Update an existing key
-  const updated = await client.management.apiKeys.update(api_keys[0].id, {
+  const updated = await client.management.clientKeys.update(client_keys[0].id, {
     rate_limit_per_minute: 120,
   });
 
@@ -597,7 +597,7 @@ async function setupAPIKeyDashboard() {
   );
 }
 
-setupAPIKeyDashboard().catch(console.error);
+setupClientKeyDashboard().catch(console.error);
 ```
 
 ### Webhook Event Handler
@@ -779,20 +779,20 @@ All management methods may throw errors. Always wrap calls in try-catch blocks:
 
 ```typescript
 try {
-  const { api_key, key } = await client.management.apiKeys.create({
+  const { client_key, key } = await client.management.clientKeys.create({
     name: "New Key",
     scopes: ["read:users"],
     rate_limit_per_minute: 100,
   });
 
-  console.log("API key created:", key);
+  console.log("Client key created:", key);
 } catch (error) {
   if (error.message.includes("unauthorized")) {
-    console.error("You must be logged in to create API keys");
+    console.error("You must be logged in to create client keys");
   } else if (error.message.includes("rate_limit")) {
     console.error("Invalid rate limit value");
   } else {
-    console.error("Failed to create API key:", error.message);
+    console.error("Failed to create client key:", error.message);
   }
 }
 ```
@@ -837,9 +837,9 @@ try {
 
 ## Best Practices
 
-### API Keys
+### Client Keys
 
-1. **Store keys securely**: Never commit API keys to version control
+1. **Store keys securely**: Never commit client keys to version control
 2. **Rotate regularly**: Create new keys and revoke old ones periodically
 3. **Use specific scopes**: Grant minimal permissions needed
 4. **Monitor usage**: Check `last_used_at` to identify unused keys
@@ -869,10 +869,10 @@ All management types are fully typed for excellent IDE support:
 
 ```typescript
 import type {
-  // API Keys
-  APIKey,
-  CreateAPIKeyRequest,
-  CreateAPIKeyResponse,
+  // Client Keys
+  ClientKey,
+  CreateClientKeyRequest,
+  CreateClientKeyResponse,
 
   // Webhooks
   Webhook,

@@ -19,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 )
 
@@ -990,6 +991,23 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 		return c.Redirect("/login?error=" + url.QueryEscape(errMsg))
 	}
 
+	// Create SAML session for SLO support
+	samlSession := &auth.SAMLSession{
+		ID:           uuid.New().String(),
+		UserID:       user.ID.String(),
+		ProviderName: providerName,
+		NameID:       assertion.NameID,
+		NameIDFormat: assertion.NameIDFormat,
+		SessionIndex: assertion.SessionIndex,
+		Attributes:   convertSAMLAttributesToMap(assertion.Attributes),
+		ExpiresAt:    &assertion.NotOnOrAfter,
+		CreatedAt:    time.Now(),
+	}
+
+	if err := h.samlService.CreateSAMLSession(ctx, samlSession); err != nil {
+		log.Warn().Err(err).Str("user_id", user.ID.String()).Msg("Failed to create SAML session for dashboard user")
+	}
+
 	// Redirect with tokens
 	redirectURL := relayState
 	if redirectURL == "" || redirectURL == "/" {
@@ -1016,4 +1034,17 @@ func getFirstAttribute(attributes map[string][]string, key string) string {
 		return values[0]
 	}
 	return ""
+}
+
+// convertSAMLAttributesToMap converts SAML attributes to a map[string]interface{} for storage
+func convertSAMLAttributesToMap(attrs map[string][]string) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range attrs {
+		if len(v) == 1 {
+			result[k] = v[0]
+		} else {
+			result[k] = v
+		}
+	}
+	return result
 }

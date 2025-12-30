@@ -21,7 +21,7 @@
 //   - CreateDashboardAdminUser() - Create platform admin user
 //
 // Authentication:
-//   - CreateAPIKey() - Create API key (respects RLS)
+//   - CreateClientKey() - Create client key (respects RLS)
 //   - CreateServiceKey() - Create service key (bypasses RLS!)
 //   - GenerateAnonKey() - Generate anonymous JWT token
 //   - GetAuthToken() - Sign in and get JWT
@@ -187,7 +187,7 @@ type TestContext struct {
 //	    defer tc.Close()
 //
 //	    resp := tc.NewRequest("GET", "/api/v1/tables/products").
-//	        WithAPIKey(tc.CreateAPIKey("test", nil)).
+//	        WithClientKey(tc.CreateClientKey("test", nil)).
 //	        Send().
 //	        AssertStatus(fiber.StatusOK)
 //	}
@@ -623,21 +623,27 @@ func (r *APIRequest) WithBearerToken(token string) *APIRequest {
 	return r
 }
 
-// WithAPIKey sets the X-API-Key header for API key authentication.
+// WithClientKey sets the X-Client-Key header for client key authentication.
 //
-// Header Set: X-API-Key: {apiKey}
-// Use for: Project-level API key authentication
+// Header Set: X-Client-Key: {clientKey}
+// Use for: Project-level client key authentication
 // RLS: Respects RLS policies
 //
 // Example:
 //
-//	apiKey := tc.CreateAPIKey("My API Key", []string{"read", "write"})
+//	clientKey := tc.CreateClientKey("My Client Key", []string{"read", "write"})
 //	resp := tc.NewRequest("GET", "/api/v1/tables/products").
-//	    WithAPIKey(apiKey).
+//	    WithClientKey(clientKey).
 //	    Send()
-func (r *APIRequest) WithAPIKey(apiKey string) *APIRequest {
-	r.headers["X-API-Key"] = apiKey
+func (r *APIRequest) WithClientKey(clientKey string) *APIRequest {
+	r.headers["X-Client-Key"] = clientKey
 	return r
+}
+
+// WithAPIKey is deprecated. Use WithClientKey instead.
+// This method is kept for backwards compatibility.
+func (r *APIRequest) WithAPIKey(apiKey string) *APIRequest {
+	return r.WithClientKey(apiKey)
 }
 
 // WithServiceKey sets the X-Service-Key header for service role authentication.
@@ -682,7 +688,7 @@ func (r *APIRequest) WithServiceKey(serviceKey string) *APIRequest {
 func (r *APIRequest) Unauthenticated() *APIRequest {
 	// Remove any authentication headers that may have been set
 	delete(r.headers, "Authorization")
-	delete(r.headers, "X-API-Key")
+	delete(r.headers, "X-Client-Key")
 	delete(r.headers, "X-Service-Key")
 	return r
 }
@@ -1745,20 +1751,20 @@ func (tc *TestContext) WaitForEmail(timeout time.Duration, filter func(MailHogMe
 	return nil
 }
 
-// CreateAPIKey creates a test API key and returns the plaintext key for use in tests
-func (tc *TestContext) CreateAPIKey(name string, scopes []string) string {
+// CreateClientKey creates a test client key and returns the plaintext key for use in tests
+func (tc *TestContext) CreateClientKey(name string, scopes []string) string {
 	ctx := context.Background()
 
-	// Create API key service
-	apiKeyService := auth.NewAPIKeyService(tc.DB.Pool())
+	// Create client key service
+	clientKeyService := auth.NewClientKeyService(tc.DB.Pool())
 
-	// Generate API key with provided scopes
+	// Generate client key with provided scopes
 	// Use default scopes if none provided (read/write for tables, storage, functions)
 	if len(scopes) == 0 {
 		scopes = []string{"*"} // All scopes for testing
 	}
 
-	keyWithPlaintext, err := apiKeyService.GenerateAPIKey(
+	keyWithPlaintext, err := clientKeyService.GenerateClientKey(
 		ctx,
 		name,
 		nil, // no description
@@ -1767,10 +1773,16 @@ func (tc *TestContext) CreateAPIKey(name string, scopes []string) string {
 		1000, // high rate limit for tests
 		nil,  // no expiration
 	)
-	require.NoError(tc.T, err, "Failed to create API key")
-	require.NotEmpty(tc.T, keyWithPlaintext.PlaintextKey, "API key plaintext is empty")
+	require.NoError(tc.T, err, "Failed to create client key")
+	require.NotEmpty(tc.T, keyWithPlaintext.PlaintextKey, "Client key plaintext is empty")
 
 	return keyWithPlaintext.PlaintextKey
+}
+
+// CreateAPIKey is deprecated. Use CreateClientKey instead.
+// This method is kept for backwards compatibility.
+func (tc *TestContext) CreateAPIKey(name string, scopes []string) string {
+	return tc.CreateClientKey(name, scopes)
 }
 
 // CreateServiceKey creates a test service key and returns the plaintext key for use in tests

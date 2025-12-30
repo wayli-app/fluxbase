@@ -247,7 +247,7 @@ func (h *GraphQLHandler) HandleIntrospection(c *fiber.Ctx) error {
 }
 
 // RegisterRoutes registers GraphQL routes with the Fiber app
-func (h *GraphQLHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
+func (h *GraphQLHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Import middleware package
 	// GraphQL endpoint - requires authentication with RLS support
 	graphqlGroup := app.Group("/api/v1/graphql")

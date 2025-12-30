@@ -222,47 +222,47 @@ func AuthenticatedUserLimiter() fiber.Handler {
 	})
 }
 
-// APIKeyLimiter limits requests per API key with configurable limits
-// Should be applied AFTER API key authentication middleware
-func APIKeyLimiter(maxRequests int, duration time.Duration) fiber.Handler {
+// ClientKeyLimiter limits requests per client key with configurable limits
+// Should be applied AFTER client key authentication middleware
+func ClientKeyLimiter(maxRequests int, duration time.Duration) fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
 		Max:        maxRequests,
 		Expiration: duration,
 		KeyFunc: func(c *fiber.Ctx) string {
-			// Try to get API key ID from locals (set by API key auth middleware)
-			keyID := c.Locals("api_key_id")
+			// Try to get client key ID from locals (set by client key auth middleware)
+			keyID := c.Locals("client_key_id")
 			if keyID != nil {
 				if kid, ok := keyID.(string); ok && kid != "" {
-					return "apikey:" + kid
+					return "clientkey:" + kid
 				}
 			}
-			// Fallback to IP if no API key ID
-			return "apikey:" + c.IP()
+			// Fallback to IP if no client key ID
+			return "clientkey:" + c.IP()
 		},
-		Message: fmt.Sprintf("API key rate limit exceeded. Maximum %d requests per %s allowed.", maxRequests, duration.String()),
+		Message: fmt.Sprintf("Client key rate limit exceeded. Maximum %d requests per %s allowed.", maxRequests, duration.String()),
 	})
 }
 
-// DefaultAPIKeyLimiter returns an API key limiter with default limits (1000 req/min)
-func DefaultAPIKeyLimiter() fiber.Handler {
-	return APIKeyLimiter(1000, 1*time.Minute)
+// DefaultClientKeyLimiter returns a client key limiter with default limits (1000 req/min)
+func DefaultClientKeyLimiter() fiber.Handler {
+	return ClientKeyLimiter(1000, 1*time.Minute)
 }
 
 // PerUserOrIPLimiter implements tiered rate limiting:
 // - Authenticated users: higher limit
-// - API keys: configurable limit
+// - Client keys: configurable limit
 // - Anonymous (IP): lower limit
-func PerUserOrIPLimiter(anonMax, userMax, apiKeyMax int, duration time.Duration) fiber.Handler {
+func PerUserOrIPLimiter(anonMax, userMax, clientKeyMax int, duration time.Duration) fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
 		Max:        anonMax, // Base max (will be adjusted by key function)
 		Expiration: duration,
 		KeyFunc: func(c *fiber.Ctx) string {
-			// Priority 1: Check for API key
-			apiKeyID := c.Locals("api_key_id")
-			if apiKeyID != nil {
-				if kid, ok := apiKeyID.(string); ok && kid != "" {
-					// Use API key specific limit
-					return fmt.Sprintf("apikey:%s:%d", kid, apiKeyMax)
+			// Priority 1: Check for client key
+			clientKeyID := c.Locals("client_key_id")
+			if clientKeyID != nil {
+				if kid, ok := clientKeyID.(string); ok && kid != "" {
+					// Use client key specific limit
+					return fmt.Sprintf("clientkey:%s:%d", kid, clientKeyMax)
 				}
 			}
 

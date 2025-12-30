@@ -571,22 +571,22 @@ fluxbase webhooks delete abc123
 
 ---
 
-## API Key Commands
+## Client Key Commands
 
-Manage API keys.
+Manage client keys.
 
 ```bash
-# List API keys
-fluxbase apikeys list
+# List client keys
+fluxbase clientkeys list
 
-# Create API key
-fluxbase apikeys create --name "Production" --scopes "read:tables,write:tables"
+# Create client key
+fluxbase clientkeys create --name "Production" --scopes "read:tables,write:tables"
 
-# Revoke API key
-fluxbase apikeys revoke abc123
+# Revoke client key
+fluxbase clientkeys revoke abc123
 
-# Delete API key
-fluxbase apikeys delete abc123
+# Delete client key
+fluxbase clientkeys delete abc123
 ```
 
 ---

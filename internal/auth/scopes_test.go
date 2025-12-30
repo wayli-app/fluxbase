@@ -19,8 +19,8 @@ func TestIsValidScope(t *testing.T) {
 			ScopeFunctionsExecute,
 			ScopeAuthRead,
 			ScopeAuthWrite,
-			ScopeAPIKeysRead,
-			ScopeAPIKeysWrite,
+			ScopeClientKeysRead,
+			ScopeClientKeysWrite,
 			ScopeWebhooksRead,
 			ScopeWebhooksWrite,
 			ScopeMonitoringRead,
@@ -228,7 +228,7 @@ func TestHasAllScopes(t *testing.T) {
 
 func TestAllScopes(t *testing.T) {
 	t.Run("AllScopes contains expected count", func(t *testing.T) {
-		// 23 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 apikeys +
+		// 23 scopes: 2 tables + 2 storage + 2 functions + 2 auth + 2 clientkeys +
 		// 2 webhooks + 1 monitoring + 2 realtime + 2 rpc + 2 jobs + 2 ai + 2 secrets
 		assert.Len(t, AllScopes, 23)
 	})
@@ -268,9 +268,9 @@ func TestScopeConstants(t *testing.T) {
 		assert.Equal(t, "read:auth", ScopeAuthRead)
 		assert.Equal(t, "write:auth", ScopeAuthWrite)
 
-		// API Keys
-		assert.Equal(t, "read:apikeys", ScopeAPIKeysRead)
-		assert.Equal(t, "write:apikeys", ScopeAPIKeysWrite)
+		// Client Keys
+		assert.Equal(t, "read:clientkeys", ScopeClientKeysRead)
+		assert.Equal(t, "write:clientkeys", ScopeClientKeysWrite)
 
 		// Webhooks
 		assert.Equal(t, "read:webhooks", ScopeWebhooksRead)
@@ -326,7 +326,7 @@ func TestScopeUseCases(t *testing.T) {
 		assert.True(t, HasScope(fullAccessScopes, ScopeTablesRead))
 		assert.True(t, HasScope(fullAccessScopes, ScopeTablesWrite))
 		assert.True(t, HasScope(fullAccessScopes, ScopeAuthWrite))
-		assert.True(t, HasScope(fullAccessScopes, ScopeAPIKeysWrite))
+		assert.True(t, HasScope(fullAccessScopes, ScopeClientKeysWrite))
 	})
 
 	t.Run("function execution only", func(t *testing.T) {

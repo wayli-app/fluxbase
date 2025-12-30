@@ -20,6 +20,7 @@ const (
 type AuthHandler struct {
 	authService    *auth.Service
 	captchaService *auth.CaptchaService
+	samlService    *auth.SAMLService
 	secureCookie   bool // Whether to set Secure flag on cookies (true in production)
 }
 
@@ -30,6 +31,11 @@ func NewAuthHandler(authService *auth.Service, captchaService *auth.CaptchaServi
 		captchaService: captchaService,
 		secureCookie:   false, // Will be set based on environment
 	}
+}
+
+// SetSAMLService sets the SAML service for SLO integration
+func (h *AuthHandler) SetSAMLService(samlService *auth.SAMLService) {
+	h.samlService = samlService
 }
 
 // SetSecureCookie sets whether cookies should have the Secure flag
@@ -278,8 +284,39 @@ func (h *AuthHandler) SignOut(c *fiber.Ctx) error {
 		})
 	}
 
-	// Sign out user
-	if err := h.authService.SignOut(c.Context(), token); err != nil {
+	ctx := c.Context()
+
+	// Get user ID from token before signing out
+	var userID string
+	if claims, err := h.authService.ValidateToken(token); err == nil {
+		userID = claims.UserID
+	}
+
+	// Check if user has an active SAML session
+	var samlLogoutInfo *fiber.Map
+	if userID != "" && h.samlService != nil {
+		samlSession, err := h.samlService.GetSAMLSessionByUserID(ctx, userID)
+		if err == nil && samlSession != nil {
+			// Check if provider has SLO support
+			idpSloURL, _ := h.samlService.GetIdPSloURL(samlSession.ProviderName)
+			if idpSloURL != "" && h.samlService.HasSigningKey(samlSession.ProviderName) {
+				// SAML SLO is available - return the logout URL
+				samlLogoutInfo = &fiber.Map{
+					"saml_logout": true,
+					"provider":    samlSession.ProviderName,
+					"slo_url":     fmt.Sprintf("/auth/saml/logout/%s", samlSession.ProviderName),
+				}
+			} else {
+				// No SLO support - clean up SAML session locally
+				if err := h.samlService.DeleteSAMLSession(ctx, samlSession.ID); err != nil {
+					log.Warn().Err(err).Msg("Failed to delete SAML session during signout")
+				}
+			}
+		}
+	}
+
+	// Sign out user (invalidates JWT)
+	if err := h.authService.SignOut(ctx, token); err != nil {
 		log.Error().Err(err).Msg("Failed to sign out user")
 		// Clear cookies even if sign out fails
 		h.clearAuthCookies(c)
@@ -290,6 +327,16 @@ func (h *AuthHandler) SignOut(c *fiber.Ctx) error {
 
 	// Clear authentication cookies
 	h.clearAuthCookies(c)
+
+	// Return response with SAML logout info if applicable
+	if samlLogoutInfo != nil {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message":     "Successfully signed out locally",
+			"saml_logout": (*samlLogoutInfo)["saml_logout"],
+			"provider":    (*samlLogoutInfo)["provider"],
+			"slo_url":     (*samlLogoutInfo)["slo_url"],
+		})
+	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Successfully signed out",

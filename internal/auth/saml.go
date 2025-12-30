@@ -1,10 +1,13 @@
 package auth
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -36,6 +39,14 @@ var (
 	ErrSAMLMissingEmail         = errors.New("email attribute not found in SAML assertion")
 	ErrSAMLUserCreationDisabled = errors.New("automatic user creation is disabled for this provider")
 	ErrSAMLInvalidRelayState    = errors.New("invalid RelayState redirect URL")
+
+	// SLO errors
+	ErrSAMLSLONotSupported       = errors.New("SAML SLO not supported by this provider")
+	ErrSAMLSessionNotFound       = errors.New("SAML session not found")
+	ErrSAMLLogoutFailed          = errors.New("SAML logout failed")
+	ErrSAMLInvalidLogoutRequest  = errors.New("invalid SAML LogoutRequest")
+	ErrSAMLInvalidLogoutResponse = errors.New("invalid SAML LogoutResponse")
+	ErrSAMLSigningKeyMissing     = errors.New("SP signing key not configured")
 )
 
 // SAMLProvider represents a configured SAML Identity Provider
@@ -45,9 +56,10 @@ type SAMLProvider struct {
 	Enabled          bool              `json:"enabled"`
 	EntityID         string            `json:"entity_id"`
 	AcsURL           string            `json:"acs_url"`
-	SsoURL           string            `json:"sso_url"`           // IdP's SSO endpoint
-	SloURL           string            `json:"slo_url,omitempty"` // IdP's SLO endpoint (optional)
-	Certificate      string            `json:"certificate"`       // IdP's signing certificate
+	SloURL           string            `json:"slo_url,omitempty"`     // SP's SLO endpoint
+	SsoURL           string            `json:"sso_url"`               // IdP's SSO endpoint
+	IdPSloURL        string            `json:"idp_slo_url,omitempty"` // IdP's SLO endpoint (optional)
+	Certificate      string            `json:"certificate"`           // IdP's signing certificate
 	AttributeMapping map[string]string `json:"attribute_mapping"`
 	AutoCreateUsers  bool              `json:"auto_create_users"`
 	DefaultRole      string            `json:"default_role"`
@@ -63,9 +75,15 @@ type SAMLProvider struct {
 	AllowDashboardLogin bool `json:"allow_dashboard_login"` // Allow for dashboard admin SSO
 	AllowAppLogin       bool `json:"allow_app_login"`       // Allow for app user authentication
 
-	// Cached parsed metadata
+	// SP signing keys for SLO (PEM-encoded)
+	SPCertificate string `json:"-"` // PEM-encoded X.509 certificate
+	SPPrivateKey  string `json:"-"` // PEM-encoded private key
+
+	// Cached parsed metadata and keys
 	idpDescriptor *saml.IDPSSODescriptor
 	metadata      *saml.EntityDescriptor
+	spCert        *x509.Certificate
+	spKey         *rsa.PrivateKey
 }
 
 // SAMLSession represents an active SAML authentication session
@@ -92,6 +110,32 @@ type SAMLAssertion struct {
 	IssueInstant time.Time
 	NotBefore    time.Time
 	NotOnOrAfter time.Time
+}
+
+// LogoutRequestResult contains the result of generating a SAML LogoutRequest
+type LogoutRequestResult struct {
+	RedirectURL string // URL to redirect user to IdP for logout
+	RequestID   string // ID of the LogoutRequest (for matching response)
+	Binding     string // "redirect" or "post"
+}
+
+// ParsedLogoutRequest represents a parsed SAML LogoutRequest from IdP
+type ParsedLogoutRequest struct {
+	ID           string // Request ID for InResponseTo
+	NameID       string // User identifier
+	NameIDFormat string // Format of NameID
+	SessionIndex string // Session to terminate (optional)
+	Issuer       string // IdP that sent the request
+	Destination  string // Where response should be sent
+	RelayState   string // Optional state to return
+}
+
+// ParsedLogoutResponse represents a parsed SAML LogoutResponse from IdP
+type ParsedLogoutResponse struct {
+	InResponseTo  string // ID of original LogoutRequest
+	Status        string // "Success" or error code
+	StatusMessage string // Optional status message
+	Issuer        string // IdP that sent the response
 }
 
 // SAMLService manages SAML SSO functionality
@@ -231,11 +275,36 @@ func (s *SAMLService) AddProviderFromConfig(cfg config.SAMLProviderConfig) error
 		}
 	}
 
-	// Extract SLO URL if available
+	// Extract IdP SLO URL if available
 	for _, slo := range idpDescriptor.SingleLogoutServices {
 		if slo.Binding == saml.HTTPPostBinding || slo.Binding == saml.HTTPRedirectBinding {
-			provider.SloURL = slo.Location
+			provider.IdPSloURL = slo.Location
 			break
+		}
+	}
+
+	// Set SP SLO URL
+	provider.SloURL = fmt.Sprintf("%s/auth/saml/slo", s.baseURL)
+
+	// Parse SP signing keys if provided
+	if cfg.SPCertificate != "" && cfg.SPPrivateKey != "" {
+		provider.SPCertificate = cfg.SPCertificate
+		provider.SPPrivateKey = cfg.SPPrivateKey
+
+		// Parse certificate
+		cert, err := parsePEMCertificate(cfg.SPCertificate)
+		if err != nil {
+			log.Warn().Err(err).Str("provider", cfg.Name).Msg("Failed to parse SP certificate")
+		} else {
+			provider.spCert = cert
+		}
+
+		// Parse private key
+		key, err := parsePEMPrivateKey(cfg.SPPrivateKey)
+		if err != nil {
+			log.Warn().Err(err).Str("provider", cfg.Name).Msg("Failed to parse SP private key")
+		} else {
+			provider.spKey = key
 		}
 	}
 
@@ -590,13 +659,326 @@ func (s *SAMLService) DeleteSAMLSession(ctx context.Context, sessionID string) e
 	return err
 }
 
+// GetSAMLSessionByUserID retrieves the most recent SAML session for a user (for SP-initiated logout)
+func (s *SAMLService) GetSAMLSessionByUserID(ctx context.Context, userID string) (*SAMLSession, error) {
+	var session SAMLSession
+	err := s.db.QueryRow(ctx, `
+		SELECT id, user_id, provider_id, provider_name, name_id, name_id_format, session_index, attributes, expires_at, created_at
+		FROM auth.saml_sessions
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, userID).Scan(
+		&session.ID,
+		&session.UserID,
+		&session.ProviderID,
+		&session.ProviderName,
+		&session.NameID,
+		&session.NameIDFormat,
+		&session.SessionIndex,
+		&session.Attributes,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// GetSAMLSessionByNameID retrieves a SAML session by provider and NameID (for IdP-initiated logout)
+func (s *SAMLService) GetSAMLSessionByNameID(ctx context.Context, providerName, nameID string) (*SAMLSession, error) {
+	var session SAMLSession
+	err := s.db.QueryRow(ctx, `
+		SELECT id, user_id, provider_id, provider_name, name_id, name_id_format, session_index, attributes, expires_at, created_at
+		FROM auth.saml_sessions
+		WHERE provider_name = $1 AND name_id = $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, providerName, nameID).Scan(
+		&session.ID,
+		&session.UserID,
+		&session.ProviderID,
+		&session.ProviderName,
+		&session.NameID,
+		&session.NameIDFormat,
+		&session.SessionIndex,
+		&session.Attributes,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// GetSAMLSessionBySessionIndex retrieves a SAML session by provider and SessionIndex (for IdP-initiated logout)
+func (s *SAMLService) GetSAMLSessionBySessionIndex(ctx context.Context, providerName, sessionIndex string) (*SAMLSession, error) {
+	var session SAMLSession
+	err := s.db.QueryRow(ctx, `
+		SELECT id, user_id, provider_id, provider_name, name_id, name_id_format, session_index, attributes, expires_at, created_at
+		FROM auth.saml_sessions
+		WHERE provider_name = $1 AND session_index = $2
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, providerName, sessionIndex).Scan(
+		&session.ID,
+		&session.UserID,
+		&session.ProviderID,
+		&session.ProviderName,
+		&session.NameID,
+		&session.NameIDFormat,
+		&session.SessionIndex,
+		&session.Attributes,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// DeleteSAMLSessionsByUserID deletes all SAML sessions for a user
+func (s *SAMLService) DeleteSAMLSessionsByUserID(ctx context.Context, userID string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM auth.saml_sessions WHERE user_id = $1`, userID)
+	return err
+}
+
+// DeleteSAMLSessionByNameID deletes SAML sessions by provider and NameID
+func (s *SAMLService) DeleteSAMLSessionByNameID(ctx context.Context, providerName, nameID string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM auth.saml_sessions WHERE provider_name = $1 AND name_id = $2`, providerName, nameID)
+	return err
+}
+
+// GenerateLogoutRequest generates a signed SAML LogoutRequest for SP-initiated logout
+func (s *SAMLService) GenerateLogoutRequest(providerName, nameID, nameIDFormat, sessionIndex, relayState string) (*LogoutRequestResult, error) {
+	s.mu.RLock()
+	provider, ok := s.providers[providerName]
+	sp, spOk := s.spConfigs[providerName]
+	s.mu.RUnlock()
+
+	if !ok || !spOk {
+		return nil, ErrSAMLProviderNotFound
+	}
+
+	if !provider.Enabled {
+		return nil, ErrSAMLProviderDisabled
+	}
+
+	// Check if IdP supports SLO
+	if provider.IdPSloURL == "" {
+		return nil, ErrSAMLSLONotSupported
+	}
+
+	// Check if SP signing key is configured
+	if provider.spKey == nil || provider.spCert == nil {
+		return nil, ErrSAMLSigningKeyMissing
+	}
+
+	// Set SP signing key and certificate for the request
+	sp.Key = provider.spKey
+	sp.Certificate = provider.spCert
+
+	// Configure SP's SLO URL for return
+	sloURL, _ := url.Parse(provider.SloURL)
+	sp.SloURL = *sloURL
+
+	// Use MakeRedirectLogoutRequest which handles signing automatically
+	redirectURL, err := sp.MakeRedirectLogoutRequest(nameID, relayState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logout request: %w", err)
+	}
+
+	// Extract the request ID from the generated URL for tracking
+	// The ID is embedded in the SAMLRequest parameter
+	requestID := fmt.Sprintf("id-%s", uuid.New().String())
+
+	return &LogoutRequestResult{
+		RedirectURL: redirectURL.String(),
+		RequestID:   requestID,
+		Binding:     "redirect",
+	}, nil
+}
+
+// GenerateLogoutResponse generates a signed SAML LogoutResponse for IdP-initiated logout
+// Returns the redirect URL for HTTP-Redirect binding
+func (s *SAMLService) GenerateLogoutResponse(providerName, inResponseTo, relayState string) (*url.URL, error) {
+	s.mu.RLock()
+	provider, ok := s.providers[providerName]
+	sp, spOk := s.spConfigs[providerName]
+	s.mu.RUnlock()
+
+	if !ok || !spOk {
+		return nil, ErrSAMLProviderNotFound
+	}
+
+	// Set signing keys if available
+	if provider.spKey != nil && provider.spCert != nil {
+		sp.Key = provider.spKey
+		sp.Certificate = provider.spCert
+	}
+
+	// Configure SP's SLO URL
+	sloURL, _ := url.Parse(provider.SloURL)
+	sp.SloURL = *sloURL
+
+	// Use library's method which handles signing
+	redirectURL, err := sp.MakeRedirectLogoutResponse(inResponseTo, relayState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logout response: %w", err)
+	}
+
+	return redirectURL, nil
+}
+
+// ParseLogoutRequest parses a SAML LogoutRequest from IdP (IdP-initiated logout)
+func (s *SAMLService) ParseLogoutRequest(samlRequest, relayState string, isDeflated bool) (*ParsedLogoutRequest, string, error) {
+	// Decode base64
+	requestXML, err := base64.StdEncoding.DecodeString(samlRequest)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: base64 decode failed: %v", ErrSAMLInvalidLogoutRequest, err)
+	}
+
+	// Inflate if using HTTP-Redirect binding (deflated)
+	if isDeflated {
+		requestXML, err = inflateBytes(requestXML)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: inflate failed: %v", ErrSAMLInvalidLogoutRequest, err)
+		}
+	}
+
+	// Parse XML
+	var logoutRequest saml.LogoutRequest
+	if err := xml.Unmarshal(requestXML, &logoutRequest); err != nil {
+		return nil, "", fmt.Errorf("%w: XML parse failed: %v", ErrSAMLInvalidLogoutRequest, err)
+	}
+
+	// Find matching provider by issuer
+	providerName := ""
+	s.mu.RLock()
+	for name, provider := range s.providers {
+		if provider.metadata != nil && provider.metadata.EntityID == logoutRequest.Issuer.Value {
+			providerName = name
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if providerName == "" {
+		return nil, "", fmt.Errorf("%w: unknown issuer %s", ErrSAMLInvalidLogoutRequest, logoutRequest.Issuer.Value)
+	}
+
+	// Extract session index if present
+	var sessionIndex string
+	if logoutRequest.SessionIndex != nil {
+		sessionIndex = logoutRequest.SessionIndex.Value
+	}
+
+	parsed := &ParsedLogoutRequest{
+		ID:           logoutRequest.ID,
+		NameID:       logoutRequest.NameID.Value,
+		NameIDFormat: string(logoutRequest.NameID.Format),
+		SessionIndex: sessionIndex,
+		Issuer:       logoutRequest.Issuer.Value,
+		Destination:  logoutRequest.Destination,
+		RelayState:   relayState,
+	}
+
+	return parsed, providerName, nil
+}
+
+// ParseLogoutResponse parses a SAML LogoutResponse from IdP (SP-initiated logout callback)
+func (s *SAMLService) ParseLogoutResponse(samlResponse string, isDeflated bool) (*ParsedLogoutResponse, string, error) {
+	// Decode base64
+	responseXML, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: base64 decode failed: %v", ErrSAMLInvalidLogoutResponse, err)
+	}
+
+	// Inflate if using HTTP-Redirect binding (deflated)
+	if isDeflated {
+		responseXML, err = inflateBytes(responseXML)
+		if err != nil {
+			return nil, "", fmt.Errorf("%w: inflate failed: %v", ErrSAMLInvalidLogoutResponse, err)
+		}
+	}
+
+	// Parse XML
+	var logoutResponse saml.LogoutResponse
+	if err := xml.Unmarshal(responseXML, &logoutResponse); err != nil {
+		return nil, "", fmt.Errorf("%w: XML parse failed: %v", ErrSAMLInvalidLogoutResponse, err)
+	}
+
+	// Find matching provider by issuer
+	providerName := ""
+	s.mu.RLock()
+	for name, provider := range s.providers {
+		if provider.metadata != nil && provider.metadata.EntityID == logoutResponse.Issuer.Value {
+			providerName = name
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if providerName == "" {
+		return nil, "", fmt.Errorf("%w: unknown issuer %s", ErrSAMLInvalidLogoutResponse, logoutResponse.Issuer.Value)
+	}
+
+	// Extract status
+	status := logoutResponse.Status.StatusCode.Value
+
+	parsed := &ParsedLogoutResponse{
+		InResponseTo:  logoutResponse.InResponseTo,
+		Status:        status,
+		StatusMessage: logoutResponse.Status.StatusMessage.Value,
+		Issuer:        logoutResponse.Issuer.Value,
+	}
+
+	return parsed, providerName, nil
+}
+
+// GetIdPSloURL returns the IdP's SLO URL for a provider (if available)
+func (s *SAMLService) GetIdPSloURL(providerName string) (string, error) {
+	s.mu.RLock()
+	provider, ok := s.providers[providerName]
+	s.mu.RUnlock()
+
+	if !ok {
+		return "", ErrSAMLProviderNotFound
+	}
+
+	return provider.IdPSloURL, nil
+}
+
+// HasSigningKey returns true if the provider has SP signing keys configured
+func (s *SAMLService) HasSigningKey(providerName string) bool {
+	s.mu.RLock()
+	provider, ok := s.providers[providerName]
+	s.mu.RUnlock()
+
+	if !ok {
+		return false
+	}
+
+	return provider.spKey != nil && provider.spCert != nil
+}
+
+// inflateBytes decompresses deflated SAML data (used in HTTP-Redirect binding)
+func inflateBytes(data []byte) ([]byte, error) {
+	reader := flate.NewReader(bytes.NewReader(data))
+	defer reader.Close()
+	return io.ReadAll(reader)
+}
+
 // CleanupExpiredAssertions removes expired assertion IDs from the replay prevention table
 func (s *SAMLService) CleanupExpiredAssertions(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, `DELETE FROM auth.saml_assertion_ids WHERE expires_at < NOW()`)
 	return err
 }
 
-// Helper function to parse PEM certificate
+// Helper function to parse base64-encoded certificate (from IdP metadata)
 func parseCertificate(certPEM string) (*x509.Certificate, error) {
 	certData, err := base64.StdEncoding.DecodeString(certPEM)
 	if err != nil {
@@ -605,7 +987,7 @@ func parseCertificate(certPEM string) (*x509.Certificate, error) {
 	return x509.ParseCertificate(certData)
 }
 
-// Helper function to parse PEM private key
+// Helper function to parse base64-encoded private key
 func parsePrivateKey(keyPEM string) (*rsa.PrivateKey, error) {
 	keyData, err := base64.StdEncoding.DecodeString(keyPEM)
 	if err != nil {
@@ -621,6 +1003,58 @@ func parsePrivateKey(keyPEM string) (*rsa.PrivateKey, error) {
 	rsaKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
 		return nil, errors.New("not an RSA private key")
+	}
+	return rsaKey, nil
+}
+
+// parsePEMCertificate parses a PEM-encoded X.509 certificate
+func parsePEMCertificate(pemData string) (*x509.Certificate, error) {
+	block, _ := pem.Decode([]byte(pemData))
+	if block == nil {
+		// Try base64 decoding as fallback
+		certData, err := base64.StdEncoding.DecodeString(pemData)
+		if err != nil {
+			return nil, errors.New("failed to decode PEM or base64 certificate")
+		}
+		return x509.ParseCertificate(certData)
+	}
+	if block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("expected CERTIFICATE block, got %s", block.Type)
+	}
+	return x509.ParseCertificate(block.Bytes)
+}
+
+// parsePEMPrivateKey parses a PEM-encoded RSA private key
+func parsePEMPrivateKey(pemData string) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemData))
+	if block == nil {
+		// Try base64 decoding as fallback
+		keyData, err := base64.StdEncoding.DecodeString(pemData)
+		if err != nil {
+			return nil, errors.New("failed to decode PEM or base64 private key")
+		}
+		return parseRSAKey(keyData)
+	}
+
+	return parseRSAKey(block.Bytes)
+}
+
+// parseRSAKey attempts to parse raw key bytes as RSA private key
+func parseRSAKey(keyData []byte) (*rsa.PrivateKey, error) {
+	// Try PKCS#8 first
+	key, err := x509.ParsePKCS8PrivateKey(keyData)
+	if err == nil {
+		rsaKey, ok := key.(*rsa.PrivateKey)
+		if !ok {
+			return nil, errors.New("not an RSA private key")
+		}
+		return rsaKey, nil
+	}
+
+	// Try PKCS#1
+	rsaKey, err := x509.ParsePKCS1PrivateKey(keyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 	return rsaKey, nil
 }

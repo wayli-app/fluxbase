@@ -6,6 +6,7 @@ export function handleServerError(error: unknown) {
   console.log(error)
 
   let errMsg = 'Something went wrong!'
+  let description: string | undefined
 
   if (
     error &&
@@ -17,8 +18,19 @@ export function handleServerError(error: unknown) {
   }
 
   if (error instanceof AxiosError) {
-    errMsg = error.response?.data.title
+    const data = error.response?.data
+
+    // Extract error message from various possible fields
+    // Backend primarily uses "error", but check others for compatibility
+    errMsg =
+      data?.error || data?.title || data?.message || data?.detail || errMsg
+
+    // For ENV_OVERRIDE errors, provide a clearer message
+    if (data?.code === 'ENV_OVERRIDE') {
+      errMsg = 'Setting controlled by environment variable'
+      description = data?.error || 'This setting cannot be changed via the UI'
+    }
   }
 
-  toast.error(errMsg)
+  toast.error(errMsg, description ? { description } : undefined)
 }

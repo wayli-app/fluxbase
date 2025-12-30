@@ -110,7 +110,7 @@ export {
 // Admin hooks
 export { useAdminAuth } from "./use-admin-auth";
 export { useUsers } from "./use-users";
-export { useAPIKeys } from "./use-api-keys";
+export { useClientKeys, useAPIKeys } from "./use-client-keys";
 export {
   useWebhooks,
   useAppSettings,
@@ -129,7 +129,8 @@ export type {
   StorageObject,
   AdminUser,
   EnrichedUser,
-  APIKey,
+  ClientKey,
+  APIKey, // Deprecated alias
   Webhook,
   AppSettings,
   SystemSetting,

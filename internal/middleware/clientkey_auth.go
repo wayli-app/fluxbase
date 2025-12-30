@@ -12,53 +12,53 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// APIKeyAuth creates middleware that authenticates requests using API keys
-// Checks for API key in X-API-Key header or apikey query parameter
-func APIKeyAuth(apiKeyService *auth.APIKeyService) fiber.Handler {
+// ClientKeyAuth creates middleware that authenticates requests using client keys
+// Checks for client key in X-Client-Key header or clientkey query parameter
+func ClientKeyAuth(clientKeyService *auth.ClientKeyService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Try to get API key from X-API-Key header first
-		apiKey := c.Get("X-API-Key")
+		// Try to get client key from X-Client-Key header first
+		clientKey := c.Get("X-Client-Key")
 
 		// If not in header, try query parameter (less secure, but convenient for testing)
-		if apiKey == "" {
-			apiKey = c.Query("apikey")
+		if clientKey == "" {
+			clientKey = c.Query("clientkey")
 		}
 
-		// If no API key provided, return unauthorized
-		if apiKey == "" {
+		// If no client key provided, return unauthorized
+		if clientKey == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing API key. Provide via X-API-Key header or apikey query parameter",
+				"error": "Missing client key. Provide via X-Client-Key header or clientkey query parameter",
 			})
 		}
 
-		// Validate the API key
-		validatedKey, err := apiKeyService.ValidateAPIKey(c.Context(), apiKey)
+		// Validate the client key
+		validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
 		if err != nil {
-			log.Debug().Err(err).Msg("Invalid API key")
+			log.Debug().Err(err).Msg("Invalid client key")
 
 			// Return specific error messages
 			switch err {
-			case auth.ErrAPIKeyRevoked:
+			case auth.ErrClientKeyRevoked:
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "API key has been revoked",
+					"error": "Client key has been revoked",
 				})
-			case auth.ErrAPIKeyExpired:
+			case auth.ErrClientKeyExpired:
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "API key has expired",
+					"error": "Client key has expired",
 				})
 			}
 
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid API key",
+				"error": "Invalid client key",
 			})
 		}
 
-		// Store API key information in context
-		c.Locals("api_key_id", validatedKey.ID)
-		c.Locals("api_key_name", validatedKey.Name)
-		c.Locals("api_key_scopes", validatedKey.Scopes)
+		// Store client key information in context
+		c.Locals("client_key_id", validatedKey.ID)
+		c.Locals("client_key_name", validatedKey.Name)
+		c.Locals("client_key_scopes", validatedKey.Scopes)
 
-		// If API key is associated with a user, store user ID
+		// If client key is associated with a user, store user ID
 		if validatedKey.UserID != nil {
 			c.Locals("user_id", *validatedKey.UserID)
 		}
@@ -68,9 +68,9 @@ func APIKeyAuth(apiKeyService *auth.APIKeyService) fiber.Handler {
 	}
 }
 
-// OptionalAPIKeyAuth allows both JWT and API key authentication
-// Tries JWT first, then API key
-func OptionalAPIKeyAuth(authService *auth.Service, apiKeyService *auth.APIKeyService) fiber.Handler {
+// OptionalClientKeyAuth allows both JWT and client key authentication
+// Tries JWT first, then client key
+func OptionalClientKeyAuth(authService *auth.Service, clientKeyService *auth.ClientKeyService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Try JWT authentication first
 		authHeader := c.Get("Authorization")
@@ -95,20 +95,20 @@ func OptionalAPIKeyAuth(authService *auth.Service, apiKeyService *auth.APIKeySer
 			}
 		}
 
-		// Try API key authentication
-		apiKey := c.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = c.Query("apikey")
+		// Try client key authentication
+		clientKey := c.Get("X-Client-Key")
+		if clientKey == "" {
+			clientKey = c.Query("clientkey")
 		}
 
-		if apiKey != "" {
-			validatedKey, err := apiKeyService.ValidateAPIKey(c.Context(), apiKey)
+		if clientKey != "" {
+			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
 			if err == nil {
-				// Valid API key
-				c.Locals("api_key_id", validatedKey.ID)
-				c.Locals("api_key_name", validatedKey.Name)
-				c.Locals("api_key_scopes", validatedKey.Scopes)
-				c.Locals("auth_type", "apikey")
+				// Valid client key
+				c.Locals("client_key_id", validatedKey.ID)
+				c.Locals("client_key_name", validatedKey.Name)
+				c.Locals("client_key_scopes", validatedKey.Scopes)
+				c.Locals("auth_type", "clientkey")
 
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
@@ -123,9 +123,9 @@ func OptionalAPIKeyAuth(authService *auth.Service, apiKeyService *auth.APIKeySer
 	}
 }
 
-// RequireEitherAuth requires either JWT or API key authentication
+// RequireEitherAuth requires either JWT or client key authentication
 // This is the recommended middleware for protecting API endpoints
-func RequireEitherAuth(authService *auth.Service, apiKeyService *auth.APIKeyService) fiber.Handler {
+func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientKeyService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Try JWT authentication first
 		authHeader := c.Get("Authorization")
@@ -150,20 +150,20 @@ func RequireEitherAuth(authService *auth.Service, apiKeyService *auth.APIKeyServ
 			}
 		}
 
-		// Try API key authentication
-		apiKey := c.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = c.Query("apikey")
+		// Try client key authentication
+		clientKey := c.Get("X-Client-Key")
+		if clientKey == "" {
+			clientKey = c.Query("clientkey")
 		}
 
-		if apiKey != "" {
-			validatedKey, err := apiKeyService.ValidateAPIKey(c.Context(), apiKey)
+		if clientKey != "" {
+			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
 			if err == nil {
-				// Valid API key
-				c.Locals("api_key_id", validatedKey.ID)
-				c.Locals("api_key_name", validatedKey.Name)
-				c.Locals("api_key_scopes", validatedKey.Scopes)
-				c.Locals("auth_type", "apikey")
+				// Valid client key
+				c.Locals("client_key_id", validatedKey.ID)
+				c.Locals("client_key_name", validatedKey.Name)
+				c.Locals("client_key_scopes", validatedKey.Scopes)
+				c.Locals("auth_type", "clientkey")
 
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
@@ -175,22 +175,22 @@ func RequireEitherAuth(authService *auth.Service, apiKeyService *auth.APIKeyServ
 
 		// No valid authentication provided
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required. Provide either a Bearer token or X-API-Key header",
+			"error": "Authentication required. Provide either a Bearer token or X-Client-Key header",
 		})
 	}
 }
 
-// RequireScope checks if the authenticated user/API key has required scopes
+// RequireScope checks if the authenticated user/client key has required scopes
 func RequireScope(requiredScopes ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authType := c.Locals("auth_type")
 
-		// If authenticated via API key, check scopes
-		if authType == "apikey" {
-			scopes, ok := c.Locals("api_key_scopes").([]string)
+		// If authenticated via client key, check scopes
+		if authType == "clientkey" {
+			scopes, ok := c.Locals("client_key_scopes").([]string)
 			if !ok {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "No scopes found for API key",
+					"error": "No scopes found for client key",
 				})
 			}
 
@@ -219,16 +219,16 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 	}
 }
 
-// RequireAuthOrServiceKey requires either JWT, API key, OR service key authentication
+// RequireAuthOrServiceKey requires either JWT, client key, OR service key authentication
 // This is the most comprehensive auth middleware that accepts all authentication methods
-func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
+func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Debug logging for service_role troubleshooting
 		log.Debug().
 			Str("path", c.Path()).
 			Str("method", c.Method()).
 			Bool("has_auth_header", c.Get("Authorization") != "").
-			Bool("has_apikey_header", c.Get("X-API-Key") != "").
+			Bool("has_clientkey_header", c.Get("X-Client-Key") != "").
 			Bool("has_service_key_header", c.Get("X-Service-Key") != "").
 			Msg("RequireAuthOrServiceKey: Incoming request")
 
@@ -303,20 +303,20 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 			})
 		}
 
-		// Try API key authentication
-		apiKey := c.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = c.Query("apikey")
+		// Try client key authentication
+		clientKey := c.Get("X-Client-Key")
+		if clientKey == "" {
+			clientKey = c.Query("clientkey")
 		}
 
-		if apiKey != "" {
-			validatedKey, err := apiKeyService.ValidateAPIKey(c.Context(), apiKey)
+		if clientKey != "" {
+			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
 			if err == nil {
-				// Valid API key
-				c.Locals("api_key_id", validatedKey.ID)
-				c.Locals("api_key_name", validatedKey.Name)
-				c.Locals("api_key_scopes", validatedKey.Scopes)
-				c.Locals("auth_type", "apikey")
+				// Valid client key
+				c.Locals("client_key_id", validatedKey.ID)
+				c.Locals("client_key_name", validatedKey.Name)
+				c.Locals("client_key_scopes", validatedKey.Scopes)
+				c.Locals("auth_type", "clientkey")
 
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
@@ -326,29 +326,29 @@ func RequireAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIK
 
 				return c.Next()
 			}
-			// API key was provided but invalid - return specific error
+			// Client key was provided but invalid - return specific error
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid API key",
+				"error": "Invalid client key",
 			})
 		}
 
 		// No authentication provided at all
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Authentication required. Provide Bearer token, X-API-Key, or X-Service-Key",
+			"error": "Authentication required. Provide Bearer token, X-Client-Key, or X-Service-Key",
 		})
 	}
 }
 
-// OptionalAuthOrServiceKey allows either JWT, API key, OR service key authentication
+// OptionalAuthOrServiceKey allows either JWT, client key, OR service key authentication
 // If no authentication is provided, the request continues (for anonymous access with RLS)
 // IMPORTANT: If invalid credentials are provided, returns 401 (does not fall back to anonymous)
 //
 // Supports Supabase-compatible authentication:
-// - apikey header containing a JWT with role claim (anon, service_role, authenticated)
+// - clientkey header containing a JWT with role claim (anon, service_role, authenticated)
 // - Authorization: Bearer <jwt> with role claim
 // - X-Service-Key header with hashed service key
 // - Dashboard admin JWT tokens (when jwtManager is provided)
-func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
+func OptionalAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager ...*auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// First, try service key authentication (highest privilege)
 		serviceKey := c.Get("X-Service-Key")
@@ -431,7 +431,7 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			}
 
 			// User JWT validation failed, try service role JWT (anon/service_role)
-			// This handles the Supabase pattern where the same JWT is sent as both apikey and Bearer
+			// This handles the Supabase pattern where the same JWT is sent as both clientkey and Bearer
 			if strings.HasPrefix(token, "eyJ") {
 				claims, err := authService.ValidateServiceRoleToken(token)
 				if err == nil {
@@ -465,17 +465,17 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			})
 		}
 
-		// Check for Supabase-style apikey header (lowercase)
+		// Check for Supabase-style clientkey header (lowercase)
 		// This header may contain a JWT with role claim (anon, service_role, authenticated)
-		fluxbaseAPIKey := c.Get("apikey")
-		if fluxbaseAPIKey != "" && strings.HasPrefix(fluxbaseAPIKey, "eyJ") {
+		fluxbaseClientKey := c.Get("clientkey")
+		if fluxbaseClientKey != "" && strings.HasPrefix(fluxbaseClientKey, "eyJ") {
 			// Looks like a JWT - first try user JWT (most common), then service role
-			claims, err := authService.ValidateToken(fluxbaseAPIKey)
+			claims, err := authService.ValidateToken(fluxbaseClientKey)
 			if err == nil {
 				// Check if token has been revoked
 				isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
 				if err == nil && !isRevoked {
-					// Valid user JWT token via apikey header
+					// Valid user JWT token via clientkey header
 					c.Locals("user_id", claims.UserID)
 					c.Locals("user_email", claims.Email)
 					c.Locals("user_role", claims.Role)
@@ -493,7 +493,7 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 			}
 
 			// User JWT failed, try service role JWT
-			srClaims, err := authService.ValidateServiceRoleToken(fluxbaseAPIKey)
+			srClaims, err := authService.ValidateServiceRoleToken(fluxbaseClientKey)
 			if err == nil {
 				// Valid service role JWT
 				c.Locals("user_role", srClaims.Role)
@@ -510,36 +510,36 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 				log.Debug().
 					Str("role", srClaims.Role).
 					Str("issuer", srClaims.Issuer).
-					Msg("Authenticated with service role JWT via apikey header")
+					Msg("Authenticated with service role JWT via clientkey header")
 
 				return c.Next()
 			}
-			// If apikey JWT was provided but invalid, log and fall through to try API key auth
+			// If clientkey JWT was provided but invalid, log and fall through to try client key auth
 			log.Debug().
 				Err(err).
-				Msg("apikey header JWT validation failed (tried user JWT then service role JWT)")
+				Msg("clientkey header JWT validation failed (tried user JWT then service role JWT)")
 		}
 
-		// Try API key authentication (X-API-Key header or apikey query param)
-		apiKey := c.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = c.Query("apikey")
+		// Try client key authentication (X-Client-Key header or clientkey query param)
+		clientKey := c.Get("X-Client-Key")
+		if clientKey == "" {
+			clientKey = c.Query("clientkey")
 		}
-		// Also check lowercase apikey header if it wasn't a JWT
-		if apiKey == "" && fluxbaseAPIKey != "" {
-			apiKey = fluxbaseAPIKey
+		// Also check lowercase clientkey header if it wasn't a JWT
+		if clientKey == "" && fluxbaseClientKey != "" {
+			clientKey = fluxbaseClientKey
 		}
 
-		if apiKey != "" {
-			validatedKey, err := apiKeyService.ValidateAPIKey(c.Context(), apiKey)
+		if clientKey != "" {
+			validatedKey, err := clientKeyService.ValidateClientKey(c.Context(), clientKey)
 			if err == nil {
-				// Valid API key
-				c.Locals("api_key_id", validatedKey.ID)
-				c.Locals("api_key_name", validatedKey.Name)
-				c.Locals("api_key_scopes", validatedKey.Scopes)
-				c.Locals("auth_type", "apikey")
+				// Valid client key
+				c.Locals("client_key_id", validatedKey.ID)
+				c.Locals("client_key_name", validatedKey.Name)
+				c.Locals("client_key_scopes", validatedKey.Scopes)
+				c.Locals("auth_type", "clientkey")
 
-				// Set RLS context if API key has user association
+				// Set RLS context if client key has user association
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
 					c.Locals("rls_user_id", *validatedKey.UserID)
@@ -548,10 +548,10 @@ func OptionalAuthOrServiceKey(authService *auth.Service, apiKeyService *auth.API
 
 				return c.Next()
 			}
-			// If API key was provided but invalid, return 401
+			// If client key was provided but invalid, return 401
 			// Don't fall back to anonymous access when invalid credentials are provided
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid API key",
+				"error": "Invalid client key",
 			})
 		}
 

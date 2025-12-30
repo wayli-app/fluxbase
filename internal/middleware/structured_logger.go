@@ -74,7 +74,7 @@ func StructuredLogger(config ...StructuredLoggerConfig) fiber.Handler {
 
 		// Get user context if available
 		userID := c.Locals("user_id")
-		apiKeyID := c.Locals("api_key_id")
+		clientKeyID := c.Locals("client_key_id")
 
 		// Process request
 		err := c.Next()
@@ -125,8 +125,8 @@ func StructuredLogger(config ...StructuredLoggerConfig) fiber.Handler {
 		if userID != nil {
 			logEvent = logEvent.Str("user_id", toString(userID))
 		}
-		if apiKeyID != nil {
-			logEvent = logEvent.Str("api_key_id", toString(apiKeyID))
+		if clientKeyID != nil {
+			logEvent = logEvent.Str("client_key_id", toString(clientKeyID))
 		}
 
 		// Add response size
@@ -237,8 +237,8 @@ func (al *AuditLogger) LogUserManagement(c *fiber.Ctx, action, targetUserID, per
 		Msg("User management event")
 }
 
-// LogAPIKeyOperation logs API key operations
-func (al *AuditLogger) LogAPIKeyOperation(c *fiber.Ctx, action, keyID, keyName, performedBy string) {
+// LogClientKeyOperation logs client key operations
+func (al *AuditLogger) LogClientKeyOperation(c *fiber.Ctx, action, keyID, keyName, performedBy string) {
 	al.logger.Info().
 		Str("action", action).
 		Str("key_id", keyID).
@@ -246,7 +246,7 @@ func (al *AuditLogger) LogAPIKeyOperation(c *fiber.Ctx, action, keyID, keyName, 
 		Str("performed_by", performedBy).
 		Str("ip", c.IP()).
 		Str("request_id", c.Get("X-Request-ID")).
-		Msg("API key operation")
+		Msg("Client key operation")
 }
 
 // LogConfigChange logs configuration changes

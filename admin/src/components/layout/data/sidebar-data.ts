@@ -176,8 +176,8 @@ export const sidebarData: SidebarData = {
           icon: Lock,
         },
         {
-          title: 'API Keys',
-          url: '/api-keys',
+          title: 'Client Keys',
+          url: '/client-keys',
           icon: Key,
         },
         {

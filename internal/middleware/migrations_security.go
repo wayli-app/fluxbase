@@ -79,13 +79,13 @@ func RequireMigrationsIPAllowlist(cfg *config.MigrationsConfig) fiber.Handler {
 
 // RequireServiceKeyOnly enforces service key authentication (service keys or service_role JWT)
 // Migrations API requires the highest level of authentication
-// Accepts: 1) Service keys (sk_*) via X-Service-Key, Authorization, or apikey headers
-//  2. JWT tokens with service_role via Authorization or apikey headers
+// Accepts: 1) Service keys (sk_*) via X-Service-Key, Authorization, or clientkey headers
+//  2. JWT tokens with service_role via Authorization or clientkey headers
 func RequireServiceKeyOnly(db *pgxpool.Pool, authService *auth.Service) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Try JWT authentication first (from apikey or Authorization header)
+		// Try JWT authentication first (from clientkey or Authorization header)
 		authHeader := c.Get("Authorization")
-		apikey := c.Get("apikey")
+		clientkey := c.Get("clientkey")
 
 		// Extract JWT token from headers
 		var jwtToken string
@@ -96,8 +96,8 @@ func RequireServiceKeyOnly(db *pgxpool.Pool, authService *auth.Service) fiber.Ha
 				jwtToken = token
 			}
 		}
-		if jwtToken == "" && strings.HasPrefix(apikey, "eyJ") {
-			jwtToken = apikey
+		if jwtToken == "" && strings.HasPrefix(clientkey, "eyJ") {
+			jwtToken = clientkey
 		}
 
 		// If we have a JWT token, validate it
@@ -149,9 +149,9 @@ func RequireServiceKeyOnly(db *pgxpool.Pool, authService *auth.Service) fiber.Ha
 			}
 		}
 
-		// Try apikey header (used by SDK)
-		if serviceKey == "" && strings.HasPrefix(apikey, "sk_") {
-			serviceKey = apikey
+		// Try clientkey header (used by SDK)
+		if serviceKey == "" && strings.HasPrefix(clientkey, "sk_") {
+			serviceKey = clientkey
 		}
 
 		if serviceKey != "" {

@@ -1066,10 +1066,10 @@ export interface DeleteUserResponse {
 }
 
 // ============================================================================
-// API Keys Management Types
+// Client Keys Management Types
 // ============================================================================
 
-export interface APIKey {
+export interface ClientKey {
   id: string
   name: string
   description?: string
@@ -1084,7 +1084,7 @@ export interface APIKey {
   user_id: string
 }
 
-export interface CreateAPIKeyRequest {
+export interface CreateClientKeyRequest {
   name: string
   description?: string
   scopes: string[]
@@ -1092,30 +1092,55 @@ export interface CreateAPIKeyRequest {
   expires_at?: string
 }
 
-export interface CreateAPIKeyResponse {
-  api_key: APIKey
+export interface CreateClientKeyResponse {
+  client_key: ClientKey
   key: string // Full key - only returned on creation
 }
 
-export interface ListAPIKeysResponse {
-  api_keys: APIKey[]
+export interface ListClientKeysResponse {
+  client_keys: ClientKey[]
   total: number
 }
 
-export interface UpdateAPIKeyRequest {
+export interface UpdateClientKeyRequest {
   name?: string
   description?: string
   scopes?: string[]
   rate_limit_per_minute?: number
 }
 
-export interface RevokeAPIKeyResponse {
+export interface RevokeClientKeyResponse {
   message: string
 }
 
-export interface DeleteAPIKeyResponse {
+export interface DeleteClientKeyResponse {
   message: string
 }
+
+// ============================================================================
+// API Keys Management Types (Deprecated - use Client Keys instead)
+// ============================================================================
+
+/** @deprecated Use ClientKey instead */
+export type APIKey = ClientKey
+
+/** @deprecated Use CreateClientKeyRequest instead */
+export type CreateAPIKeyRequest = CreateClientKeyRequest
+
+/** @deprecated Use CreateClientKeyResponse instead */
+export type CreateAPIKeyResponse = CreateClientKeyResponse
+
+/** @deprecated Use ListClientKeysResponse instead */
+export type ListAPIKeysResponse = ListClientKeysResponse
+
+/** @deprecated Use UpdateClientKeyRequest instead */
+export type UpdateAPIKeyRequest = UpdateClientKeyRequest
+
+/** @deprecated Use RevokeClientKeyResponse instead */
+export type RevokeAPIKeyResponse = RevokeClientKeyResponse
+
+/** @deprecated Use DeleteClientKeyResponse instead */
+export type DeleteAPIKeyResponse = DeleteClientKeyResponse
 
 // ============================================================================
 // Webhooks Management Types

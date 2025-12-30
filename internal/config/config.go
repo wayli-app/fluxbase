@@ -158,6 +158,10 @@ type SAMLProviderConfig struct {
 	AllowIDPInitiated        bool     `mapstructure:"allow_idp_initiated"`         // Allow IdP-initiated SSO (default: false for security)
 	AllowedRedirectHosts     []string `mapstructure:"allowed_redirect_hosts"`      // Whitelist for RelayState redirect URLs
 	AllowInsecureMetadataURL bool     `mapstructure:"allow_insecure_metadata_url"` // Allow HTTP metadata URLs (default: false)
+
+	// SP signing keys for SLO (Single Logout) - PEM-encoded
+	SPCertificate string `mapstructure:"sp_certificate"` // PEM-encoded X.509 certificate for signing
+	SPPrivateKey  string `mapstructure:"sp_private_key"` // PEM-encoded private key for signing
 }
 
 // OIDCProviderConfig represents a custom OIDC provider configuration

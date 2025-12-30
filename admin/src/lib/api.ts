@@ -1409,8 +1409,8 @@ export const webhooksApi = {
   },
 }
 
-// API Keys API Types
-export interface APIKey {
+// Client Keys API Types
+export interface ClientKey {
   id: string
   name: string
   description?: string
@@ -1424,7 +1424,7 @@ export interface APIKey {
   updated_at: string
 }
 
-export interface CreateAPIKeyRequest {
+export interface CreateClientKeyRequest {
   name: string
   description?: string
   scopes: string[]
@@ -1432,46 +1432,56 @@ export interface CreateAPIKeyRequest {
   expires_at?: string
 }
 
-export interface CreateAPIKeyResponse {
-  api_key: APIKey
+export interface CreateClientKeyResponse {
+  client_key: ClientKey
   key: string
 }
 
-// API Keys API
-export const apiKeysApi = {
-  // List all API keys
-  list: async (): Promise<APIKey[]> => {
-    const response = await api.get<APIKey[]>('/api/v1/api-keys')
+// Client Keys API
+export const clientKeysApi = {
+  // List all client keys
+  list: async (): Promise<ClientKey[]> => {
+    const response = await api.get<ClientKey[]>('/api/v1/client-keys')
     return response.data
   },
 
-  // Create API key
+  // Create client key
   create: async (
-    request: CreateAPIKeyRequest
-  ): Promise<CreateAPIKeyResponse> => {
-    const response = await api.post<CreateAPIKeyResponse>(
-      '/api/v1/api-keys',
+    request: CreateClientKeyRequest
+  ): Promise<CreateClientKeyResponse> => {
+    const response = await api.post<CreateClientKeyResponse>(
+      '/api/v1/client-keys',
       request
     )
     return response.data
   },
 
-  // Revoke API key
+  // Revoke client key
   revoke: async (id: string): Promise<{ message: string }> => {
     const response = await api.post<{ message: string }>(
-      `/api/v1/api-keys/${id}/revoke`
+      `/api/v1/client-keys/${id}/revoke`
     )
     return response.data
   },
 
-  // Delete API key
+  // Delete client key
   delete: async (id: string): Promise<{ message: string }> => {
     const response = await api.delete<{ message: string }>(
-      `/api/v1/api-keys/${id}`
+      `/api/v1/client-keys/${id}`
     )
     return response.data
   },
 }
+
+// Backwards compatibility aliases (deprecated)
+/** @deprecated Use ClientKey instead */
+export type APIKey = ClientKey
+/** @deprecated Use CreateClientKeyRequest instead */
+export type CreateAPIKeyRequest = CreateClientKeyRequest
+/** @deprecated Use CreateClientKeyResponse instead */
+export type CreateAPIKeyResponse = CreateClientKeyResponse
+/** @deprecated Use clientKeysApi instead */
+export const apiKeysApi = clientKeysApi
 
 // Monitoring API Types
 export interface SystemMetrics {

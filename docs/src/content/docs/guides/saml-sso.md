@@ -471,14 +471,177 @@ Use browser extensions like [SAML Tracer](https://addons.mozilla.org/en-US/firef
 
 ## Single Logout (SLO)
 
-Single Logout allows signing out from all SSO applications:
+Single Logout (SLO) allows users to sign out from both Fluxbase and the IdP simultaneously, terminating sessions across all SSO applications.
 
-```bash
-# Initiate logout (redirects to IdP for SLO)
-POST /api/v1/auth/saml/logout/:provider
+### Overview
+
+Fluxbase supports both:
+
+- **SP-initiated SLO** - User logs out from Fluxbase, which notifies the IdP
+- **IdP-initiated SLO** - IdP sends logout request to Fluxbase when user logs out elsewhere
+
+### Configuration
+
+To enable SLO, configure SP signing keys for your SAML provider:
+
+```yaml
+auth:
+  saml_providers:
+    - name: okta
+      enabled: true
+      idp_metadata_url: "https://company.okta.com/app/xxx/sso/saml/metadata"
+      # SP signing keys for SLO (PEM-encoded)
+      sp_certificate: |
+        -----BEGIN CERTIFICATE-----
+        MIICpDCCAYwCCQDU+pQ4P1eLvjANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+        ...
+        -----END CERTIFICATE-----
+      sp_private_key: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEowIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy...
+        ...
+        -----END RSA PRIVATE KEY-----
 ```
 
-Note: SLO support depends on your IdP configuration.
+### Generating SP Signing Keys
+
+Generate a self-signed certificate and key for signing LogoutRequests:
+
+```bash
+# Generate private key
+openssl genrsa -out sp-key.pem 2048
+
+# Generate certificate (valid for 10 years)
+openssl req -new -x509 -key sp-key.pem -out sp-cert.pem -days 3650 \
+  -subj "/CN=myapp.example.com"
+
+# View certificate details
+openssl x509 -in sp-cert.pem -text -noout
+```
+
+### SLO Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/saml/logout/:provider` | GET | Initiate SP-initiated logout |
+| `/api/v1/auth/saml/slo` | POST/GET | Handle IdP-initiated logout & SP callback |
+
+### SP-Initiated Logout
+
+When a user logs out from your application:
+
+```bash
+# Initiate SAML logout (redirects to IdP)
+GET /api/v1/auth/saml/logout/okta?redirect_url=https://myapp.example.com/goodbye
+```
+
+The flow:
+1. Fluxbase generates a signed LogoutRequest
+2. User is redirected to IdP's SLO endpoint
+3. IdP terminates the session
+4. IdP redirects back to Fluxbase with LogoutResponse
+5. User is redirected to `redirect_url`
+
+### IdP-Initiated Logout
+
+When a user logs out from the IdP or another SP:
+
+1. IdP sends LogoutRequest to `/api/v1/auth/saml/slo`
+2. Fluxbase finds and terminates the SAML session
+3. All JWT tokens for the user are revoked
+4. Fluxbase sends LogoutResponse back to IdP
+
+### SDK Usage
+
+```typescript
+// Check if user has SAML session with SLO support
+const { data } = await client.auth.signOut()
+
+if (data.saml_logout && data.slo_url) {
+  // Redirect to IdP for full logout
+  window.location.href = data.slo_url
+} else {
+  // Local logout only
+  console.log('Signed out locally')
+}
+```
+
+### React SDK
+
+```tsx
+import { useSignOut, useSession } from '@fluxbase/sdk-react'
+
+function LogoutButton() {
+  const signOut = useSignOut()
+
+  const handleLogout = async () => {
+    const result = await signOut.mutateAsync()
+
+    if (result.saml_logout && result.slo_url) {
+      // Full SAML SLO - redirect to IdP
+      window.location.href = result.slo_url
+    } else {
+      // Local logout complete
+      window.location.href = '/login'
+    }
+  }
+
+  return <button onClick={handleLogout}>Sign Out</button>
+}
+```
+
+### IdP Configuration for SLO
+
+Configure your IdP to send logout requests to Fluxbase:
+
+**Okta:**
+1. In your SAML app, go to **General** → **SAML Settings**
+2. Enable **Single Logout**
+3. Set **Single Logout URL**: `https://myapp.example.com/api/v1/auth/saml/slo`
+4. Upload your SP certificate (from `sp_certificate` config)
+
+**Azure AD:**
+1. Go to **Single sign-on** → **SAML**
+2. Set **Logout URL**: `https://myapp.example.com/api/v1/auth/saml/slo`
+
+**Google Workspace:**
+1. In your SAML app settings
+2. Enable **Signed Response**
+3. Set **Logout URL**: `https://myapp.example.com/api/v1/auth/saml/slo`
+
+### Graceful Degradation
+
+If SLO is not available (no IdP SLO URL or missing signing keys), Fluxbase performs local logout only:
+
+- SAML session is deleted
+- JWT tokens are revoked
+- User is signed out from Fluxbase
+- No IdP notification (user remains logged in at IdP)
+
+The signout response indicates this:
+
+```json
+{
+  "message": "local logout successful",
+  "saml_logout": false
+}
+```
+
+### Troubleshooting SLO
+
+**"SP signing key not configured"**
+- Add `sp_certificate` and `sp_private_key` to provider config
+- Ensure keys are valid PEM format
+
+**LogoutRequest rejected by IdP**
+- Verify SP certificate is registered in IdP
+- Check certificate hasn't expired
+- Ensure IdP has SLO enabled
+
+**IdP-initiated logout not working**
+- Verify SLO URL is configured in IdP
+- Check Fluxbase is accessible from IdP
+- Review logs for incoming LogoutRequests
 
 ## Multiple Providers
 

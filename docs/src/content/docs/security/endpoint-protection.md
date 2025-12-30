@@ -65,13 +65,13 @@ Fluxbase supports four authentication methods, each suited for different use cas
 - `session_id`, `is_anonymous`
 - `user_metadata`, `app_metadata`
 
-### 2. API Key Authentication
+### 2. Client Key Authentication
 
 **Use case**: Server-to-server integrations, automated scripts, third-party apps
 
 **Key delivery**:
-- `X-API-Key: <key>` header
-- `apikey=<key>` query parameter
+- `X-Client-Key: <key>` header
+- `clientkey=<key>` query parameter
 
 **Key format**: `fbk_<base64_random_bytes>`
 
@@ -124,9 +124,9 @@ Fluxbase supports four authentication methods, each suited for different use cas
 | `service_role` | `service_role` | **Yes** | Backend services with full access |
 | `dashboard_admin` | `service_role` | **Yes** | Platform administrators |
 
-### API Key Scopes
+### Client Key Scopes
 
-API keys can be granted specific scopes to limit their access:
+Client keys can be granted specific scopes to limit their access:
 
 | Category | Scopes | Description |
 |----------|--------|-------------|
@@ -134,7 +134,7 @@ API keys can be granted specific scopes to limit their access:
 | **Storage** | `read:storage`, `write:storage` | File storage operations |
 | **Functions** | `read:functions`, `execute:functions` | Edge function management/invocation |
 | **Auth** | `read:auth`, `write:auth` | Authentication operations |
-| **API Keys** | `read:apikeys`, `write:apikeys` | API key management |
+| **Client Keys** | `read:clientkeys`, `write:clientkeys` | Client key management |
 | **Webhooks** | `read:webhooks`, `write:webhooks` | Webhook configuration |
 | **Monitoring** | `read:monitoring` | System monitoring data |
 | **Realtime** | `realtime:connect`, `realtime:broadcast` | WebSocket operations |
@@ -155,7 +155,7 @@ API keys can be granted specific scopes to limit their access:
 | 2FA Verification | 5 req | 5 min | Per IP (strict) |
 | Admin Login | 4 req | 1 min | Per IP |
 | Migrations API | 10 req | 1 hour | Per service key |
-| API Key Requests | 1000 req | 1 min | Per key |
+| Client Key Requests | 1000 req | 1 min | Per key |
 | Authenticated Users | 500 req | 1 min | Per user |
 
 ---
@@ -176,7 +176,7 @@ API keys can be granted specific scopes to limit their access:
 | RPC | `/api/v1/rpc/*` | ~8 | 🔑 Optional | - | `app.rpc.enabled` |
 | Realtime | `/realtime` | 3 | 🔑 Optional | Yes | `app.realtime.enabled` |
 | Webhooks | `/api/v1/webhooks/*` | 6 | 🔒 Required | - | - |
-| API Keys | `/api/v1/api-keys/*` | 6 | 🛡️ Admin | - | - |
+| Client Keys | `/api/v1/client-keys/*` | 6 | 🛡️ Admin | - | - |
 | Admin | `/api/v1/admin/*` | 50+ | 🛡️ Admin | - | Various |
 | Migrations | `/api/v1/admin/migrations/*` | 10 | 🔐 Service | - | `app.migrations.enabled` |
 
@@ -366,16 +366,16 @@ All REST API endpoints require authentication and apply Row-Level Security.
 
 ---
 
-### API Keys Endpoints (`/api/v1/api-keys/*`)
+### Client Keys Endpoints (`/api/v1/client-keys/*`)
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api-keys/` | GET | 🛡️ Admin | List API keys |
-| `/api-keys/:id` | GET | 🛡️ Admin | Get API key |
-| `/api-keys/` | POST | 🛡️ Admin | Create API key |
-| `/api-keys/:id` | PATCH | 🛡️ Admin | Update API key |
-| `/api-keys/:id` | DELETE | 🛡️ Admin | Delete API key |
-| `/api-keys/:id/revoke` | POST | 🛡️ Admin | Revoke API key |
+| `/client-keys/` | GET | 🛡️ Admin | List client keys |
+| `/client-keys/:id` | GET | 🛡️ Admin | Get client key |
+| `/client-keys/` | POST | 🛡️ Admin | Create client key |
+| `/client-keys/:id` | PATCH | 🛡️ Admin | Update client key |
+| `/client-keys/:id` | DELETE | 🛡️ Admin | Delete client key |
+| `/client-keys/:id/revoke` | POST | 🛡️ Admin | Revoke client key |
 
 ---
 
@@ -509,7 +509,7 @@ flowchart TD
     subgraph AuthCheck["Authentication Check"]
         CHECK{Check Auth<br/>Headers/Cookies}
         JWT[JWT Bearer Token]
-        APIKEY[API Key<br/>X-API-Key]
+        CLIENTKEY[Client Key<br/>X-Client-Key]
         SVCKEY[Service Key<br/>X-Service-Key]
         COOKIE[Cookie<br/>fluxbase_access_token]
         ANON[No Auth]
@@ -517,11 +517,11 @@ flowchart TD
 
     subgraph Validation["Token Validation"]
         JWTVAL{Validate JWT<br/>HMAC-SHA256}
-        APIVAL{Validate API Key<br/>SHA-256 Hash Lookup}
+        CKVAL{Validate Client Key<br/>SHA-256 Hash Lookup}
         SVCVAL{Validate Service Key<br/>bcrypt Hash}
 
         JWTVAL -->|Invalid/Expired| REJECT1[401 Unauthorized]
-        APIVAL -->|Invalid/Revoked| REJECT2[401 Unauthorized]
+        CKVAL -->|Invalid/Revoked| REJECT2[401 Unauthorized]
         SVCVAL -->|Invalid| REJECT3[401 Unauthorized]
     end
 
@@ -537,13 +537,13 @@ flowchart TD
 
     REQ --> CHECK
     CHECK -->|"Authorization: Bearer"| JWT --> JWTVAL
-    CHECK -->|"X-API-Key header"| APIKEY --> APIVAL
+    CHECK -->|"X-Client-Key header"| CLIENTKEY --> CKVAL
     CHECK -->|"X-Service-Key header"| SVCKEY --> SVCVAL
     CHECK -->|"Cookie present"| COOKIE --> JWTVAL
     CHECK -->|"None"| ANON --> ANONROLE
 
     JWTVAL -->|Valid| AUTHROLE
-    APIVAL -->|Valid| AUTHROLE
+    CKVAL -->|Valid| AUTHROLE
     SVCVAL -->|Valid| SVCROLE
 
     AUTHROLE --> HANDLER
@@ -602,7 +602,7 @@ flowchart LR
     subgraph Secure["Properly Protected (Low Risk)"]
         PW[Password Hash<br/>bcrypt]
         SESS[Session Tokens<br/>SHA-256 Hash]
-        APIK[API Keys<br/>SHA-256 Hash]
+        CK[Client Keys<br/>SHA-256 Hash]
         SVCK[Service Keys<br/>bcrypt Hash]
         MAGIC[Magic Link Tokens<br/>SHA-256 Hash]
         RESET[Password Reset Tokens<br/>SHA-256 Hash]
@@ -665,7 +665,7 @@ sequenceDiagram
 | Password | `auth.users.password_hash` | bcrypt hash | 🟢 LOW | Cannot reverse hash |
 | Session Access Token | `auth.sessions.access_token_hash` | SHA-256 hash | 🟢 LOW | Hash-only since migration 032 |
 | Session Refresh Token | `auth.sessions.refresh_token_hash` | SHA-256 hash | 🟢 LOW | Hash-only since migration 032 |
-| API Key | `auth.api_keys.key_hash` | SHA-256 hash | 🟢 LOW | Only prefix `fbk_xxxxxxxx` exposed |
+| Client Key | `auth.client_keys.key_hash` | SHA-256 hash | 🟢 LOW | Only prefix `fbk_xxxxxxxx` exposed |
 | Service Key | `auth.service_keys.key_hash` | bcrypt hash | 🟢 LOW | Only prefix exposed |
 | OAuth Access Token | `auth.oauth_tokens.access_token` | AES-256-GCM encrypted | 🟢 LOW | Encrypted at rest (requires `FLUXBASE_ENCRYPTION_KEY`) |
 | OAuth Refresh Token | `auth.oauth_tokens.refresh_token` | AES-256-GCM encrypted | 🟢 LOW | Encrypted at rest (requires `FLUXBASE_ENCRYPTION_KEY`) |
@@ -692,7 +692,7 @@ sequenceDiagram
 | `failed_login_attempts` | `json:"-"` | Never exposed |
 | `is_locked` | `json:"-"` | Never exposed |
 | `locked_until` | `json:"-"` | Never exposed |
-| API Key (full) | Return only on creation | Never returned again |
+| Client Key (full) | Return only on creation | Never returned again |
 | Session tokens | Never in list operations | Only returned on login |
 
 ### Risk Distribution
@@ -746,7 +746,7 @@ The following source files contain the implementation details for the security f
 | File | Purpose |
 |------|---------|
 | `internal/api/server.go` | Route registration and middleware chains |
-| `internal/middleware/apikey_auth.go` | API key validation |
+| `internal/middleware/clientkey_auth.go` | Client key validation |
 | `internal/auth/jwt.go` | JWT handling |
 | `internal/middleware/rls.go` | Row-Level Security |
 | `internal/auth/scopes.go` | Scope definitions |

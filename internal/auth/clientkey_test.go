@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupAPIKeyTestDB creates a test database connection for API key tests
-func setupAPIKeyTestDB(t *testing.T) *pgxpool.Pool {
+// setupClientKeyTestDB creates a test database connection for client key tests
+func setupClientKeyTestDB(t *testing.T) *pgxpool.Pool {
 	cfg := &config.DatabaseConfig{
 		Host:            "postgres",
 		Port:            5432,
@@ -39,12 +39,12 @@ func setupAPIKeyTestDB(t *testing.T) *pgxpool.Pool {
 	return db.Pool()
 }
 
-// cleanupAPIKeys removes all test API keys and users
-func cleanupAPIKeys(t *testing.T, db *pgxpool.Pool) {
+// cleanupClientKeys removes all test client keys and users
+func cleanupClientKeys(t *testing.T, db *pgxpool.Pool) {
 	ctx := context.Background()
-	// Delete API keys first (foreign key constraint)
-	_, err := db.Exec(ctx, "DELETE FROM auth.api_keys WHERE name LIKE 'test-%'")
-	require.NoError(t, err, "Failed to cleanup test API keys")
+	// Delete client keys first (foreign key constraint)
+	_, err := db.Exec(ctx, "DELETE FROM auth.client_keys WHERE name LIKE 'test-%'")
+	require.NoError(t, err, "Failed to cleanup test client keys")
 	// Delete test users
 	_, err = db.Exec(ctx, "DELETE FROM auth.users WHERE email LIKE '%@example.com'")
 	require.NoError(t, err, "Failed to cleanup test users")
@@ -63,38 +63,38 @@ func createTestUser(t *testing.T, db *pgxpool.Pool, email string) uuid.UUID {
 	return userID
 }
 
-func TestHashAPIKey(t *testing.T) {
+func TestHashClientKey(t *testing.T) {
 	key1 := "fbk_test_key_123"
 	key2 := "fbk_test_key_456"
 
-	hash1 := hashAPIKey(key1)
-	hash2 := hashAPIKey(key2)
+	hash1 := hashClientKey(key1)
+	hash2 := hashClientKey(key2)
 
 	// Different keys should produce different hashes
 	assert.NotEqual(t, hash1, hash2)
 
 	// Same key should produce same hash
-	hash1Again := hashAPIKey(key1)
+	hash1Again := hashClientKey(key1)
 	assert.Equal(t, hash1, hash1Again)
 
 	// Hash should be non-empty
 	assert.NotEmpty(t, hash1)
 }
 
-func TestGenerateAPIKey(t *testing.T) {
+func TestGenerateClientKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
-	t.Run("Generate API key with default values", func(t *testing.T) {
-		result, err := service.GenerateAPIKey(ctx, "test-default-key", nil, nil, nil, 0, nil)
+	t.Run("Generate client key with default values", func(t *testing.T) {
+		result, err := service.GenerateClientKey(ctx, "test-default-key", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 
@@ -102,7 +102,7 @@ func TestGenerateAPIKey(t *testing.T) {
 		assert.Contains(t, result.PlaintextKey, "fbk_")
 		assert.Greater(t, len(result.PlaintextKey), 20)
 
-		// Verify API key fields
+		// Verify client key fields
 		assert.Equal(t, "test-default-key", result.Name)
 		assert.NotEqual(t, uuid.Nil, result.ID)
 		assert.Equal(t, 12, len(result.KeyPrefix)) // "fbk_" + 8 chars
@@ -118,15 +118,15 @@ func TestGenerateAPIKey(t *testing.T) {
 		assert.ElementsMatch(t, expectedScopes, result.Scopes)
 	})
 
-	t.Run("Generate API key with custom values", func(t *testing.T) {
-		description := "Test API key with custom settings"
-		// Create a test user to associate with the API key
-		userID := createTestUser(t, db, "apikey-test@example.com")
+	t.Run("Generate client key with custom values", func(t *testing.T) {
+		description := "Test client key with custom settings"
+		// Create a test user to associate with the client key
+		userID := createTestUser(t, db, "clientkey-test@example.com")
 		scopes := []string{"read:tables", "read:storage"}
 		rateLimit := 200
 		expiresAt := time.Now().Add(30 * 24 * time.Hour)
 
-		result, err := service.GenerateAPIKey(ctx, "test-custom-key", &description, &userID, scopes, rateLimit, &expiresAt)
+		result, err := service.GenerateClientKey(ctx, "test-custom-key", &description, &userID, scopes, rateLimit, &expiresAt)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 
@@ -140,11 +140,11 @@ func TestGenerateAPIKey(t *testing.T) {
 		assert.WithinDuration(t, expiresAt, *result.ExpiresAt, time.Second)
 	})
 
-	t.Run("Generate multiple unique API keys", func(t *testing.T) {
-		key1, err := service.GenerateAPIKey(ctx, "test-unique-1", nil, nil, nil, 0, nil)
+	t.Run("Generate multiple unique client keys", func(t *testing.T) {
+		key1, err := service.GenerateClientKey(ctx, "test-unique-1", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 
-		key2, err := service.GenerateAPIKey(ctx, "test-unique-2", nil, nil, nil, 0, nil)
+		key2, err := service.GenerateClientKey(ctx, "test-unique-2", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 
 		// Keys should be unique
@@ -154,67 +154,67 @@ func TestGenerateAPIKey(t *testing.T) {
 	})
 }
 
-func TestValidateAPIKey(t *testing.T) {
+func TestValidateClientKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
-	// Create a test API key
-	created, err := service.GenerateAPIKey(ctx, "test-validate-key", nil, nil, nil, 0, nil)
+	// Create a test client key
+	created, err := service.GenerateClientKey(ctx, "test-validate-key", nil, nil, nil, 0, nil)
 	require.NoError(t, err)
 
-	t.Run("Validate valid API key", func(t *testing.T) {
-		apiKey, err := service.ValidateAPIKey(ctx, created.PlaintextKey)
+	t.Run("Validate valid client key", func(t *testing.T) {
+		clientKey, err := service.ValidateClientKey(ctx, created.PlaintextKey)
 		require.NoError(t, err)
-		assert.NotNil(t, apiKey)
-		assert.Equal(t, created.ID, apiKey.ID)
-		assert.Equal(t, created.Name, apiKey.Name)
+		assert.NotNil(t, clientKey)
+		assert.Equal(t, created.ID, clientKey.ID)
+		assert.Equal(t, created.Name, clientKey.Name)
 	})
 
-	t.Run("Validate invalid API key", func(t *testing.T) {
+	t.Run("Validate invalid client key", func(t *testing.T) {
 		invalidKey := "fbk_invalid_key_that_does_not_exist"
-		apiKey, err := service.ValidateAPIKey(ctx, invalidKey)
+		clientKey, err := service.ValidateClientKey(ctx, invalidKey)
 		assert.Error(t, err)
-		assert.Equal(t, ErrInvalidAPIKey, err)
-		assert.Nil(t, apiKey)
+		assert.Equal(t, ErrInvalidClientKey, err)
+		assert.Nil(t, clientKey)
 	})
 
-	t.Run("Validate expired API key", func(t *testing.T) {
+	t.Run("Validate expired client key", func(t *testing.T) {
 		// Create an expired key
 		expiresAt := time.Now().Add(-1 * time.Hour) // expired 1 hour ago
-		expired, err := service.GenerateAPIKey(ctx, "test-expired-key", nil, nil, nil, 0, &expiresAt)
+		expired, err := service.GenerateClientKey(ctx, "test-expired-key", nil, nil, nil, 0, &expiresAt)
 		require.NoError(t, err)
 
-		apiKey, err := service.ValidateAPIKey(ctx, expired.PlaintextKey)
+		clientKey, err := service.ValidateClientKey(ctx, expired.PlaintextKey)
 		assert.Error(t, err)
-		assert.Equal(t, ErrAPIKeyExpired, err)
-		assert.Nil(t, apiKey)
+		assert.Equal(t, ErrClientKeyExpired, err)
+		assert.Nil(t, clientKey)
 	})
 
-	t.Run("Validate revoked API key", func(t *testing.T) {
+	t.Run("Validate revoked client key", func(t *testing.T) {
 		// Create and then revoke a key
-		revokable, err := service.GenerateAPIKey(ctx, "test-revokable-key", nil, nil, nil, 0, nil)
+		revokable, err := service.GenerateClientKey(ctx, "test-revokable-key", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 
-		err = service.RevokeAPIKey(ctx, revokable.ID)
+		err = service.RevokeClientKey(ctx, revokable.ID)
 		require.NoError(t, err)
 
-		apiKey, err := service.ValidateAPIKey(ctx, revokable.PlaintextKey)
+		clientKey, err := service.ValidateClientKey(ctx, revokable.PlaintextKey)
 		assert.Error(t, err)
-		assert.Equal(t, ErrAPIKeyRevoked, err)
-		assert.Nil(t, apiKey)
+		assert.Equal(t, ErrClientKeyRevoked, err)
+		assert.Nil(t, clientKey)
 	})
 
 	t.Run("Validate updates last_used_at", func(t *testing.T) {
 		// Create a fresh key
-		fresh, err := service.GenerateAPIKey(ctx, "test-last-used", nil, nil, nil, 0, nil)
+		fresh, err := service.GenerateClientKey(ctx, "test-last-used", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 		assert.Nil(t, fresh.LastUsedAt)
 
@@ -222,7 +222,7 @@ func TestValidateAPIKey(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		// Validate the key
-		validated, err := service.ValidateAPIKey(ctx, fresh.PlaintextKey)
+		validated, err := service.ValidateClientKey(ctx, fresh.PlaintextKey)
 		require.NoError(t, err)
 
 		// Verify last_used_at was updated
@@ -231,38 +231,38 @@ func TestValidateAPIKey(t *testing.T) {
 	})
 }
 
-func TestListAPIKeys(t *testing.T) {
+func TestListClientKeys(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
 	// Create test users
 	userID1 := createTestUser(t, db, "list-test1@example.com")
 	userID2 := createTestUser(t, db, "list-test2@example.com")
 
-	// Create test API keys
-	_, err := service.GenerateAPIKey(ctx, "test-list-1", nil, &userID1, nil, 0, nil)
+	// Create test client keys
+	_, err := service.GenerateClientKey(ctx, "test-list-1", nil, &userID1, nil, 0, nil)
 	require.NoError(t, err)
-	_, err = service.GenerateAPIKey(ctx, "test-list-2", nil, &userID1, nil, 0, nil)
+	_, err = service.GenerateClientKey(ctx, "test-list-2", nil, &userID1, nil, 0, nil)
 	require.NoError(t, err)
-	_, err = service.GenerateAPIKey(ctx, "test-list-3", nil, &userID2, nil, 0, nil)
+	_, err = service.GenerateClientKey(ctx, "test-list-3", nil, &userID2, nil, 0, nil)
 	require.NoError(t, err)
 
-	t.Run("List all API keys", func(t *testing.T) {
-		keys, err := service.ListAPIKeys(ctx, nil)
+	t.Run("List all client keys", func(t *testing.T) {
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(keys), 3)
 	})
 
-	t.Run("List API keys by user", func(t *testing.T) {
-		keys, err := service.ListAPIKeys(ctx, &userID1)
+	t.Run("List client keys by user", func(t *testing.T) {
+		keys, err := service.ListClientKeys(ctx, &userID1)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(keys))
 
@@ -272,8 +272,8 @@ func TestListAPIKeys(t *testing.T) {
 		}
 	})
 
-	t.Run("List API keys ordered by created_at DESC", func(t *testing.T) {
-		keys, err := service.ListAPIKeys(ctx, nil)
+	t.Run("List client keys ordered by created_at DESC", func(t *testing.T) {
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(keys), 3)
 
@@ -284,28 +284,28 @@ func TestListAPIKeys(t *testing.T) {
 	})
 }
 
-func TestRevokeAPIKey(t *testing.T) {
+func TestRevokeClientKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
-	t.Run("Revoke existing API key", func(t *testing.T) {
-		created, err := service.GenerateAPIKey(ctx, "test-revoke", nil, nil, nil, 0, nil)
+	t.Run("Revoke existing client key", func(t *testing.T) {
+		created, err := service.GenerateClientKey(ctx, "test-revoke", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 		assert.Nil(t, created.RevokedAt)
 
-		err = service.RevokeAPIKey(ctx, created.ID)
+		err = service.RevokeClientKey(ctx, created.ID)
 		require.NoError(t, err)
 
 		// Verify revoked_at is set
-		keys, err := service.ListAPIKeys(ctx, nil)
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 
 		for _, key := range keys {
@@ -316,69 +316,69 @@ func TestRevokeAPIKey(t *testing.T) {
 		}
 	})
 
-	t.Run("Revoke non-existent API key", func(t *testing.T) {
+	t.Run("Revoke non-existent client key", func(t *testing.T) {
 		nonExistentID := uuid.New()
-		err := service.RevokeAPIKey(ctx, nonExistentID)
+		err := service.RevokeClientKey(ctx, nonExistentID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 }
 
-func TestDeleteAPIKey(t *testing.T) {
+func TestDeleteClientKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
-	t.Run("Delete existing API key", func(t *testing.T) {
-		created, err := service.GenerateAPIKey(ctx, "test-delete", nil, nil, nil, 0, nil)
+	t.Run("Delete existing client key", func(t *testing.T) {
+		created, err := service.GenerateClientKey(ctx, "test-delete", nil, nil, nil, 0, nil)
 		require.NoError(t, err)
 
-		err = service.DeleteAPIKey(ctx, created.ID)
+		err = service.DeleteClientKey(ctx, created.ID)
 		require.NoError(t, err)
 
 		// Verify key is deleted
-		apiKey, err := service.ValidateAPIKey(ctx, created.PlaintextKey)
+		clientKey, err := service.ValidateClientKey(ctx, created.PlaintextKey)
 		assert.Error(t, err)
-		assert.Nil(t, apiKey)
+		assert.Nil(t, clientKey)
 	})
 
-	t.Run("Delete non-existent API key", func(t *testing.T) {
+	t.Run("Delete non-existent client key", func(t *testing.T) {
 		nonExistentID := uuid.New()
-		err := service.DeleteAPIKey(ctx, nonExistentID)
+		err := service.DeleteClientKey(ctx, nonExistentID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 }
 
-func TestUpdateAPIKey(t *testing.T) {
+func TestUpdateClientKey(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
-	cleanupAPIKeys(t, db)
+	cleanupClientKeys(t, db)
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	ctx := context.Background()
 
-	created, err := service.GenerateAPIKey(ctx, "test-update", nil, nil, nil, 0, nil)
+	created, err := service.GenerateClientKey(ctx, "test-update", nil, nil, nil, 0, nil)
 	require.NoError(t, err)
 
-	t.Run("Update API key name", func(t *testing.T) {
+	t.Run("Update client key name", func(t *testing.T) {
 		newName := "test-updated-name"
-		err := service.UpdateAPIKey(ctx, created.ID, &newName, nil, nil, nil)
+		err := service.UpdateClientKey(ctx, created.ID, &newName, nil, nil, nil)
 		require.NoError(t, err)
 
 		// Verify update
-		keys, err := service.ListAPIKeys(ctx, nil)
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 
 		for _, key := range keys {
@@ -389,13 +389,13 @@ func TestUpdateAPIKey(t *testing.T) {
 		}
 	})
 
-	t.Run("Update API key scopes", func(t *testing.T) {
+	t.Run("Update client key scopes", func(t *testing.T) {
 		newScopes := []string{"read:tables", "read:storage"}
-		err := service.UpdateAPIKey(ctx, created.ID, nil, nil, newScopes, nil)
+		err := service.UpdateClientKey(ctx, created.ID, nil, nil, newScopes, nil)
 		require.NoError(t, err)
 
 		// Verify update
-		keys, err := service.ListAPIKeys(ctx, nil)
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 
 		for _, key := range keys {
@@ -406,13 +406,13 @@ func TestUpdateAPIKey(t *testing.T) {
 		}
 	})
 
-	t.Run("Update API key rate limit", func(t *testing.T) {
+	t.Run("Update client key rate limit", func(t *testing.T) {
 		newRateLimit := 500
-		err := service.UpdateAPIKey(ctx, created.ID, nil, nil, nil, &newRateLimit)
+		err := service.UpdateClientKey(ctx, created.ID, nil, nil, nil, &newRateLimit)
 		require.NoError(t, err)
 
 		// Verify update
-		keys, err := service.ListAPIKeys(ctx, nil)
+		keys, err := service.ListClientKeys(ctx, nil)
 		require.NoError(t, err)
 
 		for _, key := range keys {
@@ -423,24 +423,24 @@ func TestUpdateAPIKey(t *testing.T) {
 		}
 	})
 
-	t.Run("Update non-existent API key", func(t *testing.T) {
+	t.Run("Update non-existent client key", func(t *testing.T) {
 		nonExistentID := uuid.New()
 		newName := "should-fail"
-		err := service.UpdateAPIKey(ctx, nonExistentID, &newName, nil, nil, nil)
+		err := service.UpdateClientKey(ctx, nonExistentID, &newName, nil, nil, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 }
 
-func TestAPIKeyServiceNewAPIKeyService(t *testing.T) {
+func TestClientKeyServiceNewClientKeyService(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	db := setupAPIKeyTestDB(t)
+	db := setupClientKeyTestDB(t)
 	defer db.Close()
 
-	service := NewAPIKeyService(db)
+	service := NewClientKeyService(db)
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.db)
 }

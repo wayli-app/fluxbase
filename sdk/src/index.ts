@@ -124,7 +124,8 @@ export { FluxbaseAdmin } from "./admin";
 // Management module
 export {
   FluxbaseManagement,
-  APIKeysManager,
+  ClientKeysManager,
+  APIKeysManager, // Deprecated alias
   WebhooksManager,
   InvitationsManager,
 } from "./management";
@@ -304,7 +305,16 @@ export type {
   ResetUserPasswordResponse,
   DeleteUserResponse,
 
-  // Management types - API Keys
+  // Management types - Client Keys
+  ClientKey,
+  CreateClientKeyRequest,
+  CreateClientKeyResponse,
+  ListClientKeysResponse,
+  UpdateClientKeyRequest,
+  RevokeClientKeyResponse,
+  DeleteClientKeyResponse,
+
+  // Management types - Client Keys (Deprecated aliases)
   APIKey,
   CreateAPIKeyRequest,
   CreateAPIKeyResponse,

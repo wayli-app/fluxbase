@@ -98,7 +98,7 @@ func init() {
 	rootCmd.AddCommand(graphqlCmd)
 	rootCmd.AddCommand(rpcCmd)
 	rootCmd.AddCommand(webhooksCmd)
-	rootCmd.AddCommand(apikeysCmd)
+	rootCmd.AddCommand(clientkeysCmd)
 	rootCmd.AddCommand(migrationsCmd)
 	rootCmd.AddCommand(extensionsCmd)
 	rootCmd.AddCommand(realtimeCmd)

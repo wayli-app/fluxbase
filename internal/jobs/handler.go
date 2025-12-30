@@ -231,9 +231,9 @@ func NewHandler(db *database.Connection, cfg *config.JobsConfig, manager *Manage
 }
 
 // RegisterRoutes registers all job routes
-func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, apiKeyService *auth.APIKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
+func (h *Handler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
 	// Apply authentication middleware
-	authMiddleware := middleware.RequireAuthOrServiceKey(authService, apiKeyService, db, jwtManager)
+	authMiddleware := middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager)
 
 	// Apply feature flag middleware to all jobs routes
 	jobs := app.Group("/api/v1/jobs",

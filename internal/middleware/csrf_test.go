@@ -127,7 +127,7 @@ func TestCSRF_SkipsBearerAuth(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 }
 
-func TestCSRF_SkipsApiKeyAuth(t *testing.T) {
+func TestCSRF_SkipsClientKeyAuth(t *testing.T) {
 	app := fiber.New()
 	app.Use(CSRF())
 	app.Post("/test", func(c *fiber.Ctx) error {
@@ -135,7 +135,7 @@ func TestCSRF_SkipsApiKeyAuth(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("apikey", "some-api-key")
+	req.Header.Set("clientkey", "some-client-key")
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)

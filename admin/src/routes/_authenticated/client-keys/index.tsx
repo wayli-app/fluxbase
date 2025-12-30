@@ -13,7 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { apiKeysApi, type APIKey, type CreateAPIKeyRequest } from '@/lib/api'
+import { clientKeysApi, type ClientKey, type CreateClientKeyRequest } from '@/lib/api'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,11 +60,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-export const Route = createFileRoute('/_authenticated/api-keys/')({
-  component: APIKeysPage,
+export const Route = createFileRoute('/_authenticated/client-keys/')({
+  component: ClientKeysPage,
 })
 
-interface APIKeyWithPlaintext extends APIKey {
+interface ClientKeyWithPlaintext extends ClientKey {
   key: string // Only returned on creation
 }
 
@@ -105,12 +105,12 @@ const AVAILABLE_SCOPES = [
     name: 'Write Auth',
     description: 'Update user profile, manage 2FA',
   },
-  // API Keys
-  { id: 'read:apikeys', name: 'Read API Keys', description: 'List API keys' },
+  // Client Keys
+  { id: 'read:clientkeys', name: 'Read Client Keys', description: 'List client keys' },
   {
-    id: 'write:apikeys',
-    name: 'Write API Keys',
-    description: 'Create, update, revoke API keys',
+    id: 'write:clientkeys',
+    name: 'Write Client Keys',
+    description: 'Create, update, revoke client keys',
   },
   // Webhooks
   {
@@ -171,11 +171,11 @@ const AVAILABLE_SCOPES = [
   },
 ]
 
-function APIKeysPage() {
+function ClientKeysPage() {
   const queryClient = useQueryClient()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showKeyDialog, setShowKeyDialog] = useState(false)
-  const [createdKey, setCreatedKey] = useState<APIKeyWithPlaintext | null>(null)
+  const [createdKey, setCreatedKey] = useState<ClientKeyWithPlaintext | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   // Form state
@@ -185,18 +185,18 @@ function APIKeysPage() {
   const [rateLimit, setRateLimit] = useState(100)
   const [expiresAt, setExpiresAt] = useState('')
 
-  // Fetch API keys
-  const { data: apiKeys, isLoading } = useQuery<APIKey[]>({
-    queryKey: ['api-keys'],
-    queryFn: apiKeysApi.list,
+  // Fetch client keys
+  const { data: clientKeys, isLoading } = useQuery<ClientKey[]>({
+    queryKey: ['client-keys'],
+    queryFn: clientKeysApi.list,
   })
 
-  // Create API key
+  // Create client key
   const createMutation = useMutation({
-    mutationFn: apiKeysApi.create,
+    mutationFn: clientKeysApi.create,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      setCreatedKey(data as unknown as APIKeyWithPlaintext)
+      queryClient.invalidateQueries({ queryKey: ['client-keys'] })
+      setCreatedKey(data as unknown as ClientKeyWithPlaintext)
       setShowCreateDialog(false)
       setShowKeyDialog(true)
       // Reset form
@@ -207,31 +207,31 @@ function APIKeysPage() {
       setExpiresAt('')
     },
     onError: () => {
-      toast.error('Failed to create API key')
+      toast.error('Failed to create client key')
     },
   })
 
-  // Revoke API key
+  // Revoke client key
   const revokeMutation = useMutation({
-    mutationFn: apiKeysApi.revoke,
+    mutationFn: clientKeysApi.revoke,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      toast.success('API key revoked successfully')
+      queryClient.invalidateQueries({ queryKey: ['client-keys'] })
+      toast.success('Client key revoked successfully')
     },
     onError: () => {
-      toast.error('Failed to revoke API key')
+      toast.error('Failed to revoke client key')
     },
   })
 
-  // Delete API key
+  // Delete client key
   const deleteMutation = useMutation({
-    mutationFn: apiKeysApi.delete,
+    mutationFn: clientKeysApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      toast.success('API key deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['client-keys'] })
+      toast.success('Client key deleted successfully')
     },
     onError: () => {
-      toast.error('Failed to delete API key')
+      toast.error('Failed to delete client key')
     },
   })
 
@@ -245,7 +245,7 @@ function APIKeysPage() {
       return
     }
 
-    const request: CreateAPIKeyRequest = {
+    const request: CreateClientKeyRequest = {
       name: name.trim(),
       description: description.trim() || undefined,
       scopes: selectedScopes,
@@ -276,7 +276,7 @@ function APIKeysPage() {
 
   const isRevoked = (revokedAt?: string) => !!revokedAt
 
-  const getKeyStatus = (key: APIKey) => {
+  const getKeyStatus = (key: ClientKey) => {
     if (isRevoked(key.revoked_at))
       return { label: 'Revoked', variant: 'secondary' as const }
     if (isExpired(key.expires_at))
@@ -285,7 +285,7 @@ function APIKeysPage() {
   }
 
   // Filter keys by search query
-  const filteredKeys = apiKeys?.filter(
+  const filteredKeys = clientKeys?.filter(
     (key) =>
       key.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       key.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -297,10 +297,10 @@ function APIKeysPage() {
       <div>
         <h1 className='flex items-center gap-2 text-3xl font-bold tracking-tight'>
           <Key className='h-8 w-8' />
-          API Keys
+          Client Keys
         </h1>
         <p className='text-muted-foreground mt-2'>
-          Generate and manage API keys for programmatic access
+          Generate and manage client keys for programmatic access
         </p>
       </div>
 
@@ -312,7 +312,7 @@ function APIKeysPage() {
             <Key className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{apiKeys?.length || 0}</div>
+            <div className='text-2xl font-bold'>{clientKeys?.length || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -322,7 +322,7 @@ function APIKeysPage() {
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
-              {apiKeys?.filter(
+              {clientKeys?.filter(
                 (k) => !isRevoked(k.revoked_at) && !isExpired(k.expires_at)
               ).length || 0}
             </div>
@@ -335,7 +335,7 @@ function APIKeysPage() {
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
-              {apiKeys?.filter((k) => isRevoked(k.revoked_at)).length || 0}
+              {clientKeys?.filter((k) => isRevoked(k.revoked_at)).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -346,14 +346,14 @@ function APIKeysPage() {
         <CardHeader>
           <div className='flex items-center justify-between'>
             <div>
-              <CardTitle>API Keys</CardTitle>
+              <CardTitle>Client Keys</CardTitle>
               <CardDescription>
-                Manage your API keys for service-to-service authentication
+                Manage your client keys for service-to-service authentication
               </CardDescription>
             </div>
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className='mr-2 h-4 w-4' />
-              Create API Key
+              Create Client Key
             </Button>
           </div>
         </CardHeader>
@@ -496,7 +496,7 @@ function APIKeysPage() {
                                   <X className='h-4 w-4' />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Revoke API key</TooltipContent>
+                              <TooltipContent>Revoke client key</TooltipContent>
                             </Tooltip>
                           )}
                           <AlertDialog>
@@ -513,12 +513,12 @@ function APIKeysPage() {
                                   </Button>
                                 </AlertDialogTrigger>
                               </TooltipTrigger>
-                              <TooltipContent>Delete API key</TooltipContent>
+                              <TooltipContent>Delete client key</TooltipContent>
                             </Tooltip>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>
-                                  Delete API Key
+                                  Delete Client Key
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
                                   Are you sure you want to delete "{key.name}"?
@@ -549,8 +549,8 @@ function APIKeysPage() {
               <Key className='text-muted-foreground mb-4 h-12 w-12' />
               <p className='text-muted-foreground'>
                 {searchQuery
-                  ? 'No API keys match your search'
-                  : 'No API keys yet'}
+                  ? 'No client keys match your search'
+                  : 'No client keys yet'}
               </p>
               {!searchQuery && (
                 <Button
@@ -558,7 +558,7 @@ function APIKeysPage() {
                   variant='outline'
                   className='mt-4'
                 >
-                  Create Your First API Key
+                  Create Your First Client Key
                 </Button>
               )}
             </div>
@@ -566,13 +566,13 @@ function APIKeysPage() {
         </CardContent>
       </Card>
 
-      {/* Create API Key Dialog */}
+      {/* Create Client Key Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
           <DialogHeader>
-            <DialogTitle>Create API Key</DialogTitle>
+            <DialogTitle>Create Client Key</DialogTitle>
             <DialogDescription>
-              Generate a new API key for programmatic access. The key will be
+              Generate a new client key for programmatic access. The key will be
               shown only once.
             </DialogDescription>
           </DialogHeader>
@@ -583,7 +583,7 @@ function APIKeysPage() {
               </Label>
               <Input
                 id='name'
-                placeholder='Production Service Key'
+                placeholder='Production Client Key'
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -661,7 +661,7 @@ function APIKeysPage() {
               onClick={handleCreateKey}
               disabled={createMutation.isPending}
             >
-              {createMutation.isPending ? 'Creating...' : 'Generate API Key'}
+              {createMutation.isPending ? 'Creating...' : 'Generate Client Key'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -671,7 +671,7 @@ function APIKeysPage() {
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>API Key Created</DialogTitle>
+            <DialogTitle>Client Key Created</DialogTitle>
             <DialogDescription>
               Save this key now. You won't be able to see it again!
             </DialogDescription>
@@ -686,7 +686,7 @@ function APIKeysPage() {
                   </h3>
                   <div className='mt-2 text-sm text-yellow-700 dark:text-yellow-300'>
                     <p>
-                      This is the only time you'll see the full API key. Store
+                      This is the only time you'll see the full client key. Store
                       it securely.
                     </p>
                   </div>
@@ -694,7 +694,7 @@ function APIKeysPage() {
               </div>
             </div>
             <div className='grid gap-2'>
-              <Label>API Key</Label>
+              <Label>Client Key</Label>
               <div className='flex gap-2'>
                 <Input
                   value={createdKey?.key || ''}

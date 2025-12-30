@@ -1,20 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useFluxbaseClient } from './context'
-import type { APIKey, CreateAPIKeyRequest } from '@fluxbase/sdk'
+import type { ClientKey, CreateClientKeyRequest } from '@fluxbase/sdk'
 
-export interface UseAPIKeysOptions {
+export interface UseClientKeysOptions {
   /**
-   * Whether to automatically fetch API keys on mount
+   * Whether to automatically fetch client keys on mount
    * @default true
    */
   autoFetch?: boolean
 }
 
-export interface UseAPIKeysReturn {
+export interface UseClientKeysReturn {
   /**
-   * Array of API keys
+   * Array of client keys
    */
-  keys: APIKey[]
+  keys: ClientKey[]
 
   /**
    * Whether keys are being fetched
@@ -27,45 +27,45 @@ export interface UseAPIKeysReturn {
   error: Error | null
 
   /**
-   * Refetch API keys
+   * Refetch client keys
    */
   refetch: () => Promise<void>
 
   /**
-   * Create a new API key
+   * Create a new client key
    */
-  createKey: (request: CreateAPIKeyRequest) => Promise<{ key: string; keyData: APIKey }>
+  createKey: (request: CreateClientKeyRequest) => Promise<{ key: string; keyData: ClientKey }>
 
   /**
-   * Update an API key
+   * Update a client key
    */
   updateKey: (keyId: string, update: { name?: string; description?: string }) => Promise<void>
 
   /**
-   * Revoke an API key
+   * Revoke a client key
    */
   revokeKey: (keyId: string) => Promise<void>
 
   /**
-   * Delete an API key
+   * Delete a client key
    */
   deleteKey: (keyId: string) => Promise<void>
 }
 
 /**
- * Hook for managing API keys
+ * Hook for managing client keys
  *
- * Provides API key list and management functions.
+ * Provides client key list and management functions.
  *
  * @example
  * ```tsx
- * function APIKeyManager() {
- *   const { keys, isLoading, createKey, revokeKey } = useAPIKeys()
+ * function ClientKeyManager() {
+ *   const { keys, isLoading, createKey, revokeKey } = useClientKeys()
  *
  *   const handleCreate = async () => {
  *     const { key, keyData } = await createKey({
  *       name: 'Backend Service',
- *       description: 'API key for backend',
+ *       description: 'Client key for backend',
  *       expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
  *     })
  *     alert(`Key created: ${key}`)
@@ -85,23 +85,23 @@ export interface UseAPIKeysReturn {
  * }
  * ```
  */
-export function useAPIKeys(options: UseAPIKeysOptions = {}): UseAPIKeysReturn {
+export function useClientKeys(options: UseClientKeysOptions = {}): UseClientKeysReturn {
   const { autoFetch = true } = options
   const client = useFluxbaseClient()
 
-  const [keys, setKeys] = useState<APIKey[]>([])
+  const [keys, setKeys] = useState<ClientKey[]>([])
   const [isLoading, setIsLoading] = useState(autoFetch)
   const [error, setError] = useState<Error | null>(null)
 
   /**
-   * Fetch API keys from API
+   * Fetch client keys from API
    */
   const fetchKeys = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await client.admin.management.apiKeys.list()
-      setKeys(response.api_keys)
+      const response = await client.admin.management.clientKeys.list()
+      setKeys(response.client_keys)
     } catch (err) {
       setError(err as Error)
     } finally {
@@ -110,45 +110,45 @@ export function useAPIKeys(options: UseAPIKeysOptions = {}): UseAPIKeysReturn {
   }, [client])
 
   /**
-   * Create a new API key
+   * Create a new client key
    */
   const createKey = useCallback(
-    async (request: CreateAPIKeyRequest): Promise<{ key: string; keyData: APIKey }> => {
-      const response = await client.admin.management.apiKeys.create(request)
+    async (request: CreateClientKeyRequest): Promise<{ key: string; keyData: ClientKey }> => {
+      const response = await client.admin.management.clientKeys.create(request)
       await fetchKeys() // Refresh list
-      return { key: response.key, keyData: response.api_key }
+      return { key: response.key, keyData: response.client_key }
     },
     [client, fetchKeys]
   )
 
   /**
-   * Update an API key
+   * Update a client key
    */
   const updateKey = useCallback(
     async (keyId: string, update: { name?: string; description?: string }): Promise<void> => {
-      await client.admin.management.apiKeys.update(keyId, update)
+      await client.admin.management.clientKeys.update(keyId, update)
       await fetchKeys() // Refresh list
     },
     [client, fetchKeys]
   )
 
   /**
-   * Revoke an API key
+   * Revoke a client key
    */
   const revokeKey = useCallback(
     async (keyId: string): Promise<void> => {
-      await client.admin.management.apiKeys.revoke(keyId)
+      await client.admin.management.clientKeys.revoke(keyId)
       await fetchKeys() // Refresh list
     },
     [client, fetchKeys]
   )
 
   /**
-   * Delete an API key
+   * Delete a client key
    */
   const deleteKey = useCallback(
     async (keyId: string): Promise<void> => {
-      await client.admin.management.apiKeys.delete(keyId)
+      await client.admin.management.clientKeys.delete(keyId)
       await fetchKeys() // Refresh list
     },
     [client, fetchKeys]
@@ -172,3 +172,14 @@ export function useAPIKeys(options: UseAPIKeysOptions = {}): UseAPIKeysReturn {
     deleteKey
   }
 }
+
+/**
+ * @deprecated Use useClientKeys instead
+ */
+export const useAPIKeys = useClientKeys
+
+/** @deprecated Use UseClientKeysOptions instead */
+export type UseAPIKeysOptions = UseClientKeysOptions
+
+/** @deprecated Use UseClientKeysReturn instead */
+export type UseAPIKeysReturn = UseClientKeysReturn
