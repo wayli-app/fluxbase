@@ -814,14 +814,28 @@ func (s *Server) setupMiddlewares() {
 		Str("origins", corsOrigins).
 		Bool("credentials", corsCredentials).
 		Msg("Adding CORS middleware")
-	s.app.Use(cors.New(cors.Config{
-		AllowOrigins:     corsOrigins,
+
+	// Build CORS config
+	corsConfig := cors.Config{
 		AllowMethods:     s.config.CORS.AllowedMethods,
 		AllowHeaders:     s.config.CORS.AllowedHeaders,
 		ExposeHeaders:    s.config.CORS.ExposedHeaders,
 		AllowCredentials: corsCredentials,
 		MaxAge:           s.config.CORS.MaxAge,
-	}))
+	}
+
+	// When AllowOrigins is "*", use AllowOriginsFunc to dynamically allow all origins
+	// This is required because Fiber's CORS middleware doesn't properly handle "*"
+	// with the AllowOrigins string field in newer versions
+	if corsOrigins == "*" {
+		corsConfig.AllowOriginsFunc = func(origin string) bool {
+			return true // Allow all origins
+		}
+	} else {
+		corsConfig.AllowOrigins = corsOrigins
+	}
+
+	s.app.Use(cors.New(corsConfig))
 	log.Debug().Msg("CORS middleware added")
 
 	// Global rate limiting - 100 requests per minute per IP
