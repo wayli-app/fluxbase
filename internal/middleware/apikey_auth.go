@@ -578,13 +578,17 @@ func validateServiceKey(c *fiber.Ctx, db *pgxpool.Pool, serviceKey string) bool 
 	var scopes []string
 	var enabled bool
 	var expiresAt *time.Time
+	var rateLimitPerMinute *int
+	var rateLimitPerHour *int
 
 	err := db.QueryRow(c.Context(),
-		`SELECT id, name, key_hash, scopes, enabled, expires_at
+		`SELECT id, name, key_hash, scopes, enabled, expires_at,
+		        rate_limit_per_minute, rate_limit_per_hour
 		 FROM auth.service_keys
 		 WHERE key_prefix = $1`,
 		keyPrefix,
-	).Scan(&keyID, &keyName, &keyHash, &scopes, &enabled, &expiresAt)
+	).Scan(&keyID, &keyName, &keyHash, &scopes, &enabled, &expiresAt,
+		&rateLimitPerMinute, &rateLimitPerHour)
 
 	if err != nil {
 		log.Debug().Err(err).Str("prefix", keyPrefix).Msg("Service key not found")
@@ -627,6 +631,10 @@ func validateServiceKey(c *fiber.Ctx, db *pgxpool.Pool, serviceKey string) bool 
 	c.Locals("auth_type", "service_key")
 	c.Locals("user_role", "service_role") // Elevated role
 
+	// Store rate limits in context (nil means unlimited)
+	c.Locals("service_key_rate_limit_per_minute", rateLimitPerMinute)
+	c.Locals("service_key_rate_limit_per_hour", rateLimitPerHour)
+
 	// For RLS context
 	c.Locals("rls_role", "service_role")
 	c.Locals("rls_user_id", nil) // Service keys don't have user IDs
@@ -634,6 +642,8 @@ func validateServiceKey(c *fiber.Ctx, db *pgxpool.Pool, serviceKey string) bool 
 	log.Debug().
 		Str("key_id", keyID).
 		Str("key_name", keyName).
+		Interface("rate_limit_per_minute", rateLimitPerMinute).
+		Interface("rate_limit_per_hour", rateLimitPerHour).
 		Msg("Authenticated with service key")
 
 	return true

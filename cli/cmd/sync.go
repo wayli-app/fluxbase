@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -253,8 +254,17 @@ func syncMigrationsFromDir(ctx context.Context, dir, namespace string, dryRun bo
 		return nil
 	}
 
+	// Get sorted list of migration names (important for sequential application)
+	migNames := make([]string, 0, len(migrations))
+	for name := range migrations {
+		migNames = append(migNames, name)
+	}
+	sort.Strings(migNames)
+
+	// Build migrations array in sorted order
 	var migList []map[string]interface{}
-	for name, sqls := range migrations {
+	for _, name := range migNames {
+		sqls := migrations[name]
 		mig := map[string]interface{}{
 			"name": name,
 		}
@@ -619,17 +629,44 @@ func printSyncSummary(result map[string]interface{}, resourceType string) {
 		fmt.Println()
 	}
 
-	// Print any errors
+	// Print any errors from "errors" field (legacy format)
 	if errs, ok := result["errors"].([]interface{}); ok && len(errs) > 0 {
 		fmt.Println("  Errors:")
 		for _, e := range errs {
-			if errMap, ok := e.(map[string]interface{}); ok {
-				name := getStringValue(errMap, "name")
+			switch err := e.(type) {
+			case string:
+				// Simple string error
+				fmt.Printf("    - %s\n", err)
+			case map[string]interface{}:
+				// Object with name/error fields
+				name := getStringValue(err, "name")
 				if name == "" {
-					name = getStringValue(errMap, "procedure")
+					name = getStringValue(err, "procedure")
 				}
-				errMsg := getStringValue(errMap, "error")
-				fmt.Printf("    - %s: %s\n", name, errMsg)
+				errMsg := getStringValue(err, "error")
+				if name != "" && errMsg != "" {
+					fmt.Printf("    - %s: %s\n", name, errMsg)
+				} else if errMsg != "" {
+					fmt.Printf("    - %s\n", errMsg)
+				} else {
+					fmt.Printf("    - %v\n", err)
+				}
+			default:
+				fmt.Printf("    - %v\n", e)
+			}
+		}
+	}
+
+	// Print any errors from "details.errors" field (migrations sync format)
+	if details, ok := result["details"].(map[string]interface{}); ok {
+		if errs, ok := details["errors"].([]interface{}); ok && len(errs) > 0 {
+			fmt.Println("  Errors:")
+			for _, e := range errs {
+				if errStr, ok := e.(string); ok {
+					fmt.Printf("    - %s\n", errStr)
+				} else {
+					fmt.Printf("    - %v\n", e)
+				}
 			}
 		}
 	}

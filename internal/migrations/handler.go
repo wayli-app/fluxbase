@@ -452,14 +452,18 @@ func (h *Handler) SyncMigrations(c *fiber.Ctx) error {
 		existingHash := calculateHash(existingMig.UpSQL + valueOrEmpty(existingMig.DownSQL))
 
 		if existingHash == contentHash {
-			// Content unchanged - check if we should retry failed migrations
-			if existingMig.Status == "failed" && req.Options.AutoApply && !req.Options.DryRun {
-				// Retry failed migration
-				log.Info().Str("name", reqMig.Name).Msg("Retrying failed migration")
+			// Content unchanged - check if we should apply pending or retry failed migrations
+			if (existingMig.Status == "pending" || existingMig.Status == "failed") && req.Options.AutoApply && !req.Options.DryRun {
+				// Apply pending or retry failed migration
+				action := "Applying"
+				if existingMig.Status == "failed" {
+					action = "Retrying"
+				}
+				log.Info().Str("name", reqMig.Name).Str("status", existingMig.Status).Msg(action + " migration")
 				if err := h.executor.ApplyMigration(c.Context(), req.Namespace, reqMig.Name, createdBy); err != nil {
-					log.Error().Err(err).Str("name", reqMig.Name).Msg("Failed to retry migration")
+					log.Error().Err(err).Str("name", reqMig.Name).Msg("Failed to apply migration")
 					summary.Errors++
-					details.Errors = append(details.Errors, fmt.Sprintf("%s: retry failed - %v", reqMig.Name, err))
+					details.Errors = append(details.Errors, fmt.Sprintf("%s: failed to apply - %v", reqMig.Name, err))
 					autoApplyFailed = true // Stop processing subsequent migrations
 				} else {
 					summary.Applied++
@@ -468,7 +472,7 @@ func (h *Handler) SyncMigrations(c *fiber.Ctx) error {
 				continue
 			}
 
-			// Content unchanged - no action needed
+			// Content unchanged and already applied - no action needed
 			summary.Unchanged++
 			details.Unchanged = append(details.Unchanged, reqMig.Name)
 			continue

@@ -3097,3 +3097,100 @@ export const secretsApi = {
     return response.data
   },
 }
+
+// Service Keys API Types
+export interface ServiceKey {
+  id: string
+  name: string
+  description?: string
+  key_prefix: string
+  scopes: string[]
+  enabled: boolean
+  rate_limit_per_minute?: number
+  rate_limit_per_hour?: number
+  created_by?: string
+  created_at: string
+  last_used_at?: string
+  expires_at?: string
+}
+
+export interface ServiceKeyWithPlaintext extends ServiceKey {
+  key: string // Only returned on creation
+}
+
+export interface CreateServiceKeyRequest {
+  name: string
+  description?: string
+  scopes?: string[]
+  rate_limit_per_minute?: number
+  rate_limit_per_hour?: number
+  expires_at?: string
+}
+
+export interface UpdateServiceKeyRequest {
+  name?: string
+  description?: string
+  scopes?: string[]
+  enabled?: boolean
+  rate_limit_per_minute?: number
+  rate_limit_per_hour?: number
+}
+
+// Service Keys API
+export const serviceKeysApi = {
+  // List all service keys
+  list: async (): Promise<ServiceKey[]> => {
+    const response = await api.get<ServiceKey[]>('/api/v1/admin/service-keys')
+    return response.data
+  },
+
+  // Get a specific service key
+  get: async (id: string): Promise<ServiceKey> => {
+    const response = await api.get<ServiceKey>(`/api/v1/admin/service-keys/${id}`)
+    return response.data
+  },
+
+  // Create a new service key
+  create: async (
+    request: CreateServiceKeyRequest
+  ): Promise<ServiceKeyWithPlaintext> => {
+    const response = await api.post<ServiceKeyWithPlaintext>(
+      '/api/v1/admin/service-keys',
+      request
+    )
+    return response.data
+  },
+
+  // Update a service key
+  update: async (
+    id: string,
+    request: UpdateServiceKeyRequest
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.patch<{ success: boolean; message: string }>(
+      `/api/v1/admin/service-keys/${id}`,
+      request
+    )
+    return response.data
+  },
+
+  // Delete a service key
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/admin/service-keys/${id}`)
+  },
+
+  // Disable a service key
+  disable: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/api/v1/admin/service-keys/${id}/disable`
+    )
+    return response.data
+  },
+
+  // Enable a service key
+  enable: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/api/v1/admin/service-keys/${id}/enable`
+    )
+    return response.data
+  },
+}

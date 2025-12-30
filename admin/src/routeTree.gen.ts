@@ -33,6 +33,7 @@ import { Route as AuthenticatedStorageIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedStorageConfigIndexRouteImport } from './routes/_authenticated/storage-config/index'
 import { Route as AuthenticatedSqlEditorIndexRouteImport } from './routes/_authenticated/sql-editor/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedServiceKeysIndexRouteImport } from './routes/_authenticated/service-keys/index'
 import { Route as AuthenticatedSecuritySettingsIndexRouteImport } from './routes/_authenticated/security-settings/index'
 import { Route as AuthenticatedSecretsIndexRouteImport } from './routes/_authenticated/secrets/index'
 import { Route as AuthenticatedRpcIndexRouteImport } from './routes/_authenticated/rpc/index'
@@ -180,6 +181,12 @@ const AuthenticatedSettingsIndexRoute =
   AuthenticatedSettingsIndexRouteImport.update({
     id: '/settings/',
     path: '/settings/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedServiceKeysIndexRoute =
+  AuthenticatedServiceKeysIndexRouteImport.update({
+    id: '/service-keys/',
+    path: '/service-keys/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSecuritySettingsIndexRoute =
@@ -354,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/rpc': typeof AuthenticatedRpcIndexRoute
   '/secrets': typeof AuthenticatedSecretsIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
+  '/service-keys': typeof AuthenticatedServiceKeysIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
   '/storage-config': typeof AuthenticatedStorageConfigIndexRoute
@@ -402,6 +410,7 @@ export interface FileRoutesByTo {
   '/rpc': typeof AuthenticatedRpcIndexRoute
   '/secrets': typeof AuthenticatedSecretsIndexRoute
   '/security-settings': typeof AuthenticatedSecuritySettingsIndexRoute
+  '/service-keys': typeof AuthenticatedServiceKeysIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/sql-editor': typeof AuthenticatedSqlEditorIndexRoute
   '/storage-config': typeof AuthenticatedStorageConfigIndexRoute
@@ -452,6 +461,7 @@ export interface FileRoutesById {
   '/_authenticated/rpc/': typeof AuthenticatedRpcIndexRoute
   '/_authenticated/secrets/': typeof AuthenticatedSecretsIndexRoute
   '/_authenticated/security-settings/': typeof AuthenticatedSecuritySettingsIndexRoute
+  '/_authenticated/service-keys/': typeof AuthenticatedServiceKeysIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/sql-editor/': typeof AuthenticatedSqlEditorIndexRoute
   '/_authenticated/storage-config/': typeof AuthenticatedStorageConfigIndexRoute
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/rpc'
     | '/secrets'
     | '/security-settings'
+    | '/service-keys'
     | '/settings'
     | '/sql-editor'
     | '/storage-config'
@@ -550,6 +561,7 @@ export interface FileRouteTypes {
     | '/rpc'
     | '/secrets'
     | '/security-settings'
+    | '/service-keys'
     | '/settings'
     | '/sql-editor'
     | '/storage-config'
@@ -599,6 +611,7 @@ export interface FileRouteTypes {
     | '/_authenticated/rpc/'
     | '/_authenticated/secrets/'
     | '/_authenticated/security-settings/'
+    | '/_authenticated/service-keys/'
     | '/_authenticated/settings/'
     | '/_authenticated/sql-editor/'
     | '/_authenticated/storage-config/'
@@ -800,6 +813,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/service-keys/': {
+      id: '/_authenticated/service-keys/'
+      path: '/service-keys'
+      fullPath: '/service-keys'
+      preLoaderRoute: typeof AuthenticatedServiceKeysIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security-settings/': {
       id: '/_authenticated/security-settings/'
       path: '/security-settings'
@@ -986,6 +1006,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRpcIndexRoute: typeof AuthenticatedRpcIndexRoute
   AuthenticatedSecretsIndexRoute: typeof AuthenticatedSecretsIndexRoute
   AuthenticatedSecuritySettingsIndexRoute: typeof AuthenticatedSecuritySettingsIndexRoute
+  AuthenticatedServiceKeysIndexRoute: typeof AuthenticatedServiceKeysIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedSqlEditorIndexRoute: typeof AuthenticatedSqlEditorIndexRoute
   AuthenticatedStorageConfigIndexRoute: typeof AuthenticatedStorageConfigIndexRoute
@@ -1021,6 +1042,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSecretsIndexRoute: AuthenticatedSecretsIndexRoute,
   AuthenticatedSecuritySettingsIndexRoute:
     AuthenticatedSecuritySettingsIndexRoute,
+  AuthenticatedServiceKeysIndexRoute: AuthenticatedServiceKeysIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedSqlEditorIndexRoute: AuthenticatedSqlEditorIndexRoute,
   AuthenticatedStorageConfigIndexRoute: AuthenticatedStorageConfigIndexRoute,

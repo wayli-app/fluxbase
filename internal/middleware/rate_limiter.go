@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
@@ -55,10 +56,13 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 		Expiration:   config.Expiration,
 		KeyGenerator: config.KeyFunc,
 		LimitReached: func(c *fiber.Ctx) error {
+			retryAfter := int(config.Expiration.Seconds())
+			c.Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"code":        "RATE_LIMIT_EXCEEDED",
 				"error":       "Rate limit exceeded",
 				"message":     config.Message,
-				"retry_after": int(config.Expiration.Seconds()),
+				"retry_after": retryAfter,
 			})
 		},
 		Storage: storage,
@@ -307,21 +311,92 @@ func AdminLoginLimiter() fiber.Handler {
 // MigrationAPILimiter limits migrations API requests per service key
 // Very strict rate limiting due to powerful DDL operations
 // Should be applied AFTER service key authentication middleware
+// NOTE: service_role JWT tokens bypass rate limiting entirely (trusted keys)
+// Service keys (sk_*) use per-key configurable rate limits from the database
 func MigrationAPILimiter() fiber.Handler {
-	return NewRateLimiter(RateLimiterConfig{
+	// Default rate limiter for service keys without custom limits
+	defaultRateLimiter := NewRateLimiter(RateLimiterConfig{
 		Max:        10,            // 10 requests
 		Expiration: 1 * time.Hour, // per hour
 		KeyFunc: func(c *fiber.Ctx) string {
-			// Rate limit by service key ID (set by auth middleware)
 			keyID := c.Locals("service_key_id")
 			if keyID != nil {
 				if kid, ok := keyID.(string); ok && kid != "" {
 					return "migration_key:" + kid
 				}
 			}
-			// Fallback to IP if no service key (shouldn't happen if auth middleware ran)
 			return "migration_ip:" + c.IP()
 		},
 		Message: "Migrations API rate limit exceeded. Maximum 10 requests per hour allowed.",
 	})
+
+	// Cache for per-key rate limiters (keyed by key ID + limit config)
+	perKeyLimiters := make(map[string]fiber.Handler)
+	var limiterMu sync.RWMutex
+
+	return func(c *fiber.Ctx) error {
+		// service_role JWT tokens bypass rate limiting entirely
+		// These are trusted pre-generated keys (anon_key/service_role_key)
+		role := c.Locals("role")
+		if role == "service_role" {
+			return c.Next()
+		}
+
+		// Check for per-key rate limits from service key context
+		rateLimitPerHour := c.Locals("service_key_rate_limit_per_hour")
+
+		// If no custom rate limit is set (nil), use the default
+		if rateLimitPerHour == nil {
+			return defaultRateLimiter(c)
+		}
+
+		// Get the rate limit value
+		limitPtr, ok := rateLimitPerHour.(*int)
+		if !ok || limitPtr == nil {
+			return defaultRateLimiter(c)
+		}
+		limit := *limitPtr
+
+		// Get key ID for cache lookup
+		keyID := c.Locals("service_key_id")
+		keyIDStr := ""
+		if keyID != nil {
+			if kid, ok := keyID.(string); ok {
+				keyIDStr = kid
+			}
+		}
+
+		// Create cache key based on key ID and limit
+		cacheKey := fmt.Sprintf("%s:%d", keyIDStr, limit)
+
+		// Try to get cached limiter
+		limiterMu.RLock()
+		limiter, exists := perKeyLimiters[cacheKey]
+		limiterMu.RUnlock()
+
+		if !exists {
+			// Create new limiter for this key's rate limit
+			limiter = NewRateLimiter(RateLimiterConfig{
+				Max:        limit,
+				Expiration: 1 * time.Hour,
+				KeyFunc: func(c *fiber.Ctx) string {
+					keyID := c.Locals("service_key_id")
+					if keyID != nil {
+						if kid, ok := keyID.(string); ok && kid != "" {
+							return "migration_key:" + kid
+						}
+					}
+					return "migration_ip:" + c.IP()
+				},
+				Message: fmt.Sprintf("Migrations API rate limit exceeded. Maximum %d requests per hour allowed.", limit),
+			})
+
+			// Cache the limiter
+			limiterMu.Lock()
+			perKeyLimiters[cacheKey] = limiter
+			limiterMu.Unlock()
+		}
+
+		return limiter(c)
+	}
 }

@@ -94,6 +94,7 @@ type Server struct {
 	schemaCache           *database.SchemaCache
 	secretsHandler        *secrets.Handler
 	secretsStorage        *secrets.Storage
+	serviceKeyHandler     *ServiceKeyHandler
 
 	// Leader election for schedulers (used in multi-instance deployments)
 	jobsSchedulerLeader      *scaling.LeaderElector
@@ -258,6 +259,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	invitationService := auth.NewInvitationService(db)
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
 	ddlHandler := NewDDLHandler(db)
+	serviceKeyHandler := NewServiceKeyHandler(db.Pool())
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
@@ -563,6 +565,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		schemaCache:           schemaCache,
 		secretsHandler:        secretsHandler,
 		secretsStorage:        secretsStorage,
+		serviceKeyHandler:     serviceKeyHandler,
 	}
 
 	// Create GraphQL handler (if enabled)
@@ -1447,6 +1450,15 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.CreateInvitation)
 	router.Get("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.ListInvitations)
 	router.Delete("/invitations/:token", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.RevokeInvitation)
+
+	// Service key management routes (require admin, dashboard_admin, or service_role)
+	router.Get("/service-keys", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.ListServiceKeys)
+	router.Get("/service-keys/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.GetServiceKey)
+	router.Post("/service-keys", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.CreateServiceKey)
+	router.Patch("/service-keys/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.UpdateServiceKey)
+	router.Delete("/service-keys/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.DeleteServiceKey)
+	router.Post("/service-keys/:id/disable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.DisableServiceKey)
+	router.Post("/service-keys/:id/enable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.EnableServiceKey)
 
 	// SQL Editor route (require admin or dashboard_admin role)
 	router.Post("/sql/execute", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.sqlHandler.ExecuteSQL)

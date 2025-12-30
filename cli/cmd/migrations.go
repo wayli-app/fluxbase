@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ var (
 	migUpSQL     string
 	migDownSQL   string
 	migSyncDir   string
-	migNoApply bool
+	migNoApply   bool
 	migDryRun    bool
 )
 
@@ -342,9 +343,17 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	// Build migrations array
+	// Get sorted list of migration names (important for sequential application)
+	migNames := make([]string, 0, len(migrations))
+	for name := range migrations {
+		migNames = append(migNames, name)
+	}
+	sort.Strings(migNames)
+
+	// Build migrations array in sorted order
 	var migList []map[string]interface{}
-	for name, sqls := range migrations {
+	for _, name := range migNames {
+		sqls := migrations[name]
 		mig := map[string]interface{}{
 			"name": name,
 		}
@@ -387,8 +396,19 @@ func runMigrationsSync(cmd *cobra.Command, args []string) error {
 	}
 	if errors > 0 {
 		fmt.Printf("Warning: %d errors occurred during sync.\n", errors)
-		// Print error details if available
-		if errorList, ok := result["errors"].([]interface{}); ok {
+		// Print error details from details.errors (preferred format)
+		if details, ok := result["details"].(map[string]interface{}); ok {
+			if errorList, ok := details["errors"].([]interface{}); ok && len(errorList) > 0 {
+				for _, e := range errorList {
+					if errStr, ok := e.(string); ok {
+						fmt.Printf("  - %s\n", errStr)
+					} else {
+						fmt.Printf("  - %v\n", e)
+					}
+				}
+			}
+		} else if errorList, ok := result["errors"].([]interface{}); ok {
+			// Fallback to top-level errors field
 			for _, e := range errorList {
 				fmt.Printf("  - %v\n", e)
 			}

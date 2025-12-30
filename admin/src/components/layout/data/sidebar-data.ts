@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Radio,
   Key,
+  KeyRound,
   Shield,
   Webhook,
   Activity,
@@ -178,6 +179,11 @@ export const sidebarData: SidebarData = {
           title: 'API Keys',
           url: '/api-keys',
           icon: Key,
+        },
+        {
+          title: 'Service Keys',
+          url: '/service-keys',
+          icon: KeyRound,
         },
         {
           title: 'Webhooks',
