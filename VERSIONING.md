@@ -215,7 +215,7 @@ make docker-push
 ```bash
 # docker-compose
 export FLUXBASE_VERSION=0.1.0
-docker-compose -f deploy/docker-compose.production.yml up
+docker compose -f deploy/docker-compose.production.yml up
 
 # Docker CLI
 docker pull ghcr.io/fluxbase-eu/fluxbase:latest

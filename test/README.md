@@ -686,10 +686,10 @@ S3_BUCKET=fluxbase-test
 
 ### Docker Compose
 
-Use the provided docker-compose file to start all services:
+Use the provided docker compose file to start all services:
 
 ```bash
-docker-compose up -d postgres mailhog minio
+docker compose up -d postgres mailhog minio
 ```
 
 ## Troubleshooting

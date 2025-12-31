@@ -43,7 +43,7 @@ Start the full monitoring stack:
 
 ```bash
 cd deploy
-docker-compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d
 ```
 
 Access the dashboards:
@@ -276,19 +276,19 @@ jsonData:
 
 3. Check Prometheus logs:
    ```bash
-   docker-compose -f docker-compose.production.yml logs prometheus
+   docker compose -f docker-compose.production.yml logs prometheus
    ```
 
 ### Dashboard Not Loading
 
 1. Verify Grafana is running:
    ```bash
-   docker-compose -f docker-compose.production.yml ps grafana
+   docker compose -f docker-compose.production.yml ps grafana
    ```
 
 2. Check Grafana logs:
    ```bash
-   docker-compose -f docker-compose.production.yml logs grafana
+   docker compose -f docker-compose.production.yml logs grafana
    ```
 
 3. Verify datasource configuration:

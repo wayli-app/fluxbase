@@ -736,6 +736,11 @@ func (s *Service) GetSettingsCache() *SettingsCache {
 	return s.settingsCache
 }
 
+// GetAccessTokenExpirySeconds returns the configured JWT access token expiry in seconds
+func (s *Service) GetAccessTokenExpirySeconds() int64 {
+	return int64(s.config.JWTExpiry.Seconds())
+}
+
 // TOTPSetupResponse represents the TOTP setup data
 type TOTPSetupResponse struct {
 	ID   string `json:"id"`

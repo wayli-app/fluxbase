@@ -611,6 +611,12 @@ func (g *GraphQLSchemaGenerator) makeForeignKeyResolver(table database.TableInfo
 
 // buildFiltersFromArgs converts GraphQL filter arguments to query filters
 func (g *GraphQLSchemaGenerator) buildFiltersFromArgs(table database.TableInfo, args map[string]interface{}) []Filter {
+	orGroupCounter := 0
+	return g.buildFiltersFromArgsWithCounter(table, args, &orGroupCounter, 0, false)
+}
+
+// buildFiltersFromArgsWithCounter converts GraphQL filter arguments to query filters with OR group tracking
+func (g *GraphQLSchemaGenerator) buildFiltersFromArgsWithCounter(table database.TableInfo, args map[string]interface{}, orGroupCounter *int, currentOrGroup int, negated bool) []Filter {
 	var filters []Filter
 
 	// Create a map of field names to column names
@@ -630,7 +636,7 @@ func (g *GraphQLSchemaGenerator) buildFiltersFromArgs(table database.TableInfo, 
 			if andArr, ok := value.([]interface{}); ok {
 				for _, andItem := range andArr {
 					if andMap, ok := andItem.(map[string]interface{}); ok {
-						subFilters := g.buildFiltersFromArgs(table, andMap)
+						subFilters := g.buildFiltersFromArgsWithCounter(table, andMap, orGroupCounter, currentOrGroup, negated)
 						filters = append(filters, subFilters...)
 					}
 				}
@@ -638,13 +644,25 @@ func (g *GraphQLSchemaGenerator) buildFiltersFromArgs(table database.TableInfo, 
 			continue
 		}
 		if key == "_or" {
-			// OR requires special handling - for now, we'll skip it
-			// TODO: Implement OR filter support
+			// OR: each element in the array gets the same OrGroupID
+			if orArr, ok := value.([]interface{}); ok {
+				*orGroupCounter++
+				groupID := *orGroupCounter
+				for _, orItem := range orArr {
+					if orMap, ok := orItem.(map[string]interface{}); ok {
+						subFilters := g.buildFiltersFromArgsWithCounter(table, orMap, orGroupCounter, groupID, negated)
+						filters = append(filters, subFilters...)
+					}
+				}
+			}
 			continue
 		}
 		if key == "_not" {
-			// NOT requires special handling - for now, we'll skip it
-			// TODO: Implement NOT filter support
+			// NOT: negate the conditions inside
+			if notMap, ok := value.(map[string]interface{}); ok {
+				subFilters := g.buildFiltersFromArgsWithCounter(table, notMap, orGroupCounter, currentOrGroup, !negated)
+				filters = append(filters, subFilters...)
+			}
 			continue
 		}
 
@@ -709,14 +727,58 @@ func (g *GraphQLSchemaGenerator) buildFiltersFromArgs(table database.TableInfo, 
 			continue
 		}
 
-		filters = append(filters, Filter{
+		// Apply negation if in a _not block
+		if negated {
+			queryOp = negateOperator(queryOp)
+		}
+
+		filter := Filter{
 			Column:   columnName,
 			Operator: queryOp,
 			Value:    value,
-		})
+		}
+
+		// Set OR group if we're inside an _or block
+		if currentOrGroup > 0 {
+			filter.IsOr = true
+			filter.OrGroupID = currentOrGroup
+		}
+
+		filters = append(filters, filter)
 	}
 
 	return filters
+}
+
+// negateOperator returns the negated version of a filter operator
+func negateOperator(op FilterOperator) FilterOperator {
+	switch op {
+	case OpEqual:
+		return OpNotEqual
+	case OpNotEqual:
+		return OpEqual
+	case OpGreaterThan:
+		return OpLessOrEqual
+	case OpGreaterOrEqual:
+		return OpLessThan
+	case OpLessThan:
+		return OpGreaterOrEqual
+	case OpLessOrEqual:
+		return OpGreaterThan
+	case OpIn:
+		return OpNotIn
+	case OpNotIn:
+		return OpIn
+	case OpIs:
+		return OpIsNot
+	case OpIsNot:
+		return OpIs
+	case OpContains:
+		// NOT contains - use NOT operator with contains
+		return OpContains // Will need special handling in query builder
+	default:
+		return op
+	}
 }
 
 // buildOrderFromArgs converts GraphQL orderBy arguments to query ordering

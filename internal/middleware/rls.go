@@ -232,9 +232,17 @@ func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func
 
 // WrapWithRLS wraps a database operation with RLS context
 // This is a helper function for setting RLS context in queries
+// If a branch pool is set in context (by BranchContext middleware), it uses that pool instead
 func WrapWithRLS(ctx context.Context, conn *database.Connection, c *fiber.Ctx, fn func(tx pgx.Tx) error) error {
+	// Check for branch pool in context (set by BranchContext middleware)
+	pool := GetBranchPool(c)
+	if pool == nil {
+		// Fall back to main connection pool
+		pool = conn.Pool()
+	}
+
 	// Start transaction
-	tx, err := conn.Pool().Begin(ctx)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}

@@ -87,17 +87,17 @@ networks:
 ### 3. Start the Services
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 4. Verify Deployment
 
 ```bash
 # Check container status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f fluxbase
+docker compose logs -f fluxbase
 
 # Check health endpoint
 curl http://localhost:8080/health
@@ -122,7 +122,7 @@ For production, use the production compose file which includes Dragonfly for dis
 ```bash
 # Start production stack
 cd deploy
-docker-compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d
 ```
 
 **What's included:**
@@ -500,7 +500,7 @@ crontab -e
 
 ```bash
 # Stop the application
-docker-compose stop fluxbase
+docker compose stop fluxbase
 
 # Restore database
 gunzip -c /backups/fluxbase_backup_20240126_020000.sql.gz | \
@@ -510,7 +510,7 @@ gunzip -c /backups/fluxbase_backup_20240126_020000.sql.gz | \
     --clean
 
 # Start the application
-docker-compose start fluxbase
+docker compose start fluxbase
 ```
 
 ---
@@ -605,7 +605,7 @@ promtail:
 
 ```bash
 # Check logs
-docker-compose logs fluxbase
+docker compose logs fluxbase
 
 # Common issues:
 # 1. Database not ready - wait for healthcheck
@@ -613,7 +613,7 @@ docker-compose logs fluxbase
 # 3. Port already in use
 
 # Verify environment variables
-docker-compose config
+docker compose config
 
 # Check port conflicts
 sudo netstat -tlnp | grep 8080
@@ -674,10 +674,10 @@ deploy:
 
 ```bash
 # Pull latest image
-docker-compose pull fluxbase
+docker compose pull fluxbase
 
 # Recreate container with new image
-docker-compose up -d --no-deps fluxbase
+docker compose up -d --no-deps fluxbase
 
 # Check health
 curl http://localhost:8080/health
@@ -687,24 +687,24 @@ curl http://localhost:8080/health
 
 ```bash
 # Stop all services
-docker-compose down
+docker compose down
 
 # Pull latest images
-docker-compose pull
+docker compose pull
 
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # Verify
-docker-compose ps
+docker compose ps
 ```
 
 ### Rollback
 
 ```bash
 # Use specific version
-docker-compose stop fluxbase
-docker run -d --name fluxbase ghcr.io/fluxbase-eu/fluxbase:0.9.0
+docker compose stop fluxbase
+docker run -d --name fluxbase ghcr.io/fluxbase-eu/fluxbase:0.0.1
 ```
 
 ---

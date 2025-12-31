@@ -42,7 +42,7 @@ git clone https://github.com/fluxbase-eu/fluxbase.git
 cd fluxbase/deploy
 
 # Start all services (PostgreSQL + Fluxbase + MinIO)
-docker-compose up -d
+docker compose up -d
 
 # Check health
 curl http://localhost:8080/health

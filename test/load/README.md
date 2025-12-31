@@ -342,7 +342,7 @@ Export metrics to InfluxDB for real-time visualization:
 
 ```bash
 # Start InfluxDB and Grafana
-docker-compose up -d influxdb grafana
+docker compose up -d influxdb grafana
 
 # Run tests with InfluxDB output
 k6 run --out influxdb=http://localhost:8086/k6 test/load/k6-rest-api.js
@@ -390,7 +390,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Start Fluxbase
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Install k6
         run: |

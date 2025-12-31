@@ -308,6 +308,19 @@ func AdminLoginLimiter() fiber.Handler {
 	})
 }
 
+// GitHubWebhookLimiter limits GitHub webhook requests per IP and repository
+// Prevents abuse of the webhook endpoint for branch creation/deletion
+func GitHubWebhookLimiter() fiber.Handler {
+	return NewRateLimiter(RateLimiterConfig{
+		Max:        30,             // 30 requests
+		Expiration: 1 * time.Minute, // per minute per IP
+		KeyFunc: func(c *fiber.Ctx) string {
+			return "github_webhook:" + c.IP()
+		},
+		Message: "GitHub webhook rate limit exceeded. Maximum 30 requests per minute allowed.",
+	})
+}
+
 // MigrationAPILimiter limits migrations API requests per service key
 // Very strict rate limiting due to powerful DDL operations
 // Should be applied AFTER service key authentication middleware

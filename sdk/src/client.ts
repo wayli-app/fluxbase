@@ -51,6 +51,7 @@ import { SettingsClient } from "./settings";
 import { FluxbaseAI } from "./ai";
 import { FluxbaseVector } from "./vector";
 import { FluxbaseGraphQL } from "./graphql";
+import { FluxbaseBranching } from "./branching";
 import { QueryBuilder } from "./query-builder";
 import { SchemaQueryBuilder } from "./schema-query-builder";
 import type { FluxbaseClientOptions } from "./types";
@@ -180,6 +181,34 @@ export class FluxbaseClient<
   public graphql: FluxbaseGraphQL;
 
   /**
+   * Branching module for database branch management
+   *
+   * Database branches allow you to create isolated copies of your database
+   * for development, testing, and preview environments.
+   *
+   * @example
+   * ```typescript
+   * // List all branches
+   * const { data } = await client.branching.list()
+   *
+   * // Create a feature branch
+   * const { data: branch } = await client.branching.create('feature/add-auth', {
+   *   dataCloneMode: 'schema_only',
+   *   expiresIn: '7d'
+   * })
+   *
+   * // Reset branch to parent state
+   * await client.branching.reset('feature/add-auth')
+   *
+   * // Delete when done
+   * await client.branching.delete('feature/add-auth')
+   * ```
+   *
+   * @category Branching
+   */
+  public branching: FluxbaseBranching;
+
+  /**
    * RPC module for calling PostgreSQL functions - Supabase compatible
    *
    * Can be called directly (Supabase-style) or access methods like invoke(), list(), getStatus()
@@ -288,6 +317,9 @@ export class FluxbaseClient<
 
     // Initialize GraphQL module
     this.graphql = new FluxbaseGraphQL(this.fetch);
+
+    // Initialize branching module
+    this.branching = new FluxbaseBranching(this.fetch);
 
     // Initialize RPC module with callable wrapper (Supabase-compatible)
     const rpcInstance = new FluxbaseRPC(this.fetch);

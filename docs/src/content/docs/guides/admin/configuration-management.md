@@ -116,7 +116,7 @@ FLUXBASE_AUTH_REQUIRE_EMAIL_VERIFICATION=true
 
 1. Check for lock badge (🔒) next to the setting
 2. Note the displayed environment variable name
-3. Check your `.env` file or docker-compose configuration
+3. Check your `.env` file or docker compose configuration
 4. Remove or comment out the env var to enable UI control
 
 ### Check Override Status

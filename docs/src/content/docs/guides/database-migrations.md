@@ -197,7 +197,7 @@ services:
 4. Restart Fluxbase:
 
 ```bash
-docker-compose restart fluxbase
+docker compose restart fluxbase
 ```
 
 ### Kubernetes (Helm)
@@ -348,10 +348,10 @@ Always test migrations in a development environment before applying to productio
 
 ```bash
 # Start local environment
-docker-compose up -d
+docker compose up -d
 
 # Check logs for migration success
-docker-compose logs fluxbase | grep -i migration
+docker compose logs fluxbase | grep -i migration
 ```
 
 ### 2. Use Transactions

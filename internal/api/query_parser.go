@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/query"
 	"github.com/rs/zerolog/log"
 )
 
@@ -44,66 +45,59 @@ type QueryParams struct {
 	orGroupCounter int                // Counter for assigning OR group IDs
 }
 
-// Filter represents a WHERE condition
-type Filter struct {
-	Column    string
-	Operator  FilterOperator
-	Value     interface{}
-	IsOr      bool // OR instead of AND
-	OrGroupID int  // Groups OR filters together (filters with same non-zero ID are ORed)
-}
+// Filter is an alias for query.Filter for backward compatibility
+type Filter = query.Filter
 
-// FilterOperator represents comparison operators
-type FilterOperator string
+// FilterOperator is an alias for query.FilterOperator for backward compatibility
+type FilterOperator = query.FilterOperator
 
+// Re-export filter operator constants for backward compatibility
 const (
-	OpEqual          FilterOperator = "eq"
-	OpNotEqual       FilterOperator = "neq"
-	OpGreaterThan    FilterOperator = "gt"
-	OpGreaterOrEqual FilterOperator = "gte"
-	OpLessThan       FilterOperator = "lt"
-	OpLessOrEqual    FilterOperator = "lte"
-	OpLike           FilterOperator = "like"
-	OpILike          FilterOperator = "ilike"
-	OpIn             FilterOperator = "in"
-	OpIs             FilterOperator = "is"
-	OpContains       FilterOperator = "cs"    // contains (array/jsonb) @>
-	OpContained      FilterOperator = "cd"    // contained by (array/jsonb) <@
-	OpOverlap        FilterOperator = "ov"    // overlap (array) &&
-	OpTextSearch     FilterOperator = "fts"   // full text search
-	OpPhraseSearch   FilterOperator = "plfts" // phrase search
-	OpWebSearch      FilterOperator = "wfts"  // web search
-	OpNot            FilterOperator = "not"   // negation
-	OpAdjacent       FilterOperator = "adj"   // adjacent range <<
-	OpStrictlyLeft   FilterOperator = "sl"    // strictly left of <<
-	OpStrictlyRight  FilterOperator = "sr"    // strictly right of >>
-	OpNotExtendRight FilterOperator = "nxr"   // does not extend to right &<
-	OpNotExtendLeft  FilterOperator = "nxl"   // does not extend to left &>
+	OpEqual          = query.OpEqual
+	OpNotEqual       = query.OpNotEqual
+	OpGreaterThan    = query.OpGreaterThan
+	OpGreaterOrEqual = query.OpGreaterOrEqual
+	OpLessThan       = query.OpLessThan
+	OpLessOrEqual    = query.OpLessOrEqual
+	OpLike           = query.OpLike
+	OpILike          = query.OpILike
+	OpIn             = query.OpIn
+	OpNotIn          = query.OpNotIn
+	OpIs             = query.OpIs
+	OpIsNot          = query.OpIsNot
+	OpContains       = query.OpContains
+	OpContained      = query.OpContained
+	OpContainedBy    = query.OpContainedBy
+	OpOverlap        = query.OpOverlap
+	OpOverlaps       = query.OpOverlaps
+	OpTextSearch     = query.OpTextSearch
+	OpPhraseSearch   = query.OpPhraseSearch
+	OpWebSearch      = query.OpWebSearch
+	OpNot            = query.OpNot
+	OpAdjacent       = query.OpAdjacent
+	OpStrictlyLeft   = query.OpStrictlyLeft
+	OpStrictlyRight  = query.OpStrictlyRight
+	OpNotExtendRight = query.OpNotExtendRight
+	OpNotExtendLeft  = query.OpNotExtendLeft
 
 	// PostGIS spatial operators
-	OpSTIntersects FilterOperator = "st_intersects" // ST_Intersects - geometries intersect
-	OpSTContains   FilterOperator = "st_contains"   // ST_Contains - geometry A contains B
-	OpSTWithin     FilterOperator = "st_within"     // ST_Within - geometry A is within B
-	OpSTDWithin    FilterOperator = "st_dwithin"    // ST_DWithin - geometries within distance
-	OpSTDistance   FilterOperator = "st_distance"   // ST_Distance - distance between geometries
-	OpSTTouches    FilterOperator = "st_touches"    // ST_Touches - geometries touch
-	OpSTCrosses    FilterOperator = "st_crosses"    // ST_Crosses - geometries cross
-	OpSTOverlaps   FilterOperator = "st_overlaps"   // ST_Overlaps - geometries overlap
+	OpSTIntersects = query.OpSTIntersects
+	OpSTContains   = query.OpSTContains
+	OpSTWithin     = query.OpSTWithin
+	OpSTDWithin    = query.OpSTDWithin
+	OpSTDistance   = query.OpSTDistance
+	OpSTTouches    = query.OpSTTouches
+	OpSTCrosses    = query.OpSTCrosses
+	OpSTOverlaps   = query.OpSTOverlaps
 
 	// pgvector similarity operators
-	OpVectorL2     FilterOperator = "vec_l2"  // L2/Euclidean distance <-> (lower = more similar)
-	OpVectorCosine FilterOperator = "vec_cos" // Cosine distance <=> (lower = more similar)
-	OpVectorIP     FilterOperator = "vec_ip"  // Negative inner product <#> (lower = more similar)
+	OpVectorL2     = query.OpVectorL2
+	OpVectorCosine = query.OpVectorCosine
+	OpVectorIP     = query.OpVectorIP
 )
 
-// OrderBy represents an ORDER BY clause
-type OrderBy struct {
-	Column      string
-	Desc        bool
-	Nulls       string         // "first" or "last"
-	VectorOp    FilterOperator // Vector operator for similarity ordering (vec_l2, vec_cos, vec_ip)
-	VectorValue interface{}    // Vector value for similarity ordering
-}
+// OrderBy is an alias for query.OrderBy for backward compatibility
+type OrderBy = query.OrderBy
 
 // EmbeddedRelation represents a relation to embed
 type EmbeddedRelation struct {

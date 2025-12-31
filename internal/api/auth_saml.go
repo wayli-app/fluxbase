@@ -318,7 +318,7 @@ func (h *SAMLHandler) HandleSAMLAssertion(c *fiber.Ctx) error {
 	return c.JSON(SAMLCallbackResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		ExpiresIn:    3600, // TODO: Get from config
+		ExpiresIn:    h.authService.GetAccessTokenExpirySeconds(),
 		TokenType:    "bearer",
 		User:         user,
 	})

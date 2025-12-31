@@ -298,7 +298,7 @@ F1 → "Dev Containers: Rebuild Container"
 
 # Check Docker
 docker ps
-docker-compose logs
+docker compose logs
 ```
 
 ### Database Connection Issues

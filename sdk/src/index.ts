@@ -83,6 +83,9 @@ export {
 // Admin AI module
 export { FluxbaseAdminAI } from "./admin-ai";
 
+// Branching module
+export { FluxbaseBranching } from "./branching";
+
 // RPC module
 export { FluxbaseRPC } from "./rpc";
 
@@ -474,6 +477,17 @@ export type {
   EmbedResponse,
   VectorSearchOptions,
   VectorSearchResult,
+
+  // Branching types
+  BranchStatus,
+  BranchType,
+  DataCloneMode,
+  Branch,
+  CreateBranchOptions,
+  ListBranchesOptions,
+  ListBranchesResponse,
+  BranchActivity,
+  BranchPoolStats,
 
   // Deprecated Supabase-compatible aliases
   SupabaseResponse,

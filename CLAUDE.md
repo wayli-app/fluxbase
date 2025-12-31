@@ -27,16 +27,19 @@ test/e2e/                # End-to-end tests
 |--------|---------|
 | `api/` | HTTP handlers (60+ files) - REST CRUD, storage, auth, DDL, webhooks |
 | `auth/` | Authentication - JWT, OAuth2, OIDC, magic links, MFA, scopes |
+| `branching/` | Database branching - isolated DBs for dev/test environments |
 | `database/` | PostgreSQL connection, schema introspection, migrations |
 | `functions/` | Edge functions - Deno runtime, bundling, loader, scheduler |
 | `jobs/` | Background jobs - queue, workers, scheduler, progress tracking |
+| `mcp/` | Model Context Protocol server for AI assistant integration |
 | `realtime/` | WebSocket subscriptions via PostgreSQL LISTEN/NOTIFY |
 | `storage/` | File storage abstraction (local filesystem or S3/MinIO) |
-| `middleware/` | Auth, CORS, rate limiting, logging middlewares |
+| `middleware/` | Auth, CORS, rate limiting, logging, branch context middlewares |
 | `secrets/` | Secret management for functions/jobs |
 | `config/` | YAML + env var configuration loading |
 | `email/` | SMTP, SendGrid, Mailgun, AWS SES providers |
 | `ai/` | Vector search (pgvector), embeddings |
+| `query/` | Shared query building types (FilterCondition, etc.) |
 
 ## Database Schemas
 
@@ -44,6 +47,7 @@ test/e2e/                # End-to-end tests
 - `storage.*` - Buckets, objects, access policies
 - `jobs.*` - Background job storage
 - `functions.*` - Edge functions registry
+- `branching.*` - Database branch metadata, access control, GitHub config
 - `public` - User application tables
 
 ## Key Files by Feature
@@ -77,6 +81,22 @@ test/e2e/                # End-to-end tests
 - `internal/realtime/hub.go` - WebSocket connection hub
 - `internal/realtime/client.go` - Client management
 
+**MCP Server:**
+- `internal/mcp/server.go` - JSON-RPC 2.0 protocol handler
+- `internal/mcp/handler.go` - HTTP transport layer
+- `internal/mcp/auth.go` - Auth context and scope checking
+- `internal/mcp/tools/` - Tool implementations (query, storage, functions, jobs, vectors)
+- `internal/mcp/resources/` - Resource providers (schema, functions, storage, rpc)
+
+**Database Branching:**
+- `internal/branching/manager.go` - CREATE/DROP DATABASE operations
+- `internal/branching/storage.go` - Branch metadata CRUD
+- `internal/branching/router.go` - Connection pool per branch
+- `internal/api/branch_handler.go` - REST API for branch management
+- `internal/api/github_webhook_handler.go` - GitHub PR automation
+- `internal/middleware/branch.go` - Branch context extraction
+- `cli/cmd/branch.go` - CLI commands
+
 ## Common Commands
 
 ```bash
@@ -91,7 +111,29 @@ make cli-install      # Build and install CLI
 
 Three-layer system: defaults → `fluxbase.yaml` → `FLUXBASE_*` env vars
 
-Key config sections: server, database, auth, storage, realtime, functions, jobs, email, ai
+Key config sections: server, database, auth, storage, realtime, functions, jobs, email, ai, mcp, branching
+
+**MCP Configuration:**
+```yaml
+mcp:
+  enabled: true
+  base_path: /mcp
+  rate_limit_per_min: 100
+  allowed_tools: []      # Empty = all tools
+  allowed_resources: []  # Empty = all resources
+```
+
+**Branching Configuration:**
+```yaml
+branching:
+  enabled: true
+  max_branches_per_user: 5
+  max_total_branches: 50
+  default_data_clone_mode: schema_only
+  auto_delete_after: 24h
+  database_prefix: branch_
+  admin_database_url: "postgresql://..."
+```
 
 ## Patterns
 

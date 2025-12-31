@@ -208,7 +208,7 @@ docker run -d \
 
 ```bash
 cd deploy
-docker-compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d
 ```
 
 Includes:

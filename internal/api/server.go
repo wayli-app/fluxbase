@@ -9,6 +9,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/adminui"
 	"github.com/fluxbase-eu/fluxbase/internal/ai"
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/branching"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/email"
@@ -16,6 +17,9 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/functions"
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
 	"github.com/fluxbase-eu/fluxbase/internal/logging"
+	"github.com/fluxbase-eu/fluxbase/internal/mcp"
+	mcpresources "github.com/fluxbase-eu/fluxbase/internal/mcp/resources"
+	mcptools "github.com/fluxbase-eu/fluxbase/internal/mcp/tools"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/migrations"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
@@ -95,6 +99,14 @@ type Server struct {
 	secretsHandler        *secrets.Handler
 	secretsStorage        *secrets.Storage
 	serviceKeyHandler     *ServiceKeyHandler
+	mcpHandler            *mcp.Handler
+
+	// Database branching components
+	branchManager   *branching.Manager
+	branchRouter    *branching.Router
+	branchHandler   *BranchHandler
+	githubWebhook   *GitHubWebhookHandler
+	branchScheduler *branching.CleanupScheduler
 
 	// Leader election for schedulers (used in multi-instance deployments)
 	jobsSchedulerLeader      *scaling.LeaderElector
@@ -566,6 +578,52 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		secretsHandler:        secretsHandler,
 		secretsStorage:        secretsStorage,
 		serviceKeyHandler:     serviceKeyHandler,
+		mcpHandler:            mcp.NewHandler(&cfg.MCP, db),
+	}
+
+	// Initialize MCP Server if enabled
+	if cfg.MCP.Enabled {
+		server.setupMCPServer(schemaCache, storageService, functionsHandler, rpcHandler)
+		log.Info().
+			Str("base_path", cfg.MCP.BasePath).
+			Dur("session_timeout", cfg.MCP.SessionTimeout).
+			Msg("MCP Server enabled")
+	}
+
+	// Initialize Database Branching if enabled
+	if cfg.Branching.Enabled {
+		branchStorage := branching.NewStorage(db.Pool())
+		dbURL := cfg.Database.RuntimeConnectionString()
+		branchManager, err := branching.NewManager(branchStorage, cfg.Branching, db.Pool(), dbURL)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to initialize branch manager")
+		}
+		branchRouter := branching.NewRouter(branchStorage, cfg.Branching, db.Pool(), dbURL)
+
+		server.branchManager = branchManager
+		server.branchRouter = branchRouter
+		server.branchHandler = NewBranchHandler(branchManager, branchRouter, cfg.Branching)
+		server.githubWebhook = NewGitHubWebhookHandler(branchManager, branchRouter, cfg.Branching)
+
+		// Initialize cleanup scheduler if auto_delete_after is set
+		if cfg.Branching.AutoDeleteAfter > 0 {
+			// Use auto_delete_after as the interval, or default to hourly if it's very short
+			cleanupInterval := cfg.Branching.AutoDeleteAfter
+			if cleanupInterval < time.Hour {
+				cleanupInterval = time.Hour
+			}
+			server.branchScheduler = branching.NewCleanupScheduler(branchManager, branchRouter, cleanupInterval)
+			log.Info().
+				Dur("interval", cleanupInterval).
+				Dur("auto_delete_after", cfg.Branching.AutoDeleteAfter).
+				Msg("Branch cleanup scheduler initialized")
+		}
+
+		log.Info().
+			Int("max_branches", cfg.Branching.MaxTotalBranches).
+			Int("max_per_user", cfg.Branching.MaxBranchesPerUser).
+			Str("default_clone_mode", cfg.Branching.DefaultDataCloneMode).
+			Msg("Database Branching enabled")
 	}
 
 	// Create GraphQL handler (if enabled)
@@ -730,6 +788,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("Log retention cleanup service started")
 	}
 
+	// Start branch cleanup scheduler
+	if server.branchScheduler != nil {
+		server.branchScheduler.Start()
+	}
+
 	// Auto-load AI chatbots if enabled
 	if cfg.AI.Enabled && cfg.AI.AutoLoadOnBoot && aiHandler != nil {
 		if err := aiHandler.AutoLoadChatbots(context.Background()); err != nil {
@@ -749,6 +812,87 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	log.Debug().Msg("Server initialization complete")
 	return server
+}
+
+// setupMCPServer initializes the MCP server with tools and resources
+func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageService *storage.Service, functionsHandler *functions.Handler, rpcHandler *rpc.Handler) {
+	mcpServer := s.mcpHandler.Server()
+
+	// Register MCP Tools
+	toolRegistry := mcpServer.ToolRegistry()
+
+	// Database tools
+	toolRegistry.Register(mcptools.NewQueryTableTool(s.db, schemaCache))
+	toolRegistry.Register(mcptools.NewInsertRecordTool(s.db, schemaCache))
+	toolRegistry.Register(mcptools.NewUpdateRecordTool(s.db, schemaCache))
+	toolRegistry.Register(mcptools.NewDeleteRecordTool(s.db, schemaCache))
+
+	// Storage tools
+	if storageService != nil {
+		toolRegistry.Register(mcptools.NewListObjectsTool(storageService))
+		toolRegistry.Register(mcptools.NewUploadObjectTool(storageService))
+		toolRegistry.Register(mcptools.NewDownloadObjectTool(storageService))
+		toolRegistry.Register(mcptools.NewDeleteObjectTool(storageService))
+	}
+
+	// Functions invocation tools
+	if functionsHandler != nil && s.config.Functions.Enabled {
+		toolRegistry.Register(mcptools.NewInvokeFunctionTool(
+			s.db,
+			functionsHandler.GetRuntime(),
+			functionsHandler.GetPublicURL(),
+			functionsHandler.GetFunctionsDir(),
+		))
+	}
+
+	// RPC invocation tools
+	if rpcHandler != nil && s.config.RPC.Enabled {
+		rpcStorage := rpc.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewInvokeRPCTool(
+			rpcHandler.GetExecutor(),
+			rpcStorage,
+		))
+	}
+
+	// Jobs tools
+	if s.jobsManager != nil && s.config.Jobs.Enabled {
+		jobsStorage := jobs.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewSubmitJobTool(jobsStorage))
+		toolRegistry.Register(mcptools.NewGetJobStatusTool(jobsStorage))
+	}
+
+	// Vector search tools
+	if s.config.AI.Enabled && s.aiHandler != nil {
+		// SearchVectorsTool requires RAGService - skip if not available
+		log.Debug().Msg("MCP: Vector search tool registration deferred - requires RAG service")
+	}
+
+	// Register MCP Resources
+	resourceRegistry := mcpServer.ResourceRegistry()
+
+	// Schema resources
+	resourceRegistry.Register(mcpresources.NewSchemaResource(schemaCache))
+	resourceRegistry.Register(mcpresources.NewTableResource(schemaCache))
+
+	// Functions resources
+	if s.config.Functions.Enabled {
+		resourceRegistry.Register(mcpresources.NewFunctionsResource(functions.NewStorage(s.db)))
+	}
+
+	// RPC resources
+	if s.config.RPC.Enabled {
+		resourceRegistry.Register(mcpresources.NewRPCResource(rpc.NewStorage(s.db)))
+	}
+
+	// Storage resources
+	if storageService != nil {
+		resourceRegistry.Register(mcpresources.NewBucketsResource(storageService))
+	}
+
+	log.Debug().
+		Int("tools", len(toolRegistry.ListTools(&mcp.AuthContext{IsServiceRole: true}))).
+		Int("resources", len(resourceRegistry.ListResources(&mcp.AuthContext{IsServiceRole: true}))).
+		Msg("MCP Server initialized with tools and resources")
 }
 
 // setupMiddlewares sets up global middlewares
@@ -876,10 +1020,16 @@ func (s *Server) setupRoutes() {
 	// Required authentication (JWT, API key, or service key) - rejects unauthenticated requests
 	// Metadata listing (GET /) requires admin role; data operations use RLS filtering
 	// Pass jwtManager to support dashboard admin tokens (maps to service_role for full access)
-	rest := v1.Group("/tables",
+	// BranchContext middleware enables queries against non-main branches via X-Fluxbase-Branch header
+	restMiddlewares := []fiber.Handler{
 		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		middleware.RLSMiddleware(rlsConfig),
-	)
+	}
+	// Add branch context middleware if branching is enabled
+	if s.branchRouter != nil {
+		restMiddlewares = append(restMiddlewares, middleware.BranchContextSimple(s.branchRouter))
+	}
+	rest := v1.Group("/tables", restMiddlewares...)
 	s.setupRESTRoutes(rest)
 
 	// Auth routes with CSRF protection
@@ -942,11 +1092,43 @@ func (s *Server) setupRoutes() {
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
 	// Protected by feature flag middleware
-	storage := v1.Group("/storage",
+	// BranchContext middleware enables storage operations against non-main branches
+	storageMiddlewares := []fiber.Handler{
 		middleware.RequireStorageEnabled(s.authHandler.authService.GetSettingsCache()),
 		middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool()),
-	)
+	}
+	if s.branchRouter != nil {
+		storageMiddlewares = append(storageMiddlewares, middleware.BranchContextSimple(s.branchRouter))
+	}
+	storage := v1.Group("/storage", storageMiddlewares...)
 	s.setupStorageRoutes(storage)
+
+	// MCP routes - Model Context Protocol for AI assistants
+	// Requires authentication via client key or service key
+	if s.config.MCP.Enabled && s.mcpHandler != nil {
+		mcpGroup := s.app.Group(s.config.MCP.BasePath,
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		)
+		s.mcpHandler.RegisterRoutes(mcpGroup)
+		log.Debug().Str("base_path", s.config.MCP.BasePath).Msg("MCP routes registered")
+	}
+
+	// Database Branching routes
+	// Admin endpoints require service key or dashboard admin
+	if s.config.Branching.Enabled && s.branchHandler != nil {
+		// Create API group with auth for branch management
+		branchAPI := s.app.Group("/api/v1",
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		)
+		s.branchHandler.RegisterRoutes(branchAPI)
+
+		// GitHub webhook endpoint (no auth, uses signature verification)
+		// Rate limited to prevent abuse
+		webhookAPI := s.app.Group("/api/v1", middleware.GitHubWebhookLimiter())
+		s.githubWebhook.RegisterRoutes(webhookAPI)
+
+		log.Debug().Msg("Database Branching routes registered")
+	}
 
 	// Realtime WebSocket endpoint (not versioned as it's WebSocket)
 	// WebSocket validates auth internally, but make it required
@@ -1851,6 +2033,21 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Close AI conversation manager
 	if s.aiConversations != nil {
 		s.aiConversations.Close()
+	}
+
+	// Stop branch cleanup scheduler
+	if s.branchScheduler != nil {
+		s.branchScheduler.Stop()
+	}
+
+	// Close database branching components
+	if s.branchRouter != nil {
+		log.Info().Msg("Closing branch connection pools")
+		s.branchRouter.CloseAllPools()
+	}
+	if s.branchManager != nil {
+		log.Info().Msg("Closing branch manager")
+		s.branchManager.Close()
 	}
 
 	// Shutdown OpenTelemetry tracer (flush remaining spans)

@@ -42,13 +42,13 @@ Includes PostgreSQL and local storage (MinIO commented out, enable if needed):
 ```bash
 # Start with standard setup
 cd deploy
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f fluxbase
+docker compose logs -f fluxbase
 
 # Access Fluxbase
 open http://localhost:8080
@@ -97,7 +97,7 @@ helm install my-fluxbase ./fluxbase -f production-values.yaml
 
 ```bash
 cd deploy
-docker-compose up -d
+docker compose up -d
 ```
 
 **Docker Compose Variants:**
@@ -115,7 +115,7 @@ cp .env.example .env
 # Edit .env with your external database credentials
 
 # Start with external database
-docker-compose -f docker-compose.external-db.yml up -d
+docker compose -f docker-compose.external-db.yml up -d
 ```
 
 **Enabling MinIO (S3-compatible storage):**
@@ -156,8 +156,8 @@ All configuration can be done via `.env` file or by editing environment variable
 **Stopping:**
 
 ```bash
-docker-compose down          # Stop services
-docker-compose down -v       # Stop and remove volumes (deletes data!)
+docker compose down          # Stop services
+docker compose down -v       # Stop and remove volumes (deletes data!)
 ```
 
 ### 2. Kubernetes with Helm (Recommended for Production)

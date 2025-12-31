@@ -171,7 +171,7 @@ See `TODO.md` and `IMPLEMENTATION_PLAN.md` for details.
 F1 → "Dev Containers: Rebuild Container"
 
 # Check logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Database Issues

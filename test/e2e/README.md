@@ -157,7 +157,7 @@ if userID := c.Locals("user_id"); userID != nil {
 
 ```bash
 # 1. Start test database (DevContainer does this automatically)
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # 2. Run migrations
 make migrate-up
@@ -242,7 +242,7 @@ go test -v -race ./test/e2e/...
 
 ```bash
 # Check PostgreSQL is running
-docker-compose ps
+docker compose ps
 
 # Check connection
 psql -U postgres -h localhost -d fluxbase_test

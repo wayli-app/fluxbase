@@ -30,6 +30,8 @@ type Config struct {
 	AI            AIConfig         `mapstructure:"ai"`
 	RPC           RPCConfig        `mapstructure:"rpc"`
 	GraphQL       GraphQLConfig    `mapstructure:"graphql"`
+	MCP           MCPConfig        `mapstructure:"mcp"`
+	Branching     BranchingConfig  `mapstructure:"branching"`
 	Scaling       ScalingConfig    `mapstructure:"scaling"`
 	Logging       LoggingConfig    `mapstructure:"logging"`
 	Admin         AdminConfig      `mapstructure:"admin"`
@@ -783,6 +785,24 @@ func setDefaults() {
 	viper.SetDefault("graphql.max_complexity", 1000) // Maximum query complexity
 	viper.SetDefault("graphql.introspection", true)  // Enable introspection (disable in production for security)
 
+	// MCP defaults (Model Context Protocol server for AI assistants)
+	viper.SetDefault("mcp.enabled", false)                    // Disabled by default
+	viper.SetDefault("mcp.base_path", "/mcp")                 // Default MCP endpoint path
+	viper.SetDefault("mcp.session_timeout", "30m")            // 30 minute session timeout
+	viper.SetDefault("mcp.max_message_size", 10*1024*1024)    // 10MB max message size
+	viper.SetDefault("mcp.allowed_tools", []string{})         // Empty = all tools enabled
+	viper.SetDefault("mcp.allowed_resources", []string{})     // Empty = all resources enabled
+	viper.SetDefault("mcp.rate_limit_per_min", 100)           // 100 requests per minute per client
+
+	// Branching defaults (database branching for isolated environments)
+	viper.SetDefault("branching.enabled", false)                       // Disabled by default
+	viper.SetDefault("branching.max_branches_per_user", 5)             // Max 5 branches per user
+	viper.SetDefault("branching.max_total_branches", 50)               // Max 50 branches total
+	viper.SetDefault("branching.default_data_clone_mode", "schema_only") // Clone schema only by default
+	viper.SetDefault("branching.auto_delete_after", "0")               // Never auto-delete (0 = disabled)
+	viper.SetDefault("branching.database_prefix", "branch_")           // Prefix for branch databases
+	viper.SetDefault("branching.admin_database_url", "")               // Uses main database URL if empty
+
 	// Scaling defaults (for multi-instance deployments)
 	viper.SetDefault("scaling.worker_only", false)                      // Run full server by default
 	viper.SetDefault("scaling.disable_scheduler", false)                // Run schedulers by default
@@ -891,6 +911,20 @@ func (c *Config) Validate() error {
 	if c.GraphQL.Enabled {
 		if err := c.GraphQL.Validate(); err != nil {
 			return fmt.Errorf("graphql configuration error: %w", err)
+		}
+	}
+
+	// Validate MCP configuration if enabled
+	if c.MCP.Enabled {
+		if err := c.MCP.Validate(); err != nil {
+			return fmt.Errorf("mcp configuration error: %w", err)
+		}
+	}
+
+	// Validate branching configuration if enabled
+	if c.Branching.Enabled {
+		if err := c.Branching.Validate(); err != nil {
+			return fmt.Errorf("branching configuration error: %w", err)
 		}
 	}
 

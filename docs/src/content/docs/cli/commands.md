@@ -967,3 +967,148 @@ fluxbase/
 ```
 
 Resources are synced in dependency order: RPC → Migrations → Functions → Jobs → Chatbots
+
+---
+
+## Branch Commands
+
+Manage database branches for isolated development and testing environments. See the [Database Branching Guide](/guides/branching/) for full documentation.
+
+### `fluxbase branch list`
+
+List all database branches.
+
+```bash
+fluxbase branch list
+fluxbase branch list --type preview
+fluxbase branch list --mine
+fluxbase branch list -o json
+```
+
+**Flags:**
+
+- `--type` - Filter by branch type (`main`, `preview`, `persistent`)
+- `--mine`, `-m` - Show only branches created by you
+
+### `fluxbase branch get`
+
+Get details of a specific branch.
+
+```bash
+fluxbase branch get my-feature
+fluxbase branch get pr-123
+fluxbase branch get 550e8400-e29b-41d4-a716-446655440000
+```
+
+### `fluxbase branch create`
+
+Create a new database branch.
+
+```bash
+# Basic branch
+fluxbase branch create my-feature
+
+# With full data clone
+fluxbase branch create staging --clone-data full_clone
+
+# Persistent branch (not auto-deleted)
+fluxbase branch create staging --type persistent
+
+# Branch with expiration
+fluxbase branch create temp-test --expires-in 24h
+
+# Branch linked to GitHub PR
+fluxbase branch create pr-123 --pr 123 --repo owner/repo
+
+# Branch from another branch
+fluxbase branch create feature-b --from feature-a
+```
+
+**Flags:**
+
+- `--clone-data` - Data clone mode: `schema_only` (default), `full_clone`, `seed_data`
+- `--type` - Branch type: `preview` (default), `persistent`
+- `--expires-in` - Auto-delete after duration (e.g., `24h`, `7d`)
+- `--from` - Parent branch to clone from (default: `main`)
+- `--pr` - GitHub PR number to associate
+- `--repo` - GitHub repository (e.g., `owner/repo`)
+
+After creation, the command shows how to connect:
+
+```
+Branch 'my-feature' created successfully!
+
+Slug:     my-feature
+Database: branch_my_feature
+Status:   ready
+
+To use this branch:
+  Header:  X-Fluxbase-Branch: my-feature
+  Query:   ?branch=my-feature
+  SDK:     { branch: 'my-feature' }
+```
+
+### `fluxbase branch delete`
+
+Delete a database branch and its associated database.
+
+```bash
+fluxbase branch delete my-feature
+fluxbase branch delete pr-123 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+:::caution
+This action is irreversible. All data in the branch will be permanently deleted.
+:::
+
+### `fluxbase branch reset`
+
+Reset a branch to its parent state, recreating the database.
+
+```bash
+fluxbase branch reset my-feature
+fluxbase branch reset pr-123 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+This drops the branch database and recreates it from the parent branch. All changes are lost.
+
+### `fluxbase branch status`
+
+Show the current status of a branch.
+
+```bash
+fluxbase branch status my-feature
+```
+
+Output shows the branch name, slug, and current status (`creating`, `ready`, `migrating`, `error`, `deleting`).
+
+### `fluxbase branch activity`
+
+Show the activity log for a branch.
+
+```bash
+fluxbase branch activity my-feature
+fluxbase branch activity pr-123 --limit 20
+```
+
+**Flags:**
+
+- `--limit`, `-n` - Maximum number of entries to show (default: 50)
+
+### `fluxbase branch stats`
+
+Show connection pool statistics for all branches.
+
+```bash
+fluxbase branch stats
+```
+
+Useful for debugging and monitoring database connections across branches

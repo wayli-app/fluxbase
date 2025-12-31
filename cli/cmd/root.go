@@ -107,6 +107,7 @@ func init() {
 	rootCmd.AddCommand(secretsCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(servicekeysCmd)
+	rootCmd.AddCommand(branchCmd)
 }
 
 func initConfig() {

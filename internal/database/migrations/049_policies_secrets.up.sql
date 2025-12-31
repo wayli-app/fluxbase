@@ -3,44 +3,40 @@
 
 -- Enable RLS on secrets table
 ALTER TABLE functions.secrets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE functions.secrets FORCE ROW LEVEL SECURITY;
 
 -- Enable RLS on secret_versions table
 ALTER TABLE functions.secret_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE functions.secret_versions FORCE ROW LEVEL SECURITY;
 
--- Service role has full access to secrets
-CREATE POLICY "Service role has full access to secrets"
-ON functions.secrets
+-- Service role and dashboard admin have full access to secrets
+DROP POLICY IF EXISTS secrets_service_and_admin_policy ON functions.secrets;
+CREATE POLICY secrets_service_and_admin_policy ON functions.secrets
 FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
+USING (
+    auth.current_user_role() = 'service_role'
+    OR auth.current_user_role() = 'dashboard_admin'
+)
+WITH CHECK (
+    auth.current_user_role() = 'service_role'
+    OR auth.current_user_role() = 'dashboard_admin'
+);
 
--- Dashboard admin has full access to secrets
-CREATE POLICY "Dashboard admin has full access to secrets"
-ON functions.secrets
+-- Service role and dashboard admin have full access to secret_versions
+DROP POLICY IF EXISTS secret_versions_service_and_admin_policy ON functions.secret_versions;
+CREATE POLICY secret_versions_service_and_admin_policy ON functions.secret_versions
 FOR ALL
-TO dashboard_admin
-USING (true)
-WITH CHECK (true);
-
--- Service role has full access to secret_versions
-CREATE POLICY "Service role has full access to secret_versions"
-ON functions.secret_versions
-FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
--- Dashboard admin has full access to secret_versions
-CREATE POLICY "Dashboard admin has full access to secret_versions"
-ON functions.secret_versions
-FOR ALL
-TO dashboard_admin
-USING (true)
-WITH CHECK (true);
+USING (
+    auth.current_user_role() = 'service_role'
+    OR auth.current_user_role() = 'dashboard_admin'
+)
+WITH CHECK (
+    auth.current_user_role() = 'service_role'
+    OR auth.current_user_role() = 'dashboard_admin'
+);
 
 -- Comments for documentation
-COMMENT ON POLICY "Service role has full access to secrets" ON functions.secrets
-IS 'Service role tokens can manage all secrets';
-COMMENT ON POLICY "Dashboard admin has full access to secrets" ON functions.secrets
-IS 'Dashboard administrators can manage all secrets';
+COMMENT ON POLICY secrets_service_and_admin_policy ON functions.secrets
+IS 'Service role and dashboard administrators can manage all secrets';
+COMMENT ON POLICY secret_versions_service_and_admin_policy ON functions.secret_versions
+IS 'Service role and dashboard administrators can manage all secret versions';

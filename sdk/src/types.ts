@@ -3678,6 +3678,147 @@ export interface ExecutionLogConfig {
 }
 
 // ============================================================================
+// Database Branching Types
+// ============================================================================
+
+/**
+ * Branch status
+ */
+export type BranchStatus = 'creating' | 'ready' | 'migrating' | 'error' | 'deleting' | 'deleted'
+
+/**
+ * Branch type
+ */
+export type BranchType = 'main' | 'preview' | 'persistent'
+
+/**
+ * Data clone mode when creating a branch
+ */
+export type DataCloneMode = 'schema_only' | 'full_clone' | 'seed_data'
+
+/**
+ * Database branch information
+ */
+export interface Branch {
+  /** Unique branch identifier */
+  id: string
+  /** Display name of the branch */
+  name: string
+  /** URL-safe slug for the branch */
+  slug: string
+  /** Actual database name */
+  database_name: string
+  /** Current status of the branch */
+  status: BranchStatus
+  /** Type of branch */
+  type: BranchType
+  /** Parent branch ID (for feature branches) */
+  parent_branch_id?: string
+  /** How data was cloned when branch was created */
+  data_clone_mode: DataCloneMode
+  /** GitHub PR number if this is a preview branch */
+  github_pr_number?: number
+  /** GitHub PR URL */
+  github_pr_url?: string
+  /** GitHub repository (owner/repo) */
+  github_repo?: string
+  /** Error message if status is 'error' */
+  error_message?: string
+  /** User ID who created the branch */
+  created_by?: string
+  /** When the branch was created */
+  created_at: string
+  /** When the branch was last updated */
+  updated_at: string
+  /** When the branch will automatically expire */
+  expires_at?: string
+}
+
+/**
+ * Options for creating a new branch
+ */
+export interface CreateBranchOptions {
+  /** Parent branch to clone from (defaults to main) */
+  parentBranchId?: string
+  /** How to clone data */
+  dataCloneMode?: DataCloneMode
+  /** Branch type */
+  type?: BranchType
+  /** GitHub PR number (for preview branches) */
+  githubPRNumber?: number
+  /** GitHub PR URL */
+  githubPRUrl?: string
+  /** GitHub repository (owner/repo) */
+  githubRepo?: string
+  /** Duration until branch expires (e.g., "24h", "7d") */
+  expiresIn?: string
+}
+
+/**
+ * Options for listing branches
+ */
+export interface ListBranchesOptions {
+  /** Filter by branch status */
+  status?: BranchStatus
+  /** Filter by branch type */
+  type?: BranchType
+  /** Filter by GitHub repository */
+  githubRepo?: string
+  /** Only show branches created by the current user */
+  mine?: boolean
+  /** Maximum number of branches to return */
+  limit?: number
+  /** Offset for pagination */
+  offset?: number
+}
+
+/**
+ * Response from listing branches
+ */
+export interface ListBranchesResponse {
+  branches: Branch[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * Branch activity log entry
+ */
+export interface BranchActivity {
+  /** Activity ID */
+  id: string
+  /** Branch ID */
+  branch_id: string
+  /** Action performed */
+  action: string
+  /** Activity status */
+  status: 'success' | 'failed' | 'pending'
+  /** Additional details */
+  details?: Record<string, unknown>
+  /** User who performed the action */
+  executed_by?: string
+  /** When the activity occurred */
+  created_at: string
+}
+
+/**
+ * Connection pool statistics
+ */
+export interface BranchPoolStats {
+  /** Branch slug */
+  slug: string
+  /** Number of active connections */
+  active_connections: number
+  /** Number of idle connections */
+  idle_connections: number
+  /** Total connections created */
+  total_connections: number
+  /** When the pool was created */
+  created_at: string
+}
+
+// ============================================================================
 // Deprecated Supabase-compatible type aliases (for backward compatibility)
 // ============================================================================
 

@@ -68,6 +68,21 @@ func (h *Handler) SetSettingsSecretsService(svc *settings.SecretsService) {
 	h.settingsSecretsService = svc
 }
 
+// GetRuntime returns the Deno runtime for external use (e.g., MCP tools)
+func (h *Handler) GetRuntime() *runtime.DenoRuntime {
+	return h.runtime
+}
+
+// GetPublicURL returns the public URL configured for this handler
+func (h *Handler) GetPublicURL() string {
+	return h.publicURL
+}
+
+// GetFunctionsDir returns the functions directory path
+func (h *Handler) GetFunctionsDir() string {
+	return h.functionsDir
+}
+
 // handleLogMessage is called when a function outputs a log message via console.log/console.error
 // Note: Execution logs are now stored in the central logging schema (logging.entries)
 func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message string) {

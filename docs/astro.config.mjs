@@ -127,7 +127,70 @@ export default defineConfig({
         {
           label: "Guides",
           collapsed: true,
-          autogenerate: { directory: "guides" },
+          items: [
+            // Core features (most important first)
+            { label: "Authentication", link: "/guides/authentication/" },
+            { label: "Storage", link: "/guides/storage/" },
+            { label: "Realtime", link: "/guides/realtime/" },
+            { label: "Edge Functions", link: "/guides/edge-functions/" },
+            { label: "Background Jobs", link: "/guides/jobs/" },
+            { label: "RPC", link: "/guides/rpc/" },
+
+            // Database
+            { label: "Row-Level Security", link: "/guides/row-level-security/" },
+            { label: "Database Migrations", link: "/guides/database-migrations/" },
+            {
+              label: "Database Branching",
+              collapsed: true,
+              autogenerate: { directory: "guides/branching" },
+            },
+
+            // Advanced Auth
+            { label: "OAuth Providers", link: "/guides/oauth-providers/" },
+            { label: "SAML SSO", link: "/guides/saml-sso/" },
+            { label: "Captcha", link: "/guides/captcha/" },
+
+            // AI Features
+            { label: "Vector Search", link: "/guides/vector-search/" },
+            { label: "AI Chatbots", link: "/guides/ai-chatbots/" },
+            { label: "Knowledge Bases", link: "/guides/knowledge-bases/" },
+
+            // Integration
+            {
+              label: "MCP Server",
+              collapsed: true,
+              autogenerate: { directory: "guides/mcp" },
+            },
+            { label: "Webhooks", link: "/guides/webhooks/" },
+            {
+              label: "TypeScript SDK",
+              collapsed: true,
+              autogenerate: { directory: "guides/typescript-sdk" },
+            },
+
+            // Operations
+            { label: "Secrets Management", link: "/guides/secrets-management/" },
+            { label: "Rate Limiting", link: "/guides/rate-limiting/" },
+            { label: "Logging", link: "/guides/logging/" },
+            { label: "Monitoring", link: "/guides/monitoring-observability/" },
+            { label: "Email Services", link: "/guides/email-services/" },
+            { label: "Image Transformations", link: "/guides/image-transformations/" },
+            { label: "Testing", link: "/guides/testing/" },
+
+            // Admin
+            {
+              label: "Admin Dashboard",
+              collapsed: true,
+              autogenerate: { directory: "guides/admin" },
+            },
+
+            // Tutorials
+            {
+              label: "Tutorials",
+              collapsed: true,
+              autogenerate: { directory: "guides/tutorials" },
+            },
+          ],
         },
         {
           label: "Security",

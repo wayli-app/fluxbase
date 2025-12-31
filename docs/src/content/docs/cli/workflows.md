@@ -371,3 +371,135 @@ fluxbase jobs list
 # Watch for errors
 fluxbase logs tail --level error
 ```
+
+## Database Branching Workflow
+
+Database branches provide isolated environments for development and testing. See the [Database Branching Guide](/guides/branching/) for full documentation.
+
+### Feature Development with Branches
+
+Use branches to safely develop and test database changes:
+
+```bash
+# 1. Create a branch for your feature
+fluxbase branch create my-feature
+
+# 2. Test your migrations on the branch
+fluxbase migrations sync --dir ./fluxbase/migrations
+
+# 3. Deploy functions to the branch
+fluxbase functions sync
+
+# 4. Test your changes
+curl http://localhost:8080/api/v1/tables/users \
+  -H "X-Fluxbase-Branch: my-feature"
+
+# 5. When ready, apply migrations to production
+fluxbase --profile prod migrations apply-pending
+
+# 6. Delete the branch
+fluxbase branch delete my-feature
+```
+
+### PR Preview Branches
+
+Create isolated environments for each pull request:
+
+```bash
+# Create a preview branch linked to a PR
+fluxbase branch create pr-123 \
+  --pr 123 \
+  --repo owner/repo \
+  --expires-in 24h
+
+# Deploy your changes
+fluxbase sync
+
+# The branch auto-deletes when the PR closes (with GitHub integration)
+# or after 24 hours if using --expires-in
+```
+
+### GitHub Actions with Branching
+
+```yaml
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Fluxbase CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/install-cli.sh | bash
+          echo "/usr/local/bin" >> $GITHUB_PATH
+
+      - name: Create preview branch
+        env:
+          FLUXBASE_SERVER: ${{ secrets.FLUXBASE_SERVER }}
+          FLUXBASE_TOKEN: ${{ secrets.FLUXBASE_TOKEN }}
+        run: |
+          # Create or reset the branch
+          fluxbase branch create "pr-${{ github.event.number }}" \
+            --pr ${{ github.event.number }} \
+            --repo ${{ github.repository }} \
+            --expires-in 7d || \
+          fluxbase branch reset "pr-${{ github.event.number }}" --force
+
+          # Deploy to the branch
+          fluxbase sync
+
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 Preview deployed! Use branch: `pr-${{ github.event.number }}`'
+            })
+```
+
+### Branch Connection Methods
+
+Connect to a branch using any of these methods:
+
+```bash
+# HTTP Header
+curl http://localhost:8080/api/v1/tables/users \
+  -H "X-Fluxbase-Branch: my-feature"
+
+# Query Parameter
+curl "http://localhost:8080/api/v1/tables/users?branch=my-feature"
+
+# SDK Configuration
+const fluxbase = createClient(url, key, { branch: 'my-feature' })
+```
+
+### Branch Management Commands
+
+```bash
+# List all branches
+fluxbase branch list
+
+# Get branch details
+fluxbase branch get my-feature
+
+# Check branch status
+fluxbase branch status my-feature
+
+# View activity log
+fluxbase branch activity my-feature
+
+# Reset to parent state
+fluxbase branch reset my-feature
+
+# Delete when done
+fluxbase branch delete my-feature
+```
