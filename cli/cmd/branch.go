@@ -383,7 +383,7 @@ func runBranchDelete(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Type 'yes' to confirm: ")
 
 		var confirm string
-		fmt.Scanln(&confirm)
+		_, _ = fmt.Scanln(&confirm)
 
 		if strings.ToLower(confirm) != "yes" {
 			fmt.Println("Deletion cancelled")
@@ -413,7 +413,7 @@ func runBranchReset(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Type 'yes' to confirm: ")
 
 		var confirm string
-		fmt.Scanln(&confirm)
+		_, _ = fmt.Scanln(&confirm)
 
 		if strings.ToLower(confirm) != "yes" {
 			fmt.Println("Reset cancelled")

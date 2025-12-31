@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -163,7 +164,11 @@ func (m *OAuthManager) GetUserInfo(ctx context.Context, provider OAuthProvider, 
 
 	// Get user info from provider-specific endpoint
 	userInfoURL := m.GetUserInfoURL(provider)
-	resp, err := client.Get(userInfoURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}

@@ -329,15 +329,15 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 	)
 
 	// Apply image transformation if enabled and requested
-	var responseReader io.ReadCloser = reader
-	var responseContentType = object.ContentType
-	var responseSize = object.Size
+	responseReader := reader
+	responseContentType := object.ContentType
+	responseSize := object.Size
 
 	if transformOpts != nil && h.transformer != nil && storage.CanTransform(object.ContentType) {
 		// Check rate limit for transforms
 		limiterKey := c.IP() + ":" + getUserID(c)
 		if limiter := h.getTransformLimiter(limiterKey); limiter != nil && !limiter.Allow() {
-			reader.Close()
+			_ = reader.Close()
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"error": "transform rate limit exceeded",
 			})
@@ -346,7 +346,7 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 		// Check cache first (before acquiring transform slot)
 		if h.transformCache != nil {
 			if cached, contentType, ok := h.transformCache.Get(ctx, bucket, key, transformOpts); ok {
-				reader.Close() // Close original reader since we're using cache
+				_ = reader.Close() // Close original reader since we're using cache
 				responseReader = io.NopCloser(bytes.NewReader(cached))
 				responseContentType = contentType
 				responseSize = int64(len(cached))
@@ -357,7 +357,7 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 
 		// Acquire transform slot (concurrency limit)
 		if !h.acquireTransformSlot(5 * time.Second) {
-			reader.Close()
+			_ = reader.Close()
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"error": "transform service busy, try again later",
 			})
@@ -366,7 +366,7 @@ func (h *StorageHandler) DownloadFile(c *fiber.Ctx) error {
 
 		// Apply transformation
 		result, err := h.transformer.Transform(reader, object.ContentType, transformOpts)
-		reader.Close() // Close original reader since we read all data
+		_ = reader.Close() // Close original reader since we read all data
 
 		if err != nil {
 			// Log the error but return the original if transform fails

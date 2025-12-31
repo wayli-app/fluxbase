@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/rs/zerolog/log"
@@ -22,7 +21,6 @@ type Server struct {
 	transport *Transport
 	tools     *ToolRegistry
 	resources *ResourceRegistry
-	mu        sync.RWMutex
 }
 
 // NewServer creates a new MCP server

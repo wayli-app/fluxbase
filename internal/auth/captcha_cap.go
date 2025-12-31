@@ -72,7 +72,7 @@ func (p *CapProvider) Verify(ctx context.Context, token string, remoteIP string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status
 	if resp.StatusCode != http.StatusOK {

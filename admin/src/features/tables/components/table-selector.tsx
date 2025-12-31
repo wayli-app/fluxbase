@@ -41,6 +41,12 @@ import {
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface TableSelectorProps {
   selectedTable?: string
@@ -339,20 +345,28 @@ export function TableSelector({
             Create Table
           </Button>
           <div className='space-y-1'>
-            {filteredTables.map(({ full, name, type }) => (
-              <div key={full} className='group relative flex items-center'>
-                <Button
-                  variant={selectedTable === full ? 'secondary' : 'ghost'}
-                  className={cn(
-                    'flex-1 justify-start pr-8 font-normal',
-                    selectedTable === full && 'bg-secondary'
-                  )}
-                  onClick={() => onTableSelect(full)}
-                >
-                  {getTypeIcon(type as TableInfo['type'])}
-                  {name}
-                </Button>
-                <DropdownMenu>
+            <TooltipProvider delayDuration={300}>
+              {filteredTables.map(({ full, name, type }) => (
+                <div key={full} className='group relative flex items-center'>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={selectedTable === full ? 'secondary' : 'ghost'}
+                        className={cn(
+                          'flex-1 justify-start overflow-hidden pr-8 font-normal',
+                          selectedTable === full && 'bg-secondary'
+                        )}
+                        onClick={() => onTableSelect(full)}
+                      >
+                        {getTypeIcon(type as TableInfo['type'])}
+                        <span className='truncate'>{name}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='right'>
+                      <p>{name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant='ghost'
@@ -394,6 +408,7 @@ export function TableSelector({
                 </DropdownMenu>
               </div>
             ))}
+            </TooltipProvider>
           </div>
         </div>
       </ScrollArea>

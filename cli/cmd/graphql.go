@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -298,11 +299,11 @@ func doGraphQLRequest(query string, variables map[string]interface{}) error {
 	return nil
 }
 
-func formatGraphQLErrors(errors []graphqlError) error {
+func formatGraphQLErrors(errs []graphqlError) error {
 	var sb strings.Builder
 	sb.WriteString("GraphQL errors:\n")
 
-	for i, e := range errors {
+	for i, e := range errs {
 		sb.WriteString(fmt.Sprintf("  %d. %s", i+1, e.Message))
 
 		if len(e.Locations) > 0 {
@@ -321,7 +322,7 @@ func formatGraphQLErrors(errors []graphqlError) error {
 		sb.WriteString("\n")
 	}
 
-	return fmt.Errorf(sb.String())
+	return errors.New(sb.String())
 }
 
 func runGraphQLIntrospect(cmd *cobra.Command, args []string) error {

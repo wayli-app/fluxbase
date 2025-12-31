@@ -59,7 +59,7 @@ func (s *Seeder) DiscoverSeedFiles(ctx context.Context) ([]SeedFile, error) {
 		fullPath := filepath.Join(s.seedsPath, entry.Name())
 
 		// Read file content
-		content, err := os.ReadFile(fullPath)
+		content, err := os.ReadFile(fullPath) //nolint:gosec // Path is constructed from trusted seedsPath directory
 		if err != nil {
 			log.Warn().Err(err).Str("file", entry.Name()).Msg("Failed to read seed file, skipping")
 			continue

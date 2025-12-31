@@ -208,7 +208,7 @@ func (t *DownloadObjectTool) Execute(ctx context.Context, args map[string]any, a
 			IsError: true,
 		}, nil
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read content (limit to 10MB to prevent memory issues)
 	const maxSize = 10 * 1024 * 1024

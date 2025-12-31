@@ -149,7 +149,7 @@ func (c *TransformCache) Get(ctx context.Context, bucket, key string, opts *Tran
 		c.evictEntry(ctx, cacheKey)
 		return nil, "", false
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -160,7 +160,7 @@ func (c *TransformCache) Get(ctx context.Context, bucket, key string, opts *Tran
 	contentType := obj.ContentType
 	metaReader, _, err := c.provider.Download(ctx, TransformCacheBucket, cacheKey+".meta", nil)
 	if err == nil {
-		defer metaReader.Close()
+		defer func() { _ = metaReader.Close() }()
 		var meta cacheEntryMeta
 		if err := json.NewDecoder(metaReader).Decode(&meta); err == nil {
 			contentType = meta.ContentType
@@ -315,10 +315,10 @@ func (c *TransformCache) Invalidate(ctx context.Context, bucket, key string) err
 
 		var meta cacheEntryMeta
 		if err := json.NewDecoder(reader).Decode(&meta); err != nil {
-			reader.Close()
+			_ = reader.Close()
 			continue
 		}
-		reader.Close()
+		_ = reader.Close()
 
 		if meta.SourceKey == sourceKey {
 			// Remove .meta suffix to get the cache key

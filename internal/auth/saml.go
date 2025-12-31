@@ -364,11 +364,15 @@ func (s *SAMLService) AddProviderFromConfig(cfg config.SAMLProviderConfig) error
 
 // fetchMetadata fetches IdP metadata from a URL
 func (s *SAMLService) fetchMetadata(metadataURL string) ([]byte, error) {
-	resp, err := s.httpClient.Get(metadataURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metadataURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("metadata fetch returned status %d", resp.StatusCode)
@@ -1078,7 +1082,7 @@ func (s *SAMLService) HasSigningKey(providerName string) bool {
 // inflateBytes decompresses deflated SAML data (used in HTTP-Redirect binding)
 func inflateBytes(data []byte) ([]byte, error) {
 	reader := flate.NewReader(bytes.NewReader(data))
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	return io.ReadAll(reader)
 }
 
@@ -1086,35 +1090,6 @@ func inflateBytes(data []byte) ([]byte, error) {
 func (s *SAMLService) CleanupExpiredAssertions(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, `DELETE FROM auth.saml_assertion_ids WHERE expires_at < NOW()`)
 	return err
-}
-
-// Helper function to parse base64-encoded certificate (from IdP metadata)
-func parseCertificate(certPEM string) (*x509.Certificate, error) {
-	certData, err := base64.StdEncoding.DecodeString(certPEM)
-	if err != nil {
-		return nil, err
-	}
-	return x509.ParseCertificate(certData)
-}
-
-// Helper function to parse base64-encoded private key
-func parsePrivateKey(keyPEM string) (*rsa.PrivateKey, error) {
-	keyData, err := base64.StdEncoding.DecodeString(keyPEM)
-	if err != nil {
-		return nil, err
-	}
-	key, err := x509.ParsePKCS8PrivateKey(keyData)
-	if err != nil {
-		key, err = x509.ParsePKCS1PrivateKey(keyData)
-		if err != nil {
-			return nil, err
-		}
-	}
-	rsaKey, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		return nil, errors.New("not an RSA private key")
-	}
-	return rsaKey, nil
 }
 
 // parsePEMCertificate parses a PEM-encoded X.509 certificate

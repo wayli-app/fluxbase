@@ -669,13 +669,6 @@ func (h *SAMLHandler) RegisterRoutes(router fiber.Router) {
 	saml.Get("/slo", h.HandleSAMLLogout)                // Some IdPs use GET for SLO
 }
 
-// Helper for JSON encoding errors
-func jsonError(c *fiber.Ctx, status int, message string) error {
-	return c.Status(status).JSON(fiber.Map{
-		"error": message,
-	})
-}
-
 // CreateSAMLUser method to add to auth.Service
 type CreateSAMLUserRequest struct {
 	Email      string

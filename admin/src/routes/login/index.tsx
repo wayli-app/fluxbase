@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -193,7 +193,15 @@ function LoginPage() {
                 </div>
 
                 <div className='space-y-2'>
-                  <Label htmlFor='password'>Password</Label>
+                  <div className='flex items-center justify-between'>
+                    <Label htmlFor='password'>Password</Label>
+                    <Link
+                      to='/forgot-password'
+                      className='text-sm text-muted-foreground hover:text-primary'
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <PasswordInput
                     id='password'
                     placeholder='Enter your password'

@@ -130,7 +130,7 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata,
+		SELECT id, email, COALESCE(password_hash, ''), email_verified, role, user_metadata, app_metadata,
 		       COALESCE(failed_login_attempts, 0), COALESCE(is_locked, false), locked_until,
 		       created_at, updated_at
 		FROM auth.users
@@ -168,7 +168,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 // GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, email_verified, role, user_metadata, app_metadata,
+		SELECT id, email, COALESCE(password_hash, ''), email_verified, role, user_metadata, app_metadata,
 		       COALESCE(failed_login_attempts, 0), COALESCE(is_locked, false), locked_until,
 		       created_at, updated_at
 		FROM auth.users

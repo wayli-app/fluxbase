@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/email"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,11 +27,12 @@ import (
 
 // DashboardAuthHandler handles dashboard authentication endpoints
 type DashboardAuthHandler struct {
-	authService *auth.DashboardAuthService
-	jwtManager  *auth.JWTManager
-	db          *database.Connection
-	samlService *auth.SAMLService
-	baseURL     string
+	authService  *auth.DashboardAuthService
+	jwtManager   *auth.JWTManager
+	db           *database.Connection
+	samlService  *auth.SAMLService
+	emailService email.Service
+	baseURL      string
 
 	// OAuth state storage (in production, use Redis or database)
 	oauthStates    map[string]*dashboardOAuthState
@@ -47,12 +50,13 @@ type dashboardOAuthState struct {
 }
 
 // NewDashboardAuthHandler creates a new dashboard auth handler
-func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, baseURL string) *DashboardAuthHandler {
+func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL string) *DashboardAuthHandler {
 	return &DashboardAuthHandler{
 		authService:  authService,
 		jwtManager:   jwtManager,
 		db:           db,
 		samlService:  samlService,
+		emailService: emailService,
 		baseURL:      baseURL,
 		oauthStates:  make(map[string]*dashboardOAuthState),
 		oauthConfigs: make(map[string]*oauth2.Config),
@@ -67,6 +71,11 @@ func (h *DashboardAuthHandler) RegisterRoutes(app *fiber.App) {
 	dashboard.Post("/signup", h.Signup)
 	dashboard.Post("/login", h.Login)
 	dashboard.Post("/2fa/verify", h.VerifyTOTP)
+
+	// Password reset routes (public)
+	dashboard.Post("/password/reset", h.RequestPasswordReset)
+	dashboard.Post("/password/reset/verify", h.VerifyPasswordResetToken)
+	dashboard.Post("/password/reset/confirm", h.ConfirmPasswordReset)
 
 	// SSO routes (public)
 	dashboard.Get("/sso/providers", h.GetSSOProviders)
@@ -447,6 +456,108 @@ func (h *DashboardAuthHandler) DisableTOTP(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "2FA disabled successfully",
+	})
+}
+
+// RequestPasswordReset initiates a password reset for a dashboard user
+func (h *DashboardAuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
+	var req struct {
+		Email string `json:"email"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	if req.Email == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Email is required")
+	}
+
+	token, err := h.authService.RequestPasswordReset(c.Context(), req.Email)
+	if err != nil {
+		// Log the error but don't reveal details to user
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to request password reset")
+		// Still return success to prevent email enumeration
+	}
+
+	// If we got a token, send the password reset email
+	if token != "" {
+		resetLink := h.baseURL + "/admin/reset-password?token=" + token
+		if err := h.emailService.SendPasswordReset(c.Context(), req.Email, token, resetLink); err != nil {
+			log.Error().Err(err).Str("email", req.Email).Msg("Failed to send password reset email")
+			// Don't return error to prevent email enumeration
+		} else {
+			log.Info().Str("email", req.Email).Msg("Password reset email sent")
+		}
+	}
+
+	// Always return success to prevent email enumeration
+	return c.JSON(fiber.Map{
+		"message": "If an account with that email exists, a password reset link has been sent.",
+	})
+}
+
+// VerifyPasswordResetToken verifies a password reset token is valid
+func (h *DashboardAuthHandler) VerifyPasswordResetToken(c *fiber.Ctx) error {
+	var req struct {
+		Token string `json:"token"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	if req.Token == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Token is required")
+	}
+
+	valid, err := h.authService.VerifyPasswordResetToken(c.Context(), req.Token)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to verify token")
+	}
+
+	if !valid {
+		return c.JSON(fiber.Map{
+			"valid":   false,
+			"message": "Invalid or expired token",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"valid":   true,
+		"message": "Token is valid",
+	})
+}
+
+// ConfirmPasswordReset resets the password using a valid reset token
+func (h *DashboardAuthHandler) ConfirmPasswordReset(c *fiber.Ctx) error {
+	var req struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	if req.Token == "" || req.NewPassword == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Token and new password are required")
+	}
+
+	err := h.authService.ResetPassword(c.Context(), req.Token, req.NewPassword)
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "invalid or expired") {
+			return fiber.NewError(fiber.StatusBadRequest, "Invalid or expired password reset token")
+		}
+		if strings.Contains(errMsg, "password must be") {
+			return fiber.NewError(fiber.StatusBadRequest, errMsg)
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to reset password")
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Password reset successfully",
 	})
 }
 
@@ -1002,7 +1113,11 @@ func (h *DashboardAuthHandler) getUserInfoFromOAuth(ctx context.Context, config 
 		}
 	}
 
-	resp, err := client.Get(userInfoURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userInfoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1016,15 +1131,18 @@ func (h *DashboardAuthHandler) getUserInfoFromOAuth(ctx context.Context, config 
 	// For GitHub, we need to fetch email separately if not in profile
 	if strings.Contains(config.Endpoint.AuthURL, "github") {
 		if _, ok := userInfo["email"]; !ok || userInfo["email"] == nil {
-			emailResp, err := client.Get("https://api.github.com/user/emails")
+			emailReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
 			if err == nil {
-				defer func() { _ = emailResp.Body.Close() }()
-				var emails []map[string]interface{}
-				if err := json.NewDecoder(emailResp.Body).Decode(&emails); err == nil {
-					for _, e := range emails {
-						if primary, ok := e["primary"].(bool); ok && primary {
-							userInfo["email"] = e["email"]
-							break
+				emailResp, err := client.Do(emailReq)
+				if err == nil {
+					defer func() { _ = emailResp.Body.Close() }()
+					var emails []map[string]interface{}
+					if err := json.NewDecoder(emailResp.Body).Decode(&emails); err == nil {
+						for _, e := range emails {
+							if primary, ok := e["primary"].(bool); ok && primary {
+								userInfo["email"] = e["email"]
+								break
+							}
 						}
 					}
 				}

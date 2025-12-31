@@ -1764,6 +1764,45 @@ export const dashboardAuthAPI = {
     return response.data
   },
 
+  // Request password reset
+  requestPasswordReset: async (email: string): Promise<{ message: string }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/dashboard/auth/password/reset`,
+      { email }
+    )
+    return response.data
+  },
+
+  // Verify password reset token
+  verifyResetToken: async (
+    token: string
+  ): Promise<{ valid: boolean; message?: string }> => {
+    try {
+      const response = await axios.post<{ valid: boolean; message: string }>(
+        `${API_BASE_URL}/dashboard/auth/password/reset/verify`,
+        { token }
+      )
+      return response.data
+    } catch {
+      return { valid: false, message: 'Invalid or expired token' }
+    }
+  },
+
+  // Reset password with token
+  resetPassword: async (
+    token: string,
+    newPassword: string
+  ): Promise<{ message: string }> => {
+    const response = await axios.post(
+      `${API_BASE_URL}/dashboard/auth/password/reset/confirm`,
+      {
+        token,
+        new_password: newPassword,
+      }
+    )
+    return response.data
+  },
+
   // Get SSO providers available for dashboard login
   getSSOProviders: async (): Promise<{
     providers: SSOProvider[]

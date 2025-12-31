@@ -237,7 +237,6 @@ func (s *Storage) ListBranches(ctx context.Context, filter ListBranchesFilter) (
 	if filter.GitHubRepo != nil {
 		query += fmt.Sprintf(" AND github_repo = $%d", argCounter)
 		args = append(args, *filter.GitHubRepo)
-		argCounter++
 	}
 
 	query += " ORDER BY created_at DESC"
@@ -346,7 +345,6 @@ func (s *Storage) CountBranches(ctx context.Context, filter ListBranchesFilter) 
 	if filter.CreatedBy != nil {
 		query += fmt.Sprintf(" AND created_by = $%d", argCounter)
 		args = append(args, *filter.CreatedBy)
-		argCounter++
 	}
 
 	var count int

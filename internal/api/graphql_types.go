@@ -237,11 +237,11 @@ func parseASTValue(v ast.Value) interface{} {
 		return val.Value
 	case *ast.IntValue:
 		var n int64
-		fmt.Sscanf(val.Value, "%d", &n)
+		_, _ = fmt.Sscanf(val.Value, "%d", &n)
 		return n
 	case *ast.FloatValue:
 		var f float64
-		fmt.Sscanf(val.Value, "%f", &f)
+		_, _ = fmt.Sscanf(val.Value, "%f", &f)
 		return f
 	case *ast.BooleanValue:
 		return val.Value

@@ -152,10 +152,10 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		}
 		// Unmarshal RBAC fields
 		if requiredClaimsJSON != nil {
-			json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
+			_ = json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
 		}
 		if deniedClaimsJSON != nil {
-			json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
+			_ = json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
 		}
 		// Don't return client_secret in list
 		p.ClientSecret = ""
@@ -211,10 +211,10 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 
 	// Unmarshal RBAC fields
 	if requiredClaimsJSON != nil {
-		json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
+		_ = json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
 	}
 	if deniedClaimsJSON != nil {
-		json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
+		_ = json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
 	}
 
 	// Don't return client_secret

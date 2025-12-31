@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -14,9 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
-
-// validIdentifierRegex validates SQL identifiers (column names, table names, etc.)
-var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // executeWithRLS wraps a database operation with RLS context from MCP AuthContext
 // This is similar to middleware.WrapWithRLS but works without a Fiber context
@@ -405,7 +401,8 @@ func parseFilterValue(column, valueStr string) (query.Filter, error) {
 
 	// Parse value based on operator
 	var parsedValue any = value
-	if operator == query.OpIs || operator == query.OpIsNot {
+	switch operator {
+	case query.OpIs, query.OpIsNot:
 		// is.null, is.true, is.false
 		switch strings.ToLower(value) {
 		case "null":
@@ -415,7 +412,7 @@ func parseFilterValue(column, valueStr string) (query.Filter, error) {
 		case "false":
 			parsedValue = false
 		}
-	} else if operator == query.OpIn || operator == query.OpNotIn {
+	case query.OpIn, query.OpNotIn:
 		// Parse as array: (val1,val2,val3)
 		value = strings.TrimPrefix(value, "(")
 		value = strings.TrimSuffix(value, ")")

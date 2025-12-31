@@ -23,7 +23,6 @@ type GraphQLSchemaGenerator struct {
 	inputTypes      map[string]*graphql.InputObject // "schema_table_input" -> GraphQL input type
 	filterTypes     map[string]*graphql.InputObject // "schema_table_filter" -> GraphQL filter input type
 	orderByTypes    map[string]*graphql.InputObject // "schema_table_order_by" -> GraphQL order by input type
-	lastSchemaHash  string
 	introspectionOn bool
 	resolverFactory *GraphQLResolverFactory
 }

@@ -96,9 +96,6 @@ type ImageTransformer struct {
 	bucketSize     int
 }
 
-// vipsStartupLock is used to ensure vips is only started once
-var vipsInstance *ImageTransformer
-
 // TransformerOptions configures the image transformer
 type TransformerOptions struct {
 	MaxWidth       int

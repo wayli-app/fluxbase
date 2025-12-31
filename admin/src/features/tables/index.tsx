@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -50,26 +51,31 @@ export function Tables() {
 
       <ImpersonationBanner />
 
-      <Main className='flex h-[calc(100vh-4rem)] gap-0 p-0'>
-        <aside className='w-64 flex-shrink-0'>
-          <TableSelector
-            selectedTable={selectedTable}
-            selectedSchema={selectedSchema}
-            onTableSelect={handleTableSelect}
-            onSchemaChange={handleSchemaChange}
-          />
-        </aside>
-        <main className='flex-1 overflow-auto'>
-          {selectedTable ? (
-            <TableViewer tableName={selectedTable} schema={selectedSchema} />
-          ) : (
-            <div className='flex h-full items-center justify-center'>
-              <p className='text-muted-foreground'>
-                Select a table from the sidebar to view its data
-              </p>
-            </div>
-          )}
-        </main>
+      <Main className='h-[calc(100vh-4rem)] p-0'>
+        <PanelGroup direction='horizontal'>
+          <Panel defaultSize={20} minSize={15} maxSize={40}>
+            <TableSelector
+              selectedTable={selectedTable}
+              selectedSchema={selectedSchema}
+              onTableSelect={handleTableSelect}
+              onSchemaChange={handleSchemaChange}
+            />
+          </Panel>
+          <PanelResizeHandle className='w-1 bg-border transition-colors hover:bg-primary' />
+          <Panel>
+            <main className='h-full overflow-auto'>
+              {selectedTable ? (
+                <TableViewer tableName={selectedTable} schema={selectedSchema} />
+              ) : (
+                <div className='flex h-full items-center justify-center'>
+                  <p className='text-muted-foreground'>
+                    Select a table from the sidebar to view its data
+                  </p>
+                </div>
+              )}
+            </main>
+          </Panel>
+        </PanelGroup>
       </Main>
     </>
   )

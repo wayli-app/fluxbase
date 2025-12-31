@@ -71,24 +71,26 @@ func performSSOLogin(serverURL string, provider *SSOProvider) (*cliconfig.Creden
 	}
 
 	// Find an available port for the callback server
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start callback server: %w", err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
+	_ = listener.Close()
 
 	callbackURL := fmt.Sprintf("http://localhost:%d/callback", port)
 
 	// Build the SSO login URL
 	var loginURL string
-	if provider.Type == "oauth" {
+	switch provider.Type {
+	case "oauth":
 		loginURL = fmt.Sprintf("%s/dashboard/auth/sso/oauth/%s?redirect_to=%s",
 			serverURL, provider.ID, url.QueryEscape(callbackURL))
-	} else if provider.Type == "saml" {
+	case "saml":
 		loginURL = fmt.Sprintf("%s/dashboard/auth/sso/saml/%s?redirect_to=%s",
 			serverURL, provider.ID, url.QueryEscape(callbackURL))
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("unknown SSO provider type: %s", provider.Type)
 	}
 
@@ -98,7 +100,8 @@ func performSSOLogin(serverURL string, provider *SSOProvider) (*cliconfig.Creden
 
 	// Start the callback server
 	server := &http.Server{
-		Addr: fmt.Sprintf(":%d", port),
+		Addr:              fmt.Sprintf(":%d", port),
+		ReadHeaderTimeout: 10 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handleSSOCallback(w, r, resultCh, errCh)
 		}),
@@ -126,13 +129,13 @@ func performSSOLogin(serverURL string, provider *SSOProvider) (*cliconfig.Creden
 
 	select {
 	case result := <-resultCh:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return buildCredsFromSSOResult(result)
 	case err := <-errCh:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return nil, nil, err
 	case <-ctx.Done():
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return nil, nil, fmt.Errorf("SSO login timed out")
 	}
 }
@@ -151,7 +154,7 @@ func handleSSOCallback(w http.ResponseWriter, r *http.Request, resultCh chan *ss
 	if errorParam != "" {
 		errCh <- fmt.Errorf("SSO error: %s", errorParam)
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<!DOCTYPE html>
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>SSO Failed</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
@@ -166,7 +169,7 @@ func handleSSOCallback(w http.ResponseWriter, r *http.Request, resultCh chan *ss
 	if accessToken == "" {
 		errCh <- fmt.Errorf("no access token received")
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<!DOCTYPE html>
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>SSO Failed</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
@@ -184,7 +187,7 @@ func handleSSOCallback(w http.ResponseWriter, r *http.Request, resultCh chan *ss
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<!DOCTYPE html>
+	_, _ = fmt.Fprintf(w, `<!DOCTYPE html>
 <html>
 <head><title>SSO Success</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
@@ -207,16 +210,16 @@ func buildCredsFromSSOResult(result *ssoCallbackResult) (*cliconfig.Credentials,
 }
 
 // openBrowser opens the specified URL in the default browser
-func openBrowser(url string) error {
+func openBrowser(urlStr string) error {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.CommandContext(context.Background(), "open", urlStr) //nolint:gosec // URL is from trusted source
 	case "linux":
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.CommandContext(context.Background(), "xdg-open", urlStr) //nolint:gosec // URL is from trusted source
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.CommandContext(context.Background(), "rundll32", "url.dll,FileProtocolHandler", urlStr) //nolint:gosec // URL is from trusted source
 	default:
 		return fmt.Errorf("unsupported platform")
 	}

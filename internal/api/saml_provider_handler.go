@@ -537,7 +537,6 @@ func (h *SAMLProviderHandler) UpdateSAMLProvider(c *fiber.Ctx) error {
 	if req.GroupAttribute != nil {
 		updates = append(updates, fmt.Sprintf("group_attribute = $%d", argPos))
 		args = append(args, *req.GroupAttribute)
-		argPos++
 	}
 
 	if len(updates) == 0 {
@@ -696,7 +695,7 @@ func (h *SAMLProviderHandler) UploadMetadata(c *fiber.Ctx) error {
 			"error": "Failed to read file",
 		})
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	content, err := io.ReadAll(f)
 	if err != nil {
@@ -776,7 +775,7 @@ func (h *SAMLProviderHandler) validateMetadata(ctx context.Context, metadataURL,
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch metadata: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("metadata fetch returned status %d", resp.StatusCode)

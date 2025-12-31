@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -41,47 +40,6 @@ func detectContentType(filename string) string {
 		return ct
 	}
 	return "application/octet-stream"
-}
-
-// detectContentTypeFromBytes detects content type from file content using magic bytes
-// This is more secure than extension-based detection as it validates actual file content
-func detectContentTypeFromBytes(data []byte, filename string) string {
-	if len(data) == 0 {
-		return detectContentType(filename)
-	}
-
-	// Use Go's built-in magic byte detection (reads up to 512 bytes)
-	detected := http.DetectContentType(data)
-
-	// Get extension-based type for comparison
-	extensionType := detectContentType(filename)
-
-	// For dangerous executable types, always use detected type
-	if isDangerousMimeType(extensionType) && detected != extensionType {
-		log.Warn().
-			Str("filename", filename).
-			Str("claimed_type", extensionType).
-			Str("detected_type", detected).
-			Msg("MIME type mismatch detected - using magic byte detection")
-		return detected
-	}
-
-	// For non-dangerous types, prefer extension-based type as magic bytes
-	// can be less accurate for text-based formats
-	return extensionType
-}
-
-// isDangerousMimeType checks if a MIME type is potentially dangerous for inline display
-func isDangerousMimeType(mimeType string) bool {
-	dangerousTypes := map[string]bool{
-		"text/html":               true, // Could contain scripts
-		"application/javascript":  true,
-		"text/javascript":         true,
-		"application/x-httpd-php": true,
-		"application/xhtml+xml":   true,
-		"image/svg+xml":           true, // SVG can contain scripts
-	}
-	return dangerousTypes[mimeType]
 }
 
 // parseMetadata parses metadata from form fields starting with "metadata_"

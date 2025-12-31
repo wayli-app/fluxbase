@@ -42,7 +42,7 @@ export function useAuth() {
         // Handle 2FA flow - don't store tokens yet
         toast.info('Two-factor authentication required')
         // Navigate to 2FA verification page with user_id
-        navigate({ to: '/sign-in-2', search: { userId: response.user_id } })
+        navigate({ to: '/login/otp' })
         return
       }
 
@@ -130,8 +130,8 @@ export function useAuth() {
       // Clear all queries
       queryClient.clear()
 
-      // Redirect to sign in
-      navigate({ to: '/sign-in', replace: true })
+      // Redirect to login
+      navigate({ to: '/login', replace: true })
 
       toast.success('Signed out successfully')
     },
@@ -140,7 +140,7 @@ export function useAuth() {
       auth.reset()
       localStorage.removeItem('refresh_token')
       queryClient.clear()
-      navigate({ to: '/sign-in', replace: true })
+      navigate({ to: '/login', replace: true })
 
       toast.error(error.message || 'Failed to sign out')
     },
