@@ -7,7 +7,8 @@ title: "SignInCredentials"
 
 ## Properties
 
-| Property | Type |
-| ------ | ------ |
-| `email` | `string` |
-| `password` | `string` |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| `captchaToken?` | `string` | CAPTCHA token for bot protection (optional, required if CAPTCHA is enabled) |
+| `email` | `string` | - |
+| `password` | `string` | - |

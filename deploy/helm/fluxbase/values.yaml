@@ -174,10 +174,10 @@ config:
     enable_global_rate_limit: false
     setup_token: "" # Use existingSecret in production. Generate with: openssl rand -base64 32
     admin_setup_rate_limit: 5
-    admin_setup_rate_window: "1m"
+    admin_setup_rate_window: "15m"
     auth_login_rate_limit: 10
     auth_login_rate_window: "1m"
-    admin_login_rate_limit: 5
+    admin_login_rate_limit: 10
     admin_login_rate_window: "1m"
     ## CAPTCHA configuration for bot protection on auth endpoints
     ## Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
@@ -298,6 +298,19 @@ config:
       default_quality: 80
       max_width: 4096
       max_height: 4096
+      allowed_formats:
+        - webp
+        - jpg
+        - png
+        - avif
+      max_total_pixels: 16000000
+      bucket_size: 50
+      rate_limit: 60
+      timeout: "30s"
+      max_concurrent: 4
+      cache_enabled: true
+      cache_ttl: "24h"
+      cache_max_size: 1073741824
 
   ## Realtime/WebSocket configuration
   ## @param config.realtime.enabled Enable realtime subscriptions
@@ -409,9 +422,9 @@ config:
     worker_heartbeat_interval: "10s"
     worker_timeout: "30s"
     sync_allowed_ip_ranges: []
-    functions_logs_retention_days: 7
-    rpc_logs_retention_days: 7
-    jobs_logs_retention_days: 7
+    functions_logs_retention_days: 30
+    rpc_logs_retention_days: 30
+    jobs_logs_retention_days: 30
 
   ## REST API configuration
   ## @param config.api.max_page_size Maximum rows per request (-1 for unlimited)
@@ -567,6 +580,8 @@ config:
     ai_retention_days: 30
     retention_enabled: true
     retention_check_interval: "1h"
+    custom_categories: []
+    custom_retention_days: 30
 
   ## Tracing configuration (OpenTelemetry)
   ## @param config.tracing.enabled Enable OpenTelemetry tracing
@@ -590,6 +605,42 @@ config:
   ##
   admin:
     enabled: true
+
+  ## Model Context Protocol (MCP) configuration
+  ## @param config.mcp.enabled Enable MCP server endpoint for AI assistants
+  ## @param config.mcp.base_path Base path for MCP endpoints
+  ## @param config.mcp.session_timeout Session timeout for MCP connections
+  ## @param config.mcp.max_message_size Maximum message size in bytes
+  ## @param config.mcp.allowed_tools Allowed tool names (empty = all enabled)
+  ## @param config.mcp.allowed_resources Allowed resource URIs (empty = all enabled)
+  ## @param config.mcp.rate_limit_per_min Rate limit per minute per client key
+  ##
+  mcp:
+    enabled: false
+    base_path: "/mcp"
+    session_timeout: "30m"
+    max_message_size: 10485760
+    allowed_tools: []
+    allowed_resources: []
+    rate_limit_per_min: 100
+
+  ## Database Branching configuration
+  ## @param config.branching.enabled Enable database branching feature
+  ## @param config.branching.max_branches_per_user Maximum branches per user
+  ## @param config.branching.max_total_branches Maximum total branches
+  ## @param config.branching.default_data_clone_mode Default data clone mode (schema_only, full_clone, seed_data)
+  ## @param config.branching.auto_delete_after Auto-delete branches after duration (0 = never)
+  ## @param config.branching.database_prefix Prefix for branch database names
+  ## @param config.branching.admin_database_url Admin database URL (uses main if empty)
+  ##
+  branching:
+    enabled: false
+    max_branches_per_user: 5
+    max_total_branches: 50
+    default_data_clone_mode: "schema_only"
+    auto_delete_after: "0"
+    database_prefix: "branch_"
+    admin_database_url: ""
 
   ## Encryption configuration (REQUIRED)
   ## @param config.encryption_key REQUIRED: Encryption key for sensitive data at rest

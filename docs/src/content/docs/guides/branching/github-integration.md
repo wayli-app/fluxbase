@@ -216,6 +216,5 @@ No authentication required (uses signature verification).
 
 ## Limitations
 
-- Only GitHub is supported (GitLab, Bitbucket coming soon)
 - One branch per PR (reopening uses existing branch if present)
 - Branch data is not persisted after deletion

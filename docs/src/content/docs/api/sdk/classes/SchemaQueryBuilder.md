@@ -34,7 +34,7 @@ Create a query builder for a table in this schema
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `T` | `any` |
+| `T` | `unknown` |
 
 #### Parameters
 

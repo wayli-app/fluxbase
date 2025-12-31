@@ -1,0 +1,87 @@
+# ==============================================================================
+# Fluxbase Minimal Configuration Example
+# ==============================================================================
+# This is a minimal configuration file with only the essential settings.
+# For the complete configuration reference, see fluxbase.yaml.example
+#
+# All settings can be configured via environment variables using the prefix
+# FLUXBASE_ and replacing dots with underscores.
+# Example: server.address -> FLUXBASE_SERVER_ADDRESS
+# ==============================================================================
+
+# Server configuration
+server:
+  address: ":8080"          # Server bind address
+
+# Database configuration
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "fluxbase"
+  ssl_mode: "disable"       # Use "require" in production
+
+# Authentication configuration
+auth:
+  # CRITICAL: Generate with: openssl rand -base64 32
+  jwt_secret: "your-secret-key-change-in-production"
+  jwt_expiry: "15m"
+  refresh_expiry: "168h"    # 7 days
+  password_min_length: 12           # Increased for better security
+  enable_signup: true
+
+# Security configuration
+security:
+  # CRITICAL: Generate with: openssl rand -base64 32
+  # Required to enable admin dashboard
+  setup_token: ""
+
+# Storage configuration
+storage:
+  enabled: true             # Enable storage functionality
+  provider: "local"         # or "s3" for production
+  local_path: "./storage"
+
+# Realtime (WebSocket) configuration
+realtime:
+  enabled: true
+
+# Email configuration (optional)
+email:
+  enabled: false
+  # Configure when ready to send emails
+  # provider: "smtp"
+  # from_address: "noreply@yourdomain.com"
+
+# Edge Functions configuration
+functions:
+  enabled: true
+  functions_dir: "./functions"
+
+# Background Jobs configuration
+jobs:
+  enabled: true
+  jobs_dir: "./jobs"
+
+# REST API configuration
+api:
+  max_page_size: 1000
+  default_page_size: 1000
+
+# GraphQL configuration
+graphql:
+  enabled: true
+  introspection: false      # Disable in production
+
+# Admin dashboard
+admin:
+  enabled: false            # Set to true and configure setup_token to enable
+
+# General settings
+base_url: "http://localhost:8080"
+
+# CRITICAL: Encryption key for sensitive data (REQUIRED)
+# Generate with: openssl rand -base64 32 | head -c 32
+# Must be exactly 32 bytes for AES-256-GCM encryption
+encryption_key: ""          # REQUIRED - do not deploy without this!

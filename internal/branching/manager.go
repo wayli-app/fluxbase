@@ -36,14 +36,11 @@ func NewManager(storage *Storage, cfg config.BranchingConfig, mainPool *pgxpool.
 		mainDBName = "fluxbase"
 	}
 
-	// Determine admin connection URL
-	adminURL := cfg.AdminDatabaseURL
-	if adminURL == "" {
-		// Use main database URL with 'postgres' database for admin operations
-		adminParsed := *parsedURL
-		adminParsed.Path = "/postgres"
-		adminURL = adminParsed.String()
-	}
+	// Use main database credentials to connect to 'postgres' database for admin operations
+	// This requires the database user to have CREATE DATABASE privilege
+	adminParsed := *parsedURL
+	adminParsed.Path = "/postgres"
+	adminURL := adminParsed.String()
 
 	// Create admin connection pool
 	adminConfig, err := pgxpool.ParseConfig(adminURL)
@@ -140,6 +137,7 @@ func (m *Manager) CreateBranch(ctx context.Context, req CreateBranchRequest, cre
 		GitHubPRNumber: req.GitHubPRNumber,
 		GitHubPRURL:    req.GitHubPRURL,
 		GitHubRepo:     req.GitHubRepo,
+		SeedsPath:      req.SeedsPath,
 		CreatedBy:      createdBy,
 		ExpiresAt:      req.ExpiresAt,
 	}
@@ -394,17 +392,6 @@ func (m *Manager) checkLimits(ctx context.Context, userID *uuid.UUID) error {
 		}
 	}
 
-	// Check per-user limit
-	if m.config.MaxBranchesPerUser > 0 && userID != nil {
-		userCount, err := m.storage.CountBranchesByUser(ctx, *userID)
-		if err != nil {
-			return fmt.Errorf("failed to count user branches: %w", err)
-		}
-		if userCount >= m.config.MaxBranchesPerUser {
-			return ErrMaxUserBranchesReached
-		}
-	}
-
 	return nil
 }
 
@@ -419,9 +406,7 @@ func (m *Manager) createDatabase(ctx context.Context, branch *Branch, parentBran
 	case DataCloneModeFullClone:
 		return m.createDatabaseFullClone(ctx, branch, parentBranchID)
 	case DataCloneModeSeedData:
-		// For now, treat seed_data same as schema_only
-		// TODO: Implement seed data script execution
-		return m.createDatabaseSchemaOnly(ctx, branch, parentBranchID)
+		return m.createDatabaseSeedData(ctx, branch, parentBranchID)
 	default:
 		// Create empty database
 		query := fmt.Sprintf("CREATE DATABASE %s", dbName)
@@ -519,6 +504,103 @@ func (m *Manager) createDatabaseFullClone(ctx context.Context, branch *Branch, p
 	}
 
 	return nil
+}
+
+// createDatabaseSeedData creates a database with schema and seed data
+func (m *Manager) createDatabaseSeedData(ctx context.Context, branch *Branch, parentBranchID *uuid.UUID) error {
+	// Step 1: Create database with schema only (reuse existing logic)
+	if err := m.createDatabaseSchemaOnly(ctx, branch, parentBranchID); err != nil {
+		return err
+	}
+
+	// Step 2: Get connection pool for the new branch database
+	branchPool, err := m.getBranchConnectionPool(ctx, branch)
+	if err != nil {
+		return fmt.Errorf("failed to get branch connection pool: %w", err)
+	}
+	defer branchPool.Close()
+
+	// Step 3: Determine seeds path (branch-specific or global default)
+	seedsPath := m.config.SeedsPath
+	if branch.SeedsPath != nil && *branch.SeedsPath != "" {
+		seedsPath = *branch.SeedsPath
+	}
+
+	// Step 4: Initialize seeder
+	seeder := NewSeeder(seedsPath)
+
+	// Step 5: Execute seed files
+	log.Info().
+		Str("branch_id", branch.ID.String()).
+		Str("database", branch.DatabaseName).
+		Str("seeds_path", seedsPath).
+		Msg("Executing seed data")
+
+	// Log activity: seeding started
+	_ = m.storage.LogActivity(ctx, &ActivityLog{
+		BranchID:   branch.ID,
+		Action:     ActivityActionSeeding,
+		Status:     ActivityStatusStarted,
+		ExecutedBy: branch.CreatedBy,
+	})
+
+	startTime := time.Now()
+	if err := seeder.ExecuteSeeds(ctx, branchPool, branch.ID); err != nil {
+		// Log failure
+		errMsg := err.Error()
+		durationMs := int(time.Since(startTime).Milliseconds())
+		_ = m.storage.LogActivity(ctx, &ActivityLog{
+			BranchID:     branch.ID,
+			Action:       ActivityActionSeeding,
+			Status:       ActivityStatusFailed,
+			ErrorMessage: &errMsg,
+			ExecutedBy:   branch.CreatedBy,
+			DurationMs:   &durationMs,
+		})
+
+		return fmt.Errorf("failed to execute seed data: %w", err)
+	}
+
+	// Log success
+	durationMs := int(time.Since(startTime).Milliseconds())
+	_ = m.storage.LogActivity(ctx, &ActivityLog{
+		BranchID:   branch.ID,
+		Action:     ActivityActionSeeding,
+		Status:     ActivityStatusSuccess,
+		ExecutedBy: branch.CreatedBy,
+		DurationMs: &durationMs,
+	})
+
+	log.Info().
+		Str("branch_id", branch.ID.String()).
+		Int("duration_ms", durationMs).
+		Msg("Seed data executed successfully")
+
+	return nil
+}
+
+// getBranchConnectionPool creates a connection pool for a specific branch database
+func (m *Manager) getBranchConnectionPool(ctx context.Context, branch *Branch) (*pgxpool.Pool, error) {
+	connURL, err := m.GetBranchConnectionURL(branch)
+	if err != nil {
+		return nil, err
+	}
+
+	poolConfig, err := pgxpool.ParseConfig(connURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection URL: %w", err)
+	}
+
+	// Use minimal connections for seed execution
+	poolConfig.MaxConns = 2
+	poolConfig.MinConns = 0
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	}
+
+	return pool, nil
 }
 
 // dropDatabase drops a database

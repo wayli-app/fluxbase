@@ -32,6 +32,7 @@ type ClientKey struct {
 	KeyPrefix          string     `json:"key_prefix"`
 	UserID             *uuid.UUID `json:"user_id,omitempty"`
 	Scopes             []string   `json:"scopes"`
+	AllowedNamespaces  []string   `json:"allowed_namespaces,omitempty"` // nil = all namespaces, empty = default only
 	RateLimitPerMinute int        `json:"rate_limit_per_minute"`
 	LastUsedAt         *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt          *time.Time `json:"expires_at,omitempty"`

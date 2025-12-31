@@ -7,6 +7,7 @@ title: "SignedUrlOptions"
 
 ## Properties
 
-| Property | Type |
-| ------ | ------ |
-| `expiresIn?` | `number` |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| `expiresIn?` | `number` | Expiration time in seconds (default: 3600 = 1 hour) |
+| `transform?` | [`TransformOptions`](/api/sdk/interfaces/transformoptions/) | Image transformation options (only applies to images) |

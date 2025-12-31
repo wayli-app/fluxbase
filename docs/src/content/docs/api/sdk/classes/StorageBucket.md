@@ -75,13 +75,14 @@ Copy a file to a new location
 > **createSignedUrl**(`path`, `options`?): `Promise`\<`object`\>
 
 Create a signed URL for temporary access to a file
+Optionally include image transformation parameters
 
 #### Parameters
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `path` | `string` | The file path |
-| `options`? | [`SignedUrlOptions`](/api/sdk/interfaces/signedurloptions/) | Signed URL options |
+| `options`? | [`SignedUrlOptions`](/api/sdk/interfaces/signedurloptions/) | Signed URL options including expiration and transforms |
 
 #### Returns
 
@@ -91,6 +92,30 @@ Create a signed URL for temporary access to a file
 | ------ | ------ |
 | `data` | `null` \| `object` |
 | `error` | `null` \| `Error` |
+
+#### Example
+
+```typescript
+// Simple signed URL (1 hour expiry)
+const { data, error } = await storage.from('images').createSignedUrl('photo.jpg');
+
+// Signed URL with custom expiry
+const { data, error } = await storage.from('images').createSignedUrl('photo.jpg', {
+  expiresIn: 7200 // 2 hours
+});
+
+// Signed URL with image transformation
+const { data, error } = await storage.from('images').createSignedUrl('photo.jpg', {
+  expiresIn: 3600,
+  transform: {
+    width: 400,
+    height: 300,
+    format: 'webp',
+    quality: 85,
+    fit: 'cover'
+  }
+});
+```
 
 ***
 
@@ -267,6 +292,45 @@ Get the status of a resumable upload session
 | ------ | ------ |
 | `data` | `null` \| [`ChunkedUploadSession`](/api/sdk/interfaces/chunkeduploadsession/) |
 | `error` | `null` \| `Error` |
+
+***
+
+### getTransformUrl()
+
+> **getTransformUrl**(`path`, `transform`): `string`
+
+Get a public URL for a file with image transformations applied
+Only works for image files (JPEG, PNG, WebP, GIF, AVIF, etc.)
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `path` | `string` | The file path |
+| `transform` | [`TransformOptions`](/api/sdk/interfaces/transformoptions/) | Transformation options (width, height, format, quality, fit) |
+
+#### Returns
+
+`string`
+
+#### Example
+
+```typescript
+// Get a 300x200 WebP thumbnail
+const url = storage.from('images').getTransformUrl('photo.jpg', {
+  width: 300,
+  height: 200,
+  format: 'webp',
+  quality: 85,
+  fit: 'cover'
+});
+
+// Get a resized image maintaining aspect ratio
+const url = storage.from('images').getTransformUrl('photo.jpg', {
+  width: 800,
+  format: 'webp'
+});
+```
 
 ***
 

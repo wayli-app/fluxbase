@@ -9,7 +9,7 @@ title: "RealtimeMessage"
 
 | Property | Type |
 | ------ | ------ |
-| `broadcast?` | `any` |
+| `broadcast?` | `unknown` |
 | `channel?` | `string` |
 | `config?` | [`PostgresChangesConfig`](/api/sdk/interfaces/postgreschangesconfig/) |
 | `error?` | `string` |
@@ -17,7 +17,7 @@ title: "RealtimeMessage"
 | `filter?` | `string` |
 | `messageId?` | `string` |
 | `payload?` | `unknown` |
-| `presence?` | `any` |
+| `presence?` | `unknown` |
 | `schema?` | `string` |
 | `status?` | `string` |
 | `subscription_id?` | `string` |

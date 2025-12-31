@@ -25,7 +25,7 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 - PostgreSQL as the only external dependency
 - Automatic REST endpoint generation
 - Row Level Security (RLS) support
-- TypeScript and Go SDKs (coming soon)
+- TypeScript SDK
 - High performance (1000+ concurrent connections)
 
 ## Quick Start

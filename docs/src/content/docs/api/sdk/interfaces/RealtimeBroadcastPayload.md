@@ -12,4 +12,4 @@ Realtime broadcast payload structure
 | Property | Type |
 | ------ | ------ |
 | `event` | `string` |
-| `payload` | `any` |
+| `payload` | `unknown` |

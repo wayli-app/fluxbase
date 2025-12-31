@@ -35,6 +35,7 @@ var (
 	branchParent        string
 	branchGitHubPR      int
 	branchGitHubRepo    string
+	branchSeedsDir      string
 	branchForce         bool
 )
 
@@ -173,6 +174,8 @@ func init() {
 		"GitHub PR number to associate with branch")
 	branchCreateCmd.Flags().StringVar(&branchGitHubRepo, "repo", "",
 		"GitHub repository (owner/repo)")
+	branchCreateCmd.Flags().StringVar(&branchSeedsDir, "seeds-dir", "",
+		"Custom directory containing seed SQL files (only with --clone-data seed_data)")
 
 	// Delete command flags
 	branchDeleteCmd.Flags().BoolVarP(&branchForce, "force", "f", false,
@@ -343,6 +346,9 @@ func runBranchCreate(cmd *cobra.Command, args []string) error {
 	}
 	if branchGitHubRepo != "" {
 		body["github_repo"] = branchGitHubRepo
+	}
+	if branchSeedsDir != "" {
+		body["seeds_path"] = branchSeedsDir
 	}
 
 	var branch Branch

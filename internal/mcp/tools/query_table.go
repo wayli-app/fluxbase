@@ -18,13 +18,6 @@ import (
 // validIdentifierRegex validates SQL identifiers (column names, table names, etc.)
 var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
-// quoteIdentifier safely quotes an SQL identifier to prevent injection
-func quoteIdentifier(s string) string {
-	if !validIdentifierRegex.MatchString(s) {
-		return ""
-	}
-	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-}
 
 // executeWithRLS wraps a database operation with RLS context from MCP AuthContext
 // This is similar to middleware.WrapWithRLS but works without a Fiber context
@@ -155,8 +148,11 @@ func (t *QueryTableTool) Execute(ctx context.Context, args map[string]any, authC
 
 	// Validate table exists
 	if t.schemaCache != nil {
-		tableInfo := t.schemaCache.GetTable(schema, table)
-		if tableInfo == nil {
+		_, exists, err := t.schemaCache.GetTable(ctx, schema, table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		}
+		if !exists {
 			return nil, fmt.Errorf("table not found: %s.%s", schema, table)
 		}
 	}

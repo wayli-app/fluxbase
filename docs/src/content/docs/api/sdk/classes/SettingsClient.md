@@ -51,6 +51,32 @@ console.log(values)
 
 ## Methods
 
+### deleteSecret()
+
+> **deleteSecret**(`key`): `Promise`\<`void`\>
+
+Delete a user secret setting
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key to delete |
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Promise<void>
+
+#### Example
+
+```typescript
+await client.settings.deleteSecret('openai_api_key')
+```
+
+***
+
 ### get()
 
 > **get**(`key`): `Promise`\<`any`\>
@@ -130,4 +156,90 @@ console.log(values)
 //   'features.dark_mode': { enabled: false }
 //   // 'internal.api_key' is omitted (no error)
 // }
+```
+
+***
+
+### getSecret()
+
+> **getSecret**(`key`): `Promise`\<`SecretSettingMetadata`\>
+
+Get metadata for a user secret setting (never returns the value)
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key |
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`\>
+
+Promise resolving to SecretSettingMetadata
+
+#### Example
+
+```typescript
+const metadata = await client.settings.getSecret('openai_api_key')
+console.log(metadata.key, metadata.updated_at)
+// Note: The actual secret value is never returned
+```
+
+***
+
+### listSecrets()
+
+> **listSecrets**(): `Promise`\<`SecretSettingMetadata`[]\>
+
+List all user's secret settings (metadata only, never includes values)
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`[]\>
+
+Promise resolving to array of SecretSettingMetadata
+
+#### Example
+
+```typescript
+const secrets = await client.settings.listSecrets()
+secrets.forEach(s => console.log(s.key, s.description))
+```
+
+***
+
+### setSecret()
+
+> **setSecret**(`key`, `value`, `options`?): `Promise`\<`SecretSettingMetadata`\>
+
+Set a user secret setting (encrypted)
+
+Creates or updates an encrypted secret that belongs to the current user.
+The value is encrypted server-side with a user-specific key and can only be
+accessed by edge functions, background jobs, or custom handlers running on
+behalf of this user. Even admins cannot see the decrypted value.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key |
+| `value` | `string` | Secret value (will be encrypted server-side) |
+| `options`? | `object` | Optional description |
+| `options.description`? | `string` | - |
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`\>
+
+Promise resolving to SecretSettingMetadata (never includes the value)
+
+#### Example
+
+```typescript
+// Store user's API key for a third-party service
+await client.settings.setSecret('openai_api_key', 'sk-abc123', {
+  description: 'My OpenAI API key'
+})
 ```

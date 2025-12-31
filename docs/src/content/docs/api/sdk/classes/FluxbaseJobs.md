@@ -253,7 +253,7 @@ Submit a new job for execution
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `jobName` | `string` | Name of the job function to execute |
-| `payload`? | `any` | Job input data |
+| `payload`? | `unknown` | Job input data |
 | `options`? | `object` | Additional options (priority, namespace, scheduled time, onBehalfOf) |
 | `options.namespace`? | `string` | - |
 | `options.onBehalfOf`? | `OnBehalfOf` | Submit job on behalf of another user (service_role only). The job will be created with the specified user's identity, allowing them to see the job and its logs via RLS. |

@@ -786,22 +786,22 @@ func setDefaults() {
 	viper.SetDefault("graphql.introspection", true)  // Enable introspection (disable in production for security)
 
 	// MCP defaults (Model Context Protocol server for AI assistants)
-	viper.SetDefault("mcp.enabled", false)                    // Disabled by default
-	viper.SetDefault("mcp.base_path", "/mcp")                 // Default MCP endpoint path
-	viper.SetDefault("mcp.session_timeout", "30m")            // 30 minute session timeout
-	viper.SetDefault("mcp.max_message_size", 10*1024*1024)    // 10MB max message size
-	viper.SetDefault("mcp.allowed_tools", []string{})         // Empty = all tools enabled
-	viper.SetDefault("mcp.allowed_resources", []string{})     // Empty = all resources enabled
-	viper.SetDefault("mcp.rate_limit_per_min", 100)           // 100 requests per minute per client
+	viper.SetDefault("mcp.enabled", false)                 // Disabled by default
+	viper.SetDefault("mcp.base_path", "/mcp")              // Default MCP endpoint path
+	viper.SetDefault("mcp.session_timeout", "30m")         // 30 minute session timeout
+	viper.SetDefault("mcp.max_message_size", 10*1024*1024) // 10MB max message size
+	viper.SetDefault("mcp.allowed_tools", []string{})      // Empty = all tools enabled
+	viper.SetDefault("mcp.allowed_resources", []string{})  // Empty = all resources enabled
+	viper.SetDefault("mcp.rate_limit_per_min", 100)        // 100 requests per minute per client
 
 	// Branching defaults (database branching for isolated environments)
-	viper.SetDefault("branching.enabled", false)                       // Disabled by default
-	viper.SetDefault("branching.max_branches_per_user", 5)             // Max 5 branches per user
-	viper.SetDefault("branching.max_total_branches", 50)               // Max 50 branches total
+	viper.SetDefault("branching.enabled", false)                         // Disabled by default
+	viper.SetDefault("branching.max_branches_per_user", 5)               // Max 5 branches per user
+	viper.SetDefault("branching.max_total_branches", 50)                 // Max 50 branches total
 	viper.SetDefault("branching.default_data_clone_mode", "schema_only") // Clone schema only by default
-	viper.SetDefault("branching.auto_delete_after", "0")               // Never auto-delete (0 = disabled)
-	viper.SetDefault("branching.database_prefix", "branch_")           // Prefix for branch databases
-	viper.SetDefault("branching.admin_database_url", "")               // Uses main database URL if empty
+	viper.SetDefault("branching.auto_delete_after", "0")                 // Never auto-delete (0 = disabled)
+	viper.SetDefault("branching.database_prefix", "branch_")             // Prefix for branch databases
+	viper.SetDefault("branching.admin_database_url", "")                 // Uses main database URL if empty
 
 	// Scaling defaults (for multi-instance deployments)
 	viper.SetDefault("scaling.worker_only", false)                      // Run full server by default

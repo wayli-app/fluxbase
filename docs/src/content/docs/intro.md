@@ -212,7 +212,7 @@ graph TB
 - [AI Chatbots Guide](guides/ai-chatbots) - Build natural language interfaces to your database
 - [Configuration Reference](reference/configuration) - Customize Fluxbase for your needs
 - [SDK Documentation](api/sdk) - TypeScript SDK API reference
-- [SDK Guides](/docs/category/sdks) - Learn how to use the TypeScript SDK
+- [TypeScript SDK Guide](/guides/typescript-sdk) - Learn how to use the TypeScript SDK
 
 ## Community & Support
 

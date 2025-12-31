@@ -25,8 +25,8 @@ This is useful in:
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `Database` | `any` |
-| `SchemaName` *extends* `string` | `any` |
+| `Database` | `unknown` |
+| `SchemaName` *extends* `string` | `string` & keyof `Database` |
 
 ## Parameters
 

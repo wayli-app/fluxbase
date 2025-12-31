@@ -113,6 +113,21 @@ Get the current access token
 
 ***
 
+### getCaptchaConfig()
+
+> **getCaptchaConfig**(): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`CaptchaConfig`](/api/sdk/interfaces/captchaconfig/)\>\>
+
+Get CAPTCHA configuration from the server
+Use this to determine which CAPTCHA provider to load and configure
+
+#### Returns
+
+`Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`CaptchaConfig`](/api/sdk/interfaces/captchaconfig/)\>\>
+
+Promise with CAPTCHA configuration (provider, site key, enabled endpoints)
+
+***
+
 ### getCurrentUser()
 
 > **getCurrentUser**(): `Promise`\<[`UserResponse`](/api/sdk/type-aliases/userresponse/)\>
@@ -156,6 +171,88 @@ Get OAuth authorization URL for a provider
 
 ***
 
+### getSAMLLoginUrl()
+
+> **getSAMLLoginUrl**(`provider`, `options`?): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`SAMLLoginResponse`](/api/sdk/interfaces/samlloginresponse/)\>\>
+
+Get SAML login URL for a specific provider
+Use this to redirect the user to the IdP for authentication
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `provider` | `string` | SAML provider name/ID |
+| `options`? | [`SAMLLoginOptions`](/api/sdk/interfaces/samlloginoptions/) | Optional login configuration |
+
+#### Returns
+
+`Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`SAMLLoginResponse`](/api/sdk/interfaces/samlloginresponse/)\>\>
+
+Promise with SAML login URL
+
+#### Example
+
+```typescript
+const { data, error } = await client.auth.getSAMLLoginUrl('okta')
+if (!error) {
+  window.location.href = data.url
+}
+```
+
+***
+
+### getSAMLMetadataUrl()
+
+> **getSAMLMetadataUrl**(`provider`): `string`
+
+Get SAML Service Provider metadata for a specific provider configuration
+Use this when configuring your IdP to download the SP metadata XML
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `provider` | `string` | SAML provider name/ID |
+
+#### Returns
+
+`string`
+
+Promise with SP metadata URL
+
+#### Example
+
+```typescript
+const metadataUrl = client.auth.getSAMLMetadataUrl('okta')
+// Share this URL with your IdP administrator
+```
+
+***
+
+### getSAMLProviders()
+
+> **getSAMLProviders**(): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`SAMLProvidersResponse`](/api/sdk/interfaces/samlprovidersresponse/)\>\>
+
+Get list of available SAML SSO providers
+
+#### Returns
+
+`Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<[`SAMLProvidersResponse`](/api/sdk/interfaces/samlprovidersresponse/)\>\>
+
+Promise with list of configured SAML providers
+
+#### Example
+
+```typescript
+const { data, error } = await client.auth.getSAMLProviders()
+if (!error) {
+  console.log('Available providers:', data.providers)
+}
+```
+
+***
+
 ### getSession()
 
 > **getSession**(): `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<`object`\>\>
@@ -195,6 +292,43 @@ Lists all OAuth identities linked to the current user
 `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`UserIdentitiesResponse`\>\>
 
 Promise with list of user identities
+
+***
+
+### handleSAMLCallback()
+
+> **handleSAMLCallback**(`samlResponse`, `provider`?): `Promise`\<[`FluxbaseAuthResponse`](/api/sdk/type-aliases/fluxbaseauthresponse/)\>
+
+Handle SAML callback after IdP authentication
+Call this from your SAML callback page to complete authentication
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `samlResponse` | `string` | Base64-encoded SAML response from the ACS endpoint |
+| `provider`? | `string` | SAML provider name (optional, extracted from RelayState) |
+
+#### Returns
+
+`Promise`\<[`FluxbaseAuthResponse`](/api/sdk/type-aliases/fluxbaseauthresponse/)\>
+
+Promise with user and session
+
+#### Example
+
+```typescript
+// In your SAML callback page
+const urlParams = new URLSearchParams(window.location.search)
+const samlResponse = urlParams.get('SAMLResponse')
+
+if (samlResponse) {
+  const { data, error } = await client.auth.handleSAMLCallback(samlResponse)
+  if (!error) {
+    console.log('Logged in:', data.user)
+  }
+}
+```
 
 ***
 
@@ -342,7 +476,7 @@ Promise with user and new session
 
 ### resetPasswordForEmail()
 
-> **resetPasswordForEmail**(`email`, `_options`?): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`PasswordResetResponse`\>\>
+> **resetPasswordForEmail**(`email`, `options`?): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`PasswordResetResponse`\>\>
 
 Supabase-compatible alias for sendPasswordReset()
 
@@ -351,8 +485,9 @@ Supabase-compatible alias for sendPasswordReset()
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `email` | `string` | Email address to send reset link to |
-| `_options`? | `object` | Optional redirect configuration (currently not used) |
-| `_options.redirectTo`? | `string` | - |
+| `options`? | `object` | Optional redirect and CAPTCHA configuration |
+| `options.captchaToken`? | `string` | - |
+| `options.redirectTo`? | `string` | - |
 
 #### Returns
 
@@ -385,7 +520,7 @@ Promise with OTP-style response
 
 ### sendPasswordReset()
 
-> **sendPasswordReset**(`email`): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`PasswordResetResponse`\>\>
+> **sendPasswordReset**(`email`, `options`?): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`PasswordResetResponse`\>\>
 
 Send password reset email (Supabase-compatible)
 Sends a password reset link to the provided email address
@@ -395,6 +530,8 @@ Sends a password reset link to the provided email address
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
 | `email` | `string` | Email address to send reset link to |
+| `options`? | `object` | Optional configuration including CAPTCHA token |
+| `options.captchaToken`? | `string` | - |
 
 #### Returns
 
@@ -559,6 +696,35 @@ Returns { user, session } if successful, or SignInWith2FAResponse if 2FA is requ
 #### Returns
 
 `Promise`\<[`FluxbaseResponse`](/api/sdk/type-aliases/fluxbaseresponse/)\<[`SignInWith2FAResponse`](/api/sdk/interfaces/signinwith2faresponse/) \| [`AuthResponseData`](/api/sdk/type-aliases/authresponsedata/)\>\>
+
+***
+
+### signInWithSAML()
+
+> **signInWithSAML**(`provider`, `options`?): `Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`object`\>\>
+
+Initiate SAML login and redirect to IdP
+This is a convenience method that redirects the user to the SAML IdP
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `provider` | `string` | SAML provider name/ID |
+| `options`? | [`SAMLLoginOptions`](/api/sdk/interfaces/samlloginoptions/) | Optional login configuration |
+
+#### Returns
+
+`Promise`\<[`DataResponse`](/api/sdk/type-aliases/dataresponse/)\<`object`\>\>
+
+Promise with provider and URL (browser will redirect)
+
+#### Example
+
+```typescript
+// In browser, this will redirect to the SAML IdP
+await client.auth.signInWithSAML('okta')
+```
 
 ***
 

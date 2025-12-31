@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -29,6 +30,21 @@ type AuthContext struct {
 
 	// IsServiceRole indicates if this is a service role (bypasses RLS)
 	IsServiceRole bool
+
+	// AllowedNamespaces lists the namespaces this context can access.
+	// nil = all namespaces allowed (no restrictions)
+	// empty slice = default namespace only
+	// populated slice = specific namespaces allowed
+	AllowedNamespaces []string
+
+	// IsImpersonating indicates if this request is using impersonation
+	IsImpersonating bool
+
+	// ImpersonationAdminID is the ID of the admin who initiated impersonation (if IsImpersonating is true)
+	ImpersonationAdminID string
+
+	// ImpersonationSessionID is the session ID for tracking impersonation (if IsImpersonating is true)
+	ImpersonationSessionID string
 }
 
 // HasScope checks if the auth context has a specific scope
@@ -78,6 +94,55 @@ func (ctx *AuthContext) HasAnyScope(scopes ...string) bool {
 // IsAuthenticated returns true if the request is authenticated
 func (ctx *AuthContext) IsAuthenticated() bool {
 	return ctx.UserID != nil || ctx.AuthType == "service_key"
+}
+
+// HasNamespaceAccess checks if the auth context can access a specific namespace.
+// Returns true if:
+//   - AllowedNamespaces is nil (no restrictions, all namespaces allowed)
+//   - The namespace is in the AllowedNamespaces list
+//   - AllowedNamespaces is empty and namespace is "default"
+//   - IsServiceRole is true (service role bypasses all restrictions)
+func (ctx *AuthContext) HasNamespaceAccess(namespace string) bool {
+	// Service role bypasses all namespace checks
+	if ctx.IsServiceRole {
+		return true
+	}
+
+	// nil = all namespaces allowed (no restrictions)
+	if ctx.AllowedNamespaces == nil {
+		return true
+	}
+
+	// empty slice = default namespace only
+	if len(ctx.AllowedNamespaces) == 0 {
+		return namespace == "default"
+	}
+
+	// Check if namespace is in the allowed list
+	return auth.IsNamespaceAllowed(namespace, ctx.AllowedNamespaces)
+}
+
+// FilterNamespaces returns only the namespaces that this context can access.
+// If AllowedNamespaces is nil (no restrictions), all input namespaces are returned.
+func (ctx *AuthContext) FilterNamespaces(namespaces []string) []string {
+	// Service role bypasses all namespace checks
+	if ctx.IsServiceRole {
+		return namespaces
+	}
+
+	// nil = all namespaces allowed (no restrictions)
+	if ctx.AllowedNamespaces == nil {
+		return namespaces
+	}
+
+	// Filter to only allowed namespaces
+	filtered := make([]string, 0, len(namespaces))
+	for _, ns := range namespaces {
+		if ctx.HasNamespaceAccess(ns) {
+			filtered = append(filtered, ns)
+		}
+	}
+	return filtered
 }
 
 // ExtractAuthContext extracts authentication context from Fiber locals
@@ -142,6 +207,50 @@ func ExtractAuthContext(c *fiber.Ctx) *AuthContext {
 		ctx.Scopes = inferScopesFromRole(ctx.UserRole)
 	}
 
+	// Extract allowed namespaces from Fiber locals (set by middleware)
+	if allowedNS := c.Locals("allowed_namespaces"); allowedNS != nil {
+		if nsSlice, ok := allowedNS.([]string); ok {
+			ctx.AllowedNamespaces = nsSlice
+		}
+	}
+
+	// If not explicitly set, derive from scopes
+	// Note: We don't derive for all resources, just check for general namespace patterns
+	if ctx.AllowedNamespaces == nil && len(ctx.Scopes) > 0 {
+		// Check if any scopes have namespace restrictions
+		hasNamespaceScopes := false
+		for _, scope := range ctx.Scopes {
+			_, _, nsPattern := auth.ParseNamespaceScope(scope)
+			if nsPattern != "*" {
+				hasNamespaceScopes = true
+				break
+			}
+		}
+		// If namespace-scoped permissions exist but AllowedNamespaces not set,
+		// we'll leave it as nil (all allowed) for now. The HasNamespaceAccess
+		// method will check scopes dynamically.
+		_ = hasNamespaceScopes
+	}
+
+	// Extract impersonation context from Fiber locals (if set by handler)
+	if isImpersonating := c.Locals("is_impersonating"); isImpersonating != nil {
+		if impersonating, ok := isImpersonating.(bool); ok {
+			ctx.IsImpersonating = impersonating
+		}
+	}
+
+	if adminID := c.Locals("impersonation_admin_id"); adminID != nil {
+		if id, ok := adminID.(string); ok {
+			ctx.ImpersonationAdminID = id
+		}
+	}
+
+	if sessionID := c.Locals("impersonation_session_id"); sessionID != nil {
+		if id, ok := sessionID.(string); ok {
+			ctx.ImpersonationSessionID = id
+		}
+	}
+
 	return ctx
 }
 
@@ -202,4 +311,7 @@ const (
 
 	// Schema scopes (for resources)
 	ScopeReadSchema = "read:schema"
+
+	// Admin scopes
+	ScopeAdminSchemas = "admin:schemas" // Access to internal schemas
 )

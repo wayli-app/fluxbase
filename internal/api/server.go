@@ -621,7 +621,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 		log.Info().
 			Int("max_branches", cfg.Branching.MaxTotalBranches).
-			Int("max_per_user", cfg.Branching.MaxBranchesPerUser).
 			Str("default_clone_mode", cfg.Branching.DefaultDataCloneMode).
 			Msg("Database Branching enabled")
 	}
@@ -885,9 +884,7 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	}
 
 	// Storage resources
-	if storageService != nil {
-		resourceRegistry.Register(mcpresources.NewBucketsResource(storageService))
-	}
+	resourceRegistry.Register(mcpresources.NewBucketsResource(s.db))
 
 	log.Debug().
 		Int("tools", len(toolRegistry.ListTools(&mcp.AuthContext{IsServiceRole: true}))).

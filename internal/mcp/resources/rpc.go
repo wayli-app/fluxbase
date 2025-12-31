@@ -46,8 +46,8 @@ func (r *RPCResource) Read(ctx context.Context, authCtx *mcp.AuthContext) ([]mcp
 		return nil, fmt.Errorf("RPC storage not available")
 	}
 
-	// List all procedures
-	procs, err := r.storage.ListProcedures(ctx, 1000, 0, "")
+	// List all procedures (empty namespace = all)
+	procs, err := r.storage.ListProcedures(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list procedures: %w", err)
 	}

@@ -1,5 +1,5 @@
 ---
-title: "MCP Server"
+title: "Overview"
 description: "Model Context Protocol server for AI assistant integration"
 ---
 

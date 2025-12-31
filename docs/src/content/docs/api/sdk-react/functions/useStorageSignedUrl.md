@@ -9,6 +9,10 @@ title: "useStorageSignedUrl"
 
 Hook to create a signed URL
 
+:::caution[Deprecated]
+Use useStorageSignedUrlWithOptions for more control including transforms
+:::
+
 ## Parameters
 
 | Parameter | Type |

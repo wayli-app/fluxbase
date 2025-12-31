@@ -12,5 +12,5 @@ Broadcast message structure
 | Property | Type |
 | ------ | ------ |
 | `event` | `string` |
-| `payload` | `any` |
+| `payload` | `unknown` |
 | `type` | `"broadcast"` |

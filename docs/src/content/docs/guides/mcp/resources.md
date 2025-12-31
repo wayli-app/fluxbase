@@ -1,5 +1,5 @@
 ---
-title: "MCP Resources Reference"
+title: "Resources Reference"
 description: "Complete reference of MCP resources for schema, functions, storage, and RPC"
 ---
 

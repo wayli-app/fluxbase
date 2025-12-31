@@ -51,6 +51,7 @@ type Branch struct {
 	GitHubPRURL    *string       `json:"github_pr_url,omitempty" db:"github_pr_url"`
 	GitHubRepo     *string       `json:"github_repo,omitempty" db:"github_repo"`
 	ErrorMessage   *string       `json:"error_message,omitempty" db:"error_message"`
+	SeedsPath      *string       `json:"seeds_path,omitempty" db:"seeds_path"`
 	CreatedBy      *uuid.UUID    `json:"created_by,omitempty" db:"created_by"`
 	CreatedAt      time.Time     `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at" db:"updated_at"`
@@ -88,6 +89,7 @@ const (
 	ActivityActionStatusChanged ActivityAction = "status_changed"
 	ActivityActionAccessGranted ActivityAction = "access_granted"
 	ActivityActionAccessRevoked ActivityAction = "access_revoked"
+	ActivityActionSeeding       ActivityAction = "seeding"
 )
 
 // ActivityStatus represents the outcome of an activity
@@ -152,6 +154,7 @@ type CreateBranchRequest struct {
 	GitHubPRNumber *int          `json:"github_pr_number,omitempty"`
 	GitHubPRURL    *string       `json:"github_pr_url,omitempty"`
 	GitHubRepo     *string       `json:"github_repo,omitempty"`
+	SeedsPath      *string       `json:"seeds_path,omitempty"`
 	ExpiresAt      *time.Time    `json:"expires_at,omitempty"`
 }
 

@@ -12,7 +12,7 @@ Compatible with Supabase realtime payloads
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `T` | `any` |
+| `T` | `unknown` |
 
 ## Properties
 

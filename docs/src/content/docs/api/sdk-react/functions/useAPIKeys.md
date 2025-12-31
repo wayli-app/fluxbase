@@ -5,32 +5,32 @@ prev: false
 title: "useAPIKeys"
 ---
 
-> **useAPIKeys**(`options`): `UseAPIKeysReturn`
+> **useAPIKeys**(`options`): `UseClientKeysReturn`
 
-Hook for managing client keys
-
-Provides API key list and management functions.
+:::caution[Deprecated]
+Use useClientKeys instead
+:::
 
 ## Parameters
 
 | Parameter | Type |
 | ------ | ------ |
-| `options` | `UseAPIKeysOptions` |
+| `options` | `UseClientKeysOptions` |
 
 ## Returns
 
-`UseAPIKeysReturn`
+`UseClientKeysReturn`
 
 ## Example
 
 ```tsx
-function APIKeyManager() {
-  const { keys, isLoading, createKey, revokeKey } = useAPIKeys()
+function ClientKeyManager() {
+  const { keys, isLoading, createKey, revokeKey } = useClientKeys()
 
   const handleCreate = async () => {
     const { key, keyData } = await createKey({
       name: 'Backend Service',
-      description: 'API key for backend',
+      description: 'Client key for backend',
       expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     })
     alert(`Key created: ${key}`)

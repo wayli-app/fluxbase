@@ -14,7 +14,7 @@ title: "WebhookDelivery"
 | `error?` | `string` |
 | `event` | `string` |
 | `id` | `string` |
-| `payload` | `Record`\<`string`, `any`\> |
+| `payload` | `Record`\<`string`, `unknown`\> |
 | `response_body?` | `string` |
 | `status_code?` | `number` |
 | `webhook_id` | `string` |

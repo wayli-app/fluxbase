@@ -137,11 +137,6 @@ func (h *BranchHandler) CreateBranch(c *fiber.Ctx) error {
 				"error":   "max_branches_reached",
 				"message": "Maximum number of branches has been reached",
 			})
-		case branching.ErrMaxUserBranchesReached:
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error":   "max_user_branches_reached",
-				"message": "You have reached your maximum number of branches",
-			})
 		case branching.ErrInvalidSlug:
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error":   "invalid_slug",

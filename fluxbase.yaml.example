@@ -1,61 +1,53 @@
-# Fluxbase Configuration
-# This file is optional - all settings can be configured via environment variables
-# Environment variables use the prefix FLUXBASE_ and replace dots with underscores
+# ==============================================================================
+# Fluxbase Complete Configuration Reference
+# ==============================================================================
+# This file contains ALL available configuration options with detailed documentation.
+# For a minimal quick-start configuration, see fluxbase.minimal.yaml.example
+#
+# All settings can be configured via environment variables using the prefix
+# FLUXBASE_ and replacing dots with underscores.
 # Example: server.address -> FLUXBASE_SERVER_ADDRESS
+# ==============================================================================
 
-# Server configuration
+# Server Configuration
 server:
-  address: ":8080"                      # FLUXBASE_SERVER_ADDRESS
-  read_timeout: "15s"                   # FLUXBASE_SERVER_READ_TIMEOUT
-  write_timeout: "15s"                  # FLUXBASE_SERVER_WRITE_TIMEOUT
-  idle_timeout: "60s"                   # FLUXBASE_SERVER_IDLE_TIMEOUT
-  body_limit: 2147483648                # FLUXBASE_SERVER_BODY_LIMIT (2GB)
+  address: ":8080"                      # FLUXBASE_SERVER_ADDRESS - Server bind address (host:port)
+  read_timeout: "300s"                   # FLUXBASE_SERVER_READ_TIMEOUT - HTTP read timeout (5 minutes for large file streaming)
+  write_timeout: "300s"                  # FLUXBASE_SERVER_WRITE_TIMEOUT - HTTP write timeout (5 minutes for large file streaming)
+  idle_timeout: "120s"                   # FLUXBASE_SERVER_IDLE_TIMEOUT - HTTP idle timeout (2 minutes)
+  body_limit: 2147483648                # FLUXBASE_SERVER_BODY_LIMIT - Maximum request body size (2GB)
 
-# Database configuration
+# Database Configuration
 database:
-  host: "localhost"                     # FLUXBASE_DATABASE_HOST
-  port: 5432                            # FLUXBASE_DATABASE_PORT
-  user: "postgres"                      # FLUXBASE_DATABASE_USER
-  password: "postgres"                  # FLUXBASE_DATABASE_PASSWORD
-  database: "fluxbase"                  # FLUXBASE_DATABASE_DATABASE
-  ssl_mode: "disable"                   # FLUXBASE_DATABASE_SSL_MODE (disable, allow, prefer, require, verify-ca, verify-full)
-  max_connections: 25                   # FLUXBASE_DATABASE_MAX_CONNECTIONS
-  min_connections: 5                    # FLUXBASE_DATABASE_MIN_CONNECTIONS
-  max_conn_lifetime: "1h"               # FLUXBASE_DATABASE_MAX_CONN_LIFETIME
-  max_conn_idle_time: "30m"             # FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME
-  health_check_period: "1m"             # FLUXBASE_DATABASE_HEALTH_CHECK_PERIOD
+  host: "localhost"                     # FLUXBASE_DATABASE_HOST - PostgreSQL host
+  port: 5432                            # FLUXBASE_DATABASE_PORT - PostgreSQL port
+  user: "postgres"                      # FLUXBASE_DATABASE_USER - Runtime user for application queries
+  admin_user: ""                        # FLUXBASE_DATABASE_ADMIN_USER - Optional admin user for migrations (empty = use runtime user)
+  password: "postgres"                  # FLUXBASE_DATABASE_PASSWORD - Runtime user password
+  admin_password: ""                    # FLUXBASE_DATABASE_ADMIN_PASSWORD - Optional admin user password (empty = use runtime password)
+  database: "fluxbase"                  # FLUXBASE_DATABASE_DATABASE - Database name
+  ssl_mode: "disable"                   # FLUXBASE_DATABASE_SSL_MODE - SSL mode (disable, allow, prefer, require, verify-ca, verify-full)
+  max_connections: 25                   # FLUXBASE_DATABASE_MAX_CONNECTIONS - Maximum database connections
+  min_connections: 5                    # FLUXBASE_DATABASE_MIN_CONNECTIONS - Minimum database connections
+  max_conn_lifetime: "1h"               # FLUXBASE_DATABASE_MAX_CONN_LIFETIME - Maximum connection lifetime
+  max_conn_idle_time: "30m"             # FLUXBASE_DATABASE_MAX_CONN_IDLE_TIME - Maximum connection idle time
+  health_check_period: "1m"             # FLUXBASE_DATABASE_HEALTH_CHECK_PERIOD - Health check interval
+  user_migrations_path: "/migrations/user"  # FLUXBASE_DATABASE_USER_MIGRATIONS_PATH - Path to user-provided migration files
 
-# Authentication configuration
+# Authentication Configuration
 auth:
-  jwt_secret: "your-secret-key-change-in-production"  # FLUXBASE_AUTH_JWT_SECRET (REQUIRED - must be changed!)
-  jwt_expiry: "15m"                     # FLUXBASE_AUTH_JWT_EXPIRY
-  refresh_expiry: "168h"                # FLUXBASE_AUTH_REFRESH_EXPIRY (7 days)
-  magic_link_expiry: "15m"              # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY
-  password_reset_expiry: "1h"           # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY
-  password_min_length: 8                # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH
-  bcrypt_cost: 10                       # FLUXBASE_AUTH_BCRYPT_COST (4-31, recommended 10-14)
-  enable_signup: true                   # FLUXBASE_AUTH_ENABLE_SIGNUP
-  enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK
-
-  # Service Keys (optional - for backend services only)
-  # Service keys provide elevated privileges that bypass RLS
-  # WARNING: Service keys have full database access - use with extreme caution
-  #
-  # To create a service key:
-  # 1. Generate random key: openssl rand -base64 32
-  # 2. Format as: sk_live_<random> or sk_test_<random>
-  # 3. Hash with bcrypt and store in auth.service_keys table:
-  #    INSERT INTO auth.service_keys (name, description, key_hash, key_prefix, enabled)
-  #    VALUES (
-  #      'Backend Service',
-  #      'Service key for backend API calls',
-  #      crypt('sk_live_abc123...', gen_salt('bf', 12)),
-  #      'sk_live_',
-  #      true
-  #    );
-  # 4. Use via X-Service-Key header or Authorization: ServiceKey header
-  #
-  # service_key: ""                     # FLUXBASE_AUTH_SERVICE_KEY (optional, backend only)
+  jwt_secret: "your-secret-key-change-in-production"  # FLUXBASE_AUTH_JWT_SECRET - JWT signing secret (REQUIRED - must be changed!)
+  jwt_expiry: "15m"                     # FLUXBASE_AUTH_JWT_EXPIRY - Access token expiration
+  refresh_expiry: "168h"                # FLUXBASE_AUTH_REFRESH_EXPIRY - Refresh token expiration (7 days)
+  service_role_ttl: "24h"               # FLUXBASE_AUTH_SERVICE_ROLE_TTL - Service role JWT expiration (24 hours)
+  anon_ttl: "24h"                       # FLUXBASE_AUTH_ANON_TTL - Anonymous JWT expiration (24 hours)
+  magic_link_expiry: "15m"              # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY - Magic link expiration
+  password_reset_expiry: "1h"           # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY - Password reset link expiration
+  password_min_length: 12               # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH - Minimum password length
+  bcrypt_cost: 10                       # FLUXBASE_AUTH_BCRYPT_COST - Bcrypt hashing cost (4-31, recommended 10-14)
+  enable_signup: true                   # FLUXBASE_AUTH_ENABLE_SIGNUP - Enable user registration
+  enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK - Enable magic link authentication
+  totp_issuer: "Fluxbase"               # FLUXBASE_AUTH_TOTP_ISSUER - TOTP issuer name for 2FA (shown in authenticator apps)
 
   # SAML SSO Configuration (Enterprise Single Sign-On)
   # Configure SAML Identity Providers (IdPs) like Okta, Azure AD, OneLogin
@@ -99,29 +91,30 @@ auth:
   # - RelayState redirects are validated against allowed_redirect_hosts to prevent open redirects
   # - User attributes (names) are sanitized to prevent XSS attacks
 
-# Security settings
+# Security Configuration
 security:
-  enable_global_rate_limit: false       # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT
+  enable_global_rate_limit: false       # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT - Enable global rate limiting
+  setup_token: ""                       # FLUXBASE_SECURITY_SETUP_TOKEN - Admin dashboard setup token (REQUIRED to enable dashboard)
+  admin_setup_rate_limit: 5             # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT - Admin setup attempts allowed
+  admin_setup_rate_window: "15m"        # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW - Admin setup rate window
+  auth_login_rate_limit: 10             # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT - Auth login attempts allowed
+  auth_login_rate_window: "1m"          # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW - Auth login rate window
+  admin_login_rate_limit: 10            # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT - Admin login attempts allowed
+  admin_login_rate_window: "1m"         # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW - Admin login rate window
 
-  # CAPTCHA configuration for bot protection on authentication endpoints
+  # CAPTCHA Configuration for bot protection on authentication endpoints
   captcha:
-    enabled: false                      # FLUXBASE_SECURITY_CAPTCHA_ENABLED
-    provider: "hcaptcha"                # FLUXBASE_SECURITY_CAPTCHA_PROVIDER
-                                        # Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
-    site_key: ""                        # FLUXBASE_SECURITY_CAPTCHA_SITE_KEY (public key for frontend)
-    secret_key: ""                      # FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY (private key for verification)
-    score_threshold: 0.5                # FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD (reCAPTCHA v3 only, 0.0-1.0)
-    endpoints:                          # FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS (comma-separated)
+    enabled: false                      # FLUXBASE_SECURITY_CAPTCHA_ENABLED - Enable CAPTCHA protection
+    provider: "hcaptcha"                # FLUXBASE_SECURITY_CAPTCHA_PROVIDER - CAPTCHA provider
+                                        # Supported: hcaptcha, recaptcha_v3, turnstile, cap
+    site_key: ""                        # FLUXBASE_SECURITY_CAPTCHA_SITE_KEY - Public site key for frontend
+    secret_key: ""                      # FLUXBASE_SECURITY_CAPTCHA_SECRET_KEY - Private key for verification
+    score_threshold: 0.5                # FLUXBASE_SECURITY_CAPTCHA_SCORE_THRESHOLD - reCAPTCHA v3 score threshold (0.0-1.0)
+    endpoints:                          # FLUXBASE_SECURITY_CAPTCHA_ENDPOINTS - Endpoints requiring CAPTCHA (comma-separated)
       - signup                          # Require CAPTCHA on user registration
       - login                           # Require CAPTCHA on sign in
       - password_reset                  # Require CAPTCHA on password reset request
       - magic_link                      # Require CAPTCHA on magic link request
-
-    # Cap provider settings (self-hosted proof-of-work CAPTCHA)
-    # Cap is a privacy-first, self-hosted alternative that uses proof-of-work instead of visual puzzles
-    # See: https://capjs.js.org/
-    # cap_server_url: "http://localhost:3000"  # FLUXBASE_SECURITY_CAPTCHA_CAP_SERVER_URL
-    # cap_api_key: ""                          # FLUXBASE_SECURITY_CAPTCHA_CAP_API_KEY
 
     # Provider Setup Instructions:
     #
@@ -143,96 +136,130 @@ security:
     #
     # Cap (self-hosted, proof-of-work):
     #   1. Run Cap server: docker run -p 3000:3000 ghcr.io/tiagozip/cap:latest
-    #   2. Set provider: "cap" and cap_server_url to your Cap server URL
-    #   3. Optionally set cap_api_key if you configured one in Cap
+    #   2. Set provider: "cap" and configure cap_server_url
+    #   3. Optionally set cap_api_key if configured in Cap
 
-# Storage configuration
+# Admin Dashboard Configuration
+admin:
+  enabled: false                        # FLUXBASE_ADMIN_ENABLED - Enable admin dashboard (requires setup_token)
+
+# CORS Configuration
+cors:
+  allowed_origins: "http://localhost:5173,http://localhost:8080"  # FLUXBASE_CORS_ALLOWED_ORIGINS - Allowed origins (comma-separated)
+  allowed_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"            # FLUXBASE_CORS_ALLOWED_METHODS - Allowed HTTP methods
+  allowed_headers: "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-CSRF-Token,X-Impersonation-Token,Prefer,apikey,x-client-app"  # FLUXBASE_CORS_ALLOWED_HEADERS
+  exposed_headers: "Content-Range,Content-Encoding,Content-Length,X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset"  # FLUXBASE_CORS_EXPOSED_HEADERS
+  allow_credentials: true               # FLUXBASE_CORS_ALLOW_CREDENTIALS - Allow credentials (cookies, auth headers)
+  max_age: 300                          # FLUXBASE_CORS_MAX_AGE - Preflight cache duration in seconds
+
+# Storage Configuration
 storage:
-  provider: "local"                     # FLUXBASE_STORAGE_PROVIDER (local or s3)
-  local_path: "./storage"               # FLUXBASE_STORAGE_LOCAL_PATH
-  max_upload_size: 2147483648           # FLUXBASE_STORAGE_MAX_UPLOAD_SIZE (2GB)
+  enabled: true                         # FLUXBASE_STORAGE_ENABLED - Enable storage functionality
+  provider: "local"                     # FLUXBASE_STORAGE_PROVIDER - Storage provider (local or s3)
+  local_path: "./storage"               # FLUXBASE_STORAGE_LOCAL_PATH - Local storage base path
+  max_upload_size: 2147483648           # FLUXBASE_STORAGE_MAX_UPLOAD_SIZE - Maximum upload size (2GB)
 
-  # S3 configuration (only required if provider is "s3")
-  # s3_endpoint: "s3.amazonaws.com"     # FLUXBASE_STORAGE_S3_ENDPOINT
-  # s3_access_key: ""                   # FLUXBASE_STORAGE_S3_ACCESS_KEY
-  # s3_secret_key: ""                   # FLUXBASE_STORAGE_S3_SECRET_KEY
-  # s3_bucket: ""                       # FLUXBASE_STORAGE_S3_BUCKET
-  # s3_region: "us-east-1"              # FLUXBASE_STORAGE_S3_REGION
+  # Default buckets to create on startup
+  default_buckets:                      # FLUXBASE_STORAGE_DEFAULT_BUCKETS - Auto-create buckets (comma-separated)
+    - uploads
+    - temp-files
+    - public
 
-  # Image transformation configuration (requires libvips)
+  # S3 Configuration (only required if provider is "s3")
+  # s3_endpoint: "s3.amazonaws.com"     # FLUXBASE_STORAGE_S3_ENDPOINT - S3 endpoint URL
+  # s3_access_key: ""                   # FLUXBASE_STORAGE_S3_ACCESS_KEY - S3 access key
+  # s3_secret_key: ""                   # FLUXBASE_STORAGE_S3_SECRET_KEY - S3 secret key
+  # s3_bucket: ""                       # FLUXBASE_STORAGE_S3_BUCKET - S3 bucket name
+  # s3_region: "us-east-1"              # FLUXBASE_STORAGE_S3_REGION - S3 region
+  s3_force_path_style: true             # FLUXBASE_STORAGE_S3_FORCE_PATH_STYLE - Force path-style URLs (for MinIO, R2, Spaces)
+
+  # Image Transformation Configuration (requires libvips)
   # On-the-fly resize, crop, and format conversion
   # Usage: GET /api/v1/storage/bucket/image.jpg?w=300&h=200&fmt=webp&q=85&fit=cover
   transforms:
-    enabled: true                       # FLUXBASE_STORAGE_TRANSFORMS_ENABLED
-    default_quality: 80                 # FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY (1-100)
-    max_width: 4096                     # FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH
-    max_height: 4096                    # FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT
-    max_total_pixels: 16000000          # FLUXBASE_STORAGE_TRANSFORMS_MAX_TOTAL_PIXELS (16 megapixels)
-    bucket_size: 50                     # FLUXBASE_STORAGE_TRANSFORMS_BUCKET_SIZE (dimension rounding)
-    rate_limit: 60                      # FLUXBASE_STORAGE_TRANSFORMS_RATE_LIMIT (transforms/min/user)
-    timeout: "30s"                      # FLUXBASE_STORAGE_TRANSFORMS_TIMEOUT
-    max_concurrent: 4                   # FLUXBASE_STORAGE_TRANSFORMS_MAX_CONCURRENT
-    cache_enabled: true                 # FLUXBASE_STORAGE_TRANSFORMS_CACHE_ENABLED
-    cache_ttl: "24h"                    # FLUXBASE_STORAGE_TRANSFORMS_CACHE_TTL
-    cache_max_size: 1073741824          # FLUXBASE_STORAGE_TRANSFORMS_CACHE_MAX_SIZE (1GB)
+    enabled: true                       # FLUXBASE_STORAGE_TRANSFORMS_ENABLED - Enable on-the-fly transformations
+    default_quality: 80                 # FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY - Default JPEG/WebP quality (1-100)
+    max_width: 4096                     # FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH - Maximum output width in pixels
+    max_height: 4096                    # FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT - Maximum output height in pixels
+    allowed_formats:                    # FLUXBASE_STORAGE_TRANSFORMS_ALLOWED_FORMATS - Supported output formats (comma-separated)
+      - webp
+      - jpg
+      - png
+      - avif
+    max_total_pixels: 16000000          # FLUXBASE_STORAGE_TRANSFORMS_MAX_TOTAL_PIXELS - Maximum total pixels (16 megapixels)
+    bucket_size: 50                     # FLUXBASE_STORAGE_TRANSFORMS_BUCKET_SIZE - Round dimensions to nearest (e.g., 50px)
+    rate_limit: 60                      # FLUXBASE_STORAGE_TRANSFORMS_RATE_LIMIT - Transforms per minute per user
+    timeout: "30s"                      # FLUXBASE_STORAGE_TRANSFORMS_TIMEOUT - Maximum transformation duration
+    max_concurrent: 4                   # FLUXBASE_STORAGE_TRANSFORMS_MAX_CONCURRENT - Concurrent transformations per instance
+    cache_enabled: true                 # FLUXBASE_STORAGE_TRANSFORMS_CACHE_ENABLED - Enable transformation caching
+    cache_ttl: "24h"                    # FLUXBASE_STORAGE_TRANSFORMS_CACHE_TTL - Cache time-to-live
+    cache_max_size: 1073741824          # FLUXBASE_STORAGE_TRANSFORMS_CACHE_MAX_SIZE - Maximum cache size (1GB)
 
-# Realtime/WebSocket configuration
+# Realtime/WebSocket Configuration
 realtime:
-  enabled: true                         # FLUXBASE_REALTIME_ENABLED
-  max_connections: 1000                 # FLUXBASE_REALTIME_MAX_CONNECTIONS
-  ping_interval: "30s"                  # FLUXBASE_REALTIME_PING_INTERVAL
-  pong_timeout: "60s"                   # FLUXBASE_REALTIME_PONG_TIMEOUT
-  write_buffer_size: 1024               # FLUXBASE_REALTIME_WRITE_BUFFER_SIZE
-  read_buffer_size: 1024                # FLUXBASE_REALTIME_READ_BUFFER_SIZE
-  message_size_limit: 524288            # FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT (512KB)
-  channel_buffer_size: 100              # FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE
+  enabled: true                         # FLUXBASE_REALTIME_ENABLED - Enable realtime subscriptions
+  max_connections: 1000                 # FLUXBASE_REALTIME_MAX_CONNECTIONS - Maximum WebSocket connections
+  ping_interval: "30s"                  # FLUXBASE_REALTIME_PING_INTERVAL - WebSocket ping interval
+  pong_timeout: "60s"                   # FLUXBASE_REALTIME_PONG_TIMEOUT - WebSocket pong timeout
+  write_buffer_size: 1024               # FLUXBASE_REALTIME_WRITE_BUFFER_SIZE - WebSocket write buffer size (bytes)
+  read_buffer_size: 1024                # FLUXBASE_REALTIME_READ_BUFFER_SIZE - WebSocket read buffer size (bytes)
+  message_size_limit: 524288            # FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT - Maximum message size (512KB)
+  channel_buffer_size: 100              # FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE - Channel buffer size
 
-# Email configuration
+# Email Configuration
 email:
-  enabled: true                        # FLUXBASE_EMAIL_ENABLED
-  provider: "smtp"                      # FLUXBASE_EMAIL_PROVIDER (smtp, sendgrid, mailgun, ses)
-  from_address: "noreply@localhost"     # FLUXBASE_EMAIL_FROM_ADDRESS
-  from_name: "Fluxbase"                 # FLUXBASE_EMAIL_FROM_NAME
-  reply_to_address: ""                  # FLUXBASE_EMAIL_REPLY_TO_ADDRESS
+  enabled: true                         # FLUXBASE_EMAIL_ENABLED - Enable email sending
+  provider: "smtp"                      # FLUXBASE_EMAIL_PROVIDER - Email provider (smtp, sendgrid, mailgun, ses)
+  from_address: "noreply@localhost"     # FLUXBASE_EMAIL_FROM_ADDRESS - Sender email address
+  from_name: "Fluxbase"                 # FLUXBASE_EMAIL_FROM_NAME - Sender display name
+  reply_to_address: ""                  # FLUXBASE_EMAIL_REPLY_TO_ADDRESS - Reply-to email address
 
-  # SMTP configuration (required if provider is "smtp")
-  smtp_host: ""                         # FLUXBASE_EMAIL_SMTP_HOST
-  smtp_port: 587                        # FLUXBASE_EMAIL_SMTP_PORT
-  smtp_username: ""                     # FLUXBASE_EMAIL_SMTP_USERNAME
-  smtp_password: ""                     # FLUXBASE_EMAIL_SMTP_PASSWORD
-  smtp_tls: true                        # FLUXBASE_EMAIL_SMTP_TLS
+  # SMTP Configuration (required if provider is "smtp")
+  smtp_host: ""                         # FLUXBASE_EMAIL_SMTP_HOST - SMTP server host
+  smtp_port: 587                        # FLUXBASE_EMAIL_SMTP_PORT - SMTP server port
+  smtp_username: ""                     # FLUXBASE_EMAIL_SMTP_USERNAME - SMTP username
+  smtp_password: ""                     # FLUXBASE_EMAIL_SMTP_PASSWORD - SMTP password
+  smtp_tls: true                        # FLUXBASE_EMAIL_SMTP_TLS - Enable SMTP TLS
 
-  # SendGrid configuration (required if provider is "sendgrid")
-  # sendgrid_api_key: ""                # FLUXBASE_EMAIL_SENDGRID_API_KEY
+  # SendGrid Configuration (required if provider is "sendgrid")
+  # sendgrid_api_key: ""                # FLUXBASE_EMAIL_SENDGRID_API_KEY - SendGrid API key
 
-  # Mailgun configuration (required if provider is "mailgun")
-  # mailgun_api_key: ""                 # FLUXBASE_EMAIL_MAILGUN_API_KEY
-  # mailgun_domain: ""                  # FLUXBASE_EMAIL_MAILGUN_DOMAIN
+  # Mailgun Configuration (required if provider is "mailgun")
+  # mailgun_api_key: ""                 # FLUXBASE_EMAIL_MAILGUN_API_KEY - Mailgun API key
+  # mailgun_domain: ""                  # FLUXBASE_EMAIL_MAILGUN_DOMAIN - Mailgun domain
 
-  # AWS SES configuration (required if provider is "ses")
-  # ses_access_key: ""                  # FLUXBASE_EMAIL_SES_ACCESS_KEY
-  # ses_secret_key: ""                  # FLUXBASE_EMAIL_SES_SECRET_KEY
-  # ses_region: "us-east-1"             # FLUXBASE_EMAIL_SES_REGION
+  # AWS SES Configuration (required if provider is "ses")
+  # ses_access_key: ""                  # FLUXBASE_EMAIL_SES_ACCESS_KEY - AWS SES access key
+  # ses_secret_key: ""                  # FLUXBASE_EMAIL_SES_SECRET_KEY - AWS SES secret key
+  # ses_region: "us-east-1"             # FLUXBASE_EMAIL_SES_REGION - AWS SES region
 
-  # Email templates (optional)
-  # magic_link_template: ""             # FLUXBASE_EMAIL_MAGIC_LINK_TEMPLATE
-  # verification_template: ""           # FLUXBASE_EMAIL_VERIFICATION_TEMPLATE
-  # password_reset_template: ""         # FLUXBASE_EMAIL_PASSWORD_RESET_TEMPLATE
+  # Email Template Paths (optional - use custom HTML templates)
+  # magic_link_template: ""             # FLUXBASE_EMAIL_MAGIC_LINK_TEMPLATE - Path to magic link email template
+  # verification_template: ""           # FLUXBASE_EMAIL_VERIFICATION_TEMPLATE - Path to verification email template
+  # password_reset_template: ""         # FLUXBASE_EMAIL_PASSWORD_RESET_TEMPLATE - Path to password reset email template
 
-# Edge Functions configuration
+# Edge Functions Configuration
 functions:
-  enabled: true                         # FLUXBASE_FUNCTIONS_ENABLED
-  functions_dir: "./functions"          # FLUXBASE_FUNCTIONS_FUNCTIONS_DIR (directory for function files)
-  default_timeout: 30                   # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT (seconds)
-  max_timeout: 300                      # FLUXBASE_FUNCTIONS_MAX_TIMEOUT (max 5 minutes)
-  default_memory_limit: 128             # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT (MB)
-  max_memory_limit: 1024                # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT (max 1GB)
+  enabled: true                         # FLUXBASE_FUNCTIONS_ENABLED - Enable edge functions
+  functions_dir: "./functions"          # FLUXBASE_FUNCTIONS_FUNCTIONS_DIR - Functions directory path
+  auto_load_on_boot: true               # FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT - Auto-load functions on startup
+  default_timeout: 30                   # FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT - Default function timeout (seconds)
+  max_timeout: 300                      # FLUXBASE_FUNCTIONS_MAX_TIMEOUT - Maximum function timeout (seconds)
+  default_memory_limit: 128             # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT - Default memory limit (MB)
+  max_memory_limit: 1024                # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT - Maximum memory limit (MB)
 
-# REST API configuration
+  # IP ranges allowed to sync functions via API
+  sync_allowed_ip_ranges:               # FLUXBASE_FUNCTIONS_SYNC_ALLOWED_IP_RANGES - Allowed IPs for function sync (comma-separated)
+    - "172.16.0.0/12"                   # Docker default bridge networks
+    - "10.0.0.0/8"                      # Private networks (AWS VPC, etc.)
+    - "192.168.0.0/16"                  # Private networks
+    - "127.0.0.0/8"                     # Loopback (localhost)
+
+# REST API Configuration
 api:
-  max_page_size: 1000                   # FLUXBASE_API_MAX_PAGE_SIZE (max rows per request, -1 for unlimited)
-  max_total_results: 10000              # FLUXBASE_API_MAX_TOTAL_RESULTS (max total rows via offset+limit, -1 for unlimited)
-  default_page_size: 1000               # FLUXBASE_API_DEFAULT_PAGE_SIZE (applied when no limit specified, -1 for no default)
+  max_page_size: 1000                   # FLUXBASE_API_MAX_PAGE_SIZE - Maximum rows per request (-1 for unlimited)
+  max_total_results: 10000              # FLUXBASE_API_MAX_TOTAL_RESULTS - Maximum total rows via offset+limit (-1 for unlimited)
+  default_page_size: 1000               # FLUXBASE_API_DEFAULT_PAGE_SIZE - Default page size when not specified (-1 for no default)
 
   # Pagination behavior:
   # - If a client requests ?limit=5000 and max_page_size=1000, they receive 1000 rows
@@ -240,12 +267,140 @@ api:
   # - If a client doesn't specify ?limit and default_page_size=1000, they receive 1000 rows
   # - Set any value to -1 to disable that limit (allows unlimited queries)
 
-# GraphQL API configuration
+# Migrations API Configuration
+migrations:
+  enabled: true                         # FLUXBASE_MIGRATIONS_ENABLED - Enable migrations API
+  allowed_ip_ranges:                    # FLUXBASE_MIGRATIONS_ALLOWED_IP_RANGES - IP CIDR ranges allowed to access migrations API (comma-separated)
+    - "172.16.0.0/12"                   # Docker default bridge networks
+    - "10.0.0.0/8"                      # Private networks (AWS VPC, etc.)
+    - "192.168.0.0/16"                  # Private networks
+    - "127.0.0.0/8"                     # Loopback (localhost)
+  require_service_key: true             # FLUXBASE_MIGRATIONS_REQUIRE_SERVICE_KEY - Always require service key for security
+
+# Background Jobs Configuration
+jobs:
+  enabled: true                         # FLUXBASE_JOBS_ENABLED - Enable background jobs
+  jobs_dir: "./jobs"                    # FLUXBASE_JOBS_JOBS_DIR - Jobs directory path
+  auto_load_on_boot: true               # FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT - Auto-load jobs on startup
+  worker_mode: "embedded"               # FLUXBASE_JOBS_WORKER_MODE - Worker mode (embedded, standalone, disabled)
+  embedded_worker_count: 4              # FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT - Number of embedded workers
+  max_concurrent_per_worker: 5          # FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER - Max concurrent jobs per worker
+  max_concurrent_per_namespace: 20      # FLUXBASE_JOBS_MAX_CONCURRENT_PER_NAMESPACE - Max concurrent jobs per namespace
+  default_max_duration: "5m"            # FLUXBASE_JOBS_DEFAULT_MAX_DURATION - Default max job duration
+  max_max_duration: "1h"                # FLUXBASE_JOBS_MAX_MAX_DURATION - Maximum allowed job duration
+  default_progress_timeout: "300s"      # FLUXBASE_JOBS_DEFAULT_PROGRESS_TIMEOUT - Default progress timeout
+  poll_interval: "1s"                   # FLUXBASE_JOBS_POLL_INTERVAL - Job polling interval
+  worker_heartbeat_interval: "10s"      # FLUXBASE_JOBS_WORKER_HEARTBEAT_INTERVAL - Worker heartbeat interval
+  worker_timeout: "30s"                 # FLUXBASE_JOBS_WORKER_TIMEOUT - Worker timeout
+
+  # IP ranges allowed to sync jobs via API
+  sync_allowed_ip_ranges:               # FLUXBASE_JOBS_SYNC_ALLOWED_IP_RANGES - Allowed IPs for job sync (comma-separated)
+    - "172.16.0.0/12"                   # Docker default bridge networks
+    - "10.0.0.0/8"                      # Private networks (AWS VPC, etc.)
+    - "192.168.0.0/16"                  # Private networks
+    - "127.0.0.0/8"                     # Loopback (localhost)
+
+  # Execution logs retention (days)
+  functions_logs_retention_days: 30     # FLUXBASE_JOBS_FUNCTIONS_LOGS_RETENTION_DAYS - Function execution logs retention
+  rpc_logs_retention_days: 30           # FLUXBASE_JOBS_RPC_LOGS_RETENTION_DAYS - RPC execution logs retention
+  jobs_logs_retention_days: 30          # FLUXBASE_JOBS_JOBS_LOGS_RETENTION_DAYS - Job execution logs retention
+
+# OpenTelemetry Tracing Configuration
+# Distributed tracing for observability (Jaeger, Tempo, Honeycomb, etc.)
+tracing:
+  enabled: false                        # FLUXBASE_TRACING_ENABLED - Enable OpenTelemetry tracing
+  endpoint: "localhost:4317"            # FLUXBASE_TRACING_ENDPOINT - OTLP gRPC endpoint
+  service_name: "fluxbase"              # FLUXBASE_TRACING_SERVICE_NAME - Service name for traces
+  environment: "development"            # FLUXBASE_TRACING_ENVIRONMENT - Environment name (development, staging, production)
+  sample_rate: 1.0                      # FLUXBASE_TRACING_SAMPLE_RATE - Sampling rate (0.0-1.0, 1.0 = 100%)
+  insecure: true                        # FLUXBASE_TRACING_INSECURE - Use insecure connection (disable TLS)
+
+# AI/Chatbot Configuration
+ai:
+  enabled: true                         # FLUXBASE_AI_ENABLED - Enable AI chatbots and vector search
+  chatbots_dir: "./chatbots"            # FLUXBASE_AI_CHATBOTS_DIR - Chatbots directory path
+  auto_load_on_boot: true               # FLUXBASE_AI_AUTO_LOAD_ON_BOOT - Auto-load chatbots on startup
+  default_max_tokens: 4096              # FLUXBASE_AI_DEFAULT_MAX_TOKENS - Default max tokens for responses
+  default_model: "gpt-4-turbo"          # FLUXBASE_AI_DEFAULT_MODEL - Default AI model
+  query_timeout: "30s"                  # FLUXBASE_AI_QUERY_TIMEOUT - Query timeout
+  max_rows_per_query: 1000              # FLUXBASE_AI_MAX_ROWS_PER_QUERY - Max rows per database query
+  conversation_cache_ttl: "30m"         # FLUXBASE_AI_CONVERSATION_CACHE_TTL - Conversation cache TTL
+  max_conversation_turns: 50            # FLUXBASE_AI_MAX_CONVERSATION_TURNS - Max conversation turns
+
+  # IP ranges allowed to sync chatbots via API
+  sync_allowed_ip_ranges:               # FLUXBASE_AI_SYNC_ALLOWED_IP_RANGES - Allowed IPs for chatbot sync (comma-separated)
+    - "172.16.0.0/12"                   # Docker default bridge networks
+    - "10.0.0.0/8"                      # Private networks (AWS VPC, etc.)
+    - "192.168.0.0/16"                  # Private networks
+    - "127.0.0.0/8"                     # Loopback (localhost)
+
+  # AI Provider Configuration (Optional - defaults to database-configured providers)
+  # When configured here, the provider becomes read-only in the dashboard
+  # and takes precedence over database providers
+  # provider_type: ""                   # FLUXBASE_AI_PROVIDER_TYPE - Provider type (openai, azure, ollama)
+  # provider_name: ""                   # FLUXBASE_AI_PROVIDER_NAME - Provider display name
+  # provider_model: ""                  # FLUXBASE_AI_PROVIDER_MODEL - Model name
+
+  # OpenAI Provider Settings (when provider_type is "openai")
+  # openai_api_key: ""                  # FLUXBASE_AI_OPENAI_API_KEY - OpenAI API key
+  # openai_organization_id: ""          # FLUXBASE_AI_OPENAI_ORGANIZATION_ID - OpenAI organization ID
+  # openai_base_url: ""                 # FLUXBASE_AI_OPENAI_BASE_URL - OpenAI base URL (for OpenAI-compatible APIs)
+
+  # Azure OpenAI Provider Settings (when provider_type is "azure")
+  # azure_api_key: ""                   # FLUXBASE_AI_AZURE_API_KEY - Azure OpenAI API key
+  # azure_endpoint: ""                  # FLUXBASE_AI_AZURE_ENDPOINT - Azure OpenAI endpoint (e.g., https://your-resource.openai.azure.com)
+  # azure_deployment_name: ""           # FLUXBASE_AI_AZURE_DEPLOYMENT_NAME - Azure deployment name
+  # azure_api_version: ""               # FLUXBASE_AI_AZURE_API_VERSION - Azure API version (e.g., 2024-02-15-preview)
+
+  # Ollama Provider Settings (when provider_type is "ollama")
+  # ollama_endpoint: ""                 # FLUXBASE_AI_OLLAMA_ENDPOINT - Ollama endpoint (e.g., http://localhost:11434)
+  # ollama_model: ""                    # FLUXBASE_AI_OLLAMA_MODEL - Ollama model name (e.g., llama2)
+
+  # Embedding Configuration (for vector search and knowledge bases)
+  embedding_enabled: false              # FLUXBASE_AI_EMBEDDING_ENABLED - Enable embeddings
+  # embedding_provider: ""              # FLUXBASE_AI_EMBEDDING_PROVIDER - Embedding provider (defaults to provider_type)
+  # embedding_model: ""                 # FLUXBASE_AI_EMBEDDING_MODEL - Embedding model
+  # Available embedding models by provider:
+  # - OpenAI: text-embedding-3-small (1536d), text-embedding-3-large (3072d), text-embedding-ada-002 (1536d)
+  # - Azure: Same as OpenAI (requires deployment)
+  # - Ollama: nomic-embed-text (768d), mxbai-embed-large (1024d), all-minilm (384d)
+
+  # Azure Embedding Settings (optional - only if using separate Azure deployment for embeddings)
+  # azure_embedding_deployment_name: "" # FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME - Azure embedding deployment name
+
+  # OCR Configuration (for image-based PDF extraction in knowledge bases)
+  # OCR is used when standard PDF text extraction returns garbage/binary data (e.g., scanned documents)
+  # Requires Tesseract and poppler-utils to be installed (included in Docker image)
+  ocr_enabled: true                     # FLUXBASE_AI_OCR_ENABLED - Enable OCR for scanned PDFs
+  ocr_provider: "tesseract"             # FLUXBASE_AI_OCR_PROVIDER - OCR provider (tesseract)
+  ocr_languages:                        # FLUXBASE_AI_OCR_LANGUAGES - OCR languages (comma-separated, e.g., eng,deu,nld,fra)
+    - eng
+  # Available Tesseract language codes (install additional language packs as needed):
+  # - eng (English), deu (German), nld (Dutch), fra (French), spa (Spanish), ita (Italian)
+  # - por (Portuguese), rus (Russian), chi_sim (Chinese Simplified), jpn (Japanese), kor (Korean)
+
+# RPC Procedures Configuration
+rpc:
+  enabled: true                         # FLUXBASE_RPC_ENABLED - Enable RPC procedures
+  procedures_dir: "./rpc"               # FLUXBASE_RPC_PROCEDURES_DIR - Procedures directory path
+  auto_load_on_boot: true               # FLUXBASE_RPC_AUTO_LOAD_ON_BOOT - Auto-load procedures on startup
+  default_max_execution_time: "30s"     # FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME - Default max execution time
+  max_max_execution_time: "5m"          # FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME - Maximum allowed execution time
+  default_max_rows: 1000                # FLUXBASE_RPC_DEFAULT_MAX_ROWS - Default max rows returned
+
+  # IP ranges allowed to sync procedures via API
+  sync_allowed_ip_ranges:               # FLUXBASE_RPC_SYNC_ALLOWED_IP_RANGES - Allowed IPs for RPC sync (comma-separated)
+    - "172.16.0.0/12"                   # Docker default bridge networks
+    - "10.0.0.0/8"                      # Private networks (AWS VPC, etc.)
+    - "192.168.0.0/16"                  # Private networks
+    - "127.0.0.0/8"                     # Loopback (localhost)
+
+# GraphQL API Configuration
 graphql:
-  enabled: true                         # FLUXBASE_GRAPHQL_ENABLED
-  introspection: false                  # FLUXBASE_GRAPHQL_INTROSPECTION (disable in production)
-  max_depth: 10                         # FLUXBASE_GRAPHQL_MAX_DEPTH (max query nesting depth)
-  max_complexity: 1000                  # FLUXBASE_GRAPHQL_MAX_COMPLEXITY (max query complexity score)
+  enabled: true                         # FLUXBASE_GRAPHQL_ENABLED - Enable GraphQL API endpoint
+  introspection: true                   # FLUXBASE_GRAPHQL_INTROSPECTION - Enable GraphQL introspection (disable in production)
+  max_depth: 10                         # FLUXBASE_GRAPHQL_MAX_DEPTH - Maximum query nesting depth
+  max_complexity: 1000                  # FLUXBASE_GRAPHQL_MAX_COMPLEXITY - Maximum query complexity score
 
   # Security notes:
   # - max_depth prevents deeply nested queries that cause exponential resource usage
@@ -254,67 +409,90 @@ graphql:
   # - Example rejected query at depth 5:
   #   { users { posts { comments { author { posts { title } } } } } }
 
-# AI/Chatbot configuration
-ai:
-  enabled: false                        # FLUXBASE_AI_ENABLED
-  chatbots_dir: "./chatbots"            # FLUXBASE_AI_CHATBOTS_DIR
-  auto_load_on_boot: true               # FLUXBASE_AI_AUTO_LOAD_ON_BOOT
-  default_max_tokens: 4096              # FLUXBASE_AI_DEFAULT_MAX_TOKENS
-  query_timeout: "30s"                  # FLUXBASE_AI_QUERY_TIMEOUT
-  max_rows_per_query: 1000              # FLUXBASE_AI_MAX_ROWS_PER_QUERY
-  conversation_cache_ttl: "1h"          # FLUXBASE_AI_CONVERSATION_CACHE_TTL
-  max_conversation_turns: 50            # FLUXBASE_AI_MAX_CONVERSATION_TURNS
+# Model Context Protocol (MCP) Server Configuration
+# Enables AI assistants (Claude, etc.) to interact with your Fluxbase instance
+mcp:
+  enabled: false                        # FLUXBASE_MCP_ENABLED - Enable MCP server endpoint (disabled by default)
+  base_path: "/mcp"                     # FLUXBASE_MCP_BASE_PATH - MCP endpoint path
+  session_timeout: "30m"                # FLUXBASE_MCP_SESSION_TIMEOUT - Session timeout
+  max_message_size: 10485760            # FLUXBASE_MCP_MAX_MESSAGE_SIZE - Maximum message size (10MB)
+  allowed_tools: []                     # FLUXBASE_MCP_ALLOWED_TOOLS - Allowed tool names (empty = all enabled)
+  allowed_resources: []                 # FLUXBASE_MCP_ALLOWED_RESOURCES - Allowed resource URIs (empty = all enabled)
+  rate_limit_per_min: 100               # FLUXBASE_MCP_RATE_LIMIT_PER_MIN - Rate limit per minute per client key
 
-  # AI Provider Configuration (Optional - defaults to database-configured providers)
-  # When configured here, the provider becomes read-only in the dashboard
-  # and takes precedence over database providers
-  provider_enabled: false               # FLUXBASE_AI_PROVIDER_ENABLED
-  provider_type: "openai"               # FLUXBASE_AI_PROVIDER_TYPE (openai, azure, ollama)
-  provider_name: "Default Provider"     # FLUXBASE_AI_PROVIDER_NAME
-  provider_model: "gpt-4-turbo"         # FLUXBASE_AI_PROVIDER_MODEL
+# Database Branching Configuration
+# Create isolated database branches for development/testing
+branching:
+  enabled: false                        # FLUXBASE_BRANCHING_ENABLED - Enable database branching (disabled by default)
+  max_branches_per_user: 5              # FLUXBASE_BRANCHING_MAX_BRANCHES_PER_USER - Maximum branches per user
+  max_total_branches: 50                # FLUXBASE_BRANCHING_MAX_TOTAL_BRANCHES - Maximum total branches
+  default_data_clone_mode: "schema_only"  # FLUXBASE_BRANCHING_DEFAULT_DATA_CLONE_MODE - Default data clone mode (schema_only, full_clone, seed_data)
+  auto_delete_after: "0"                # FLUXBASE_BRANCHING_AUTO_DELETE_AFTER - Auto-delete branches after duration (0 = never, e.g., "24h" for 24 hours)
+  database_prefix: "branch_"            # FLUXBASE_BRANCHING_DATABASE_PREFIX - Prefix for branch database names
+  seeds_path: "./seeds"                 # FLUXBASE_BRANCHING_SEEDS_PATH - Path to seed SQL files directory (used with seed_data clone mode)
+  admin_database_url: ""                # FLUXBASE_BRANCHING_ADMIN_DATABASE_URL - Admin database URL (uses main database URL if empty)
 
-  # OpenAI Provider Settings (when provider_type is "openai")
-  # openai_api_key: ""                  # FLUXBASE_AI_OPENAI_API_KEY (required for OpenAI)
-  # openai_organization_id: ""          # FLUXBASE_AI_OPENAI_ORGANIZATION_ID
-  # openai_base_url: ""                 # FLUXBASE_AI_OPENAI_BASE_URL (for OpenAI-compatible APIs)
+# Horizontal Scaling Configuration
+# For multi-instance deployments
+scaling:
+  worker_only: false                    # FLUXBASE_SCALING_WORKER_ONLY - Disable API server, only run job workers
+  disable_scheduler: false              # FLUXBASE_SCALING_DISABLE_SCHEDULER - Prevent cron schedulers from running
+  disable_realtime: false               # FLUXBASE_SCALING_DISABLE_REALTIME - Prevent realtime listener from starting
+  enable_scheduler_leader_election: false  # FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION - Use PostgreSQL advisory locks
+  backend: "local"                      # FLUXBASE_SCALING_BACKEND - Scaling backend (local, postgres, redis)
+  redis_url: ""                         # FLUXBASE_SCALING_REDIS_URL - Redis URL (required when backend is "redis")
+                                        # Format: redis://[password@]host:port[/db]
+                                        # Works with Dragonfly (recommended), Redis, Valkey, KeyDB
 
-  # Azure OpenAI Provider Settings (when provider_type is "azure")
-  # azure_api_key: ""                   # FLUXBASE_AI_AZURE_API_KEY
-  # azure_endpoint: ""                  # FLUXBASE_AI_AZURE_ENDPOINT (e.g., https://your-resource.openai.azure.com)
-  # azure_deployment_name: ""           # FLUXBASE_AI_AZURE_DEPLOYMENT_NAME
-  # azure_api_version: "2024-02-15-preview"  # FLUXBASE_AI_AZURE_API_VERSION
+# Logging Configuration
+# Central logging system with multiple backends and retention policies
+logging:
+  # Console output settings
+  console_enabled: true                 # FLUXBASE_LOGGING_CONSOLE_ENABLED - Enable console logging
+  console_level: "info"                 # FLUXBASE_LOGGING_CONSOLE_LEVEL - Console log level (trace, debug, info, warn, error)
+  console_format: "console"             # FLUXBASE_LOGGING_CONSOLE_FORMAT - Console log format (json or console)
 
-  # Ollama Provider Settings (when provider_type is "ollama")
-  # ollama_endpoint: "http://localhost:11434"  # FLUXBASE_AI_OLLAMA_ENDPOINT
-  # ollama_model: "llama2"              # FLUXBASE_AI_OLLAMA_MODEL
+  # Backend settings
+  backend: "postgres"                   # FLUXBASE_LOGGING_BACKEND - Logging backend (postgres, s3, local)
 
-  # Embedding Configuration (for vector search and knowledge bases)
-  embedding_enabled: false              # FLUXBASE_AI_EMBEDDING_ENABLED
-  # embedding_provider: ""              # FLUXBASE_AI_EMBEDDING_PROVIDER (defaults to provider_type)
-  embedding_model: "text-embedding-3-small"  # FLUXBASE_AI_EMBEDDING_MODEL
+  # S3 backend settings (when backend is "s3")
+  # s3_bucket: ""                       # FLUXBASE_LOGGING_S3_BUCKET - S3 bucket name (required when backend is s3)
+  # s3_prefix: "logs"                   # FLUXBASE_LOGGING_S3_PREFIX - S3 object prefix
 
-  # Available embedding models by provider:
-  # - OpenAI: text-embedding-3-small (1536d), text-embedding-3-large (3072d), text-embedding-ada-002 (1536d)
-  # - Azure: Same as OpenAI (requires deployment)
-  # - Ollama: nomic-embed-text (768d), mxbai-embed-large (1024d), all-minilm (384d)
+  # Local backend settings (when backend is "local")
+  # local_path: "./logs"                # FLUXBASE_LOGGING_LOCAL_PATH - Local logs directory
 
-  # Azure Embedding Settings (optional - only if using separate Azure deployment for embeddings)
-  # azure_embedding_deployment_name: "" # FLUXBASE_AI_AZURE_EMBEDDING_DEPLOYMENT_NAME
+  # Batching settings
+  batch_size: 100                       # FLUXBASE_LOGGING_BATCH_SIZE - Log entries per batch
+  flush_interval: "1s"                  # FLUXBASE_LOGGING_FLUSH_INTERVAL - Flush interval
+  buffer_size: 10000                    # FLUXBASE_LOGGING_BUFFER_SIZE - Async buffer size
 
-  # OCR Configuration (for image-based PDF extraction in knowledge bases)
-  # OCR is used when standard PDF text extraction returns garbage/binary data (e.g., scanned documents)
-  # Requires Tesseract and poppler-utils to be installed (included in Docker image)
-  ocr_enabled: true                     # FLUXBASE_AI_OCR_ENABLED
-  ocr_provider: "tesseract"             # FLUXBASE_AI_OCR_PROVIDER
-  ocr_languages: "eng"                  # FLUXBASE_AI_OCR_LANGUAGES (comma-separated, e.g., eng,deu,nld,fra)
+  # PubSub notifications (for realtime streaming)
+  pubsub_enabled: true                  # FLUXBASE_LOGGING_PUBSUB_ENABLED - Enable PubSub for log streaming
 
-  # Available Tesseract language codes (install additional language packs as needed):
-  # - eng (English), deu (German), nld (Dutch), fra (French), spa (Spanish), ita (Italian)
-  # - por (Portuguese), rus (Russian), chi_sim (Chinese Simplified), jpn (Japanese), kor (Korean)
+  # Retention settings (days, 0 = keep forever)
+  system_retention_days: 7              # FLUXBASE_LOGGING_SYSTEM_RETENTION_DAYS - App/system logs retention
+  http_retention_days: 30               # FLUXBASE_LOGGING_HTTP_RETENTION_DAYS - HTTP access logs retention
+  security_retention_days: 90           # FLUXBASE_LOGGING_SECURITY_RETENTION_DAYS - Security/audit logs retention
+  execution_retention_days: 30          # FLUXBASE_LOGGING_EXECUTION_RETENTION_DAYS - Function/job/RPC logs retention
+  ai_retention_days: 30                 # FLUXBASE_LOGGING_AI_RETENTION_DAYS - AI query audit logs retention
 
-# General settings
+  # Retention service settings
+  retention_enabled: true               # FLUXBASE_LOGGING_RETENTION_ENABLED - Enable automatic retention cleanup
+  retention_check_interval: "24h"       # FLUXBASE_LOGGING_RETENTION_CHECK_INTERVAL - Retention check interval
+
+  # Custom categories
+  custom_categories: []                 # FLUXBASE_LOGGING_CUSTOM_CATEGORIES - List of allowed custom category names
+  custom_retention_days: 30             # FLUXBASE_LOGGING_CUSTOM_RETENTION_DAYS - Custom category retention
+
+# General Settings
 base_url: "http://localhost:8080"       # FLUXBASE_BASE_URL - Internal URL for server-to-server communication
 public_base_url: ""                     # FLUXBASE_PUBLIC_BASE_URL - Public URL for user-facing links (OAuth callbacks, magic links, invitations)
                                         # If not set, falls back to base_url. Set this when deploying behind a reverse proxy or load balancer.
                                         # Example: "https://api.example.com" while base_url remains "http://localhost:8080"
-debug: false                            # FLUXBASE_DEBUG (enables debug logging)
+debug: false                            # FLUXBASE_DEBUG - Enable debug logging
+
+# Encryption Key for Sensitive Data (REQUIRED)
+# Used for AES-256-GCM encryption of OAuth tokens, client keys, and other sensitive data
+# Must be exactly 32 bytes. Generate with: openssl rand -base64 32 | head -c 32
+encryption_key: ""                      # FLUXBASE_ENCRYPTION_KEY - REQUIRED - Must be 32 bytes

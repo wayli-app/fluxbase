@@ -47,7 +47,7 @@ func (r *FunctionsResource) Read(ctx context.Context, authCtx *mcp.AuthContext) 
 	}
 
 	// List all functions
-	funcs, err := r.storage.ListFunctions(ctx, nil, nil, 1000, 0, "", false)
+	funcs, err := r.storage.ListFunctions(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list functions: %w", err)
 	}
@@ -67,12 +67,16 @@ func (r *FunctionsResource) Read(ctx context.Context, authCtx *mcp.AuthContext) 
 			fnInfo["allow_unauthenticated"] = true
 		}
 
-		if fn.RateLimitRPS > 0 {
-			fnInfo["rate_limit_rps"] = fn.RateLimitRPS
+		if fn.RateLimitPerMinute != nil && *fn.RateLimitPerMinute > 0 {
+			fnInfo["rate_limit_per_minute"] = *fn.RateLimitPerMinute
 		}
 
-		if fn.MaxConcurrency > 0 {
-			fnInfo["max_concurrency"] = fn.MaxConcurrency
+		if fn.RateLimitPerHour != nil && *fn.RateLimitPerHour > 0 {
+			fnInfo["rate_limit_per_hour"] = *fn.RateLimitPerHour
+		}
+
+		if fn.RateLimitPerDay != nil && *fn.RateLimitPerDay > 0 {
+			fnInfo["rate_limit_per_day"] = *fn.RateLimitPerDay
 		}
 
 		functionList = append(functionList, fnInfo)

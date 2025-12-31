@@ -327,6 +327,103 @@ fluxbase --profile prod migrations apply-pending
 fluxbase branch delete debug-issue-123
 ```
 
+## Workflow 5: Using Seed Data
+
+Populate branches with test data using seed files for consistent development environments.
+
+### What is Seed Data?
+
+The `seed_data` clone mode creates a branch with the database schema and automatically executes SQL seed files to populate it with test data. This is perfect for:
+
+- Development environments with realistic sample data
+- Demo environments with consistent data
+- Integration testing with known test datasets
+- Onboarding new developers with pre-populated data
+
+### Create Seed Files
+
+Create numbered SQL files in the `seeds/` directory:
+
+```bash
+# Create seeds directory
+mkdir -p seeds
+
+# Create seed files
+cat > seeds/001_users.sql <<'EOF'
+-- Seed file: Initial test users
+INSERT INTO auth.users (id, email, email_confirmed_at, role)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'admin@test.local', NOW(), 'admin'),
+  ('00000000-0000-0000-0000-000000000002', 'user@test.local', NOW(), 'authenticated')
+ON CONFLICT (email) DO NOTHING;
+EOF
+
+cat > seeds/002_data.sql <<'EOF'
+-- Seed file: Sample data
+INSERT INTO public.posts (user_id, title, content)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'Welcome Post', 'This is a test post'),
+  ('00000000-0000-0000-0000-000000000002', 'Another Post', 'More test content')
+ON CONFLICT DO NOTHING;
+EOF
+```
+
+### Create Branch with Seeds
+
+```bash
+# Use default seeds from ./seeds directory
+fluxbase branch create dev --clone-data seed_data
+
+# Use custom seeds directory
+fluxbase branch create demo --clone-data seed_data --seeds-dir ./test-fixtures
+
+# Use production-like seeds
+fluxbase branch create staging --clone-data seed_data --seeds-dir /shared/prod-seeds
+```
+
+### Seed File Best Practices
+
+1. **Use numeric prefixes** - Files execute in lexicographic order: `001_`, `002_`, etc.
+2. **Make seeds idempotent** - Use `ON CONFLICT DO NOTHING` or `WHERE NOT EXISTS`
+3. **Use deterministic UUIDs** - Makes data predictable across environments
+4. **Keep files focused** - One file per logical group (users, posts, settings, etc.)
+5. **Document dependencies** - Add comments if one seed depends on another
+
+Example idempotent seed:
+
+```sql
+-- 001_admin_user.sql
+INSERT INTO auth.users (id, email, role)
+VALUES ('00000000-0000-0000-0000-000000000001', 'admin@test.local', 'admin')
+ON CONFLICT (email) DO NOTHING;
+```
+
+### Troubleshooting Seeds
+
+If seed execution fails:
+
+```bash
+# Check branch status
+fluxbase branch get my-branch
+
+# View activity log for errors
+fluxbase branch activity my-branch
+
+# Fix the seed file, then reset and retry
+fluxbase branch reset my-branch --force
+```
+
+### Configuration
+
+Set default seeds path in `fluxbase.yaml`:
+
+```yaml
+branching:
+  enabled: true
+  default_data_clone_mode: seed_data
+  seeds_path: ./seeds
+```
+
 ## Best Practices
 
 ### Branch Naming Conventions
@@ -366,7 +463,7 @@ fluxbase branch create pr-preview --expires-in 7d
 |------|----------|
 | `schema_only` | Most development work, migrations |
 | `full_clone` | Bug investigation, data-dependent tests |
-| `seed_data` | Development with sample data (coming soon) |
+| `seed_data` | Development with sample test data |
 
 ### Monitor Branch Usage
 

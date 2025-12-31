@@ -121,7 +121,9 @@ services:
       # FLUXBASE_AUTH_REFRESH_EXPIRY: "168h"
       # FLUXBASE_AUTH_MAGIC_LINK_EXPIRY: "15m"
       # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY: "1h"
-      # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH: "8"
+      # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH: "12"  # Increased for better security
+      # FLUXBASE_AUTH_SERVICE_ROLE_TTL: "24h"  # Service role token expiration
+      # FLUXBASE_AUTH_ANON_TTL: "24h"  # Anonymous token expiration
       # FLUXBASE_AUTH_BCRYPT_COST: "10"
       # FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
       # FLUXBASE_AUTH_ENABLE_MAGIC_LINK: "true"
@@ -137,6 +139,19 @@ services:
       # FLUXBASE_AUTH_APPLE_CLIENT_ID: ""
       # FLUXBASE_AUTH_MICROSOFT_CLIENT_ID: ""
 
+      # SAML SSO Configuration (Enterprise Single Sign-On)
+      # Example for Okta/Azure AD/OneLogin integration
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_NAME: "okta"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ENABLED: "true"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_IDP_METADATA_URL: "https://company.okta.com/app/xxx/sso/saml/metadata"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ENTITY_ID: "https://your-app.com/auth/saml"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ACS_URL: "https://your-app.com/api/v1/auth/saml/acs"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_AUTO_CREATE_USERS: "true"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_DEFAULT_ROLE: "authenticated"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_APP_LOGIN: "true"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_DASHBOARD_LOGIN: "false"
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_IDP_INITIATED: "false"  # Security: disable IdP-initiated SSO
+
       # ==========================================================================
       # Security Configuration
       # ==========================================================================
@@ -144,10 +159,10 @@ services:
       FLUXBASE_SECURITY_SETUP_TOKEN: ${FLUXBASE_SECURITY_SETUP_TOKEN:-your-secret-setup-token-change-in-production}
       # FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT: "false"
       # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT: "5"
-      # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW: "1m"
+      # FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW: "15m"  # 15 minutes
       # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT: "10"
       # FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW: "1m"
-      # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT: "5"
+      # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT: "10"  # Updated from 5 to 10
       # FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW: "1m"
 
       # ==========================================================================
@@ -175,6 +190,22 @@ services:
       # FLUXBASE_STORAGE_S3_ACCESS_KEY: minioadmin
       # FLUXBASE_STORAGE_S3_SECRET_KEY: minioadmin
       # FLUXBASE_STORAGE_S3_FORCE_PATH_STYLE: "true"
+      # FLUXBASE_STORAGE_DEFAULT_BUCKETS: "uploads,temp-files,public"  # Auto-create buckets on startup
+
+      # Image Transformation Settings (requires libvips)
+      # FLUXBASE_STORAGE_TRANSFORMS_ENABLED: "true"
+      # FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY: "80"
+      # FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH: "4096"
+      # FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT: "4096"
+      # FLUXBASE_STORAGE_TRANSFORMS_ALLOWED_FORMATS: "webp,jpg,png,avif"
+      # FLUXBASE_STORAGE_TRANSFORMS_MAX_TOTAL_PIXELS: "16000000"  # 16 megapixels
+      # FLUXBASE_STORAGE_TRANSFORMS_BUCKET_SIZE: "50"  # Round dimensions to 50px
+      # FLUXBASE_STORAGE_TRANSFORMS_RATE_LIMIT: "60"  # 60 transforms/min/user
+      # FLUXBASE_STORAGE_TRANSFORMS_TIMEOUT: "30s"
+      # FLUXBASE_STORAGE_TRANSFORMS_MAX_CONCURRENT: "4"
+      # FLUXBASE_STORAGE_TRANSFORMS_CACHE_ENABLED: "true"
+      # FLUXBASE_STORAGE_TRANSFORMS_CACHE_TTL: "24h"
+      # FLUXBASE_STORAGE_TRANSFORMS_CACHE_MAX_SIZE: "1073741824"  # 1GB
 
       # ==========================================================================
       # Realtime (WebSocket) Configuration
@@ -212,6 +243,11 @@ services:
       # FLUXBASE_EMAIL_SES_SECRET_KEY: ""
       # FLUXBASE_EMAIL_SES_REGION: "us-east-1"
 
+      # Email Template Paths (optional - use custom HTML templates)
+      # FLUXBASE_EMAIL_MAGIC_LINK_TEMPLATE: "/templates/magic-link.html"
+      # FLUXBASE_EMAIL_VERIFICATION_TEMPLATE: "/templates/verify.html"
+      # FLUXBASE_EMAIL_PASSWORD_RESET_TEMPLATE: "/templates/reset.html"
+
       # ==========================================================================
       # Edge Functions Configuration
       # ==========================================================================
@@ -222,6 +258,7 @@ services:
       # FLUXBASE_FUNCTIONS_MAX_TIMEOUT: "300"
       # FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT: "128"
       # FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT: "1024"
+      # FLUXBASE_FUNCTIONS_SYNC_ALLOWED_IP_RANGES: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16,127.0.0.0/8"
 
       # ==========================================================================
       # Jobs Configuration
@@ -232,6 +269,11 @@ services:
       # FLUXBASE_JOBS_WORKER_MODE: "embedded"
       # FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT: "4"
       # FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER: "10"
+      # FLUXBASE_JOBS_SYNC_ALLOWED_IP_RANGES: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16,127.0.0.0/8"
+      # Execution logs retention (days)
+      # FLUXBASE_JOBS_FUNCTIONS_LOGS_RETENTION_DAYS: "30"
+      # FLUXBASE_JOBS_RPC_LOGS_RETENTION_DAYS: "30"
+      # FLUXBASE_JOBS_JOBS_LOGS_RETENTION_DAYS: "30"
 
       # ==========================================================================
       # CAPTCHA Configuration (optional)
@@ -278,6 +320,7 @@ services:
       # FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME: "30s"
       # FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME: "300s"
       # FLUXBASE_RPC_DEFAULT_MAX_ROWS: "1000"
+      # FLUXBASE_RPC_SYNC_ALLOWED_IP_RANGES: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16,127.0.0.0/8"
 
       # ==========================================================================
       # AI Configuration (optional)
@@ -286,8 +329,10 @@ services:
       # FLUXBASE_AI_CHATBOTS_DIR: "/app/chatbots"
       # FLUXBASE_AI_AUTO_LOAD_ON_BOOT: "true"
       # FLUXBASE_AI_DEFAULT_MAX_TOKENS: "4096"
+      # FLUXBASE_AI_DEFAULT_MODEL: "gpt-4-turbo"
       # FLUXBASE_AI_QUERY_TIMEOUT: "30s"
       # FLUXBASE_AI_MAX_ROWS_PER_QUERY: "1000"
+      # FLUXBASE_AI_SYNC_ALLOWED_IP_RANGES: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16,127.0.0.0/8"
 
       # OpenAI Configuration
       # FLUXBASE_AI_OPENAI_API_KEY: ""
@@ -332,6 +377,9 @@ services:
       # FLUXBASE_LOGGING_SECURITY_RETENTION_DAYS: "90"
       # FLUXBASE_LOGGING_EXECUTION_RETENTION_DAYS: "7"
       # FLUXBASE_LOGGING_AI_RETENTION_DAYS: "30"
+      # Custom categories
+      # FLUXBASE_LOGGING_CUSTOM_CATEGORIES: "audit,analytics"
+      # FLUXBASE_LOGGING_CUSTOM_RETENTION_DAYS: "30"
 
       # ==========================================================================
       # Tracing Configuration (OpenTelemetry)
@@ -371,6 +419,27 @@ services:
       FLUXBASE_DEBUG: ${FLUXBASE_DEBUG:-false}
 
       # ==========================================================================
+      # Model Context Protocol (MCP) Configuration - OPTIONAL
+      # ==========================================================================
+      # Enables AI assistants to interact with your Fluxbase instance
+      # FLUXBASE_MCP_ENABLED: "false"
+      # FLUXBASE_MCP_BASE_PATH: "/mcp"
+      # FLUXBASE_MCP_SESSION_TIMEOUT: "30m"
+      # FLUXBASE_MCP_MAX_MESSAGE_SIZE: "10485760"  # 10MB
+      # FLUXBASE_MCP_RATE_LIMIT_PER_MIN: "100"
+
+      # ==========================================================================
+      # Database Branching Configuration - OPTIONAL
+      # ==========================================================================
+      # Create isolated database branches for development/testing
+      # FLUXBASE_BRANCHING_ENABLED: "false"
+      # FLUXBASE_BRANCHING_MAX_BRANCHES_PER_USER: "5"
+      # FLUXBASE_BRANCHING_MAX_TOTAL_BRANCHES: "50"
+      # FLUXBASE_BRANCHING_DEFAULT_DATA_CLONE_MODE: "schema_only"
+      # FLUXBASE_BRANCHING_AUTO_DELETE_AFTER: "0"  # 0 = never, e.g., "24h"
+      # FLUXBASE_BRANCHING_DATABASE_PREFIX: "branch_"
+
+      # ==========================================================================
       # Horizontal Scaling Configuration - OPTIONAL
       # ==========================================================================
       # Backend options: "local" (default), "postgres", "redis"
@@ -379,6 +448,9 @@ services:
       # - redis: Uses Redis-compatible backend (Dragonfly recommended)
       # FLUXBASE_SCALING_BACKEND: postgres
       # FLUXBASE_SCALING_ENABLE_SCHEDULER_LEADER_ELECTION: "true"
+      # FLUXBASE_SCALING_WORKER_ONLY: "false"
+      # FLUXBASE_SCALING_DISABLE_SCHEDULER: "false"
+      # FLUXBASE_SCALING_DISABLE_REALTIME: "false"
       # For Redis/Dragonfly backend:
       # FLUXBASE_SCALING_REDIS_URL: redis://dragonfly:6379
       # With password: FLUXBASE_SCALING_REDIS_URL: redis://:your-password@dragonfly:6379

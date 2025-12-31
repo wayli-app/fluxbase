@@ -48,14 +48,17 @@ func (r *SchemaResource) Read(ctx context.Context, authCtx *mcp.AuthContext) ([]
 	}
 
 	// Get all tables from cache
-	tables := r.schemaCache.GetAllTables()
+	tables, err := r.schemaCache.GetAllTables(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %w", err)
+	}
 
 	// Build schema representation
 	schema := make(map[string]any)
 
 	for _, table := range tables {
-		// Skip internal schemas unless user has service role
-		if isInternalSchema(table.Schema) && authCtx.UserRole != "service_role" && authCtx.UserRole != "dashboard_admin" {
+		// Skip internal schemas unless user has admin access
+		if isInternalSchema(table.Schema) && !canAccessInternalSchemas(authCtx) {
 			continue
 		}
 
@@ -91,10 +94,12 @@ func (r *SchemaResource) Read(ctx context.Context, authCtx *mcp.AuthContext) ([]
 			fks := make([]map[string]any, 0, len(table.ForeignKeys))
 			for _, fk := range table.ForeignKeys {
 				fks = append(fks, map[string]any{
-					"columns":            fk.Columns,
-					"referenced_schema":  fk.ReferencedSchema,
+					"name":               fk.Name,
+					"column":             fk.ColumnName,
 					"referenced_table":   fk.ReferencedTable,
-					"referenced_columns": fk.ReferencedColumns,
+					"referenced_column":  fk.ReferencedColumn,
+					"on_delete":          fk.OnDelete,
+					"on_update":          fk.OnUpdate,
 				})
 			}
 			tableInfo["foreign_keys"] = fks
@@ -186,13 +191,16 @@ func (r *TableResource) ReadWithParams(ctx context.Context, authCtx *mcp.AuthCon
 	}
 
 	// Check access to internal schemas
-	if isInternalSchema(schema) && authCtx.UserRole != "service_role" && authCtx.UserRole != "dashboard_admin" {
+	if isInternalSchema(schema) && !canAccessInternalSchemas(authCtx) {
 		return nil, fmt.Errorf("access denied to internal schema: %s", schema)
 	}
 
 	// Get table from cache
-	table := r.schemaCache.GetTable(schema, tableName)
-	if table == nil {
+	table, exists, err := r.schemaCache.GetTable(ctx, schema, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table: %w", err)
+	}
+	if !exists || table == nil {
 		return nil, fmt.Errorf("table not found: %s.%s", schema, tableName)
 	}
 
@@ -232,10 +240,11 @@ func (r *TableResource) ReadWithParams(ctx context.Context, authCtx *mcp.AuthCon
 		for _, fk := range table.ForeignKeys {
 			fks = append(fks, map[string]any{
 				"name":               fk.Name,
-				"columns":            fk.Columns,
-				"referenced_schema":  fk.ReferencedSchema,
+				"column":             fk.ColumnName,
 				"referenced_table":   fk.ReferencedTable,
-				"referenced_columns": fk.ReferencedColumns,
+				"referenced_column":  fk.ReferencedColumn,
+				"on_delete":          fk.OnDelete,
+				"on_update":          fk.OnUpdate,
 			})
 		}
 		tableInfo["foreign_keys"] = fks
@@ -260,6 +269,19 @@ func (r *TableResource) ReadWithParams(ctx context.Context, authCtx *mcp.AuthCon
 	}
 
 	return []mcp.Content{mcp.TextContent(string(data))}, nil
+}
+
+// canAccessInternalSchemas checks if the auth context has permission to access internal schemas.
+// Uses scope-based authorization instead of direct role checks.
+func canAccessInternalSchemas(authCtx *mcp.AuthContext) bool {
+	// Service role always has access
+	if authCtx.IsServiceRole {
+		return true
+	}
+
+	// Check for admin:schemas scope (granted to dashboard_admin via wildcard)
+	// Wildcard scope (*) also grants access
+	return authCtx.HasScope(mcp.ScopeAdminSchemas) || authCtx.HasScope("*")
 }
 
 // isInternalSchema checks if a schema is internal/system

@@ -47,9 +47,9 @@ import { Route as AuthenticatedFeaturesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedExtensionsIndexRouteImport } from './routes/_authenticated/extensions/index'
 import { Route as AuthenticatedEmailSettingsIndexRouteImport } from './routes/_authenticated/email-settings/index'
 import { Route as AuthenticatedDatabaseConfigIndexRouteImport } from './routes/_authenticated/database-config/index'
+import { Route as AuthenticatedClientKeysIndexRouteImport } from './routes/_authenticated/client-keys/index'
 import { Route as AuthenticatedChatbotsIndexRouteImport } from './routes/_authenticated/chatbots/index'
 import { Route as AuthenticatedAuthenticationIndexRouteImport } from './routes/_authenticated/authentication/index'
-import { Route as AuthenticatedApiKeysIndexRouteImport } from './routes/_authenticated/client-keys/index'
 import { Route as AuthenticatedAiProvidersIndexRouteImport } from './routes/_authenticated/ai-providers/index'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -264,6 +264,12 @@ const AuthenticatedDatabaseConfigIndexRoute =
     path: '/database-config/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedClientKeysIndexRoute =
+  AuthenticatedClientKeysIndexRouteImport.update({
+    id: '/client-keys/',
+    path: '/client-keys/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChatbotsIndexRoute =
   AuthenticatedChatbotsIndexRouteImport.update({
     id: '/chatbots/',
@@ -274,12 +280,6 @@ const AuthenticatedAuthenticationIndexRoute =
   AuthenticatedAuthenticationIndexRouteImport.update({
     id: '/authentication/',
     path: '/authentication/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedApiKeysIndexRoute =
-  AuthenticatedApiKeysIndexRouteImport.update({
-    id: '/client-keys/',
-    path: '/client-keys/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAiProvidersIndexRoute =
@@ -345,9 +345,9 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
-  '/client-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
+  '/client-keys': typeof AuthenticatedClientKeysIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/extensions': typeof AuthenticatedExtensionsIndexRoute
@@ -394,9 +394,9 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/ai-providers': typeof AuthenticatedAiProvidersIndexRoute
-  '/client-keys': typeof AuthenticatedApiKeysIndexRoute
   '/authentication': typeof AuthenticatedAuthenticationIndexRoute
   '/chatbots': typeof AuthenticatedChatbotsIndexRoute
+  '/client-keys': typeof AuthenticatedClientKeysIndexRoute
   '/database-config': typeof AuthenticatedDatabaseConfigIndexRoute
   '/email-settings': typeof AuthenticatedEmailSettingsIndexRoute
   '/extensions': typeof AuthenticatedExtensionsIndexRoute
@@ -445,9 +445,9 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/ai-providers/': typeof AuthenticatedAiProvidersIndexRoute
-  '/_authenticated/client-keys/': typeof AuthenticatedApiKeysIndexRoute
   '/_authenticated/authentication/': typeof AuthenticatedAuthenticationIndexRoute
   '/_authenticated/chatbots/': typeof AuthenticatedChatbotsIndexRoute
+  '/_authenticated/client-keys/': typeof AuthenticatedClientKeysIndexRoute
   '/_authenticated/database-config/': typeof AuthenticatedDatabaseConfigIndexRoute
   '/_authenticated/email-settings/': typeof AuthenticatedEmailSettingsIndexRoute
   '/_authenticated/extensions/': typeof AuthenticatedExtensionsIndexRoute
@@ -496,9 +496,9 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/settings/appearance'
     | '/ai-providers'
-    | '/client-keys'
     | '/authentication'
     | '/chatbots'
+    | '/client-keys'
     | '/database-config'
     | '/email-settings'
     | '/extensions'
@@ -545,9 +545,9 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/settings/appearance'
     | '/ai-providers'
-    | '/client-keys'
     | '/authentication'
     | '/chatbots'
+    | '/client-keys'
     | '/database-config'
     | '/email-settings'
     | '/extensions'
@@ -595,9 +595,9 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/ai-providers/'
-    | '/_authenticated/client-keys/'
     | '/_authenticated/authentication/'
     | '/_authenticated/chatbots/'
+    | '/_authenticated/client-keys/'
     | '/_authenticated/database-config/'
     | '/_authenticated/email-settings/'
     | '/_authenticated/extensions/'
@@ -911,6 +911,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDatabaseConfigIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/client-keys/': {
+      id: '/_authenticated/client-keys/'
+      path: '/client-keys'
+      fullPath: '/client-keys'
+      preLoaderRoute: typeof AuthenticatedClientKeysIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chatbots/': {
       id: '/_authenticated/chatbots/'
       path: '/chatbots'
@@ -923,13 +930,6 @@ declare module '@tanstack/react-router' {
       path: '/authentication'
       fullPath: '/authentication'
       preLoaderRoute: typeof AuthenticatedAuthenticationIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/client-keys/': {
-      id: '/_authenticated/client-keys/'
-      path: '/client-keys'
-      fullPath: '/client-keys'
-      preLoaderRoute: typeof AuthenticatedApiKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ai-providers/': {
@@ -990,9 +990,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedAiProvidersIndexRoute: typeof AuthenticatedAiProvidersIndexRoute
-  AuthenticatedApiKeysIndexRoute: typeof AuthenticatedApiKeysIndexRoute
   AuthenticatedAuthenticationIndexRoute: typeof AuthenticatedAuthenticationIndexRoute
   AuthenticatedChatbotsIndexRoute: typeof AuthenticatedChatbotsIndexRoute
+  AuthenticatedClientKeysIndexRoute: typeof AuthenticatedClientKeysIndexRoute
   AuthenticatedDatabaseConfigIndexRoute: typeof AuthenticatedDatabaseConfigIndexRoute
   AuthenticatedEmailSettingsIndexRoute: typeof AuthenticatedEmailSettingsIndexRoute
   AuthenticatedExtensionsIndexRoute: typeof AuthenticatedExtensionsIndexRoute
@@ -1025,9 +1025,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
   AuthenticatedAiProvidersIndexRoute: AuthenticatedAiProvidersIndexRoute,
-  AuthenticatedApiKeysIndexRoute: AuthenticatedApiKeysIndexRoute,
   AuthenticatedAuthenticationIndexRoute: AuthenticatedAuthenticationIndexRoute,
   AuthenticatedChatbotsIndexRoute: AuthenticatedChatbotsIndexRoute,
+  AuthenticatedClientKeysIndexRoute: AuthenticatedClientKeysIndexRoute,
   AuthenticatedDatabaseConfigIndexRoute: AuthenticatedDatabaseConfigIndexRoute,
   AuthenticatedEmailSettingsIndexRoute: AuthenticatedEmailSettingsIndexRoute,
   AuthenticatedExtensionsIndexRoute: AuthenticatedExtensionsIndexRoute,

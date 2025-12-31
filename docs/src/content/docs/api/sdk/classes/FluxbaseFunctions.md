@@ -74,7 +74,7 @@ This method is fully compatible with Supabase's functions.invoke() API.
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `T` | `any` |
+| `T` | `unknown` |
 
 #### Parameters
 

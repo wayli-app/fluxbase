@@ -4,20 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/mcp"
-	"github.com/fluxbase-eu/fluxbase/internal/storage"
 )
 
 // BucketsResource provides storage buckets information
 type BucketsResource struct {
-	service *storage.Service
+	db *database.Connection
 }
 
 // NewBucketsResource creates a new buckets resource
-func NewBucketsResource(service *storage.Service) *BucketsResource {
+func NewBucketsResource(db *database.Connection) *BucketsResource {
 	return &BucketsResource{
-		service: service,
+		db: db,
 	}
 }
 
@@ -42,27 +43,48 @@ func (r *BucketsResource) RequiredScopes() []string {
 }
 
 func (r *BucketsResource) Read(ctx context.Context, authCtx *mcp.AuthContext) ([]mcp.Content, error) {
-	if r.service == nil {
-		return nil, fmt.Errorf("storage service not available")
+	if r.db == nil {
+		return nil, fmt.Errorf("database connection not available")
 	}
 
-	// List all buckets
-	buckets, err := r.service.ListBuckets(ctx)
+	// Query buckets from database
+	rows, err := r.db.Query(ctx, `
+		SELECT id, name, public, allowed_mime_types, max_file_size, created_at, updated_at
+		FROM storage.buckets
+		ORDER BY created_at DESC
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list buckets: %w", err)
+		return nil, fmt.Errorf("failed to query buckets: %w", err)
 	}
+	defer rows.Close()
 
 	// Build response
-	bucketList := make([]map[string]any, 0, len(buckets))
-	for _, bucket := range buckets {
+	type Bucket struct {
+		ID               string    `json:"id"`
+		Name             string    `json:"name"`
+		Public           bool      `json:"public"`
+		AllowedMimeTypes []string  `json:"allowed_mime_types"`
+		MaxFileSize      *int64    `json:"max_file_size"`
+		CreatedAt        time.Time `json:"created_at"`
+		UpdatedAt        time.Time `json:"updated_at"`
+	}
+
+	bucketList := make([]map[string]any, 0)
+	for rows.Next() {
+		var bucket Bucket
+		if err := rows.Scan(&bucket.ID, &bucket.Name, &bucket.Public, &bucket.AllowedMimeTypes, &bucket.MaxFileSize, &bucket.CreatedAt, &bucket.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan bucket: %w", err)
+		}
+
 		bucketInfo := map[string]any{
+			"id":         bucket.ID,
 			"name":       bucket.Name,
 			"public":     bucket.Public,
 			"created_at": bucket.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		}
 
-		if bucket.FileSizeLimit != nil && *bucket.FileSizeLimit > 0 {
-			bucketInfo["file_size_limit"] = *bucket.FileSizeLimit
+		if bucket.MaxFileSize != nil && *bucket.MaxFileSize > 0 {
+			bucketInfo["max_file_size"] = *bucket.MaxFileSize
 		}
 
 		if len(bucket.AllowedMimeTypes) > 0 {

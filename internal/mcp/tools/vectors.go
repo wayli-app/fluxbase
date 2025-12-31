@@ -168,17 +168,17 @@ func (t *SearchVectorsTool) Execute(ctx context.Context, args map[string]any, au
 	resultList := make([]map[string]any, 0, len(results))
 	for _, r := range results {
 		item := map[string]any{
-			"content":    r.Content,
-			"similarity": r.Similarity,
+			"chunk_id":       r.ChunkID,
+			"document_id":    r.DocumentID,
+			"content":        r.Content,
+			"similarity":     r.Similarity,
+			"knowledge_base": r.KnowledgeBaseName,
 		}
 		if r.DocumentTitle != "" {
 			item["document_title"] = r.DocumentTitle
 		}
-		if r.KnowledgeBaseName != "" {
-			item["knowledge_base"] = r.KnowledgeBaseName
-		}
-		if r.Metadata != nil {
-			item["metadata"] = r.Metadata
+		if len(r.Tags) > 0 {
+			item["tags"] = r.Tags
 		}
 		resultList = append(resultList, item)
 	}

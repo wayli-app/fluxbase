@@ -208,6 +208,32 @@ await client.admin.settings.app.configureSMTP({
 
 ***
 
+### deleteSecretSetting()
+
+> **deleteSecretSetting**(`key`): `Promise`\<`void`\>
+
+Delete a system secret setting
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key to delete |
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Promise<void>
+
+#### Example
+
+```typescript
+await client.admin.settings.app.deleteSecretSetting('stripe_api_key')
+```
+
+***
+
 ### deleteSetting()
 
 > **deleteSetting**(`key`): `Promise`\<`void`\>
@@ -304,6 +330,34 @@ console.log('Email provider:', settings.email.provider)
 
 ***
 
+### getSecretSetting()
+
+> **getSecretSetting**(`key`): `Promise`\<`SecretSettingMetadata`\>
+
+Get metadata for a system secret setting (never returns the value)
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key |
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`\>
+
+Promise resolving to SecretSettingMetadata
+
+#### Example
+
+```typescript
+const metadata = await client.admin.settings.app.getSecretSetting('stripe_api_key')
+console.log(metadata.key, metadata.updated_at)
+// Note: metadata.value is never included
+```
+
+***
+
 ### getSetting()
 
 > **getSetting**(`key`): `Promise`\<`any`\>
@@ -365,6 +419,65 @@ console.log(values)
 //   'billing.tiers': { free: 1000, pro: 10000 },
 //   'features.beta_enabled': { enabled: true }
 // }
+```
+
+***
+
+### getUserSecretValue()
+
+> **getUserSecretValue**(`userId`, `key`): `Promise`\<`string`\>
+
+Get the decrypted value of a user's secret setting
+
+This is a privileged operation that requires service_role.
+Use this to retrieve user-specific secrets when running as a service
+(e.g., in edge functions or background jobs).
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `userId` | `string` | The user ID whose secret to retrieve |
+| `key` | `string` | Secret key |
+
+#### Returns
+
+`Promise`\<`string`\>
+
+Promise resolving to the decrypted secret value
+
+#### Example
+
+```typescript
+// In an edge function, get a user's API key for validation
+const apiKey = await fluxbaseService.admin.settings.app.getUserSecretValue(
+  userId,
+  'owntracks_api_key'
+)
+if (apiKey !== providedKey) {
+  throw new Error('Invalid API key')
+}
+```
+
+***
+
+### listSecretSettings()
+
+> **listSecretSettings**(): `Promise`\<`SecretSettingMetadata`[]\>
+
+List all system secret settings (metadata only, never includes values)
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`[]\>
+
+Promise resolving to array of SecretSettingMetadata
+
+#### Example
+
+```typescript
+const secrets = await client.admin.settings.app.listSecretSettings()
+secrets.forEach(s => console.log(s.key, s.description))
 ```
 
 ***
@@ -593,6 +706,41 @@ Promise resolving to AppSettings
 
 ```typescript
 await client.admin.settings.app.setRateLimiting(true)
+```
+
+***
+
+### setSecretSetting()
+
+> **setSecretSetting**(`key`, `value`, `options`?): `Promise`\<`SecretSettingMetadata`\>
+
+Set a system-level secret setting (encrypted)
+
+Creates or updates an encrypted system secret. The value is encrypted server-side
+and can only be accessed by edge functions, background jobs, or custom handlers.
+The SDK never returns the decrypted value.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `key` | `string` | Secret key |
+| `value` | `string` | Secret value (will be encrypted server-side) |
+| `options`? | `object` | Optional description |
+| `options.description`? | `string` | - |
+
+#### Returns
+
+`Promise`\<`SecretSettingMetadata`\>
+
+Promise resolving to SecretSettingMetadata (never includes the value)
+
+#### Example
+
+```typescript
+await client.admin.settings.app.setSecretSetting('stripe_api_key', 'sk-live-xxx', {
+  description: 'Stripe API key for payment processing'
+})
 ```
 
 ***

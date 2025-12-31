@@ -84,10 +84,14 @@ func (t *InsertRecordTool) Execute(ctx context.Context, args map[string]any, aut
 	// Validate table exists
 	var tableInfo *database.TableInfo
 	if t.schemaCache != nil {
-		tableInfo = t.schemaCache.GetTable(schema, table)
-		if tableInfo == nil {
+		info, exists, err := t.schemaCache.GetTable(ctx, schema, table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		}
+		if !exists || info == nil {
 			return nil, fmt.Errorf("table not found: %s.%s", schema, table)
 		}
+		tableInfo = info
 	}
 
 	// Parse returning columns
@@ -255,10 +259,14 @@ func (t *UpdateRecordTool) Execute(ctx context.Context, args map[string]any, aut
 	// Validate table exists
 	var tableInfo *database.TableInfo
 	if t.schemaCache != nil {
-		tableInfo = t.schemaCache.GetTable(schema, table)
-		if tableInfo == nil {
+		info, exists, err := t.schemaCache.GetTable(ctx, schema, table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		}
+		if !exists || info == nil {
 			return nil, fmt.Errorf("table not found: %s.%s", schema, table)
 		}
+		tableInfo = info
 	}
 
 	// Parse returning columns
@@ -428,8 +436,11 @@ func (t *DeleteRecordTool) Execute(ctx context.Context, args map[string]any, aut
 
 	// Validate table exists
 	if t.schemaCache != nil {
-		tableInfo := t.schemaCache.GetTable(schema, table)
-		if tableInfo == nil {
+		_, exists, err := t.schemaCache.GetTable(ctx, schema, table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get table metadata: %w", err)
+		}
+		if !exists {
 			return nil, fmt.Errorf("table not found: %s.%s", schema, table)
 		}
 	}

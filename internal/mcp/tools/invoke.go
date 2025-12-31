@@ -269,9 +269,9 @@ func (t *InvokeRPCTool) Execute(ctx context.Context, args map[string]any, authCt
 	var proc *rpc.Procedure
 	var err error
 	if namespace != "" {
-		proc, err = t.storage.GetProcedureByNamespace(ctx, name, namespace)
+		proc, err = t.storage.GetProcedureByName(ctx, namespace, name)
 	} else {
-		proc, err = t.storage.GetProcedureByName(ctx, name)
+		proc, err = t.storage.GetProcedureByName(ctx, "", name)
 	}
 	if err != nil {
 		return &mcp.ToolResult{

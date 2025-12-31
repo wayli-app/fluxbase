@@ -82,9 +82,9 @@ func (t *SubmitJobTool) Execute(ctx context.Context, args map[string]any, authCt
 	var fn *jobs.JobFunction
 	var err error
 	if namespace != "" {
-		fn, err = t.storage.GetJobFunctionByNamespace(ctx, jobName, namespace)
+		fn, err = t.storage.GetJobFunction(ctx, namespace, jobName)
 	} else {
-		fn, err = t.storage.GetJobFunctionByName(ctx, jobName)
+		fn, err = t.storage.GetJobFunction(ctx, "", jobName)
 	}
 	if err != nil {
 		return &mcp.ToolResult{
@@ -147,20 +147,28 @@ func (t *SubmitJobTool) Execute(ctx context.Context, args map[string]any, authCt
 		Interface("scheduled_at", scheduledAt).
 		Msg("MCP: Submitting job")
 
+	// Create payload string
+	var payloadStr *string
+	if len(payloadBytes) > 0 {
+		s := string(payloadBytes)
+		payloadStr = &s
+	}
+
 	// Create job
 	job := &jobs.Job{
 		ID:            uuid.New(),
-		JobFunctionID: fn.ID,
-		Status:        jobs.StatusPending,
+		Namespace:     namespace,
+		JobFunctionID: &fn.ID,
+		JobName:       jobName,
+		Status:        jobs.JobStatusPending,
 		Priority:      priority,
-		Payload:       payloadBytes,
+		Payload:       payloadStr,
 		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
 		ScheduledAt:   scheduledAt,
 	}
 
 	if userID != nil {
-		job.UserID = userID
+		job.CreatedBy = userID
 	}
 	if userRole != "" {
 		job.UserRole = &userRole
@@ -261,12 +269,12 @@ func (t *GetJobStatusTool) Execute(ctx context.Context, args map[string]any, aut
 	}
 
 	result := map[string]any{
-		"job_id":     job.ID.String(),
-		"status":     string(job.Status),
-		"priority":   job.Priority,
-		"attempts":   job.Attempts,
-		"created_at": job.CreatedAt.Format(time.RFC3339),
-		"updated_at": job.UpdatedAt.Format(time.RFC3339),
+		"job_id":      job.ID.String(),
+		"job_name":    job.JobName,
+		"status":      string(job.Status),
+		"priority":    job.Priority,
+		"retry_count": job.RetryCount,
+		"created_at":  job.CreatedAt.Format(time.RFC3339),
 	}
 
 	if job.ScheduledAt != nil {
@@ -278,12 +286,12 @@ func (t *GetJobStatusTool) Execute(ctx context.Context, args map[string]any, aut
 	if job.CompletedAt != nil {
 		result["completed_at"] = job.CompletedAt.Format(time.RFC3339)
 	}
-	if job.Error != nil {
-		result["error"] = *job.Error
+	if job.ErrorMessage != nil {
+		result["error"] = *job.ErrorMessage
 	}
 	if job.Result != nil {
 		var resultData any
-		if err := json.Unmarshal(job.Result, &resultData); err == nil {
+		if err := json.Unmarshal([]byte(*job.Result), &resultData); err == nil {
 			result["result"] = resultData
 		}
 	}

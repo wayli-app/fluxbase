@@ -1,5 +1,5 @@
 ---
-title: "MCP Tools Reference"
+title: "Tools Reference"
 description: "Complete reference of MCP tools for database, storage, functions, and jobs"
 ---
 

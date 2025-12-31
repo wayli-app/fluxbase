@@ -53,6 +53,11 @@ func ClientKeyAuth(clientKeyService *auth.ClientKeyService) fiber.Handler {
 		c.Locals("client_key_name", validatedKey.Name)
 		c.Locals("client_key_scopes", validatedKey.Scopes)
 
+		// Store allowed namespaces (nil = all allowed, empty = default only)
+		if validatedKey.AllowedNamespaces != nil {
+			c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
+		}
+
 		// If client key is associated with a user, store user ID
 		if validatedKey.UserID != nil {
 			c.Locals("user_id", *validatedKey.UserID)
@@ -101,6 +106,11 @@ func OptionalClientKeyAuth(authService *auth.Service, clientKeyService *auth.Cli
 				c.Locals("client_key_name", validatedKey.Name)
 				c.Locals("client_key_scopes", validatedKey.Scopes)
 				c.Locals("auth_type", "clientkey")
+
+				// Store allowed namespaces
+				if validatedKey.AllowedNamespaces != nil {
+					c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
+				}
 
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
@@ -152,6 +162,11 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 				c.Locals("client_key_id", validatedKey.ID)
 				c.Locals("client_key_name", validatedKey.Name)
 				c.Locals("client_key_scopes", validatedKey.Scopes)
+				// Store allowed namespaces
+				if validatedKey.AllowedNamespaces != nil {
+					c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
+				}
+
 				c.Locals("auth_type", "clientkey")
 
 				if validatedKey.UserID != nil {
@@ -303,6 +318,11 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 				c.Locals("client_key_name", validatedKey.Name)
 				c.Locals("client_key_scopes", validatedKey.Scopes)
 				c.Locals("auth_type", "clientkey")
+				// Store allowed namespaces
+				if validatedKey.AllowedNamespaces != nil {
+					c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
+				}
+
 
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
@@ -523,6 +543,11 @@ func OptionalAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.
 				c.Locals("client_key_id", validatedKey.ID)
 				c.Locals("client_key_name", validatedKey.Name)
 				c.Locals("client_key_scopes", validatedKey.Scopes)
+				// Store allowed namespaces
+				if validatedKey.AllowedNamespaces != nil {
+					c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
+				}
+
 				c.Locals("auth_type", "clientkey")
 
 				// Set RLS context if client key has user association

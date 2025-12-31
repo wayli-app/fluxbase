@@ -1056,7 +1056,7 @@ func (params *QueryParams) buildWhereClause(argCounter *int) (string, []interfac
 	filterSQLs := make([]filterSQL, len(params.Filters))
 
 	for i, filter := range params.Filters {
-		condition, arg := filter.toSQL(argCounter)
+		condition, arg := filterToSQL(filter, argCounter)
 		filterSQLs[i] = filterSQL{condition: condition, filter: filter}
 		if arg != nil {
 			// Handle multi-argument operators (e.g., ST_DWithin returns []interface{})
@@ -1288,8 +1288,8 @@ func needsNumericCast(column string, value interface{}) bool {
 	return false
 }
 
-// toSQL converts a filter to SQL condition
-func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
+// filterToSQL converts a filter to SQL condition
+func filterToSQL(f Filter, argCounter *int) (string, interface{}) {
 	// Parse JSONB path for proper SQL formatting
 	colExpr := parseJSONBPath(f.Column)
 
@@ -1443,7 +1443,7 @@ func (f *Filter) toSQL(argCounter *int) (string, interface{}) {
 		}
 
 		// Generate SQL for the nested filter
-		nestedSQL, nestedArg := nestedFilter.toSQL(argCounter)
+		nestedSQL, nestedArg := filterToSQL(nestedFilter, argCounter)
 
 		// Wrap in NOT
 		sql := fmt.Sprintf("NOT (%s)", nestedSQL)

@@ -14,7 +14,7 @@ AI chat server message
 | `chatbot?` | `string` |
 | `code?` | `string` |
 | `conversation_id?` | `string` |
-| `data?` | `Record`\<`string`, `any`\>[] |
+| `data?` | `Record`\<`string`, `unknown`\>[] |
 | `delta?` | `string` |
 | `error?` | `string` |
 | `message?` | `string` |

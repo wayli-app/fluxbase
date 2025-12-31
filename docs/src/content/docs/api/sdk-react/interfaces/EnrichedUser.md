@@ -15,7 +15,7 @@ title: "EnrichedUser"
 | `id` | `string` |
 | `is_anonymous?` | `boolean` |
 | `last_login_at?` | `string` |
-| `metadata?` | `Record`\<`string`, `any`\> |
+| `metadata?` | `Record`\<`string`, `unknown`\> |
 | `role?` | `string` |
 | `session_count?` | `number` |
 | `updated_at?` | `string` |

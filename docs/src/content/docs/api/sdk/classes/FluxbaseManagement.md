@@ -27,6 +27,7 @@ Management client for client keys, webhooks, and invitations
 
 | Property | Modifier | Type | Description |
 | ------ | ------ | ------ | ------ |
-| `apiKeys` | `public` | [`APIKeysManager`](/api/sdk/classes/apikeysmanager/) | client keys management |
+| ~~`apiKeys`~~ | `public` | [`ClientKeysManager`](/api/sdk/classes/clientkeysmanager/) | :::caution[Deprecated] Use clientKeys instead ::: |
+| `clientKeys` | `public` | [`ClientKeysManager`](/api/sdk/classes/clientkeysmanager/) | Client Keys management |
 | `invitations` | `public` | [`InvitationsManager`](/api/sdk/classes/invitationsmanager/) | Invitations management |
 | `webhooks` | `public` | [`WebhooksManager`](/api/sdk/classes/webhooksmanager/) | Webhooks management |

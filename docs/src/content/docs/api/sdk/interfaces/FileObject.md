@@ -16,7 +16,7 @@ Compatible with Supabase FileObject structure
 | `created_at?` | `string` |
 | `id?` | `string` |
 | `last_accessed_at?` | `string` |
-| `metadata?` | `Record`\<`string`, `any`\> |
+| `metadata?` | `Record`\<`string`, `unknown`\> |
 | `name` | `string` |
 | `owner?` | `string` |
 | `updated_at?` | `string` |

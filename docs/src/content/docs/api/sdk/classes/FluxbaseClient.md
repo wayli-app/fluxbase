@@ -11,8 +11,8 @@ Main Fluxbase client class
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `Database` | `any` |
-| `_SchemaName` *extends* `string` & keyof `Database` | `any` |
+| `Database` | `unknown` |
+| `_SchemaName` *extends* `string` & keyof `Database` | `string` & keyof `Database` |
 
 ## Constructors
 
@@ -103,6 +103,36 @@ This updates both the HTTP client and realtime connection with the new token.
 
 `void`
 
+## Branching
+
+### branching
+
+> **branching**: [`FluxbaseBranching`](/api/sdk/classes/fluxbasebranching/)
+
+Branching module for database branch management
+
+Database branches allow you to create isolated copies of your database
+for development, testing, and preview environments.
+
+#### Example
+
+```typescript
+// List all branches
+const { data } = await client.branching.list()
+
+// Create a feature branch
+const { data: branch } = await client.branching.create('feature/add-auth', {
+  dataCloneMode: 'schema_only',
+  expiresIn: '7d'
+})
+
+// Reset branch to parent state
+await client.branching.reset('feature/add-auth')
+
+// Delete when done
+await client.branching.delete('feature/add-auth')
+```
+
 ## Database
 
 ### from()
@@ -115,7 +145,7 @@ Create a query builder for a database table
 
 | Type Parameter | Default type |
 | ------ | ------ |
-| `T` | `any` |
+| `T` | `unknown` |
 
 #### Parameters
 
@@ -185,6 +215,41 @@ await client
   .from('events')
   .insert({ event_type: 'click', data: {} })
   .execute()
+```
+
+## GraphQL
+
+### graphql
+
+> **graphql**: [`FluxbaseGraphQL`](/api/sdk/classes/fluxbasegraphql/)
+
+GraphQL module for executing queries and mutations
+
+Provides a type-safe interface for the auto-generated GraphQL schema
+from your database tables.
+
+#### Example
+
+```typescript
+// Execute a query
+const { data, errors } = await client.graphql.query(`
+  query GetUsers($limit: Int) {
+    users(limit: $limit) {
+      id
+      email
+    }
+  }
+`, { limit: 10 })
+
+// Execute a mutation
+const { data, errors } = await client.graphql.mutation(`
+  mutation CreateUser($data: UserInput!) {
+    insertUser(data: $data) {
+      id
+      email
+    }
+  }
+`, { data: { email: 'user@example.com' } })
 ```
 
 ## Other

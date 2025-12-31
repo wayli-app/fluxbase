@@ -1,5 +1,5 @@
 ---
-title: "MCP Integration Guide"
+title: "Integration Guide"
 description: "Step-by-step guide to connecting AI assistants to Fluxbase"
 ---
 
