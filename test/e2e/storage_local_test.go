@@ -112,7 +112,7 @@ func TestStorageLocalUploadFile(t *testing.T) {
 	// Upload file - use httptest to create proper request
 	req := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-API-Key", tc.APIKey)
+	req.Header.Set("X-Client-Key", tc.APIKey)
 
 	resp, err := tc.App.Test(req)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestStorageLocalDownloadFile(t *testing.T) {
 
 	uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
-	uploadReq.Header.Set("X-API-Key", tc.APIKey)
+	uploadReq.Header.Set("X-Client-Key", tc.APIKey)
 	_, err = tc.App.Test(uploadReq)
 	require.NoError(t, err)
 
@@ -194,7 +194,7 @@ func TestStorageLocalDeleteFile(t *testing.T) {
 
 	uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
-	uploadReq.Header.Set("X-API-Key", tc.APIKey)
+	uploadReq.Header.Set("X-Client-Key", tc.APIKey)
 	_, err = tc.App.Test(uploadReq)
 	require.NoError(t, err)
 
@@ -256,7 +256,7 @@ func TestStorageLocalListFiles(t *testing.T) {
 
 		uploadReq := httptest.NewRequest("POST", "/api/v1/storage/"+bucketName+"/"+fileName, body)
 		uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
-		uploadReq.Header.Set("X-API-Key", tc.APIKey)
+		uploadReq.Header.Set("X-Client-Key", tc.APIKey)
 		_, err = tc.App.Test(uploadReq)
 		require.NoError(t, err)
 	}

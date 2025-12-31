@@ -117,16 +117,16 @@ func TestFunctionAnonKeyRequired(t *testing.T) {
 		require.True(t, ok, "API key 'key' field not found or not a string: %v", keyData)
 
 		resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/functions/%s/invoke", functionName)).
-			WithHeader("X-API-Key", apiKey).
+			WithClientKey(apiKey).
 			WithJSON(map[string]interface{}{"test": "data"}).
 			Send()
 
 		// Should NOT return 401 or 403 - authentication should pass
 		require.NotEqual(t, fiber.StatusUnauthorized, resp.Status(),
-			"Should not return 401 with valid API key, got %d: %s",
+			"Should not return 401 with valid client key, got %d: %s",
 			resp.Status(), string(resp.Body()))
 		require.NotEqual(t, fiber.StatusForbidden, resp.Status(),
-			"Should not return 403 with valid API key, got %d: %s",
+			"Should not return 403 with valid client key, got %d: %s",
 			resp.Status(), string(resp.Body()))
 	})
 }
@@ -297,7 +297,7 @@ func TestFunctionAuthenticationTypes(t *testing.T) {
 			headerName: "Authorization",
 		},
 		{
-			name: "APIKey",
+			name: "ClientKey",
 			setupAuth: func(tc *test.TestContext) string {
 				resp := tc.NewRequest("POST", "/api/v1/client-keys").
 					WithAuth(adminToken).
@@ -310,7 +310,7 @@ func TestFunctionAuthenticationTypes(t *testing.T) {
 				resp.JSON(&keyData)
 				return keyData["key"].(string)
 			},
-			headerName: "X-API-Key",
+			headerName: "X-Client-Key",
 		},
 	}
 

@@ -104,7 +104,7 @@ func TestCalculateQueryDepth(t *testing.T) {
 			name:      "empty query",
 			query:     `{}`,
 			wantDepth: 0,
-			wantError: false,
+			wantError: true, // Empty selection set is a GraphQL syntax error
 		},
 	}
 

@@ -79,19 +79,19 @@ func TestFunctionAuthenticationOnly(t *testing.T) {
 			"Should not return 403 with valid user JWT")
 	})
 
-	t.Run("APIKey_PassesAuth", func(t *testing.T) {
-		// Create API key using the helper
-		apiKey := tc.CreateAPIKey("test-key", []string{"execute:functions"})
+	t.Run("ClientKey_PassesAuth", func(t *testing.T) {
+		// Create client key using the helper
+		clientKey := tc.CreateClientKey("test-key", []string{"execute:functions"})
 
 		resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/functions/%s/invoke", functionName)).
-			WithHeader("X-API-Key", apiKey).
+			WithClientKey(clientKey).
 			Send()
 
 		// Should NOT return 401/403 - auth passed
 		require.NotEqual(t, fiber.StatusUnauthorized, resp.Status(),
-			"Should not return 401 with valid API key")
+			"Should not return 401 with valid client key")
 		require.NotEqual(t, fiber.StatusForbidden, resp.Status(),
-			"Should not return 403 with valid API key")
+			"Should not return 403 with valid client key")
 	})
 }
 

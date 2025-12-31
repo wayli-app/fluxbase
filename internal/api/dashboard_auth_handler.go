@@ -879,9 +879,13 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	errorParam := c.Query("error")
 	ctx := c.Context()
 
+	codePreview := code
+	if len(code) > 10 {
+		codePreview = code[:10] + "..."
+	}
 	log.Debug().
 		Str("state", state).
-		Str("code", code[:10]+"...").
+		Str("code", codePreview).
 		Str("provider", c.Params("provider")).
 		Msg("Dashboard OAuth callback received")
 

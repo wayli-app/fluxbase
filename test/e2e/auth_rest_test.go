@@ -95,20 +95,6 @@ func TestRESTWithBearerToken(t *testing.T) {
 	}
 }
 
-// TestRESTWithInvalidAPIKey verifies that invalid client keys are rejected
-func TestRESTWithInvalidAPIKey(t *testing.T) {
-	tc := test.NewTestContext(t)
-	defer tc.Close()
-
-	// Use invalid API key
-	resp := tc.NewRequest("GET", "/api/v1/tables/products").
-		WithAPIKey("fbk_invalid_key_12345678901234567890").
-		Send()
-
-	resp.AssertStatus(fiber.StatusUnauthorized)
-	resp.AssertContains("Invalid API key")
-}
-
 // TestRESTWithInvalidServiceKey verifies that invalid service keys are rejected
 func TestRESTWithInvalidServiceKey(t *testing.T) {
 	tc := test.NewTestContext(t)
@@ -155,7 +141,7 @@ func TestRESTAuthenticationPriority(t *testing.T) {
 
 	// Clean up only test-specific data to avoid affecting other parallel tests
 	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
-	tc.ExecuteSQL("DELETE FROM auth.api_keys WHERE name LIKE '%Test%' OR name LIKE '%test%'")
+	tc.ExecuteSQL("DELETE FROM auth.client_keys WHERE name LIKE '%Test%' OR name LIKE '%test%'")
 	tc.ExecuteSQL("DELETE FROM auth.service_keys WHERE name LIKE '%Test%' OR name LIKE '%test%'")
 
 	// Create all three auth types

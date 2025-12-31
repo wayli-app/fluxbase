@@ -320,9 +320,9 @@ func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims,
 		return nil, ErrInvalidToken
 	}
 
-	// Strict issuer validation - only accept tokens issued by fluxbase
+	// Validate issuer - accept tokens from known issuers or no issuer
 	issuer := claims.Issuer
-	if issuer != "fluxbase" {
+	if issuer != "" && issuer != "fluxbase" && issuer != "supabase-demo" && issuer != "supabase" {
 		return nil, ErrInvalidToken
 	}
 

@@ -780,7 +780,7 @@ func (h *Handler) InvokeFunction(c *fiber.Ctx) error {
 		authType := c.Locals("auth_type")
 		if authType == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Authentication required. Provide an anon key (Bearer token with role=anon), API key (X-API-Key header), or service key (X-Service-Key header). " +
+				"error": "Authentication required. Provide an anon key (Bearer token with role=anon), client key (X-Client-Key header), or service key (X-Service-Key header). " +
 					"To allow completely unauthenticated access, set allow_unauthenticated=true on the function.",
 			})
 		}

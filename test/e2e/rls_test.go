@@ -21,8 +21,8 @@ func setupRLSTest(t *testing.T) *test.TestContext {
 	tc.ExecuteSQLAsSuperuser(`
 		-- Delete only test users (those with test email patterns)
 		DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com';
-		-- Clean test-specific api_keys
-		DELETE FROM auth.api_keys WHERE name LIKE '%Test%' OR name LIKE '%test%';
+		-- Clean test-specific client_keys
+		DELETE FROM auth.client_keys WHERE name LIKE '%Test%' OR name LIKE '%test%';
 		-- Clean impersonation sessions for deleted users (will cascade)
 		DELETE FROM auth.impersonation_sessions WHERE admin_user_id NOT IN (SELECT id FROM auth.users);
 		-- Clean magic_links for deleted users
@@ -808,47 +808,47 @@ func TestRLSAPIKeyUsageRestriction(t *testing.T) {
 	`, user2ID)
 
 	// Create client keys for both users as superuser
-	apiKey1ID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	apiKey2ID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	clientKey1ID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	clientKey2ID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.api_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
+		INSERT INTO auth.client_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
 		VALUES ($1, $2, 'hash1', 'fb_test_', 'User 1 Key', NOW(), NOW())
-	`, apiKey1ID, user1ID)
+	`, clientKey1ID, user1ID)
 
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.api_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
+		INSERT INTO auth.client_keys (id, user_id, key_hash, key_prefix, name, created_at, last_used_at)
 		VALUES ($1, $2, 'hash2', 'fb_test_', 'User 2 Key', NOW(), NOW())
-	`, apiKey2ID, user2ID)
+	`, clientKey2ID, user2ID)
 
 	// Add usage records for both keys
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.api_key_usage (id, api_key_id, endpoint, method, status_code, created_at)
+		INSERT INTO auth.client_key_usage (id, client_key_id, endpoint, method, status_code, created_at)
 		VALUES (gen_random_uuid(), $1, '/api/test', 'GET', 200, NOW())
-	`, apiKey1ID)
+	`, clientKey1ID)
 
 	tc.ExecuteSQLAsSuperuser(`
-		INSERT INTO auth.api_key_usage (id, api_key_id, endpoint, method, status_code, created_at)
+		INSERT INTO auth.client_key_usage (id, client_key_id, endpoint, method, status_code, created_at)
 		VALUES (gen_random_uuid(), $1, '/api/test', 'GET', 200, NOW())
-	`, apiKey2ID)
+	`, clientKey2ID)
 
-	// Test: User1 should only see usage for their own API key
+	// Test: User1 should only see usage for their own client key
 	user1Usage := tc.QuerySQLAsRLSUser(`
-		SELECT api_key_id FROM auth.api_key_usage WHERE api_key_id IN ($1, $2)
-	`, user1ID, apiKey1ID, apiKey2ID)
+		SELECT client_key_id FROM auth.client_key_usage WHERE client_key_id IN ($1, $2)
+	`, user1ID, clientKey1ID, clientKey2ID)
 
-	require.Len(t, user1Usage, 1, "User1 should only see usage for their own API key")
-	require.Equal(t, apiKey1ID, user1Usage[0]["api_key_id"], "User1 should see their own key usage")
+	require.Len(t, user1Usage, 1, "User1 should only see usage for their own client key")
+	require.Equal(t, clientKey1ID, user1Usage[0]["client_key_id"], "User1 should see their own key usage")
 
-	// Test: User2 should only see usage for their own API key
+	// Test: User2 should only see usage for their own client key
 	user2Usage := tc.QuerySQLAsRLSUser(`
-		SELECT api_key_id FROM auth.api_key_usage WHERE api_key_id IN ($1, $2)
-	`, user2ID, apiKey1ID, apiKey2ID)
+		SELECT client_key_id FROM auth.client_key_usage WHERE client_key_id IN ($1, $2)
+	`, user2ID, clientKey1ID, clientKey2ID)
 
-	require.Len(t, user2Usage, 1, "User2 should only see usage for their own API key")
-	require.Equal(t, apiKey2ID, user2Usage[0]["api_key_id"], "User2 should see their own key usage")
+	require.Len(t, user2Usage, 1, "User2 should only see usage for their own client key")
+	require.Equal(t, clientKey2ID, user2Usage[0]["client_key_id"], "User2 should see their own key usage")
 
-	t.Log("API key usage correctly restricted to own keys only")
+	t.Log("Client key usage correctly restricted to own keys only")
 }
 
 // TestRLSForceRowLevelSecurity tests that FORCE RLS prevents table owner bypass
@@ -902,8 +902,8 @@ func TestRLSPerformanceIndexes(t *testing.T) {
 		table  string
 		index  string
 	}{
-		{"auth", "api_keys", "idx_api_keys_user_id"},
-		{"auth", "api_key_usage", "idx_api_key_usage_api_key_id"},
+		{"auth", "client_keys", "idx_auth_client_keys_user_id"},
+		{"auth", "client_key_usage", "idx_auth_client_key_usage_client_key_id"},
 		{"auth", "sessions", "idx_auth_sessions_user_id"},
 		{"auth", "webhook_deliveries", "idx_webhook_deliveries_webhook_id"},
 		{"auth", "impersonation_sessions", "idx_auth_impersonation_admin_user_id"},
