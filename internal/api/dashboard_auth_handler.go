@@ -40,9 +40,10 @@ type DashboardAuthHandler struct {
 
 // dashboardOAuthState holds OAuth state for dashboard SSO
 type dashboardOAuthState struct {
-	Provider   string
-	CreatedAt  time.Time
-	RedirectTo string
+	Provider    string
+	CreatedAt   time.Time
+	RedirectTo  string
+	UserInfoURL *string
 }
 
 // NewDashboardAuthHandler creates a new dashboard auth handler
@@ -73,6 +74,14 @@ func (h *DashboardAuthHandler) RegisterRoutes(app *fiber.App) {
 	dashboard.Get("/sso/oauth/:provider/callback", h.OAuthCallback)
 	dashboard.Get("/sso/saml/:provider", h.InitiateSAMLLogin)
 	dashboard.Post("/sso/saml/acs", h.SAMLACSCallback)
+
+	// Also register OAuth/SAML routes at /api/v1/auth paths for unified URLs
+	// These will be registered before the app OAuth handler, so they take priority
+	apiAuth := app.Group("/api/v1/auth")
+	apiAuth.Get("/oauth/:provider/authorize", h.InitiateOAuthLogin)
+	apiAuth.Get("/oauth/:provider/callback", h.OAuthCallback)
+	apiAuth.Get("/saml/:provider", h.InitiateSAMLLogin)
+	apiAuth.Post("/saml/acs", h.SAMLACSCallback)
 
 	// Protected routes (require dashboard JWT)
 	dashboard.Get("/me", h.RequireDashboardAuth, h.GetCurrentUser)
@@ -594,7 +603,7 @@ func (h *DashboardAuthHandler) getOAuthProvidersForDashboard(ctx context.Context
 				return err
 			}
 			providers = append(providers, SSOProvider{
-				ID:       id.String(),
+				ID:       providerName, // Use provider_name as ID for URL routing
 				Name:     displayName,
 				Type:     "oauth",
 				Provider: providerName,
@@ -618,23 +627,43 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	// Fetch the OAuth provider configuration
 	var clientID, clientSecret, providerName string
 	var scopes []string
+	var isCustom bool
+	var authURL, tokenURL, userInfoURL *string
 	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT client_id, client_secret, provider_name, scopes
+			SELECT client_id, client_secret, provider_name, scopes,
+			       is_custom, authorization_url, token_url, user_info_url
 			FROM dashboard.oauth_providers
 			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
-		`, providerID).Scan(&clientID, &clientSecret, &providerName, &scopes)
+		`, providerID).Scan(&clientID, &clientSecret, &providerName, &scopes, &isCustom, &authURL, &tokenURL, &userInfoURL)
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return fiber.NewError(fiber.StatusNotFound, "OAuth provider not found or not enabled for dashboard login")
+			log.Debug().
+				Str("provider_id", providerID).
+				Msg("OAuth provider not found for dashboard login, trying app handler")
+			// Provider not configured for dashboard login, let app handler try
+			return c.Next()
 		}
+		log.Error().Err(err).Str("provider_id", providerID).Msg("Failed to fetch OAuth provider")
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch OAuth provider")
 	}
 
+	log.Debug().
+		Str("provider_id", providerID).
+		Str("provider_name", providerName).
+		Bool("is_custom", isCustom).
+		Bool("has_auth_url", authURL != nil).
+		Bool("has_token_url", tokenURL != nil).
+		Msg("OAuth provider fetched for dashboard login")
+
 	// Build OAuth config
-	config := h.buildOAuthConfig(providerName, clientID, clientSecret, scopes)
+	config := h.buildOAuthConfig(providerName, clientID, clientSecret, scopes, isCustom, authURL, tokenURL)
 	if config == nil {
+		log.Warn().
+			Str("provider_name", providerName).
+			Bool("is_custom", isCustom).
+			Msg("Failed to build OAuth config - unsupported provider")
 		return fiber.NewError(fiber.StatusBadRequest, "Unsupported OAuth provider")
 	}
 
@@ -647,9 +676,10 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	// Store state
 	h.oauthStatesMu.Lock()
 	h.oauthStates[state] = &dashboardOAuthState{
-		Provider:   providerID,
-		CreatedAt:  time.Now(),
-		RedirectTo: redirectTo,
+		Provider:    providerID,
+		CreatedAt:   time.Now(),
+		RedirectTo:  redirectTo,
+		UserInfoURL: userInfoURL,
 	}
 	h.oauthStatesMu.Unlock()
 
@@ -659,50 +689,67 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	h.oauthConfigsMu.Unlock()
 
 	// Redirect to OAuth provider
-	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
-	return c.Redirect(authURL)
+	authorizeURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+
+	log.Debug().
+		Str("state", state).
+		Str("provider", providerName).
+		Str("authorize_url", authorizeURL).
+		Msg("Dashboard OAuth login initiated")
+
+	return c.Redirect(authorizeURL)
 }
 
 // buildOAuthConfig creates an OAuth2 config for the given provider
-func (h *DashboardAuthHandler) buildOAuthConfig(provider, clientID, clientSecret string, scopes []string) *oauth2.Config {
-	callbackURL := h.baseURL + "/dashboard/auth/sso/oauth/" + provider + "/callback"
+func (h *DashboardAuthHandler) buildOAuthConfig(provider, clientID, clientSecret string, scopes []string, isCustom bool, customAuthURL, customTokenURL *string) *oauth2.Config {
+	callbackURL := h.baseURL + "/api/v1/auth/oauth/" + provider + "/callback"
 
 	var endpoint oauth2.Endpoint
-	switch provider {
-	case "google":
+
+	// If custom provider with URLs, use them
+	if isCustom && customAuthURL != nil && customTokenURL != nil {
 		endpoint = oauth2.Endpoint{
-			AuthURL:  "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL: "https://oauth2.googleapis.com/token",
+			AuthURL:  *customAuthURL,
+			TokenURL: *customTokenURL,
 		}
-		if len(scopes) == 0 {
-			scopes = []string{"openid", "email", "profile"}
+	} else {
+		// Fall back to standard providers
+		switch provider {
+		case "google":
+			endpoint = oauth2.Endpoint{
+				AuthURL:  "https://accounts.google.com/o/oauth2/v2/auth",
+				TokenURL: "https://oauth2.googleapis.com/token",
+			}
+			if len(scopes) == 0 {
+				scopes = []string{"openid", "email", "profile"}
+			}
+		case "github":
+			endpoint = oauth2.Endpoint{
+				AuthURL:  "https://github.com/login/oauth/authorize",
+				TokenURL: "https://github.com/login/oauth/access_token",
+			}
+			if len(scopes) == 0 {
+				scopes = []string{"read:user", "user:email"}
+			}
+		case "microsoft":
+			endpoint = oauth2.Endpoint{
+				AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+				TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			}
+			if len(scopes) == 0 {
+				scopes = []string{"openid", "email", "profile"}
+			}
+		case "gitlab":
+			endpoint = oauth2.Endpoint{
+				AuthURL:  "https://gitlab.com/oauth/authorize",
+				TokenURL: "https://gitlab.com/oauth/token",
+			}
+			if len(scopes) == 0 {
+				scopes = []string{"read_user", "openid", "email"}
+			}
+		default:
+			return nil
 		}
-	case "github":
-		endpoint = oauth2.Endpoint{
-			AuthURL:  "https://github.com/login/oauth/authorize",
-			TokenURL: "https://github.com/login/oauth/access_token",
-		}
-		if len(scopes) == 0 {
-			scopes = []string{"read:user", "user:email"}
-		}
-	case "microsoft":
-		endpoint = oauth2.Endpoint{
-			AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-		}
-		if len(scopes) == 0 {
-			scopes = []string{"openid", "email", "profile"}
-		}
-	case "gitlab":
-		endpoint = oauth2.Endpoint{
-			AuthURL:  "https://gitlab.com/oauth/authorize",
-			TokenURL: "https://gitlab.com/oauth/token",
-		}
-		if len(scopes) == 0 {
-			scopes = []string{"read_user", "openid", "email"}
-		}
-	default:
-		return nil
 	}
 
 	return &oauth2.Config{
@@ -721,25 +768,53 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	errorParam := c.Query("error")
 	ctx := c.Context()
 
+	log.Debug().
+		Str("state", state).
+		Str("code", code[:10]+"...").
+		Str("provider", c.Params("provider")).
+		Msg("Dashboard OAuth callback received")
+
+	// Check if this state belongs to dashboard login
+	h.oauthStatesMu.Lock()
+	storedState, ok := h.oauthStates[state]
+	stateCount := len(h.oauthStates)
+	h.oauthStatesMu.Unlock()
+
+	log.Debug().
+		Bool("state_found", ok).
+		Int("total_states", stateCount).
+		Msg("Dashboard OAuth state lookup")
+
+	if !ok {
+		// This is not a dashboard OAuth callback, let the app handler process it
+		log.Debug().Msg("State not found in dashboard store, trying app handler")
+		return c.Next()
+	}
+
+	// This is a dashboard OAuth callback, process it
 	if errorParam != "" {
 		errorDesc := c.Query("error_description", errorParam)
-		return c.Redirect("/login?error=" + url.QueryEscape(errorDesc))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape(errorDesc))
 	}
 
 	if code == "" || state == "" {
-		return c.Redirect("/login?error=" + url.QueryEscape("Missing authorization code or state"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Missing authorization code or state"))
 	}
 
-	// Validate state
+	// Validate and consume state
 	h.oauthStatesMu.Lock()
-	storedState, ok := h.oauthStates[state]
+	storedState, ok = h.oauthStates[state]
 	if ok {
 		delete(h.oauthStates, state)
 	}
 	h.oauthStatesMu.Unlock()
 
 	if !ok || time.Since(storedState.CreatedAt) > 10*time.Minute {
-		return c.Redirect("/login?error=" + url.QueryEscape("Invalid or expired state"))
+		log.Warn().
+			Str("state", state).
+			Bool("found", ok).
+			Msg("Invalid or expired OAuth state")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Invalid or expired state"))
 	}
 
 	// Get stored config
@@ -751,13 +826,13 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	h.oauthConfigsMu.Unlock()
 
 	if !ok {
-		return c.Redirect("/login?error=" + url.QueryEscape("OAuth configuration not found"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth configuration not found"))
 	}
 
 	// Exchange code for token
 	token, err := config.Exchange(ctx, code)
 	if err != nil {
-		return c.Redirect("/login?error=" + url.QueryEscape("Failed to exchange authorization code"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to exchange authorization code"))
 	}
 
 	// Fetch provider configuration for RBAC validation
@@ -775,13 +850,13 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 			Err(err).
 			Str("provider", storedState.Provider).
 			Msg("Failed to fetch OAuth provider config for RBAC validation")
-		return c.Redirect("/login?error=" + url.QueryEscape("OAuth provider configuration error"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth provider configuration error"))
 	}
 
 	// Get user info from provider (includes ID token claims)
-	userInfo, err := h.getUserInfoFromOAuth(ctx, config, token)
+	userInfo, err := h.getUserInfoFromOAuth(ctx, config, token, storedState.UserInfoURL)
 	if err != nil {
-		return c.Redirect("/login?error=" + url.QueryEscape("Failed to get user info from provider"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to get user info from provider"))
 	}
 
 	// Extract ID token claims (if available)
@@ -828,7 +903,7 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 				Str("provider", storedState.Provider).
 				Interface("claims", idTokenClaims).
 				Msg("Dashboard OAuth access denied due to claims validation")
-			return c.Redirect("/login?error=" + url.QueryEscape(err.Error()))
+			return c.Redirect("/admin/login?error=" + url.QueryEscape(err.Error()))
 		}
 	}
 
@@ -841,14 +916,20 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	}
 
 	if email == "" {
-		return c.Redirect("/login?error=" + url.QueryEscape("Email not provided by OAuth provider"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Email not provided by OAuth provider"))
 	}
 
 	// Find or create dashboard user
 	providerName := "oauth:" + storedState.Provider
 	user, _, err := h.authService.FindOrCreateUserBySSO(ctx, email, name, providerName, providerUserID)
 	if err != nil {
-		return c.Redirect("/login?error=" + url.QueryEscape("Failed to create or find user"))
+		log.Error().
+			Err(err).
+			Str("email", email).
+			Str("provider", providerName).
+			Str("provider_user_id", providerUserID).
+			Msg("Failed to create or find dashboard user via SSO")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to create or find user"))
 	}
 
 	// Login via SSO
@@ -862,15 +943,15 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		} else if err.Error() == "account is inactive" {
 			errMsg = "Account is inactive"
 		}
-		return c.Redirect("/login?error=" + url.QueryEscape(errMsg))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape(errMsg))
 	}
 
 	// Redirect with tokens in URL fragment (for SPA to capture)
 	redirectURL := storedState.RedirectTo
 	if redirectURL == "" || redirectURL == "/" {
-		redirectURL = "/"
+		redirectURL = "/admin"
 	}
-	return c.Redirect(fmt.Sprintf("/login/callback?access_token=%s&refresh_token=%s&redirect_to=%s",
+	return c.Redirect(fmt.Sprintf("/admin/login/callback?access_token=%s&refresh_token=%s&redirect_to=%s",
 		url.QueryEscape(loginResp.AccessToken),
 		url.QueryEscape(loginResp.RefreshToken),
 		url.QueryEscape(redirectURL)))
@@ -899,22 +980,26 @@ func parseIDTokenClaims(idToken string) (map[string]interface{}, error) {
 }
 
 // getUserInfoFromOAuth fetches user info from OAuth provider
-func (h *DashboardAuthHandler) getUserInfoFromOAuth(ctx context.Context, config *oauth2.Config, token *oauth2.Token) (map[string]interface{}, error) {
+func (h *DashboardAuthHandler) getUserInfoFromOAuth(ctx context.Context, config *oauth2.Config, token *oauth2.Token, customUserInfoURL *string) (map[string]interface{}, error) {
 	client := config.Client(ctx, token)
 
-	// Determine user info URL based on endpoint
+	// Determine user info URL - use custom URL if provided, otherwise use standard provider URLs
 	var userInfoURL string
-	switch {
-	case strings.Contains(config.Endpoint.AuthURL, "google"):
-		userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
-	case strings.Contains(config.Endpoint.AuthURL, "github"):
-		userInfoURL = "https://api.github.com/user"
-	case strings.Contains(config.Endpoint.AuthURL, "microsoft"):
-		userInfoURL = "https://graph.microsoft.com/v1.0/me"
-	case strings.Contains(config.Endpoint.AuthURL, "gitlab"):
-		userInfoURL = "https://gitlab.com/api/v4/user"
-	default:
-		return nil, errors.New("unsupported provider")
+	if customUserInfoURL != nil && *customUserInfoURL != "" {
+		userInfoURL = *customUserInfoURL
+	} else {
+		switch {
+		case strings.Contains(config.Endpoint.AuthURL, "google"):
+			userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
+		case strings.Contains(config.Endpoint.AuthURL, "github"):
+			userInfoURL = "https://api.github.com/user"
+		case strings.Contains(config.Endpoint.AuthURL, "microsoft"):
+			userInfoURL = "https://graph.microsoft.com/v1.0/me"
+		case strings.Contains(config.Endpoint.AuthURL, "gitlab"):
+			userInfoURL = "https://gitlab.com/api/v4/user"
+		default:
+			return nil, errors.New("unsupported provider")
+		}
 	}
 
 	resp, err := client.Get(userInfoURL)
@@ -952,22 +1037,50 @@ func (h *DashboardAuthHandler) getUserInfoFromOAuth(ctx context.Context, config 
 
 // InitiateSAMLLogin initiates a SAML login flow for dashboard SSO
 func (h *DashboardAuthHandler) InitiateSAMLLogin(c *fiber.Ctx) error {
-	providerName := c.Params("provider")
+	providerIDOrName := c.Params("provider")
 	redirectTo := c.Query("redirect_to", "/")
+	ctx := c.Context()
 
 	if h.samlService == nil {
-		return fiber.NewError(fiber.StatusNotFound, "SAML is not configured")
+		// SAML not configured for dashboard, let app handler try
+		return c.Next()
 	}
 
-	// Get provider
-	provider, err := h.samlService.GetProvider(providerName)
-	if err != nil || provider == nil {
-		return fiber.NewError(fiber.StatusNotFound, "SAML provider not found")
+	// Resolve provider name from ID or name
+	// Query database to support both UUID and name lookups
+	var providerName string
+	var allowDashboardLogin bool
+	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT name, COALESCE(allow_dashboard_login, false)
+			FROM auth.saml_providers
+			WHERE (id::text = $1 OR name = $1) AND enabled = true
+		`, providerIDOrName).Scan(&providerName, &allowDashboardLogin)
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			log.Debug().
+				Str("provider_id", providerIDOrName).
+				Msg("SAML provider not found for dashboard login, trying app handler")
+			// Provider not configured for dashboard login, let app handler try
+			return c.Next()
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch SAML provider")
 	}
 
 	// Check if provider allows dashboard login
-	if !provider.AllowDashboardLogin {
-		return fiber.NewError(fiber.StatusForbidden, "SAML provider not enabled for dashboard login")
+	if !allowDashboardLogin {
+		log.Debug().
+			Str("provider", providerName).
+			Msg("SAML provider not enabled for dashboard login, trying app handler")
+		// Provider not enabled for dashboard login, let app handler try
+		return c.Next()
+	}
+
+	// Get provider from service (by name)
+	provider, err := h.samlService.GetProvider(providerName)
+	if err != nil || provider == nil {
+		return fiber.NewError(fiber.StatusNotFound, "SAML provider not found")
 	}
 
 	// Generate SAML AuthnRequest
@@ -984,7 +1097,8 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	ctx := c.Context()
 
 	if h.samlService == nil {
-		return c.Redirect("/login?error=" + url.QueryEscape("SAML is not configured"))
+		// SAML not configured for dashboard, let app handler try
+		return c.Next()
 	}
 
 	// Parse SAML response
@@ -992,7 +1106,7 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	relayState := c.FormValue("RelayState")
 
 	if samlResponse == "" {
-		return c.Redirect("/login?error=" + url.QueryEscape("Missing SAML response"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Missing SAML response"))
 	}
 
 	// Find the provider from relay state or try all dashboard-enabled providers
@@ -1002,6 +1116,12 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 
 	// Get all dashboard-enabled SAML providers
 	dashboardProviders := h.samlService.GetProvidersForDashboard()
+
+	// If no dashboard providers, this is for app login
+	if len(dashboardProviders) == 0 {
+		return c.Next()
+	}
+
 	for _, provider := range dashboardProviders {
 		assertion, parseErr = h.samlService.ParseAssertion(provider.Name, samlResponse)
 		if parseErr == nil {
@@ -1011,17 +1131,18 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	}
 
 	if assertion == nil {
-		errMsg := "SAML authentication failed"
+		// Could not parse with any dashboard provider, try app handler
 		if parseErr != nil {
-			errMsg = fmt.Sprintf("SAML authentication failed: %v", parseErr)
+			log.Debug().Err(parseErr).Msg("SAML assertion not for dashboard, trying app handler")
 		}
-		return c.Redirect("/login?error=" + url.QueryEscape(errMsg))
+		return c.Next()
 	}
 
 	// Check if provider allows dashboard login
 	provider, _ := h.samlService.GetProvider(providerName)
 	if provider == nil || !provider.AllowDashboardLogin {
-		return c.Redirect("/login?error=" + url.QueryEscape("SAML provider not enabled for dashboard login"))
+		// Provider doesn't allow dashboard login, try app handler
+		return c.Next()
 	}
 
 	// Extract user info using the service method
@@ -1055,7 +1176,7 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	}
 
 	if email == "" {
-		return c.Redirect("/login?error=" + url.QueryEscape("Email not provided in SAML assertion"))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Email not provided in SAML assertion"))
 	}
 
 	// RBAC: Validate group membership if configured
@@ -1068,7 +1189,7 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 				Str("email", email).
 				Strs("groups", groups).
 				Msg("Dashboard SSO access denied due to group membership")
-			return c.Redirect("/login?error=" + url.QueryEscape(err.Error()))
+			return c.Redirect("/admin/login?error=" + url.QueryEscape(err.Error()))
 		}
 	}
 
@@ -1076,7 +1197,13 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	samlProviderName := "saml:" + providerName
 	user, _, err := h.authService.FindOrCreateUserBySSO(ctx, email, name, samlProviderName, providerUserID)
 	if err != nil {
-		return c.Redirect("/login?error=" + url.QueryEscape("Failed to create or find user"))
+		log.Error().
+			Err(err).
+			Str("email", email).
+			Str("provider", samlProviderName).
+			Str("provider_user_id", providerUserID).
+			Msg("Failed to create or find dashboard user via SAML SSO")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to create or find user"))
 	}
 
 	// Login via SSO
@@ -1090,7 +1217,7 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 		} else if err.Error() == "account is inactive" {
 			errMsg = "Account is inactive"
 		}
-		return c.Redirect("/login?error=" + url.QueryEscape(errMsg))
+		return c.Redirect("/admin/login?error=" + url.QueryEscape(errMsg))
 	}
 
 	// Create SAML session for SLO support
@@ -1113,9 +1240,9 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	// Redirect with tokens
 	redirectURL := relayState
 	if redirectURL == "" || redirectURL == "/" {
-		redirectURL = "/"
+		redirectURL = "/admin"
 	}
-	return c.Redirect(fmt.Sprintf("/login/callback?access_token=%s&refresh_token=%s&redirect_to=%s",
+	return c.Redirect(fmt.Sprintf("/admin/login/callback?access_token=%s&refresh_token=%s&redirect_to=%s",
 		url.QueryEscape(loginResp.AccessToken),
 		url.QueryEscape(loginResp.RefreshToken),
 		url.QueryEscape(redirectURL)))

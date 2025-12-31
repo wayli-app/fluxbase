@@ -30,7 +30,7 @@ function SSOCallbackPage() {
         toast.error('SSO Login Failed', {
           description: error,
         })
-        window.location.href = '/login'
+        window.location.href = '/admin/login'
         return
       }
 
@@ -39,7 +39,7 @@ function SSOCallbackPage() {
         toast.error('SSO Login Failed', {
           description: 'No authentication tokens received',
         })
-        window.location.href = '/login'
+        window.location.href = '/admin/login'
         return
       }
 
@@ -59,13 +59,13 @@ function SSOCallbackPage() {
         })
 
         // Redirect to the intended destination or dashboard
-        const destination = redirect_to && redirect_to !== '/' ? redirect_to : '/'
+        const destination = redirect_to && redirect_to !== '/' ? redirect_to : '/admin'
         window.location.href = destination
       } catch {
         toast.error('SSO Login Failed', {
           description: 'Failed to complete authentication',
         })
-        window.location.href = '/login'
+        window.location.href = '/admin/login'
       }
     }
 

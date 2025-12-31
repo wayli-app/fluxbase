@@ -312,7 +312,7 @@ func AdminLoginLimiter() fiber.Handler {
 // Prevents abuse of the webhook endpoint for branch creation/deletion
 func GitHubWebhookLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
-		Max:        30,             // 30 requests
+		Max:        30,              // 30 requests
 		Expiration: 1 * time.Minute, // per minute per IP
 		KeyFunc: func(c *fiber.Ctx) string {
 			return "github_webhook:" + c.IP()

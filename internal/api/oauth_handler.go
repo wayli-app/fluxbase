@@ -3,12 +3,9 @@ package api
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
@@ -28,7 +25,7 @@ type OAuthHandler struct {
 	jwtManager      *auth.JWTManager
 	stateStore      *auth.StateStore
 	baseURL         string
-	encryptionKey   string // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
+	encryptionKey   string                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 	configProviders []config.OAuthProviderConfig // OAuth providers from config file
 }
 
@@ -190,7 +187,7 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 	}
 
 	// Extract and validate ID token claims if RBAC is configured
-	if (requiredClaimsJSON != nil || deniedClaimsJSON != nil) {
+	if requiredClaimsJSON != nil || deniedClaimsJSON != nil {
 		// Extract ID token claims
 		var idTokenClaims map[string]interface{}
 		if idTokenRaw, ok := token.Extra("id_token").(string); ok && idTokenRaw != "" {
@@ -562,26 +559,4 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 	}
 
 	return user, isNewUser, nil
-}
-
-// parseIDTokenClaims parses JWT ID token and extracts claims
-// This is a simple implementation without signature verification (already verified by OAuth provider)
-func parseIDTokenClaims(idToken string) (map[string]interface{}, error) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return nil, errors.New("invalid ID token format")
-	}
-
-	// Decode payload (second part)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode ID token payload: %w", err)
-	}
-
-	var claims map[string]interface{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ID token claims: %w", err)
-	}
-
-	return claims, nil
 }

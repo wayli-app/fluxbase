@@ -94,12 +94,12 @@ func (r *SchemaResource) Read(ctx context.Context, authCtx *mcp.AuthContext) ([]
 			fks := make([]map[string]any, 0, len(table.ForeignKeys))
 			for _, fk := range table.ForeignKeys {
 				fks = append(fks, map[string]any{
-					"name":               fk.Name,
-					"column":             fk.ColumnName,
-					"referenced_table":   fk.ReferencedTable,
-					"referenced_column":  fk.ReferencedColumn,
-					"on_delete":          fk.OnDelete,
-					"on_update":          fk.OnUpdate,
+					"name":              fk.Name,
+					"column":            fk.ColumnName,
+					"referenced_table":  fk.ReferencedTable,
+					"referenced_column": fk.ReferencedColumn,
+					"on_delete":         fk.OnDelete,
+					"on_update":         fk.OnUpdate,
 				})
 			}
 			tableInfo["foreign_keys"] = fks
@@ -239,12 +239,12 @@ func (r *TableResource) ReadWithParams(ctx context.Context, authCtx *mcp.AuthCon
 		fks := make([]map[string]any, 0, len(table.ForeignKeys))
 		for _, fk := range table.ForeignKeys {
 			fks = append(fks, map[string]any{
-				"name":               fk.Name,
-				"column":             fk.ColumnName,
-				"referenced_table":   fk.ReferencedTable,
-				"referenced_column":  fk.ReferencedColumn,
-				"on_delete":          fk.OnDelete,
-				"on_update":          fk.OnUpdate,
+				"name":              fk.Name,
+				"column":            fk.ColumnName,
+				"referenced_table":  fk.ReferencedTable,
+				"referenced_column": fk.ReferencedColumn,
+				"on_delete":         fk.OnDelete,
+				"on_update":         fk.OnUpdate,
 			})
 		}
 		tableInfo["foreign_keys"] = fks

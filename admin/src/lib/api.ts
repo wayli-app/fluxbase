@@ -1957,6 +1957,10 @@ export interface CreateSAMLProviderRequest {
   allow_app_login?: boolean
   allow_idp_initiated?: boolean
   allowed_redirect_hosts?: string[]
+  required_groups?: string[]
+  required_groups_all?: string[]
+  denied_groups?: string[]
+  group_attribute?: string
 }
 
 export interface UpdateSAMLProviderRequest {
@@ -1971,6 +1975,10 @@ export interface UpdateSAMLProviderRequest {
   allow_app_login?: boolean
   allow_idp_initiated?: boolean
   allowed_redirect_hosts?: string[]
+  required_groups?: string[]
+  required_groups_all?: string[]
+  denied_groups?: string[]
+  group_attribute?: string
 }
 
 export interface ValidateMetadataResponse {
@@ -3162,7 +3170,9 @@ export const serviceKeysApi = {
 
   // Get a specific service key
   get: async (id: string): Promise<ServiceKey> => {
-    const response = await api.get<ServiceKey>(`/api/v1/admin/service-keys/${id}`)
+    const response = await api.get<ServiceKey>(
+      `/api/v1/admin/service-keys/${id}`
+    )
     return response.data
   },
 
@@ -3195,7 +3205,9 @@ export const serviceKeysApi = {
   },
 
   // Disable a service key
-  disable: async (id: string): Promise<{ success: boolean; message: string }> => {
+  disable: async (
+    id: string
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.post<{ success: boolean; message: string }>(
       `/api/v1/admin/service-keys/${id}/disable`
     )
@@ -3203,7 +3215,9 @@ export const serviceKeysApi = {
   },
 
   // Enable a service key
-  enable: async (id: string): Promise<{ success: boolean; message: string }> => {
+  enable: async (
+    id: string
+  ): Promise<{ success: boolean; message: string }> => {
     const response = await api.post<{ success: boolean; message: string }>(
       `/api/v1/admin/service-keys/${id}/enable`
     )

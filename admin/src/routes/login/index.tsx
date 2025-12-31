@@ -46,9 +46,20 @@ function LoginPage() {
         description: urlError,
       })
       // Clear the error from URL
-      window.history.replaceState({}, '', '/login')
+      window.history.replaceState({}, '', '/admin/login')
     }
   }, [])
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    const accessToken = localStorage.getItem('fluxbase_admin_access_token')
+    if (accessToken && auth.user) {
+      // User is already logged in, redirect to dashboard
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect') || '/'
+      navigate({ to: redirect })
+    }
+  }, [auth.user, navigate])
 
   // Redirect to OTP page if there's a pending 2FA session
   useEffect(() => {
@@ -65,10 +76,10 @@ function LoginPage() {
 
     if (provider.type === 'oauth') {
       // Redirect to OAuth login endpoint
-      window.location.href = `${baseURL}/dashboard/auth/sso/oauth/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
+      window.location.href = `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_to=${encodeURIComponent(redirectTo)}`
     } else if (provider.type === 'saml') {
       // Redirect to SAML login endpoint
-      window.location.href = `${baseURL}/dashboard/auth/sso/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
+      window.location.href = `${baseURL}/api/v1/auth/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
     }
   }
 

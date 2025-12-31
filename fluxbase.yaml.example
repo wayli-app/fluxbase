@@ -60,6 +60,12 @@ auth:
   #     client_secret: "YOUR_CLIENT_SECRET" # Optional: can be managed in admin dashboard
   #     scopes: [openid, email, profile]   # OAuth scopes to request
   #     display_name: "Google"             # Display name in UI (optional)
+  #     # RBAC (optional): Restrict dashboard access to specific roles
+  #     # required_claims:
+  #     #   roles: ["admin", "editor"]        # User must have at least one of these roles
+  #     #   department: ["IT", "Engineering"] # AND be in one of these departments
+  #     # denied_claims:
+  #     #   status: ["suspended", "inactive"] # Reject if status matches
   #
   #   - name: microsoft
   #     enabled: true
@@ -77,7 +83,12 @@ auth:
   #     issuer_url: "https://auth.example.com/realms/main"  # OIDC issuer URL
   #     client_id: "fluxbase-client"
   #     client_secret: "YOUR_CLIENT_SECRET"
-  #     scopes: [openid, email, profile]
+  #     scopes: [openid, email, profile, roles]
+  #     allow_dashboard_login: true
+  #     allow_app_login: false
+  #     # RBAC: Dashboard admins only
+  #     # required_claims:
+  #     #   realm_access.roles: ["dashboard-admin"]
   #
   #   - name: authelia
   #     enabled: true
@@ -119,6 +130,20 @@ auth:
   #     allow_app_login: true             # Allow for app user authentication (default: true)
   #     allow_dashboard_login: false      # Allow for dashboard admin SSO login (default: false)
   #                                       # When enabled, this provider appears on the dashboard login page
+  #
+  #     # RBAC (optional): Group-based access control
+  #     # required_groups:
+  #     #   - "FluxbaseAdmins"      # User must be in at least ONE of these groups
+  #     #   - "IT-Team"
+  #     # required_groups_all:
+  #     #   - "Employees"           # User must be in ALL of these groups
+  #     #   - "Active"
+  #     # denied_groups:
+  #     #   - "Contractors"         # Reject users in ANY of these groups
+  #     #   - "Suspended"
+  #     # group_attribute: "groups" # SAML attribute name (default: "groups")
+  #     #                           # Azure AD: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+  #     #                           # Active Directory: "memberOf"
   #
   #     # Security options (recommended defaults shown):
   #     allow_idp_initiated: false        # Allow IdP-initiated SSO (security risk, default: false)

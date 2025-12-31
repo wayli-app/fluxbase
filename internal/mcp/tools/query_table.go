@@ -18,7 +18,6 @@ import (
 // validIdentifierRegex validates SQL identifiers (column names, table names, etc.)
 var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
-
 // executeWithRLS wraps a database operation with RLS context from MCP AuthContext
 // This is similar to middleware.WrapWithRLS but works without a Fiber context
 func executeWithRLS(ctx context.Context, db *database.Connection, authCtx *mcp.AuthContext, fn func(tx pgx.Tx) error) error {

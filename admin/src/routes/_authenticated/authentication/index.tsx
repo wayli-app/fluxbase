@@ -167,8 +167,12 @@ function OAuthProvidersTab() {
   const [customAuthUrl, setCustomAuthUrl] = useState('')
   const [customTokenUrl, setCustomTokenUrl] = useState('')
   const [customUserInfoUrl, setCustomUserInfoUrl] = useState('')
+  const [oidcDiscoveryUrl, setOidcDiscoveryUrl] = useState('')
+  const [isDiscovering, setIsDiscovering] = useState(false)
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [allowDashboardLogin, setAllowDashboardLogin] = useState(false)
+  const [allowAppLogin, setAllowAppLogin] = useState(true)
   const [requiredClaims, setRequiredClaims] = useState<Record<string, string[]>>({})
   const [deniedClaims, setDeniedClaims] = useState<Record<string, string[]>>({})
   const [showDeleteProviderConfirm, setShowDeleteProviderConfirm] = useState(false)
@@ -262,8 +266,12 @@ function OAuthProvidersTab() {
     setCustomAuthUrl('')
     setCustomTokenUrl('')
     setCustomUserInfoUrl('')
+    setOidcDiscoveryUrl('')
+    setIsDiscovering(false)
     setClientId('')
     setClientSecret('')
+    setAllowDashboardLogin(false)
+    setAllowAppLogin(true)
     setRequiredClaims({})
     setDeniedClaims({})
   }
@@ -318,6 +326,16 @@ function OAuthProvidersTab() {
                             </Badge>
                           ) : (
                             <Badge variant='secondary'>Disabled</Badge>
+                          )}
+                          {provider.allow_dashboard_login && (
+                            <Badge variant='secondary' className='text-xs'>
+                              Dashboard
+                            </Badge>
+                          )}
+                          {provider.allow_app_login && (
+                            <Badge variant='outline' className='text-xs'>
+                              App
+                            </Badge>
                           )}
                         </div>
                         <div className='grid grid-cols-2 gap-4 text-sm'>
@@ -432,6 +450,8 @@ function OAuthProvidersTab() {
                             setCustomProviderName(provider.display_name)
                             setClientId(provider.client_id)
                             setClientSecret('')
+                            setAllowDashboardLogin(provider.allow_dashboard_login)
+                            setAllowAppLogin(provider.allow_app_login)
                             setRequiredClaims(provider.required_claims || {})
                             setDeniedClaims(provider.denied_claims || {})
                             if (provider.is_custom) {
@@ -527,6 +547,75 @@ function OAuthProvidersTab() {
                     onChange={(e) => setCustomProviderName(e.target.value)}
                   />
                 </div>
+
+                {/* OIDC Discovery */}
+                <div className='grid gap-2'>
+                  <Label htmlFor='oidcDiscoveryUrl'>
+                    OpenID Discovery URL (Optional)
+                  </Label>
+                  <div className='flex gap-2'>
+                    <Input
+                      id='oidcDiscoveryUrl'
+                      placeholder='https://your-provider.com/.well-known/openid-configuration'
+                      value={oidcDiscoveryUrl}
+                      onChange={(e) => setOidcDiscoveryUrl(e.target.value)}
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={async () => {
+                        if (!oidcDiscoveryUrl) {
+                          toast.error('Please enter a discovery URL')
+                          return
+                        }
+
+                        try {
+                          setIsDiscovering(true)
+                          const response = await fetch(oidcDiscoveryUrl)
+                          if (!response.ok) {
+                            throw new Error(`Failed to fetch: ${response.statusText}`)
+                          }
+
+                          const config = await response.json()
+
+                          // Auto-fill the fields
+                          if (config.authorization_endpoint) {
+                            setCustomAuthUrl(config.authorization_endpoint)
+                          }
+                          if (config.token_endpoint) {
+                            setCustomTokenUrl(config.token_endpoint)
+                          }
+                          if (config.userinfo_endpoint) {
+                            setCustomUserInfoUrl(config.userinfo_endpoint)
+                          }
+
+                          toast.success('Auto-discovered OAuth endpoints!')
+                        } catch (error) {
+                          toast.error(`Discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                        } finally {
+                          setIsDiscovering(false)
+                        }
+                      }}
+                      disabled={!oidcDiscoveryUrl || isDiscovering}
+                    >
+                      {isDiscovering ? (
+                        <>
+                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                          Discovering...
+                        </>
+                      ) : (
+                        'Auto-discover'
+                      )}
+                    </Button>
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    Paste your provider's OpenID discovery URL. Common examples:<br />
+                    • Auth0: <code className='text-xs'>https://YOUR-DOMAIN.auth0.com/.well-known/openid-configuration</code><br />
+                    • Okta: <code className='text-xs'>https://YOUR-DOMAIN.okta.com/.well-known/openid-configuration</code><br />
+                    • Keycloak: <code className='text-xs'>https://YOUR-DOMAIN/realms/YOUR-REALM/.well-known/openid-configuration</code>
+                  </p>
+                </div>
+
                 <div className='grid gap-2'>
                   <Label htmlFor='authorizationUrl'>Authorization URL</Label>
                   <Input
@@ -568,7 +657,12 @@ function OAuthProvidersTab() {
 
             <div className='grid gap-2'>
               <Label htmlFor='clientId'>Client ID</Label>
-              <Input id='clientId' placeholder='your-client-id' />
+              <Input
+                id='clientId'
+                placeholder='your-client-id'
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              />
             </div>
             <div className='grid gap-2'>
               <Label htmlFor='clientSecret'>Client Secret</Label>
@@ -576,6 +670,8 @@ function OAuthProvidersTab() {
                 id='clientSecret'
                 type='password'
                 placeholder='your-client-secret'
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
               />
             </div>
             <div className='grid gap-2'>
@@ -584,7 +680,7 @@ function OAuthProvidersTab() {
                 id='redirectUrl'
                 value={
                   selectedProvider === 'custom'
-                    ? `${window.location.origin}/api/v1/auth/oauth/${customProviderName.toLowerCase().replace(/\s+/g, '-') || 'custom'}/callback`
+                    ? `${window.location.origin}/api/v1/auth/oauth/${customProviderName.toLowerCase().replace(/\s+/g, '_') || 'custom'}/callback`
                     : `${window.location.origin}/api/v1/auth/oauth/${selectedProvider}/callback`
                 }
                 readOnly
@@ -593,6 +689,42 @@ function OAuthProvidersTab() {
               <p className='text-muted-foreground text-xs'>
                 Use this URL in your OAuth provider configuration
               </p>
+            </div>
+
+            {/* Provider Targeting */}
+            <div className='border-t pt-4 space-y-3'>
+              <div>
+                <Label className='text-sm font-semibold'>Provider Targeting</Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Control which authentication contexts can use this provider
+                </p>
+              </div>
+              <div className='space-y-3'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for App Users</Label>
+                    <p className='text-muted-foreground text-xs'>
+                      Enable this provider for application user authentication
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowAppLogin}
+                    onCheckedChange={setAllowAppLogin}
+                  />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for Dashboard</Label>
+                    <p className='text-muted-foreground text-xs'>
+                      Enable this provider for dashboard admin authentication
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowDashboardLogin}
+                    onCheckedChange={setAllowDashboardLogin}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* RBAC Section */}
@@ -660,6 +792,8 @@ function OAuthProvidersTab() {
                   redirect_url: `${window.location.origin}/api/v1/auth/oauth/${providerName}/callback`,
                   scopes: ['openid', 'email', 'profile'],
                   is_custom: isCustom,
+                  allow_dashboard_login: allowDashboardLogin,
+                  allow_app_login: allowAppLogin,
                   ...(isCustom && {
                     authorization_url: customAuthUrl,
                     token_url: customTokenUrl,
@@ -773,6 +907,42 @@ function OAuthProvidersTab() {
               />
             </div>
 
+            {/* Provider Targeting */}
+            <div className='border-t pt-4 space-y-3'>
+              <div>
+                <Label className='text-sm font-semibold'>Provider Targeting</Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Control which authentication contexts can use this provider
+                </p>
+              </div>
+              <div className='space-y-3'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for App Users</Label>
+                    <p className='text-muted-foreground text-xs'>
+                      Enable this provider for application user authentication
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowAppLogin}
+                    onCheckedChange={setAllowAppLogin}
+                  />
+                </div>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label>Allow for Dashboard</Label>
+                    <p className='text-muted-foreground text-xs'>
+                      Enable this provider for dashboard admin authentication
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowDashboardLogin}
+                    onCheckedChange={setAllowDashboardLogin}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* RBAC Section */}
             <div className='border-t pt-4 space-y-4'>
               <div>
@@ -833,6 +1003,8 @@ function OAuthProvidersTab() {
                   display_name: editingProvider.display_name,
                   enabled: editingProvider.enabled,
                   client_id: clientId,
+                  allow_dashboard_login: allowDashboardLogin,
+                  allow_app_login: allowAppLogin,
                   ...(clientSecret && { client_secret: clientSecret }),
                   ...(Object.keys(requiredClaims).length > 0 && { required_claims: requiredClaims }),
                   ...(Object.keys(deniedClaims).length > 0 && { denied_claims: deniedClaims }),

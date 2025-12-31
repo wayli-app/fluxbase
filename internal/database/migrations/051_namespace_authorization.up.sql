@@ -1,11 +1,11 @@
 -- 051_namespace_authorization.up.sql
 -- Add namespace authorization support to client keys and service keys
 
--- Add allowed_namespaces column to api_keys (client keys)
-ALTER TABLE auth.api_keys
+-- Add allowed_namespaces column to client_keys
+ALTER TABLE auth.client_keys
 ADD COLUMN allowed_namespaces TEXT[] DEFAULT NULL;
 
-COMMENT ON COLUMN auth.api_keys.allowed_namespaces IS
+COMMENT ON COLUMN auth.client_keys.allowed_namespaces IS
 'Allowed namespaces for this key. NULL = all namespaces (no restrictions), empty array = default namespace only, populated array = specific namespaces allowed.';
 
 -- Add allowed_namespaces column to service_keys

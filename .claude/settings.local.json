@@ -78,7 +78,8 @@
       "Bash(/tmp/fluxbase-cli:*)",
       "Bash(go vet:*)",
       "Bash(gofmt:*)",
-      "Bash(git rev-list:*)"
+      "Bash(git rev-list:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

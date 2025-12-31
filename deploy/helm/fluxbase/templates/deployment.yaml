@@ -289,6 +289,14 @@ spec:
             - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_DISPLAY_NAME
               value: {{ $provider.display_name | quote }}
             {{- end }}
+            {{- if $provider.required_claims }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_REQUIRED_CLAIMS
+              value: {{ $provider.required_claims | toJson | quote }}
+            {{- end }}
+            {{- if $provider.denied_claims }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_DENIED_CLAIMS
+              value: {{ $provider.denied_claims | toJson | quote }}
+            {{- end }}
             # Client secret from Kubernetes secret (per-provider pattern)
             # For provider 'google', looks up existingSecretKeyRef.googleClientSecret
             # which defaults to 'google-client-secret' in the secret
@@ -303,6 +311,67 @@ spec:
                   key: {{ $secretKeyRefValue }}
                   optional: true
             {{- end }}
+            {{- end }}
+            {{- end }}
+
+            # ===========================================
+            # SAML SSO Configuration
+            # ===========================================
+            {{- range $i, $provider := .Values.config.auth.saml_providers }}
+            # SAML Provider {{ $provider.name }} configuration
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_NAME
+              value: {{ $provider.name | quote }}
+            {{- if $provider.enabled }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ENABLED
+              value: "true"
+            {{- end }}
+            {{- if $provider.idp_metadata_url }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_IDP_METADATA_URL
+              value: {{ $provider.idp_metadata_url | quote }}
+            {{- end }}
+            {{- if $provider.entity_id }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ENTITY_ID
+              value: {{ $provider.entity_id | quote }}
+            {{- end }}
+            {{- if $provider.acs_url }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ACS_URL
+              value: {{ $provider.acs_url | quote }}
+            {{- end }}
+            {{- if $provider.auto_create_users }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_AUTO_CREATE_USERS
+              value: {{ $provider.auto_create_users | quote }}
+            {{- end }}
+            {{- if $provider.default_role }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_DEFAULT_ROLE
+              value: {{ $provider.default_role | quote }}
+            {{- end }}
+            {{- if $provider.allow_dashboard_login }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ALLOW_DASHBOARD_LOGIN
+              value: {{ $provider.allow_dashboard_login | quote }}
+            {{- end }}
+            {{- if $provider.allow_app_login }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ALLOW_APP_LOGIN
+              value: {{ $provider.allow_app_login | quote }}
+            {{- end }}
+            {{- if $provider.allow_idp_initiated }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_ALLOW_IDP_INITIATED
+              value: {{ $provider.allow_idp_initiated | quote }}
+            {{- end }}
+            {{- if $provider.required_groups }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_REQUIRED_GROUPS
+              value: {{ $provider.required_groups | toJson | quote }}
+            {{- end }}
+            {{- if $provider.required_groups_all }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_REQUIRED_GROUPS_ALL
+              value: {{ $provider.required_groups_all | toJson | quote }}
+            {{- end }}
+            {{- if $provider.denied_groups }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_DENIED_GROUPS
+              value: {{ $provider.denied_groups | toJson | quote }}
+            {{- end }}
+            {{- if $provider.group_attribute }}
+            - name: FLUXBASE_AUTH_SAML_PROVIDERS_{{ $i }}_GROUP_ATTRIBUTE
+              value: {{ $provider.group_attribute | quote }}
             {{- end }}
             {{- end }}
 

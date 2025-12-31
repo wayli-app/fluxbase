@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -31,54 +32,60 @@ func NewOAuthProviderHandler(db *pgxpool.Pool, settingsCache *auth.SettingsCache
 
 // OAuthProvider represents an OAuth provider configuration
 type OAuthProvider struct {
-	ID                  uuid.UUID `json:"id"`
-	ProviderName        string    `json:"provider_name"`
-	DisplayName         string    `json:"display_name"`
-	Enabled             bool      `json:"enabled"`
-	ClientID            string    `json:"client_id"`
-	ClientSecret        string    `json:"client_secret,omitempty"` // Omitted in GET responses
-	RedirectURL         string    `json:"redirect_url"`
-	Scopes              []string  `json:"scopes"`
-	IsCustom            bool      `json:"is_custom"`
-	AuthorizationURL    *string   `json:"authorization_url,omitempty"`
-	TokenURL            *string   `json:"token_url,omitempty"`
-	UserInfoURL         *string   `json:"user_info_url,omitempty"`
-	AllowDashboardLogin bool      `json:"allow_dashboard_login"`
-	AllowAppLogin       bool      `json:"allow_app_login"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                  uuid.UUID           `json:"id"`
+	ProviderName        string              `json:"provider_name"`
+	DisplayName         string              `json:"display_name"`
+	Enabled             bool                `json:"enabled"`
+	ClientID            string              `json:"client_id"`
+	ClientSecret        string              `json:"client_secret,omitempty"` // Omitted in GET responses
+	RedirectURL         string              `json:"redirect_url"`
+	Scopes              []string            `json:"scopes"`
+	IsCustom            bool                `json:"is_custom"`
+	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
+	TokenURL            *string             `json:"token_url,omitempty"`
+	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	AllowDashboardLogin bool                `json:"allow_dashboard_login"`
+	AllowAppLogin       bool                `json:"allow_app_login"`
+	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
+	DeniedClaims        map[string][]string `json:"denied_claims,omitempty"`
+	CreatedAt           time.Time           `json:"created_at"`
+	UpdatedAt           time.Time           `json:"updated_at"`
 }
 
 // CreateOAuthProviderRequest represents a request to create an OAuth provider
 type CreateOAuthProviderRequest struct {
-	ProviderName        string   `json:"provider_name"`
-	DisplayName         string   `json:"display_name"`
-	Enabled             bool     `json:"enabled"`
-	ClientID            string   `json:"client_id"`
-	ClientSecret        string   `json:"client_secret"`
-	RedirectURL         string   `json:"redirect_url"`
-	Scopes              []string `json:"scopes"`
-	IsCustom            bool     `json:"is_custom"`
-	AuthorizationURL    *string  `json:"authorization_url,omitempty"`
-	TokenURL            *string  `json:"token_url,omitempty"`
-	UserInfoURL         *string  `json:"user_info_url,omitempty"`
-	AllowDashboardLogin *bool    `json:"allow_dashboard_login,omitempty"`
-	AllowAppLogin       *bool    `json:"allow_app_login,omitempty"`
+	ProviderName        string              `json:"provider_name"`
+	DisplayName         string              `json:"display_name"`
+	Enabled             bool                `json:"enabled"`
+	ClientID            string              `json:"client_id"`
+	ClientSecret        string              `json:"client_secret"`
+	RedirectURL         string              `json:"redirect_url"`
+	Scopes              []string            `json:"scopes"`
+	IsCustom            bool                `json:"is_custom"`
+	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
+	TokenURL            *string             `json:"token_url,omitempty"`
+	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	AllowDashboardLogin *bool               `json:"allow_dashboard_login,omitempty"`
+	AllowAppLogin       *bool               `json:"allow_app_login,omitempty"`
+	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
+	DeniedClaims        map[string][]string `json:"denied_claims,omitempty"`
 }
 
 // UpdateOAuthProviderRequest represents a request to update an OAuth provider
 type UpdateOAuthProviderRequest struct {
-	DisplayName         *string  `json:"display_name,omitempty"`
-	Enabled             *bool    `json:"enabled,omitempty"`
-	ClientID            *string  `json:"client_id,omitempty"`
-	ClientSecret        *string  `json:"client_secret,omitempty"`
-	RedirectURL         *string  `json:"redirect_url,omitempty"`
-	Scopes              []string `json:"scopes,omitempty"`
-	AuthorizationURL    *string  `json:"authorization_url,omitempty"`
-	TokenURL            *string  `json:"token_url,omitempty"`
-	UserInfoURL         *string  `json:"user_info_url,omitempty"`
-	AllowDashboardLogin *bool    `json:"allow_dashboard_login,omitempty"`
-	AllowAppLogin       *bool    `json:"allow_app_login,omitempty"`
+	DisplayName         *string             `json:"display_name,omitempty"`
+	Enabled             *bool               `json:"enabled,omitempty"`
+	ClientID            *string             `json:"client_id,omitempty"`
+	ClientSecret        *string             `json:"client_secret,omitempty"`
+	RedirectURL         *string             `json:"redirect_url,omitempty"`
+	Scopes              []string            `json:"scopes,omitempty"`
+	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
+	TokenURL            *string             `json:"token_url,omitempty"`
+	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	AllowDashboardLogin *bool               `json:"allow_dashboard_login,omitempty"`
+	AllowAppLogin       *bool               `json:"allow_app_login,omitempty"`
+	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
+	DeniedClaims        map[string][]string `json:"denied_claims,omitempty"`
 }
 
 // Auth settings types
@@ -113,6 +120,7 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
+		       required_claims, denied_claims,
 		       created_at, updated_at
 		FROM dashboard.oauth_providers
 		ORDER BY display_name
@@ -130,15 +138,24 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 	providers := []OAuthProvider{}
 	for rows.Next() {
 		var p OAuthProvider
+		var requiredClaimsJSON, deniedClaimsJSON []byte
 		err := rows.Scan(
 			&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 			&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 			&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+			&requiredClaimsJSON, &deniedClaimsJSON,
 			&p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan OAuth provider")
 			continue
+		}
+		// Unmarshal RBAC fields
+		if requiredClaimsJSON != nil {
+			json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
+		}
+		if deniedClaimsJSON != nil {
+			json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
 		}
 		// Don't return client_secret in list
 		p.ClientSecret = ""
@@ -164,16 +181,19 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
+		       required_claims, denied_claims,
 		       created_at, updated_at
 		FROM dashboard.oauth_providers
 		WHERE id = $1
 	`
 
 	var p OAuthProvider
+	var requiredClaimsJSON, deniedClaimsJSON []byte
 	err = h.db.QueryRow(ctx, query, providerID).Scan(
 		&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 		&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 		&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+		&requiredClaimsJSON, &deniedClaimsJSON,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
 
@@ -187,6 +207,14 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Failed to retrieve OAuth provider",
 		})
+	}
+
+	// Unmarshal RBAC fields
+	if requiredClaimsJSON != nil {
+		json.Unmarshal(requiredClaimsJSON, &p.RequiredClaims)
+	}
+	if deniedClaimsJSON != nil {
+		json.Unmarshal(deniedClaimsJSON, &p.DeniedClaims)
 	}
 
 	// Don't return client_secret
@@ -241,12 +269,22 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		allowAppLogin = *req.AllowAppLogin
 	}
 
+	// Marshal RBAC fields to JSON
+	var requiredClaimsJSON, deniedClaimsJSON []byte
+	if len(req.RequiredClaims) > 0 {
+		requiredClaimsJSON, _ = json.Marshal(req.RequiredClaims)
+	}
+	if len(req.DeniedClaims) > 0 {
+		deniedClaimsJSON, _ = json.Marshal(req.DeniedClaims)
+	}
+
 	query := `
 		INSERT INTO dashboard.oauth_providers (
 			provider_name, display_name, enabled, client_id, client_secret,
 			redirect_url, scopes, is_custom, authorization_url, token_url,
-			user_info_url, allow_dashboard_login, allow_app_login, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+			user_info_url, allow_dashboard_login, allow_app_login, required_claims, denied_claims,
+			created_by, updated_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -256,7 +294,7 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		ctx, query,
 		req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, req.ClientSecret,
 		req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
-		req.UserInfoURL, allowDashboardLogin, allowAppLogin, userID,
+		req.UserInfoURL, allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
 	).Scan(&id, &createdAt, &updatedAt)
 
 	if err != nil {
@@ -360,6 +398,18 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c *fiber.Ctx) error {
 	if req.AllowAppLogin != nil {
 		updates = append(updates, fmt.Sprintf("allow_app_login = $%d", argPos))
 		args = append(args, *req.AllowAppLogin)
+		argPos++
+	}
+	if req.RequiredClaims != nil {
+		requiredClaimsJSON, _ := json.Marshal(req.RequiredClaims)
+		updates = append(updates, fmt.Sprintf("required_claims = $%d", argPos))
+		args = append(args, requiredClaimsJSON)
+		argPos++
+	}
+	if req.DeniedClaims != nil {
+		deniedClaimsJSON, _ := json.Marshal(req.DeniedClaims)
+		updates = append(updates, fmt.Sprintf("denied_claims = $%d", argPos))
+		args = append(args, deniedClaimsJSON)
 		argPos++
 	}
 

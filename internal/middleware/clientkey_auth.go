@@ -323,7 +323,6 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 					c.Locals("allowed_namespaces", validatedKey.AllowedNamespaces)
 				}
 
-
 				if validatedKey.UserID != nil {
 					c.Locals("user_id", *validatedKey.UserID)
 					c.Locals("rls_user_id", *validatedKey.UserID)

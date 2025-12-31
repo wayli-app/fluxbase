@@ -1041,6 +1041,12 @@ func (s *Server) setupRoutes() {
 		CookieSameSite: "Strict",
 		Expiration:     24 * time.Hour,
 	})
+
+	// Dashboard auth routes (separate from application auth)
+	// IMPORTANT: Must be registered BEFORE app auth routes so dashboard OAuth/SAML handlers
+	// can check state ownership and call c.Next() if not theirs
+	s.dashboardAuthHandler.RegisterRoutes(s.app)
+
 	authRoutes := v1.Group("/auth", csrfMiddleware)
 	s.setupAuthRoutes(authRoutes)
 
@@ -1060,9 +1066,6 @@ func (s *Server) setupRoutes() {
 	userSecrets.Get("/*", s.userSettingsHandler.GetSecret)
 	userSecrets.Put("/*", s.userSettingsHandler.UpdateSecret)
 	userSecrets.Delete("/*", s.userSettingsHandler.DeleteSecret)
-
-	// Dashboard auth routes (separate from application auth)
-	s.dashboardAuthHandler.RegisterRoutes(s.app)
 
 	// client keys routes - require authentication
 	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)

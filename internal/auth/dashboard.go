@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -712,6 +713,14 @@ type SSOIdentity struct {
 
 // GetUserBySSOIdentity finds a dashboard user by their SSO identity
 func (s *DashboardAuthService) GetUserBySSOIdentity(ctx context.Context, provider, providerUserID string) (*DashboardUser, error) {
+	// Split provider into type and name (format: "oauth:authelia" or "saml:okta")
+	parts := strings.SplitN(provider, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid provider format (expected 'type:name'): %s", provider)
+	}
+	providerType := parts[0]
+	providerName := parts[1]
+
 	user := &DashboardUser{}
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
@@ -719,8 +728,8 @@ func (s *DashboardAuthService) GetUserBySSOIdentity(ctx context.Context, provide
 			       u.is_active, u.is_locked, u.last_login_at, u.created_at, u.updated_at
 			FROM dashboard.users u
 			INNER JOIN dashboard.sso_identities si ON si.user_id = u.id
-			WHERE si.provider = $1 AND si.provider_user_id = $2 AND u.deleted_at IS NULL
-		`, provider, providerUserID).Scan(
+			WHERE si.provider_type = $1 AND si.provider_name = $2 AND si.provider_user_id = $3 AND u.deleted_at IS NULL
+		`, providerType, providerName, providerUserID).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
 			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
 			&user.CreatedAt, &user.UpdatedAt,
@@ -801,6 +810,14 @@ func (s *DashboardAuthService) FindOrCreateUserBySSO(ctx context.Context, email,
 	}
 
 	// Create new user (JIT provisioning)
+	// Split provider into type and name (format: "oauth:authelia" or "saml:okta")
+	parts := strings.SplitN(provider, ":", 2)
+	if len(parts) != 2 {
+		return nil, false, fmt.Errorf("invalid provider format (expected 'type:name'): %s", provider)
+	}
+	providerType := parts[0]
+	providerName := parts[1]
+
 	user = &DashboardUser{}
 	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		// Create user without password (SSO-only user)
@@ -820,9 +837,9 @@ func (s *DashboardAuthService) FindOrCreateUserBySSO(ctx context.Context, email,
 
 		// Link SSO identity
 		_, err = tx.Exec(ctx, `
-			INSERT INTO dashboard.sso_identities (user_id, provider, provider_user_id, email)
-			VALUES ($1, $2, $3, $4)
-		`, user.ID, provider, providerUserID, email)
+			INSERT INTO dashboard.sso_identities (user_id, provider_type, provider_name, provider_user_id, email)
+			VALUES ($1, $2, $3, $4, $5)
+		`, user.ID, providerType, providerName, providerUserID, email)
 		return err
 	})
 	if err != nil {
@@ -834,12 +851,20 @@ func (s *DashboardAuthService) FindOrCreateUserBySSO(ctx context.Context, email,
 
 // LinkSSOIdentity links an SSO identity to an existing dashboard user
 func (s *DashboardAuthService) LinkSSOIdentity(ctx context.Context, userID uuid.UUID, provider, providerUserID, email string) error {
+	// Split provider into type and name (format: "oauth:authelia" or "saml:okta")
+	parts := strings.SplitN(provider, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid provider format (expected 'type:name'): %s", provider)
+	}
+	providerType := parts[0]
+	providerName := parts[1]
+
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO dashboard.sso_identities (user_id, provider, provider_user_id, email)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (provider, provider_user_id) DO UPDATE SET email = EXCLUDED.email
-		`, userID, provider, providerUserID, email)
+			INSERT INTO dashboard.sso_identities (user_id, provider_type, provider_name, provider_user_id, email)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (provider_type, provider_name, provider_user_id) DO UPDATE SET email = EXCLUDED.email
+		`, userID, providerType, providerName, providerUserID, email)
 		return err
 	})
 	if err != nil {

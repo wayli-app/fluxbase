@@ -56,6 +56,10 @@ type SAMLProviderConfig struct {
 	AllowAppLogin        bool              `json:"allow_app_login"`
 	AllowIDPInitiated    bool              `json:"allow_idp_initiated"`
 	AllowedRedirectHosts []string          `json:"allowed_redirect_hosts"`
+	RequiredGroups       []string          `json:"required_groups,omitempty"`
+	RequiredGroupsAll    []string          `json:"required_groups_all,omitempty"`
+	DeniedGroups         []string          `json:"denied_groups,omitempty"`
+	GroupAttribute       string            `json:"group_attribute,omitempty"`
 	Source               string            `json:"source"` // "database" or "config"
 	CreatedAt            time.Time         `json:"created_at"`
 	UpdatedAt            time.Time         `json:"updated_at"`
@@ -75,6 +79,10 @@ type CreateSAMLProviderRequest struct {
 	AllowAppLogin        *bool             `json:"allow_app_login,omitempty"`
 	AllowIDPInitiated    *bool             `json:"allow_idp_initiated,omitempty"`
 	AllowedRedirectHosts []string          `json:"allowed_redirect_hosts,omitempty"`
+	RequiredGroups       []string          `json:"required_groups,omitempty"`
+	RequiredGroupsAll    []string          `json:"required_groups_all,omitempty"`
+	DeniedGroups         []string          `json:"denied_groups,omitempty"`
+	GroupAttribute       *string           `json:"group_attribute,omitempty"`
 }
 
 // UpdateSAMLProviderRequest represents a request to update a SAML provider
@@ -90,6 +98,10 @@ type UpdateSAMLProviderRequest struct {
 	AllowAppLogin        *bool             `json:"allow_app_login,omitempty"`
 	AllowIDPInitiated    *bool             `json:"allow_idp_initiated,omitempty"`
 	AllowedRedirectHosts []string          `json:"allowed_redirect_hosts,omitempty"`
+	RequiredGroups       []string          `json:"required_groups,omitempty"`
+	RequiredGroupsAll    []string          `json:"required_groups_all,omitempty"`
+	DeniedGroups         []string          `json:"denied_groups,omitempty"`
+	GroupAttribute       *string           `json:"group_attribute,omitempty"`
 }
 
 // ValidateMetadataRequest represents a request to validate SAML metadata
@@ -120,6 +132,8 @@ func (h *SAMLProviderHandler) ListSAMLProviders(c *fiber.Ctx) error {
 		       idp_metadata_url, idp_metadata_xml, attribute_mapping, auto_create_users,
 		       default_role, COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
 		       COALESCE(allow_idp_initiated, false), COALESCE(allowed_redirect_hosts, ARRAY[]::TEXT[]),
+		       COALESCE(required_groups, ARRAY[]::TEXT[]), COALESCE(required_groups_all, ARRAY[]::TEXT[]),
+		       COALESCE(denied_groups, ARRAY[]::TEXT[]), COALESCE(group_attribute, 'groups'),
 		       COALESCE(source, 'database'), created_at, updated_at
 		FROM auth.saml_providers
 		ORDER BY name
@@ -145,8 +159,9 @@ func (h *SAMLProviderHandler) ListSAMLProviders(c *fiber.Ctx) error {
 			&p.ID, &p.Name, &p.DisplayName, &p.Enabled, &p.EntityID, &p.AcsURL,
 			&p.IdPMetadataURL, &p.IdPMetadataXML, &attrMapping, &p.AutoCreateUsers,
 			&p.DefaultRole, &p.AllowDashboardLogin, &p.AllowAppLogin,
-			&p.AllowIDPInitiated, &p.AllowedRedirectHosts, &p.Source,
-			&p.CreatedAt, &p.UpdatedAt,
+			&p.AllowIDPInitiated, &p.AllowedRedirectHosts,
+			&p.RequiredGroups, &p.RequiredGroupsAll, &p.DeniedGroups, &p.GroupAttribute,
+			&p.Source, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan SAML provider")
@@ -312,6 +327,11 @@ func (h *SAMLProviderHandler) CreateSAMLProvider(c *fiber.Ctx) error {
 		allowIDPInitiated = *req.AllowIDPInitiated
 	}
 
+	groupAttribute := "groups"
+	if req.GroupAttribute != nil && *req.GroupAttribute != "" {
+		groupAttribute = *req.GroupAttribute
+	}
+
 	attrMapping := req.AttributeMapping
 	if attrMapping == nil {
 		attrMapping = map[string]string{
@@ -331,8 +351,8 @@ func (h *SAMLProviderHandler) CreateSAMLProvider(c *fiber.Ctx) error {
 			idp_metadata_xml, idp_metadata_cached, idp_metadata_cached_at,
 			attribute_mapping, auto_create_users, default_role,
 			allow_dashboard_login, allow_app_login, allow_idp_initiated,
-			allowed_redirect_hosts, source
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11, $12, $13, $14, $15, 'database')
+			allowed_redirect_hosts, required_groups, required_groups_all, denied_groups, group_attribute, source
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'database')
 		RETURNING id, created_at, updated_at
 	`
 
@@ -345,7 +365,7 @@ func (h *SAMLProviderHandler) CreateSAMLProvider(c *fiber.Ctx) error {
 		req.IdPMetadataURL, req.IdPMetadataXML, metadataInfo.CachedXML,
 		attrMapping, autoCreateUsers, defaultRole,
 		allowDashboardLogin, allowAppLogin, allowIDPInitiated,
-		req.AllowedRedirectHosts,
+		req.AllowedRedirectHosts, req.RequiredGroups, req.RequiredGroupsAll, req.DeniedGroups, groupAttribute,
 	).Scan(&id, &createdAt, &updatedAt)
 
 	if err != nil {
@@ -497,6 +517,26 @@ func (h *SAMLProviderHandler) UpdateSAMLProvider(c *fiber.Ctx) error {
 	if req.AllowedRedirectHosts != nil {
 		updates = append(updates, fmt.Sprintf("allowed_redirect_hosts = $%d", argPos))
 		args = append(args, req.AllowedRedirectHosts)
+		argPos++
+	}
+	if req.RequiredGroups != nil {
+		updates = append(updates, fmt.Sprintf("required_groups = $%d", argPos))
+		args = append(args, req.RequiredGroups)
+		argPos++
+	}
+	if req.RequiredGroupsAll != nil {
+		updates = append(updates, fmt.Sprintf("required_groups_all = $%d", argPos))
+		args = append(args, req.RequiredGroupsAll)
+		argPos++
+	}
+	if req.DeniedGroups != nil {
+		updates = append(updates, fmt.Sprintf("denied_groups = $%d", argPos))
+		args = append(args, req.DeniedGroups)
+		argPos++
+	}
+	if req.GroupAttribute != nil {
+		updates = append(updates, fmt.Sprintf("group_attribute = $%d", argPos))
+		args = append(args, *req.GroupAttribute)
 		argPos++
 	}
 

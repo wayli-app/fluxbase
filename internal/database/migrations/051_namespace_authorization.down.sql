@@ -1,8 +1,8 @@
 -- 051_namespace_authorization.down.sql
 -- Rollback namespace authorization support
 
--- Remove allowed_namespaces column from api_keys
-ALTER TABLE auth.api_keys
+-- Remove allowed_namespaces column from client_keys
+ALTER TABLE auth.client_keys
 DROP COLUMN IF EXISTS allowed_namespaces;
 
 -- Remove allowed_namespaces column from service_keys

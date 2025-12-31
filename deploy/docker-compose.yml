@@ -146,6 +146,9 @@ services:
       # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
       # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_CLIENT_SECRET: "YOUR_GOOGLE_CLIENT_SECRET"
       # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_SCOPES: "openid,email,profile"
+      # RBAC (optional)
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_REQUIRED_CLAIMS: '{"roles":["admin","editor"]}'
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_DENIED_CLAIMS: '{"status":["suspended"]}'
       #
       # Example: Custom OIDC provider (Keycloak)
       # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_NAME: "keycloak"
@@ -180,6 +183,11 @@ services:
       # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_APP_LOGIN: "true"
       # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_DASHBOARD_LOGIN: "false"
       # FLUXBASE_AUTH_SAML_PROVIDERS_0_ALLOW_IDP_INITIATED: "false"  # Security: disable IdP-initiated SSO
+      # RBAC (optional)
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_REQUIRED_GROUPS: '["FluxbaseAdmins","IT-Team"]'
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_REQUIRED_GROUPS_ALL: '["Employees","Active"]'
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_DENIED_GROUPS: '["Contractors","Suspended"]'
+      # FLUXBASE_AUTH_SAML_PROVIDERS_0_GROUP_ATTRIBUTE: "groups"
 
       # ==========================================================================
       # Security Configuration

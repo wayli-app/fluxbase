@@ -160,6 +160,11 @@ config:
     ##       - openid
     ##       - email
     ##       - profile
+    ##     # RBAC (optional): Restrict by ID token claims
+    ##     # required_claims:
+    ##     #   roles: ["admin"]
+    ##     # denied_claims:
+    ##     #   status: ["suspended"]
     ##   - name: keycloak
     ##     enabled: true
     ##     issuer_url: "https://auth.example.com/realms/main"
@@ -236,6 +241,11 @@ config:
   ##     # Login target options:
   ##     allow_app_login: true              # Allow for app user authentication (default: true)
   ##     allow_dashboard_login: false       # Allow for dashboard admin SSO login (default: false)
+  ##     # RBAC (optional): Group-based access control
+  ##     # required_groups: ["FluxbaseAdmins", "IT-Team"]
+  ##     # required_groups_all: ["Employees", "Active"]
+  ##     # denied_groups: ["Contractors", "Suspended"]
+  ##     # group_attribute: "groups"  # Default: "groups"
   ##     # Security options (recommended defaults shown):
   ##     allow_idp_initiated: false         # Reject IdP-initiated SSO (prevents replay attacks)
   ##     allowed_redirect_hosts: []         # Whitelist for RelayState redirects (e.g., ["app.example.com"])
