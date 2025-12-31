@@ -11,8 +11,8 @@ Fluxbase supports automatic database migrations that run on startup. The platfor
 
 Migrations are powered by [golang-migrate](https://github.com/golang-migrate/migrate) and use PostgreSQL as the database backend. Fluxbase automatically tracks migration state in separate tables:
 
-- `_fluxbase.schema_migrations` - Tracks system migrations
-- `_fluxbase.user_migrations` - Tracks your custom migrations
+- `migrations.fluxbase` - Tracks system migrations
+- `migrations.app` - Tracks your custom migrations
 
 This separation ensures that system and user migrations don't conflict with each other.
 
@@ -23,12 +23,12 @@ Fluxbase maintains two independent migration tracks to separate platform updates
 ```mermaid
 graph LR
     subgraph "System Migrations"
-        S1[Embedded in Binary] --> S2[_fluxbase.schema_migrations]
+        S1[Embedded in Binary] --> S2[migrations.fluxbase]
         S2 --> S3[Platform Tables & RLS]
     end
 
     subgraph "User Migrations"
-        U1[Filesystem Directory] --> U2[_fluxbase.user_migrations]
+        U1[Filesystem Directory] --> U2[migrations.app]
         U2 --> U3[Application Schema]
     end
 
@@ -49,7 +49,7 @@ System migrations are embedded into the Fluxbase binary at compile time and incl
 - Storage metadata tables
 - Jobs and functions infrastructure
 
-**Tracking:** `_fluxbase.schema_migrations` table
+**Tracking:** `migrations.fluxbase` table
 
 **Execution:** Automatically run on every startup (idempotent - only new migrations applied)
 
@@ -61,7 +61,7 @@ System migrations are embedded into the Fluxbase binary at compile time and incl
 
 User migrations allow you to add your own custom database schema and data migrations without modifying Fluxbase source code.
 
-**Tracking:** `_fluxbase.user_migrations` table
+**Tracking:** `migrations.app` table
 
 **Execution:** Run after system migrations if `DB_USER_MIGRATIONS_PATH` is configured
 
@@ -486,11 +486,11 @@ Fluxbase will automatically attempt to recover from dirty state by forcing the v
 psql -h localhost -U fluxbase -d fluxbase
 
 -- Check migration state
-SELECT * FROM _fluxbase.user_migrations;
+SELECT * FROM migrations.app;
 
 -- Force version if needed (replace X with the correct version)
-DELETE FROM _fluxbase.user_migrations;
-INSERT INTO _fluxbase.user_migrations (version, dirty) VALUES (X, false);
+DELETE FROM migrations.app;
+INSERT INTO migrations.app (version, dirty) VALUES (X, false);
 ```
 
 ### Migration Not Running
@@ -509,10 +509,10 @@ To see which migrations have been applied:
 
 ```sql
 -- Check system migrations
-SELECT * FROM _fluxbase.schema_migrations ORDER BY version;
+SELECT * FROM migrations.fluxbase ORDER BY version;
 
 -- Check user migrations
-SELECT * FROM _fluxbase.user_migrations ORDER BY version;
+SELECT * FROM migrations.app ORDER BY version;
 ```
 
 ## Advanced Topics

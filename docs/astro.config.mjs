@@ -55,16 +55,48 @@ export default defineConfig({
                 const container = document.createElement('div');
                 container.className = 'mermaid';
                 container.textContent = text;
-                wrapper.replaceWith(container);
+                pre.replaceWith(container);
               });
               mermaid.run();
             });
+          `,
+        },
+        {
+          tag: "style",
+          content: `
+            .expressive-code .copy button {
+              width: 2rem !important;
+              height: 2rem !important;
+              padding: 0 !important;
+              position: relative !important;
+            }
+            .expressive-code .copy button::after {
+              position: absolute !important;
+              top: 50% !important;
+              left: 50% !important;
+              transform: translate(-50%, -50%) !important;
+              width: 1rem !important;
+              height: 1rem !important;
+              margin: 0 !important;
+              mask-size: contain !important;
+              mask-position: center !important;
+              -webkit-mask-size: contain !important;
+              -webkit-mask-position: center !important;
+            }
           `,
         },
       ],
       customCss: ["./src/styles/custom.css"],
       expressiveCode: {
         themes: ["github-light", "dracula"],
+        emitExternalStylesheet: true,
+        styleOverrides: {
+          frames: {
+            inlineButtonBackgroundIdleOpacity: '0',
+            inlineButtonBackgroundHoverOrFocusOpacity: '0.2',
+            inlineButtonBackgroundActiveOpacity: '0.3',
+          },
+        },
       },
       plugins: [
         starlightTypeDoc({
@@ -162,11 +194,6 @@ export default defineConfig({
               autogenerate: { directory: "guides/mcp" },
             },
             { label: "Webhooks", link: "/guides/webhooks/" },
-            {
-              label: "TypeScript SDK",
-              collapsed: true,
-              autogenerate: { directory: "guides/typescript-sdk" },
-            },
 
             // Operations
             { label: "Secrets Management", link: "/guides/secrets-management/" },

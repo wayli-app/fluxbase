@@ -1800,6 +1800,8 @@ export interface OAuthProviderConfig {
   user_info_url?: string
   allow_dashboard_login: boolean
   allow_app_login: boolean
+  required_claims?: Record<string, string[]>
+  denied_claims?: Record<string, string[]>
   created_at: string
   updated_at: string
 }
@@ -1933,6 +1935,10 @@ export interface SAMLProviderConfig {
   allow_app_login: boolean
   allow_idp_initiated: boolean
   allowed_redirect_hosts: string[]
+  required_groups?: string[]
+  required_groups_all?: string[]
+  denied_groups?: string[]
+  group_attribute?: string
   source: 'database' | 'config'
   created_at: string
   updated_at: string

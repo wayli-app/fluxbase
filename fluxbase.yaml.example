@@ -49,6 +49,56 @@ auth:
   enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK - Enable magic link authentication
   totp_issuer: "Fluxbase"               # FLUXBASE_AUTH_TOTP_ISSUER - TOTP issuer name for 2FA (shown in authenticator apps)
 
+  # OAuth/OIDC Configuration (Social Login & Enterprise SSO)
+  # Configure OAuth 2.0 and OIDC providers for authentication
+  #
+  # oauth_providers:
+  #   # Well-known providers (issuer URL auto-detected)
+  #   - name: google                        # Provider identifier (google, apple, microsoft)
+  #     enabled: true                       # Enable/disable this provider
+  #     client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+  #     client_secret: "YOUR_CLIENT_SECRET" # Optional: can be managed in admin dashboard
+  #     scopes: [openid, email, profile]   # OAuth scopes to request
+  #     display_name: "Google"             # Display name in UI (optional)
+  #
+  #   - name: microsoft
+  #     enabled: true
+  #     client_id: "YOUR_AZURE_AD_CLIENT_ID"
+  #     scopes: [openid, email, profile]
+  #
+  #   - name: apple
+  #     enabled: true
+  #     client_id: "com.yourapp.service"   # Apple Services ID
+  #     # Apple requires JWT-signed client_secret (generated with your private key)
+  #
+  #   # Custom OIDC providers (issuer_url required)
+  #   - name: keycloak                      # Custom provider name
+  #     enabled: true
+  #     issuer_url: "https://auth.example.com/realms/main"  # OIDC issuer URL
+  #     client_id: "fluxbase-client"
+  #     client_secret: "YOUR_CLIENT_SECRET"
+  #     scopes: [openid, email, profile]
+  #
+  #   - name: authelia
+  #     enabled: true
+  #     issuer_url: "https://auth.example.com"
+  #     client_id: "fluxbase"
+  #
+  # Provider Setup Steps:
+  # 1. Create OAuth application in provider's developer console
+  # 2. Set redirect URI to: https://your-app.com/api/v1/auth/oauth/{provider}/callback
+  # 3. Get client ID and client secret
+  # 4. Configure provider in this file OR in the admin dashboard
+  # 5. Enable the provider
+  #
+  # Well-Known Providers (issuer auto-configured):
+  #   - google: https://accounts.google.com
+  #   - apple: https://appleid.apple.com
+  #   - microsoft: https://login.microsoftonline.com/common/v2.0
+  #
+  # Note: OAuth providers can also be managed dynamically through the admin dashboard
+  # at /api/v1/admin/oauth/providers. Database providers override config file providers.
+
   # SAML SSO Configuration (Enterprise Single Sign-On)
   # Configure SAML Identity Providers (IdPs) like Okta, Azure AD, OneLogin
   #

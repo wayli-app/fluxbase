@@ -74,6 +74,8 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StringArrayEditor } from '@/components/string-array-editor'
+import { KeyValueArrayEditor } from '@/components/key-value-array-editor'
 
 const authenticationSearchSchema = z.object({
   tab: z.string().optional().catch('providers'),
@@ -167,6 +169,8 @@ function OAuthProvidersTab() {
   const [customUserInfoUrl, setCustomUserInfoUrl] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [requiredClaims, setRequiredClaims] = useState<Record<string, string[]>>({})
+  const [deniedClaims, setDeniedClaims] = useState<Record<string, string[]>>({})
   const [showDeleteProviderConfirm, setShowDeleteProviderConfirm] = useState(false)
   const [deletingProvider, setDeletingProvider] = useState<OAuthProviderConfig | null>(null)
 
@@ -260,6 +264,8 @@ function OAuthProvidersTab() {
     setCustomUserInfoUrl('')
     setClientId('')
     setClientSecret('')
+    setRequiredClaims({})
+    setDeniedClaims({})
   }
 
   return (
@@ -383,6 +389,37 @@ function OAuthProvidersTab() {
                               ))}
                             </div>
                           </div>
+                          {(provider.required_claims || provider.denied_claims) && (
+                            <div className='col-span-2 border-t pt-3'>
+                              <Label className='text-muted-foreground mb-2 block'>
+                                RBAC Rules
+                              </Label>
+                              {provider.required_claims && Object.keys(provider.required_claims).length > 0 && (
+                                <div className='mb-2'>
+                                  <span className='text-xs text-muted-foreground'>Required Claims: </span>
+                                  <div className='flex flex-wrap gap-1 mt-1'>
+                                    {Object.entries(provider.required_claims).map(([key, values]) => (
+                                      <Badge key={key} variant='outline' className='text-xs'>
+                                        {key}: {values.join(', ')}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {provider.denied_claims && Object.keys(provider.denied_claims).length > 0 && (
+                                <div>
+                                  <span className='text-xs text-muted-foreground'>Denied Claims: </span>
+                                  <div className='flex flex-wrap gap-1 mt-1'>
+                                    {Object.entries(provider.denied_claims).map(([key, values]) => (
+                                      <Badge key={key} variant='destructive' className='text-xs'>
+                                        {key}: {values.join(', ')}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className='ml-4 flex gap-2'>
@@ -395,6 +432,8 @@ function OAuthProvidersTab() {
                             setCustomProviderName(provider.display_name)
                             setClientId(provider.client_id)
                             setClientSecret('')
+                            setRequiredClaims(provider.required_claims || {})
+                            setDeniedClaims(provider.denied_claims || {})
                             if (provider.is_custom) {
                               setCustomAuthUrl(provider.authorization_url || '')
                               setCustomTokenUrl(provider.token_url || '')
@@ -555,6 +594,48 @@ function OAuthProvidersTab() {
                 Use this URL in your OAuth provider configuration
               </p>
             </div>
+
+            {/* RBAC Section */}
+            <div className='border-t pt-4 space-y-4'>
+              <div>
+                <Label className='text-sm font-semibold'>
+                  Role-Based Access Control (Optional)
+                </Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Filter users based on ID token claims (e.g., roles, groups)
+                </p>
+              </div>
+
+              {/* Required Claims */}
+              <div className='space-y-2'>
+                <Label>Required Claims (OR logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must have at least ONE matching value per claim
+                </p>
+                <KeyValueArrayEditor
+                  value={requiredClaims}
+                  onChange={setRequiredClaims}
+                  keyPlaceholder='Claim name (e.g., roles)'
+                  valuePlaceholder='Allowed value'
+                  addButtonText='Add Required Claim'
+                />
+              </div>
+
+              {/* Denied Claims */}
+              <div className='space-y-2'>
+                <Label>Denied Claims (Blocklist)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Reject users if ANY value matches
+                </p>
+                <KeyValueArrayEditor
+                  value={deniedClaims}
+                  onChange={setDeniedClaims}
+                  keyPlaceholder='Claim name (e.g., status)'
+                  valuePlaceholder='Denied value'
+                  addButtonText='Add Denied Claim'
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setShowAddProvider(false)}>
@@ -584,6 +665,8 @@ function OAuthProvidersTab() {
                     token_url: customTokenUrl,
                     user_info_url: customUserInfoUrl,
                   }),
+                  ...(Object.keys(requiredClaims).length > 0 && { required_claims: requiredClaims }),
+                  ...(Object.keys(deniedClaims).length > 0 && { denied_claims: deniedClaims }),
                 }
 
                 createProviderMutation.mutate(data)
@@ -689,6 +772,48 @@ function OAuthProvidersTab() {
                 className='bg-muted font-mono text-xs'
               />
             </div>
+
+            {/* RBAC Section */}
+            <div className='border-t pt-4 space-y-4'>
+              <div>
+                <Label className='text-sm font-semibold'>
+                  Role-Based Access Control (Optional)
+                </Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Filter users based on ID token claims (e.g., roles, groups)
+                </p>
+              </div>
+
+              {/* Required Claims */}
+              <div className='space-y-2'>
+                <Label>Required Claims (OR logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must have at least ONE matching value per claim
+                </p>
+                <KeyValueArrayEditor
+                  value={requiredClaims}
+                  onChange={setRequiredClaims}
+                  keyPlaceholder='Claim name (e.g., roles)'
+                  valuePlaceholder='Allowed value'
+                  addButtonText='Add Required Claim'
+                />
+              </div>
+
+              {/* Denied Claims */}
+              <div className='space-y-2'>
+                <Label>Denied Claims (Blocklist)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Reject users if ANY value matches
+                </p>
+                <KeyValueArrayEditor
+                  value={deniedClaims}
+                  onChange={setDeniedClaims}
+                  keyPlaceholder='Claim name (e.g., status)'
+                  valuePlaceholder='Denied value'
+                  addButtonText='Add Denied Claim'
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -709,6 +834,8 @@ function OAuthProvidersTab() {
                   enabled: editingProvider.enabled,
                   client_id: clientId,
                   ...(clientSecret && { client_secret: clientSecret }),
+                  ...(Object.keys(requiredClaims).length > 0 && { required_claims: requiredClaims }),
+                  ...(Object.keys(deniedClaims).length > 0 && { denied_claims: deniedClaims }),
                 }
 
                 updateProviderMutation.mutate({ id: editingProvider.id, data })
@@ -765,6 +892,10 @@ function SAMLProvidersTab() {
   const [allowDashboardLogin, setAllowDashboardLogin] = useState(false)
   const [allowAppLogin, setAllowAppLogin] = useState(true)
   const [allowIdpInitiated, setAllowIdpInitiated] = useState(false)
+  const [requiredGroups, setRequiredGroups] = useState<string[]>([])
+  const [requiredGroupsAll, setRequiredGroupsAll] = useState<string[]>([])
+  const [deniedGroups, setDeniedGroups] = useState<string[]>([])
+  const [groupAttribute, setGroupAttribute] = useState('groups')
   const [validatingMetadata, setValidatingMetadata] = useState(false)
   const [metadataValid, setMetadataValid] = useState<boolean | null>(null)
   const [metadataError, setMetadataError] = useState<string | null>(null)
@@ -842,6 +973,10 @@ function SAMLProvidersTab() {
     setAllowDashboardLogin(false)
     setAllowAppLogin(true)
     setAllowIdpInitiated(false)
+    setRequiredGroups([])
+    setRequiredGroupsAll([])
+    setDeniedGroups([])
+    setGroupAttribute('groups')
     setMetadataValid(null)
     setMetadataError(null)
   }
@@ -917,6 +1052,10 @@ function SAMLProvidersTab() {
       allow_dashboard_login: allowDashboardLogin,
       allow_app_login: allowAppLogin,
       allow_idp_initiated: allowIdpInitiated,
+      ...(requiredGroups.length > 0 && { required_groups: requiredGroups }),
+      ...(requiredGroupsAll.length > 0 && { required_groups_all: requiredGroupsAll }),
+      ...(deniedGroups.length > 0 && { denied_groups: deniedGroups }),
+      group_attribute: groupAttribute || 'groups',
     })
   }
 
@@ -932,6 +1071,10 @@ function SAMLProvidersTab() {
     setAllowDashboardLogin(provider.allow_dashboard_login)
     setAllowAppLogin(provider.allow_app_login)
     setAllowIdpInitiated(provider.allow_idp_initiated)
+    setRequiredGroups(provider.required_groups || [])
+    setRequiredGroupsAll(provider.required_groups_all || [])
+    setDeniedGroups(provider.denied_groups || [])
+    setGroupAttribute(provider.group_attribute || 'groups')
     setShowEditProvider(true)
   }
 
@@ -949,6 +1092,10 @@ function SAMLProvidersTab() {
         allow_dashboard_login: allowDashboardLogin,
         allow_app_login: allowAppLogin,
         allow_idp_initiated: allowIdpInitiated,
+        ...(requiredGroups.length > 0 && { required_groups: requiredGroups }),
+        ...(requiredGroupsAll.length > 0 && { required_groups_all: requiredGroupsAll }),
+        ...(deniedGroups.length > 0 && { denied_groups: deniedGroups }),
+        group_attribute: groupAttribute || 'groups',
       },
     })
   }
@@ -1088,6 +1235,59 @@ function SAMLProvidersTab() {
                             </Button>
                           </div>
                         </div>
+
+                        {/* RBAC Rules */}
+                        {(provider.required_groups || provider.required_groups_all || provider.denied_groups) && (
+                          <div className='border-t pt-4 mt-4'>
+                            <Label className='text-muted-foreground mb-2 block'>RBAC Rules</Label>
+                            <div className='space-y-2'>
+                              {provider.required_groups && provider.required_groups.length > 0 && (
+                                <div>
+                                  <span className='text-xs text-muted-foreground'>Required Groups (OR): </span>
+                                  <div className='flex flex-wrap gap-1 mt-1'>
+                                    {provider.required_groups.map((group) => (
+                                      <Badge key={group} variant='outline' className='text-xs'>
+                                        {group}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {provider.required_groups_all && provider.required_groups_all.length > 0 && (
+                                <div>
+                                  <span className='text-xs text-muted-foreground'>Required Groups (AND): </span>
+                                  <div className='flex flex-wrap gap-1 mt-1'>
+                                    {provider.required_groups_all.map((group) => (
+                                      <Badge key={group} variant='secondary' className='text-xs'>
+                                        {group}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {provider.denied_groups && provider.denied_groups.length > 0 && (
+                                <div>
+                                  <span className='text-xs text-muted-foreground'>Denied Groups: </span>
+                                  <div className='flex flex-wrap gap-1 mt-1'>
+                                    {provider.denied_groups.map((group) => (
+                                      <Badge key={group} variant='destructive' className='text-xs'>
+                                        {group}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {provider.group_attribute && provider.group_attribute !== 'groups' && (
+                                <div>
+                                  <span className='text-xs text-muted-foreground'>Group Attribute: </span>
+                                  <Badge variant='outline' className='text-xs'>
+                                    {provider.group_attribute}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Actions */}
@@ -1290,6 +1490,74 @@ function SAMLProvidersTab() {
                 </div>
               </div>
             </div>
+
+            {/* RBAC Section */}
+            <div className='border-t pt-4 space-y-4'>
+              <div>
+                <Label className='text-sm font-semibold'>
+                  Role-Based Access Control (Optional)
+                </Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Filter users based on SAML assertion groups/attributes
+                </p>
+              </div>
+
+              {/* Group Attribute Name */}
+              <div className='space-y-2'>
+                <Label htmlFor='groupAttribute'>Group Attribute Name</Label>
+                <Input
+                  id='groupAttribute'
+                  value={groupAttribute}
+                  onChange={(e) => setGroupAttribute(e.target.value)}
+                  placeholder='groups'
+                />
+                <p className='text-muted-foreground text-xs'>
+                  SAML attribute containing group memberships (default: "groups")
+                </p>
+              </div>
+
+              {/* Required Groups (OR) */}
+              <div className='space-y-2'>
+                <Label>Required Groups (OR logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must be in at least ONE of these groups
+                </p>
+                <StringArrayEditor
+                  value={requiredGroups}
+                  onChange={setRequiredGroups}
+                  placeholder='FluxbaseAdmins'
+                  addButtonText='Add Required Group'
+                />
+              </div>
+
+              {/* Required Groups (AND) */}
+              <div className='space-y-2'>
+                <Label>Required Groups (AND logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must be in ALL of these groups
+                </p>
+                <StringArrayEditor
+                  value={requiredGroupsAll}
+                  onChange={setRequiredGroupsAll}
+                  placeholder='Verified'
+                  addButtonText='Add Required Group'
+                />
+              </div>
+
+              {/* Denied Groups */}
+              <div className='space-y-2'>
+                <Label>Denied Groups (Blocklist)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Reject users in ANY of these groups
+                </p>
+                <StringArrayEditor
+                  value={deniedGroups}
+                  onChange={setDeniedGroups}
+                  placeholder='Contractors'
+                  addButtonText='Add Denied Group'
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -1415,6 +1683,74 @@ function SAMLProvidersTab() {
                   <Label>Allow for Dashboard</Label>
                   <Switch checked={allowDashboardLogin} onCheckedChange={setAllowDashboardLogin} />
                 </div>
+              </div>
+            </div>
+
+            {/* RBAC Section */}
+            <div className='border-t pt-4 space-y-4'>
+              <div>
+                <Label className='text-sm font-semibold'>
+                  Role-Based Access Control (Optional)
+                </Label>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  Filter users based on SAML assertion groups/attributes
+                </p>
+              </div>
+
+              {/* Group Attribute Name */}
+              <div className='space-y-2'>
+                <Label htmlFor='editGroupAttribute'>Group Attribute Name</Label>
+                <Input
+                  id='editGroupAttribute'
+                  value={groupAttribute}
+                  onChange={(e) => setGroupAttribute(e.target.value)}
+                  placeholder='groups'
+                />
+                <p className='text-muted-foreground text-xs'>
+                  SAML attribute containing group memberships (default: "groups")
+                </p>
+              </div>
+
+              {/* Required Groups (OR) */}
+              <div className='space-y-2'>
+                <Label>Required Groups (OR logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must be in at least ONE of these groups
+                </p>
+                <StringArrayEditor
+                  value={requiredGroups}
+                  onChange={setRequiredGroups}
+                  placeholder='FluxbaseAdmins'
+                  addButtonText='Add Required Group'
+                />
+              </div>
+
+              {/* Required Groups (AND) */}
+              <div className='space-y-2'>
+                <Label>Required Groups (AND logic)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  User must be in ALL of these groups
+                </p>
+                <StringArrayEditor
+                  value={requiredGroupsAll}
+                  onChange={setRequiredGroupsAll}
+                  placeholder='Verified'
+                  addButtonText='Add Required Group'
+                />
+              </div>
+
+              {/* Denied Groups */}
+              <div className='space-y-2'>
+                <Label>Denied Groups (Blocklist)</Label>
+                <p className='text-muted-foreground text-xs'>
+                  Reject users in ANY of these groups
+                </p>
+                <StringArrayEditor
+                  value={deniedGroups}
+                  onChange={setDeniedGroups}
+                  placeholder='Contractors'
+                  addButtonText='Add Denied Group'
+                />
               </div>
             </div>
           </div>

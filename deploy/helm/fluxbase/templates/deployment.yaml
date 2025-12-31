@@ -263,17 +263,47 @@ spec:
               value: {{ .Values.config.auth.enable_magic_link | quote }}
             - name: FLUXBASE_AUTH_TOTP_ISSUER
               value: {{ .Values.config.auth.totp_issuer | quote }}
-            {{- if .Values.config.auth.google_client_id }}
-            - name: FLUXBASE_AUTH_GOOGLE_CLIENT_ID
-              value: {{ .Values.config.auth.google_client_id | quote }}
+
+            # ===========================================
+            # OAuth/OIDC Configuration
+            # ===========================================
+            {{- range $i, $provider := .Values.config.auth.oauth_providers }}
+            # Provider {{ $provider.name }} configuration
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_NAME
+              value: {{ $provider.name | quote }}
+            {{- if $provider.enabled }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_ENABLED
+              value: "true"
             {{- end }}
-            {{- if .Values.config.auth.apple_client_id }}
-            - name: FLUXBASE_AUTH_APPLE_CLIENT_ID
-              value: {{ .Values.config.auth.apple_client_id | quote }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_CLIENT_ID
+              value: {{ $provider.client_id | quote }}
+            {{- if $provider.issuer_url }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_ISSUER_URL
+              value: {{ $provider.issuer_url | quote }}
             {{- end }}
-            {{- if .Values.config.auth.microsoft_client_id }}
-            - name: FLUXBASE_AUTH_MICROSOFT_CLIENT_ID
-              value: {{ .Values.config.auth.microsoft_client_id | quote }}
+            {{- if $provider.scopes }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_SCOPES
+              value: {{ join "," $provider.scopes | quote }}
+            {{- end }}
+            {{- if $provider.display_name }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_DISPLAY_NAME
+              value: {{ $provider.display_name | quote }}
+            {{- end }}
+            # Client secret from Kubernetes secret (per-provider pattern)
+            # For provider 'google', looks up existingSecretKeyRef.googleClientSecret
+            # which defaults to 'google-client-secret' in the secret
+            {{- if $.Values.existingSecret }}
+            {{- $secretKeyRefField := printf "%sClientSecret" $provider.name }}
+            {{- $secretKeyRefValue := index $.Values.existingSecretKeyRef $secretKeyRefField }}
+            {{- if $secretKeyRefValue }}
+            - name: FLUXBASE_AUTH_OAUTH_PROVIDERS_{{ $i }}_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fluxbase.secretName" $ }}
+                  key: {{ $secretKeyRefValue }}
+                  optional: true
+            {{- end }}
+            {{- end }}
             {{- end }}
 
             # ===========================================

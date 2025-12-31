@@ -3,12 +3,16 @@ package api
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -19,16 +23,17 @@ import (
 
 // OAuthHandler handles OAuth authentication flow
 type OAuthHandler struct {
-	db            *pgxpool.Pool
-	authSvc       *auth.Service
-	jwtManager    *auth.JWTManager
-	stateStore    *auth.StateStore
-	baseURL       string
-	encryptionKey string // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
+	db              *pgxpool.Pool
+	authSvc         *auth.Service
+	jwtManager      *auth.JWTManager
+	stateStore      *auth.StateStore
+	baseURL         string
+	encryptionKey   string // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
+	configProviders []config.OAuthProviderConfig // OAuth providers from config file
 }
 
 // NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string) *OAuthHandler {
+func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string, configProviders []config.OAuthProviderConfig) *OAuthHandler {
 	stateStore := auth.NewStateStore()
 
 	// Warn if encryption key is not set (OAuth tokens will be stored unencrypted)
@@ -49,12 +54,13 @@ func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.J
 	}()
 
 	return &OAuthHandler{
-		db:            db,
-		authSvc:       authSvc,
-		jwtManager:    jwtManager,
-		stateStore:    stateStore,
-		baseURL:       baseURL,
-		encryptionKey: encryptionKey,
+		db:              db,
+		authSvc:         authSvc,
+		jwtManager:      jwtManager,
+		stateStore:      stateStore,
+		baseURL:         baseURL,
+		encryptionKey:   encryptionKey,
+		configProviders: configProviders,
 	}
 }
 
@@ -170,6 +176,64 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 		})
 	}
 
+	// RBAC: Fetch provider RBAC config and validate claims if configured (OPTIONAL for app users)
+	var requiredClaimsJSON, deniedClaimsJSON []byte
+	err = h.db.QueryRow(ctx, `
+		SELECT required_claims, denied_claims
+		FROM dashboard.oauth_providers
+		WHERE provider_name = $1 AND enabled = TRUE AND allow_app_login = TRUE
+	`, providerName).Scan(&requiredClaimsJSON, &deniedClaimsJSON)
+
+	if err != nil && err.Error() != "no rows in result set" {
+		log.Warn().Err(err).Msg("Failed to fetch OAuth provider RBAC config")
+		// Continue without RBAC validation
+	}
+
+	// Extract and validate ID token claims if RBAC is configured
+	if (requiredClaimsJSON != nil || deniedClaimsJSON != nil) {
+		// Extract ID token claims
+		var idTokenClaims map[string]interface{}
+		if idTokenRaw, ok := token.Extra("id_token").(string); ok && idTokenRaw != "" {
+			idTokenClaims, err = parseIDTokenClaims(idTokenRaw)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to parse ID token claims")
+				// Continue without claims validation
+			}
+		}
+
+		// Validate claims if we have both config and claims
+		if idTokenClaims != nil {
+			var requiredClaims, deniedClaims map[string][]string
+			if requiredClaimsJSON != nil {
+				if err := json.Unmarshal(requiredClaimsJSON, &requiredClaims); err != nil {
+					log.Warn().Err(err).Msg("Failed to unmarshal required_claims")
+				}
+			}
+			if deniedClaimsJSON != nil {
+				if err := json.Unmarshal(deniedClaimsJSON, &deniedClaims); err != nil {
+					log.Warn().Err(err).Msg("Failed to unmarshal denied_claims")
+				}
+			}
+
+			provider := &auth.OAuthProviderRBAC{
+				Name:           providerName,
+				RequiredClaims: requiredClaims,
+				DeniedClaims:   deniedClaims,
+			}
+
+			if err := auth.ValidateOAuthClaims(provider, idTokenClaims); err != nil {
+				log.Warn().
+					Err(err).
+					Str("provider", providerName).
+					Interface("claims", idTokenClaims).
+					Msg("App OAuth access denied due to claims validation")
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"error": err.Error(),
+				})
+			}
+		}
+	}
+
 	// Create or link user
 	user, isNewUser, err := h.createOrLinkOAuthUser(ctx, providerName, providerUserID, email, userInfo, token)
 	if err != nil {
@@ -203,15 +267,16 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 	})
 }
 
-// ListEnabledProviders lists all enabled OAuth providers
+// ListEnabledProviders lists all enabled OAuth providers for app login
 // GET /api/v1/auth/oauth/providers
 func (h *OAuthHandler) ListEnabledProviders(c *fiber.Ctx) error {
 	ctx := c.Context()
 
+	// SECURITY: Only list providers that allow app login
 	query := `
 		SELECT provider_name, display_name, redirect_url
 		FROM dashboard.oauth_providers
-		WHERE enabled = TRUE
+		WHERE enabled = TRUE AND allow_app_login = TRUE
 		ORDER BY display_name
 	`
 
@@ -248,9 +313,10 @@ func (h *OAuthHandler) ListEnabledProviders(c *fiber.Ctx) error {
 
 // getProviderConfig retrieves OAuth configuration from database
 func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName string) (*oauth2.Config, error) {
+	// SECURITY: Only allow providers that enable app login
 	query := `
 		SELECT client_id, client_secret, redirect_url, scopes,
-		       authorization_url, token_url, is_custom
+		       authorization_url, token_url, is_custom, allow_app_login
 		FROM dashboard.oauth_providers
 		WHERE provider_name = $1 AND enabled = TRUE
 	`
@@ -259,10 +325,11 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 	var scopes []string
 	var authURL, tokenURL *string
 	var isCustom bool
+	var allowAppLogin bool
 
 	err := h.db.QueryRow(ctx, query, providerName).Scan(
 		&clientID, &clientSecret, &redirectURL, &scopes,
-		&authURL, &tokenURL, &isCustom,
+		&authURL, &tokenURL, &isCustom, &allowAppLogin,
 	)
 
 	if err == sql.ErrNoRows {
@@ -270,6 +337,11 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query OAuth provider: %w", err)
+	}
+
+	// SECURITY: Validate that provider allows app login
+	if !allowAppLogin {
+		return nil, fmt.Errorf("OAuth provider '%s' not enabled for application login", providerName)
 	}
 
 	// Build OAuth2 config
@@ -490,4 +562,26 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 	}
 
 	return user, isNewUser, nil
+}
+
+// parseIDTokenClaims parses JWT ID token and extracts claims
+// This is a simple implementation without signature verification (already verified by OAuth provider)
+func parseIDTokenClaims(idToken string) (map[string]interface{}, error) {
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("invalid ID token format")
+	}
+
+	// Decode payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ID token payload: %w", err)
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ID token claims: %w", err)
+	}
+
+	return claims, nil
 }

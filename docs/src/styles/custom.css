@@ -173,3 +173,25 @@
   max-width: 100%;
   height: auto;
 }
+
+/* Mermaid diagrams inside Expressive Code wrappers */
+.expressive-code:has(.mermaid) {
+  /* Remove the code block background/border styling */
+  background: transparent;
+  border: none;
+}
+
+.expressive-code .mermaid {
+  /* Ensure diagram fills the space properly */
+  min-height: 200px;
+  padding: 2rem 1rem;
+}
+
+/* Adjust copy button positioning for Mermaid diagrams */
+.expressive-code:has(.mermaid) .copy {
+  /* Position copy button in top-right corner */
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+/* Copy button fix is now in astro.config.mjs head section */

@@ -75,6 +75,12 @@ type SAMLProvider struct {
 	AllowDashboardLogin bool `json:"allow_dashboard_login"` // Allow for dashboard admin SSO
 	AllowAppLogin       bool `json:"allow_app_login"`       // Allow for app user authentication
 
+	// Role/Group-based access control
+	RequiredGroups    []string `json:"required_groups,omitempty"`     // User must be in at least ONE of these groups (OR logic)
+	RequiredGroupsAll []string `json:"required_groups_all,omitempty"` // User must be in ALL of these groups (AND logic)
+	DeniedGroups      []string `json:"denied_groups,omitempty"`       // Reject if user is in any of these groups
+	GroupAttribute    string   `json:"group_attribute,omitempty"`     // SAML attribute name for groups (default: "groups")
+
 	// SP signing keys for SLO (PEM-encoded)
 	SPCertificate string `json:"-"` // PEM-encoded X.509 certificate
 	SPPrivateKey  string `json:"-"` // PEM-encoded private key
@@ -192,8 +198,24 @@ func (s *SAMLService) AddProviderFromConfig(cfg config.SAMLProviderConfig) error
 		AllowIDPInitiated:        cfg.AllowIDPInitiated,
 		AllowedRedirectHosts:     cfg.AllowedRedirectHosts,
 		AllowInsecureMetadataURL: cfg.AllowInsecureMetadataURL,
+		AllowDashboardLogin:      cfg.AllowDashboardLogin,
+		AllowAppLogin:            cfg.AllowAppLogin,
+		RequiredGroups:           cfg.RequiredGroups,
+		RequiredGroupsAll:        cfg.RequiredGroupsAll,
+		DeniedGroups:             cfg.DeniedGroups,
+		GroupAttribute:           cfg.GroupAttribute,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
+	}
+
+	// Set defaults for allow_app_login if not specified
+	if !cfg.AllowDashboardLogin && !cfg.AllowAppLogin {
+		provider.AllowAppLogin = true // Default to app login for backward compatibility
+	}
+
+	// Set default group attribute
+	if provider.GroupAttribute == "" {
+		provider.GroupAttribute = "groups"
 	}
 
 	// Set default ACS URL if not specified
@@ -605,6 +627,94 @@ func (s *SAMLService) ExtractUserInfo(providerName string, assertion *SAMLAssert
 	name = SanitizeSAMLAttribute(name)
 
 	return email, name, nil
+}
+
+// ExtractGroups extracts group memberships from SAML assertion
+func (s *SAMLService) ExtractGroups(providerName string, assertion *SAMLAssertion) []string {
+	s.mu.RLock()
+	provider, ok := s.providers[providerName]
+	s.mu.RUnlock()
+
+	if !ok {
+		return []string{}
+	}
+
+	// Get group attribute name (default: "groups")
+	groupAttr := provider.GroupAttribute
+	if groupAttr == "" {
+		groupAttr = "groups"
+	}
+
+	// Try provider's configured group attribute
+	if values, ok := assertion.Attributes[groupAttr]; ok && len(values) > 0 {
+		return values
+	}
+
+	// Try common group attribute names
+	commonGroupAttrs := []string{
+		"groups",
+		"memberOf",
+		"http://schemas.xmlsoap.org/claims/Group",
+		"http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+		"urn:oid:1.3.6.1.4.1.5923.1.5.1.1", // eduPersonAffiliation
+	}
+
+	for _, attrName := range commonGroupAttrs {
+		if values, ok := assertion.Attributes[attrName]; ok && len(values) > 0 {
+			return values
+		}
+	}
+
+	return []string{}
+}
+
+// ValidateGroupMembership validates user's group membership against provider's RBAC rules
+func (s *SAMLService) ValidateGroupMembership(provider *SAMLProvider, groups []string) error {
+	// Check denied groups first (highest priority)
+	for _, deniedGroup := range provider.DeniedGroups {
+		for _, userGroup := range groups {
+			if userGroup == deniedGroup {
+				return fmt.Errorf("access denied: user is member of restricted group '%s'", deniedGroup)
+			}
+		}
+	}
+
+	// Check required_groups_all (must have ALL specified groups)
+	if len(provider.RequiredGroupsAll) > 0 {
+		for _, required := range provider.RequiredGroupsAll {
+			found := false
+			for _, userGroup := range groups {
+				if userGroup == required {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("access denied: missing required group '%s'", required)
+			}
+		}
+	}
+
+	// Check required_groups (must have at least ONE of the specified groups)
+	if len(provider.RequiredGroups) > 0 {
+		hasRequiredGroup := false
+		for _, required := range provider.RequiredGroups {
+			for _, userGroup := range groups {
+				if userGroup == required {
+					hasRequiredGroup = true
+					break
+				}
+			}
+			if hasRequiredGroup {
+				break
+			}
+		}
+		if !hasRequiredGroup {
+			return fmt.Errorf("access denied: user must be member of one of: %v", provider.RequiredGroups)
+		}
+	}
+
+	return nil
 }
 
 // CheckAssertionReplay checks if an assertion ID has been used before (replay attack prevention)

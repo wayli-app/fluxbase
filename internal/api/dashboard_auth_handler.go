@@ -760,10 +760,76 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		return c.Redirect("/login?error=" + url.QueryEscape("Failed to exchange authorization code"))
 	}
 
-	// Get user info from provider
+	// Fetch provider configuration for RBAC validation
+	var requiredClaimsJSON, deniedClaimsJSON []byte
+	var providerDisplayName string
+	err = database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT display_name, required_claims, denied_claims
+			FROM dashboard.oauth_providers
+			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
+		`, storedState.Provider).Scan(&providerDisplayName, &requiredClaimsJSON, &deniedClaimsJSON)
+	})
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("provider", storedState.Provider).
+			Msg("Failed to fetch OAuth provider config for RBAC validation")
+		return c.Redirect("/login?error=" + url.QueryEscape("OAuth provider configuration error"))
+	}
+
+	// Get user info from provider (includes ID token claims)
 	userInfo, err := h.getUserInfoFromOAuth(ctx, config, token)
 	if err != nil {
 		return c.Redirect("/login?error=" + url.QueryEscape("Failed to get user info from provider"))
+	}
+
+	// Extract ID token claims (if available)
+	var idTokenClaims map[string]interface{}
+	if idTokenRaw, ok := token.Extra("id_token").(string); ok && idTokenRaw != "" {
+		// Parse ID token (simple base64 decode of payload)
+		idTokenClaims, err = parseIDTokenClaims(idTokenRaw)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("provider", storedState.Provider).
+				Msg("Failed to parse ID token claims")
+			// Use userInfo as fallback
+			idTokenClaims = userInfo
+		}
+	} else {
+		// Use userInfo as fallback if no ID token
+		idTokenClaims = userInfo
+	}
+
+	// RBAC: Validate OAuth claims if configured
+	if requiredClaimsJSON != nil || deniedClaimsJSON != nil {
+		var requiredClaims, deniedClaims map[string][]string
+		if requiredClaimsJSON != nil {
+			if err := json.Unmarshal(requiredClaimsJSON, &requiredClaims); err != nil {
+				log.Warn().Err(err).Msg("Failed to parse required_claims JSON")
+			}
+		}
+		if deniedClaimsJSON != nil {
+			if err := json.Unmarshal(deniedClaimsJSON, &deniedClaims); err != nil {
+				log.Warn().Err(err).Msg("Failed to parse denied_claims JSON")
+			}
+		}
+
+		provider := &auth.OAuthProviderRBAC{
+			Name:           providerDisplayName,
+			RequiredClaims: requiredClaims,
+			DeniedClaims:   deniedClaims,
+		}
+
+		if err := auth.ValidateOAuthClaims(provider, idTokenClaims); err != nil {
+			log.Warn().
+				Err(err).
+				Str("provider", storedState.Provider).
+				Interface("claims", idTokenClaims).
+				Msg("Dashboard OAuth access denied due to claims validation")
+			return c.Redirect("/login?error=" + url.QueryEscape(err.Error()))
+		}
 	}
 
 	email, _ := userInfo["email"].(string)
@@ -808,6 +874,28 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		url.QueryEscape(loginResp.AccessToken),
 		url.QueryEscape(loginResp.RefreshToken),
 		url.QueryEscape(redirectURL)))
+}
+
+// parseIDTokenClaims parses JWT ID token and extracts claims
+// This is a simple implementation without signature verification (already verified by OAuth provider)
+func parseIDTokenClaims(idToken string) (map[string]interface{}, error) {
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return nil, errors.New("invalid ID token format")
+	}
+
+	// Decode payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ID token payload: %w", err)
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ID token claims: %w", err)
+	}
+
+	return claims, nil
 }
 
 // getUserInfoFromOAuth fetches user info from OAuth provider
@@ -968,6 +1056,20 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 
 	if email == "" {
 		return c.Redirect("/login?error=" + url.QueryEscape("Email not provided in SAML assertion"))
+	}
+
+	// RBAC: Validate group membership if configured
+	if len(provider.RequiredGroups) > 0 || len(provider.RequiredGroupsAll) > 0 || len(provider.DeniedGroups) > 0 {
+		groups := h.samlService.ExtractGroups(providerName, assertion)
+		if err := h.samlService.ValidateGroupMembership(provider, groups); err != nil {
+			log.Warn().
+				Err(err).
+				Str("provider", providerName).
+				Str("email", email).
+				Strs("groups", groups).
+				Msg("Dashboard SSO access denied due to group membership")
+			return c.Redirect("/login?error=" + url.QueryEscape(err.Error()))
+		}
 	}
 
 	// Find or create dashboard user

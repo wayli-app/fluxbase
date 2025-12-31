@@ -50,14 +50,15 @@ type SAMLCallbackResponse struct {
 	User         *auth.User `json:"user"`
 }
 
-// ListSAMLProviders returns all enabled SAML providers
+// ListSAMLProviders returns all enabled SAML providers for app login
 // GET /auth/saml/providers
 func (h *SAMLHandler) ListSAMLProviders(c *fiber.Ctx) error {
 	if h.samlService == nil {
 		return c.JSON([]SAMLProviderResponse{})
 	}
 
-	providers := h.samlService.ListProviders()
+	// SECURITY: Only list providers that allow app login
+	providers := h.samlService.GetProvidersForApp()
 	response := make([]SAMLProviderResponse, 0, len(providers))
 
 	baseURL := c.BaseURL()
@@ -125,6 +126,22 @@ func (h *SAMLHandler) InitiateSAMLLogin(c *fiber.Ctx) error {
 		})
 	}
 
+	// SECURITY: Validate that provider allows app login
+	provider, err := h.samlService.GetProvider(providerName)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "SAML provider not found",
+		})
+	}
+	if !provider.AllowAppLogin {
+		log.Warn().
+			Str("provider", providerName).
+			Msg("Attempted to use dashboard-only SAML provider for app login")
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "SAML provider not enabled for application login",
+		})
+	}
+
 	// Get redirect URL from query parameter (where to redirect after login)
 	redirectURL := c.Query("redirect_url", c.Query("redirect", ""))
 
@@ -186,21 +203,23 @@ func (h *SAMLHandler) HandleSAMLAssertion(c *fiber.Ctx) error {
 
 	// Determine provider from the request
 	// The provider name could be in the RelayState or we need to decode the response to find out
-	// For now, try all providers until one validates
+	// SECURITY: Only try providers that allow app login
 	var assertion *auth.SAMLAssertion
 	var providerName string
+	var provider *auth.SAMLProvider
 	var err error
 
-	for _, provider := range h.samlService.ListProviders() {
-		assertion, err = h.samlService.ParseAssertion(provider.Name, samlResponse)
+	for _, p := range h.samlService.GetProvidersForApp() {
+		assertion, err = h.samlService.ParseAssertion(p.Name, samlResponse)
 		if err == nil {
-			providerName = provider.Name
+			providerName = p.Name
+			provider = p
 			break
 		}
 	}
 
-	if assertion == nil {
-		log.Warn().Msg("Failed to parse SAML assertion with any provider")
+	if assertion == nil || provider == nil {
+		log.Warn().Msg("Failed to parse SAML assertion with any app-enabled provider")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error":   "invalid SAML assertion",
 			"details": "The SAML response could not be validated by any configured provider",
@@ -229,8 +248,23 @@ func (h *SAMLHandler) HandleSAMLAssertion(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get provider config
-	provider, _ := h.samlService.GetProvider(providerName)
+	// RBAC: Validate group membership if configured (OPTIONAL for app users)
+	if len(provider.RequiredGroups) > 0 || len(provider.RequiredGroupsAll) > 0 || len(provider.DeniedGroups) > 0 {
+		groups := h.samlService.ExtractGroups(providerName, assertion)
+		if err := h.samlService.ValidateGroupMembership(provider, groups); err != nil {
+			log.Warn().
+				Err(err).
+				Str("provider", providerName).
+				Str("email", email).
+				Strs("groups", groups).
+				Msg("App SSO access denied due to group membership")
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+	}
+
+	// Provider was already validated above, use it directly
 
 	// Find or create user
 	ctx := c.Context()

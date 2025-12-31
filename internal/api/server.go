@@ -275,7 +275,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
-	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
+	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey, cfg.Auth.OAuthProviders)
 
 	// Initialize SAML service and handler
 	var samlService *auth.SAMLService

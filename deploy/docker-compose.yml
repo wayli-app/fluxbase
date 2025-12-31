@@ -134,12 +134,41 @@ services:
       # Use in client apps as: VITE_FLUXBASE_ANON_KEY, NEXT_PUBLIC_FLUXBASE_ANON_KEY, etc.
       # FLUXBASE_AUTH_ANON_KEY: ""
 
-      # OAuth Providers (optional)
-      # FLUXBASE_AUTH_GOOGLE_CLIENT_ID: ""
-      # FLUXBASE_AUTH_APPLE_CLIENT_ID: ""
-      # FLUXBASE_AUTH_MICROSOFT_CLIENT_ID: ""
+      # ==========================================================================
+      # OAuth/OIDC Configuration (Social Login & Enterprise SSO)
+      # ==========================================================================
+      # Configure OAuth 2.0 and OIDC providers using indexed environment variables
+      # Well-known providers (google, apple, microsoft) auto-detect issuer URLs
+      #
+      # Example: Google OAuth
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_NAME: "google"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_ENABLED: "true"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_CLIENT_SECRET: "YOUR_GOOGLE_CLIENT_SECRET"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_0_SCOPES: "openid,email,profile"
+      #
+      # Example: Custom OIDC provider (Keycloak)
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_NAME: "keycloak"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_ENABLED: "true"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_ISSUER_URL: "https://auth.example.com/realms/main"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_CLIENT_ID: "fluxbase-client"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_CLIENT_SECRET: "YOUR_KEYCLOAK_SECRET"
+      # FLUXBASE_AUTH_OAUTH_PROVIDERS_1_SCOPES: "openid,email,profile"
+      #
+      # Provider Setup Steps:
+      # 1. Create OAuth application in provider's developer console
+      # 2. Set redirect URI to: http://localhost:8080/api/v1/auth/oauth/{provider}/callback
+      # 3. Get client ID and client secret
+      # 4. Configure using environment variables above
+      #
+      # Well-Known Providers (issuer auto-detected):
+      #   - google: https://accounts.google.com
+      #   - apple: https://appleid.apple.com
+      #   - microsoft: https://login.microsoftonline.com/common/v2.0
 
+      # ==========================================================================
       # SAML SSO Configuration (Enterprise Single Sign-On)
+      # ==========================================================================
       # Example for Okta/Azure AD/OneLogin integration
       # FLUXBASE_AUTH_SAML_PROVIDERS_0_NAME: "okta"
       # FLUXBASE_AUTH_SAML_PROVIDERS_0_ENABLED: "true"

@@ -131,9 +131,7 @@ config:
   ## @param config.auth.enable_signup Enable user registration
   ## @param config.auth.enable_magic_link Enable magic link authentication
   ## @param config.auth.totp_issuer TOTP issuer name for 2FA
-  ## @param config.auth.google_client_id Google OAuth client ID
-  ## @param config.auth.apple_client_id Apple OAuth client ID
-  ## @param config.auth.microsoft_client_id Microsoft OAuth client ID
+  ## @param config.auth.oauth_providers OAuth/OIDC provider configurations
   ##
   auth:
     jwt_secret: "" # Use existingSecret in production. Generate with: scripts/generate-keys.sh
@@ -148,9 +146,33 @@ config:
     enable_signup: true
     enable_magic_link: true
     totp_issuer: "Fluxbase"
-    google_client_id: ""
-    apple_client_id: ""
-    microsoft_client_id: ""
+
+    ## OAuth/OIDC Configuration
+    ## Configure OAuth 2.0 and OIDC providers for social login and enterprise SSO
+    ##
+    ## Example:
+    ## oauth_providers:
+    ##   - name: google
+    ##     enabled: true
+    ##     client_id: "YOUR_CLIENT_ID.apps.googleusercontent.com"
+    ##     # client_secret: ""  # Use existingSecret instead (see existingSecretKeyRef below)
+    ##     scopes:
+    ##       - openid
+    ##       - email
+    ##       - profile
+    ##   - name: keycloak
+    ##     enabled: true
+    ##     issuer_url: "https://auth.example.com/realms/main"
+    ##     client_id: "fluxbase-client"
+    ##     # client_secret: ""  # Use existingSecret instead
+    ##
+    ## Well-known providers (issuer auto-detected): google, apple, microsoft
+    ## Custom providers require issuer_url
+    ##
+    ## For production, use existingSecret to provide client_secret values
+    ## (see existingSecretKeyRef OAuth section below)
+    ##
+    oauth_providers: []
 
   ## Security configuration
   ## @param config.security.enable_global_rate_limit Enable global rate limiting
@@ -700,6 +722,17 @@ config:
 ## Encryption (REQUIRED):
 ##   - encryption-key: REQUIRED - Encryption key for sensitive data at rest (32 chars)
 ##
+## OAuth/OIDC Client Secrets (per-provider):
+##   For each provider in config.auth.oauth_providers, you can provide a secret key:
+##   - {provider-name}-client-secret: OAuth client secret for that provider
+##   Examples:
+##     - google-client-secret: Google OAuth client secret
+##     - keycloak-client-secret: Keycloak OAuth client secret
+##     - auth0-client-secret: Auth0 OAuth client secret
+##
+##   The key naming pattern is: {provider.name}-client-secret
+##   This works with External Secrets Operator and other secret management tools
+##
 ## AI (when ai.enabled=true):
 ##   - openai-api-key: OpenAI API key (when using OpenAI provider)
 ##   - azure-api-key: Azure OpenAI API key (when using Azure provider)
@@ -713,6 +746,23 @@ config:
 ##     --from-literal=service-role-key=<generated-service-role-jwt> \
 ##     --from-literal=captcha-secret-key=your-captcha-secret \
 ##     --from-literal=openai-api-key=sk-xxx
+##
+##   # With OAuth client secrets:
+##   kubectl create secret generic fluxbase-secrets \
+##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+##     --from-literal=setup-token=$(openssl rand -base64 32) \
+##     --from-literal=encryption-key=$(openssl rand -base64 32 | head -c 32) \
+##     --from-literal=google-client-secret='YOUR_GOOGLE_CLIENT_SECRET' \
+##     --from-literal=keycloak-client-secret='YOUR_KEYCLOAK_CLIENT_SECRET' \
+##     --from-literal=auth0-client-secret='YOUR_AUTH0_CLIENT_SECRET'
+##
+##   # Or load from files:
+##   kubectl create secret generic fluxbase-secrets \
+##     --from-literal=jwt-secret=$(openssl rand -base64 32) \
+##     --from-literal=setup-token=$(openssl rand -base64 32) \
+##     --from-literal=encryption-key=$(openssl rand -base64 32 | head -c 32) \
+##     --from-file=google-client-secret=./google-secret.txt \
+##     --from-file=keycloak-client-secret=./keycloak-secret.txt
 ## @descriptionEnd
 ##
 existingSecret: ""
@@ -749,6 +799,15 @@ existingSecretKeyRef:
   sesSecretKey: "ses-secret-key"
   ## Encryption (for dashboard-configured credentials)
   encryptionKey: "encryption-key"
+  ## OAuth/OIDC - Per-provider client secrets
+  ## Key pattern: {provider-name}ClientSecret maps to secret key {provider-name}-client-secret
+  ## Customize these if your secret uses different key names
+  googleClientSecret: "google-client-secret"
+  appleClientSecret: "apple-client-secret"
+  microsoftClientSecret: "microsoft-client-secret"
+  # Add more providers as needed following the same pattern
+  # keycloakClientSecret: "keycloak-client-secret"
+  # auth0ClientSecret: "auth0-client-secret"
   ## AI
   openaiApiKey: "openai-api-key"
   azureApiKey: "azure-api-key"

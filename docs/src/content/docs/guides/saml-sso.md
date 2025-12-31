@@ -672,6 +672,169 @@ Frontend shows all providers:
 ))}
 ```
 
+## Role-Based Access Control (RBAC)
+
+Control which users can authenticate based on their Active Directory groups, Azure AD groups, or other SAML attributes from your identity provider.
+
+### Group-Based Access Control
+
+Restrict SAML authentication based on group membership:
+
+```yaml
+auth:
+  saml_providers:
+    - name: azure-ad
+      enabled: true
+      idp_metadata_url: "https://login.microsoftonline.com/{tenant}/metadata"
+      allow_dashboard_login: true
+
+      # RBAC configuration
+      required_groups:
+        - "FluxbaseAdmins"      # User must be in at least ONE of these groups
+        - "FluxbaseDevelopers"
+
+      required_groups_all:
+        - "Verified"            # User must be in ALL of these groups
+        - "Active"
+
+      denied_groups:
+        - "Contractors"         # Reject users in ANY of these groups
+        - "Suspended"
+
+      group_attribute: "groups" # SAML attribute containing groups (default: "groups")
+```
+
+### RBAC Rules
+
+Three types of group validation rules:
+
+| Rule | Logic | Example Use Case |
+|------|-------|------------------|
+| `required_groups` | **OR logic** - User must be in at least ONE group | Allow admins OR editors |
+| `required_groups_all` | **AND logic** - User must be in ALL groups | Must be verified AND active |
+| `denied_groups` | **DENY** - Reject if user is in ANY of these groups | Block contractors or suspended accounts |
+
+**Execution order**: Denied groups are checked first (highest priority), then required groups.
+
+### Common Group Attributes
+
+Different identity providers use different SAML attribute names for groups:
+
+| Identity Provider | Default Attribute | Alternative Attributes |
+|-------------------|-------------------|------------------------|
+| Azure AD | `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups` | `groups` (if configured) |
+| Okta | `groups` | Custom attribute mapping |
+| Google Workspace | `groups` | Custom schema |
+| Active Directory | `memberOf` | `http://schemas.xmlsoap.org/claims/Group` |
+
+Configure the attribute name:
+
+```yaml
+group_attribute: "memberOf"  # For Active Directory
+```
+
+### Example Configurations
+
+**Dashboard admin access (Azure AD)**
+
+Only users in IT or Admin groups can access the dashboard:
+
+```yaml
+auth:
+  saml_providers:
+    - name: azure-ad-dashboard
+      enabled: true
+      idp_metadata_url: "https://login.microsoftonline.com/{tenant}/metadata"
+      allow_dashboard_login: true
+      allow_app_login: false
+      required_groups:
+        - "FluxbaseAdmins"
+        - "IT-Team"
+```
+
+**Multi-tier access (Okta)**
+
+Admins and editors can access, but contractors are explicitly blocked:
+
+```yaml
+auth:
+  saml_providers:
+    - name: okta-corporate
+      enabled: true
+      idp_metadata_url: "https://company.okta.com/metadata"
+      allow_dashboard_login: true
+      required_groups:
+        - "Admins"
+        - "Editors"
+      denied_groups:
+        - "Contractors"
+        - "Guests"
+```
+
+**Strict verification (Active Directory)**
+
+Users must be in Admin group AND have valid employee status:
+
+```yaml
+auth:
+  saml_providers:
+    - name: ad-sso
+      enabled: true
+      idp_metadata_url: "https://adfs.company.com/metadata"
+      allow_dashboard_login: true
+      required_groups:
+        - "Domain Admins"
+      required_groups_all:
+        - "CN=Employees,OU=Groups,DC=company,DC=com"
+        - "CN=Active,OU=Status,DC=company,DC=com"
+      group_attribute: "memberOf"
+```
+
+### Error Messages
+
+When group validation fails, users see clear error messages:
+
+- `"Access denied: user is member of restricted group 'Contractors'"` - User in denied group
+- `"Access denied: missing required group 'FluxbaseAdmins'"` - User missing a required group from `required_groups_all`
+- `"Access denied: user must be member of one of: [Admins, Editors]"` - User doesn't have any of the `required_groups`
+
+### Troubleshooting RBAC
+
+**"Groups not being extracted"**
+
+1. Check the group attribute name:
+   ```bash
+   # View SAML assertion to see actual attribute names
+   # Use browser developer tools or SAML Tracer extension
+   ```
+
+2. Configure the correct attribute:
+   ```yaml
+   group_attribute: "memberOf"  # Or the correct attribute name
+   ```
+
+**"User has group but still rejected"**
+
+- Group names are **case-sensitive**: `"Admins"` ≠ `"admins"`
+- Check for whitespace in group names
+- Verify exact group name from IdP
+
+**"Azure AD not sending group names"**
+
+Azure AD can be configured to send either:
+- Group UUIDs (default): `["abc123...", "def456..."]`
+- Group names: `["FluxbaseAdmins", "Developers"]`
+
+To send group names instead of UUIDs:
+1. In Azure Portal, go to **Enterprise Applications** → Your App → **Single sign-on**
+2. Edit **Attributes & Claims**
+3. Edit the `groups` claim
+4. Set **Source attribute** to `group.displayname` (instead of `group.objectid`)
+
+**"How do I find my group names/IDs?"**
+
+Use SAML Tracer browser extension to inspect the actual SAML assertion and see the groups being sent by your IdP.
+
 ## Dashboard SSO (Admin Login)
 
 SAML and OAuth providers can be used for dashboard admin authentication, enabling SSO-only mode where password login is disabled.

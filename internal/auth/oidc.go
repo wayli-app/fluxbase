@@ -44,42 +44,32 @@ func NewOIDCVerifier(ctx context.Context, cfg *config.AuthConfig) (*OIDCVerifier
 		clientIDs: make(map[string]string),
 	}
 
-	// Initialize well-known providers if configured
-	if cfg.GoogleClientID != "" {
-		if err := v.addProvider(ctx, "google", wellKnownIssuers["google"], cfg.GoogleClientID); err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize Google OIDC provider")
-		}
-	}
-
-	if cfg.AppleClientID != "" {
-		if err := v.addProvider(ctx, "apple", wellKnownIssuers["apple"], cfg.AppleClientID); err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize Apple OIDC provider")
-		}
-	}
-
-	if cfg.MicrosoftClientID != "" {
-		if err := v.addProvider(ctx, "microsoft", wellKnownIssuers["microsoft"], cfg.MicrosoftClientID); err != nil {
-			log.Warn().Err(err).Msg("Failed to initialize Microsoft OIDC provider")
-		}
-	}
-
-	// Initialize custom OIDC providers
-	for _, providerCfg := range cfg.OIDCProviders {
-		if providerCfg.Name == "" || providerCfg.IssuerURL == "" || providerCfg.ClientID == "" {
-			log.Warn().
-				Str("name", providerCfg.Name).
-				Str("issuer", providerCfg.IssuerURL).
-				Msg("Skipping incomplete OIDC provider configuration")
+	// Initialize from unified oauth_providers array
+	for _, providerCfg := range cfg.OAuthProviders {
+		if !providerCfg.Enabled {
+			log.Debug().Str("provider", providerCfg.Name).Msg("Skipping disabled OAuth provider")
 			continue
 		}
 
-		name := strings.ToLower(providerCfg.Name)
-		if err := v.addProvider(ctx, name, providerCfg.IssuerURL, providerCfg.ClientID); err != nil {
+		// Determine issuer URL (auto-detect for well-known providers)
+		issuerURL := providerCfg.IssuerURL
+		if issuerURL == "" {
+			if knownIssuer, ok := wellKnownIssuers[providerCfg.Name]; ok {
+				issuerURL = knownIssuer
+			} else {
+				log.Warn().
+					Str("provider", providerCfg.Name).
+					Msg("Skipping provider: issuer_url not specified and not a well-known provider")
+				continue
+			}
+		}
+
+		if err := v.addProvider(ctx, providerCfg.Name, issuerURL, providerCfg.ClientID); err != nil {
 			log.Warn().
 				Err(err).
-				Str("name", name).
-				Str("issuer", providerCfg.IssuerURL).
-				Msg("Failed to initialize custom OIDC provider")
+				Str("name", providerCfg.Name).
+				Str("issuer", issuerURL).
+				Msg("Failed to initialize OIDC provider")
 		}
 	}
 

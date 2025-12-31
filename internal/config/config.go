@@ -133,14 +133,10 @@ type AuthConfig struct {
 	EnableMagicLink     bool          `mapstructure:"enable_magic_link"`
 	TOTPIssuer          string        `mapstructure:"totp_issuer"` // Issuer name displayed in authenticator apps for 2FA (e.g., "MyApp")
 
-	// OIDC Provider Configuration for ID Token authentication
-	// Well-known providers (use their standard issuer URLs)
-	GoogleClientID    string `mapstructure:"google_client_id"`    // Google OAuth client ID
-	AppleClientID     string `mapstructure:"apple_client_id"`     // Apple Sign In client ID (Services ID)
-	MicrosoftClientID string `mapstructure:"microsoft_client_id"` // Microsoft/Azure AD client ID
-
-	// Custom OIDC providers (e.g., Authelia, Keycloak, Auth0, Okta)
-	OIDCProviders []OIDCProviderConfig `mapstructure:"oidc_providers"`
+	// OAuth/OIDC provider configuration (unified for all providers)
+	// Well-known providers (google, apple, microsoft) auto-detect issuer URLs
+	// Custom providers require explicit issuer_url
+	OAuthProviders []OAuthProviderConfig `mapstructure:"oauth_providers"`
 
 	// SAML SSO providers for enterprise authentication
 	SAMLProviders []SAMLProviderConfig `mapstructure:"saml_providers"`
@@ -163,16 +159,39 @@ type SAMLProviderConfig struct {
 	AllowedRedirectHosts     []string `mapstructure:"allowed_redirect_hosts"`      // Whitelist for RelayState redirect URLs
 	AllowInsecureMetadataURL bool     `mapstructure:"allow_insecure_metadata_url"` // Allow HTTP metadata URLs (default: false)
 
+	// Login targeting
+	AllowDashboardLogin bool `mapstructure:"allow_dashboard_login"` // Allow for dashboard admin SSO (default: false)
+	AllowAppLogin       bool `mapstructure:"allow_app_login"`       // Allow for app user authentication (default: true)
+
+	// Role/Group-based access control
+	RequiredGroups    []string `mapstructure:"required_groups"`     // User must be in at least ONE of these groups (OR logic)
+	RequiredGroupsAll []string `mapstructure:"required_groups_all"` // User must be in ALL of these groups (AND logic)
+	DeniedGroups      []string `mapstructure:"denied_groups"`       // Reject if user is in any of these groups
+	GroupAttribute    string   `mapstructure:"group_attribute"`     // SAML attribute name for groups (default: "groups")
+
 	// SP signing keys for SLO (Single Logout) - PEM-encoded
 	SPCertificate string `mapstructure:"sp_certificate"` // PEM-encoded X.509 certificate for signing
 	SPPrivateKey  string `mapstructure:"sp_private_key"` // PEM-encoded private key for signing
 }
 
-// OIDCProviderConfig represents a custom OIDC provider configuration
-type OIDCProviderConfig struct {
-	Name      string `mapstructure:"name"`       // Provider name (used in API calls, e.g., "keycloak", "authelia")
-	IssuerURL string `mapstructure:"issuer_url"` // OIDC issuer URL (e.g., "https://auth.example.com/realms/myrealm")
-	ClientID  string `mapstructure:"client_id"`  // OAuth client ID
+// OAuthProviderConfig represents a unified OAuth/OIDC provider configuration
+// Supports both well-known providers (Google, Apple, Microsoft) and custom providers
+type OAuthProviderConfig struct {
+	Name         string   `mapstructure:"name"`                    // Provider name (e.g., "google", "apple", "keycloak")
+	Enabled      bool     `mapstructure:"enabled"`                 // Enable this provider (default: true)
+	ClientID     string   `mapstructure:"client_id"`               // OAuth client ID (REQUIRED)
+	ClientSecret string   `mapstructure:"client_secret,omitempty"` // Client secret (optional, can be stored in database)
+	IssuerURL    string   `mapstructure:"issuer_url,omitempty"`    // OIDC issuer URL (auto-detected for well-known providers)
+	Scopes       []string `mapstructure:"scopes,omitempty"`        // OAuth scopes
+	DisplayName  string   `mapstructure:"display_name,omitempty"`  // Display name for UI
+
+	// Login targeting
+	AllowDashboardLogin bool `mapstructure:"allow_dashboard_login"` // Allow for dashboard admin SSO (default: false)
+	AllowAppLogin       bool `mapstructure:"allow_app_login"`       // Allow for app user authentication (default: true)
+
+	// Claims-based access control
+	RequiredClaims map[string][]string `mapstructure:"required_claims"` // Claims that must be present in ID token, e.g., {"roles": ["admin"], "department": ["IT"]}
+	DeniedClaims   map[string][]string `mapstructure:"denied_claims"`   // Deny access if these claim values are present
 }
 
 // SecurityConfig contains security-related settings
@@ -1110,6 +1129,47 @@ func (ac *AuthConfig) Validate() error {
 	// Validate bcrypt cost (valid range is 4-31, recommended is 10-14)
 	if ac.BcryptCost < 4 || ac.BcryptCost > 31 {
 		return fmt.Errorf("bcrypt_cost must be between 4 and 31, got: %d", ac.BcryptCost)
+	}
+
+	// Validate OAuth providers
+	providerNames := make(map[string]bool)
+	for i, provider := range ac.OAuthProviders {
+		if err := provider.Validate(); err != nil {
+			return fmt.Errorf("oauth_providers[%d]: %w", i, err)
+		}
+
+		// Check for duplicate provider names
+		if providerNames[provider.Name] {
+			return fmt.Errorf("duplicate OAuth provider name: %s", provider.Name)
+		}
+		providerNames[provider.Name] = true
+	}
+
+	return nil
+}
+
+// Validate validates OAuth provider configuration
+func (opc *OAuthProviderConfig) Validate() error {
+	if opc.Name == "" {
+		return fmt.Errorf("oauth provider name is required")
+	}
+	if opc.ClientID == "" {
+		return fmt.Errorf("oauth provider '%s': client_id is required", opc.Name)
+	}
+
+	// Normalize name to lowercase
+	opc.Name = strings.ToLower(opc.Name)
+
+	// Check if well-known provider
+	wellKnown := map[string]bool{
+		"google":    true,
+		"apple":     true,
+		"microsoft": true,
+	}
+
+	// Custom providers require issuer_url
+	if !wellKnown[opc.Name] && opc.IssuerURL == "" {
+		return fmt.Errorf("oauth provider '%s': issuer_url is required for custom providers", opc.Name)
 	}
 
 	return nil
