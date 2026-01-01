@@ -757,9 +757,9 @@ func setDefaults() {
 	viper.SetDefault("tracing.insecure", true)             // Use insecure connection by default (for local dev)
 
 	// Metrics defaults (Prometheus)
-	viper.SetDefault("metrics.enabled", false)    // Disabled by default
-	viper.SetDefault("metrics.port", 9090)        // Default Prometheus metrics port
-	viper.SetDefault("metrics.path", "/metrics")  // Default metrics endpoint path
+	viper.SetDefault("metrics.enabled", true)    // Enabled by default
+	viper.SetDefault("metrics.port", 9090)       // Default Prometheus metrics port
+	viper.SetDefault("metrics.path", "/metrics") // Default metrics endpoint path
 
 	// AI defaults
 	viper.SetDefault("ai.enabled", true)                 // Enabled by default (controlled by feature flag at runtime)

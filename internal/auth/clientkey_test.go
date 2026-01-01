@@ -90,7 +90,7 @@ func TestGenerateClientKey(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	t.Run("Generate client key with default values", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestValidateClientKey(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	// Create a test client key
@@ -240,7 +240,7 @@ func TestListClientKeys(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	// Create test users
@@ -293,7 +293,7 @@ func TestRevokeClientKey(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	t.Run("Revoke existing client key", func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestDeleteClientKey(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	t.Run("Delete existing client key", func(t *testing.T) {
@@ -366,7 +366,7 @@ func TestUpdateClientKey(t *testing.T) {
 	defer db.Close()
 	cleanupClientKeys(t, db)
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	ctx := context.Background()
 
 	created, err := service.GenerateClientKey(ctx, "test-update", nil, nil, nil, 0, nil)
@@ -440,7 +440,7 @@ func TestClientKeyServiceNewClientKeyService(t *testing.T) {
 	db := setupClientKeyTestDB(t)
 	defer db.Close()
 
-	service := NewClientKeyService(db)
+	service := NewClientKeyService(db, nil)
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.db)
 }
