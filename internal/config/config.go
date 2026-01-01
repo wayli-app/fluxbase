@@ -27,6 +27,7 @@ type Config struct {
 	Migrations    MigrationsConfig `mapstructure:"migrations"`
 	Jobs          JobsConfig       `mapstructure:"jobs"`
 	Tracing       TracingConfig    `mapstructure:"tracing"`
+	Metrics       MetricsConfig    `mapstructure:"metrics"`
 	AI            AIConfig         `mapstructure:"ai"`
 	RPC           RPCConfig        `mapstructure:"rpc"`
 	GraphQL       GraphQLConfig    `mapstructure:"graphql"`
@@ -91,6 +92,13 @@ type TracingConfig struct {
 	Insecure    bool    `mapstructure:"insecure"`     // Use insecure connection (for local dev)
 }
 
+// MetricsConfig contains Prometheus metrics settings
+type MetricsConfig struct {
+	Enabled bool   `mapstructure:"enabled"` // Enable Prometheus metrics endpoint
+	Port    int    `mapstructure:"port"`    // Port for metrics server (default: 9090)
+	Path    string `mapstructure:"path"`    // Path for metrics endpoint (default: /metrics)
+}
+
 // ServerConfig contains HTTP server settings
 type ServerConfig struct {
 	Address      string        `mapstructure:"address"`
@@ -140,6 +148,12 @@ type AuthConfig struct {
 
 	// SAML SSO providers for enterprise authentication
 	SAMLProviders []SAMLProviderConfig `mapstructure:"saml_providers"`
+
+	// AllowUserClientKeys controls whether regular users can create their own client keys.
+	// When false, only admins (service_role or dashboard_admin) can create/manage client keys,
+	// and existing user-created keys are blocked from authenticating.
+	// Default: true
+	AllowUserClientKeys bool `mapstructure:"allow_user_client_keys"`
 }
 
 // SAMLProviderConfig represents a SAML 2.0 Identity Provider configuration
@@ -742,6 +756,11 @@ func setDefaults() {
 	viper.SetDefault("tracing.sample_rate", 1.0)           // 100% sampling by default (reduce in production)
 	viper.SetDefault("tracing.insecure", true)             // Use insecure connection by default (for local dev)
 
+	// Metrics defaults (Prometheus)
+	viper.SetDefault("metrics.enabled", false)    // Disabled by default
+	viper.SetDefault("metrics.port", 9090)        // Default Prometheus metrics port
+	viper.SetDefault("metrics.path", "/metrics")  // Default metrics endpoint path
+
 	// AI defaults
 	viper.SetDefault("ai.enabled", true)                 // Enabled by default (controlled by feature flag at runtime)
 	viper.SetDefault("ai.chatbots_dir", "./chatbots")    // Default chatbots directory
@@ -916,6 +935,13 @@ func (c *Config) Validate() error {
 	if c.Tracing.Enabled {
 		if err := c.Tracing.Validate(); err != nil {
 			return fmt.Errorf("tracing configuration error: %w", err)
+		}
+	}
+
+	// Validate metrics configuration if enabled
+	if c.Metrics.Enabled {
+		if err := c.Metrics.Validate(); err != nil {
+			return fmt.Errorf("metrics configuration error: %w", err)
 		}
 	}
 
@@ -1471,6 +1497,28 @@ func (tc *TracingConfig) Validate() error {
 	// Warn if sample rate is 100% in production
 	if tc.Environment == "production" && tc.SampleRate >= 1.0 {
 		log.Warn().Msg("Tracing sample_rate is 100% in production - consider reducing to lower overhead")
+	}
+
+	return nil
+}
+
+// Validate validates metrics configuration
+func (mc *MetricsConfig) Validate() error {
+	if !mc.Enabled {
+		return nil // No validation needed if metrics is disabled
+	}
+
+	// Validate port
+	if mc.Port < 1 || mc.Port > 65535 {
+		return fmt.Errorf("metrics port must be between 1 and 65535, got: %d", mc.Port)
+	}
+
+	// Validate path
+	if mc.Path == "" {
+		return fmt.Errorf("metrics path cannot be empty")
+	}
+	if !strings.HasPrefix(mc.Path, "/") {
+		return fmt.Errorf("metrics path must start with '/', got: %s", mc.Path)
 	}
 
 	return nil

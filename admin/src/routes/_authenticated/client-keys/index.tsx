@@ -13,7 +13,11 @@ import {
   Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { clientKeysApi, type ClientKey, type CreateClientKeyRequest } from '@/lib/api'
+import {
+  clientKeysApi,
+  type ClientKey,
+  type CreateClientKeyRequest,
+} from '@/lib/api'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +38,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -68,117 +71,146 @@ interface ClientKeyWithPlaintext extends ClientKey {
   key: string // Only returned on creation
 }
 
-const AVAILABLE_SCOPES = [
-  // Tables
+// Grouped scopes for better UI organization
+const SCOPE_GROUPS = [
   {
-    id: 'read:tables',
-    name: 'Read Tables',
-    description: 'Query database tables',
+    name: 'Tables',
+    description: 'Database table access',
+    scopes: [
+      {
+        id: 'read:tables',
+        label: 'Read',
+        description: 'Query database tables',
+      },
+      {
+        id: 'write:tables',
+        label: 'Write',
+        description: 'Insert, update, delete records',
+      },
+    ],
   },
   {
-    id: 'write:tables',
-    name: 'Write Tables',
-    description: 'Insert, update, delete records',
-  },
-  // Storage
-  { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
-  {
-    id: 'write:storage',
-    name: 'Write Storage',
-    description: 'Upload and delete files',
-  },
-  // Functions
-  {
-    id: 'read:functions',
-    name: 'Read Functions',
-    description: 'View functions',
+    name: 'Storage',
+    description: 'File storage access',
+    scopes: [
+      { id: 'read:storage', label: 'Read', description: 'Download files' },
+      {
+        id: 'write:storage',
+        label: 'Write',
+        description: 'Upload and delete files',
+      },
+    ],
   },
   {
-    id: 'execute:functions',
-    name: 'Execute Functions',
-    description: 'Invoke Edge Functions',
-  },
-  // Auth
-  { id: 'read:auth', name: 'Read Auth', description: 'View user profile' },
-  {
-    id: 'write:auth',
-    name: 'Write Auth',
-    description: 'Update user profile, manage 2FA',
-  },
-  // Client Keys
-  { id: 'read:clientkeys', name: 'Read Client Keys', description: 'List client keys' },
-  {
-    id: 'write:clientkeys',
-    name: 'Write Client Keys',
-    description: 'Create, update, revoke client keys',
-  },
-  // Webhooks
-  {
-    id: 'read:webhooks',
-    name: 'Read Webhooks',
-    description: 'List webhooks and deliveries',
+    name: 'Functions',
+    description: 'Edge Functions',
+    scopes: [
+      { id: 'read:functions', label: 'Read', description: 'View functions' },
+      {
+        id: 'execute:functions',
+        label: 'Execute',
+        description: 'Invoke functions',
+      },
+    ],
   },
   {
-    id: 'write:webhooks',
-    name: 'Write Webhooks',
-    description: 'Create, update, delete webhooks',
-  },
-  // Monitoring
-  {
-    id: 'read:monitoring',
-    name: 'Read Monitoring',
-    description: 'View metrics, health, logs',
-  },
-  // Realtime
-  {
-    id: 'realtime:connect',
-    name: 'Realtime Connect',
-    description: 'Connect to realtime channels',
+    name: 'Auth',
+    description: 'Authentication',
+    scopes: [
+      { id: 'read:auth', label: 'Read', description: 'View user profile' },
+      {
+        id: 'write:auth',
+        label: 'Write',
+        description: 'Update profile, manage 2FA',
+      },
+    ],
   },
   {
-    id: 'realtime:broadcast',
-    name: 'Realtime Broadcast',
-    description: 'Broadcast messages',
-  },
-  // RPC
-  { id: 'read:rpc', name: 'Read RPC', description: 'List RPC procedures' },
-  {
-    id: 'execute:rpc',
-    name: 'Execute RPC',
-    description: 'Invoke RPC procedures',
-  },
-  // Jobs
-  {
-    id: 'read:jobs',
-    name: 'Read Jobs',
-    description: 'View job queues and status',
+    name: 'Client Keys',
+    description: 'API key management',
+    scopes: [
+      { id: 'read:clientkeys', label: 'Read', description: 'List client keys' },
+      {
+        id: 'write:clientkeys',
+        label: 'Write',
+        description: 'Create, update, revoke',
+      },
+    ],
   },
   {
-    id: 'write:jobs',
-    name: 'Write Jobs',
-    description: 'Manage job queue entries',
-  },
-  // AI
-  {
-    id: 'read:ai',
-    name: 'Read AI',
-    description: 'View chatbots and conversations',
-  },
-  {
-    id: 'write:ai',
-    name: 'Write AI',
-    description: 'Manage conversations, send messages',
-  },
-  // Secrets
-  {
-    id: 'read:secrets',
-    name: 'Read Secrets',
-    description: 'View secret names (not values)',
+    name: 'Webhooks',
+    description: 'Webhook management',
+    scopes: [
+      { id: 'read:webhooks', label: 'Read', description: 'List webhooks' },
+      {
+        id: 'write:webhooks',
+        label: 'Write',
+        description: 'Create, update, delete',
+      },
+    ],
   },
   {
-    id: 'write:secrets',
-    name: 'Write Secrets',
-    description: 'Create, update, delete secrets',
+    name: 'Monitoring',
+    description: 'System monitoring',
+    scopes: [
+      {
+        id: 'read:monitoring',
+        label: 'Read',
+        description: 'View metrics, health, logs',
+      },
+    ],
+  },
+  {
+    name: 'Realtime',
+    description: 'WebSocket channels',
+    scopes: [
+      {
+        id: 'realtime:connect',
+        label: 'Connect',
+        description: 'Connect to channels',
+      },
+      {
+        id: 'realtime:broadcast',
+        label: 'Broadcast',
+        description: 'Send messages',
+      },
+    ],
+  },
+  {
+    name: 'RPC',
+    description: 'Remote procedures',
+    scopes: [
+      { id: 'read:rpc', label: 'Read', description: 'List procedures' },
+      { id: 'execute:rpc', label: 'Execute', description: 'Invoke procedures' },
+    ],
+  },
+  {
+    name: 'Jobs',
+    description: 'Background jobs',
+    scopes: [
+      { id: 'read:jobs', label: 'Read', description: 'View job queues' },
+      { id: 'write:jobs', label: 'Write', description: 'Manage job entries' },
+    ],
+  },
+  {
+    name: 'AI',
+    description: 'AI & chatbots',
+    scopes: [
+      { id: 'read:ai', label: 'Read', description: 'View conversations' },
+      { id: 'write:ai', label: 'Write', description: 'Send messages' },
+    ],
+  },
+  {
+    name: 'Secrets',
+    description: 'Secret management',
+    scopes: [
+      { id: 'read:secrets', label: 'Read', description: 'View secret names' },
+      {
+        id: 'write:secrets',
+        label: 'Write',
+        description: 'Create, update, delete',
+      },
+    ],
   },
 ]
 
@@ -186,7 +218,9 @@ function ClientKeysPage() {
   const queryClient = useQueryClient()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showKeyDialog, setShowKeyDialog] = useState(false)
-  const [createdKey, setCreatedKey] = useState<ClientKeyWithPlaintext | null>(null)
+  const [createdKey, setCreatedKey] = useState<ClientKeyWithPlaintext | null>(
+    null
+  )
   const [searchQuery, setSearchQuery] = useState('')
 
   // Form state
@@ -579,7 +613,7 @@ function ClientKeysPage() {
 
       {/* Create Client Key Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-3xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Create Client Key</DialogTitle>
             <DialogDescription>
@@ -588,77 +622,91 @@ function ClientKeysPage() {
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-4 py-4'>
-            <div className='grid gap-2'>
-              <Label htmlFor='name'>
-                Name <span className='text-destructive'>*</span>
-              </Label>
-              <Input
-                id='name'
-                placeholder='Production Client Key'
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='description'>Description</Label>
-              <Input
-                id='description'
-                placeholder='Used by the main application server'
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='name'>
+                  Name <span className='text-destructive'>*</span>
+                </Label>
+                <Input
+                  id='name'
+                  placeholder='Production Client Key'
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='description'>Description</Label>
+                <Input
+                  id='description'
+                  placeholder='Used by the main application'
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
             </div>
             <div className='grid gap-2'>
               <Label>
                 Scopes/Permissions <span className='text-destructive'>*</span>
               </Label>
               <div className='grid grid-cols-2 gap-3 rounded-md border p-4'>
-                {AVAILABLE_SCOPES.map((scope) => (
-                  <div key={scope.id} className='flex items-start space-x-2'>
-                    <Checkbox
-                      id={scope.id}
-                      checked={selectedScopes.includes(scope.id)}
-                      onCheckedChange={() => toggleScope(scope.id)}
-                    />
-                    <div className='grid gap-1.5 leading-none'>
-                      <label
-                        htmlFor={scope.id}
-                        className='text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-                      >
-                        {scope.name}
-                      </label>
-                      <p className='text-muted-foreground text-xs'>
-                        {scope.description}
-                      </p>
+                {SCOPE_GROUPS.map((group) => (
+                  <div key={group.name} className='space-y-1'>
+                    <div className='text-sm font-medium'>{group.name}</div>
+                    <div className='text-muted-foreground text-xs'>
+                      {group.description}
+                    </div>
+                    <div className='flex flex-wrap gap-3 pt-1'>
+                      {group.scopes.map((scope) => (
+                        <div
+                          key={scope.id}
+                          className='flex items-center space-x-1.5'
+                        >
+                          <input
+                            type='checkbox'
+                            id={`create-${scope.id}`}
+                            checked={selectedScopes.includes(scope.id)}
+                            onChange={() => toggleScope(scope.id)}
+                            className='h-3.5 w-3.5 rounded border-gray-300'
+                          />
+                          <label
+                            htmlFor={`create-${scope.id}`}
+                            className='text-xs'
+                            title={scope.description}
+                          >
+                            {scope.label}
+                          </label>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='rateLimit'>
-                Rate Limit (requests per minute)
-              </Label>
-              <Input
-                id='rateLimit'
-                type='number'
-                min='1'
-                max='10000'
-                value={rateLimit}
-                onChange={(e) => setRateLimit(parseInt(e.target.value) || 100)}
-              />
-            </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='expiresAt'>Expiration Date (optional)</Label>
-              <Input
-                id='expiresAt'
-                type='datetime-local'
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
-              <p className='text-muted-foreground text-xs'>
-                Leave empty for no expiration
-              </p>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='rateLimit'>
+                  Rate Limit (requests per minute)
+                </Label>
+                <Input
+                  id='rateLimit'
+                  type='number'
+                  min='1'
+                  max='10000'
+                  value={rateLimit}
+                  onChange={(e) =>
+                    setRateLimit(parseInt(e.target.value) || 100)
+                  }
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='expiresAt'>Expiration Date (optional)</Label>
+                <Input
+                  id='expiresAt'
+                  type='datetime-local'
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -697,8 +745,8 @@ function ClientKeysPage() {
                   </h3>
                   <div className='mt-2 text-sm text-yellow-700 dark:text-yellow-300'>
                     <p>
-                      This is the only time you'll see the full client key. Store
-                      it securely.
+                      This is the only time you'll see the full client key.
+                      Store it securely.
                     </p>
                   </div>
                 </div>

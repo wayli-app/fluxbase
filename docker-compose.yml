@@ -58,6 +58,7 @@ services:
       FLUXBASE_AUTH_JWT_EXPIRY: 15m
       FLUXBASE_AUTH_REFRESH_EXPIRY: 168h
       FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
+      # FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS: "true"  # Allow users to create their own client keys
 
       # Security - Admin Setup Token (REQUIRED)
       # Generate with: openssl rand -base64 32

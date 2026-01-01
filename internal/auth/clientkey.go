@@ -21,6 +21,8 @@ var (
 	ErrClientKeyExpired = errors.New("client key has expired")
 	// ErrClientKeyRevoked is returned when client key has been revoked
 	ErrClientKeyRevoked = errors.New("client key has been revoked")
+	// ErrUserClientKeysDisabled is returned when user client keys are disabled via settings
+	ErrUserClientKeysDisabled = errors.New("user client keys are disabled")
 )
 
 // ClientKey represents a client key
@@ -49,12 +51,22 @@ type ClientKeyWithPlaintext struct {
 
 // ClientKeyService handles client key operations
 type ClientKeyService struct {
-	db *pgxpool.Pool
+	db            *pgxpool.Pool
+	settingsCache *SettingsCache
 }
 
 // NewClientKeyService creates a new client key service
-func NewClientKeyService(db *pgxpool.Pool) *ClientKeyService {
-	return &ClientKeyService{db: db}
+func NewClientKeyService(db *pgxpool.Pool, settingsCache *SettingsCache) *ClientKeyService {
+	return &ClientKeyService{
+		db:            db,
+		settingsCache: settingsCache,
+	}
+}
+
+// SetSettingsCache injects the settings cache after initialization
+// This is used to break the circular dependency during server startup
+func (s *ClientKeyService) SetSettingsCache(cache *SettingsCache) {
+	s.settingsCache = cache
 }
 
 // GenerateClientKey generates a new client key with format: fbk_<random_string>
@@ -157,6 +169,15 @@ func (s *ClientKeyService) ValidateClientKey(ctx context.Context, plaintextKey s
 	// Check if expired
 	if clientKey.ExpiresAt != nil && clientKey.ExpiresAt.Before(time.Now()) {
 		return nil, ErrClientKeyExpired
+	}
+
+	// Check if user-created keys are allowed
+	// Keys with user_id are user-created; keys without user_id are admin/system-created
+	if clientKey.UserID != nil && s.settingsCache != nil {
+		allowUserKeys := s.settingsCache.GetBool(ctx, "app.auth.allow_user_client_keys", true)
+		if !allowUserKeys {
+			return nil, ErrUserClientKeysDisabled
+		}
 	}
 
 	// Update last used timestamp

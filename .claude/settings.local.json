@@ -79,7 +79,8 @@
       "Bash(go vet:*)",
       "Bash(gofmt:*)",
       "Bash(git rev-list:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

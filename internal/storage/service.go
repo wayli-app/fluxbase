@@ -3,9 +3,12 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,6 +16,56 @@ import (
 type Service struct {
 	Provider Provider
 	config   *config.StorageConfig
+	metrics  *observability.Metrics
+}
+
+// SetMetrics sets the metrics instance for recording storage metrics
+func (s *Service) SetMetrics(m *observability.Metrics) {
+	s.metrics = m
+}
+
+// Upload wraps the provider's Upload method with metrics
+func (s *Service) Upload(ctx context.Context, bucket, key string, data io.Reader, size int64, opts *UploadOptions) (*Object, error) {
+	start := time.Now()
+	obj, err := s.Provider.Upload(ctx, bucket, key, data, size, opts)
+	duration := time.Since(start)
+
+	if s.metrics != nil {
+		s.metrics.RecordStorageOperation("upload", bucket, size, duration, err)
+	}
+
+	return obj, err
+}
+
+// Download wraps the provider's Download method with metrics
+func (s *Service) Download(ctx context.Context, bucket, key string, opts *DownloadOptions) (io.ReadCloser, *Object, error) {
+	start := time.Now()
+	reader, obj, err := s.Provider.Download(ctx, bucket, key, opts)
+	duration := time.Since(start)
+
+	var size int64
+	if obj != nil {
+		size = obj.Size
+	}
+
+	if s.metrics != nil {
+		s.metrics.RecordStorageOperation("download", bucket, size, duration, err)
+	}
+
+	return reader, obj, err
+}
+
+// Delete wraps the provider's Delete method with metrics
+func (s *Service) Delete(ctx context.Context, bucket, key string) error {
+	start := time.Now()
+	err := s.Provider.Delete(ctx, bucket, key)
+	duration := time.Since(start)
+
+	if s.metrics != nil {
+		s.metrics.RecordStorageOperation("delete", bucket, 0, duration, err)
+	}
+
+	return err
 }
 
 // NewService creates a new storage service based on configuration

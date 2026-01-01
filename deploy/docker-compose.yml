@@ -128,6 +128,7 @@ services:
       # FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
       # FLUXBASE_AUTH_ENABLE_MAGIC_LINK: "true"
       # FLUXBASE_AUTH_TOTP_ISSUER: "Fluxbase"
+      # FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS: "${FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS:-true}"  # Allow users to create their own client keys
 
       # Anon Key: Pre-generated JWT with 'anon' role for client-side apps
       # Generate with: scripts/generate-keys.sh (option 3)

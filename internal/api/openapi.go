@@ -1049,9 +1049,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 	spec.Paths["/api/v1/client-keys"] = OpenAPIPath{
 		"get": OpenAPIOperation{
 			Summary:     "List client keys",
-			Description: "Get all client keys for the authenticated user",
+			Description: "Get client keys. Regular users see only their own keys; admins can see all keys. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_list",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1071,9 +1071,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 		"post": OpenAPIOperation{
 			Summary:     "Create API key",
-			Description: "Create a new API key",
+			Description: "Create a new API key for the authenticated user. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_create",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1102,9 +1102,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 	spec.Paths["/api/v1/client-keys/{id}"] = OpenAPIPath{
 		"get": OpenAPIOperation{
 			Summary:     "Get API key",
-			Description: "Get details of a specific API key",
+			Description: "Get details of a specific API key. Users can only view their own keys; admins can view any key. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_get",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1132,9 +1132,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 		"patch": OpenAPIOperation{
 			Summary:     "Update API key",
-			Description: "Update an existing API key",
+			Description: "Update an existing API key. Users can only update their own keys. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_update",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1170,9 +1170,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 		},
 		"delete": OpenAPIOperation{
 			Summary:     "Delete API key",
-			Description: "Delete an API key",
+			Description: "Delete an API key. Users can only delete their own keys. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_delete",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},
@@ -1191,9 +1191,9 @@ func (h *OpenAPIHandler) addAPIKeyEndpoints(spec *OpenAPISpec) {
 	spec.Paths["/api/v1/client-keys/{id}/revoke"] = OpenAPIPath{
 		"post": OpenAPIOperation{
 			Summary:     "Revoke API key",
-			Description: "Revoke an API key (deactivate without deleting)",
+			Description: "Revoke an API key (deactivate without deleting). Users can only revoke their own keys. When the system setting 'app.auth.allow_user_client_keys' is disabled, only admins can access this endpoint.",
 			OperationID: "apikeys_revoke",
-			Tags:        []string{"client keys"},
+			Tags:        []string{"Client Keys"},
 			Security: []map[string][]string{
 				{"bearerAuth": {}},
 			},

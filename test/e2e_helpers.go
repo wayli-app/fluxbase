@@ -1777,8 +1777,8 @@ func (tc *TestContext) WaitForEmail(timeout time.Duration, filter func(MailHogMe
 func (tc *TestContext) CreateClientKey(name string, scopes []string) string {
 	ctx := context.Background()
 
-	// Create client key service
-	clientKeyService := auth.NewClientKeyService(tc.DB.Pool())
+	// Create client key service (nil settings cache for tests - allows all user keys)
+	clientKeyService := auth.NewClientKeyService(tc.DB.Pool(), nil)
 
 	// Generate client key with provided scopes
 	// Use default scopes if none provided (read/write for tables, storage, functions)

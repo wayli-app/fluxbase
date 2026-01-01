@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Database, CheckCircle2 } from 'lucide-react'
+import { Database } from 'lucide-react'
 import { useState } from 'react'
 import { monitoringApi } from '@/lib/api'
 
@@ -126,19 +126,6 @@ function DatabaseConfigPage() {
                 <div className='text-2xl font-bold'>{systemInfo?.database.max_conns || 0}</div>
                 <p className='text-xs text-muted-foreground mt-1'>Max</p>
               </div>
-            </div>
-          </div>
-
-          {/* Migrations */}
-          <div className='space-y-4 pt-4 border-t'>
-            <h3 className='text-sm font-semibold'>Database Migrations</h3>
-            <p className='text-sm text-muted-foreground'>
-              Database migrations are automatically run on server startup. To manually run migrations, use the CLI:
-            </p>
-            <div className='bg-muted rounded-lg p-3 font-mono text-sm'>./fluxbase migrate</div>
-            <div className='flex items-center gap-2 text-sm'>
-              <CheckCircle2 className='h-4 w-4 text-green-500' />
-              <span>All migrations up to date</span>
             </div>
           </div>
         </CardContent>

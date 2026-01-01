@@ -41,10 +41,14 @@ type UpdateClientKeyRequest struct {
 }
 
 // RegisterRoutes registers client key routes with authentication
-func (h *ClientKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager) {
-	// Apply authentication middleware to all client key routes
+// Users can manage their own client keys when 'allow_user_client_keys' setting is enabled.
+// When disabled, only admins can manage client keys.
+func (h *ClientKeyHandler) RegisterRoutes(app *fiber.App, authService *auth.Service, clientKeyService *auth.ClientKeyService, db *pgxpool.Pool, jwtManager *auth.JWTManager, settingsCache *auth.SettingsCache) {
+	// Apply authentication middleware and conditional admin check to all client key routes
+	// If 'allow_user_client_keys' is disabled, RequireAdminIfClientKeysDisabled enforces admin access
 	clientKeys := app.Group("/api/v1/client-keys",
 		middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager),
+		middleware.RequireAdminIfClientKeysDisabled(settingsCache),
 	)
 
 	// Read operations require read:clientkeys scope

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -31,6 +33,56 @@ type Connection struct {
 	pool      *pgxpool.Pool
 	config    *config.DatabaseConfig
 	inspector *SchemaInspector
+	metrics   *observability.Metrics
+}
+
+// SetMetrics sets the metrics instance for recording database metrics
+func (c *Connection) SetMetrics(m *observability.Metrics) {
+	c.metrics = m
+}
+
+// extractTableName attempts to extract the table name from a SQL query
+// Returns "unknown" if the table cannot be determined
+func extractTableName(sql string) string {
+	sql = strings.ToUpper(strings.TrimSpace(sql))
+
+	// Match common SQL patterns
+	patterns := []struct {
+		prefix string
+		regex  *regexp.Regexp
+	}{
+		{"SELECT", regexp.MustCompile(`FROM\s+["']?(\w+)["']?`)},
+		{"INSERT", regexp.MustCompile(`INTO\s+["']?(\w+)["']?`)},
+		{"UPDATE", regexp.MustCompile(`UPDATE\s+["']?(\w+)["']?`)},
+		{"DELETE", regexp.MustCompile(`FROM\s+["']?(\w+)["']?`)},
+	}
+
+	for _, p := range patterns {
+		if strings.HasPrefix(sql, p.prefix) {
+			if matches := p.regex.FindStringSubmatch(sql); len(matches) > 1 {
+				return strings.ToLower(matches[1])
+			}
+		}
+	}
+
+	return "unknown"
+}
+
+// extractOperation extracts the SQL operation type from a query
+func extractOperation(sql string) string {
+	sql = strings.ToUpper(strings.TrimSpace(sql))
+	switch {
+	case strings.HasPrefix(sql, "SELECT"):
+		return "select"
+	case strings.HasPrefix(sql, "INSERT"):
+		return "insert"
+	case strings.HasPrefix(sql, "UPDATE"):
+		return "update"
+	case strings.HasPrefix(sql, "DELETE"):
+		return "delete"
+	default:
+		return "other"
+	}
 }
 
 // NewConnection creates a new database connection pool
@@ -573,6 +625,13 @@ func (c *Connection) Query(ctx context.Context, sql string, args ...interface{})
 	rows, err := c.pool.Query(ctx, sql, args...)
 	duration := time.Since(start)
 
+	// Record metrics
+	if c.metrics != nil {
+		operation := extractOperation(sql)
+		table := extractTableName(sql)
+		c.metrics.RecordDBQuery(operation, table, duration, err)
+	}
+
 	// Log slow queries (> 1 second)
 	if duration > 1*time.Second {
 		log.Warn().
@@ -592,6 +651,13 @@ func (c *Connection) QueryRow(ctx context.Context, sql string, args ...interface
 	row := c.pool.QueryRow(ctx, sql, args...)
 	duration := time.Since(start)
 
+	// Record metrics
+	if c.metrics != nil {
+		operation := extractOperation(sql)
+		table := extractTableName(sql)
+		c.metrics.RecordDBQuery(operation, table, duration, nil)
+	}
+
 	// Log slow queries (> 1 second)
 	if duration > 1*time.Second {
 		log.Warn().
@@ -610,6 +676,13 @@ func (c *Connection) Exec(ctx context.Context, sql string, args ...interface{}) 
 	start := time.Now()
 	tag, err := c.pool.Exec(ctx, sql, args...)
 	duration := time.Since(start)
+
+	// Record metrics
+	if c.metrics != nil {
+		operation := extractOperation(sql)
+		table := extractTableName(sql)
+		c.metrics.RecordDBQuery(operation, table, duration, err)
+	}
 
 	// Log slow queries (> 1 second)
 	if duration > 1*time.Second {

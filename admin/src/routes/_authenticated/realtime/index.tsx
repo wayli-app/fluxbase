@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -14,6 +14,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Radio,
   RefreshCw,
   Users,
@@ -24,10 +31,15 @@ import {
   Globe,
   PlayCircle,
   StopCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import api from '@/lib/api'
+import { getPageNumbers } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/realtime/')({
   component: RealtimePage,
@@ -37,6 +49,7 @@ export const Route = createFileRoute('/_authenticated/realtime/')({
 interface ConnectionInfo {
   id: string
   user_id: string | null
+  email: string | null
   remote_addr: string
   connected_at: string
 }
@@ -44,20 +57,47 @@ interface ConnectionInfo {
 interface RealtimeStats {
   total_connections: number
   connections: ConnectionInfo[]
+  limit: number
+  offset: number
 }
 
 function RealtimePage() {
   // State
-  const [stats, setStats] = useState<RealtimeStats | null>(null)
+  const [connections, setConnections] = useState<ConnectionInfo[]>([])
+  const [totalConnections, setTotalConnections] = useState(0)
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize, setPageSize] = useState(25)
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setCurrentPage(0) // Reset to first page on search change
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Fetch realtime stats
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      const response = await api.get<RealtimeStats>('/api/v1/realtime/stats')
-      setStats(response.data)
+      const offset = currentPage * pageSize
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+      })
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch)
+      }
+
+      const response = await api.get<RealtimeStats>(`/api/v1/realtime/stats?${params}`)
+      setConnections(response.data.connections || [])
+      setTotalConnections(response.data.total_connections)
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching realtime stats:', error)
@@ -65,12 +105,12 @@ function RealtimePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, pageSize, debouncedSearch])
 
-  // Initial fetch
+  // Initial fetch and refetch on dependency changes
   useEffect(() => {
     fetchStats()
-  }, [])
+  }, [fetchStats])
 
   // Auto-refresh every 5 seconds
   useEffect(() => {
@@ -78,17 +118,7 @@ function RealtimePage() {
 
     const interval = setInterval(fetchStats, 5000)
     return () => clearInterval(interval)
-  }, [autoRefresh])
-
-  // Filter connections by search query
-  const filteredConnections = stats?.connections.filter((conn) => {
-    const query = searchQuery.toLowerCase()
-    return (
-      conn.id.toLowerCase().includes(query) ||
-      conn.user_id?.toLowerCase().includes(query) ||
-      conn.remote_addr.toLowerCase().includes(query)
-    )
-  }) || []
+  }, [autoRefresh, fetchStats])
 
   // Calculate connection duration
   const getConnectionDuration = (connectedAt: string) => {
@@ -98,6 +128,9 @@ function RealtimePage() {
       return 'Unknown'
     }
   }
+
+  // Pagination calculations
+  const totalPages = Math.ceil(totalConnections / pageSize) || 1
 
   if (loading) {
     return (
@@ -160,7 +193,7 @@ function RealtimePage() {
               <Users className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats?.total_connections || 0}</p>
+              <p className="text-2xl font-bold">{totalConnections}</p>
               <p className="text-sm text-muted-foreground">Active Connections</p>
             </div>
           </div>
@@ -194,7 +227,7 @@ function RealtimePage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search connections by ID, user, or IP address..."
+              placeholder="Search connections by ID, email, or IP address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -202,8 +235,8 @@ function RealtimePage() {
           </div>
         </div>
 
-        <Card className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
+        <Card className="flex-1 overflow-hidden flex flex-col">
+          <ScrollArea className="flex-1">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -214,7 +247,7 @@ function RealtimePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredConnections.length === 0 ? (
+                {connections.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8">
                       <div className="flex flex-col items-center gap-2">
@@ -226,7 +259,7 @@ function RealtimePage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredConnections.map((conn) => (
+                  connections.map((conn) => (
                     <TableRow key={conn.id}>
                       <TableCell className="font-mono text-xs">
                         {conn.id.substring(0, 8)}...
@@ -235,7 +268,13 @@ function RealtimePage() {
                         {conn.user_id ? (
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-mono text-xs">{conn.user_id}</span>
+                            <span className="text-sm">
+                              {conn.email || (
+                                <span className="font-mono text-xs text-muted-foreground">
+                                  {conn.user_id.substring(0, 8)}...
+                                </span>
+                              )}
+                            </span>
                           </div>
                         ) : (
                           <Badge variant="secondary">Anonymous</Badge>
@@ -259,6 +298,102 @@ function RealtimePage() {
               </TableBody>
             </Table>
           </ScrollArea>
+
+          {/* Pagination */}
+          {totalConnections > 0 && (
+            <div className="flex items-center justify-between border-t px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows per page:</span>
+                <Select
+                  value={`${pageSize}`}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value))
+                    setCurrentPage(0)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 25, 50, 100].map((size) => (
+                      <SelectItem key={size} value={`${size}`}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage + 1} of {totalPages} ({totalConnections} total)
+                </span>
+
+                {/* First page */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(0)}
+                  disabled={currentPage === 0}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Previous page */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
+                  disabled={currentPage === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+
+                {/* Page numbers */}
+                {getPageNumbers(currentPage + 1, totalPages).map((pageNum, idx) =>
+                  pageNum === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground">
+                      ...
+                    </span>
+                  ) : (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage + 1 === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-8 min-w-8 px-2"
+                      onClick={() => setCurrentPage((pageNum as number) - 1)}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                )}
+
+                {/* Next page */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+
+                {/* Last page */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setCurrentPage(totalPages - 1)}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>

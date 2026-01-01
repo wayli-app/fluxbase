@@ -1,6 +1,9 @@
 package observability
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -508,4 +512,62 @@ func statusClass(status int) string {
 	default:
 		return "unknown"
 	}
+}
+
+// MetricsServer is a dedicated HTTP server for Prometheus metrics
+type MetricsServer struct {
+	server *http.Server
+	port   int
+	path   string
+}
+
+// NewMetricsServer creates a new metrics server
+func NewMetricsServer(port int, path string) *MetricsServer {
+	return &MetricsServer{
+		port: port,
+		path: path,
+	}
+}
+
+// Start starts the metrics server on the configured port
+func (ms *MetricsServer) Start() error {
+	mux := http.NewServeMux()
+	mux.Handle(ms.path, promhttp.Handler())
+
+	// Add a simple health check for the metrics server
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	ms.server = &http.Server{
+		Addr:         fmt.Sprintf(":%d", ms.port),
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
+	}
+
+	log.Info().
+		Int("port", ms.port).
+		Str("path", ms.path).
+		Msg("Starting Prometheus metrics server")
+
+	go func() {
+		if err := ms.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("Metrics server error")
+		}
+	}()
+
+	return nil
+}
+
+// Shutdown gracefully shuts down the metrics server
+func (ms *MetricsServer) Shutdown(ctx context.Context) error {
+	if ms.server == nil {
+		return nil
+	}
+
+	log.Info().Msg("Shutting down metrics server")
+	return ms.server.Shutdown(ctx)
 }

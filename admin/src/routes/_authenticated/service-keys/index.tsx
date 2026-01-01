@@ -72,131 +72,111 @@ export const Route = createFileRoute('/_authenticated/service-keys/')({
   component: ServiceKeysPage,
 })
 
-const AVAILABLE_SCOPES = [
-  // Tables
+// Grouped scopes for better UI organization
+const SCOPE_GROUPS = [
   {
-    id: 'read:tables',
-    name: 'Read Tables',
-    description: 'Query database tables',
+    name: 'Tables',
+    description: 'Database table access',
+    scopes: [
+      { id: 'read:tables', label: 'Read', description: 'Query database tables' },
+      { id: 'write:tables', label: 'Write', description: 'Insert, update, delete records' },
+    ],
   },
   {
-    id: 'write:tables',
-    name: 'Write Tables',
-    description: 'Insert, update, delete records',
-  },
-  // Storage
-  { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
-  {
-    id: 'write:storage',
-    name: 'Write Storage',
-    description: 'Upload and delete files',
-  },
-  // Functions
-  {
-    id: 'read:functions',
-    name: 'Read Functions',
-    description: 'View functions',
+    name: 'Storage',
+    description: 'File storage access',
+    scopes: [
+      { id: 'read:storage', label: 'Read', description: 'Download files' },
+      { id: 'write:storage', label: 'Write', description: 'Upload and delete files' },
+    ],
   },
   {
-    id: 'execute:functions',
-    name: 'Execute Functions',
-    description: 'Invoke Edge Functions',
-  },
-  // Auth
-  { id: 'read:auth', name: 'Read Auth', description: 'View user profile' },
-  {
-    id: 'write:auth',
-    name: 'Write Auth',
-    description: 'Update user profile, manage 2FA',
-  },
-  // Client Keys
-  { id: 'read:clientkeys', name: 'Read Client Keys', description: 'List client keys' },
-  {
-    id: 'write:clientkeys',
-    name: 'Write Client Keys',
-    description: 'Create, update, revoke client keys',
-  },
-  // Webhooks
-  {
-    id: 'read:webhooks',
-    name: 'Read Webhooks',
-    description: 'List webhooks and deliveries',
+    name: 'Functions',
+    description: 'Edge Functions',
+    scopes: [
+      { id: 'read:functions', label: 'Read', description: 'View functions' },
+      { id: 'execute:functions', label: 'Execute', description: 'Invoke functions' },
+    ],
   },
   {
-    id: 'write:webhooks',
-    name: 'Write Webhooks',
-    description: 'Create, update, delete webhooks',
-  },
-  // Monitoring
-  {
-    id: 'read:monitoring',
-    name: 'Read Monitoring',
-    description: 'View metrics, health, logs',
-  },
-  // Realtime
-  {
-    id: 'realtime:connect',
-    name: 'Realtime Connect',
-    description: 'Connect to realtime channels',
+    name: 'Auth',
+    description: 'Authentication',
+    scopes: [
+      { id: 'read:auth', label: 'Read', description: 'View user profile' },
+      { id: 'write:auth', label: 'Write', description: 'Update profile, manage 2FA' },
+    ],
   },
   {
-    id: 'realtime:broadcast',
-    name: 'Realtime Broadcast',
-    description: 'Broadcast messages',
-  },
-  // RPC
-  { id: 'read:rpc', name: 'Read RPC', description: 'List RPC procedures' },
-  {
-    id: 'execute:rpc',
-    name: 'Execute RPC',
-    description: 'Invoke RPC procedures',
-  },
-  // Jobs
-  {
-    id: 'read:jobs',
-    name: 'Read Jobs',
-    description: 'View job queues and status',
+    name: 'Client Keys',
+    description: 'API key management',
+    scopes: [
+      { id: 'read:clientkeys', label: 'Read', description: 'List client keys' },
+      { id: 'write:clientkeys', label: 'Write', description: 'Create, update, revoke' },
+    ],
   },
   {
-    id: 'write:jobs',
-    name: 'Write Jobs',
-    description: 'Manage job queue entries',
-  },
-  // AI
-  {
-    id: 'read:ai',
-    name: 'Read AI',
-    description: 'View chatbots and conversations',
+    name: 'Webhooks',
+    description: 'Webhook management',
+    scopes: [
+      { id: 'read:webhooks', label: 'Read', description: 'List webhooks' },
+      { id: 'write:webhooks', label: 'Write', description: 'Create, update, delete' },
+    ],
   },
   {
-    id: 'write:ai',
-    name: 'Write AI',
-    description: 'Manage conversations, send messages',
-  },
-  // Secrets
-  {
-    id: 'read:secrets',
-    name: 'Read Secrets',
-    description: 'View secret names (not values)',
+    name: 'Monitoring',
+    description: 'System monitoring',
+    scopes: [
+      { id: 'read:monitoring', label: 'Read', description: 'View metrics, health, logs' },
+    ],
   },
   {
-    id: 'write:secrets',
-    name: 'Write Secrets',
-    description: 'Create, update, delete secrets',
-  },
-  // Migrations
-  {
-    id: 'migrations:read',
-    name: 'Migrations (Read)',
-    description: 'Read migration status',
+    name: 'Realtime',
+    description: 'WebSocket channels',
+    scopes: [
+      { id: 'realtime:connect', label: 'Connect', description: 'Connect to channels' },
+      { id: 'realtime:broadcast', label: 'Broadcast', description: 'Send messages' },
+    ],
   },
   {
-    id: 'migrations:execute',
-    name: 'Migrations (Execute)',
-    description: 'Apply and rollback migrations',
+    name: 'RPC',
+    description: 'Remote procedures',
+    scopes: [
+      { id: 'read:rpc', label: 'Read', description: 'List procedures' },
+      { id: 'execute:rpc', label: 'Execute', description: 'Invoke procedures' },
+    ],
   },
-  // Wildcard
-  { id: '*', name: 'All Scopes', description: 'Full access to all APIs' },
+  {
+    name: 'Jobs',
+    description: 'Background jobs',
+    scopes: [
+      { id: 'read:jobs', label: 'Read', description: 'View job queues' },
+      { id: 'write:jobs', label: 'Write', description: 'Manage job entries' },
+    ],
+  },
+  {
+    name: 'AI',
+    description: 'AI & chatbots',
+    scopes: [
+      { id: 'read:ai', label: 'Read', description: 'View conversations' },
+      { id: 'write:ai', label: 'Write', description: 'Send messages' },
+    ],
+  },
+  {
+    name: 'Secrets',
+    description: 'Secret management',
+    scopes: [
+      { id: 'read:secrets', label: 'Read', description: 'View secret names' },
+      { id: 'write:secrets', label: 'Write', description: 'Create, update, delete' },
+    ],
+  },
+  {
+    name: 'Migrations',
+    description: 'Database migrations',
+    scopes: [
+      { id: 'migrations:read', label: 'Read', description: 'View migration status' },
+      { id: 'migrations:execute', label: 'Execute', description: 'Apply migrations' },
+    ],
+  },
 ]
 
 function ServiceKeysPage() {
@@ -219,6 +199,7 @@ function ServiceKeysPage() {
   // Form state for edit
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editScopes, setEditScopes] = useState<string[]>([])
   const [editRateLimitPerMinute, setEditRateLimitPerMinute] = useState<number | undefined>(undefined)
   const [editRateLimitPerHour, setEditRateLimitPerHour] = useState<number | undefined>(undefined)
 
@@ -324,6 +305,7 @@ function ServiceKeysPage() {
     const request: UpdateServiceKeyRequest = {
       name: editName.trim() || undefined,
       description: editDescription.trim(),
+      scopes: editScopes.length > 0 ? editScopes : undefined,
       rate_limit_per_minute: editRateLimitPerMinute,
       rate_limit_per_hour: editRateLimitPerHour,
     }
@@ -335,6 +317,7 @@ function ServiceKeysPage() {
     setEditingKey(key)
     setEditName(key.name)
     setEditDescription(key.description || '')
+    setEditScopes(key.scopes || ['*'])
     setEditRateLimitPerMinute(key.rate_limit_per_minute)
     setEditRateLimitPerHour(key.rate_limit_per_hour)
     setShowEditDialog(true)
@@ -679,7 +662,7 @@ function ServiceKeysPage() {
 
       {/* Create Service Key Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className='max-h-[90vh] max-w-xl overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-3xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Create Service Key</DialogTitle>
             <DialogDescription>
@@ -688,48 +671,78 @@ function ServiceKeysPage() {
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-4 py-4'>
-            <div className='grid gap-2'>
-              <Label htmlFor='name'>
-                Name <span className='text-destructive'>*</span>
-              </Label>
-              <Input
-                id='name'
-                placeholder='Migrations Key'
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='name'>
+                  Name <span className='text-destructive'>*</span>
+                </Label>
+                <Input
+                  id='name'
+                  placeholder='Migrations Key'
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='description'>Description</Label>
+                <Input
+                  id='description'
+                  placeholder='Used by CI/CD pipeline'
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='description'>Description</Label>
-              <Input
-                id='description'
-                placeholder='Used by CI/CD pipeline for migrations'
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
             </div>
             <div className='grid gap-2'>
-              <Label>Scopes</Label>
-              <div className='grid gap-2 rounded-md border p-4'>
-                {AVAILABLE_SCOPES.map((scope) => (
-                  <div key={scope.id} className='flex items-center space-x-2'>
-                    <input
-                      type='checkbox'
-                      id={scope.id}
-                      checked={selectedScopes.includes(scope.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedScopes([...selectedScopes, scope.id])
-                        } else {
-                          setSelectedScopes(selectedScopes.filter((s) => s !== scope.id))
-                        }
-                      }}
-                      className='h-4 w-4 rounded border-gray-300'
-                    />
-                    <label htmlFor={scope.id} className='text-sm'>
-                      <span className='font-medium'>{scope.name}</span>
-                      <span className='text-muted-foreground ml-2'>{scope.description}</span>
-                    </label>
+              <div className='flex items-center justify-between'>
+                <Label>Scopes</Label>
+                <div className='flex items-center space-x-2'>
+                  <input
+                    type='checkbox'
+                    id='wildcard-scope'
+                    checked={selectedScopes.includes('*')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedScopes(['*'])
+                      } else {
+                        setSelectedScopes([])
+                      }
+                    }}
+                    className='h-4 w-4 rounded border-gray-300'
+                  />
+                  <label htmlFor='wildcard-scope' className='text-sm font-medium'>
+                    All Scopes
+                  </label>
+                </div>
+              </div>
+              <div className='grid grid-cols-2 gap-3 rounded-md border p-4'>
+                {SCOPE_GROUPS.map((group) => (
+                  <div key={group.name} className='space-y-1'>
+                    <div className='text-sm font-medium'>{group.name}</div>
+                    <div className='text-muted-foreground text-xs'>{group.description}</div>
+                    <div className='flex flex-wrap gap-3 pt-1'>
+                      {group.scopes.map((scope) => (
+                        <div key={scope.id} className='flex items-center space-x-1.5'>
+                          <input
+                            type='checkbox'
+                            id={`create-${scope.id}`}
+                            checked={selectedScopes.includes(scope.id) || selectedScopes.includes('*')}
+                            disabled={selectedScopes.includes('*')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScopes([...selectedScopes, scope.id])
+                              } else {
+                                setSelectedScopes(selectedScopes.filter((s) => s !== scope.id))
+                              }
+                            }}
+                            className='h-3.5 w-3.5 rounded border-gray-300'
+                          />
+                          <label htmlFor={`create-${scope.id}`} className='text-xs' title={scope.description}>
+                            {scope.label}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -794,7 +807,7 @@ function ServiceKeysPage() {
 
       {/* Edit Service Key Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className='max-w-xl'>
+        <DialogContent className='max-h-[90vh] max-w-3xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Edit Service Key</DialogTitle>
             <DialogDescription>
@@ -802,21 +815,77 @@ function ServiceKeysPage() {
             </DialogDescription>
           </DialogHeader>
           <div className='grid gap-4 py-4'>
-            <div className='grid gap-2'>
-              <Label htmlFor='editName'>Name</Label>
-              <Input
-                id='editName'
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-              />
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='editName'>Name</Label>
+                <Input
+                  id='editName'
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='editDescription'>Description</Label>
+                <Input
+                  id='editDescription'
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                />
+              </div>
             </div>
             <div className='grid gap-2'>
-              <Label htmlFor='editDescription'>Description</Label>
-              <Input
-                id='editDescription'
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
+              <div className='flex items-center justify-between'>
+                <Label>Scopes</Label>
+                <div className='flex items-center space-x-2'>
+                  <input
+                    type='checkbox'
+                    id='edit-wildcard-scope'
+                    checked={editScopes.includes('*')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setEditScopes(['*'])
+                      } else {
+                        setEditScopes([])
+                      }
+                    }}
+                    className='h-4 w-4 rounded border-gray-300'
+                  />
+                  <label htmlFor='edit-wildcard-scope' className='text-sm font-medium'>
+                    All Scopes
+                  </label>
+                </div>
+              </div>
+              <div className='grid grid-cols-2 gap-3 rounded-md border p-4'>
+                {SCOPE_GROUPS.map((group) => (
+                  <div key={group.name} className='space-y-1'>
+                    <div className='text-sm font-medium'>{group.name}</div>
+                    <div className='text-muted-foreground text-xs'>{group.description}</div>
+                    <div className='flex flex-wrap gap-3 pt-1'>
+                      {group.scopes.map((scope) => (
+                        <div key={scope.id} className='flex items-center space-x-1.5'>
+                          <input
+                            type='checkbox'
+                            id={`edit-${scope.id}`}
+                            checked={editScopes.includes(scope.id) || editScopes.includes('*')}
+                            disabled={editScopes.includes('*')}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditScopes([...editScopes, scope.id])
+                              } else {
+                                setEditScopes(editScopes.filter((s) => s !== scope.id))
+                              }
+                            }}
+                            className='h-3.5 w-3.5 rounded border-gray-300'
+                          />
+                          <label htmlFor={`edit-${scope.id}`} className='text-xs' title={scope.description}>
+                            {scope.label}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className='grid grid-cols-2 gap-4'>
               <div className='grid gap-2'>

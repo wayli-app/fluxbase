@@ -6,13 +6,22 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/storage/memory/v2"
 )
 
+var rateLimiterMetrics *observability.Metrics
+
+// SetRateLimiterMetrics sets the metrics instance for rate limiter
+func SetRateLimiterMetrics(m *observability.Metrics) {
+	rateLimiterMetrics = m
+}
+
 // RateLimiterConfig holds configuration for rate limiting
 type RateLimiterConfig struct {
+	Name       string                  // Name of the rate limiter (for metrics)
 	Max        int                     // Maximum number of requests
 	Expiration time.Duration           // Time window for the rate limit
 	KeyFunc    func(*fiber.Ctx) string // Function to generate the key for rate limiting
@@ -51,11 +60,22 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 			config.Max, config.Expiration.String())
 	}
 
+	// Capture name for closure
+	limiterName := config.Name
+	if limiterName == "" {
+		limiterName = "default"
+	}
+
 	return limiter.New(limiter.Config{
 		Max:          config.Max,
 		Expiration:   config.Expiration,
 		KeyGenerator: config.KeyFunc,
 		LimitReached: func(c *fiber.Ctx) error {
+			// Record rate limit hit metric
+			if rateLimiterMetrics != nil {
+				rateLimiterMetrics.RecordRateLimitHit(limiterName, c.IP())
+			}
+
 			retryAfter := int(config.Expiration.Seconds())
 			c.Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
@@ -72,6 +92,7 @@ func NewRateLimiter(config RateLimiterConfig) fiber.Handler {
 // AuthLoginLimiter limits login attempts per IP
 func AuthLoginLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_login",
 		Max:        10,
 		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
@@ -84,6 +105,7 @@ func AuthLoginLimiter() fiber.Handler {
 // AuthSignupLimiter limits signup attempts per IP
 func AuthSignupLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_signup",
 		Max:        10,
 		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
@@ -96,6 +118,7 @@ func AuthSignupLimiter() fiber.Handler {
 // AuthPasswordResetLimiter limits password reset requests per IP
 func AuthPasswordResetLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_password_reset",
 		Max:        5,
 		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
@@ -109,6 +132,7 @@ func AuthPasswordResetLimiter() fiber.Handler {
 // Strict rate limiting to prevent brute-force attacks on 6-digit TOTP codes
 func Auth2FALimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_2fa",
 		Max:        5,
 		Expiration: 5 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
@@ -121,6 +145,7 @@ func Auth2FALimiter() fiber.Handler {
 // AuthRefreshLimiter limits token refresh attempts per token
 func AuthRefreshLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_refresh",
 		Max:        10,
 		Expiration: 1 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {
@@ -141,6 +166,7 @@ func AuthRefreshLimiter() fiber.Handler {
 // AuthMagicLinkLimiter limits magic link requests per IP
 func AuthMagicLinkLimiter() fiber.Handler {
 	return NewRateLimiter(RateLimiterConfig{
+		Name:       "auth_magic_link",
 		Max:        5,
 		Expiration: 15 * time.Minute,
 		KeyFunc: func(c *fiber.Ctx) string {

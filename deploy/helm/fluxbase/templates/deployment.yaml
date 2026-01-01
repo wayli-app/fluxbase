@@ -263,6 +263,8 @@ spec:
               value: {{ .Values.config.auth.enable_magic_link | quote }}
             - name: FLUXBASE_AUTH_TOTP_ISSUER
               value: {{ .Values.config.auth.totp_issuer | quote }}
+            - name: FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS
+              value: {{ .Values.config.auth.allow_user_client_keys | quote }}
 
             # ===========================================
             # OAuth/OIDC Configuration

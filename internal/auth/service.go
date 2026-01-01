@@ -9,6 +9,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/google/uuid"
 )
 
@@ -35,6 +36,26 @@ type Service struct {
 	emailService            RealEmailService
 	baseURL                 string
 	emailVerificationExpiry time.Duration
+	metrics                 *observability.Metrics
+}
+
+// SetMetrics sets the metrics instance for recording auth metrics
+func (s *Service) SetMetrics(m *observability.Metrics) {
+	s.metrics = m
+}
+
+// recordAuthAttempt records an authentication attempt to metrics
+func (s *Service) recordAuthAttempt(method string, success bool, reason string) {
+	if s.metrics != nil {
+		s.metrics.RecordAuthAttempt(method, success, reason)
+	}
+}
+
+// recordAuthToken records an issued auth token to metrics
+func (s *Service) recordAuthToken(tokenType string) {
+	if s.metrics != nil {
+		s.metrics.RecordAuthToken(tokenType)
+	}
 }
 
 // FullEmailService is a complete email service interface
@@ -303,6 +324,7 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 					"reason": "user_not_found",
 				},
 			})
+			s.recordAuthAttempt("password", false, "user_not_found")
 			return nil, fmt.Errorf("invalid email or password")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -335,6 +357,7 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 					"reason": "account_locked",
 				},
 			})
+			s.recordAuthAttempt("password", false, "account_locked")
 			return nil, ErrAccountLocked
 		}
 	}
@@ -370,6 +393,7 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 			})
 		}
 
+		s.recordAuthAttempt("password", false, "invalid_password")
 		return nil, fmt.Errorf("invalid email or password")
 	}
 
@@ -391,6 +415,7 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 				"reason": "email_not_verified",
 			},
 		})
+		s.recordAuthAttempt("password", false, "email_not_verified")
 		return nil, ErrEmailNotVerified
 	}
 
@@ -419,6 +444,11 @@ func (s *Service) SignIn(ctx context.Context, req SignInRequest) (*SignInRespons
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
+
+	// Record successful auth and token issuance
+	s.recordAuthAttempt("password", true, "")
+	s.recordAuthToken("access")
+	s.recordAuthToken("refresh")
 
 	return &SignInResponse{
 		User:         user,

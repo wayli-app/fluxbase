@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/rs/zerolog/log"
@@ -17,6 +18,36 @@ type Manager struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	ps          pubsub.PubSub // For cross-instance broadcasting
+	metrics     *observability.Metrics
+}
+
+// SetMetrics sets the metrics instance for recording realtime metrics
+func (m *Manager) SetMetrics(metrics *observability.Metrics) {
+	m.metrics = metrics
+}
+
+// updateMetrics updates the realtime metrics gauges
+func (m *Manager) updateMetrics() {
+	if m.metrics == nil {
+		return
+	}
+
+	m.mu.RLock()
+	connections := len(m.connections)
+	channels := 0
+	subscriptions := 0
+	channelSet := make(map[string]struct{})
+
+	for _, conn := range m.connections {
+		for ch := range conn.Subscriptions {
+			channelSet[ch] = struct{}{}
+			subscriptions++
+		}
+	}
+	channels = len(channelSet)
+	m.mu.RUnlock()
+
+	m.metrics.UpdateRealtimeStats(connections, channels, subscriptions)
 }
 
 // NewManager creates a new connection manager
@@ -109,10 +140,12 @@ func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
 // AddConnection adds a new WebSocket connection
 func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string) *Connection {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	connection := NewConnection(id, conn, userID, role)
 	m.connections[id] = connection
+	m.mu.Unlock()
+
+	// Update metrics after releasing lock
+	m.updateMetrics()
 
 	log.Info().
 		Str("connection_id", id).
@@ -144,6 +177,9 @@ func (m *Manager) RemoveConnection(id string) {
 
 	_ = connection.Close()
 
+	// Update metrics after releasing lock
+	m.updateMetrics()
+
 	log.Info().
 		Str("connection_id", id).
 		Msg("WebSocket connection closed")
@@ -170,8 +206,16 @@ func (m *Manager) BroadcastToChannel(channel string, message ServerMessage) int 
 					Str("connection_id", conn.ID).
 					Str("channel", channel).
 					Msg("Failed to broadcast message to connection")
+				// Record error metric
+				if m.metrics != nil {
+					m.metrics.RecordRealtimeError("send_failed")
+				}
 			} else {
 				sentCount++
+				// Record message sent metric
+				if m.metrics != nil {
+					m.metrics.RecordRealtimeMessage(string(message.Type))
+				}
 			}
 		}
 	}
@@ -188,6 +232,7 @@ func (m *Manager) BroadcastToChannel(channel string, message ServerMessage) int 
 type ConnectionInfo struct {
 	ID          string  `json:"id"`
 	UserID      *string `json:"user_id"`
+	Email       *string `json:"email"`
 	RemoteAddr  string  `json:"remote_addr"`
 	ConnectedAt string  `json:"connected_at"`
 }
@@ -217,6 +262,30 @@ func (m *Manager) GetDetailedStats() map[string]interface{} {
 		"total_connections": len(m.connections),
 		"connections":       connections,
 	}
+}
+
+// GetConnectionsForStats returns all connections as ConnectionInfo slice
+// This is used by the stats handler which will enrich with emails
+func (m *Manager) GetConnectionsForStats() []ConnectionInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	connections := make([]ConnectionInfo, 0, len(m.connections))
+	for _, conn := range m.connections {
+		remoteAddr := "unknown"
+		if conn.Conn != nil {
+			remoteAddr = conn.Conn.RemoteAddr().String()
+		}
+
+		connections = append(connections, ConnectionInfo{
+			ID:          conn.ID,
+			UserID:      conn.UserID,
+			RemoteAddr:  remoteAddr,
+			ConnectedAt: conn.ConnectedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+
+	return connections
 }
 
 // Shutdown gracefully shuts down the manager

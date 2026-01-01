@@ -112,6 +112,12 @@ type Server struct {
 	jobsSchedulerLeader      *scaling.LeaderElector
 	functionsSchedulerLeader *scaling.LeaderElector
 	rpcSchedulerLeader       *scaling.LeaderElector
+
+	// Metrics components
+	metrics         *observability.Metrics
+	metricsServer   *observability.MetricsServer
+	startTime       time.Time
+	metricsStopChan chan struct{}
 }
 
 // NewServer creates a new HTTP server
@@ -183,7 +189,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
 
 	// Initialize API key service
-	clientKeyService := auth.NewClientKeyService(db.Pool())
+	// Settings cache will be injected after auth service is initialized to enable
+	// the 'allow_user_client_keys' setting check during client key validation
+	clientKeyService := auth.NewClientKeyService(db.Pool(), nil)
 
 	// Initialize storage service (use public URL for signed URLs that users will access)
 	storageService, err := storage.NewService(&cfg.Storage, cfg.GetPublicBaseURL(), cfg.Auth.JWTSecret)
@@ -320,6 +328,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	if err := emailManager.RefreshFromSettings(context.Background()); err != nil {
 		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
 	}
+
+	// Inject settings cache into client key service for 'allow_user_client_keys' setting
+	clientKeyService.SetSettingsCache(authService.GetSettingsCache())
 
 	// Encrypt any existing plaintext OAuth provider secrets
 	if err := oauthProviderHandler.EncryptExistingSecrets(context.Background()); err != nil {
@@ -584,6 +595,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		secretsStorage:        secretsStorage,
 		serviceKeyHandler:     serviceKeyHandler,
 		mcpHandler:            mcp.NewHandler(&cfg.MCP, db),
+		metrics:               observability.NewMetrics(),
+		startTime:             time.Now(),
 	}
 
 	// Initialize MCP Server if enabled
@@ -797,6 +810,48 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		server.branchScheduler.Start()
 	}
 
+	// Start Prometheus metrics server if enabled
+	if cfg.Metrics.Enabled {
+		server.metricsServer = observability.NewMetricsServer(cfg.Metrics.Port, cfg.Metrics.Path)
+		if err := server.metricsServer.Start(); err != nil {
+			log.Error().Err(err).Msg("Failed to start metrics server")
+		}
+
+		// Wire up database metrics
+		db.SetMetrics(server.metrics)
+
+		// Wire up storage metrics
+		if storageService != nil {
+			storageService.SetMetrics(server.metrics)
+		}
+
+		// Wire up auth metrics
+		authService.SetMetrics(server.metrics)
+
+		// Wire up realtime metrics
+		if realtimeManager != nil {
+			realtimeManager.SetMetrics(server.metrics)
+		}
+
+		// Wire up rate limiter metrics
+		middleware.SetRateLimiterMetrics(server.metrics)
+
+		// Start uptime tracking goroutine
+		server.metricsStopChan = make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					server.metrics.UpdateUptime(server.startTime)
+				case <-server.metricsStopChan:
+					return
+				}
+			}
+		}()
+	}
+
 	// Auto-load AI chatbots if enabled
 	if cfg.AI.Enabled && cfg.AI.AutoLoadOnBoot && aiHandler != nil {
 		if err := aiHandler.AutoLoadChatbots(context.Background()); err != nil {
@@ -963,6 +1018,12 @@ func (s *Server) setupMiddlewares() {
 		}))
 	}
 
+	// Prometheus metrics middleware - collects HTTP metrics
+	if s.config.Metrics.Enabled && s.metrics != nil {
+		log.Debug().Msg("Adding Prometheus metrics middleware")
+		s.app.Use(s.metrics.MetricsMiddleware())
+	}
+
 	// Security headers middleware - protect against common attacks
 	// Apply different CSP for admin UI (needs Google Fonts) vs API routes
 	log.Debug().Msg("Adding security headers middleware")
@@ -1121,7 +1182,8 @@ func (s *Server) setupRoutes() {
 	userSecrets.Delete("/*", s.userSettingsHandler.DeleteSecret)
 
 	// client keys routes - require authentication
-	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	// When 'allow_user_client_keys' setting is disabled, only admins can manage keys
+	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager, s.authHandler.authService.GetSettingsCache())
 
 	// Secrets routes - require authentication
 	s.secretsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
@@ -2103,6 +2165,18 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.branchManager.Close()
 	}
 
+	// Stop metrics uptime goroutine
+	if s.metricsStopChan != nil {
+		close(s.metricsStopChan)
+	}
+
+	// Shutdown metrics server
+	if s.metricsServer != nil {
+		if err := s.metricsServer.Shutdown(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to shutdown metrics server")
+		}
+	}
+
 	// Shutdown OpenTelemetry tracer (flush remaining spans)
 	if s.tracer != nil {
 		if err := s.tracer.Shutdown(ctx); err != nil {
@@ -2245,8 +2319,89 @@ func (s *Server) handleRealtimeStats(c *fiber.Ctx) error {
 		})
 	}
 
-	stats := s.realtimeHandler.GetDetailedStats()
-	return c.JSON(stats)
+	// Parse pagination parameters
+	const defaultLimit = 25
+	const maxLimit = 100
+	limit := c.QueryInt("limit", defaultLimit)
+	offset := c.QueryInt("offset", 0)
+	search := strings.ToLower(c.Query("search", ""))
+
+	limit, offset = NormalizePaginationParams(limit, offset, defaultLimit, maxLimit)
+
+	// Get all connections from the manager
+	manager := s.realtimeHandler.GetManager()
+	allConnections := manager.GetConnectionsForStats()
+
+	// Build a map of user IDs to emails by querying the database
+	userIDs := make([]string, 0)
+	for _, conn := range allConnections {
+		if conn.UserID != nil {
+			userIDs = append(userIDs, *conn.UserID)
+		}
+	}
+
+	// Lookup user emails
+	emailMap := make(map[string]string)
+	if len(userIDs) > 0 {
+		query := `SELECT id, email FROM auth.users WHERE id = ANY($1)`
+		rows, err := s.db.Pool().Query(c.Context(), query, userIDs)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var id, email string
+				if err := rows.Scan(&id, &email); err == nil {
+					emailMap[id] = email
+				}
+			}
+		}
+	}
+
+	// Enrich connections with emails
+	enrichedConnections := make([]realtime.ConnectionInfo, 0, len(allConnections))
+	for _, conn := range allConnections {
+		if conn.UserID != nil {
+			if email, ok := emailMap[*conn.UserID]; ok {
+				conn.Email = &email
+			}
+		}
+		enrichedConnections = append(enrichedConnections, conn)
+	}
+
+	// Apply search filter (case-insensitive)
+	var filteredConnections []realtime.ConnectionInfo
+	if search != "" {
+		for _, conn := range enrichedConnections {
+			// Search by connection ID, user ID, email, or IP address
+			if strings.Contains(strings.ToLower(conn.ID), search) ||
+				strings.Contains(strings.ToLower(conn.RemoteAddr), search) ||
+				(conn.UserID != nil && strings.Contains(strings.ToLower(*conn.UserID), search)) ||
+				(conn.Email != nil && strings.Contains(strings.ToLower(*conn.Email), search)) {
+				filteredConnections = append(filteredConnections, conn)
+			}
+		}
+	} else {
+		filteredConnections = enrichedConnections
+	}
+
+	// Calculate total before pagination
+	total := len(filteredConnections)
+
+	// Apply pagination
+	if offset >= len(filteredConnections) {
+		filteredConnections = []realtime.ConnectionInfo{}
+	} else {
+		filteredConnections = filteredConnections[offset:]
+	}
+	if len(filteredConnections) > limit {
+		filteredConnections = filteredConnections[:limit]
+	}
+
+	return c.JSON(fiber.Map{
+		"total_connections": total,
+		"connections":       filteredConnections,
+		"limit":             limit,
+		"offset":            offset,
+	})
 }
 
 // BroadcastRequest represents a broadcast request

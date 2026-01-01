@@ -146,6 +146,7 @@ config:
     enable_signup: true
     enable_magic_link: true
     totp_issuer: "Fluxbase"
+    allow_user_client_keys: true  # Allow users to create their own client keys
 
     ## OAuth/OIDC Configuration
     ## Configure OAuth 2.0 and OIDC providers for social login and enterprise SSO
