@@ -250,7 +250,7 @@ func (h *ServiceKeyHandler) UpdateServiceKey(c *fiber.Ctx) error {
 	}
 
 	// Validate scopes if provided
-	if req.Scopes != nil && len(req.Scopes) > 0 {
+	if len(req.Scopes) > 0 {
 		if err := auth.ValidateScopes(req.Scopes); err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("Invalid scopes: %v", err),
