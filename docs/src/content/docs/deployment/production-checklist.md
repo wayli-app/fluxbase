@@ -432,12 +432,6 @@ Complete this checklist before deploying Fluxbase to production to ensure securi
 ### Load Testing
 
 - [ ] **Load Test**: Performed at expected peak load
-
-  ```bash
-  # Example with k6
-  k6 run --vus 100 --duration 30s load-test.js
-  ```
-
 - [ ] **Stress Test**: Performed beyond expected load
 - [ ] **Results**: Documented and acceptable
 

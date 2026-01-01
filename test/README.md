@@ -65,13 +65,6 @@ Tests complete user workflows from HTTP request to database:
 
 **Run with**: `make test-e2e` or `make test-full`
 
-### 4. Load Tests
-
-**Location**: `/test/load/` (K6 scripts)
-**Purpose**: Performance testing and capacity planning
-
-See [load/README.md](load/README.md) for detailed documentation.
-
 ## Quick Start
 
 ### Your First Test

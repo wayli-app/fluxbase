@@ -31,7 +31,6 @@ make build            # Build binary
 make test             # Run all tests
 make test-unit        # Unit tests only
 make test-integration # Integration tests
-make test-load        # k6 load tests
 
 # Database
 make migrate-up       # Apply migrations
@@ -96,7 +95,7 @@ psql -h postgres -U postgres -d fluxbase_dev
 
 ### Testing
 
-- k6 (load testing), gotestsum, ginkgo
+- gotestsum, ginkgo
 
 ### Database
 

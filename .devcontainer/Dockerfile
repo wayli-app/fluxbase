@@ -84,14 +84,6 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm /tmp/deno.zip \
     && deno --version
 
-# Install k6 for load testing (using direct download to avoid keyserver issues)
-RUN K6_VERSION=$(curl -s https://api.github.com/repos/grafana/k6/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/') \
-    && curl -L "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" -o k6.tar.gz \
-    && tar -xzf k6.tar.gz \
-    && mv k6-v${K6_VERSION}-linux-amd64/k6 /usr/local/bin/ \
-    && rm -rf k6.tar.gz k6-v${K6_VERSION}-linux-amd64 \
-    && k6 version
-
 # Create vscode user
 ARG USERNAME=vscode
 ARG USER_UID=1000

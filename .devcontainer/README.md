@@ -15,7 +15,7 @@ This devcontainer provides a complete development environment for Fluxbase with 
 
 - **Go Tools**: gopls, dlv, golangci-lint, air, migrate, swag, mockery, staticcheck
 - **Node Tools**: TypeScript, ESLint, Prettier, tsx, nodemon
-- **Testing**: k6 (load testing), gotestsum, ginkgo
+- **Testing**: gotestsum, ginkgo
 - **Database**: psql, pgAdmin 4, SQLTools
 - **Utilities**: git, gh, docker, make, httpie, jq, tree
 
@@ -85,7 +85,6 @@ make test
 # Run specific test types
 make test-unit
 make test-integration
-make test-load
 
 # Build the binary
 make build
@@ -224,14 +223,6 @@ make vet   # Run go vet
 ```bash
 make migrate-up    # Apply migrations
 make migrate-down  # Rollback migrations
-```
-
-### Load Testing
-
-k6 is pre-installed:
-
-```bash
-make test-load  # Run k6 load tests
 ```
 
 ## VS Code Tips

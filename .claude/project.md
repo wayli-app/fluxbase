@@ -62,7 +62,7 @@ fluxbase/
 - **Migrations**: golang-migrate
 - **Config**: Viper
 - **Logging**: Zerolog
-- **Testing**: testify, k6
+- **Testing**: testify
 - **Docs**: Docusaurus 3
 - **CI/CD**: GitHub Actions
 

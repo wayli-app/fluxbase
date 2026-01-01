@@ -69,7 +69,6 @@ test_command "docker" "which docker"
 test_command "make" "which make"
 test_command "jq" "which jq"
 test_command "httpie" "which http"
-test_command "k6" "which k6"
 echo ""
 
 # Test Project Structure
