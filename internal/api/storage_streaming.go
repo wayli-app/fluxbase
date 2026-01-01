@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
@@ -87,11 +89,19 @@ func (h *StorageHandler) StreamUpload(c *fiber.Ctx) error {
 	ctx := c.Context()
 
 	// Get the request body as a stream reader
-	body := c.Request().BodyStream()
+	// Try streaming first, fall back to buffered body
+	var body io.Reader
+	body = c.Request().BodyStream()
 	if body == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "request body is required",
-		})
+		// BodyStream can be nil if the body was buffered as bytes
+		// Fall back to reading the buffered body
+		bodyBytes := c.Body()
+		if len(bodyBytes) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "request body is required",
+			})
+		}
+		body = bytes.NewReader(bodyBytes)
 	}
 
 	// Upload the file to storage provider (streaming)
