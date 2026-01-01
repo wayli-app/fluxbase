@@ -51,7 +51,7 @@ Monitor your Fluxbase instance health and usage.
 
 ### Access the Admin Dashboard
 
-1. Navigate to `http://localhost:3001` (or your configured admin URL)
+1. Navigate to `http://localhost:8080/admin` (or your configured admin URL)
 2. Log in with your admin credentials
 3. If this is first setup, create your admin account
 

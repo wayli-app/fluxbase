@@ -88,7 +88,7 @@ EOF
     echo -e "${GREEN}✓ Created $ENV_FILE${NC}"
     echo ""
     echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${YELLOW}  SAVE THIS - Setup Token for Admin Dashboard:${NC}"
+    echo -e "${YELLOW}  Use the setup token for creating the first user of the admin dashboard:${NC}"
     echo -e "${GREEN}  $SETUP_TOKEN${NC}"
     echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
     echo ""

@@ -212,11 +212,11 @@ if [ "$FAILED" -gt 0 ]; then
                 grep '"Action":"output"' | \
                 sed 's/.*"Output":"//; s/"[,}].*//; s/\\n/\n/g; s/\\t/    /g; s/\\"/"/g')
 
-            # Try to find error-related output
+            # Try to find error-related output (increased line limit from 30 to 60)
             ERROR_OUTPUT=$(echo "$ALL_TEST_OUTPUT" | awk '
                 /Error:|FAIL:|Test:|Error Trace:|Messages:|panic/ { printing=1 }
                 printing { print; lines++ }
-                lines >= 30 { exit }
+                lines >= 60 { exit }
             ')
 
             if [ -n "$ERROR_OUTPUT" ]; then

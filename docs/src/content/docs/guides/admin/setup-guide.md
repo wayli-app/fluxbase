@@ -24,15 +24,15 @@ cd deploy
 
 The script generates:
 
-| Secret | Purpose |
-|--------|---------|
-| `FLUXBASE_AUTH_JWT_SECRET` | Signs authentication tokens |
-| `FLUXBASE_ENCRYPTION_KEY` | Encrypts secrets and OAuth tokens (must be exactly 32 characters) |
-| `FLUXBASE_SECURITY_SETUP_TOKEN` | One-time token to access the setup page |
-| `POSTGRES_PASSWORD` | Database password |
+| Secret                          | Purpose                                                           |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `FLUXBASE_AUTH_JWT_SECRET`      | Signs authentication tokens                                       |
+| `FLUXBASE_ENCRYPTION_KEY`       | Encrypts secrets and OAuth tokens (must be exactly 32 characters) |
+| `FLUXBASE_SECURITY_SETUP_TOKEN` | One-time token to access the setup page                           |
+| `POSTGRES_PASSWORD`             | Database password                                                 |
 
-:::caution[Save Your Setup Token]
-The setup token is displayed **only once** during generation. Save it securely - you'll need it to create your admin account.
+:::caution[Setup Token]
+You need the setup token **once** when registering the first dashboard user.
 :::
 
 ### Manual Generation
@@ -122,12 +122,12 @@ If you see "Admin setup is disabled", ensure the `FLUXBASE_SECURITY_SETUP_TOKEN`
 
 ### Account Details
 
-| Field | Requirements |
-|-------|--------------|
-| **Full Name** | Minimum 2 characters |
-| **Email** | Valid email address (used for login) |
-| **Password** | Minimum 12 characters |
-| **Confirm Password** | Must match password |
+| Field                | Requirements                         |
+| -------------------- | ------------------------------------ |
+| **Full Name**        | Minimum 2 characters                 |
+| **Email**            | Valid email address (used for login) |
+| **Password**         | Minimum 12 characters                |
+| **Confirm Password** | Must match password                  |
 
 ### Password Requirements
 

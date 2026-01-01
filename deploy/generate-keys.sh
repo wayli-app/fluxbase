@@ -106,7 +106,7 @@ EOF
     echo -e "${BLUE}                         Next Steps${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${YELLOW}Save your Setup Token (needed for admin dashboard):${NC}"
+    echo -e "${YELLOW}Use your setup token to create your first admin user:${NC}"
     echo -e "${GREEN}$SETUP_TOKEN${NC}"
     echo ""
     echo -e "${BLUE}Start Fluxbase:${NC}"

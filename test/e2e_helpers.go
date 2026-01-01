@@ -576,7 +576,8 @@ func GetTestConfig() *config.Config {
 		Admin: config.AdminConfig{
 			Enabled: true, // Enable admin dashboard for e2e tests
 		},
-		Debug: true,
+		EncryptionKey: "test-encryption-key-32-bytes!!!!", // Exactly 32 bytes for AES-256
+		Debug:         true,
 	}
 }
 
