@@ -2,28 +2,28 @@
 title: "Fluxbase vs Supabase"
 ---
 
-Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~80MB container (~50MB binary). If you're evaluating Fluxbase as a Supabase or Firebase alternative, this guide highlights key differences.
+Fluxbase provides API-compatible alternatives to Supabase's core features in a single ~80MB container (~70MB binary). If you're evaluating Fluxbase as a Supabase or Firebase alternative, this guide highlights key differences.
 
 ## Quick Comparison
 
-| Feature                | Fluxbase                       | Supabase                   | Firebase             |
-| ---------------------- | ------------------------------ | -------------------------- | -------------------- |
-| **Deployment**         | ~50MB binary / ~80MB container | ~13 containers (~2.5GB)    | Cloud only           |
-| **Dependencies**       | PostgreSQL only                | PostgreSQL + 5+ services   | Proprietary          |
-| **Self-hosting**       | ✅ Easy                        | ⚠️ Complex                 | ❌ No                |
-| **REST API**           | ✅ Built-in                    | ✅ PostgREST               | ✅ Auto-generated    |
-| **Authentication**     | ✅ Built-in                    | ✅ GoTrue                  | ✅ Built-in          |
-| **Realtime**           | ✅ WebSocket                   | ✅ WebSocket               | ✅ WebSocket         |
-| **Storage**            | ✅ S3 or local                 | ✅ S3 or local             | ✅ Cloud Storage     |
-| **Edge Functions**     | ✅ Deno                        | ✅ Deno                    | ✅ Cloud Functions   |
-| **Secrets**            | ✅ Built-in                    | ✅ Vault                   | ❌ No                |
-| **AI Chatbots**        | ✅ Built-in                    | ❌ No                      | ❌ No                |
-| **Background Jobs**    | ✅ Built-in                    | ✅ pg_cron (ext)           | ❌ No                |
-| **Database**           | PostgreSQL 15+                 | PostgreSQL 15+             | Proprietary (NoSQL)  |
-| **Row-Level Security** | ✅ Yes                         | ✅ Yes                     | ⚠️ Rules-based       |
-| **Client SDK**         | TypeScript/JS                  | TypeScript/JS              | TypeScript/JS        |
-| **Horizontal Scaling** | ✅ Yes (distributed backends)  | ✅ Yes (read replicas)     | ✅ Yes (auto)        |
-| **Open Source**        | ✅ ELv2                        | ✅ Apache 2.0              | ❌ Proprietary       |
+| Feature                | Fluxbase                       | Supabase                 | Firebase            |
+| ---------------------- | ------------------------------ | ------------------------ | ------------------- |
+| **Deployment**         | ~70MB binary / ~80MB container | ~13 containers (~2.5GB)  | Cloud only          |
+| **Dependencies**       | PostgreSQL only                | PostgreSQL + 5+ services | Proprietary         |
+| **Self-hosting**       | ✅ Easy                        | ⚠️ Complex               | ❌ No               |
+| **REST API**           | ✅ Built-in                    | ✅ PostgREST             | ✅ Auto-generated   |
+| **Authentication**     | ✅ Built-in                    | ✅ GoTrue                | ✅ Built-in         |
+| **Realtime**           | ✅ WebSocket                   | ✅ WebSocket             | ✅ WebSocket        |
+| **Storage**            | ✅ S3 or local                 | ✅ S3 or local           | ✅ Cloud Storage    |
+| **Edge Functions**     | ✅ Deno                        | ✅ Deno                  | ✅ Cloud Functions  |
+| **Secrets**            | ✅ Built-in                    | ✅ Vault                 | ❌ No               |
+| **AI Chatbots**        | ✅ Built-in                    | ❌ No                    | ❌ No               |
+| **Background Jobs**    | ✅ Built-in                    | ✅ pg_cron (ext)         | ❌ No               |
+| **Database**           | PostgreSQL 15+                 | PostgreSQL 15+           | Proprietary (NoSQL) |
+| **Row-Level Security** | ✅ Yes                         | ✅ Yes                   | ⚠️ Rules-based      |
+| **Client SDK**         | TypeScript/JS                  | TypeScript/JS            | TypeScript/JS       |
+| **Horizontal Scaling** | ✅ Yes (distributed backends)  | ✅ Yes (read replicas)   | ✅ Yes (auto)       |
+| **Open Source**        | ✅ ELv2                        | ✅ Apache 2.0            | ❌ Proprietary      |
 
 ## SDK Compatibility
 
@@ -69,14 +69,10 @@ const {
 
 Both support email/password, magic links, OAuth providers, and session management.
 
-**RLS syntax difference:**
+**RLS syntax:**
 
 ```sql
--- Supabase
 USING (auth.uid() = user_id)
-
--- Fluxbase
-USING (current_setting('app.user_id', true)::uuid = user_id)
 ```
 
 ## Realtime

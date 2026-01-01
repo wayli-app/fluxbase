@@ -30,7 +30,6 @@ Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative
    ```
 
 2. **Reopen in Container**
-
    - Click "Reopen in Container" when prompted
    - Or: `F1` → "Dev Containers: Reopen in Container"
    - First build: ~5-10 minutes
@@ -265,12 +264,6 @@ Now that you have Fluxbase running, explore these guides:
 - **[Edge Functions](docs/docs/guides/edge-functions.md)** - Deploy serverless TypeScript/JavaScript functions
 - **[Storage](docs/docs/guides/storage.md)** - File uploads, downloads, and access control
 - **[Realtime](docs/docs/guides/realtime.md)** - WebSocket subscriptions for live data
-
-### Example Applications
-
-- **[Todo App](examples/todo-app/)** - Simple CRUD with authentication (Beginner)
-- **[Blog Platform](examples/blog-platform/)** - SSR with Next.js (Intermediate)
-- **[Chat App](examples/chat-app/)** - Realtime messaging (Intermediate)
 
 ### Production Deployment
 

@@ -114,40 +114,95 @@ ORDER BY created_at DESC;
 4. **Review audit logs** - Regularly check for suspicious activity
 5. **Keep sessions short** - Configure appropriate session timeouts
 
-## Configuration
-
-Configure the admin dashboard via environment variables:
-
-```bash
-# Admin dashboard port
-FLUXBASE_ADMIN_PORT=3001
-
-# Session configuration
-FLUXBASE_ADMIN_SESSION_SECRET=your-secret-key
-FLUXBASE_ADMIN_SESSION_TIMEOUT=24h
-
-# Database connection
-DATABASE_URL=postgresql://user:pass@localhost:5432/fluxbase
-```
-
 ## Common Tasks
 
-### Creating Admin Users
+### Managing Admin Users
 
-Use the initial setup flow or invite via command line:
+List all admin users:
 
 ```bash
-# Create additional admin user
-fluxbase admin create-user \
-  --email admin@example.com \
-  --name "Admin User"
+fluxbase admin users list
+```
+
+Invite a new admin user:
+
+```bash
+fluxbase admin users invite --email admin@example.com
+fluxbase admin users invite --email admin@example.com --role dashboard_admin
+```
+
+View admin user details:
+
+```bash
+fluxbase admin users get <user-id>
+```
+
+Delete an admin user:
+
+```bash
+fluxbase admin users delete <user-id>
+```
+
+### Managing Admin Invitations
+
+List pending invitations:
+
+```bash
+fluxbase admin invitations list
+fluxbase admin invitations list --include-accepted --include-expired
+```
+
+Revoke a pending invitation:
+
+```bash
+fluxbase admin invitations revoke <token>
+```
+
+### Managing Admin Sessions
+
+List active admin sessions:
+
+```bash
+fluxbase admin sessions list
+```
+
+Revoke a specific session:
+
+```bash
+fluxbase admin sessions revoke <session-id>
+```
+
+Revoke all sessions for a user:
+
+```bash
+fluxbase admin sessions revoke-all <user-id>
 ```
 
 ### Resetting Admin Password
 
 ```bash
-# Reset admin password
-fluxbase admin reset-password --email admin@example.com
+fluxbase admin password-reset --email admin@example.com
+```
+
+### Managing Application Users
+
+The `fluxbase users` command manages application end users (not admin users):
+
+```bash
+# List all app users
+fluxbase users list
+
+# Search users by email
+fluxbase users list --search john
+
+# View user details
+fluxbase users get <user-id>
+
+# Invite a new app user
+fluxbase users invite --email user@example.com
+
+# Delete an app user
+fluxbase users delete <user-id>
 ```
 
 ## Guides

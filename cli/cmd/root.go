@@ -108,6 +108,8 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(servicekeysCmd)
 	rootCmd.AddCommand(branchCmd)
+	rootCmd.AddCommand(adminCmd)
+	rootCmd.AddCommand(usersCmd)
 }
 
 func initConfig() {
