@@ -848,6 +848,22 @@ spec:
               value: {{ .Values.config.admin.enabled | quote }}
 
             # ===========================================
+            # MCP Configuration (Model Context Protocol)
+            # ===========================================
+            - name: FLUXBASE_MCP_ENABLED
+              value: {{ .Values.config.mcp.enabled | quote }}
+            {{- if .Values.config.mcp.enabled }}
+            - name: FLUXBASE_MCP_BASE_PATH
+              value: {{ .Values.config.mcp.base_path | quote }}
+            - name: FLUXBASE_MCP_SESSION_TIMEOUT
+              value: {{ .Values.config.mcp.session_timeout | quote }}
+            - name: FLUXBASE_MCP_MAX_MESSAGE_SIZE
+              value: {{ .Values.config.mcp.max_message_size | quote }}
+            - name: FLUXBASE_MCP_RATE_LIMIT_PER_MIN
+              value: {{ .Values.config.mcp.rate_limit_per_min | quote }}
+            {{- end }}
+
+            # ===========================================
             # General Configuration
             # ===========================================
             {{- if .Values.config.base_url }}

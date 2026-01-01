@@ -117,6 +117,109 @@ EOF
 fi
 echo "✅ Shell completions configured"
 
+# Install Claude Code CLI
+echo "🤖 Installing Claude Code CLI..."
+sudo npm install -g @anthropic-ai/claude-code 2>/dev/null || true
+if command -v claude &> /dev/null; then
+  echo "✅ Claude Code CLI installed"
+else
+  echo "⚠️  Claude Code CLI installation failed - you can install it manually with: npm install -g @anthropic-ai/claude-code"
+fi
+
+# Configure Claude MCP server for Fluxbase
+# The .mcp.json file uses FLUXBASE_SERVICE_ROLE_KEY which is generated at runtime
+# We need to add a helper script to fetch and configure the key when Fluxbase is running
+echo "🔌 Configuring Claude MCP server..."
+mkdir -p /home/vscode/.local/bin/
+cat > /home/vscode/.local/bin/configure-claude-mcp << 'SCRIPT'
+#!/bin/bash
+# Configure Claude MCP server with Fluxbase service role key
+# Run this after starting Fluxbase with 'make dev'
+
+set -e
+
+# Load .env file if it exists (export all variables)
+if [ -f /workspace/.env ]; then
+  set -a  # automatically export all variables
+  source /workspace/.env
+  set +a
+fi
+
+# Check if Fluxbase is running
+if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
+  echo "❌ Fluxbase is not running. Start it with 'make dev' first."
+  exit 1
+fi
+
+# Check if MCP is enabled
+MCP_HEALTH=$(curl -s http://localhost:8080/mcp/health 2>/dev/null || echo '{"status":"not found"}')
+if echo "$MCP_HEALTH" | grep -q '"status":"not found"'; then
+  echo "❌ MCP server is not enabled. Enable it in fluxbase.yaml:"
+  echo "   mcp:"
+  echo "     enabled: true"
+  exit 1
+fi
+
+# Get the service role key from environment
+if [ -z "$FLUXBASE_SERVICE_ROLE_KEY" ]; then
+  echo "⚠️  FLUXBASE_SERVICE_ROLE_KEY not found."
+  echo ""
+  echo "   Add it to your .env file:"
+  echo "   FLUXBASE_SERVICE_ROLE_KEY=your-jwt-token"
+  echo ""
+  echo "   Or generate one with the Fluxbase CLI:"
+  echo "   fluxbase auth generate-service-key"
+  exit 1
+fi
+
+# Configure Claude MCP server using the CLI
+if command -v claude &> /dev/null; then
+  echo "🔧 Configuring Claude MCP server..."
+
+  # Remove existing fluxbase server if it exists
+  claude mcp remove fluxbase 2>/dev/null || true
+
+  # Add the Fluxbase MCP server with HTTP transport
+  claude mcp add --transport http fluxbase http://localhost:8080/mcp \
+    --header "Authorization: Bearer $FLUXBASE_SERVICE_ROLE_KEY"
+
+  echo "✅ Claude MCP server configured successfully!"
+  echo ""
+  echo "   You can now use Claude Code to interact with Fluxbase."
+  echo "   Try: 'claude' and ask about your database tables."
+else
+  echo "⚠️  Claude CLI not found. Install with: npm install -g @anthropic-ai/claude-code"
+fi
+SCRIPT
+mkdir -p /home/vscode/.local/bin
+chmod +x /home/vscode/.local/bin/configure-claude-mcp
+echo "✅ Claude MCP configuration helper installed (run 'configure-claude-mcp' after starting Fluxbase)"
+
+# Set up git pre-commit hook
+echo "🪝 Setting up git pre-commit hook..."
+cat > /workspace/.git/hooks/pre-commit << 'HOOK'
+#!/bin/bash
+
+# Pre-commit hook for Fluxbase
+# Runs linting checks before allowing commits
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Run golangci-lint on Go files
+echo "Running golangci-lint..."
+if ! golangci-lint run ./...; then
+    echo ""
+    echo "❌ golangci-lint failed. Please fix the issues above before committing."
+    exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
+HOOK
+chmod +x /workspace/.git/hooks/pre-commit
+echo "✅ Git pre-commit hook configured"
+
 # SQLTools configuration for PostgreSQL
 echo "🔧 Configuring SQLTools..."
 mkdir -p /home/vscode/.config/Code/User
@@ -169,8 +272,14 @@ echo "  - MailHog: http://localhost:8025"
 echo "  - MinIO Console: http://localhost:9001"
 echo "  - Documentation: http://localhost:4321 (when running)"
 echo ""
+echo "🤖 AI Assistant:"
+echo "  - Claude Code CLI: claude"
+echo "  - Claude VSCode extension is pre-installed"
+echo "  - Configure MCP: configure-claude-mcp (after 'make dev')"
+echo ""
 echo "💡 Tips:"
 echo "  - Use 'make help' to see all available commands"
 echo "  - Rebuild CLI after changes: make cli && sudo cp build/fluxbase /usr/local/bin/fluxbase"
 echo "  - Read .claude/instructions.md for development guidelines"
+echo "  - Pre-commit hook runs golangci-lint automatically"
 echo ""

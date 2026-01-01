@@ -184,7 +184,7 @@ func RequireEitherAuth(authService *auth.Service, clientKeyService *auth.ClientK
 	}
 }
 
-// RequireScope checks if the authenticated user/client key has required scopes
+// RequireScope checks if the authenticated user/client key/service key has required scopes
 func RequireScope(requiredScopes ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authType := c.Locals("auth_type")
@@ -195,6 +195,33 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 			if !ok {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"error": "No scopes found for client key",
+				})
+			}
+
+			// Check if all required scopes are present
+			for _, required := range requiredScopes {
+				found := false
+				for _, scope := range scopes {
+					if scope == required || scope == "*" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"error":          "Insufficient permissions",
+						"required_scope": required,
+					})
+				}
+			}
+		}
+
+		// If authenticated via service key, check scopes
+		if authType == "service_key" {
+			scopes, ok := c.Locals("service_key_scopes").([]string)
+			if !ok {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"error": "No scopes found for service key",
 				})
 			}
 

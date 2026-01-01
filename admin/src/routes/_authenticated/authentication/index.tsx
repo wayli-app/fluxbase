@@ -337,6 +337,12 @@ function OAuthProvidersTab() {
                               App
                             </Badge>
                           )}
+                          {provider.source === 'config' && (
+                            <Badge variant='secondary' className='text-xs gap-1'>
+                              <Settings className='h-3 w-3' />
+                              Config
+                            </Badge>
+                          )}
                         </div>
                         <div className='grid grid-cols-2 gap-4 text-sm'>
                           <div>
@@ -352,7 +358,7 @@ function OAuthProvidersTab() {
                               Client Secret
                             </Label>
                             <p className='font-mono text-xs'>
-                              {provider.client_secret ? '••••••••' : 'Not set'}
+                              {provider.has_secret ? '••••••••' : 'Not set'}
                             </p>
                           </div>
                           <div className='col-span-2'>
@@ -441,29 +447,31 @@ function OAuthProvidersTab() {
                         </div>
                       </div>
                       <div className='ml-4 flex gap-2'>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => {
-                            setEditingProvider(provider)
-                            setSelectedProvider(provider.id)
-                            setCustomProviderName(provider.display_name)
-                            setClientId(provider.client_id)
-                            setClientSecret('')
-                            setAllowDashboardLogin(provider.allow_dashboard_login)
-                            setAllowAppLogin(provider.allow_app_login)
-                            setRequiredClaims(provider.required_claims || {})
-                            setDeniedClaims(provider.denied_claims || {})
-                            if (provider.is_custom) {
-                              setCustomAuthUrl(provider.authorization_url || '')
-                              setCustomTokenUrl(provider.token_url || '')
-                              setCustomUserInfoUrl(provider.user_info_url || '')
-                            }
-                            setShowEditProvider(true)
-                          }}
-                        >
-                          Edit
-                        </Button>
+                        {provider.source !== 'config' && (
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => {
+                              setEditingProvider(provider)
+                              setSelectedProvider(provider.id)
+                              setCustomProviderName(provider.display_name)
+                              setClientId(provider.client_id)
+                              setClientSecret('')
+                              setAllowDashboardLogin(provider.allow_dashboard_login)
+                              setAllowAppLogin(provider.allow_app_login)
+                              setRequiredClaims(provider.required_claims || {})
+                              setDeniedClaims(provider.denied_claims || {})
+                              if (provider.is_custom) {
+                                setCustomAuthUrl(provider.authorization_url || '')
+                                setCustomTokenUrl(provider.token_url || '')
+                                setCustomUserInfoUrl(provider.user_info_url || '')
+                              }
+                              setShowEditProvider(true)
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        )}
                         <Button
                           variant='outline'
                           size='sm'
@@ -481,17 +489,19 @@ function OAuthProvidersTab() {
                         >
                           Test
                         </Button>
-                        <Button
-                          variant='destructive'
-                          size='sm'
-                          onClick={() => {
-                            setDeletingProvider(provider)
-                            setShowDeleteProviderConfirm(true)
-                          }}
-                          disabled={deleteProviderMutation.isPending}
-                        >
-                          <X className='h-4 w-4' />
-                        </Button>
+                        {provider.source !== 'config' && (
+                          <Button
+                            variant='destructive'
+                            size='sm'
+                            onClick={() => {
+                              setDeletingProvider(provider)
+                              setShowDeleteProviderConfirm(true)
+                            }}
+                            disabled={deleteProviderMutation.isPending}
+                          >
+                            <X className='h-4 w-4' />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>

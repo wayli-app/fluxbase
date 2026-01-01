@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/fluxbase-eu/fluxbase/internal/auth"
 )
 
 // ServiceKeyHandler handles service key management requests
@@ -177,6 +179,13 @@ func (h *ServiceKeyHandler) CreateServiceKey(c *fiber.Ctx) error {
 		scopes = []string{"*"}
 	}
 
+	// Validate scopes
+	if err := auth.ValidateScopes(scopes); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("Invalid scopes: %v", err),
+		})
+	}
+
 	// Get creator user ID if available
 	var createdBy *uuid.UUID
 	if userID, ok := c.Locals("user_id").(uuid.UUID); ok {
@@ -238,6 +247,15 @@ func (h *ServiceKeyHandler) UpdateServiceKey(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
+	}
+
+	// Validate scopes if provided
+	if req.Scopes != nil && len(req.Scopes) > 0 {
+		if err := auth.ValidateScopes(req.Scopes); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fmt.Sprintf("Invalid scopes: %v", err),
+			})
+		}
 	}
 
 	// Build dynamic update query

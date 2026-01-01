@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,16 +20,90 @@ import (
 
 // OAuthProviderHandler handles OAuth provider configuration management
 type OAuthProviderHandler struct {
-	db            *pgxpool.Pool
-	settingsCache *auth.SettingsCache
+	db              *pgxpool.Pool
+	settingsCache   *auth.SettingsCache
+	encryptionKey   string
+	configProviders []config.OAuthProviderConfig
+	baseURL         string
 }
 
 // NewOAuthProviderHandler creates a new OAuth provider handler
-func NewOAuthProviderHandler(db *pgxpool.Pool, settingsCache *auth.SettingsCache) *OAuthProviderHandler {
+func NewOAuthProviderHandler(db *pgxpool.Pool, settingsCache *auth.SettingsCache, encryptionKey, baseURL string, configProviders []config.OAuthProviderConfig) *OAuthProviderHandler {
 	return &OAuthProviderHandler{
-		db:            db,
-		settingsCache: settingsCache,
+		db:              db,
+		settingsCache:   settingsCache,
+		encryptionKey:   encryptionKey,
+		configProviders: configProviders,
+		baseURL:         baseURL,
 	}
+}
+
+// EncryptExistingSecrets encrypts any plaintext client secrets in the database.
+// This should be called on startup to migrate existing secrets to encrypted format.
+func (h *OAuthProviderHandler) EncryptExistingSecrets(ctx context.Context) error {
+	// Find all providers with unencrypted secrets
+	query := `
+		SELECT id, provider_name, client_secret
+		FROM dashboard.oauth_providers
+		WHERE (is_encrypted IS NULL OR is_encrypted = false)
+		  AND client_secret IS NOT NULL
+		  AND client_secret != ''
+	`
+
+	rows, err := h.db.Query(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to query unencrypted providers: %w", err)
+	}
+	defer rows.Close()
+
+	var toEncrypt []struct {
+		ID           uuid.UUID
+		ProviderName string
+		ClientSecret string
+	}
+
+	for rows.Next() {
+		var provider struct {
+			ID           uuid.UUID
+			ProviderName string
+			ClientSecret string
+		}
+		if err := rows.Scan(&provider.ID, &provider.ProviderName, &provider.ClientSecret); err != nil {
+			log.Error().Err(err).Msg("Failed to scan OAuth provider for encryption")
+			continue
+		}
+		toEncrypt = append(toEncrypt, provider)
+	}
+
+	if len(toEncrypt) == 0 {
+		return nil
+	}
+
+	log.Info().Int("count", len(toEncrypt)).Msg("Encrypting existing OAuth provider secrets")
+
+	// Encrypt each secret
+	for _, provider := range toEncrypt {
+		encryptedSecret, encErr := crypto.Encrypt(provider.ClientSecret, h.encryptionKey)
+		if encErr != nil {
+			log.Error().Err(encErr).Str("provider", provider.ProviderName).Msg("Failed to encrypt client secret")
+			continue
+		}
+
+		_, updateErr := h.db.Exec(ctx, `
+			UPDATE dashboard.oauth_providers
+			SET client_secret = $1, is_encrypted = true
+			WHERE id = $2
+		`, encryptedSecret, provider.ID)
+
+		if updateErr != nil {
+			log.Error().Err(updateErr).Str("provider", provider.ProviderName).Msg("Failed to update encrypted client secret")
+			continue
+		}
+
+		log.Info().Str("provider", provider.ProviderName).Msg("Encrypted OAuth provider client secret")
+	}
+
+	return nil
 }
 
 // OAuthProvider represents an OAuth provider configuration
@@ -38,6 +114,7 @@ type OAuthProvider struct {
 	Enabled             bool                `json:"enabled"`
 	ClientID            string              `json:"client_id"`
 	ClientSecret        string              `json:"client_secret,omitempty"` // Omitted in GET responses
+	HasSecret           bool                `json:"has_secret"`              // Indicates if a client secret is set
 	RedirectURL         string              `json:"redirect_url"`
 	Scopes              []string            `json:"scopes"`
 	IsCustom            bool                `json:"is_custom"`
@@ -48,6 +125,7 @@ type OAuthProvider struct {
 	AllowAppLogin       bool                `json:"allow_app_login"`
 	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
 	DeniedClaims        map[string][]string `json:"denied_claims,omitempty"`
+	Source              string              `json:"source,omitempty"` // "database" or "config"
 	CreatedAt           time.Time           `json:"created_at"`
 	UpdatedAt           time.Time           `json:"updated_at"`
 }
@@ -121,7 +199,8 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		       is_custom, authorization_url, token_url, user_info_url,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
 		       required_claims, denied_claims,
-		       created_at, updated_at
+		       created_at, updated_at,
+		       (client_secret IS NOT NULL AND client_secret != '') AS has_secret
 		FROM dashboard.oauth_providers
 		ORDER BY display_name
 	`
@@ -144,7 +223,7 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 			&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 			&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
 			&requiredClaimsJSON, &deniedClaimsJSON,
-			&p.CreatedAt, &p.UpdatedAt,
+			&p.CreatedAt, &p.UpdatedAt, &p.HasSecret,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan OAuth provider")
@@ -159,7 +238,56 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		}
 		// Don't return client_secret in list
 		p.ClientSecret = ""
+		p.Source = "database"
 		providers = append(providers, p)
+	}
+
+	// Track which providers already exist in database (by name)
+	dbProviderNames := make(map[string]bool)
+	for _, p := range providers {
+		dbProviderNames[p.ProviderName] = true
+	}
+
+	// Add config-based providers that aren't already in the database
+	for _, cp := range h.configProviders {
+		if dbProviderNames[cp.Name] {
+			// Skip - already exists in database
+			continue
+		}
+
+		// Determine display name
+		displayName := cp.DisplayName
+		if displayName == "" {
+			// Capitalize first letter
+			if len(cp.Name) > 0 {
+				displayName = strings.ToUpper(cp.Name[:1]) + cp.Name[1:]
+			} else {
+				displayName = cp.Name
+			}
+		}
+
+		// Build redirect URL
+		redirectURL := fmt.Sprintf("%s/api/v1/auth/oauth/%s/callback", h.baseURL, cp.Name)
+
+		configProvider := OAuthProvider{
+			ID:                  uuid.MustParse("00000000-0000-0000-0000-000000000000"), // Placeholder ID for config providers
+			ProviderName:        cp.Name,
+			DisplayName:         displayName,
+			Enabled:             cp.Enabled,
+			ClientID:            cp.ClientID,
+			HasSecret:           cp.ClientSecret != "",
+			RedirectURL:         redirectURL,
+			Scopes:              cp.Scopes,
+			IsCustom:            cp.IssuerURL != "",
+			AllowDashboardLogin: cp.AllowDashboardLogin,
+			AllowAppLogin:       cp.AllowAppLogin,
+			RequiredClaims:      cp.RequiredClaims,
+			DeniedClaims:        cp.DeniedClaims,
+			Source:              "config",
+			CreatedAt:           time.Now(),
+			UpdatedAt:           time.Now(),
+		}
+		providers = append(providers, configProvider)
 	}
 
 	return c.JSON(providers)
@@ -182,7 +310,8 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 		       is_custom, authorization_url, token_url, user_info_url,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
 		       required_claims, denied_claims,
-		       created_at, updated_at
+		       created_at, updated_at,
+		       (client_secret IS NOT NULL AND client_secret != '') AS has_secret
 		FROM dashboard.oauth_providers
 		WHERE id = $1
 	`
@@ -194,7 +323,7 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 		&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
 		&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
 		&requiredClaimsJSON, &deniedClaimsJSON,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.CreatedAt, &p.UpdatedAt, &p.HasSecret,
 	)
 
 	if err == sql.ErrNoRows {
@@ -278,21 +407,30 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		deniedClaimsJSON, _ = json.Marshal(req.DeniedClaims)
 	}
 
+	// Encrypt client secret before storing
+	encryptedSecret, err := crypto.Encrypt(req.ClientSecret, h.encryptionKey)
+	if err != nil {
+		log.Error().Err(err).Str("provider", req.ProviderName).Msg("Failed to encrypt client secret")
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to encrypt client secret",
+		})
+	}
+
 	query := `
 		INSERT INTO dashboard.oauth_providers (
 			provider_name, display_name, enabled, client_id, client_secret,
 			redirect_url, scopes, is_custom, authorization_url, token_url,
 			user_info_url, allow_dashboard_login, allow_app_login, required_claims, denied_claims,
-			created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+			created_by, updated_by, is_encrypted
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, true)
 		RETURNING id, created_at, updated_at
 	`
 
 	var id uuid.UUID
 	var createdAt, updatedAt time.Time
-	err := h.db.QueryRow(
+	err = h.db.QueryRow(
 		ctx, query,
-		req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, req.ClientSecret,
+		req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, encryptedSecret,
 		req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
 		req.UserInfoURL, allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
 	).Scan(&id, &createdAt, &updatedAt)
@@ -361,8 +499,19 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c *fiber.Ctx) error {
 		argPos++
 	}
 	if req.ClientSecret != nil && *req.ClientSecret != "" {
+		// Encrypt client secret before storing
+		encryptedSecret, encErr := crypto.Encrypt(*req.ClientSecret, h.encryptionKey)
+		if encErr != nil {
+			log.Error().Err(encErr).Msg("Failed to encrypt client secret")
+			return c.Status(500).JSON(fiber.Map{
+				"error": "Failed to encrypt client secret",
+			})
+		}
 		updates = append(updates, fmt.Sprintf("client_secret = $%d", argPos))
-		args = append(args, *req.ClientSecret)
+		args = append(args, encryptedSecret)
+		argPos++
+		updates = append(updates, fmt.Sprintf("is_encrypted = $%d", argPos))
+		args = append(args, true)
 		argPos++
 	}
 	if req.RedirectURL != nil {

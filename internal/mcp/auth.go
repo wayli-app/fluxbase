@@ -259,10 +259,11 @@ func ExtractAuthContext(c *fiber.Ctx) *AuthContext {
 func inferScopesFromRole(role string) []string {
 	switch role {
 	case "admin", "dashboard_admin":
-		// Admins get full access
+		// Admins get full access including DDL operations
 		return []string{"*"}
 	case "authenticated":
-		// Authenticated users get read access to most things
+		// Authenticated users get read/write access to most things
+		// Note: admin:ddl is NOT included - DDL requires explicit admin role
 		return []string{
 			"read:tables",
 			"write:tables",
@@ -314,4 +315,17 @@ const (
 
 	// Admin scopes
 	ScopeAdminSchemas = "admin:schemas" // Access to internal schemas
+	ScopeAdminDDL     = "admin:ddl"     // DDL operations (create/drop tables, etc.)
+
+	// Sync scopes (admin-level code deployment)
+	ScopeSyncFunctions  = "sync:functions"  // Create/update edge functions
+	ScopeSyncJobs       = "sync:jobs"       // Create/update background jobs
+	ScopeSyncRPC        = "sync:rpc"        // Create/update RPC procedures
+	ScopeSyncMigrations = "sync:migrations" // Create/apply migrations (DANGEROUS)
+	ScopeSyncChatbots   = "sync:chatbots"   // Create/update AI chatbots
+
+	// Branching scopes
+	ScopeBranchRead   = "branch:read"   // List and get branch details
+	ScopeBranchWrite  = "branch:write"  // Create, delete, reset branches
+	ScopeBranchAccess = "branch:access" // Grant/revoke branch access
 )

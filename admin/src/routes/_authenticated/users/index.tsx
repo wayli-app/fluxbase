@@ -166,7 +166,7 @@ function UsersPage() {
             </div>
 
             {/* Users Table */}
-            <UsersTable data={users} search={search} navigate={navigate} />
+            <UsersTable data={users} />
           </TabsContent>
         </Tabs>
 

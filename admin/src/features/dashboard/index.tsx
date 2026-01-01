@@ -1,3 +1,4 @@
+import { getRouteApi } from '@tanstack/react-router'
 import {
   Card,
   CardContent,
@@ -5,14 +6,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { FluxbaseStats } from './components/fluxbase-stats'
-import { getRouteApi } from '@tanstack/react-router'
 
 const route = getRouteApi('/_authenticated/')
 
@@ -34,7 +34,9 @@ export function Dashboard() {
       <Main>
         <div className='mb-2 flex items-center justify-between space-y-2'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Fluxbase Dashboard</h1>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              Fluxbase Dashboard
+            </h1>
             <p className='text-muted-foreground text-sm'>
               Monitor your Backend as a Service
             </p>
@@ -46,11 +48,6 @@ export function Dashboard() {
           onValueChange={(tab) => navigate({ search: { tab } })}
           className='space-y-4'
         >
-          <div className='w-full overflow-x-auto pb-2'>
-            <TabsList>
-              <TabsTrigger value='overview'>Overview</TabsTrigger>
-            </TabsList>
-          </div>
           <TabsContent value='overview' className='space-y-4'>
             {/* Fluxbase System Stats */}
             <FluxbaseStats />
@@ -59,12 +56,10 @@ export function Dashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>
-                  Common administrative tasks
-                </CardDescription>
+                <CardDescription>Common administrative tasks</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+                <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4'>
                   <div className='text-sm'>
                     <p className='text-muted-foreground mb-1'>Database</p>
                     <a

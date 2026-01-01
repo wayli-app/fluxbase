@@ -1831,6 +1831,7 @@ export interface OAuthProviderConfig {
   enabled: boolean
   client_id: string
   client_secret?: string
+  has_secret: boolean
   redirect_url: string
   scopes: string[]
   is_custom: boolean
@@ -1841,6 +1842,7 @@ export interface OAuthProviderConfig {
   allow_app_login: boolean
   required_claims?: Record<string, string[]>
   denied_claims?: Record<string, string[]>
+  source?: 'database' | 'config'
   created_at: string
   updated_at: string
 }

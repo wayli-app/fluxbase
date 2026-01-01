@@ -805,7 +805,7 @@ func setDefaults() {
 	viper.SetDefault("graphql.introspection", true)  // Enable introspection (disable in production for security)
 
 	// MCP defaults (Model Context Protocol server for AI assistants)
-	viper.SetDefault("mcp.enabled", false)                 // Disabled by default
+	viper.SetDefault("mcp.enabled", true)                  // Enabled by default
 	viper.SetDefault("mcp.base_path", "/mcp")              // Default MCP endpoint path
 	viper.SetDefault("mcp.session_timeout", "30m")         // 30 minute session timeout
 	viper.SetDefault("mcp.max_message_size", 10*1024*1024) // 10MB max message size

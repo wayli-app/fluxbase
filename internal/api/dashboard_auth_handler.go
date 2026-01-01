@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/email"
 	"github.com/gofiber/fiber/v2"
@@ -27,12 +28,13 @@ import (
 
 // DashboardAuthHandler handles dashboard authentication endpoints
 type DashboardAuthHandler struct {
-	authService  *auth.DashboardAuthService
-	jwtManager   *auth.JWTManager
-	db           *database.Connection
-	samlService  *auth.SAMLService
-	emailService email.Service
-	baseURL      string
+	authService   *auth.DashboardAuthService
+	jwtManager    *auth.JWTManager
+	db            *database.Connection
+	samlService   *auth.SAMLService
+	emailService  email.Service
+	baseURL       string
+	encryptionKey string
 
 	// OAuth state storage (in production, use Redis or database)
 	oauthStates    map[string]*dashboardOAuthState
@@ -50,16 +52,17 @@ type dashboardOAuthState struct {
 }
 
 // NewDashboardAuthHandler creates a new dashboard auth handler
-func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL string) *DashboardAuthHandler {
+func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL, encryptionKey string) *DashboardAuthHandler {
 	return &DashboardAuthHandler{
-		authService:  authService,
-		jwtManager:   jwtManager,
-		db:           db,
-		samlService:  samlService,
-		emailService: emailService,
-		baseURL:      baseURL,
-		oauthStates:  make(map[string]*dashboardOAuthState),
-		oauthConfigs: make(map[string]*oauth2.Config),
+		authService:   authService,
+		jwtManager:    jwtManager,
+		db:            db,
+		samlService:   samlService,
+		emailService:  emailService,
+		baseURL:       baseURL,
+		encryptionKey: encryptionKey,
+		oauthStates:   make(map[string]*dashboardOAuthState),
+		oauthConfigs:  make(map[string]*oauth2.Config),
 	}
 }
 
@@ -739,14 +742,16 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	var clientID, clientSecret, providerName string
 	var scopes []string
 	var isCustom bool
+	var isEncrypted bool
 	var authURL, tokenURL, userInfoURL *string
 	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT client_id, client_secret, provider_name, scopes,
-			       is_custom, authorization_url, token_url, user_info_url
+			       is_custom, authorization_url, token_url, user_info_url,
+			       COALESCE(is_encrypted, false) AS is_encrypted
 			FROM dashboard.oauth_providers
 			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
-		`, providerID).Scan(&clientID, &clientSecret, &providerName, &scopes, &isCustom, &authURL, &tokenURL, &userInfoURL)
+		`, providerID).Scan(&clientID, &clientSecret, &providerName, &scopes, &isCustom, &authURL, &tokenURL, &userInfoURL, &isEncrypted)
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -767,6 +772,16 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 		Bool("has_auth_url", authURL != nil).
 		Bool("has_token_url", tokenURL != nil).
 		Msg("OAuth provider fetched for dashboard login")
+
+	// Decrypt client secret if encrypted
+	if isEncrypted && clientSecret != "" {
+		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		if decErr != nil {
+			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
+			return fiber.NewError(fiber.StatusInternalServerError, "Failed to decrypt client secret")
+		}
+		clientSecret = decryptedSecret
+	}
 
 	// Build OAuth config
 	config := h.buildOAuthConfig(providerName, clientID, clientSecret, scopes, isCustom, authURL, tokenURL)

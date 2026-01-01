@@ -313,7 +313,8 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 	// SECURITY: Only allow providers that enable app login
 	query := `
 		SELECT client_id, client_secret, redirect_url, scopes,
-		       authorization_url, token_url, is_custom, allow_app_login
+		       authorization_url, token_url, is_custom, allow_app_login,
+		       COALESCE(is_encrypted, false) AS is_encrypted
 		FROM dashboard.oauth_providers
 		WHERE provider_name = $1 AND enabled = TRUE
 	`
@@ -323,10 +324,11 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 	var authURL, tokenURL *string
 	var isCustom bool
 	var allowAppLogin bool
+	var isEncrypted bool
 
 	err := h.db.QueryRow(ctx, query, providerName).Scan(
 		&clientID, &clientSecret, &redirectURL, &scopes,
-		&authURL, &tokenURL, &isCustom, &allowAppLogin,
+		&authURL, &tokenURL, &isCustom, &allowAppLogin, &isEncrypted,
 	)
 
 	if err == sql.ErrNoRows {
@@ -339,6 +341,16 @@ func (h *OAuthHandler) getProviderConfig(ctx context.Context, providerName strin
 	// SECURITY: Validate that provider allows app login
 	if !allowAppLogin {
 		return nil, fmt.Errorf("OAuth provider '%s' not enabled for application login", providerName)
+	}
+
+	// Decrypt client secret if encrypted
+	if isEncrypted && clientSecret != "" {
+		decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+		if decErr != nil {
+			log.Error().Err(decErr).Str("provider", providerName).Msg("Failed to decrypt client secret")
+			return nil, fmt.Errorf("failed to decrypt client secret for provider '%s'", providerName)
+		}
+		clientSecret = decryptedSecret
 	}
 
 	// Build OAuth2 config

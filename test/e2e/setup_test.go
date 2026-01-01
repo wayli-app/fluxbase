@@ -65,6 +65,9 @@ func TestMain(m *testing.M) {
 	// Run all tests
 	code := m.Run()
 
+	// Cleanup: Remove test users created during this test run
+	test.CleanupE2ETestUsersGlobal(cfg)
+
 	// Teardown: Clean up test tables after all tests complete
 	teardownTestTables()
 

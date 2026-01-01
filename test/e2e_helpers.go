@@ -69,6 +69,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
 	"github.com/fluxbase-eu/fluxbase/internal/ratelimit"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -224,6 +225,13 @@ func NewTestContext(t *testing.T) *TestContext {
 		ratelimit.GlobalStore = nil
 	}
 
+	// Reset global pub/sub to ensure test isolation
+	// This prevents connection leaks from previous tests
+	if pubsub.GlobalPubSub != nil {
+		_ = pubsub.GlobalPubSub.Close()
+		pubsub.GlobalPubSub = nil
+	}
+
 	// Create server (REST API will now see all migrated tables)
 	server := api.NewServer(cfg, db, "test")
 
@@ -307,6 +315,13 @@ func NewRLSTestContext(t *testing.T) *TestContext {
 		ratelimit.GlobalStore = nil
 	}
 
+	// Reset global pub/sub to ensure test isolation
+	// This prevents connection leaks from previous tests
+	if pubsub.GlobalPubSub != nil {
+		_ = pubsub.GlobalPubSub.Close()
+		pubsub.GlobalPubSub = nil
+	}
+
 	// Create server (REST API will see all migrated tables)
 	server := api.NewServer(cfg, db, "test")
 
@@ -333,6 +348,13 @@ func (tc *TestContext) Close() {
 	if ratelimit.GlobalStore != nil {
 		_ = ratelimit.GlobalStore.Close()
 		ratelimit.GlobalStore = nil
+	}
+
+	// Close global pub/sub after test to prevent connection leaks
+	// The PostgreSQL pub/sub holds a connection for LISTEN/NOTIFY
+	if pubsub.GlobalPubSub != nil {
+		_ = pubsub.GlobalPubSub.Close()
+		pubsub.GlobalPubSub = nil
 	}
 
 	// Then close the database connection

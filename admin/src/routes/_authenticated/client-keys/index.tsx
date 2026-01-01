@@ -169,6 +169,17 @@ const AVAILABLE_SCOPES = [
     name: 'Write AI',
     description: 'Manage conversations, send messages',
   },
+  // Secrets
+  {
+    id: 'read:secrets',
+    name: 'Read Secrets',
+    description: 'View secret names (not values)',
+  },
+  {
+    id: 'write:secrets',
+    name: 'Write Secrets',
+    description: 'Create, update, delete secrets',
+  },
 ]
 
 function ClientKeysPage() {

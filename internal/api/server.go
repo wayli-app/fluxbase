@@ -272,7 +272,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
 	ddlHandler := NewDDLHandler(db)
 	serviceKeyHandler := NewServiceKeyHandler(db.Pool())
-	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache())
+	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache(), cfg.EncryptionKey, cfg.GetPublicBaseURL(), cfg.Auth.OAuthProviders)
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
 	// Use public URL for OAuth callbacks (these are redirects from external OAuth providers)
 	oauthHandler := NewOAuthHandler(db.Pool(), authService, jwtManager, cfg.GetPublicBaseURL(), cfg.EncryptionKey, cfg.Auth.OAuthProviders)
@@ -293,7 +293,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 	samlProviderHandler = NewSAMLProviderHandler(db.Pool(), samlService)
 	// Initialize dashboard auth handler now that samlService is available
-	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL())
+	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)
@@ -319,6 +319,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	emailManager.SetSecretsService(secretsService)
 	if err := emailManager.RefreshFromSettings(context.Background()); err != nil {
 		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
+	}
+
+	// Encrypt any existing plaintext OAuth provider secrets
+	if err := oauthProviderHandler.EncryptExistingSecrets(context.Background()); err != nil {
+		log.Error().Err(err).Msg("Failed to encrypt existing OAuth provider secrets")
 	}
 	sqlHandler := NewSQLHandler(db.Pool(), authService)
 
@@ -864,6 +869,54 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	if s.config.AI.Enabled && s.aiHandler != nil {
 		// SearchVectorsTool requires RAGService - skip if not available
 		log.Debug().Msg("MCP: Vector search tool registration deferred - requires RAG service")
+	}
+
+	// DDL tools (schema/table management)
+	toolRegistry.Register(mcptools.NewListSchemasTool(s.db))
+	toolRegistry.Register(mcptools.NewCreateSchemaTool(s.db))
+	toolRegistry.Register(mcptools.NewCreateTableTool(s.db))
+	toolRegistry.Register(mcptools.NewDropTableTool(s.db))
+	toolRegistry.Register(mcptools.NewAddColumnTool(s.db))
+	toolRegistry.Register(mcptools.NewDropColumnTool(s.db))
+	toolRegistry.Register(mcptools.NewRenameTableTool(s.db))
+
+	// Sync tools (deploy functions, jobs, RPC, migrations, chatbots via MCP)
+	if s.config.Functions.Enabled {
+		functionsStorage := functions.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewSyncFunctionTool(functionsStorage))
+	}
+
+	if s.config.Jobs.Enabled {
+		jobsStorage := jobs.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewSyncJobTool(jobsStorage))
+	}
+
+	if s.config.RPC.Enabled {
+		rpcStorage := rpc.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewSyncRPCTool(rpcStorage))
+	}
+
+	// Migrations sync tool
+	migrationsStorage := migrations.NewStorage(s.db)
+	migrationsExecutor := migrations.NewExecutor(s.db)
+	toolRegistry.Register(mcptools.NewSyncMigrationTool(migrationsStorage, migrationsExecutor))
+
+	// AI/Chatbot sync tool
+	if s.config.AI.Enabled {
+		aiStorage := ai.NewStorage(s.db)
+		toolRegistry.Register(mcptools.NewSyncChatbotTool(aiStorage))
+	}
+
+	// Database branching tools
+	if s.branchManager != nil && s.config.Branching.Enabled {
+		branchStorage := branching.NewStorage(s.db.Pool())
+		toolRegistry.Register(mcptools.NewListBranchesTool(branchStorage))
+		toolRegistry.Register(mcptools.NewGetBranchTool(branchStorage))
+		toolRegistry.Register(mcptools.NewCreateBranchTool(s.branchManager))
+		toolRegistry.Register(mcptools.NewDeleteBranchTool(s.branchManager, branchStorage))
+		toolRegistry.Register(mcptools.NewResetBranchTool(s.branchManager, branchStorage))
+		toolRegistry.Register(mcptools.NewGrantBranchAccessTool(branchStorage))
+		toolRegistry.Register(mcptools.NewRevokeBranchAccessTool(branchStorage))
 	}
 
 	// Register MCP Resources
@@ -2074,6 +2127,24 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Close schema cache (stops invalidation listener)
 	if s.schemaCache != nil {
 		s.schemaCache.Close()
+	}
+
+	// Close global pub/sub (releases PostgreSQL LISTEN connection)
+	if pubsub.GlobalPubSub != nil {
+		log.Info().Msg("Closing global pub/sub")
+		if err := pubsub.GlobalPubSub.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close global pub/sub")
+		}
+		pubsub.GlobalPubSub = nil
+	}
+
+	// Close global rate limit store
+	if ratelimit.GlobalStore != nil {
+		log.Info().Msg("Closing global rate limit store")
+		if err := ratelimit.GlobalStore.Close(); err != nil {
+			log.Warn().Err(err).Msg("Failed to close global rate limit store")
+		}
+		ratelimit.GlobalStore = nil
 	}
 
 	log.Info().Msg("Shutting down HTTP server")

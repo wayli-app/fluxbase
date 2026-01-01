@@ -73,9 +73,129 @@ export const Route = createFileRoute('/_authenticated/service-keys/')({
 })
 
 const AVAILABLE_SCOPES = [
-  { id: 'migrations:*', name: 'Migrations (All)', description: 'Full access to migrations API' },
-  { id: 'migrations:read', name: 'Migrations (Read)', description: 'Read migration status' },
-  { id: 'migrations:write', name: 'Migrations (Write)', description: 'Apply migrations' },
+  // Tables
+  {
+    id: 'read:tables',
+    name: 'Read Tables',
+    description: 'Query database tables',
+  },
+  {
+    id: 'write:tables',
+    name: 'Write Tables',
+    description: 'Insert, update, delete records',
+  },
+  // Storage
+  { id: 'read:storage', name: 'Read Storage', description: 'Download files' },
+  {
+    id: 'write:storage',
+    name: 'Write Storage',
+    description: 'Upload and delete files',
+  },
+  // Functions
+  {
+    id: 'read:functions',
+    name: 'Read Functions',
+    description: 'View functions',
+  },
+  {
+    id: 'execute:functions',
+    name: 'Execute Functions',
+    description: 'Invoke Edge Functions',
+  },
+  // Auth
+  { id: 'read:auth', name: 'Read Auth', description: 'View user profile' },
+  {
+    id: 'write:auth',
+    name: 'Write Auth',
+    description: 'Update user profile, manage 2FA',
+  },
+  // Client Keys
+  { id: 'read:clientkeys', name: 'Read Client Keys', description: 'List client keys' },
+  {
+    id: 'write:clientkeys',
+    name: 'Write Client Keys',
+    description: 'Create, update, revoke client keys',
+  },
+  // Webhooks
+  {
+    id: 'read:webhooks',
+    name: 'Read Webhooks',
+    description: 'List webhooks and deliveries',
+  },
+  {
+    id: 'write:webhooks',
+    name: 'Write Webhooks',
+    description: 'Create, update, delete webhooks',
+  },
+  // Monitoring
+  {
+    id: 'read:monitoring',
+    name: 'Read Monitoring',
+    description: 'View metrics, health, logs',
+  },
+  // Realtime
+  {
+    id: 'realtime:connect',
+    name: 'Realtime Connect',
+    description: 'Connect to realtime channels',
+  },
+  {
+    id: 'realtime:broadcast',
+    name: 'Realtime Broadcast',
+    description: 'Broadcast messages',
+  },
+  // RPC
+  { id: 'read:rpc', name: 'Read RPC', description: 'List RPC procedures' },
+  {
+    id: 'execute:rpc',
+    name: 'Execute RPC',
+    description: 'Invoke RPC procedures',
+  },
+  // Jobs
+  {
+    id: 'read:jobs',
+    name: 'Read Jobs',
+    description: 'View job queues and status',
+  },
+  {
+    id: 'write:jobs',
+    name: 'Write Jobs',
+    description: 'Manage job queue entries',
+  },
+  // AI
+  {
+    id: 'read:ai',
+    name: 'Read AI',
+    description: 'View chatbots and conversations',
+  },
+  {
+    id: 'write:ai',
+    name: 'Write AI',
+    description: 'Manage conversations, send messages',
+  },
+  // Secrets
+  {
+    id: 'read:secrets',
+    name: 'Read Secrets',
+    description: 'View secret names (not values)',
+  },
+  {
+    id: 'write:secrets',
+    name: 'Write Secrets',
+    description: 'Create, update, delete secrets',
+  },
+  // Migrations
+  {
+    id: 'migrations:read',
+    name: 'Migrations (Read)',
+    description: 'Read migration status',
+  },
+  {
+    id: 'migrations:execute',
+    name: 'Migrations (Execute)',
+    description: 'Apply and rollback migrations',
+  },
+  // Wildcard
   { id: '*', name: 'All Scopes', description: 'Full access to all APIs' },
 ]
 

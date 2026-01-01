@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { sleep } from '@/lib/utils'
+import { useQueryClient } from '@tanstack/react-query'
+import { userManagementApi } from '@/lib/api'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { type User } from '../data/schema'
 
 type UserMultiDeleteDialogProps<TData> = {
   open: boolean
@@ -24,6 +26,7 @@ export function UsersMultiDeleteDialog<TData>({
   table,
 }: UserMultiDeleteDialogProps<TData>) {
   const [value, setValue] = useState('')
+  const queryClient = useQueryClient()
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
 
@@ -35,15 +38,21 @@ export function UsersMultiDeleteDialog<TData>({
 
     onOpenChange(false)
 
-    toast.promise(sleep(2000), {
-      loading: 'Deleting users...',
+    const selectedUsers = selectedRows.map((row) => row.original as User)
+    const deletePromise = Promise.all(
+      selectedUsers.map((user) => userManagementApi.deleteUser(user.id))
+    )
+
+    toast.promise(deletePromise, {
+      loading: `Deleting ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}...`,
       success: () => {
         table.resetRowSelection()
-        return `Deleted ${selectedRows.length} ${
-          selectedRows.length > 1 ? 'users' : 'user'
+        queryClient.invalidateQueries({ queryKey: ['users'] })
+        return `Deleted ${selectedUsers.length} ${
+          selectedUsers.length > 1 ? 'users' : 'user'
         }`
       },
-      error: 'Error',
+      error: 'Failed to delete users',
     })
   }
 

@@ -648,7 +648,7 @@ config:
   ## @param config.mcp.rate_limit_per_min Rate limit per minute per client key
   ##
   mcp:
-    enabled: false
+    enabled: true
     base_path: "/mcp"
     session_timeout: "30m"
     max_message_size: 10485760

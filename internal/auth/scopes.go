@@ -54,6 +54,10 @@ const (
 	ScopeSecretsRead  = "read:secrets"
 	ScopeSecretsWrite = "write:secrets"
 
+	// Migrations
+	ScopeMigrationsRead    = "migrations:read"
+	ScopeMigrationsExecute = "migrations:execute"
+
 	// Wildcard scope grants all permissions
 	ScopeWildcard = "*"
 )
@@ -83,6 +87,8 @@ var AllScopes = []string{
 	ScopeAIWrite,
 	ScopeSecretsRead,
 	ScopeSecretsWrite,
+	ScopeMigrationsRead,
+	ScopeMigrationsExecute,
 }
 
 // validScopesMap is a lookup map for O(1) scope validation

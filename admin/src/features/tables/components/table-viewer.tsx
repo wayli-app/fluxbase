@@ -519,7 +519,7 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : hasData ? (
+              ) : (
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
@@ -535,25 +535,22 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                     ))}
                   </TableRow>
                 ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className='h-64 text-center'
-                  >
-                    <div className='flex flex-col items-center justify-center gap-2'>
-                      <p className='text-muted-foreground'>
-                        No records in this table
-                      </p>
-                      <p className='text-muted-foreground text-xs'>
-                        Click "Add Record" to create the first entry
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
               )}
             </TableBody>
           </Table>
+          {/* Empty state - positioned sticky so it's always visible on wide tables */}
+          {!hasData && !isForbidden && (
+            <div className='sticky left-0 flex min-h-48 w-full items-center justify-center'>
+              <div className='flex flex-col items-center justify-center gap-2'>
+                <p className='text-muted-foreground'>
+                  No records in this table
+                </p>
+                <p className='text-muted-foreground text-xs'>
+                  Click "Add Record" to create the first entry
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {hasData && <DataTablePagination table={table} className='mt-auto' />}
