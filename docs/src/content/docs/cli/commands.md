@@ -1111,4 +1111,189 @@ Show connection pool statistics for all branches.
 fluxbase branch stats
 ```
 
-Useful for debugging and monitoring database connections across branches
+Useful for debugging and monitoring database connections across branches.
+
+---
+
+## Admin Commands
+
+Manage admin users, invitations, and sessions for the Fluxbase dashboard. Admin users have access to the admin dashboard for managing database, users, functions, and other platform features.
+
+### Admin User Commands
+
+#### `fluxbase admin users list`
+
+List all admin/dashboard users.
+
+```bash
+fluxbase admin users list
+fluxbase admin users list -o json
+```
+
+#### `fluxbase admin users get`
+
+Get details of a specific admin user.
+
+```bash
+fluxbase admin users get 550e8400-e29b-41d4-a716-446655440000
+```
+
+#### `fluxbase admin users invite`
+
+Invite a new admin user via email.
+
+```bash
+fluxbase admin users invite --email admin@example.com
+fluxbase admin users invite --email admin@example.com --role dashboard_admin
+```
+
+**Flags:**
+
+- `--email` - Email address to invite (required)
+- `--role` - Role for the new user: `dashboard_user` (default) or `dashboard_admin`
+
+#### `fluxbase admin users delete`
+
+Delete an admin user.
+
+```bash
+fluxbase admin users delete 550e8400-e29b-41d4-a716-446655440000
+fluxbase admin users delete 550e8400-e29b-41d4-a716-446655440000 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+### Admin Invitation Commands
+
+#### `fluxbase admin invitations list`
+
+List pending and accepted admin invitations.
+
+```bash
+fluxbase admin invitations list
+fluxbase admin invitations list --include-accepted
+fluxbase admin invitations list --include-expired
+```
+
+**Flags:**
+
+- `--include-accepted` - Include accepted invitations
+- `--include-expired` - Include expired invitations
+
+#### `fluxbase admin invitations revoke`
+
+Revoke a pending admin invitation.
+
+```bash
+fluxbase admin invitations revoke abc123def456
+fluxbase admin invitations revoke abc123def456 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+### Admin Session Commands
+
+#### `fluxbase admin sessions list`
+
+List all active admin sessions.
+
+```bash
+fluxbase admin sessions list
+fluxbase admin sessions list -o json
+```
+
+#### `fluxbase admin sessions revoke`
+
+Revoke a specific admin session.
+
+```bash
+fluxbase admin sessions revoke 550e8400-e29b-41d4-a716-446655440000
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+#### `fluxbase admin sessions revoke-all`
+
+Revoke all sessions for a specific admin user.
+
+```bash
+fluxbase admin sessions revoke-all 550e8400-e29b-41d4-a716-446655440000
+fluxbase admin sessions revoke-all 550e8400-e29b-41d4-a716-446655440000 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
+
+### Admin Password Reset
+
+#### `fluxbase admin password-reset`
+
+Send a password reset email to an admin user.
+
+```bash
+fluxbase admin password-reset --email admin@example.com
+```
+
+**Flags:**
+
+- `--email` - Email address of the admin user (required)
+
+---
+
+## User Commands
+
+Manage application users (end users of your application). For admin/dashboard users, use `fluxbase admin users` instead.
+
+### `fluxbase users list`
+
+List all application users.
+
+```bash
+fluxbase users list
+fluxbase users list -o json
+fluxbase users list --search john
+```
+
+**Flags:**
+
+- `--search` - Search users by email
+
+### `fluxbase users get`
+
+Get details of a specific application user.
+
+```bash
+fluxbase users get 550e8400-e29b-41d4-a716-446655440000
+```
+
+### `fluxbase users invite`
+
+Invite a new application user via email.
+
+```bash
+fluxbase users invite --email user@example.com
+```
+
+**Flags:**
+
+- `--email` - Email address to invite (required)
+
+### `fluxbase users delete`
+
+Delete an application user.
+
+```bash
+fluxbase users delete 550e8400-e29b-41d4-a716-446655440000
+fluxbase users delete 550e8400-e29b-41d4-a716-446655440000 --force
+```
+
+**Flags:**
+
+- `--force`, `-f` - Skip confirmation prompt
