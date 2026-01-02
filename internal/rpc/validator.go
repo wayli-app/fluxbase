@@ -160,8 +160,6 @@ func (v *Validator) ValidateSQL(sql string, allowedTables, allowedSchemas []stri
 		"information_schema",
 		"pg_temp",
 		"pg_toast",
-		"--",       // SQL comment injection
-		"/*",       // Block comment injection
 		"xp_",      // MSSQL stored procedures (defense in depth)
 		"exec(",    // Execution attempt
 		"execute(", // Execution attempt
