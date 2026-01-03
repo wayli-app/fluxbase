@@ -51,22 +51,26 @@ func TestOAuthAuthorizeRedirect(t *testing.T) {
 	// Create a mock OAuth provider
 	createProvider(t, tc, adminToken, "github_test2", "test-client-id", "test-client-secret")
 
-	// Test authorize endpoint - should redirect to OAuth provider
+	// Test authorize endpoint - should return JSON with authorization URL
 	resp := tc.NewRequest("GET", "/api/v1/auth/oauth/github_test2/authorize").
-		Send()
+		Send().
+		AssertStatus(fiber.StatusOK)
 
-	// Should redirect (302 or 307)
-	status := resp.Status()
-	require.True(t, status == fiber.StatusFound || status == fiber.StatusTemporaryRedirect,
-		"Should redirect to OAuth provider, got status: %d", status)
+	var result map[string]interface{}
+	resp.JSON(&result)
 
-	// Check Location header exists
-	location := resp.Header("Location")
-	require.NotEmpty(t, location, "Should have Location header")
-	require.Contains(t, location, "client_id=test-client-id", "Should contain client_id")
-	require.Contains(t, location, "state=", "Should contain state parameter")
+	// Check response contains URL and provider
+	require.Contains(t, result, "url", "Should have url field")
+	require.Contains(t, result, "provider", "Should have provider field")
 
-	t.Logf("OAuth authorization redirects to: %s", location)
+	authURL := result["url"].(string)
+	require.NotEmpty(t, authURL, "Should have authorization URL")
+	require.Contains(t, authURL, "client_id=test-client-id", "Should contain client_id")
+	require.Contains(t, authURL, "state=", "Should contain state parameter")
+
+	require.Equal(t, "github_test2", result["provider"], "Should have correct provider name")
+
+	t.Logf("OAuth authorization URL: %s", authURL)
 }
 
 // TestOAuthCallbackSuccess tests successful OAuth callback
@@ -87,13 +91,18 @@ func TestOAuthCallbackSuccess(t *testing.T) {
 
 	// Get a valid state by calling authorize first
 	authorizeResp := tc.NewRequest("GET", "/api/v1/auth/oauth/mockprovider_test1/authorize").
-		Send()
+		Send().
+		AssertStatus(fiber.StatusOK)
 
-	location := authorizeResp.Header("Location")
-	require.NotEmpty(t, location, "Should have redirect location")
+	var authorizeResult map[string]interface{}
+	authorizeResp.JSON(&authorizeResult)
+	require.Contains(t, authorizeResult, "url", "Should have url field")
 
-	// Extract state from redirect URL
-	state := extractStateFromURL(location)
+	authURL := authorizeResult["url"].(string)
+	require.NotEmpty(t, authURL, "Should have authorization URL")
+
+	// Extract state from authorization URL
+	state := extractStateFromURL(authURL)
 	require.NotEmpty(t, state, "Should have state parameter")
 
 	// Call callback with valid code and state
@@ -202,10 +211,15 @@ func TestOAuthUserLinking(t *testing.T) {
 	// Now authenticate via OAuth with the same email
 	// Get a valid state
 	authorizeResp := tc.NewRequest("GET", "/api/v1/auth/oauth/mockprovider_test2/authorize").
-		Send()
+		Send().
+		AssertStatus(fiber.StatusOK)
 
-	location := authorizeResp.Header("Location")
-	state := extractStateFromURL(location)
+	var authorizeResult map[string]interface{}
+	authorizeResp.JSON(&authorizeResult)
+	require.Contains(t, authorizeResult, "url", "Should have url field")
+
+	authURL := authorizeResult["url"].(string)
+	state := extractStateFromURL(authURL)
 
 	// Call callback
 	resp := tc.NewRequest("GET", fmt.Sprintf("/api/v1/auth/oauth/mockprovider_test2/callback?code=mock_code&state=%s", state)).
@@ -263,9 +277,16 @@ func TestOAuthTokenStorage(t *testing.T) {
 		mockOAuthServer.URL+"/token", mockOAuthServer.URL+"/userinfo")
 
 	// Complete OAuth flow
-	authorizeResp := tc.NewRequest("GET", "/api/v1/auth/oauth/mockprovider_test3/authorize").Send()
-	location := authorizeResp.Header("Location")
-	state := extractStateFromURL(location)
+	authorizeResp := tc.NewRequest("GET", "/api/v1/auth/oauth/mockprovider_test3/authorize").
+		Send().
+		AssertStatus(fiber.StatusOK)
+
+	var authorizeResult map[string]interface{}
+	authorizeResp.JSON(&authorizeResult)
+	require.Contains(t, authorizeResult, "url", "Should have url field")
+
+	authURL := authorizeResult["url"].(string)
+	state := extractStateFromURL(authURL)
 
 	resp := tc.NewRequest("GET", fmt.Sprintf("/api/v1/auth/oauth/mockprovider_test3/callback?code=mock_code&state=%s", state)).
 		Send().
