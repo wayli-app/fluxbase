@@ -52,8 +52,6 @@ services:
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql
-      - ../examples/sql-scripts/create_tables.sql:/docker-entrypoint-initdb.d/01-create-tables.sql:ro
-      - ./init-db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
