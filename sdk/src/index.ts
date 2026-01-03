@@ -398,6 +398,10 @@ export type {
   UpdateOAuthProviderResponse,
   DeleteOAuthProviderResponse,
   ListOAuthProvidersResponse,
+
+  // OAuth Logout types
+  OAuthLogoutOptions,
+  OAuthLogoutResponse,
   AuthSettings,
   UpdateAuthSettingsRequest,
   UpdateAuthSettingsResponse,

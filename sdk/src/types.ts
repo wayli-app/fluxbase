@@ -816,6 +816,33 @@ export interface OAuthUrlResponse {
   provider: string
 }
 
+// OAuth Logout Types
+/**
+ * Options for OAuth logout
+ */
+export interface OAuthLogoutOptions {
+  /** URL to redirect to after logout completes */
+  redirect_url?: string
+}
+
+/**
+ * Response from OAuth logout endpoint
+ */
+export interface OAuthLogoutResponse {
+  /** OAuth provider name */
+  provider: string
+  /** Whether local JWT tokens were revoked */
+  local_tokens_revoked: boolean
+  /** Whether the token was revoked at the OAuth provider */
+  provider_token_revoked: boolean
+  /** Whether the user should be redirected to the provider's logout page */
+  requires_redirect?: boolean
+  /** URL to redirect to for OIDC logout (if requires_redirect is true) */
+  redirect_url?: string
+  /** Warning message if something failed but logout still proceeded */
+  warning?: string
+}
+
 // SAML SSO Types
 /**
  * SAML Identity Provider configuration

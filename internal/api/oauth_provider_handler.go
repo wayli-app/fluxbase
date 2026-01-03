@@ -121,6 +121,8 @@ type OAuthProvider struct {
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
 	TokenURL            *string             `json:"token_url,omitempty"`
 	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	RevocationEndpoint  *string             `json:"revocation_endpoint,omitempty"`  // OAuth 2.0 Token Revocation (RFC 7009)
+	EndSessionEndpoint  *string             `json:"end_session_endpoint,omitempty"` // OIDC RP-Initiated Logout
 	AllowDashboardLogin bool                `json:"allow_dashboard_login"`
 	AllowAppLogin       bool                `json:"allow_app_login"`
 	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
@@ -143,6 +145,8 @@ type CreateOAuthProviderRequest struct {
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
 	TokenURL            *string             `json:"token_url,omitempty"`
 	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	RevocationEndpoint  *string             `json:"revocation_endpoint,omitempty"`  // OAuth 2.0 Token Revocation (RFC 7009)
+	EndSessionEndpoint  *string             `json:"end_session_endpoint,omitempty"` // OIDC RP-Initiated Logout
 	AllowDashboardLogin *bool               `json:"allow_dashboard_login,omitempty"`
 	AllowAppLogin       *bool               `json:"allow_app_login,omitempty"`
 	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
@@ -160,6 +164,8 @@ type UpdateOAuthProviderRequest struct {
 	AuthorizationURL    *string             `json:"authorization_url,omitempty"`
 	TokenURL            *string             `json:"token_url,omitempty"`
 	UserInfoURL         *string             `json:"user_info_url,omitempty"`
+	RevocationEndpoint  *string             `json:"revocation_endpoint,omitempty"`  // OAuth 2.0 Token Revocation (RFC 7009)
+	EndSessionEndpoint  *string             `json:"end_session_endpoint,omitempty"` // OIDC RP-Initiated Logout
 	AllowDashboardLogin *bool               `json:"allow_dashboard_login,omitempty"`
 	AllowAppLogin       *bool               `json:"allow_app_login,omitempty"`
 	RequiredClaims      map[string][]string `json:"required_claims,omitempty"`
@@ -197,6 +203,7 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 	query := `
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
+		       revocation_endpoint, end_session_endpoint,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
 		       required_claims, denied_claims,
 		       created_at, updated_at,
@@ -221,7 +228,8 @@ func (h *OAuthProviderHandler) ListOAuthProviders(c *fiber.Ctx) error {
 		err := rows.Scan(
 			&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 			&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
-			&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+			&p.TokenURL, &p.UserInfoURL, &p.RevocationEndpoint, &p.EndSessionEndpoint,
+			&p.AllowDashboardLogin, &p.AllowAppLogin,
 			&requiredClaimsJSON, &deniedClaimsJSON,
 			&p.CreatedAt, &p.UpdatedAt, &p.HasSecret,
 		)
@@ -308,6 +316,7 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 	query := `
 		SELECT id, provider_name, display_name, enabled, client_id, redirect_url, scopes,
 		       is_custom, authorization_url, token_url, user_info_url,
+		       revocation_endpoint, end_session_endpoint,
 		       COALESCE(allow_dashboard_login, false), COALESCE(allow_app_login, true),
 		       required_claims, denied_claims,
 		       created_at, updated_at,
@@ -321,7 +330,8 @@ func (h *OAuthProviderHandler) GetOAuthProvider(c *fiber.Ctx) error {
 	err = h.db.QueryRow(ctx, query, providerID).Scan(
 		&p.ID, &p.ProviderName, &p.DisplayName, &p.Enabled, &p.ClientID,
 		&p.RedirectURL, &p.Scopes, &p.IsCustom, &p.AuthorizationURL,
-		&p.TokenURL, &p.UserInfoURL, &p.AllowDashboardLogin, &p.AllowAppLogin,
+		&p.TokenURL, &p.UserInfoURL, &p.RevocationEndpoint, &p.EndSessionEndpoint,
+		&p.AllowDashboardLogin, &p.AllowAppLogin,
 		&requiredClaimsJSON, &deniedClaimsJSON,
 		&p.CreatedAt, &p.UpdatedAt, &p.HasSecret,
 	)
@@ -420,9 +430,10 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		INSERT INTO dashboard.oauth_providers (
 			provider_name, display_name, enabled, client_id, client_secret,
 			redirect_url, scopes, is_custom, authorization_url, token_url,
-			user_info_url, allow_dashboard_login, allow_app_login, required_claims, denied_claims,
+			user_info_url, revocation_endpoint, end_session_endpoint,
+			allow_dashboard_login, allow_app_login, required_claims, denied_claims,
 			created_by, updated_by, is_encrypted
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, true)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, true)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -432,7 +443,8 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c *fiber.Ctx) error {
 		ctx, query,
 		req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, encryptedSecret,
 		req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
-		req.UserInfoURL, allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
+		req.UserInfoURL, req.RevocationEndpoint, req.EndSessionEndpoint,
+		allowDashboardLogin, allowAppLogin, requiredClaimsJSON, deniedClaimsJSON, userID,
 	).Scan(&id, &createdAt, &updatedAt)
 
 	if err != nil {
@@ -537,6 +549,16 @@ func (h *OAuthProviderHandler) UpdateOAuthProvider(c *fiber.Ctx) error {
 	if req.UserInfoURL != nil {
 		updates = append(updates, fmt.Sprintf("user_info_url = $%d", argPos))
 		args = append(args, req.UserInfoURL)
+		argPos++
+	}
+	if req.RevocationEndpoint != nil {
+		updates = append(updates, fmt.Sprintf("revocation_endpoint = $%d", argPos))
+		args = append(args, req.RevocationEndpoint)
+		argPos++
+	}
+	if req.EndSessionEndpoint != nil {
+		updates = append(updates, fmt.Sprintf("end_session_endpoint = $%d", argPos))
+		args = append(args, req.EndSessionEndpoint)
 		argPos++
 	}
 	if req.AllowDashboardLogin != nil {

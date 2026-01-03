@@ -27,6 +27,8 @@ import type {
   OAuthProvidersResponse,
   OAuthOptions,
   OAuthUrlResponse,
+  OAuthLogoutOptions,
+  OAuthLogoutResponse,
   AuthChangeEvent,
   AuthStateChangeCallback,
   AuthSubscription,
@@ -845,6 +847,78 @@ export class FluxbaseAuth {
       }
 
       return { provider, url };
+    });
+  }
+
+  /**
+   * Get OAuth logout URL for a provider
+   * Use this to get the logout URL without automatically redirecting
+   * @param provider - OAuth provider name (e.g., 'google', 'github')
+   * @param options - Optional logout configuration
+   * @returns Promise with OAuth logout response including redirect URL if applicable
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.auth.getOAuthLogoutUrl('google')
+   * if (!error && data.redirect_url) {
+   *   // Redirect user to complete logout at provider
+   *   window.location.href = data.redirect_url
+   * }
+   * ```
+   */
+  async getOAuthLogoutUrl(
+    provider: string,
+    options?: OAuthLogoutOptions,
+  ): Promise<DataResponse<OAuthLogoutResponse>> {
+    return wrapAsync(async () => {
+      const response = await this.fetch.post<OAuthLogoutResponse>(
+        `/api/v1/auth/oauth/${provider}/logout`,
+        options || {},
+      );
+
+      // Clear local session
+      this.clearSession();
+
+      return response;
+    });
+  }
+
+  /**
+   * Sign out with OAuth provider logout
+   * Revokes tokens at the OAuth provider and optionally redirects for OIDC logout
+   * @param provider - OAuth provider name (e.g., 'google', 'github')
+   * @param options - Optional logout configuration
+   * @returns Promise with OAuth logout response
+   *
+   * @example
+   * ```typescript
+   * // This will revoke tokens and redirect to provider's logout page if supported
+   * await client.auth.signOutWithOAuth('google', {
+   *   redirect_url: 'https://myapp.com/logged-out'
+   * })
+   * ```
+   */
+  async signOutWithOAuth(
+    provider: string,
+    options?: OAuthLogoutOptions,
+  ): Promise<DataResponse<OAuthLogoutResponse>> {
+    return wrapAsync(async () => {
+      const result = await this.getOAuthLogoutUrl(provider, options);
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      // If redirect is needed and we're in a browser, redirect
+      if (
+        result.data.requires_redirect &&
+        result.data.redirect_url &&
+        typeof window !== "undefined"
+      ) {
+        window.location.href = result.data.redirect_url;
+      }
+
+      return result.data;
     });
   }
 

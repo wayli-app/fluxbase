@@ -1580,6 +1580,14 @@ func (s *Server) setupAuthRoutes(router fiber.Router) {
 	router.Get("/oauth/providers", s.oauthHandler.ListEnabledProviders)
 	router.Get("/oauth/:provider/authorize", s.oauthHandler.Authorize)
 	router.Get("/oauth/:provider/callback", s.oauthHandler.Callback)
+
+	// OAuth Single Logout routes
+	// Logout requires authentication, callback is public (validates via state parameter)
+	router.Post("/oauth/:provider/logout",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		s.oauthHandler.Logout,
+	)
+	router.Get("/oauth/:provider/logout/callback", s.oauthHandler.LogoutCallback)
 }
 
 // setupStorageRoutes sets up storage routes

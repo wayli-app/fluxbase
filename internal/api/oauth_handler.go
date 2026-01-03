@@ -24,6 +24,7 @@ type OAuthHandler struct {
 	authSvc         *auth.Service
 	jwtManager      *auth.JWTManager
 	stateStore      *auth.StateStore
+	logoutService   *auth.OAuthLogoutService
 	baseURL         string
 	encryptionKey   string                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 	configProviders []config.OAuthProviderConfig // OAuth providers from config file
@@ -50,11 +51,26 @@ func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.J
 		}
 	}()
 
+	// Create logout service
+	logoutService := auth.NewOAuthLogoutService(db, encryptionKey)
+
+	// Start cleanup goroutine for expired logout states
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := logoutService.CleanupExpiredLogoutStates(context.Background()); err != nil {
+				log.Warn().Err(err).Msg("Failed to cleanup expired OAuth logout states")
+			}
+		}
+	}()
+
 	return &OAuthHandler{
 		db:              db,
 		authSvc:         authSvc,
 		jwtManager:      jwtManager,
 		stateStore:      stateStore,
+		logoutService:   logoutService,
 		baseURL:         baseURL,
 		encryptionKey:   encryptionKey,
 		configProviders: configProviders,
@@ -96,8 +112,11 @@ func (h *OAuthHandler) Authorize(c *fiber.Ctx) error {
 		Str("state", state).
 		Msg("OAuth authorization initiated")
 
-	// Redirect to OAuth provider
-	return c.Redirect(authURL)
+	// Return JSON with authorization URL (SDK handles the redirect)
+	return c.JSON(fiber.Map{
+		"url":      authURL,
+		"provider": providerName,
+	})
 }
 
 // Callback handles the OAuth callback
@@ -523,6 +542,12 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 	// SECURITY: Encrypt OAuth tokens before storing (if encryption key is configured)
 	accessTokenToStore := token.AccessToken
 	refreshTokenToStore := token.RefreshToken
+	// Extract ID token for OIDC logout support
+	var idTokenToStore string
+	if idTokenRaw, ok := token.Extra("id_token").(string); ok {
+		idTokenToStore = idTokenRaw
+	}
+
 	if h.encryptionKey != "" {
 		var encErr error
 		accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
@@ -533,20 +558,25 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 		if encErr != nil {
 			return nil, false, fmt.Errorf("failed to encrypt refresh token: %w", encErr)
 		}
+		idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+		if encErr != nil {
+			return nil, false, fmt.Errorf("failed to encrypt id token: %w", encErr)
+		}
 	}
 
-	// Store OAuth token
+	// Store OAuth token (including id_token for OIDC logout)
 	query = `
-		INSERT INTO auth.oauth_tokens (user_id, provider, access_token, refresh_token, token_expiry)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO auth.oauth_tokens (user_id, provider, access_token, refresh_token, id_token, token_expiry)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (user_id, provider)
 		DO UPDATE SET
 			access_token = EXCLUDED.access_token,
 			refresh_token = EXCLUDED.refresh_token,
+			id_token = EXCLUDED.id_token,
 			token_expiry = EXCLUDED.token_expiry,
 			updated_at = CURRENT_TIMESTAMP
 	`
-	_, err = tx.Exec(ctx, query, userID, providerName, accessTokenToStore, refreshTokenToStore, token.Expiry)
+	_, err = tx.Exec(ctx, query, userID, providerName, accessTokenToStore, refreshTokenToStore, idTokenToStore, token.Expiry)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to store OAuth token: %w", err)
 	}
@@ -571,4 +601,209 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 	}
 
 	return user, isNewUser, nil
+}
+
+// Logout initiates OAuth Single Logout
+// POST /api/v1/auth/oauth/:provider/logout
+func (h *OAuthHandler) Logout(c *fiber.Ctx) error {
+	ctx := c.Context()
+	providerName := c.Params("provider")
+
+	// Get user ID from JWT
+	userID := c.Locals("user_id")
+	if userID == nil || userID.(string) == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+	userIDStr := userID.(string)
+
+	// Parse optional redirect URL from request body
+	var reqBody struct {
+		RedirectURL string `json:"redirect_url"`
+	}
+	_ = c.BodyParser(&reqBody)
+
+	// Get provider configuration to check for SLO endpoints
+	var revocationEndpoint, endSessionEndpoint, clientID, clientSecret *string
+	var isEncrypted bool
+	err := h.db.QueryRow(ctx, `
+		SELECT client_id, client_secret, revocation_endpoint, end_session_endpoint,
+		       COALESCE(is_encrypted, false) AS is_encrypted
+		FROM dashboard.oauth_providers
+		WHERE provider_name = $1 AND enabled = TRUE
+	`, providerName).Scan(&clientID, &clientSecret, &revocationEndpoint, &endSessionEndpoint, &isEncrypted)
+
+	if err != nil {
+		log.Error().Err(err).Str("provider", providerName).Msg("Failed to get OAuth provider for logout")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("OAuth provider '%s' not found or disabled", providerName),
+		})
+	}
+
+	// Use default endpoints if not configured
+	if revocationEndpoint == nil || *revocationEndpoint == "" {
+		defaultEndpoint := auth.GetDefaultRevocationEndpoint(auth.OAuthProvider(providerName))
+		revocationEndpoint = &defaultEndpoint
+	}
+	if endSessionEndpoint == nil || *endSessionEndpoint == "" {
+		defaultEndpoint := auth.GetDefaultEndSessionEndpoint(auth.OAuthProvider(providerName))
+		endSessionEndpoint = &defaultEndpoint
+	}
+
+	// Decrypt client secret if encrypted
+	clientSecretDecrypted := ""
+	if clientSecret != nil && *clientSecret != "" {
+		if isEncrypted && h.encryptionKey != "" {
+			decrypted, err := crypto.Decrypt(*clientSecret, h.encryptionKey)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to decrypt client secret for logout")
+			} else {
+				clientSecretDecrypted = decrypted
+			}
+		} else {
+			clientSecretDecrypted = *clientSecret
+		}
+	}
+
+	result := &auth.OAuthLogoutResult{
+		Provider:             providerName,
+		LocalLogoutComplete:  false,
+		ProviderTokenRevoked: false,
+		RequiresRedirect:     false,
+	}
+
+	// Get user's stored OAuth token
+	storedToken, err := h.logoutService.GetUserOAuthToken(ctx, userIDStr, providerName)
+	if err != nil {
+		log.Warn().Err(err).Str("provider", providerName).Str("user_id", userIDStr).Msg("No OAuth token found for logout")
+		// Continue with local logout even if no token found
+	}
+
+	// Try to revoke token at provider (RFC 7009)
+	if storedToken != nil && revocationEndpoint != nil && *revocationEndpoint != "" {
+		// Decrypt access token if encrypted
+		accessToken := storedToken.AccessToken
+		if h.encryptionKey != "" && accessToken != "" {
+			decrypted, err := crypto.Decrypt(accessToken, h.encryptionKey)
+			if err == nil {
+				accessToken = decrypted
+			}
+		}
+
+		if accessToken != "" && clientID != nil {
+			err = h.logoutService.RevokeTokenAtProvider(ctx, *revocationEndpoint, accessToken, "access_token", *clientID, clientSecretDecrypted)
+			if err != nil {
+				log.Warn().Err(err).Str("provider", providerName).Msg("Failed to revoke token at provider")
+				result.Warning = "Token revocation at provider failed"
+			} else {
+				result.ProviderTokenRevoked = true
+				log.Info().Str("provider", providerName).Str("user_id", userIDStr).Msg("OAuth token revoked at provider")
+			}
+		}
+	}
+
+	// Generate OIDC logout URL if provider supports it
+	if endSessionEndpoint != nil && *endSessionEndpoint != "" {
+		// Generate state for CSRF protection
+		state, err := auth.GenerateLogoutState()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to generate logout state")
+		} else {
+			// Determine post-logout redirect URI
+			postLogoutRedirectURI := reqBody.RedirectURL
+			if postLogoutRedirectURI == "" {
+				postLogoutRedirectURI = fmt.Sprintf("%s/api/v1/auth/oauth/%s/logout/callback", h.baseURL, providerName)
+			}
+
+			// Store logout state for callback validation
+			err = h.logoutService.StoreLogoutState(ctx, userIDStr, providerName, state, postLogoutRedirectURI)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to store logout state")
+			} else {
+				// Get ID token for id_token_hint
+				idToken := ""
+				if storedToken != nil && storedToken.IDToken != "" {
+					idToken = storedToken.IDToken
+					// Decrypt if encrypted
+					if h.encryptionKey != "" {
+						decrypted, err := crypto.Decrypt(idToken, h.encryptionKey)
+						if err == nil {
+							idToken = decrypted
+						}
+					}
+				}
+
+				// Generate logout URL
+				logoutURL, err := h.logoutService.GenerateOIDCLogoutURL(*endSessionEndpoint, idToken, postLogoutRedirectURI, state)
+				if err != nil {
+					log.Warn().Err(err).Msg("Failed to generate OIDC logout URL")
+				} else {
+					result.RequiresRedirect = true
+					result.RedirectURL = logoutURL
+				}
+			}
+		}
+	}
+
+	// Revoke local JWT tokens
+	if err := h.authSvc.RevokeAllUserTokens(ctx, userIDStr, "OAuth logout"); err != nil {
+		log.Error().Err(err).Str("user_id", userIDStr).Msg("Failed to revoke local tokens")
+	} else {
+		result.LocalLogoutComplete = true
+	}
+
+	// Delete stored OAuth token
+	if err := h.logoutService.DeleteUserOAuthToken(ctx, userIDStr, providerName); err != nil {
+		log.Warn().Err(err).Str("provider", providerName).Msg("Failed to delete stored OAuth token")
+	}
+
+	log.Info().
+		Str("provider", providerName).
+		Str("user_id", userIDStr).
+		Bool("local_logout", result.LocalLogoutComplete).
+		Bool("provider_revoked", result.ProviderTokenRevoked).
+		Bool("requires_redirect", result.RequiresRedirect).
+		Msg("OAuth logout completed")
+
+	return c.JSON(result)
+}
+
+// LogoutCallback handles the callback after OIDC logout
+// GET /api/v1/auth/oauth/:provider/logout/callback
+func (h *OAuthHandler) LogoutCallback(c *fiber.Ctx) error {
+	ctx := c.Context()
+	providerName := c.Params("provider")
+	state := c.Query("state")
+
+	if state == "" {
+		log.Warn().Str("provider", providerName).Msg("OAuth logout callback missing state parameter")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Missing state parameter",
+		})
+	}
+
+	// Validate and consume the state
+	logoutState, err := h.logoutService.ValidateLogoutState(ctx, state)
+	if err != nil {
+		log.Warn().Err(err).Str("provider", providerName).Str("state", state).Msg("Invalid or expired logout state")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid or expired logout state",
+		})
+	}
+
+	log.Info().
+		Str("provider", providerName).
+		Str("user_id", logoutState.UserID).
+		Msg("OAuth logout callback successful")
+
+	// Redirect to the post-logout redirect URI if specified
+	if logoutState.PostLogoutRedirectURI != "" && logoutState.PostLogoutRedirectURI != c.OriginalURL() {
+		return c.Redirect(logoutState.PostLogoutRedirectURI)
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "Logout successful",
+		"provider": providerName,
+	})
 }
