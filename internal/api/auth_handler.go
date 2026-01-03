@@ -581,6 +581,13 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 				"code":  "INVALID_REDIRECT_URL",
 			})
 		}
+		// Check for rate limiting - user requested reset too soon
+		if errors.Is(err, auth.ErrPasswordResetTooSoon) {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "Password reset requested too recently. Please wait 60 seconds before trying again.",
+				"code":  "RATE_LIMITED",
+			})
+		}
 		// Check for email sending failure - this should be returned to the user
 		if errors.Is(err, auth.ErrEmailSendFailed) {
 			log.Error().Err(err).Str("email", req.Email).Msg("Failed to send password reset email")

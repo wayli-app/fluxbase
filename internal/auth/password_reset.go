@@ -35,6 +35,8 @@ var (
 	ErrEmailSendFailed = errors.New("failed to send password reset email")
 	// ErrInvalidRedirectURL is returned when the redirect URL is not a valid URL
 	ErrInvalidRedirectURL = errors.New("invalid redirect URL: must be a valid HTTP or HTTPS URL")
+	// ErrPasswordResetTooSoon is returned when a password reset was requested too recently
+	ErrPasswordResetTooSoon = errors.New("password reset requested too recently, please wait before trying again")
 )
 
 // PasswordResetToken represents a password reset token
@@ -131,6 +133,38 @@ func (r *PasswordResetRepository) GetByToken(ctx context.Context, token string) 
 	passwordResetToken := &PasswordResetToken{}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, tokenHash).Scan(
+			&passwordResetToken.ID,
+			&passwordResetToken.UserID,
+			&passwordResetToken.TokenHash,
+			&passwordResetToken.ExpiresAt,
+			&passwordResetToken.UsedAt,
+			&passwordResetToken.CreatedAt,
+		)
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPasswordResetTokenNotFound
+		}
+		return nil, err
+	}
+
+	return passwordResetToken, nil
+}
+
+// GetLatestByUserID retrieves the most recent password reset token for a user
+func (r *PasswordResetRepository) GetLatestByUserID(ctx context.Context, userID string) (*PasswordResetToken, error) {
+	query := `
+		SELECT id, user_id, token_hash, expires_at, used_at, created_at
+		FROM auth.password_reset_tokens
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	passwordResetToken := &PasswordResetToken{}
+	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, userID).Scan(
 			&passwordResetToken.ID,
 			&passwordResetToken.UserID,
 			&passwordResetToken.TokenHash,
@@ -288,6 +322,12 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email s
 			return nil
 		}
 		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Rate limit: check if a token was created recently (within 60 seconds)
+	latestToken, err := s.repo.GetLatestByUserID(ctx, user.ID)
+	if err == nil && time.Since(latestToken.CreatedAt) < 60*time.Second {
+		return ErrPasswordResetTooSoon
 	}
 
 	// Invalidate old password reset tokens for this user
