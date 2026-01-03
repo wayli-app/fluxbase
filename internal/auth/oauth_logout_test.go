@@ -33,13 +33,13 @@ func TestGenerateOIDCLogoutURL(t *testing.T) {
 	service := &OAuthLogoutService{}
 
 	tests := []struct {
-		name                 string
-		endSessionEndpoint   string
-		idToken              string
+		name                  string
+		endSessionEndpoint    string
+		idToken               string
 		postLogoutRedirectURI string
-		state                string
-		wantErr              bool
-		wantContains         []string
+		state                 string
+		wantErr               bool
+		wantContains          []string
 	}{
 		{
 			name:               "empty endpoint returns error",
@@ -47,13 +47,13 @@ func TestGenerateOIDCLogoutURL(t *testing.T) {
 			wantErr:            true,
 		},
 		{
-			name:                 "basic URL generation",
-			endSessionEndpoint:   "https://accounts.google.com/o/oauth2/logout",
-			idToken:              "test-id-token",
+			name:                  "basic URL generation",
+			endSessionEndpoint:    "https://accounts.google.com/o/oauth2/logout",
+			idToken:               "test-id-token",
 			postLogoutRedirectURI: "https://example.com/logged-out",
-			state:                "test-state",
-			wantErr:              false,
-			wantContains:         []string{"id_token_hint=test-id-token", "post_logout_redirect_uri=", "state=test-state"},
+			state:                 "test-state",
+			wantErr:               false,
+			wantContains:          []string{"id_token_hint=test-id-token", "post_logout_redirect_uri=", "state=test-state"},
 		},
 		{
 			name:               "URL without id_token",
@@ -98,7 +98,7 @@ func TestGetDefaultRevocationEndpoint(t *testing.T) {
 		{ProviderApple, "https://appleid.apple.com/auth/revoke"},
 		{ProviderGitLab, "https://gitlab.com/oauth/revoke"},
 		{ProviderTwitter, "https://api.twitter.com/2/oauth2/revoke"},
-		{ProviderGithub, ""},  // GitHub doesn't support token revocation
+		{ProviderGithub, ""},   // GitHub doesn't support token revocation
 		{ProviderFacebook, ""}, // Facebook uses different mechanism
 		{ProviderLinkedIn, ""}, // LinkedIn doesn't support standard revocation
 	}
@@ -121,8 +121,8 @@ func TestGetDefaultEndSessionEndpoint(t *testing.T) {
 		{ProviderGoogle, "https://accounts.google.com/o/oauth2/logout"},
 		{ProviderMicrosoft, "https://login.microsoftonline.com/common/oauth2/v2.0/logout"},
 		{ProviderGitLab, "https://gitlab.com/oauth/logout"},
-		{ProviderGithub, ""},  // GitHub doesn't support OIDC logout
-		{ProviderApple, ""},   // Apple doesn't support OIDC logout
+		{ProviderGithub, ""},   // GitHub doesn't support OIDC logout
+		{ProviderApple, ""},    // Apple doesn't support OIDC logout
 		{ProviderFacebook, ""}, // Facebook doesn't support OIDC logout
 	}
 
