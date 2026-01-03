@@ -146,7 +146,6 @@
     "source=${localWorkspaceFolderBasename}-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
   ],
   "containerEnv": {
-    "PATH": "/home/vscode/.local/bin:${containerEnv:PATH}",
     "FLUXBASE_CORS_ALLOWED_ORIGINS": "http://localhost:4000,http://localhost:5050",
     "FLUXBASE_CORS_ALLOWED_HEADERS": "authorization,x-client-info,apikey,content-type,x-requested-with,accept,prefer",
     "FLUXBASE_CORS_ALLOWED_METHODS": "GET,POST,PUT,PATCH,DELETE,OPTIONS",

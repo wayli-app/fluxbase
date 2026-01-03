@@ -128,7 +128,7 @@ WORKDIR /workspace
 
 # Set environment variables
 ENV GOPATH=/go \
-    PATH="/go/bin:${PATH}" \
+    PATH="/home/vscode/.local/bin:/go/bin:${PATH}" \
     CGO_ENABLED=1 \
     GO111MODULE=on
 
