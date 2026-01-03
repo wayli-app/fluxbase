@@ -111,10 +111,14 @@ func runRPCList(cmd *cobra.Command, args []string) error {
 		query.Set("namespace", rpcNamespace)
 	}
 
-	var procedures []map[string]interface{}
-	if err := apiClient.DoGet(ctx, "/api/v1/admin/rpc/procedures", query, &procedures); err != nil {
+	var response struct {
+		Procedures []map[string]interface{} `json:"procedures"`
+		Count      int                      `json:"count"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/rpc/procedures", query, &response); err != nil {
 		return err
 	}
+	procedures := response.Procedures
 
 	if len(procedures) == 0 {
 		fmt.Println("No procedures found.")

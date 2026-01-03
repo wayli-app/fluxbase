@@ -467,6 +467,10 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		// Create AI chat handler for WebSocket with RAG support
 		aiChatHandler = ai.NewChatHandler(db, aiStorage, aiConversations, aiMetrics, &cfg.AI, embeddingService, loggingService)
 
+		// Create settings resolver for chatbot template variable resolution
+		settingsResolver := ai.NewSettingsResolver(secretsService, 5*time.Minute)
+		aiChatHandler.SetSettingsResolver(settingsResolver)
+
 		log.Info().
 			Str("chatbots_dir", cfg.AI.ChatbotsDir).
 			Bool("auto_load", cfg.AI.AutoLoadOnBoot).

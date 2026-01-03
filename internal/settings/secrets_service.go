@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -245,4 +246,217 @@ func (s *SecretsService) DeleteUserSecret(ctx context.Context, userID uuid.UUID,
 	}
 
 	return nil
+}
+
+// ErrSettingNotFound is returned when a setting is not found
+var ErrSettingNotFound = errors.New("setting not found")
+
+// GetUserSetting retrieves a user's setting (secret or non-secret).
+// For secrets, returns the decrypted value. For non-secrets, returns the JSON value as string.
+func (s *SecretsService) GetUserSetting(ctx context.Context, userID uuid.UUID, key string) (string, error) {
+	var isSecret bool
+	var encryptedValue *string
+	var value []byte
+
+	err := s.db.QueryRow(ctx, `
+		SELECT is_secret, encrypted_value, value
+		FROM app.settings
+		WHERE key = $1 AND user_id = $2
+	`, key, userID).Scan(&isSecret, &encryptedValue, &value)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrSettingNotFound
+		}
+		return "", err
+	}
+
+	if isSecret && encryptedValue != nil {
+		// Derive user-specific key and decrypt
+		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+		if err != nil {
+			return "", fmt.Errorf("failed to derive user key: %w", err)
+		}
+		return crypto.Decrypt(*encryptedValue, derivedKey)
+	}
+
+	// For non-secrets, extract string value from JSONB
+	return extractJSONStringValue(value), nil
+}
+
+// GetSystemSetting retrieves a system-level setting (secret or non-secret).
+// For secrets, returns the decrypted value. For non-secrets, returns the JSON value as string.
+func (s *SecretsService) GetSystemSetting(ctx context.Context, key string) (string, error) {
+	var isSecret bool
+	var encryptedValue *string
+	var value []byte
+
+	err := s.db.QueryRow(ctx, `
+		SELECT is_secret, encrypted_value, value
+		FROM app.settings
+		WHERE key = $1 AND user_id IS NULL
+	`, key).Scan(&isSecret, &encryptedValue, &value)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrSettingNotFound
+		}
+		return "", err
+	}
+
+	if isSecret && encryptedValue != nil {
+		// Use master key for system secrets
+		return crypto.Decrypt(*encryptedValue, s.encryptionKey)
+	}
+
+	// For non-secrets, extract string value from JSONB
+	return extractJSONStringValue(value), nil
+}
+
+// GetAllUserSettings retrieves all settings for a user (both secrets and non-secrets).
+// Returns a map of key -> value. Secrets are decrypted.
+func (s *SecretsService) GetAllUserSettings(ctx context.Context, userID uuid.UUID) (map[string]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT key, is_secret, encrypted_value, value
+		FROM app.settings
+		WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Derive user-specific key once for all secrets
+	derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive user key: %w", err)
+	}
+
+	settings := make(map[string]string)
+	for rows.Next() {
+		var key string
+		var isSecret bool
+		var encryptedValue *string
+		var value []byte
+
+		if err := rows.Scan(&key, &isSecret, &encryptedValue, &value); err != nil {
+			return nil, err
+		}
+
+		if isSecret && encryptedValue != nil {
+			plaintext, err := crypto.Decrypt(*encryptedValue, derivedKey)
+			if err != nil {
+				// Skip settings that fail to decrypt
+				continue
+			}
+			settings[key] = plaintext
+		} else {
+			settings[key] = extractJSONStringValue(value)
+		}
+	}
+
+	return settings, rows.Err()
+}
+
+// GetAllSystemSettings retrieves all system-level settings (both secrets and non-secrets).
+// Returns a map of key -> value. Secrets are decrypted.
+func (s *SecretsService) GetAllSystemSettings(ctx context.Context) (map[string]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT key, is_secret, encrypted_value, value
+		FROM app.settings
+		WHERE user_id IS NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	settings := make(map[string]string)
+	for rows.Next() {
+		var key string
+		var isSecret bool
+		var encryptedValue *string
+		var value []byte
+
+		if err := rows.Scan(&key, &isSecret, &encryptedValue, &value); err != nil {
+			return nil, err
+		}
+
+		if isSecret && encryptedValue != nil {
+			plaintext, err := crypto.Decrypt(*encryptedValue, s.encryptionKey)
+			if err != nil {
+				// Skip settings that fail to decrypt
+				continue
+			}
+			settings[key] = plaintext
+		} else {
+			settings[key] = extractJSONStringValue(value)
+		}
+	}
+
+	return settings, rows.Err()
+}
+
+// GetSettingWithFallback retrieves a setting with user -> system fallback.
+// Returns the value and a boolean indicating if found.
+func (s *SecretsService) GetSettingWithFallback(ctx context.Context, userID *uuid.UUID, key string) (string, bool, error) {
+	// Try user-specific setting first if userID provided
+	if userID != nil {
+		val, err := s.GetUserSetting(ctx, *userID, key)
+		if err == nil {
+			return val, true, nil
+		}
+		if !errors.Is(err, ErrSettingNotFound) {
+			return "", false, err
+		}
+	}
+
+	// Fall back to system setting
+	val, err := s.GetSystemSetting(ctx, key)
+	if err == nil {
+		return val, true, nil
+	}
+	if errors.Is(err, ErrSettingNotFound) {
+		return "", false, nil
+	}
+	return "", false, err
+}
+
+// extractJSONStringValue extracts a string value from a JSONB column.
+// Handles both direct string values and {"value": "..."} objects.
+func extractJSONStringValue(jsonBytes []byte) string {
+	if len(jsonBytes) == 0 {
+		return ""
+	}
+
+	// If it's a simple quoted string
+	if jsonBytes[0] == '"' {
+		var s string
+		if err := json.Unmarshal(jsonBytes, &s); err == nil {
+			return s
+		}
+	}
+
+	// Try to extract from {"value": "..."} format
+	var obj map[string]any
+	if err := json.Unmarshal(jsonBytes, &obj); err == nil {
+		if v, ok := obj["value"]; ok {
+			switch val := v.(type) {
+			case string:
+				return val
+			case float64:
+				return fmt.Sprintf("%v", val)
+			case bool:
+				return fmt.Sprintf("%v", val)
+			default:
+				// For complex values, return JSON string
+				if b, err := json.Marshal(val); err == nil {
+					return string(b)
+				}
+			}
+		}
+	}
+
+	// Return raw JSON as string
+	return string(jsonBytes)
 }

@@ -287,6 +287,7 @@ Available metadata annotations:
 | `@fluxbase:knowledge-base`           | Name of knowledge base for RAG (can specify multiple)     | -               |
 | `@fluxbase:rag-max-chunks`           | Maximum chunks to retrieve for RAG context                | `5`             |
 | `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0)                | `0.7`           |
+| `@fluxbase:required-settings`        | Setting keys to load for template resolution              | -               |
 
 ### HTTP Tool
 
@@ -372,6 +373,67 @@ Current user ID: {{user_id}}
 | `@fluxbase:rag-similarity-threshold` | Minimum similarity (0.0-1.0)               | `0.7`   |
 
 For detailed documentation on creating knowledge bases, adding documents, and configuring RAG, see the [Knowledge Bases & RAG](/docs/guides/knowledge-bases) guide.
+
+### Settings & Secrets
+
+Chatbots can access system and user settings at runtime using template variables. This allows you to inject API keys, endpoints, and configuration without hardcoding values in your chatbot code.
+
+**Template syntax:**
+
+Use `{{setting.key}}` in your system prompt to reference a setting. Add a scope prefix to control resolution:
+
+| Syntax           | Resolution                | Use Case          |
+| ---------------- | ------------------------- | ----------------- |
+| `{{key}}`        | User → System fallback    | Default behavior  |
+| `{{user:key}}`   | User-only, no fallback    | Per-user API keys |
+| `{{system:key}}` | System-only, ignores user | Shared endpoints  |
+
+**Example:**
+
+```typescript
+/**
+ * Location Assistant
+ *
+ * @fluxbase:required-settings pelias.endpoint,google.maps.api_key
+ */
+
+export default `You help users find locations.
+
+System endpoint (shared): {{system:pelias.endpoint}}
+User API key (per-user): {{user:google.maps.api_key}}
+Theme preference (with fallback): {{theme.mode}}
+Current user: {{user_id}}
+`;
+```
+
+**How it works:**
+
+1. When a chat starts, Fluxbase loads required settings from the `app.settings` table
+2. Scope prefixes control which settings are checked (user-specific, system-wide, or both)
+3. Template variables are resolved server-side before the prompt is sent to the LLM
+4. Secrets are decrypted automatically (never exposed to clients)
+
+**Setting up values:**
+
+```bash
+# System-wide setting (used by {{system:...}} or as fallback for {{key}})
+fluxbase settings set pelias.endpoint "https://pelias.example.com"
+
+# User-specific secret (used by {{user:...}})
+fluxbase settings set google.maps.api_key "user-api-key" --secret --user abc123
+```
+
+**Configuration annotations:**
+
+| Annotation                    | Description                  | Example                          |
+| ----------------------------- | ---------------------------- | -------------------------------- |
+| `@fluxbase:required-settings` | Comma-separated setting keys | `pelias.endpoint,google.api_key` |
+
+**Reserved template variables:**
+
+| Variable      | Description         |
+| ------------- | ------------------- |
+| `{{user_id}}` | Current user's UUID |
 
 ### Response Language
 

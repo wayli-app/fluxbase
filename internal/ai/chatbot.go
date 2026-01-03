@@ -67,6 +67,9 @@ type Chatbot struct {
 	// Logging
 	DisableExecutionLogs bool `json:"disable_execution_logs"` // If true, skip creating execution logs
 
+	// Settings
+	RequiredSettings []string `json:"required_settings,omitempty"` // Setting keys this chatbot requires
+
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
 	CreatedBy *string   `json:"created_by,omitempty"`
@@ -119,6 +122,9 @@ type ChatbotConfig struct {
 
 	// Logging
 	DisableExecutionLogs bool
+
+	// Settings
+	RequiredSettings []string // Setting keys this chatbot requires
 
 	// Metadata
 	Version int
@@ -239,6 +245,9 @@ var (
 
 	// @fluxbase:disable-execution-logs true
 	disableExecutionLogsPattern = regexp.MustCompile(`@fluxbase:disable-execution-logs(?:\s+(true|false))?`)
+
+	// @fluxbase:required-settings pelias.endpoint,google.maps.api_key
+	requiredSettingsPattern = regexp.MustCompile(`@fluxbase:required-settings\s+([^\n*]+)`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -426,6 +435,11 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		}
 	}
 
+	// Parse required settings
+	if matches := requiredSettingsPattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.RequiredSettings = parseCSV(matches[1])
+	}
+
 	return config
 }
 
@@ -547,6 +561,7 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.IsPublic = config.IsPublic
 	c.ResponseLanguage = config.ResponseLanguage
 	c.DisableExecutionLogs = config.DisableExecutionLogs
+	c.RequiredSettings = config.RequiredSettings
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {

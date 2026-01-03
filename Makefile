@@ -14,7 +14,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Bui
 
 # Docker variables
 DOCKER_REGISTRY ?= ghcr.io
-DOCKER_ORG ?= wayli-app
+DOCKER_ORG ?= fluxbase-eu
 DOCKER_IMAGE := $(DOCKER_REGISTRY)/$(DOCKER_ORG)/fluxbase
 
 # Colors for output

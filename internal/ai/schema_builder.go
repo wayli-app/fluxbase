@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
 // SchemaBuilder builds schema descriptions for LLM context
 type SchemaBuilder struct {
-	db *database.Connection
+	db               *database.Connection
+	settingsResolver *SettingsResolver
 }
 
 // NewSchemaBuilder creates a new schema builder
@@ -20,6 +22,11 @@ func NewSchemaBuilder(db *database.Connection) *SchemaBuilder {
 	return &SchemaBuilder{
 		db: db,
 	}
+}
+
+// SetSettingsResolver sets the settings resolver for template variable resolution
+func (s *SchemaBuilder) SetSettingsResolver(resolver *SettingsResolver) {
+	s.settingsResolver = resolver
 }
 
 // TableInfo represents information about a database table
@@ -300,8 +307,26 @@ func (s *SchemaBuilder) BuildSystemPrompt(ctx context.Context, chatbot *Chatbot,
 		userPrompt = "You are a helpful AI assistant that can query the database to answer questions."
 	}
 
-	// Replace template variables
+	// Replace built-in template variables
 	userPrompt = strings.ReplaceAll(userPrompt, "{{user_id}}", userID)
+
+	// Resolve settings template variables ({{key}}, {{user:key}}, {{system:key}})
+	if s.settingsResolver != nil {
+		var userUUID *uuid.UUID
+		if userID != "" {
+			if parsed, err := uuid.Parse(userID); err == nil {
+				userUUID = &parsed
+			}
+		}
+
+		resolved, err := s.settingsResolver.ResolveTemplate(ctx, userPrompt, userUUID)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to resolve settings in system prompt")
+			// Continue with unresolved template - don't fail the request
+		} else {
+			userPrompt = resolved
+		}
+	}
 
 	// Build the complete system prompt
 	var sb strings.Builder

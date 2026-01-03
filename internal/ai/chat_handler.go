@@ -66,6 +66,11 @@ func NewChatHandler(
 	}
 }
 
+// SetSettingsResolver sets the settings resolver for template variable resolution in system prompts
+func (h *ChatHandler) SetSettingsResolver(resolver *SettingsResolver) {
+	h.schemaBuilder.SetSettingsResolver(resolver)
+}
+
 // ClientMessage represents a message from the client
 type ClientMessage struct {
 	Type              string `json:"type"`
