@@ -3265,3 +3265,55 @@ export const serviceKeysApi = {
     return response.data
   },
 }
+
+// Captcha Settings Types
+export interface CaptchaSettingsResponse {
+  enabled: boolean
+  provider: string
+  site_key: string
+  secret_key_set: boolean
+  score_threshold: number
+  endpoints: string[]
+  cap_server_url: string
+  cap_api_key_set: boolean
+  _overrides: Record<
+    string,
+    {
+      is_overridden: boolean
+      env_var?: string
+    }
+  >
+}
+
+export interface UpdateCaptchaSettingsRequest {
+  enabled?: boolean
+  provider?: string
+  site_key?: string
+  secret_key?: string
+  score_threshold?: number
+  endpoints?: string[]
+  cap_server_url?: string
+  cap_api_key?: string
+}
+
+// Captcha Settings API
+export const captchaSettingsApi = {
+  // Get current captcha settings
+  get: async (): Promise<CaptchaSettingsResponse> => {
+    const response = await api.get<CaptchaSettingsResponse>(
+      '/api/v1/admin/settings/captcha'
+    )
+    return response.data
+  },
+
+  // Update captcha settings
+  update: async (
+    request: UpdateCaptchaSettingsRequest
+  ): Promise<CaptchaSettingsResponse> => {
+    const response = await api.put<CaptchaSettingsResponse>(
+      '/api/v1/admin/settings/captcha',
+      request
+    )
+    return response.data
+  },
+}

@@ -42,64 +42,65 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	app                   *fiber.App
-	config                *config.Config
-	db                    *database.Connection
-	tracer                *observability.Tracer
-	rest                  *RESTHandler
-	authHandler           *AuthHandler
-	adminAuthHandler      *AdminAuthHandler
-	dashboardAuthHandler  *DashboardAuthHandler
-	clientKeyService      *auth.ClientKeyService // Added for service-wide access
-	clientKeyHandler      *ClientKeyHandler
-	storageHandler        *StorageHandler
-	webhookHandler        *WebhookHandler
-	monitoringHandler     *MonitoringHandler
-	userManagementHandler *UserManagementHandler
-	invitationHandler     *InvitationHandler
-	ddlHandler            *DDLHandler
-	oauthProviderHandler  *OAuthProviderHandler
-	oauthHandler          *OAuthHandler
-	samlProviderHandler   *SAMLProviderHandler
-	samlService           *auth.SAMLService
-	adminSessionHandler   *AdminSessionHandler
-	systemSettingsHandler *SystemSettingsHandler
-	customSettingsHandler *CustomSettingsHandler
-	userSettingsHandler   *UserSettingsHandler
-	appSettingsHandler    *AppSettingsHandler
-	settingsHandler       *SettingsHandler
-	secretsService        *settings.SecretsService
-	emailTemplateHandler  *EmailTemplateHandler
-	emailSettingsHandler  *EmailSettingsHandler
-	sqlHandler            *SQLHandler
-	functionsHandler      *functions.Handler
-	functionsScheduler    *functions.Scheduler
-	jobsHandler           *jobs.Handler
-	jobsManager           *jobs.Manager
-	jobsScheduler         *jobs.Scheduler
-	migrationsHandler     *migrations.Handler
-	realtimeManager       *realtime.Manager
-	realtimeHandler       *realtime.RealtimeHandler
-	realtimeListener      *realtime.Listener
-	webhookTriggerService *webhook.TriggerService
-	aiHandler             *ai.Handler
-	aiChatHandler         *ai.ChatHandler
-	aiConversations       *ai.ConversationManager
-	aiMetrics             *observability.Metrics
-	knowledgeBaseHandler  *ai.KnowledgeBaseHandler
-	rpcHandler            *rpc.Handler
-	rpcScheduler          *rpc.Scheduler
-	graphqlHandler        *GraphQLHandler
-	extensionsHandler     *extensions.Handler
-	vectorHandler         *VectorHandler
-	loggingService        *logging.Service
-	loggingHandler        *LoggingHandler
-	retentionService      *logging.RetentionService
-	schemaCache           *database.SchemaCache
-	secretsHandler        *secrets.Handler
-	secretsStorage        *secrets.Storage
-	serviceKeyHandler     *ServiceKeyHandler
-	mcpHandler            *mcp.Handler
+	app                    *fiber.App
+	config                 *config.Config
+	db                     *database.Connection
+	tracer                 *observability.Tracer
+	rest                   *RESTHandler
+	authHandler            *AuthHandler
+	adminAuthHandler       *AdminAuthHandler
+	dashboardAuthHandler   *DashboardAuthHandler
+	clientKeyService       *auth.ClientKeyService // Added for service-wide access
+	clientKeyHandler       *ClientKeyHandler
+	storageHandler         *StorageHandler
+	webhookHandler         *WebhookHandler
+	monitoringHandler      *MonitoringHandler
+	userManagementHandler  *UserManagementHandler
+	invitationHandler      *InvitationHandler
+	ddlHandler             *DDLHandler
+	oauthProviderHandler   *OAuthProviderHandler
+	oauthHandler           *OAuthHandler
+	samlProviderHandler    *SAMLProviderHandler
+	samlService            *auth.SAMLService
+	adminSessionHandler    *AdminSessionHandler
+	systemSettingsHandler  *SystemSettingsHandler
+	customSettingsHandler  *CustomSettingsHandler
+	userSettingsHandler    *UserSettingsHandler
+	appSettingsHandler     *AppSettingsHandler
+	settingsHandler        *SettingsHandler
+	secretsService         *settings.SecretsService
+	emailTemplateHandler   *EmailTemplateHandler
+	emailSettingsHandler   *EmailSettingsHandler
+	captchaSettingsHandler *CaptchaSettingsHandler
+	sqlHandler             *SQLHandler
+	functionsHandler       *functions.Handler
+	functionsScheduler     *functions.Scheduler
+	jobsHandler            *jobs.Handler
+	jobsManager            *jobs.Manager
+	jobsScheduler          *jobs.Scheduler
+	migrationsHandler      *migrations.Handler
+	realtimeManager        *realtime.Manager
+	realtimeHandler        *realtime.RealtimeHandler
+	realtimeListener       *realtime.Listener
+	webhookTriggerService  *webhook.TriggerService
+	aiHandler              *ai.Handler
+	aiChatHandler          *ai.ChatHandler
+	aiConversations        *ai.ConversationManager
+	aiMetrics              *observability.Metrics
+	knowledgeBaseHandler   *ai.KnowledgeBaseHandler
+	rpcHandler             *rpc.Handler
+	rpcScheduler           *rpc.Scheduler
+	graphqlHandler         *GraphQLHandler
+	extensionsHandler      *extensions.Handler
+	vectorHandler          *VectorHandler
+	loggingService         *logging.Service
+	loggingHandler         *LoggingHandler
+	retentionService       *logging.RetentionService
+	schemaCache            *database.SchemaCache
+	secretsHandler         *secrets.Handler
+	secretsStorage         *secrets.Storage
+	serviceKeyHandler      *ServiceKeyHandler
+	mcpHandler             *mcp.Handler
 
 	// Database branching components
 	branchManager   *branching.Manager
@@ -329,6 +330,22 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		log.Warn().Err(err).Msg("Failed to refresh email service from settings on startup")
 	}
 
+	// Initialize captcha settings handler with settings cache for dynamic configuration
+	captchaSettingsHandler := NewCaptchaSettingsHandler(
+		systemSettingsService,
+		authService.GetSettingsCache(),
+		secretsService,
+		&cfg.Security,
+		captchaService,
+	)
+
+	// Refresh captcha service with settings from database on startup
+	if captchaService != nil {
+		if err := captchaService.ReloadFromSettings(context.Background(), authService.GetSettingsCache(), &cfg.Security); err != nil {
+			log.Warn().Err(err).Msg("Failed to refresh captcha service from settings on startup")
+		}
+	}
+
 	// Inject settings cache into client key service for 'allow_user_client_keys' setting
 	clientKeyService.SetSettingsCache(authService.GetSettingsCache())
 
@@ -538,65 +555,66 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Create server instance
 	server := &Server{
-		app:                   app,
-		config:                cfg,
-		db:                    db,
-		tracer:                tracer,
-		rest:                  NewRESTHandler(db, NewQueryParser(cfg), schemaCache),
-		authHandler:           authHandler,
-		adminAuthHandler:      adminAuthHandler,
-		dashboardAuthHandler:  dashboardAuthHandler,
-		clientKeyService:      clientKeyService, // Added for service-wide access
-		clientKeyHandler:      clientKeyHandler,
-		storageHandler:        storageHandler,
-		webhookHandler:        webhookHandler,
-		monitoringHandler:     monitoringHandler,
-		userManagementHandler: userMgmtHandler,
-		invitationHandler:     invitationHandler,
-		ddlHandler:            ddlHandler,
-		oauthProviderHandler:  oauthProviderHandler,
-		oauthHandler:          oauthHandler,
-		samlProviderHandler:   samlProviderHandler,
-		samlService:           samlService,
-		adminSessionHandler:   adminSessionHandler,
-		systemSettingsHandler: systemSettingsHandler,
-		customSettingsHandler: customSettingsHandler,
-		userSettingsHandler:   userSettingsHandler,
-		appSettingsHandler:    appSettingsHandler,
-		settingsHandler:       settingsHandler,
-		secretsService:        secretsService,
-		emailTemplateHandler:  emailTemplateHandler,
-		emailSettingsHandler:  emailSettingsHandler,
-		sqlHandler:            sqlHandler,
-		functionsHandler:      functionsHandler,
-		functionsScheduler:    functionsScheduler,
-		jobsHandler:           jobsHandler,
-		jobsManager:           jobsManager,
-		jobsScheduler:         jobsScheduler,
-		migrationsHandler:     migrationsHandler,
-		realtimeManager:       realtimeManager,
-		realtimeHandler:       realtimeHandler,
-		realtimeListener:      realtimeListener,
-		webhookTriggerService: webhookTriggerService,
-		aiHandler:             aiHandler,
-		aiChatHandler:         aiChatHandler,
-		aiConversations:       aiConversations,
-		aiMetrics:             aiMetrics,
-		knowledgeBaseHandler:  knowledgeBaseHandler,
-		rpcHandler:            rpcHandler,
-		rpcScheduler:          rpcScheduler,
-		extensionsHandler:     extensions.NewHandler(extensions.NewService(db)),
-		vectorHandler:         vectorHandler,
-		loggingService:        loggingService,
-		loggingHandler:        loggingHandler,
-		retentionService:      retentionService,
-		schemaCache:           schemaCache,
-		secretsHandler:        secretsHandler,
-		secretsStorage:        secretsStorage,
-		serviceKeyHandler:     serviceKeyHandler,
-		mcpHandler:            mcp.NewHandler(&cfg.MCP, db),
-		metrics:               observability.NewMetrics(),
-		startTime:             time.Now(),
+		app:                    app,
+		config:                 cfg,
+		db:                     db,
+		tracer:                 tracer,
+		rest:                   NewRESTHandler(db, NewQueryParser(cfg), schemaCache),
+		authHandler:            authHandler,
+		adminAuthHandler:       adminAuthHandler,
+		dashboardAuthHandler:   dashboardAuthHandler,
+		clientKeyService:       clientKeyService, // Added for service-wide access
+		clientKeyHandler:       clientKeyHandler,
+		storageHandler:         storageHandler,
+		webhookHandler:         webhookHandler,
+		monitoringHandler:      monitoringHandler,
+		userManagementHandler:  userMgmtHandler,
+		invitationHandler:      invitationHandler,
+		ddlHandler:             ddlHandler,
+		oauthProviderHandler:   oauthProviderHandler,
+		oauthHandler:           oauthHandler,
+		samlProviderHandler:    samlProviderHandler,
+		samlService:            samlService,
+		adminSessionHandler:    adminSessionHandler,
+		systemSettingsHandler:  systemSettingsHandler,
+		customSettingsHandler:  customSettingsHandler,
+		userSettingsHandler:    userSettingsHandler,
+		appSettingsHandler:     appSettingsHandler,
+		settingsHandler:        settingsHandler,
+		secretsService:         secretsService,
+		emailTemplateHandler:   emailTemplateHandler,
+		emailSettingsHandler:   emailSettingsHandler,
+		captchaSettingsHandler: captchaSettingsHandler,
+		sqlHandler:             sqlHandler,
+		functionsHandler:       functionsHandler,
+		functionsScheduler:     functionsScheduler,
+		jobsHandler:            jobsHandler,
+		jobsManager:            jobsManager,
+		jobsScheduler:          jobsScheduler,
+		migrationsHandler:      migrationsHandler,
+		realtimeManager:        realtimeManager,
+		realtimeHandler:        realtimeHandler,
+		realtimeListener:       realtimeListener,
+		webhookTriggerService:  webhookTriggerService,
+		aiHandler:              aiHandler,
+		aiChatHandler:          aiChatHandler,
+		aiConversations:        aiConversations,
+		aiMetrics:              aiMetrics,
+		knowledgeBaseHandler:   knowledgeBaseHandler,
+		rpcHandler:             rpcHandler,
+		rpcScheduler:           rpcScheduler,
+		extensionsHandler:      extensions.NewHandler(extensions.NewService(db)),
+		vectorHandler:          vectorHandler,
+		loggingService:         loggingService,
+		loggingHandler:         loggingHandler,
+		retentionService:       retentionService,
+		schemaCache:            schemaCache,
+		secretsHandler:         secretsHandler,
+		secretsStorage:         secretsStorage,
+		serviceKeyHandler:      serviceKeyHandler,
+		mcpHandler:             mcp.NewHandler(&cfg.MCP, db),
+		metrics:                observability.NewMetrics(),
+		startTime:              time.Now(),
 	}
 
 	// Initialize MCP Server if enabled
@@ -1736,6 +1754,10 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Get("/email/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.GetSettings)
 	router.Put("/email/settings", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.UpdateSettings)
 	router.Post("/email/settings/test", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailSettingsHandler.TestSettings)
+
+	// Captcha settings routes (require admin or dashboard_admin role)
+	router.Get("/settings/captcha", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.captchaSettingsHandler.GetSettings)
+	router.Put("/settings/captcha", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.captchaSettingsHandler.UpdateSettings)
 
 	// Email template routes (require admin or dashboard_admin role)
 	router.Get("/email/templates", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ListTemplates)

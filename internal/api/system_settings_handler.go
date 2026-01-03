@@ -217,6 +217,15 @@ var settingDefaults = map[string]map[string]interface{}{
 	"app.email.ses_access_key":   {"value": ""}, // Encrypted in database
 	"app.email.ses_secret_key":   {"value": ""}, // Encrypted in database
 	"app.email.ses_region":       {"value": "us-east-1"},
+	// Captcha provider settings (for UI configuration)
+	"app.security.captcha.enabled":         {"value": false},
+	"app.security.captcha.provider":        {"value": "hcaptcha"},
+	"app.security.captcha.site_key":        {"value": ""},
+	"app.security.captcha.secret_key":      {"value": ""}, // Encrypted in database
+	"app.security.captcha.score_threshold": {"value": 0.5},
+	"app.security.captcha.endpoints":       {"value": []string{"signup", "login", "password_reset", "magic_link"}},
+	"app.security.captcha.cap_server_url":  {"value": ""},
+	"app.security.captcha.cap_api_key":     {"value": ""}, // Encrypted in database
 }
 
 // isValidSettingKey checks if a setting key is in the allowlist

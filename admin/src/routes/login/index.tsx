@@ -363,7 +363,7 @@ function LoginPage() {
                       disabled={isLoading}
                     >
                       {getSSOProviderIcon(provider)}
-                      Continue with {provider.name}
+                      {provider.name}
                     </Button>
                   ))}
                 </div>
