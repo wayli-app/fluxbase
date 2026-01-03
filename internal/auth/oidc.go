@@ -18,6 +18,22 @@ var wellKnownIssuers = map[string]string{
 	"microsoft": "https://login.microsoftonline.com/common/v2.0",
 }
 
+// normalizeIssuerURL normalizes an issuer URL for OIDC auto-discovery.
+// If the URL doesn't contain .well-known, it appends /.well-known/openid-configuration
+// to enable auto-discovery. If it already contains .well-known, returns it as-is.
+func normalizeIssuerURL(issuerURL string) string {
+	// If the URL already contains .well-known, assume it's a full discovery URL
+	if strings.Contains(issuerURL, ".well-known") {
+		return issuerURL
+	}
+
+	// Remove trailing slash if present
+	issuerURL = strings.TrimSuffix(issuerURL, "/")
+
+	// Append the well-known OIDC discovery endpoint
+	return issuerURL + "/.well-known/openid-configuration"
+}
+
 // IDTokenClaims contains the claims extracted from an OIDC ID token
 type IDTokenClaims struct {
 	Subject       string // Provider's user ID (sub claim)
@@ -82,7 +98,12 @@ func NewOIDCVerifier(ctx context.Context, cfg *config.AuthConfig) (*OIDCVerifier
 
 // addProvider adds an OIDC provider to the verifier
 func (v *OIDCVerifier) addProvider(ctx context.Context, name, issuerURL, clientID string) error {
-	provider, err := oidc.NewProvider(ctx, issuerURL)
+	// Normalize the issuer URL for auto-discovery
+	// If it's a base URL (e.g., https://auth.domain.com), append /.well-known/openid-configuration
+	// If it already contains .well-known, use it as-is
+	normalizedURL := normalizeIssuerURL(issuerURL)
+
+	provider, err := oidc.NewProvider(ctx, normalizedURL)
 	if err != nil {
 		return fmt.Errorf("failed to create OIDC provider for %s: %w", name, err)
 	}

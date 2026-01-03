@@ -143,7 +143,7 @@ type AuthConfig struct {
 
 	// OAuth/OIDC provider configuration (unified for all providers)
 	// Well-known providers (google, apple, microsoft) auto-detect issuer URLs
-	// Custom providers require explicit issuer_url
+	// Custom providers require explicit issuer_url (supports base URLs like https://auth.domain.com or full .well-known URLs)
 	OAuthProviders []OAuthProviderConfig `mapstructure:"oauth_providers"`
 
 	// SAML SSO providers for enterprise authentication
@@ -195,7 +195,7 @@ type OAuthProviderConfig struct {
 	Enabled      bool     `mapstructure:"enabled"`                 // Enable this provider (default: true)
 	ClientID     string   `mapstructure:"client_id"`               // OAuth client ID (REQUIRED)
 	ClientSecret string   `mapstructure:"client_secret,omitempty"` // Client secret (optional, can be stored in database)
-	IssuerURL    string   `mapstructure:"issuer_url,omitempty"`    // OIDC issuer URL (auto-detected for well-known providers)
+	IssuerURL    string   `mapstructure:"issuer_url,omitempty"`    // OIDC issuer URL - supports base URLs (e.g., https://auth.domain.com) with auto-discovery or full .well-known URLs (auto-detected for well-known providers)
 	Scopes       []string `mapstructure:"scopes,omitempty"`        // OAuth scopes
 	DisplayName  string   `mapstructure:"display_name,omitempty"`  // Display name for UI
 

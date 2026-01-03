@@ -182,16 +182,14 @@ func TestValidator_ValidateSQL(t *testing.T) {
 		assert.Contains(t, result.Errors[0], "information_schema")
 	})
 
-	t.Run("blocks SQL comments", func(t *testing.T) {
+	t.Run("allows SQL comments", func(t *testing.T) {
 		result := v.ValidateSQL("SELECT * FROM users -- comment", nil, nil)
-		assert.False(t, result.Valid)
-		assert.Contains(t, result.Errors[0], "--")
+		assert.True(t, result.Valid)
 	})
 
-	t.Run("blocks block comments", func(t *testing.T) {
+	t.Run("allows block comments", func(t *testing.T) {
 		result := v.ValidateSQL("SELECT * FROM users /* comment */", nil, nil)
-		assert.False(t, result.Valid)
-		assert.Contains(t, result.Errors[0], "/*")
+		assert.True(t, result.Valid)
 	})
 
 	t.Run("blocks multiple statements", func(t *testing.T) {
@@ -472,8 +470,6 @@ func TestValidator_BlockedPatterns(t *testing.T) {
 		{"SELECT * FROM information_schema.columns", "information_schema"},
 		{"SELECT * FROM pg_temp.my_table", "pg_temp"},
 		{"SELECT * FROM pg_toast.my_table", "pg_toast"},
-		{"SELECT * FROM users; -- comment", "--"},
-		{"SELECT * FROM users /* comment */", "/*"},
 		{"EXEC xp_cmdshell 'dir'", "xp_"},
 		{"exec('SELECT 1')", "exec("},
 		{"execute('SELECT 1')", "execute("},

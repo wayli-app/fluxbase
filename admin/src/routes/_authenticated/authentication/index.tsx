@@ -74,8 +74,8 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StringArrayEditor } from '@/components/string-array-editor'
 import { KeyValueArrayEditor } from '@/components/key-value-array-editor'
+import { StringArrayEditor } from '@/components/string-array-editor'
 
 const authenticationSearchSchema = z.object({
   tab: z.string().optional().catch('providers'),
@@ -173,10 +173,14 @@ function OAuthProvidersTab() {
   const [clientSecret, setClientSecret] = useState('')
   const [allowDashboardLogin, setAllowDashboardLogin] = useState(false)
   const [allowAppLogin, setAllowAppLogin] = useState(true)
-  const [requiredClaims, setRequiredClaims] = useState<Record<string, string[]>>({})
+  const [requiredClaims, setRequiredClaims] = useState<
+    Record<string, string[]>
+  >({})
   const [deniedClaims, setDeniedClaims] = useState<Record<string, string[]>>({})
-  const [showDeleteProviderConfirm, setShowDeleteProviderConfirm] = useState(false)
-  const [deletingProvider, setDeletingProvider] = useState<OAuthProviderConfig | null>(null)
+  const [showDeleteProviderConfirm, setShowDeleteProviderConfirm] =
+    useState(false)
+  const [deletingProvider, setDeletingProvider] =
+    useState<OAuthProviderConfig | null>(null)
 
   const availableProviders = [
     { id: 'google', name: 'Google', icon: '🔵' },
@@ -338,7 +342,10 @@ function OAuthProvidersTab() {
                             </Badge>
                           )}
                           {provider.source === 'config' && (
-                            <Badge variant='secondary' className='text-xs gap-1'>
+                            <Badge
+                              variant='secondary'
+                              className='gap-1 text-xs'
+                            >
                               <Settings className='h-3 w-3' />
                               Config
                             </Badge>
@@ -413,35 +420,56 @@ function OAuthProvidersTab() {
                               ))}
                             </div>
                           </div>
-                          {(provider.required_claims || provider.denied_claims) && (
+                          {(provider.required_claims ||
+                            provider.denied_claims) && (
                             <div className='col-span-2 border-t pt-3'>
                               <Label className='text-muted-foreground mb-2 block'>
                                 RBAC Rules
                               </Label>
-                              {provider.required_claims && Object.keys(provider.required_claims).length > 0 && (
-                                <div className='mb-2'>
-                                  <span className='text-xs text-muted-foreground'>Required Claims: </span>
-                                  <div className='flex flex-wrap gap-1 mt-1'>
-                                    {Object.entries(provider.required_claims).map(([key, values]) => (
-                                      <Badge key={key} variant='outline' className='text-xs'>
-                                        {key}: {values.join(', ')}
-                                      </Badge>
-                                    ))}
+                              {provider.required_claims &&
+                                Object.keys(provider.required_claims).length >
+                                  0 && (
+                                  <div className='mb-2'>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Required Claims:{' '}
+                                    </span>
+                                    <div className='mt-1 flex flex-wrap gap-1'>
+                                      {Object.entries(
+                                        provider.required_claims
+                                      ).map(([key, values]) => (
+                                        <Badge
+                                          key={key}
+                                          variant='outline'
+                                          className='text-xs'
+                                        >
+                                          {key}: {values.join(', ')}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                              {provider.denied_claims && Object.keys(provider.denied_claims).length > 0 && (
-                                <div>
-                                  <span className='text-xs text-muted-foreground'>Denied Claims: </span>
-                                  <div className='flex flex-wrap gap-1 mt-1'>
-                                    {Object.entries(provider.denied_claims).map(([key, values]) => (
-                                      <Badge key={key} variant='destructive' className='text-xs'>
-                                        {key}: {values.join(', ')}
-                                      </Badge>
-                                    ))}
+                                )}
+                              {provider.denied_claims &&
+                                Object.keys(provider.denied_claims).length >
+                                  0 && (
+                                  <div>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Denied Claims:{' '}
+                                    </span>
+                                    <div className='mt-1 flex flex-wrap gap-1'>
+                                      {Object.entries(
+                                        provider.denied_claims
+                                      ).map(([key, values]) => (
+                                        <Badge
+                                          key={key}
+                                          variant='destructive'
+                                          className='text-xs'
+                                        >
+                                          {key}: {values.join(', ')}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
                             </div>
                           )}
                         </div>
@@ -457,14 +485,20 @@ function OAuthProvidersTab() {
                               setCustomProviderName(provider.display_name)
                               setClientId(provider.client_id)
                               setClientSecret('')
-                              setAllowDashboardLogin(provider.allow_dashboard_login)
+                              setAllowDashboardLogin(
+                                provider.allow_dashboard_login
+                              )
                               setAllowAppLogin(provider.allow_app_login)
                               setRequiredClaims(provider.required_claims || {})
                               setDeniedClaims(provider.denied_claims || {})
                               if (provider.is_custom) {
-                                setCustomAuthUrl(provider.authorization_url || '')
+                                setCustomAuthUrl(
+                                  provider.authorization_url || ''
+                                )
                                 setCustomTokenUrl(provider.token_url || '')
-                                setCustomUserInfoUrl(provider.user_info_url || '')
+                                setCustomUserInfoUrl(
+                                  provider.user_info_url || ''
+                                )
                               }
                               setShowEditProvider(true)
                             }}
@@ -566,7 +600,7 @@ function OAuthProvidersTab() {
                   <div className='flex gap-2'>
                     <Input
                       id='oidcDiscoveryUrl'
-                      placeholder='https://your-provider.com/.well-known/openid-configuration'
+                      placeholder='https://auth.example.com'
                       value={oidcDiscoveryUrl}
                       onChange={(e) => setOidcDiscoveryUrl(e.target.value)}
                     />
@@ -581,9 +615,22 @@ function OAuthProvidersTab() {
 
                         try {
                           setIsDiscovering(true)
-                          const response = await fetch(oidcDiscoveryUrl)
+
+                          // Normalize the URL for auto-discovery
+                          // If it doesn't contain .well-known, append it
+                          let discoveryUrl = oidcDiscoveryUrl.trim()
+                          if (!discoveryUrl.includes('.well-known')) {
+                            // Remove trailing slash if present
+                            discoveryUrl = discoveryUrl.replace(/\/$/, '')
+                            // Append well-known endpoint
+                            discoveryUrl = `${discoveryUrl}/.well-known/openid-configuration`
+                          }
+
+                          const response = await fetch(discoveryUrl)
                           if (!response.ok) {
-                            throw new Error(`Failed to fetch: ${response.statusText}`)
+                            throw new Error(
+                              `Failed to fetch: ${response.statusText}`
+                            )
                           }
 
                           const config = await response.json()
@@ -601,7 +648,9 @@ function OAuthProvidersTab() {
 
                           toast.success('Auto-discovered OAuth endpoints!')
                         } catch (error) {
-                          toast.error(`Discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                          toast.error(
+                            `Discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                          )
                         } finally {
                           setIsDiscovering(false)
                         }
@@ -619,10 +668,25 @@ function OAuthProvidersTab() {
                     </Button>
                   </div>
                   <p className='text-muted-foreground text-xs'>
-                    Paste your provider's OpenID discovery URL. Common examples:<br />
-                    • Auth0: <code className='text-xs'>https://YOUR-DOMAIN.auth0.com/.well-known/openid-configuration</code><br />
-                    • Okta: <code className='text-xs'>https://YOUR-DOMAIN.okta.com/.well-known/openid-configuration</code><br />
-                    • Keycloak: <code className='text-xs'>https://YOUR-DOMAIN/realms/YOUR-REALM/.well-known/openid-configuration</code>
+                    Supports base URLs or full discovery URLs. Auto-discovery
+                    will be used:
+                    <br />• Base URL:{' '}
+                    <code className='text-xs'>
+                      https://auth.example.com
+                    </code>{' '}
+                    (auto-appends /.well-known/openid-configuration)
+                    <br />• Auth0:{' '}
+                    <code className='text-xs'>
+                      https://YOUR-DOMAIN.auth0.com
+                    </code>
+                    <br />• Keycloak:{' '}
+                    <code className='text-xs'>
+                      https://YOUR-DOMAIN/realms/YOUR-REALM
+                    </code>
+                    <br />• Custom:{' '}
+                    <code className='text-xs'>
+                      https://auth.example.com/.well-known/custom-oidc
+                    </code>
                   </p>
                 </div>
 
@@ -702,9 +766,11 @@ function OAuthProvidersTab() {
             </div>
 
             {/* Provider Targeting */}
-            <div className='border-t pt-4 space-y-3'>
+            <div className='space-y-3 border-t pt-4'>
               <div>
-                <Label className='text-sm font-semibold'>Provider Targeting</Label>
+                <Label className='text-sm font-semibold'>
+                  Provider Targeting
+                </Label>
                 <p className='text-muted-foreground mt-1 text-xs'>
                   Control which authentication contexts can use this provider
                 </p>
@@ -738,7 +804,7 @@ function OAuthProvidersTab() {
             </div>
 
             {/* RBAC Section */}
-            <div className='border-t pt-4 space-y-4'>
+            <div className='space-y-4 border-t pt-4'>
               <div>
                 <Label className='text-sm font-semibold'>
                   Role-Based Access Control (Optional)
@@ -809,8 +875,12 @@ function OAuthProvidersTab() {
                     token_url: customTokenUrl,
                     user_info_url: customUserInfoUrl,
                   }),
-                  ...(Object.keys(requiredClaims).length > 0 && { required_claims: requiredClaims }),
-                  ...(Object.keys(deniedClaims).length > 0 && { denied_claims: deniedClaims }),
+                  ...(Object.keys(requiredClaims).length > 0 && {
+                    required_claims: requiredClaims,
+                  }),
+                  ...(Object.keys(deniedClaims).length > 0 && {
+                    denied_claims: deniedClaims,
+                  }),
                 }
 
                 createProviderMutation.mutate(data)
@@ -918,9 +988,11 @@ function OAuthProvidersTab() {
             </div>
 
             {/* Provider Targeting */}
-            <div className='border-t pt-4 space-y-3'>
+            <div className='space-y-3 border-t pt-4'>
               <div>
-                <Label className='text-sm font-semibold'>Provider Targeting</Label>
+                <Label className='text-sm font-semibold'>
+                  Provider Targeting
+                </Label>
                 <p className='text-muted-foreground mt-1 text-xs'>
                   Control which authentication contexts can use this provider
                 </p>
@@ -954,7 +1026,7 @@ function OAuthProvidersTab() {
             </div>
 
             {/* RBAC Section */}
-            <div className='border-t pt-4 space-y-4'>
+            <div className='space-y-4 border-t pt-4'>
               <div>
                 <Label className='text-sm font-semibold'>
                   Role-Based Access Control (Optional)
@@ -1016,8 +1088,12 @@ function OAuthProvidersTab() {
                   allow_dashboard_login: allowDashboardLogin,
                   allow_app_login: allowAppLogin,
                   ...(clientSecret && { client_secret: clientSecret }),
-                  ...(Object.keys(requiredClaims).length > 0 && { required_claims: requiredClaims }),
-                  ...(Object.keys(deniedClaims).length > 0 && { denied_claims: deniedClaims }),
+                  ...(Object.keys(requiredClaims).length > 0 && {
+                    required_claims: requiredClaims,
+                  }),
+                  ...(Object.keys(deniedClaims).length > 0 && {
+                    denied_claims: deniedClaims,
+                  }),
                 }
 
                 updateProviderMutation.mutate({ id: editingProvider.id, data })
@@ -1034,9 +1110,9 @@ function OAuthProvidersTab() {
       <ConfirmDialog
         open={showDeleteProviderConfirm}
         onOpenChange={setShowDeleteProviderConfirm}
-        title="Remove OAuth Provider"
+        title='Remove OAuth Provider'
         desc={`Are you sure you want to remove ${deletingProvider?.display_name}? Users will no longer be able to sign in with this provider.`}
-        confirmText="Remove"
+        confirmText='Remove'
         destructive
         isLoading={deleteProviderMutation.isPending}
         handleConfirm={() => {
@@ -1059,9 +1135,11 @@ function SAMLProvidersTab() {
   const baseUrl = window.location.origin
   const [showAddProvider, setShowAddProvider] = useState(false)
   const [showEditProvider, setShowEditProvider] = useState(false)
-  const [editingProvider, setEditingProvider] = useState<SAMLProviderConfig | null>(null)
+  const [editingProvider, setEditingProvider] =
+    useState<SAMLProviderConfig | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deletingProvider, setDeletingProvider] = useState<SAMLProviderConfig | null>(null)
+  const [deletingProvider, setDeletingProvider] =
+    useState<SAMLProviderConfig | null>(null)
 
   // Form state
   const [providerName, setProviderName] = useState('')
@@ -1090,7 +1168,8 @@ function SAMLProvidersTab() {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: CreateSAMLProviderRequest) => samlProviderApi.create(data),
+    mutationFn: (data: CreateSAMLProviderRequest) =>
+      samlProviderApi.create(data),
     onSuccess: (data) => {
       toast.success(data.message)
       queryClient.invalidateQueries({ queryKey: ['samlProviders'] })
@@ -1100,7 +1179,8 @@ function SAMLProvidersTab() {
     onError: (error: unknown) => {
       const errorMessage =
         error instanceof Error && 'response' in error
-          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create SAML provider'
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error || 'Failed to create SAML provider'
           : 'Failed to create SAML provider'
       toast.error(errorMessage)
     },
@@ -1108,8 +1188,13 @@ function SAMLProvidersTab() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateSAMLProviderRequest }) =>
-      samlProviderApi.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string
+      data: UpdateSAMLProviderRequest
+    }) => samlProviderApi.update(id, data),
     onSuccess: (data) => {
       toast.success(data.message)
       queryClient.invalidateQueries({ queryKey: ['samlProviders'] })
@@ -1120,7 +1205,8 @@ function SAMLProvidersTab() {
     onError: (error: unknown) => {
       const errorMessage =
         error instanceof Error && 'response' in error
-          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update SAML provider'
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error || 'Failed to update SAML provider'
           : 'Failed to update SAML provider'
       toast.error(errorMessage)
     },
@@ -1138,7 +1224,8 @@ function SAMLProvidersTab() {
     onError: (error: unknown) => {
       const errorMessage =
         error instanceof Error && 'response' in error
-          ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete SAML provider'
+          ? (error as { response?: { data?: { error?: string } } }).response
+              ?.data?.error || 'Failed to delete SAML provider'
           : 'Failed to delete SAML provider'
       toast.error(errorMessage)
     },
@@ -1235,7 +1322,9 @@ function SAMLProvidersTab() {
       allow_app_login: allowAppLogin,
       allow_idp_initiated: allowIdpInitiated,
       ...(requiredGroups.length > 0 && { required_groups: requiredGroups }),
-      ...(requiredGroupsAll.length > 0 && { required_groups_all: requiredGroupsAll }),
+      ...(requiredGroupsAll.length > 0 && {
+        required_groups_all: requiredGroupsAll,
+      }),
       ...(deniedGroups.length > 0 && { denied_groups: deniedGroups }),
       group_attribute: groupAttribute || 'groups',
     })
@@ -1275,7 +1364,9 @@ function SAMLProvidersTab() {
         allow_app_login: allowAppLogin,
         allow_idp_initiated: allowIdpInitiated,
         ...(requiredGroups.length > 0 && { required_groups: requiredGroups }),
-        ...(requiredGroupsAll.length > 0 && { required_groups_all: requiredGroupsAll }),
+        ...(requiredGroupsAll.length > 0 && {
+          required_groups_all: requiredGroupsAll,
+        }),
         ...(deniedGroups.length > 0 && { denied_groups: deniedGroups }),
         group_attribute: groupAttribute || 'groups',
       },
@@ -1306,11 +1397,12 @@ function SAMLProvidersTab() {
                 SAML SSO Providers
               </CardTitle>
               <CardDescription>
-                Enterprise Single Sign-On via SAML 2.0. Configure Identity Providers like Okta, Azure AD, or OneLogin.
+                Enterprise Single Sign-On via SAML 2.0. Configure Identity
+                Providers like Okta, Azure AD, or OneLogin.
               </CardDescription>
             </div>
             <Button onClick={() => setShowAddProvider(true)}>
-              <Plus className='h-4 w-4 mr-2' />
+              <Plus className='mr-2 h-4 w-4' />
               Add Provider
             </Button>
           </div>
@@ -1319,20 +1411,30 @@ function SAMLProvidersTab() {
           {providers.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-12 text-center'>
               <Building2 className='text-muted-foreground mb-4 h-12 w-12' />
-              <p className='text-muted-foreground mb-2'>No SAML providers configured</p>
-              <Button variant='outline' onClick={() => setShowAddProvider(true)}>
-                <Plus className='h-4 w-4 mr-2' />
+              <p className='text-muted-foreground mb-2'>
+                No SAML providers configured
+              </p>
+              <Button
+                variant='outline'
+                onClick={() => setShowAddProvider(true)}
+              >
+                <Plus className='mr-2 h-4 w-4' />
                 Add your first SAML provider
               </Button>
             </div>
           ) : (
             <div className='space-y-4'>
               {providers.map((provider) => (
-                <Card key={provider.id} className={provider.source === 'config' ? 'border-dashed' : ''}>
+                <Card
+                  key={provider.id}
+                  className={
+                    provider.source === 'config' ? 'border-dashed' : ''
+                  }
+                >
                   <CardContent className='pt-6'>
                     <div className='flex items-start justify-between'>
                       <div className='flex-1 space-y-4'>
-                        <div className='flex items-center gap-2 flex-wrap'>
+                        <div className='flex flex-wrap items-center gap-2'>
                           <h3 className='text-lg font-semibold'>
                             {provider.display_name || provider.name}
                           </h3>
@@ -1346,7 +1448,7 @@ function SAMLProvidersTab() {
                           )}
                           {provider.source === 'config' && (
                             <Badge variant='outline'>
-                              <FileText className='h-3 w-3 mr-1' />
+                              <FileText className='mr-1 h-3 w-3' />
                               Config File
                             </Badge>
                           )}
@@ -1361,38 +1463,61 @@ function SAMLProvidersTab() {
                           )}
                         </div>
 
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
+                        <div className='grid grid-cols-1 gap-4 text-sm md:grid-cols-2'>
                           <div>
-                            <Label className='text-muted-foreground'>Provider Name</Label>
-                            <p className='font-mono text-xs mt-1'>{provider.name}</p>
+                            <Label className='text-muted-foreground'>
+                              Provider Name
+                            </Label>
+                            <p className='mt-1 font-mono text-xs'>
+                              {provider.name}
+                            </p>
                           </div>
                           <div>
-                            <Label className='text-muted-foreground'>Default Role</Label>
-                            <p className='font-mono text-xs mt-1'>{provider.default_role}</p>
+                            <Label className='text-muted-foreground'>
+                              Default Role
+                            </Label>
+                            <p className='mt-1 font-mono text-xs'>
+                              {provider.default_role}
+                            </p>
                           </div>
                           <div>
-                            <Label className='text-muted-foreground'>Entity ID (SP)</Label>
-                            <div className='flex items-center gap-2 mt-1'>
-                              <p className='font-mono text-xs break-all flex-1'>{provider.entity_id}</p>
+                            <Label className='text-muted-foreground'>
+                              Entity ID (SP)
+                            </Label>
+                            <div className='mt-1 flex items-center gap-2'>
+                              <p className='flex-1 font-mono text-xs break-all'>
+                                {provider.entity_id}
+                              </p>
                               <Button
                                 variant='ghost'
                                 size='sm'
                                 className='h-6 w-6 p-0'
-                                onClick={() => copyToClipboard(provider.entity_id, 'Entity ID')}
+                                onClick={() =>
+                                  copyToClipboard(
+                                    provider.entity_id,
+                                    'Entity ID'
+                                  )
+                                }
                               >
                                 <Copy className='h-3 w-3' />
                               </Button>
                             </div>
                           </div>
                           <div>
-                            <Label className='text-muted-foreground'>ACS URL</Label>
-                            <div className='flex items-center gap-2 mt-1'>
-                              <p className='font-mono text-xs break-all flex-1'>{provider.acs_url}</p>
+                            <Label className='text-muted-foreground'>
+                              ACS URL
+                            </Label>
+                            <div className='mt-1 flex items-center gap-2'>
+                              <p className='flex-1 font-mono text-xs break-all'>
+                                {provider.acs_url}
+                              </p>
                               <Button
                                 variant='ghost'
                                 size='sm'
                                 className='h-6 w-6 p-0'
-                                onClick={() => copyToClipboard(provider.acs_url, 'ACS URL')}
+                                onClick={() =>
+                                  copyToClipboard(provider.acs_url, 'ACS URL')
+                                }
                               >
                                 <Copy className='h-3 w-3' />
                               </Button>
@@ -1401,72 +1526,113 @@ function SAMLProvidersTab() {
                         </div>
 
                         {/* SP Metadata */}
-                        <div className='border-t pt-4 mt-4'>
-                          <Label className='text-muted-foreground'>SP Metadata URL</Label>
-                          <div className='flex items-center gap-2 mt-1'>
-                            <code className='bg-muted px-2 py-1 rounded text-xs flex-1'>
-                              {baseUrl}/api/v1/auth/saml/metadata/{provider.name}
+                        <div className='mt-4 border-t pt-4'>
+                          <Label className='text-muted-foreground'>
+                            SP Metadata URL
+                          </Label>
+                          <div className='mt-1 flex items-center gap-2'>
+                            <code className='bg-muted flex-1 rounded px-2 py-1 text-xs'>
+                              {baseUrl}/api/v1/auth/saml/metadata/
+                              {provider.name}
                             </code>
                             <Button
                               variant='outline'
                               size='sm'
-                              onClick={() => copyToClipboard(`${baseUrl}/api/v1/auth/saml/metadata/${provider.name}`, 'SP Metadata URL')}
+                              onClick={() =>
+                                copyToClipboard(
+                                  `${baseUrl}/api/v1/auth/saml/metadata/${provider.name}`,
+                                  'SP Metadata URL'
+                                )
+                              }
                             >
-                              <Copy className='h-3 w-3 mr-1' />
+                              <Copy className='mr-1 h-3 w-3' />
                               Copy
                             </Button>
                           </div>
                         </div>
 
                         {/* RBAC Rules */}
-                        {(provider.required_groups || provider.required_groups_all || provider.denied_groups) && (
-                          <div className='border-t pt-4 mt-4'>
-                            <Label className='text-muted-foreground mb-2 block'>RBAC Rules</Label>
+                        {(provider.required_groups ||
+                          provider.required_groups_all ||
+                          provider.denied_groups) && (
+                          <div className='mt-4 border-t pt-4'>
+                            <Label className='text-muted-foreground mb-2 block'>
+                              RBAC Rules
+                            </Label>
                             <div className='space-y-2'>
-                              {provider.required_groups && provider.required_groups.length > 0 && (
-                                <div>
-                                  <span className='text-xs text-muted-foreground'>Required Groups (OR): </span>
-                                  <div className='flex flex-wrap gap-1 mt-1'>
-                                    {provider.required_groups.map((group) => (
-                                      <Badge key={group} variant='outline' className='text-xs'>
-                                        {group}
-                                      </Badge>
-                                    ))}
+                              {provider.required_groups &&
+                                provider.required_groups.length > 0 && (
+                                  <div>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Required Groups (OR):{' '}
+                                    </span>
+                                    <div className='mt-1 flex flex-wrap gap-1'>
+                                      {provider.required_groups.map((group) => (
+                                        <Badge
+                                          key={group}
+                                          variant='outline'
+                                          className='text-xs'
+                                        >
+                                          {group}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                              {provider.required_groups_all && provider.required_groups_all.length > 0 && (
-                                <div>
-                                  <span className='text-xs text-muted-foreground'>Required Groups (AND): </span>
-                                  <div className='flex flex-wrap gap-1 mt-1'>
-                                    {provider.required_groups_all.map((group) => (
-                                      <Badge key={group} variant='secondary' className='text-xs'>
-                                        {group}
-                                      </Badge>
-                                    ))}
+                                )}
+                              {provider.required_groups_all &&
+                                provider.required_groups_all.length > 0 && (
+                                  <div>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Required Groups (AND):{' '}
+                                    </span>
+                                    <div className='mt-1 flex flex-wrap gap-1'>
+                                      {provider.required_groups_all.map(
+                                        (group) => (
+                                          <Badge
+                                            key={group}
+                                            variant='secondary'
+                                            className='text-xs'
+                                          >
+                                            {group}
+                                          </Badge>
+                                        )
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                              {provider.denied_groups && provider.denied_groups.length > 0 && (
-                                <div>
-                                  <span className='text-xs text-muted-foreground'>Denied Groups: </span>
-                                  <div className='flex flex-wrap gap-1 mt-1'>
-                                    {provider.denied_groups.map((group) => (
-                                      <Badge key={group} variant='destructive' className='text-xs'>
-                                        {group}
-                                      </Badge>
-                                    ))}
+                                )}
+                              {provider.denied_groups &&
+                                provider.denied_groups.length > 0 && (
+                                  <div>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Denied Groups:{' '}
+                                    </span>
+                                    <div className='mt-1 flex flex-wrap gap-1'>
+                                      {provider.denied_groups.map((group) => (
+                                        <Badge
+                                          key={group}
+                                          variant='destructive'
+                                          className='text-xs'
+                                        >
+                                          {group}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                              {provider.group_attribute && provider.group_attribute !== 'groups' && (
-                                <div>
-                                  <span className='text-xs text-muted-foreground'>Group Attribute: </span>
-                                  <Badge variant='outline' className='text-xs'>
-                                    {provider.group_attribute}
-                                  </Badge>
-                                </div>
-                              )}
+                                )}
+                              {provider.group_attribute &&
+                                provider.group_attribute !== 'groups' && (
+                                  <div>
+                                    <span className='text-muted-foreground text-xs'>
+                                      Group Attribute:{' '}
+                                    </span>
+                                    <Badge
+                                      variant='outline'
+                                      className='text-xs'
+                                    >
+                                      {provider.group_attribute}
+                                    </Badge>
+                                  </div>
+                                )}
                             </div>
                           </div>
                         )}
@@ -1474,7 +1640,7 @@ function SAMLProvidersTab() {
 
                       {/* Actions */}
                       {provider.source !== 'config' && (
-                        <div className='flex gap-2 ml-4'>
+                        <div className='ml-4 flex gap-2'>
                           <Button
                             variant='outline'
                             size='sm'
@@ -1505,7 +1671,7 @@ function SAMLProvidersTab() {
 
       {/* Add Provider Dialog */}
       <Dialog open={showAddProvider} onOpenChange={setShowAddProvider}>
-        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Add SAML Provider</DialogTitle>
             <DialogDescription>
@@ -1522,7 +1688,7 @@ function SAMLProvidersTab() {
                   value={providerName}
                   onChange={(e) => setProviderName(e.target.value)}
                 />
-                <p className='text-xs text-muted-foreground'>
+                <p className='text-muted-foreground text-xs'>
                   Lowercase letters, numbers, underscores, hyphens only
                 </p>
               </div>
@@ -1545,7 +1711,7 @@ function SAMLProvidersTab() {
                   size='sm'
                   onClick={() => setMetadataSource('url')}
                 >
-                  <Link className='h-4 w-4 mr-2' />
+                  <Link className='mr-2 h-4 w-4' />
                   URL
                 </Button>
                 <Button
@@ -1554,7 +1720,7 @@ function SAMLProvidersTab() {
                   size='sm'
                   onClick={() => setMetadataSource('xml')}
                 >
-                  <Upload className='h-4 w-4 mr-2' />
+                  <Upload className='mr-2 h-4 w-4' />
                   Upload XML
                 </Button>
               </div>
@@ -1604,7 +1770,7 @@ function SAMLProvidersTab() {
                     onChange={handleFileUpload}
                   />
                   <textarea
-                    className='w-full h-32 p-2 text-xs font-mono border rounded-md'
+                    className='h-32 w-full rounded-md border p-2 font-mono text-xs'
                     placeholder='Paste IdP metadata XML here...'
                     value={metadataXml}
                     onChange={(e) => {
@@ -1620,7 +1786,7 @@ function SAMLProvidersTab() {
                     disabled={!metadataXml || validatingMetadata}
                   >
                     {validatingMetadata ? (
-                      <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                     ) : null}
                     Validate XML
                   </Button>
@@ -1645,36 +1811,52 @@ function SAMLProvidersTab() {
                 <div className='flex items-center justify-between'>
                   <div>
                     <Label>Auto-create Users</Label>
-                    <p className='text-xs text-muted-foreground'>Create user if not exists</p>
+                    <p className='text-muted-foreground text-xs'>
+                      Create user if not exists
+                    </p>
                   </div>
-                  <Switch checked={autoCreateUsers} onCheckedChange={setAutoCreateUsers} />
+                  <Switch
+                    checked={autoCreateUsers}
+                    onCheckedChange={setAutoCreateUsers}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <div>
                     <Label>Allow IdP-Initiated SSO</Label>
-                    <p className='text-xs text-muted-foreground'>Less secure</p>
+                    <p className='text-muted-foreground text-xs'>Less secure</p>
                   </div>
-                  <Switch checked={allowIdpInitiated} onCheckedChange={setAllowIdpInitiated} />
+                  <Switch
+                    checked={allowIdpInitiated}
+                    onCheckedChange={setAllowIdpInitiated}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <div>
                     <Label>Allow for App Users</Label>
-                    <p className='text-xs text-muted-foreground'>End-user authentication</p>
+                    <p className='text-muted-foreground text-xs'>
+                      End-user authentication
+                    </p>
                   </div>
-                  <Switch checked={allowAppLogin} onCheckedChange={setAllowAppLogin} />
+                  <Switch
+                    checked={allowAppLogin}
+                    onCheckedChange={setAllowAppLogin}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <div>
                     <Label>Allow for Dashboard</Label>
-                    <p className='text-xs text-muted-foreground'>Admin login</p>
+                    <p className='text-muted-foreground text-xs'>Admin login</p>
                   </div>
-                  <Switch checked={allowDashboardLogin} onCheckedChange={setAllowDashboardLogin} />
+                  <Switch
+                    checked={allowDashboardLogin}
+                    onCheckedChange={setAllowDashboardLogin}
+                  />
                 </div>
               </div>
             </div>
 
             {/* RBAC Section */}
-            <div className='border-t pt-4 space-y-4'>
+            <div className='space-y-4 border-t pt-4'>
               <div>
                 <Label className='text-sm font-semibold'>
                   Role-Based Access Control (Optional)
@@ -1694,7 +1876,8 @@ function SAMLProvidersTab() {
                   placeholder='groups'
                 />
                 <p className='text-muted-foreground text-xs'>
-                  SAML attribute containing group memberships (default: "groups")
+                  SAML attribute containing group memberships (default:
+                  "groups")
                 </p>
               </div>
 
@@ -1743,12 +1926,21 @@ function SAMLProvidersTab() {
           </div>
 
           <DialogFooter>
-            <Button variant='outline' onClick={() => { setShowAddProvider(false); resetForm(); }}>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowAddProvider(false)
+                resetForm()
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateProvider} disabled={createMutation.isPending}>
+            <Button
+              onClick={handleCreateProvider}
+              disabled={createMutation.isPending}
+            >
               {createMutation.isPending ? (
-                <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               ) : null}
               Create Provider
             </Button>
@@ -1758,11 +1950,12 @@ function SAMLProvidersTab() {
 
       {/* Edit Provider Dialog */}
       <Dialog open={showEditProvider} onOpenChange={setShowEditProvider}>
-        <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
+        <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Edit SAML Provider</DialogTitle>
             <DialogDescription>
-              Update the configuration for {editingProvider?.display_name || editingProvider?.name}.
+              Update the configuration for{' '}
+              {editingProvider?.display_name || editingProvider?.name}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1785,7 +1978,7 @@ function SAMLProvidersTab() {
                   size='sm'
                   onClick={() => setMetadataSource('url')}
                 >
-                  <Link className='h-4 w-4 mr-2' />
+                  <Link className='mr-2 h-4 w-4' />
                   URL
                 </Button>
                 <Button
@@ -1794,7 +1987,7 @@ function SAMLProvidersTab() {
                   size='sm'
                   onClick={() => setMetadataSource('xml')}
                 >
-                  <Upload className='h-4 w-4 mr-2' />
+                  <Upload className='mr-2 h-4 w-4' />
                   Upload XML
                 </Button>
               </div>
@@ -1816,7 +2009,11 @@ function SAMLProvidersTab() {
                     onClick={validateMetadata}
                     disabled={!metadataUrl || validatingMetadata}
                   >
-                    {validatingMetadata ? <Loader2 className='h-4 w-4 animate-spin' /> : 'Validate'}
+                    {validatingMetadata ? (
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                    ) : (
+                      'Validate'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -1829,7 +2026,7 @@ function SAMLProvidersTab() {
                   onChange={handleFileUpload}
                 />
                 <textarea
-                  className='w-full h-32 p-2 text-xs font-mono border rounded-md'
+                  className='h-32 w-full rounded-md border p-2 font-mono text-xs'
                   placeholder='Paste IdP metadata XML here...'
                   value={metadataXml}
                   onChange={(e) => setMetadataXml(e.target.value)}
@@ -1851,25 +2048,37 @@ function SAMLProvidersTab() {
               <div className='grid grid-cols-2 gap-4'>
                 <div className='flex items-center justify-between'>
                   <Label>Auto-create Users</Label>
-                  <Switch checked={autoCreateUsers} onCheckedChange={setAutoCreateUsers} />
+                  <Switch
+                    checked={autoCreateUsers}
+                    onCheckedChange={setAutoCreateUsers}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <Label>Allow IdP-Initiated SSO</Label>
-                  <Switch checked={allowIdpInitiated} onCheckedChange={setAllowIdpInitiated} />
+                  <Switch
+                    checked={allowIdpInitiated}
+                    onCheckedChange={setAllowIdpInitiated}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <Label>Allow for App Users</Label>
-                  <Switch checked={allowAppLogin} onCheckedChange={setAllowAppLogin} />
+                  <Switch
+                    checked={allowAppLogin}
+                    onCheckedChange={setAllowAppLogin}
+                  />
                 </div>
                 <div className='flex items-center justify-between'>
                   <Label>Allow for Dashboard</Label>
-                  <Switch checked={allowDashboardLogin} onCheckedChange={setAllowDashboardLogin} />
+                  <Switch
+                    checked={allowDashboardLogin}
+                    onCheckedChange={setAllowDashboardLogin}
+                  />
                 </div>
               </div>
             </div>
 
             {/* RBAC Section */}
-            <div className='border-t pt-4 space-y-4'>
+            <div className='space-y-4 border-t pt-4'>
               <div>
                 <Label className='text-sm font-semibold'>
                   Role-Based Access Control (Optional)
@@ -1889,7 +2098,8 @@ function SAMLProvidersTab() {
                   placeholder='groups'
                 />
                 <p className='text-muted-foreground text-xs'>
-                  SAML attribute containing group memberships (default: "groups")
+                  SAML attribute containing group memberships (default:
+                  "groups")
                 </p>
               </div>
 
@@ -1938,11 +2148,22 @@ function SAMLProvidersTab() {
           </div>
 
           <DialogFooter>
-            <Button variant='outline' onClick={() => { setShowEditProvider(false); resetForm(); }}>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShowEditProvider(false)
+                resetForm()
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleUpdateProvider} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : null}
+            <Button
+              onClick={handleUpdateProvider}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              ) : null}
               Save Changes
             </Button>
           </DialogFooter>
@@ -2222,11 +2443,14 @@ function AuthSettingsTab() {
                 Disable Password Login
               </Label>
               <p className='text-muted-foreground text-sm'>
-                Require SSO for all dashboard admin logins. Password authentication will be disabled.
+                Require SSO for all dashboard admin logins. Password
+                authentication will be disabled.
               </p>
               {!hasDashboardSSOProviders && (
-                <p className='text-sm text-amber-600 mt-2'>
-                  Configure at least one OAuth or SAML provider with "Allow dashboard login" enabled before you can disable password login.
+                <p className='mt-2 text-sm text-amber-600'>
+                  Configure at least one OAuth or SAML provider with "Allow
+                  dashboard login" enabled before you can disable password
+                  login.
                 </p>
               )}
             </div>
@@ -2239,14 +2463,20 @@ function AuthSettingsTab() {
                   disable_dashboard_password_login: checked,
                 })
               }
-              disabled={!hasDashboardSSOProviders && !settings.disable_dashboard_password_login}
+              disabled={
+                !hasDashboardSSOProviders &&
+                !settings.disable_dashboard_password_login
+              }
             />
           </div>
           {settings.disable_dashboard_password_login && (
-            <div className='bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3'>
+            <div className='rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950'>
               <p className='text-sm text-amber-800 dark:text-amber-200'>
-                <strong>Recovery:</strong> If you get locked out, set the environment variable{' '}
-                <code className='bg-amber-100 dark:bg-amber-900 px-1 rounded'>FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN=true</code>{' '}
+                <strong>Recovery:</strong> If you get locked out, set the
+                environment variable{' '}
+                <code className='rounded bg-amber-100 px-1 dark:bg-amber-900'>
+                  FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN=true
+                </code>{' '}
                 to temporarily re-enable password login.
               </p>
             </div>

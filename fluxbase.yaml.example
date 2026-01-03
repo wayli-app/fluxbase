@@ -81,6 +81,10 @@ auth:
   #     # Apple requires JWT-signed client_secret (generated with your private key)
   #
   #   # Custom OIDC providers (issuer_url required)
+  #   # issuer_url supports:
+  #   #   - Base URLs: https://auth.example.com (auto-appends /.well-known/openid-configuration)
+  #   #   - Full .well-known URLs: https://auth.example.com/.well-known/openid-configuration
+  #   #   - Provider-specific paths: https://auth.example.com/realms/main
   #   - name: keycloak                      # Custom provider name
   #     enabled: true
   #     issuer_url: "https://auth.example.com/realms/main"  # OIDC issuer URL
@@ -95,7 +99,7 @@ auth:
   #
   #   - name: authelia
   #     enabled: true
-  #     issuer_url: "https://auth.example.com"
+  #     issuer_url: "https://auth.example.com"  # Base URL - will auto-discover at /.well-known/openid-configuration
   #     client_id: "fluxbase"
   #
   # Provider Setup Steps:
