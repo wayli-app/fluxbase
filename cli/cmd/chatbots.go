@@ -156,10 +156,14 @@ func runChatbotsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var chatbots []map[string]interface{}
-	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots", nil, &chatbots); err != nil {
+	var response struct {
+		Chatbots []map[string]interface{} `json:"chatbots"`
+		Count    int                      `json:"count"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots", nil, &response); err != nil {
 		return err
 	}
+	chatbots := response.Chatbots
 
 	if len(chatbots) == 0 {
 		fmt.Println("No chatbots found.")

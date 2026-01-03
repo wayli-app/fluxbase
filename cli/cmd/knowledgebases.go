@@ -184,10 +184,14 @@ func runKBList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var kbs []map[string]interface{}
-	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases", nil, &kbs); err != nil {
+	var response struct {
+		KnowledgeBases []map[string]interface{} `json:"knowledge_bases"`
+		Count          int                      `json:"count"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases", nil, &response); err != nil {
 		return err
 	}
+	kbs := response.KnowledgeBases
 
 	if len(kbs) == 0 {
 		fmt.Println("No knowledge bases found.")

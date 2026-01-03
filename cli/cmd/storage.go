@@ -182,10 +182,13 @@ func runBucketsList(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var buckets []map[string]interface{}
-	if err := apiClient.DoGet(ctx, "/api/v1/storage/buckets", nil, &buckets); err != nil {
+	var response struct {
+		Buckets []map[string]interface{} `json:"buckets"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/storage/buckets", nil, &response); err != nil {
 		return err
 	}
+	buckets := response.Buckets
 
 	if len(buckets) == 0 {
 		fmt.Println("No buckets found.")
