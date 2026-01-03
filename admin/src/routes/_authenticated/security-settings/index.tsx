@@ -1,18 +1,39 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  Shield,
+  AlertCircle,
+  Loader2,
+  Bot,
+  CheckCircle2,
+  Info,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  apiClient,
+  captchaSettingsApi,
+  type CaptchaSettingsResponse,
+  type UpdateCaptchaSettingsRequest,
+} from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Button } from '@/components/ui/button'
+import {
+  OverridableSelect,
+  SelectItem,
+} from '@/components/admin/overridable-select'
 import { OverridableSwitch } from '@/components/admin/overridable-switch'
-import { OverridableSelect, SelectItem } from '@/components/admin/overridable-select'
-import { Shield, AlertCircle, Loader2, Bot, CheckCircle2, Info } from 'lucide-react'
-import { toast } from 'sonner'
-import { apiClient, captchaSettingsApi, type CaptchaSettingsResponse, type UpdateCaptchaSettingsRequest } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/security-settings/')({
   component: SecuritySettingsPage,
@@ -40,7 +61,9 @@ function SecuritySettingsPage() {
   const { data: settings, isLoading } = useQuery<SecuritySettings>({
     queryKey: ['security-settings'],
     queryFn: async () => {
-      const response = await apiClient.get('/api/v1/admin/system/settings/app.security.enable_global_rate_limit')
+      const response = await apiClient.get(
+        '/api/v1/admin/system/settings/app.security.enable_global_rate_limit'
+      )
       return {
         enable_global_rate_limit: response.data.value.value,
       }
@@ -51,7 +74,7 @@ function SecuritySettingsPage() {
   const {
     data: captchaSettings,
     isLoading: isLoadingCaptcha,
-    dataUpdatedAt
+    dataUpdatedAt,
   } = useQuery<CaptchaSettingsResponse>({
     queryKey: ['captcha-settings'],
     queryFn: () => captchaSettingsApi.get(),
@@ -68,7 +91,8 @@ function SecuritySettingsPage() {
     cap_api_key: '',
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [initializedFromDataUpdatedAt, setInitializedFromDataUpdatedAt] = useState<number | null>(null)
+  const [initializedFromDataUpdatedAt, setInitializedFromDataUpdatedAt] =
+    useState<number | null>(null)
 
   // Initialize form state when settings are first loaded or refetched
   if (captchaSettings && dataUpdatedAt !== initializedFromDataUpdatedAt) {
@@ -87,7 +111,8 @@ function SecuritySettingsPage() {
 
   // Update captcha settings mutation
   const updateCaptchaMutation = useMutation({
-    mutationFn: (request: UpdateCaptchaSettingsRequest) => captchaSettingsApi.update(request),
+    mutationFn: (request: UpdateCaptchaSettingsRequest) =>
+      captchaSettingsApi.update(request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['captcha-settings'] })
       setHasUnsavedChanges(false)
@@ -156,7 +181,10 @@ function SecuritySettingsPage() {
   }
 
   // Update form field and mark as changed
-  const updateFormField = <K extends keyof CaptchaFormState>(field: K, value: CaptchaFormState[K]) => {
+  const updateFormField = <K extends keyof CaptchaFormState>(
+    field: K,
+    value: CaptchaFormState[K]
+  ) => {
     setCaptchaForm((prev) => ({ ...prev, [field]: value }))
     setHasUnsavedChanges(true)
   }
@@ -197,25 +225,25 @@ function SecuritySettingsPage() {
 
   if (isLoading || isLoadingCaptcha) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className='flex h-full items-center justify-center'>
+        <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Shield className="w-8 h-8" />
+    <div className='flex flex-1 flex-col gap-6 p-6'>
+      <div>
+        <h1 className='flex items-center gap-2 text-3xl font-bold tracking-tight'>
+          <Shield className='h-8 w-8' />
           Security Settings
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className='text-muted-foreground mt-2'>
           Configure security features and access controls for your application
         </p>
       </div>
 
-      <div className="space-y-6">
+      <div className='space-y-4'>
         {/* Global Rate Limiting */}
         <Card>
           <CardHeader>
@@ -225,15 +253,15 @@ function SecuritySettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
+            <div className='flex items-center justify-between'>
               <div>
-                <Label htmlFor="rate-limit">Enable Global Rate Limit</Label>
-                <p className="text-sm text-muted-foreground">
+                <Label htmlFor='rate-limit'>Enable Global Rate Limit</Label>
+                <p className='text-muted-foreground text-sm'>
                   Apply rate limits to all API endpoints
                 </p>
               </div>
               <Switch
-                id="rate-limit"
+                id='rate-limit'
                 checked={settings?.enable_global_rate_limit ?? false}
                 onCheckedChange={(checked) => {
                   updateSettingMutation.mutate({
@@ -249,20 +277,20 @@ function SecuritySettingsPage() {
         {/* CAPTCHA Settings */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
+            <CardTitle className='flex items-center gap-2'>
+              <Bot className='h-5 w-5' />
               CAPTCHA Protection
             </CardTitle>
             <CardDescription>
               Protect authentication endpoints from automated attacks
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className='space-y-6'>
             {/* Enabled Toggle */}
             <OverridableSwitch
-              id="captcha-enabled"
-              label="Enable CAPTCHA"
-              description="Require CAPTCHA verification on protected endpoints"
+              id='captcha-enabled'
+              label='Enable CAPTCHA'
+              description='Require CAPTCHA verification on protected endpoints'
               checked={captchaSettings?.enabled ?? false}
               onCheckedChange={handleToggleEnabled}
               disabled={updateCaptchaMutation.isPending}
@@ -273,31 +301,38 @@ function SecuritySettingsPage() {
               <>
                 {/* Provider Selection */}
                 <OverridableSelect
-                  id="captcha-provider"
-                  label="CAPTCHA Provider"
+                  id='captcha-provider'
+                  label='CAPTCHA Provider'
                   value={captchaForm.provider}
                   onValueChange={(value) => updateFormField('provider', value)}
                   override={getOverride('provider')}
                 >
-                  <SelectItem value="hcaptcha">hCaptcha</SelectItem>
-                  <SelectItem value="recaptcha_v3">reCAPTCHA v3</SelectItem>
-                  <SelectItem value="turnstile">Cloudflare Turnstile</SelectItem>
-                  <SelectItem value="cap">Cap (Self-hosted)</SelectItem>
+                  <SelectItem value='hcaptcha'>hCaptcha</SelectItem>
+                  <SelectItem value='recaptcha_v3'>reCAPTCHA v3</SelectItem>
+                  <SelectItem value='turnstile'>
+                    Cloudflare Turnstile
+                  </SelectItem>
+                  <SelectItem value='cap'>Cap (Self-hosted)</SelectItem>
                 </OverridableSelect>
 
                 {/* Site Key */}
-                <div className="space-y-2">
-                  <Label htmlFor="site_key">Site Key</Label>
-                  <div className="relative">
+                <div className='space-y-2'>
+                  <Label htmlFor='site_key'>Site Key</Label>
+                  <div className='relative'>
                     <Input
-                      id="site_key"
+                      id='site_key'
                       value={captchaForm.site_key}
-                      onChange={(e) => updateFormField('site_key', e.target.value)}
+                      onChange={(e) =>
+                        updateFormField('site_key', e.target.value)
+                      }
                       disabled={isOverridden('site_key')}
-                      placeholder="Enter your CAPTCHA site key"
+                      placeholder='Enter your CAPTCHA site key'
                     />
                     {isOverridden('site_key') && (
-                      <Badge variant="outline" className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <Badge
+                        variant='outline'
+                        className='absolute top-1/2 right-2 -translate-y-1/2'
+                      >
                         ENV: {getEnvVar('site_key')}
                       </Badge>
                     )}
@@ -305,27 +340,35 @@ function SecuritySettingsPage() {
                 </div>
 
                 {/* Secret Key */}
-                <div className="space-y-2">
-                  <Label htmlFor="secret_key">Secret Key</Label>
-                  <div className="space-y-2">
-                    <div className="relative">
+                <div className='space-y-2'>
+                  <Label htmlFor='secret_key'>Secret Key</Label>
+                  <div className='space-y-2'>
+                    <div className='relative'>
                       <Input
-                        id="secret_key"
-                        type="password"
+                        id='secret_key'
+                        type='password'
                         value={captchaForm.secret_key}
-                        onChange={(e) => updateFormField('secret_key', e.target.value)}
+                        onChange={(e) =>
+                          updateFormField('secret_key', e.target.value)
+                        }
                         disabled={isOverridden('secret_key')}
-                        placeholder="Leave empty to keep current secret"
+                        placeholder='Leave empty to keep current secret'
                       />
                       {isOverridden('secret_key') && (
-                        <Badge variant="outline" className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <Badge
+                          variant='outline'
+                          className='absolute top-1/2 right-2 -translate-y-1/2'
+                        >
                           ENV: {getEnvVar('secret_key')}
                         </Badge>
                       )}
                     </div>
                     {captchaSettings?.secret_key_set && (
-                      <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                        <CheckCircle2 className="h-3 w-3" />
+                      <Badge
+                        variant='secondary'
+                        className='flex w-fit items-center gap-1'
+                      >
+                        <CheckCircle2 className='h-3 w-3' />
                         Secret configured
                       </Badge>
                     )}
@@ -334,26 +377,34 @@ function SecuritySettingsPage() {
 
                 {/* Score Threshold (reCAPTCHA v3 only) */}
                 {captchaForm.provider === 'recaptcha_v3' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="score_threshold">Score Threshold</Label>
-                    <div className="relative">
+                  <div className='space-y-2'>
+                    <Label htmlFor='score_threshold'>Score Threshold</Label>
+                    <div className='relative'>
                       <Input
-                        id="score_threshold"
-                        type="number"
-                        min="0"
-                        max="1"
-                        step="0.1"
+                        id='score_threshold'
+                        type='number'
+                        min='0'
+                        max='1'
+                        step='0.1'
                         value={captchaForm.score_threshold}
-                        onChange={(e) => updateFormField('score_threshold', parseFloat(e.target.value))}
+                        onChange={(e) =>
+                          updateFormField(
+                            'score_threshold',
+                            parseFloat(e.target.value)
+                          )
+                        }
                         disabled={isOverridden('score_threshold')}
                       />
                       {isOverridden('score_threshold') && (
-                        <Badge variant="outline" className="absolute right-2 top-1/2 -translate-y-1/2">
+                        <Badge
+                          variant='outline'
+                          className='absolute top-1/2 right-2 -translate-y-1/2'
+                        >
                           ENV: {getEnvVar('score_threshold')}
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className='text-muted-foreground text-sm'>
                       Minimum score (0.0-1.0) required to pass verification
                     </p>
                   </div>
@@ -362,45 +413,58 @@ function SecuritySettingsPage() {
                 {/* Cap Provider Settings */}
                 {captchaForm.provider === 'cap' && (
                   <>
-                    <div className="space-y-2">
-                      <Label htmlFor="cap_server_url">Cap Server URL</Label>
-                      <div className="relative">
+                    <div className='space-y-2'>
+                      <Label htmlFor='cap_server_url'>Cap Server URL</Label>
+                      <div className='relative'>
                         <Input
-                          id="cap_server_url"
+                          id='cap_server_url'
                           value={captchaForm.cap_server_url}
-                          onChange={(e) => updateFormField('cap_server_url', e.target.value)}
+                          onChange={(e) =>
+                            updateFormField('cap_server_url', e.target.value)
+                          }
                           disabled={isOverridden('cap_server_url')}
-                          placeholder="https://cap.example.com"
+                          placeholder='https://cap.example.com'
                         />
                         {isOverridden('cap_server_url') && (
-                          <Badge variant="outline" className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <Badge
+                            variant='outline'
+                            className='absolute top-1/2 right-2 -translate-y-1/2'
+                          >
                             ENV: {getEnvVar('cap_server_url')}
                           </Badge>
                         )}
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="cap_api_key">Cap API Key</Label>
-                      <div className="space-y-2">
-                        <div className="relative">
+                    <div className='space-y-2'>
+                      <Label htmlFor='cap_api_key'>Cap API Key</Label>
+                      <div className='space-y-2'>
+                        <div className='relative'>
                           <Input
-                            id="cap_api_key"
-                            type="password"
+                            id='cap_api_key'
+                            type='password'
                             value={captchaForm.cap_api_key}
-                            onChange={(e) => updateFormField('cap_api_key', e.target.value)}
+                            onChange={(e) =>
+                              updateFormField('cap_api_key', e.target.value)
+                            }
                             disabled={isOverridden('cap_api_key')}
-                            placeholder="Leave empty to keep current API key"
+                            placeholder='Leave empty to keep current API key'
                           />
                           {isOverridden('cap_api_key') && (
-                            <Badge variant="outline" className="absolute right-2 top-1/2 -translate-y-1/2">
+                            <Badge
+                              variant='outline'
+                              className='absolute top-1/2 right-2 -translate-y-1/2'
+                            >
                               ENV: {getEnvVar('cap_api_key')}
                             </Badge>
                           )}
                         </div>
                         {captchaSettings?.cap_api_key_set && (
-                          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                            <CheckCircle2 className="h-3 w-3" />
+                          <Badge
+                            variant='secondary'
+                            className='flex w-fit items-center gap-1'
+                          >
+                            <CheckCircle2 className='h-3 w-3' />
                             API key configured
                           </Badge>
                         )}
@@ -410,55 +474,61 @@ function SecuritySettingsPage() {
                 )}
 
                 {/* Protected Endpoints */}
-                <div className="space-y-2">
+                <div className='space-y-2'>
                   <Label>Protected Endpoints</Label>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Select which authentication endpoints require CAPTCHA verification
+                  <p className='text-muted-foreground mb-2 text-sm'>
+                    Select which authentication endpoints require CAPTCHA
+                    verification
                   </p>
-                  <div className="space-y-2">
+                  <div className='space-y-2'>
                     {[
                       { id: 'signup', label: 'Signup' },
                       { id: 'login', label: 'Login' },
                       { id: 'password_reset', label: 'Password Reset' },
                       { id: 'magic_link', label: 'Magic Link' },
                     ].map((endpoint) => (
-                      <div key={endpoint.id} className="flex items-center space-x-2">
+                      <div
+                        key={endpoint.id}
+                        className='flex items-center space-x-2'
+                      >
                         <Checkbox
                           id={endpoint.id}
                           checked={captchaForm.endpoints.includes(endpoint.id)}
                           onCheckedChange={() => toggleEndpoint(endpoint.id)}
                           disabled={isOverridden('endpoints')}
                         />
-                        <Label htmlFor={endpoint.id} className="cursor-pointer">
+                        <Label htmlFor={endpoint.id} className='cursor-pointer'>
                           {endpoint.label}
                         </Label>
                       </div>
                     ))}
                   </div>
                   {isOverridden('endpoints') && (
-                    <Badge variant="outline" className="mt-2">
+                    <Badge variant='outline' className='mt-2'>
                       ENV: {getEnvVar('endpoints')}
                     </Badge>
                   )}
                 </div>
 
                 {/* Save Button */}
-                <div className="flex items-center justify-between pt-4 border-t">
+                <div className='flex items-center justify-between border-t pt-4'>
                   <div>
                     {hasUnsavedChanges && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Info className="w-4 h-4" />
+                      <p className='text-muted-foreground flex items-center gap-2 text-sm'>
+                        <Info className='h-4 w-4' />
                         You have unsaved changes
                       </p>
                     )}
                   </div>
                   <Button
                     onClick={handleSaveCaptcha}
-                    disabled={!hasUnsavedChanges || updateCaptchaMutation.isPending}
+                    disabled={
+                      !hasUnsavedChanges || updateCaptchaMutation.isPending
+                    }
                   >
                     {updateCaptchaMutation.isPending ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                         Saving...
                       </>
                     ) : (
@@ -470,18 +540,24 @@ function SecuritySettingsPage() {
             )}
 
             {/* Warning about config overrides */}
-            {captchaSettings && Object.values(captchaSettings._overrides).some((o) => o.is_overridden) && (
-              <div className="flex items-start gap-2 p-4 bg-muted rounded-lg">
-                <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium">Some settings are controlled by configuration</p>
-                  <p className="text-muted-foreground">
-                    Settings marked with ENV cannot be changed through the dashboard. Update your
-                    configuration file or environment variables to modify these settings.
-                  </p>
+            {captchaSettings &&
+              Object.values(captchaSettings._overrides).some(
+                (o) => o.is_overridden
+              ) && (
+                <div className='bg-muted flex items-start gap-2 rounded-lg p-4'>
+                  <AlertCircle className='text-muted-foreground mt-0.5 h-5 w-5' />
+                  <div className='text-sm'>
+                    <p className='font-medium'>
+                      Some settings are controlled by configuration
+                    </p>
+                    <p className='text-muted-foreground'>
+                      Settings marked with ENV cannot be changed through the
+                      dashboard. Update your configuration file or environment
+                      variables to modify these settings.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </CardContent>
         </Card>
       </div>

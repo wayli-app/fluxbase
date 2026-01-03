@@ -314,6 +314,13 @@ func (h *CaptchaSettingsHandler) UpdateSettings(c *fiber.Ctx) error {
 		return err
 	}
 
+	// Invalidate cache for all updated keys to ensure GetSettings returns fresh values
+	if h.settingsCache != nil && len(updatedKeys) > 0 {
+		for _, key := range updatedKeys {
+			h.settingsCache.Invalidate(key)
+		}
+	}
+
 	// Refresh captcha service with new settings
 	if h.captchaService != nil && len(updatedKeys) > 0 {
 		if err := h.captchaService.ReloadFromSettings(ctx, h.settingsCache, h.envConfig); err != nil {
