@@ -198,7 +198,10 @@ function SecretsPage() {
     }
 
     const request: CreateSecretRequest = {
-      name: name.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+      name: name
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_]/g, '_'),
       value: value,
       scope: scope,
       namespace: scope === 'namespace' ? namespace.trim() : undefined,
@@ -244,48 +247,48 @@ function SecretsPage() {
   )
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
+    <div className='flex flex-1 flex-col gap-6 p-6'>
       <div>
-        <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight">
-          <Lock className="h-8 w-8" />
+        <h1 className='flex items-center gap-2 text-3xl font-bold tracking-tight'>
+          <Lock className='h-8 w-8' />
           Secrets
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Manage encrypted secrets that are injected into edge functions at
-          runtime
+        <p className='text-muted-foreground mt-2'>
+          Manage encrypted secrets that are injected into edge functions and
+          background jobs at runtime
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className='grid gap-4 md:grid-cols-3'>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Secrets</CardTitle>
-            <Lock className="text-muted-foreground h-4 w-4" />
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Total Secrets</CardTitle>
+            <Lock className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total || 0}</div>
+            <div className='text-2xl font-bold'>{stats?.total || 0}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
-            <Clock className="text-muted-foreground h-4 w-4" />
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Expiring Soon</CardTitle>
+            <Clock className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className='text-2xl font-bold text-yellow-600'>
               {stats?.expiring_soon || 0}
             </div>
-            <p className="text-muted-foreground text-xs">Within 7 days</p>
+            <p className='text-muted-foreground text-xs'>Within 7 days</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expired</CardTitle>
-            <AlertCircle className="text-muted-foreground h-4 w-4" />
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Expired</CardTitle>
+            <AlertCircle className='text-muted-foreground h-4 w-4' />
           </CardHeader>
           <CardContent>
-            <div className="text-destructive text-2xl font-bold">
+            <div className='text-destructive text-2xl font-bold'>
               {stats?.expired || 0}
             </div>
           </CardContent>
@@ -295,40 +298,40 @@ function SecretsPage() {
       {/* Main Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className='flex items-center justify-between'>
             <div>
               <CardTitle>Secrets</CardTitle>
               <CardDescription>
                 Secrets are available as FLUXBASE_SECRET_NAME environment
-                variables in edge functions
+                variables in edge functions and background jobs
               </CardDescription>
             </div>
             <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className='mr-2 h-4 w-4' />
               Create Secret
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="mb-4 flex gap-4">
-            <div className="relative flex-1">
-              <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+          <div className='mb-4 flex gap-4'>
+            <div className='relative flex-1'>
+              <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
               <Input
-                placeholder="Search by name, description, or namespace..."
+                placeholder='Search by name, description, or namespace...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                className='pl-8'
               />
             </div>
             <Select value={scopeFilter} onValueChange={setScopeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All scopes" />
+              <SelectTrigger className='w-[180px]'>
+                <SelectValue placeholder='All scopes' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All scopes</SelectItem>
-                <SelectItem value="global">Global</SelectItem>
-                <SelectItem value="namespace">Namespace</SelectItem>
+                <SelectItem value='all'>All scopes</SelectItem>
+                <SelectItem value='global'>Global</SelectItem>
+                <SelectItem value='namespace'>Namespace</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -342,7 +345,7 @@ function SecretsPage() {
                   <TableHead>Version</TableHead>
                   <TableHead>Expires</TableHead>
                   <TableHead>Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className='text-right'>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -351,24 +354,24 @@ function SecretsPage() {
                   .map((_, i) => (
                     <TableRow key={i}>
                       <TableCell>
-                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className='h-4 w-28' />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className='h-5 w-16' />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-8" />
+                        <Skeleton className='h-4 w-8' />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className='h-4 w-20' />
                       </TableCell>
                       <TableCell>
-                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className='h-4 w-24' />
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Skeleton className="h-8 w-8" />
-                          <Skeleton className="h-8 w-8" />
+                      <TableCell className='text-right'>
+                        <div className='flex justify-end gap-1'>
+                          <Skeleton className='h-8 w-8' />
+                          <Skeleton className='h-8 w-8' />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -384,7 +387,7 @@ function SecretsPage() {
                   <TableHead>Version</TableHead>
                   <TableHead>Expires</TableHead>
                   <TableHead>Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className='text-right'>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -392,33 +395,33 @@ function SecretsPage() {
                   <TableRow key={secret.id}>
                     <TableCell>
                       <div>
-                        <div className="font-mono font-medium">
+                        <div className='font-mono font-medium'>
                           FLUXBASE_SECRET_{secret.name}
                         </div>
                         {secret.description && (
-                          <div className="text-muted-foreground text-xs">
+                          <div className='text-muted-foreground text-xs'>
                             {secret.description}
                           </div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
+                      <div className='flex items-center gap-1'>
                         {secret.scope === 'global' ? (
-                          <Badge variant="default" className="gap-1">
-                            <Globe className="h-3 w-3" />
+                          <Badge variant='default' className='gap-1'>
+                            <Globe className='h-3 w-3' />
                             Global
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="gap-1">
-                            <FolderOpen className="h-3 w-3" />
+                          <Badge variant='secondary' className='gap-1'>
+                            <FolderOpen className='h-3 w-3' />
                             {secret.namespace}
                           </Badge>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">v{secret.version}</Badge>
+                      <Badge variant='outline'>v{secret.version}</Badge>
                     </TableCell>
                     <TableCell>
                       {secret.expires_at ? (
@@ -434,24 +437,24 @@ function SecretsPage() {
                               })}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">Never</span>
+                        <span className='text-muted-foreground'>Never</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className='text-muted-foreground text-sm'>
                       {formatDistanceToNow(new Date(secret.updated_at), {
                         addSuffix: true,
                       })}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                    <TableCell className='text-right'>
+                      <div className='flex justify-end gap-1'>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="sm"
+                              variant='ghost'
+                              size='sm'
                               onClick={() => openEditDialog(secret)}
                             >
-                              <Lock className="h-4 w-4" />
+                              <Lock className='h-4 w-4' />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Update secret value</TooltipContent>
@@ -459,11 +462,11 @@ function SecretsPage() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="sm"
+                              variant='ghost'
+                              size='sm'
                               onClick={() => openHistoryDialog(secret)}
                             >
-                              <History className="h-4 w-4" />
+                              <History className='h-4 w-4' />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Version history</TooltipContent>
@@ -473,12 +476,12 @@ function SecretsPage() {
                             <TooltipTrigger asChild>
                               <AlertDialogTrigger asChild>
                                 <Button
-                                  variant="ghost"
-                                  size="sm"
+                                  variant='ghost'
+                                  size='sm'
                                   disabled={deleteMutation.isPending}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  className='text-destructive hover:text-destructive hover:bg-destructive/10'
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className='h-4 w-4' />
                                 </Button>
                               </AlertDialogTrigger>
                             </TooltipTrigger>
@@ -488,16 +491,16 @@ function SecretsPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Secret</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete "
-                                {secret.name}"? This action cannot be undone and
-                                any functions using this secret will fail.
+                                Are you sure you want to delete "{secret.name}"?
+                                This action cannot be undone and any functions
+                                or jobs using this secret will fail.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(secret.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
                               >
                                 Delete
                               </AlertDialogAction>
@@ -511,9 +514,9 @@ function SecretsPage() {
               </TableBody>
             </Table>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Lock className="text-muted-foreground mb-4 h-12 w-12" />
-              <p className="text-muted-foreground">
+            <div className='flex flex-col items-center justify-center py-12 text-center'>
+              <Lock className='text-muted-foreground mb-4 h-12 w-12' />
+              <p className='text-muted-foreground'>
                 {searchQuery
                   ? 'No secrets match your search'
                   : 'No secrets yet'}
@@ -521,8 +524,8 @@ function SecretsPage() {
               {!searchQuery && (
                 <Button
                   onClick={() => setShowCreateDialog(true)}
-                  variant="outline"
-                  className="mt-4"
+                  variant='outline'
+                  className='mt-4'
                 >
                   Create Your First Secret
                 </Button>
@@ -534,43 +537,43 @@ function SecretsPage() {
 
       {/* Create Secret Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className='max-w-lg'>
           <DialogHeader>
             <DialogTitle>Create Secret</DialogTitle>
             <DialogDescription>
               Create a new encrypted secret. The value will be securely stored
-              and available to edge functions.
+              and available to edge functions and background jobs.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
+          <div className='grid gap-4 py-4'>
+            <div className='grid gap-2'>
+              <Label htmlFor='name'>
+                Name <span className='text-destructive'>*</span>
               </Label>
               <Input
-                id="name"
-                placeholder="API_KEY"
+                id='name'
+                placeholder='API_KEY'
                 value={name}
                 onChange={(e) => setName(e.target.value.toUpperCase())}
               />
-              <p className="text-muted-foreground text-xs">
+              <p className='text-muted-foreground text-xs'>
                 Available as FLUXBASE_SECRET_{name || 'NAME'}
               </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="value">
-                Value <span className="text-destructive">*</span>
+            <div className='grid gap-2'>
+              <Label htmlFor='value'>
+                Value <span className='text-destructive'>*</span>
               </Label>
               <Textarea
-                id="value"
-                placeholder="Enter secret value..."
+                id='value'
+                placeholder='Enter secret value...'
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className="font-mono"
+                className='font-mono'
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="scope">Scope</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='scope'>Scope</Label>
               <Select
                 value={scope}
                 onValueChange={(v) => setScope(v as 'global' | 'namespace')}
@@ -579,54 +582,52 @@ function SecretsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="global">
-                    Global (all functions)
-                  </SelectItem>
-                  <SelectItem value="namespace">
+                  <SelectItem value='global'>Global (all functions)</SelectItem>
+                  <SelectItem value='namespace'>
                     Namespace (specific namespace)
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {scope === 'namespace' && (
-              <div className="grid gap-2">
-                <Label htmlFor="namespace">
-                  Namespace <span className="text-destructive">*</span>
+              <div className='grid gap-2'>
+                <Label htmlFor='namespace'>
+                  Namespace <span className='text-destructive'>*</span>
                 </Label>
                 <Input
-                  id="namespace"
-                  placeholder="my-namespace"
+                  id='namespace'
+                  placeholder='my-namespace'
                   value={namespace}
                   onChange={(e) => setNamespace(e.target.value)}
                 />
               </div>
             )}
-            <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='description'>Description</Label>
               <Input
-                id="description"
-                placeholder="Optional description..."
+                id='description'
+                placeholder='Optional description...'
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="expiresAt">Expiration Date (optional)</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='expiresAt'>Expiration Date (optional)</Label>
               <Input
-                id="expiresAt"
-                type="datetime-local"
+                id='expiresAt'
+                type='datetime-local'
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className="text-muted-foreground text-xs">
-                Expired secrets are automatically excluded from function
+              <p className='text-muted-foreground text-xs'>
+                Expired secrets are automatically excluded from function and job
                 execution
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
+              variant='outline'
               onClick={() => {
                 setShowCreateDialog(false)
                 resetForm()
@@ -646,7 +647,7 @@ function SecretsPage() {
 
       {/* Edit Secret Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className='max-w-lg'>
           <DialogHeader>
             <DialogTitle>Update Secret</DialogTitle>
             <DialogDescription>
@@ -654,36 +655,36 @@ function SecretsPage() {
               new version.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="rounded-md bg-yellow-50 p-4 dark:bg-yellow-950">
-              <div className="flex">
-                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                <div className="ml-3">
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+          <div className='grid gap-4 py-4'>
+            <div className='rounded-md bg-yellow-50 p-4 dark:bg-yellow-950'>
+              <div className='flex'>
+                <AlertCircle className='h-5 w-5 text-yellow-600 dark:text-yellow-400' />
+                <div className='ml-3'>
+                  <p className='text-sm text-yellow-700 dark:text-yellow-300'>
                     The current secret value cannot be viewed. Enter a new value
                     to update.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="editValue">New Value</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='editValue'>New Value</Label>
               <Textarea
-                id="editValue"
-                placeholder="Enter new secret value..."
+                id='editValue'
+                placeholder='Enter new secret value...'
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className="font-mono"
+                className='font-mono'
               />
-              <p className="text-muted-foreground text-xs">
+              <p className='text-muted-foreground text-xs'>
                 Leave empty to keep the current value
               </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="editDescription">Description</Label>
+            <div className='grid gap-2'>
+              <Label htmlFor='editDescription'>Description</Label>
               <Input
-                id="editDescription"
-                placeholder="Optional description..."
+                id='editDescription'
+                placeholder='Optional description...'
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
@@ -691,7 +692,7 @@ function SecretsPage() {
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
+              variant='outline'
               onClick={() => {
                 setShowEditDialog(false)
                 setSelectedSecret(null)
@@ -712,7 +713,7 @@ function SecretsPage() {
 
       {/* Version History Dialog */}
       <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className='max-w-lg'>
           <DialogHeader>
             <DialogTitle>Version History</DialogTitle>
             <DialogDescription>
@@ -720,14 +721,14 @@ function SecretsPage() {
               {selectedSecret?.version}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className='py-4'>
             {versions && versions.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Version</TableHead>
                     <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className='text-right'>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -746,18 +747,18 @@ function SecretsPage() {
                             ' (current)'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className='text-muted-foreground text-sm'>
                         {formatDistanceToNow(new Date(version.created_at), {
                           addSuffix: true,
                         })}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className='text-right'>
                         {version.version !== selectedSecret?.version && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                variant="ghost"
-                                size="sm"
+                                variant='ghost'
+                                size='sm'
                                 onClick={() => {
                                   if (selectedSecret) {
                                     rollbackMutation.mutate({
@@ -768,7 +769,7 @@ function SecretsPage() {
                                 }}
                                 disabled={rollbackMutation.isPending}
                               >
-                                <RotateCcw className="h-4 w-4" />
+                                <RotateCcw className='h-4 w-4' />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -782,7 +783,7 @@ function SecretsPage() {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-muted-foreground text-center text-sm">
+              <p className='text-muted-foreground text-center text-sm'>
                 No version history available
               </p>
             )}
