@@ -464,6 +464,14 @@ func (h *DashboardAuthHandler) DisableTOTP(c *fiber.Ctx) error {
 
 // RequestPasswordReset initiates a password reset for a dashboard user
 func (h *DashboardAuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
+	// Check if email service is configured
+	if h.emailService == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Email service is not configured. Please configure an email provider to enable password reset.",
+			"code":  "SMTP_NOT_CONFIGURED",
+		})
+	}
+
 	var req struct {
 		Email string `json:"email"`
 	}
