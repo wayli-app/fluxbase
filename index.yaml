@@ -4,6 +4,34 @@ entries:
   - annotations:
       artifacthub.io/prerelease: "true"
     apiVersion: v2
+    appVersion: 0.0.1-rc.117
+    created: "2026-01-03T12:03:52.242302689Z"
+    description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
+      PostgreSQL
+    digest: 985e385a2282a961ef8f739a3e2f0d25d34ff6b6385942ff471d4090bfe56952
+    home: https://github.com/fluxbase-eu/fluxbase
+    icon: https://raw.githubusercontent.com/fluxbase-eu/fluxbase/main/docs/src/assets/logo.svg
+    keywords:
+    - backend
+    - baas
+    - postgresql
+    - rest-api
+    - realtime
+    - storage
+    - auth
+    maintainers:
+    - email: hello@fluxbase.io
+      name: Fluxbase Team
+    name: fluxbase
+    sources:
+    - https://github.com/fluxbase-eu/fluxbase
+    type: application
+    urls:
+    - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.0.1-rc.117.tgz
+    version: 0.0.1-rc.117
+  - annotations:
+      artifacthub.io/prerelease: "true"
+    apiVersion: v2
     appVersion: 0.0.1-rc.116
     created: "2026-01-03T11:12:47.416875717Z"
     description: A production-ready, single-binary Backend-as-a-Service (BaaS) for
@@ -1805,4 +1833,4 @@ entries:
     urls:
     - https://fluxbase-eu.github.io/fluxbase/fluxbase-0.0.1-rc.51.tgz
     version: 0.0.1-rc.51
-generated: "2026-01-03T11:12:47.413608054Z"
+generated: "2026-01-03T12:03:52.23891187Z"
