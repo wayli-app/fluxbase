@@ -928,28 +928,74 @@ describe("FluxbaseAuth", () => {
           },
         };
 
-        vi.mocked(mockFetch.post).mockResolvedValue(authResponse);
+        // Simulate signInWithOAuth storing the provider
+        localStorageMock.setItem("fluxbase.auth.oauth_provider", "google");
 
-        const { data: session, error } =
-          await auth.exchangeCodeForSession("auth-code-123");
+        vi.mocked(mockFetch.get).mockResolvedValue(authResponse);
 
-        expect(mockFetch.post).toHaveBeenCalledWith(
-          "/api/v1/auth/oauth/callback",
-          {
-            code: "auth-code-123",
-          },
+        const { data: session, error } = await auth.exchangeCodeForSession(
+          "auth-code-123",
+          "state-token",
+        );
+
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          "/api/v1/auth/oauth/google/callback?code=auth-code-123&state=state-token",
         );
         expect(error).toBeNull();
         expect(session).toBeDefined();
         expect(session!.user.email).toBe("user@example.com");
         expect(session!.session.access_token).toBe("oauth-token");
+        // Provider should be cleared after exchange
+        expect(
+          localStorageMock.getItem("fluxbase.auth.oauth_provider"),
+        ).toBeNull();
         const { data: sessionData } = await auth.getSession();
         expect(sessionData.session?.access_token).toBe("oauth-token");
+      });
+
+      it("should throw error if no provider stored", async () => {
+        // Ensure no provider is stored
+        localStorageMock.removeItem("fluxbase.auth.oauth_provider");
+
+        const { data, error } =
+          await auth.exchangeCodeForSession("auth-code-123");
+
+        expect(data).toBeNull();
+        expect(error).toBeDefined();
+        expect(error?.message).toBe(
+          "No OAuth provider found. Call signInWithOAuth first.",
+        );
+      });
+
+      it("should work without state parameter", async () => {
+        const authResponse: AuthResponse = {
+          access_token: "oauth-token",
+          refresh_token: "oauth-refresh",
+          expires_in: 3600,
+          token_type: "Bearer",
+          user: {
+            id: "oauth-user-1",
+            email: "user@example.com",
+            created_at: new Date().toISOString(),
+          },
+        };
+
+        localStorageMock.setItem("fluxbase.auth.oauth_provider", "github");
+        vi.mocked(mockFetch.get).mockResolvedValue(authResponse);
+
+        const { data: session, error } =
+          await auth.exchangeCodeForSession("auth-code-123");
+
+        expect(mockFetch.get).toHaveBeenCalledWith(
+          "/api/v1/auth/oauth/github/callback?code=auth-code-123",
+        );
+        expect(error).toBeNull();
+        expect(session).toBeDefined();
       });
     });
 
     describe("signInWithOAuth()", () => {
-      it("should redirect to OAuth provider in browser", async () => {
+      it("should redirect to OAuth provider in browser and store provider", async () => {
         const response = {
           url: "https://accounts.google.com/o/oauth2/v2/auth?...",
           provider: "google",
@@ -967,6 +1013,10 @@ describe("FluxbaseAuth", () => {
         expect(window.location.href).toBe(response.url);
         expect(error).toBeNull();
         expect(data).toBeDefined();
+        // Verify provider was stored for exchangeCodeForSession
+        expect(localStorageMock.getItem("fluxbase.auth.oauth_provider")).toBe(
+          "google",
+        );
 
         // Restore
         if (originalLocation) {

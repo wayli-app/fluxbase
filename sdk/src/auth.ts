@@ -54,6 +54,7 @@ import type {
 import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
 const AUTH_STORAGE_KEY = "fluxbase.auth.session";
+const OAUTH_PROVIDER_KEY = "fluxbase.auth.oauth_provider";
 
 // Auto-refresh configuration constants
 const AUTO_REFRESH_TICK_THRESHOLD = 10; // seconds before expiry to trigger refresh
@@ -801,13 +802,32 @@ export class FluxbaseAuth {
    * Exchange OAuth authorization code for session
    * This is typically called in your OAuth callback handler
    * @param code - Authorization code from OAuth callback
+   * @param state - State parameter from OAuth callback (for CSRF protection)
    */
-  async exchangeCodeForSession(code: string): Promise<FluxbaseAuthResponse> {
+  async exchangeCodeForSession(
+    code: string,
+    state?: string,
+  ): Promise<FluxbaseAuthResponse> {
     return wrapAsync(async () => {
-      const response = await this.fetch.post<AuthResponse>(
-        "/api/v1/auth/oauth/callback",
-        { code },
+      const provider = this.storage?.getItem(OAUTH_PROVIDER_KEY);
+      if (!provider) {
+        throw new Error(
+          "No OAuth provider found. Call signInWithOAuth first.",
+        );
+      }
+
+      // Build query string with code and optional state
+      const params = new URLSearchParams({ code });
+      if (state) {
+        params.append("state", state);
+      }
+
+      const response = await this.fetch.get<AuthResponse>(
+        `/api/v1/auth/oauth/${provider}/callback?${params.toString()}`,
       );
+
+      // Clear stored provider after successful exchange
+      this.storage?.removeItem(OAUTH_PROVIDER_KEY);
 
       const session: AuthSession = {
         ...response,
@@ -839,6 +859,8 @@ export class FluxbaseAuth {
       const url = result.data.url;
 
       if (typeof window !== "undefined") {
+        // Store the provider for use in exchangeCodeForSession
+        this.storage?.setItem(OAUTH_PROVIDER_KEY, provider);
         window.location.href = url;
       } else {
         throw new Error(
