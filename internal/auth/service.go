@@ -658,8 +658,9 @@ func (s *Service) GetOAuthManager() *OAuthManager {
 }
 
 // RequestPasswordReset sends a password reset email
-func (s *Service) RequestPasswordReset(ctx context.Context, email string) error {
-	return s.passwordResetService.RequestPasswordReset(ctx, email)
+// If redirectTo is provided, the email link will point to that URL instead of the default.
+func (s *Service) RequestPasswordReset(ctx context.Context, email string, redirectTo string) error {
+	return s.passwordResetService.RequestPasswordReset(ctx, email, redirectTo)
 }
 
 // ResetPassword resets a user's password using a valid reset token

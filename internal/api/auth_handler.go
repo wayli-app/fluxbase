@@ -530,6 +530,7 @@ func (h *AuthHandler) VerifyMagicLink(c *fiber.Ctx) error {
 func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 	var req struct {
 		Email        string `json:"email"`
+		RedirectTo   string `json:"redirect_to,omitempty"`
 		CaptchaToken string `json:"captcha_token,omitempty"`
 	}
 
@@ -565,7 +566,29 @@ func (h *AuthHandler) RequestPasswordReset(c *fiber.Ctx) error {
 	}
 
 	// Request password reset (this won't reveal if user exists)
-	if err := h.authService.RequestPasswordReset(c.Context(), req.Email); err != nil {
+	if err := h.authService.RequestPasswordReset(c.Context(), req.Email, req.RedirectTo); err != nil {
+		// Check for SMTP not configured error - this should be returned to the user
+		if errors.Is(err, auth.ErrSMTPNotConfigured) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "SMTP is not configured. Please configure an email provider to enable password reset.",
+				"code":  "SMTP_NOT_CONFIGURED",
+			})
+		}
+		// Check for invalid redirect URL - return error to prevent misuse
+		if errors.Is(err, auth.ErrInvalidRedirectURL) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid redirect_to URL. Must be a valid HTTP or HTTPS URL.",
+				"code":  "INVALID_REDIRECT_URL",
+			})
+		}
+		// Check for email sending failure - this should be returned to the user
+		if errors.Is(err, auth.ErrEmailSendFailed) {
+			log.Error().Err(err).Str("email", req.Email).Msg("Failed to send password reset email")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to send password reset email. Please try again later.",
+				"code":  "EMAIL_SEND_FAILED",
+			})
+		}
 		log.Error().Err(err).Str("email", req.Email).Msg("Failed to request password reset")
 		// Don't reveal if user exists - always return success
 	}

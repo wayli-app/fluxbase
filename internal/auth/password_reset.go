@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -28,6 +29,12 @@ var (
 	ErrPasswordResetTokenExpired = errors.New("password reset token has expired")
 	// ErrPasswordResetTokenUsed is returned when a password reset token has already been used
 	ErrPasswordResetTokenUsed = errors.New("password reset token has already been used")
+	// ErrSMTPNotConfigured is returned when attempting password reset without SMTP configured
+	ErrSMTPNotConfigured = errors.New("SMTP is not configured")
+	// ErrEmailSendFailed is returned when the password reset email could not be sent
+	ErrEmailSendFailed = errors.New("failed to send password reset email")
+	// ErrInvalidRedirectURL is returned when the redirect URL is not a valid URL
+	ErrInvalidRedirectURL = errors.New("invalid redirect URL: must be a valid HTTP or HTTPS URL")
 )
 
 // PasswordResetToken represents a password reset token
@@ -254,7 +261,21 @@ func NewPasswordResetService(
 
 // RequestPasswordReset sends a password reset email to the specified email
 // SECURITY: Uses constant-time-ish processing to prevent email enumeration via timing attacks
-func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email string) error {
+// If redirectTo is provided, the email link will point to that URL instead of the default baseURL.
+func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email string, redirectTo string) error {
+	// Check if email sender is configured
+	if s.emailSender == nil {
+		return ErrSMTPNotConfigured
+	}
+
+	// Validate redirectTo URL if provided (prevents injection attacks in emails)
+	if redirectTo != "" {
+		parsedURL, err := url.Parse(redirectTo)
+		if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+			return ErrInvalidRedirectURL
+		}
+	}
+
 	// Get user by email
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -279,11 +300,17 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email s
 	}
 
 	// Generate the full link URL using the plaintext token (only available at creation time)
-	link := fmt.Sprintf("%s/auth/reset-password?token=%s", s.baseURL, resetToken.PlaintextToken)
+	// Use custom redirectTo if provided, otherwise fall back to default baseURL
+	var link string
+	if redirectTo != "" {
+		link = fmt.Sprintf("%s?token=%s", redirectTo, resetToken.PlaintextToken)
+	} else {
+		link = fmt.Sprintf("%s/auth/reset-password?token=%s", s.baseURL, resetToken.PlaintextToken)
+	}
 
 	// Send email with plaintext token
 	if err := s.emailSender.SendPasswordReset(ctx, email, resetToken.PlaintextToken, link); err != nil {
-		return fmt.Errorf("failed to send password reset email: %w", err)
+		return fmt.Errorf("%w: %v", ErrEmailSendFailed, err)
 	}
 
 	return nil

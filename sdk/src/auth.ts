@@ -605,15 +605,20 @@ export class FluxbaseAuth {
    * Send password reset email (Supabase-compatible)
    * Sends a password reset link to the provided email address
    * @param email - Email address to send reset link to
-   * @param options - Optional configuration including CAPTCHA token
+   * @param options - Optional configuration including redirect URL and CAPTCHA token
    * @returns Promise with OTP-style response
    */
   async sendPasswordReset(
     email: string,
-    options?: { captchaToken?: string },
+    options?: { redirectTo?: string; captchaToken?: string },
   ): Promise<DataResponse<PasswordResetResponse>> {
     return wrapAsync(async () => {
       const requestBody: any = { email };
+
+      // Include redirect URL if provided
+      if (options?.redirectTo) {
+        requestBody.redirect_to = options.redirectTo;
+      }
 
       // Include CAPTCHA token if provided
       if (options?.captchaToken) {
@@ -637,6 +642,7 @@ export class FluxbaseAuth {
     options?: { redirectTo?: string; captchaToken?: string },
   ): Promise<DataResponse<PasswordResetResponse>> {
     return this.sendPasswordReset(email, {
+      redirectTo: options?.redirectTo,
       captchaToken: options?.captchaToken,
     });
   }
@@ -811,9 +817,7 @@ export class FluxbaseAuth {
     return wrapAsync(async () => {
       const provider = this.storage?.getItem(OAUTH_PROVIDER_KEY);
       if (!provider) {
-        throw new Error(
-          "No OAuth provider found. Call signInWithOAuth first.",
-        );
+        throw new Error("No OAuth provider found. Call signInWithOAuth first.");
       }
 
       // Build query string with code and optional state
