@@ -939,6 +939,7 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		var clientID, clientSecret string
 		var scopes []string
 		var isCustom bool
+		var isEncrypted bool
 		var authzURL, tokenURL, userInfoURLStr string
 		var authzURLNull, tokenURLNull, userInfoURLNull bool
 
@@ -946,18 +947,36 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 			SELECT client_id, client_secret, scopes, is_custom,
 				   authorization_url IS NOT NULL, COALESCE(authorization_url, ''),
 				   token_url IS NOT NULL, COALESCE(token_url, ''),
-				   user_info_url IS NOT NULL, COALESCE(user_info_url, '')
+				   user_info_url IS NOT NULL, COALESCE(user_info_url, ''),
+				   COALESCE(is_encrypted, false) AS is_encrypted
 			FROM dashboard.oauth_providers
 			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
 		`, providerID).Scan(&clientID, &clientSecret, &scopes, &isCustom,
-			&authzURLNull, &authzURL, &tokenURLNull, &tokenURL, &userInfoURLNull, &userInfoURLStr)
+			&authzURLNull, &authzURL, &tokenURLNull, &tokenURL, &userInfoURLNull, &userInfoURLStr, &isEncrypted)
 		if err != nil {
 			return err
 		}
 
-		if userInfoURLNull {
+		// Decrypt client secret if encrypted
+		if isEncrypted && clientSecret != "" {
+			decryptedSecret, decErr := crypto.Decrypt(clientSecret, h.encryptionKey)
+			if decErr != nil {
+				log.Error().Err(decErr).Str("provider", providerID).Msg("Failed to decrypt client secret")
+				return fmt.Errorf("failed to decrypt client secret: %w", decErr)
+			}
+			clientSecret = decryptedSecret
+		}
+
+		if userInfoURLNull && userInfoURLStr != "" {
 			userInfoURL = &userInfoURLStr
 		}
+
+		log.Debug().
+			Str("provider", providerID).
+			Str("client_id", clientID).
+			Bool("has_client_secret", clientSecret != "").
+			Bool("is_encrypted", isEncrypted).
+			Msg("OAuth provider credentials loaded from database")
 
 		// Build OAuth config with redirect_uri from state metadata
 		config = &oauth2.Config{
@@ -968,15 +987,14 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		}
 
 		// Set endpoint based on provider type
-		if isCustom {
-			if authzURLNull && tokenURLNull {
-				config.Endpoint = oauth2.Endpoint{
-					AuthURL:  authzURL,
-					TokenURL: tokenURL,
-				}
+		if isCustom && authzURL != "" && tokenURL != "" {
+			// For custom providers with configured URLs
+			config.Endpoint = oauth2.Endpoint{
+				AuthURL:  authzURL,
+				TokenURL: tokenURL,
 			}
-		} else {
-			// Use built-in provider manager to get endpoint
+		} else if !isCustom {
+			// Use built-in provider manager for standard providers
 			manager := auth.NewOAuthManager()
 			config.Endpoint = manager.GetEndpoint(auth.OAuthProvider(providerID))
 		}
@@ -991,9 +1009,24 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth provider not found"))
 	}
 
+	// Log OAuth config details for debugging
+	log.Debug().
+		Str("provider", providerID).
+		Str("redirect_uri", config.RedirectURL).
+		Str("client_id", config.ClientID).
+		Str("auth_url", config.Endpoint.AuthURL).
+		Str("token_url", config.Endpoint.TokenURL).
+		Msg("OAuth config for token exchange")
+
 	// Exchange code for token
 	token, err := config.Exchange(ctx, code)
 	if err != nil {
+		log.Error().
+			Err(err).
+			Str("provider", providerID).
+			Str("redirect_uri", stateMetadata.RedirectURI).
+			Str("config_redirect_uri", config.RedirectURL).
+			Msg("Failed to exchange OAuth authorization code")
 		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to exchange authorization code"))
 	}
 
@@ -1071,6 +1104,8 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 
 	email, _ := userInfo["email"].(string)
 	name, _ := userInfo["name"].(string)
+	// Capitalize the first letter of each word in the name
+	name = capitalizeWords(name)
 	providerUserID, _ := userInfo["id"].(string)
 	if providerUserID == "" {
 		// Some providers use "sub" instead of "id"
@@ -1339,6 +1374,9 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 		}
 	}
 
+	// Capitalize the first letter of each word in the name
+	name = capitalizeWords(name)
+
 	providerUserID := assertion.NameID
 	if providerUserID == "" {
 		providerUserID = email
@@ -1445,4 +1483,19 @@ func convertSAMLAttributesToMap(attrs map[string][]string) map[string]interface{
 		}
 	}
 	return result
+}
+
+// capitalizeWords capitalizes the first letter of each word in a string
+func capitalizeWords(s string) string {
+	if s == "" {
+		return s
+	}
+	words := strings.Fields(s)
+	for i, word := range words {
+		if len(word) > 0 {
+			// Capitalize first character and lowercase the rest
+			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
+		}
+	}
+	return strings.Join(words, " ")
 }

@@ -283,8 +283,17 @@ func (s *DashboardAuthService) Login(ctx context.Context, email, password string
 		Details:   map[string]interface{}{"dashboard": true},
 	})
 
-	// Generate JWT token pair (access + refresh) - dashboard users don't need metadata for now
-	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", nil, nil)
+	// Prepare user metadata for JWT
+	userMetadata := map[string]interface{}{}
+	if user.FullName != nil {
+		userMetadata["name"] = *user.FullName
+	}
+	if user.AvatarURL != nil {
+		userMetadata["avatar"] = *user.AvatarURL
+	}
+
+	// Generate JWT token pair (access + refresh)
+	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", userMetadata, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
@@ -1050,8 +1059,17 @@ func (s *DashboardAuthService) LoginViaSSO(ctx context.Context, user *DashboardU
 		Details:   map[string]interface{}{"dashboard": true, "sso": true},
 	})
 
+	// Prepare user metadata for JWT
+	userMetadata := map[string]interface{}{}
+	if user.FullName != nil {
+		userMetadata["name"] = *user.FullName
+	}
+	if user.AvatarURL != nil {
+		userMetadata["avatar"] = *user.AvatarURL
+	}
+
 	// Generate JWT token pair
-	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", nil, nil)
+	accessToken, refreshToken, sessionID, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, "dashboard_admin", userMetadata, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
