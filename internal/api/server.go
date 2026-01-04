@@ -301,8 +301,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		}
 	}
 	samlProviderHandler = NewSAMLProviderHandler(db.Pool(), samlService)
-	// Initialize dashboard auth handler now that samlService is available
-	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKey)
+	// Initialize dashboard auth handler now that samlService and oauthHandler are available
+	dashboardAuthHandler := NewDashboardAuthHandler(dashboardAuthService, dashboardJWTManager, db, samlService, emailService, cfg.GetPublicBaseURL(), cfg.EncryptionKey, oauthHandler)
 	adminSessionHandler := NewAdminSessionHandler(auth.NewSessionRepository(db))
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)

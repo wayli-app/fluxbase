@@ -842,3 +842,10 @@ func (h *OAuthHandler) LogoutCallback(c *fiber.Ctx) error {
 		"provider": providerName,
 	})
 }
+
+// GetAndValidateState validates and consumes a state token, returning its metadata
+// Returns the state metadata and true if valid, nil and false if not found or expired
+// This is used by the dashboard OAuth callback to validate states created by the app OAuth authorize endpoint
+func (h *OAuthHandler) GetAndValidateState(state string) (*auth.StateMetadata, bool) {
+	return h.stateStore.GetAndValidate(state)
+}

@@ -35,6 +35,7 @@ type DashboardAuthHandler struct {
 	emailService  email.Service
 	baseURL       string
 	encryptionKey string
+	oauthHandler  *OAuthHandler // Reference to app OAuth handler for state validation
 
 	// OAuth state storage (in production, use Redis or database)
 	oauthStates    map[string]*dashboardOAuthState
@@ -52,7 +53,7 @@ type dashboardOAuthState struct {
 }
 
 // NewDashboardAuthHandler creates a new dashboard auth handler
-func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL, encryptionKey string) *DashboardAuthHandler {
+func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager *auth.JWTManager, db *database.Connection, samlService *auth.SAMLService, emailService email.Service, baseURL, encryptionKey string, oauthHandler *OAuthHandler) *DashboardAuthHandler {
 	return &DashboardAuthHandler{
 		authService:   authService,
 		jwtManager:    jwtManager,
@@ -61,6 +62,7 @@ func NewDashboardAuthHandler(authService *auth.DashboardAuthService, jwtManager 
 		emailService:  emailService,
 		baseURL:       baseURL,
 		encryptionKey: encryptionKey,
+		oauthHandler:  oauthHandler,
 		oauthStates:   make(map[string]*dashboardOAuthState),
 		oauthConfigs:  make(map[string]*oauth2.Config),
 	}
@@ -903,24 +905,17 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	if len(code) > 10 {
 		codePreview = code[:10] + "..."
 	}
+	providerID := c.Params("provider")
 	log.Debug().
 		Str("state", state).
 		Str("code", codePreview).
-		Str("provider", c.Params("provider")).
+		Str("provider", providerID).
 		Msg("Dashboard OAuth callback received")
 
-	// Check if this state belongs to dashboard login
-	h.oauthStatesMu.Lock()
-	storedState, ok := h.oauthStates[state]
-	stateCount := len(h.oauthStates)
-	h.oauthStatesMu.Unlock()
-
-	log.Debug().
-		Bool("state_found", ok).
-		Int("total_states", stateCount).
-		Msg("Dashboard OAuth state lookup")
-
-	if !ok {
+	// Validate state using app OAuth handler's state store
+	// This is where the state was stored when dashboard called app OAuth authorize endpoint
+	stateMetadata, valid := h.oauthHandler.GetAndValidateState(state)
+	if !valid {
 		log.Warn().
 			Str("state", state).
 			Msg("Invalid or missing OAuth state in dashboard callback")
@@ -937,32 +932,63 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		return c.Redirect("/admin/login?error=" + url.QueryEscape("Missing authorization code or state"))
 	}
 
-	// Validate and consume state
-	h.oauthStatesMu.Lock()
-	storedState, ok = h.oauthStates[state]
-	if ok {
-		delete(h.oauthStates, state)
-	}
-	h.oauthStatesMu.Unlock()
+	// Build OAuth config using provider from database and redirect_uri from state metadata
+	var config *oauth2.Config
+	var userInfoURL *string
+	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
+		var clientID, clientSecret string
+		var scopes []string
+		var isCustom bool
+		var authzURL, tokenURL, userInfoURLStr string
+		var authzURLNull, tokenURLNull, userInfoURLNull bool
 
-	if !ok || time.Since(storedState.CreatedAt) > 10*time.Minute {
+		err := tx.QueryRow(ctx, `
+			SELECT client_id, client_secret, scopes, is_custom,
+				   authorization_url IS NOT NULL, COALESCE(authorization_url, ''),
+				   token_url IS NOT NULL, COALESCE(token_url, ''),
+				   user_info_url IS NOT NULL, COALESCE(user_info_url, '')
+			FROM dashboard.oauth_providers
+			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
+		`, providerID).Scan(&clientID, &clientSecret, &scopes, &isCustom,
+			&authzURLNull, &authzURL, &tokenURLNull, &tokenURL, &userInfoURLNull, &userInfoURLStr)
+		if err != nil {
+			return err
+		}
+
+		if userInfoURLNull {
+			userInfoURL = &userInfoURLStr
+		}
+
+		// Build OAuth config with redirect_uri from state metadata
+		config = &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURL:  stateMetadata.RedirectURI, // Use the redirect_uri that was passed to authorize
+			Scopes:       scopes,
+		}
+
+		// Set endpoint based on provider type
+		if isCustom {
+			if authzURLNull && tokenURLNull {
+				config.Endpoint = oauth2.Endpoint{
+					AuthURL:  authzURL,
+					TokenURL: tokenURL,
+				}
+			}
+		} else {
+			// Use built-in provider manager to get endpoint
+			manager := auth.NewOAuthManager()
+			config.Endpoint = manager.GetEndpoint(auth.OAuthProvider(providerID))
+		}
+
+		return nil
+	})
+	if err != nil {
 		log.Warn().
-			Str("state", state).
-			Bool("found", ok).
-			Msg("Invalid or expired OAuth state")
-		return c.Redirect("/admin/login?error=" + url.QueryEscape("Invalid or expired state"))
-	}
-
-	// Get stored config
-	h.oauthConfigsMu.Lock()
-	config, ok := h.oauthConfigs[state]
-	if ok {
-		delete(h.oauthConfigs, state)
-	}
-	h.oauthConfigsMu.Unlock()
-
-	if !ok {
-		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth configuration not found"))
+			Err(err).
+			Str("provider", providerID).
+			Msg("Failed to fetch OAuth provider configuration")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth provider not found"))
 	}
 
 	// Exchange code for token
@@ -979,18 +1005,18 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 			SELECT display_name, required_claims, denied_claims
 			FROM dashboard.oauth_providers
 			WHERE (id::text = $1 OR provider_name = $1) AND enabled = true AND allow_dashboard_login = true
-		`, storedState.Provider).Scan(&providerDisplayName, &requiredClaimsJSON, &deniedClaimsJSON)
+		`, providerID).Scan(&providerDisplayName, &requiredClaimsJSON, &deniedClaimsJSON)
 	})
 	if err != nil {
 		log.Warn().
 			Err(err).
-			Str("provider", storedState.Provider).
+			Str("provider", providerID).
 			Msg("Failed to fetch OAuth provider config for RBAC validation")
 		return c.Redirect("/admin/login?error=" + url.QueryEscape("OAuth provider configuration error"))
 	}
 
 	// Get user info from provider (includes ID token claims)
-	userInfo, err := h.getUserInfoFromOAuth(ctx, config, token, storedState.UserInfoURL)
+	userInfo, err := h.getUserInfoFromOAuth(ctx, config, token, userInfoURL)
 	if err != nil {
 		return c.Redirect("/admin/login?error=" + url.QueryEscape("Failed to get user info from provider"))
 	}
@@ -1003,7 +1029,7 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		if err != nil {
 			log.Warn().
 				Err(err).
-				Str("provider", storedState.Provider).
+				Str("provider", providerID).
 				Msg("Failed to parse ID token claims")
 			// Use userInfo as fallback
 			idTokenClaims = userInfo
@@ -1036,7 +1062,7 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		if err := auth.ValidateOAuthClaims(provider, idTokenClaims); err != nil {
 			log.Warn().
 				Err(err).
-				Str("provider", storedState.Provider).
+				Str("provider", providerID).
 				Interface("claims", idTokenClaims).
 				Msg("Dashboard OAuth access denied due to claims validation")
 			return c.Redirect("/admin/login?error=" + url.QueryEscape(err.Error()))
@@ -1056,7 +1082,7 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	}
 
 	// Find or create dashboard user
-	providerName := "oauth:" + storedState.Provider
+	providerName := "oauth:" + providerID
 	user, _, err := h.authService.FindOrCreateUserBySSO(ctx, email, name, providerName, providerUserID)
 	if err != nil {
 		log.Error().
@@ -1083,10 +1109,8 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 	}
 
 	// Redirect with tokens in URL fragment (for SPA to capture)
-	redirectURL := storedState.RedirectTo
-	if redirectURL == "" || redirectURL == "/" {
-		redirectURL = "/admin"
-	}
+	// Always redirect to /admin after dashboard OAuth login
+	redirectURL := "/admin"
 	return c.Redirect(fmt.Sprintf("/admin/login/callback?access_token=%s&refresh_token=%s&redirect_to=%s",
 		url.QueryEscape(loginResp.AccessToken),
 		url.QueryEscape(loginResp.RefreshToken),
