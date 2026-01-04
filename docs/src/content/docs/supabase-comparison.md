@@ -6,25 +6,25 @@ Fluxbase provides API-compatible alternatives to Supabase's core features in a s
 
 ## Quick Comparison
 
-| Feature                  | Fluxbase                        | Supabase                 | Firebase            |
-| ------------------------ | ------------------------------- | ------------------------ | ------------------- |
-| **Deployment**           | ~50MB binary / ~110MB container | ~13 containers (~2.5GB)  | Cloud only          |
-| **Dependencies**         | PostgreSQL only                 | PostgreSQL + 5+ services | Proprietary         |
-| **Self-hosting**         | ✅ Easy                          | ⚠️ Complex                | ❌ No                |
-| **REST API**             | ✅ Built-in                      | ✅ PostgREST              | ✅ Auto-generated    |
-| **Authentication**       | ✅ Built-in                      | ✅ GoTrue                 | ✅ Built-in          |
-| **Realtime**             | ✅ WebSocket                     | ✅ WebSocket              | ✅ WebSocket         |
-| **Storage**              | ✅ S3 or local                   | ✅ S3 or local            | ✅ Cloud Storage     |
-| **Edge Functions**       | ✅ Deno                          | ✅ Deno                   | ✅ Cloud Functions   |
-| **Secrets**              | ✅ Built-in                      | ✅ Vault                  | ❌ No                |
-| **AI Chatbots**          | ✅ Built-in                      | ❌ No                     | ❌ No                |
-| **Background Jobs**      | ✅ Built-in                      | ✅ pg_cron (ext)          | ❌ No                |
-| **Database**             | PostgreSQL 15+                  | PostgreSQL 15+           | Proprietary (NoSQL) |
-| **Row-Level Security**   | ✅ Yes                           | ✅ Yes                    | ⚠️ Rules-based       |
-| **Client SDK**           | TypeScript/JS                   | TypeScript/JS            | TypeScript/JS       |
-| **Horizontal Scaling**   | ✅ Yes (distributed backends)    | ✅ Yes (read replicas)    | ✅ Yes (auto)        |
-| **Open Source**          | ✅ AGPLv3                        | ✅ Apache 2.0             | ❌ Proprietary       |
-| **CLI when self-hosted** | ✅ Fluxbase CLI                  | ⚠️ Only cloud version     | N/A                 |
+| Feature                | Fluxbase                        | Supabase                 | Firebase            |
+| ---------------------- | ------------------------------- | ------------------------ | ------------------- |
+| **Deployment**         | ~50MB binary / ~110MB container | ~13 containers (~2.5GB)  | Cloud only          |
+| **Dependencies**       | PostgreSQL only                 | PostgreSQL + 5+ services | Proprietary         |
+| **Self-hosting**       | ✅ Easy                          | ⚠️ Complex                | ❌ No                |
+| **REST API**           | ✅ Built-in                      | ✅ PostgREST              | ✅ Auto-generated    |
+| **Authentication**     | ✅ Built-in                      | ✅ GoTrue                 | ✅ Built-in          |
+| **Realtime**           | ✅ WebSocket                     | ✅ WebSocket              | ✅ WebSocket         |
+| **Storage**            | ✅ S3 or local                   | ✅ S3 or local            | ✅ Cloud Storage     |
+| **Edge Functions**     | ✅ Deno                          | ✅ Deno                   | ✅ Cloud Functions   |
+| **Secrets**            | ✅ Built-in                      | ✅ Vault                  | ❌ No                |
+| **AI Chatbots**        | ✅ Built-in                      | ❌ No                     | ❌ No                |
+| **Background Jobs**    | ✅ Built-in                      | ✅ pg_cron (ext)          | ❌ No                |
+| **Database**           | PostgreSQL 15+                  | PostgreSQL 15+           | Proprietary (NoSQL) |
+| **Row-Level Security** | ✅ Yes                           | ✅ Yes                    | ⚠️ Rules-based       |
+| **Client SDK**         | TypeScript/JS                   | TypeScript/JS            | TypeScript/JS       |
+| **Horizontal Scaling** | ✅ Yes (distributed backends)    | ✅ Yes (read replicas)    | ✅ Yes (auto)        |
+| **Open Source**        | ✅ AGPLv3                        | ✅ Apache 2.0             | ❌ Proprietary       |
+| **CLI**                | ✅ Fluxbase CLI                  | ⚠️ Only cloud version     | ⚠️ Only cloud        |
 
 ## SDK Compatibility
 

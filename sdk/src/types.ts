@@ -2760,6 +2760,8 @@ export interface AIProvider {
   is_default: boolean;
   /** When true, this provider is explicitly used for embeddings. null means auto (follow default provider) */
   use_for_embeddings: boolean | null;
+  /** Embedding model for this provider. null means use provider-specific default */
+  embedding_model: string | null;
   enabled: boolean;
   config: Record<string, string>;
   /** True if provider was configured via environment variables or fluxbase.yaml */
@@ -2780,6 +2782,8 @@ export interface CreateAIProviderRequest {
   provider_type: AIProviderType;
   is_default?: boolean;
   enabled?: boolean;
+  /** Embedding model for this provider. null or omit to use provider-specific default */
+  embedding_model?: string | null;
   config: Record<string, string | number | boolean>;
 }
 
@@ -2791,6 +2795,8 @@ export interface UpdateAIProviderRequest {
   display_name?: string;
   config?: Record<string, string | number | boolean>;
   enabled?: boolean;
+  /** Embedding model for this provider. null to reset to provider-specific default */
+  embedding_model?: string | null;
 }
 
 /**
@@ -3701,6 +3707,8 @@ export interface EmbedRequest {
   texts?: string[];
   /** Embedding model to use (defaults to configured model) */
   model?: string;
+  /** Provider ID to use for embedding (admin-only, defaults to configured embedding provider) */
+  provider?: string;
 }
 
 /**

@@ -53,6 +53,35 @@ func (m *VectorManager) GetEmbeddingService() *ai.EmbeddingService {
 	return m.embeddingService
 }
 
+// GetEmbeddingServiceForProvider creates an embedding service for a specific provider by ID
+// This is used when admins want to use a different provider than the default
+func (m *VectorManager) GetEmbeddingServiceForProvider(ctx context.Context, providerID string) (*ai.EmbeddingService, error) {
+	// Look up the provider
+	provider, err := m.aiStorage.GetProvider(ctx, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get provider: %w", err)
+	}
+	if provider == nil {
+		return nil, fmt.Errorf("provider not found: %s", providerID)
+	}
+	if !provider.Enabled {
+		return nil, fmt.Errorf("provider is disabled: %s", providerID)
+	}
+
+	// Build config and create service
+	embeddingCfg, err := m.buildEmbeddingConfigFromProvider(provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build embedding config for provider %s: %w", providerID, err)
+	}
+
+	service, err := ai.NewEmbeddingService(embeddingCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedding service for provider %s: %w", providerID, err)
+	}
+
+	return service, nil
+}
+
 // initializeFromEnvConfig attempts to initialize embedding service from YAML/env configuration
 func (m *VectorManager) initializeFromEnvConfig() {
 	cfg := m.envConfig
@@ -215,8 +244,11 @@ func (m *VectorManager) buildEmbeddingConfigFromProvider(provider *ai.ProviderRe
 		Config: make(map[string]string),
 	}
 
-	// Determine default embedding model based on provider type
-	var defaultModel string
+	// Determine embedding model with priority:
+	// 1. provider.EmbeddingModel (explicit embedding model from database)
+	// 2. config["model"] (provider's chat model fallback)
+	// 3. Provider-specific default
+	var embeddingModel string
 
 	switch providerType {
 	case "openai":
@@ -235,11 +267,13 @@ func (m *VectorManager) buildEmbeddingConfigFromProvider(provider *ai.ProviderRe
 			providerCfg.Config["base_url"] = baseURL
 		}
 
-		// Model: use provider's model if set, otherwise default
-		if model, ok := config["model"]; ok && model != "" {
-			defaultModel = model
+		// Model priority: EmbeddingModel > config["model"] > default
+		if provider.EmbeddingModel != nil && *provider.EmbeddingModel != "" {
+			embeddingModel = *provider.EmbeddingModel
+		} else if model, ok := config["model"]; ok && model != "" {
+			embeddingModel = model
 		} else {
-			defaultModel = "text-embedding-3-small"
+			embeddingModel = "text-embedding-3-small"
 		}
 
 	case "azure":
@@ -266,11 +300,13 @@ func (m *VectorManager) buildEmbeddingConfigFromProvider(provider *ai.ProviderRe
 			providerCfg.Config["api_version"] = apiVersion
 		}
 
-		// Model: use provider's model if set, otherwise default
-		if model, ok := config["model"]; ok && model != "" {
-			defaultModel = model
+		// Model priority: EmbeddingModel > config["model"] > default
+		if provider.EmbeddingModel != nil && *provider.EmbeddingModel != "" {
+			embeddingModel = *provider.EmbeddingModel
+		} else if model, ok := config["model"]; ok && model != "" {
+			embeddingModel = model
 		} else {
-			defaultModel = "text-embedding-ada-002"
+			embeddingModel = "text-embedding-ada-002"
 		}
 
 	case "ollama":
@@ -279,22 +315,24 @@ func (m *VectorManager) buildEmbeddingConfigFromProvider(provider *ai.ProviderRe
 			providerCfg.Config["endpoint"] = endpoint
 		}
 
-		// Model: use provider's model if set, otherwise default
-		if model, ok := config["model"]; ok && model != "" {
-			defaultModel = model
+		// Model priority: EmbeddingModel > config["model"] > default
+		if provider.EmbeddingModel != nil && *provider.EmbeddingModel != "" {
+			embeddingModel = *provider.EmbeddingModel
+		} else if model, ok := config["model"]; ok && model != "" {
+			embeddingModel = model
 		} else {
-			defaultModel = "nomic-embed-text"
+			embeddingModel = "nomic-embed-text"
 		}
 
 	default:
 		return ai.EmbeddingServiceConfig{}, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
 
-	providerCfg.Model = defaultModel
+	providerCfg.Model = embeddingModel
 
 	return ai.EmbeddingServiceConfig{
 		Provider:     providerCfg,
-		DefaultModel: defaultModel,
+		DefaultModel: embeddingModel,
 		CacheEnabled: true,
 	}, nil
 }

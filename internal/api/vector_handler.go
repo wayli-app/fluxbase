@@ -191,9 +191,10 @@ func buildEmbeddingConfigFromAIProvider(cfg *config.AIConfig) (ai.EmbeddingServi
 
 // EmbedRequest represents a request to generate embeddings
 type EmbedRequest struct {
-	Text  string   `json:"text,omitempty"`  // Single text to embed
-	Texts []string `json:"texts,omitempty"` // Multiple texts to embed
-	Model string   `json:"model,omitempty"` // Optional model override
+	Text     string   `json:"text,omitempty"`     // Single text to embed
+	Texts    []string `json:"texts,omitempty"`    // Multiple texts to embed
+	Model    string   `json:"model,omitempty"`    // Optional model override
+	Provider string   `json:"provider,omitempty"` // Optional provider ID (admin-only)
 }
 
 // EmbedResponse represents the response from embedding generation
@@ -239,17 +240,43 @@ type VectorSearchResponse struct {
 
 // HandleEmbed handles POST /api/v1/vector/embed
 func (h *VectorHandler) HandleEmbed(c *fiber.Ctx) error {
-	embeddingService := h.vectorManager.GetEmbeddingService()
-	if embeddingService == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Embedding service not configured",
-		})
-	}
-
 	var req EmbedRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+
+	// Determine which embedding service to use
+	var embeddingService *ai.EmbeddingService
+	var err error
+
+	if req.Provider != "" {
+		// Provider selection is admin-only
+		role, _ := c.Locals("user_role").(string)
+		isAdmin := role == "admin" || role == "dashboard_admin" || role == "service_role"
+
+		if !isAdmin {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Provider selection requires admin privileges",
+			})
+		}
+
+		// Get embedding service for specified provider
+		embeddingService, err = h.vectorManager.GetEmbeddingServiceForProvider(c.Context(), req.Provider)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		}
+	} else {
+		// Use default embedding service
+		embeddingService = h.vectorManager.GetEmbeddingService()
+	}
+
+	if embeddingService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Embedding service not configured",
 		})
 	}
 

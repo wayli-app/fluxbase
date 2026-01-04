@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { AIProvider, UpdateAIProviderRequest } from '@fluxbase/sdk'
+import type {
+  AIProvider,
+  CreateAIProviderRequest,
+  UpdateAIProviderRequest,
+} from '@fluxbase/sdk'
 import { useFluxbaseClient } from '@fluxbase/sdk-react'
 import { Bot, Plus, Trash2, Star, Pencil, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
@@ -48,13 +52,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-interface CreateProviderRequest {
-  name: string
-  display_name: string
-  provider_type: 'openai' | 'azure' | 'ollama'
-  config: Record<string, string>
-}
 
 export function AIProvidersTab() {
   const client = useFluxbaseClient()
@@ -136,7 +133,7 @@ export function AIProvidersTab() {
 
   // Create provider mutation using SDK
   const createMutation = useMutation({
-    mutationFn: async (data: CreateProviderRequest) => {
+    mutationFn: async (data: CreateAIProviderRequest) => {
       const { error } = await client.admin.ai.createProvider(data)
       if (error) throw error
     },
@@ -348,12 +345,12 @@ export function AIProvidersTab() {
                                 isEmbeddingProvider
                                   ? 'text-purple-500'
                                   : isAutoEmbedding
-                                    ? 'text-muted-foreground opacity-50'
+                                    ? 'text-purple-500 opacity-60'
                                     : 'text-muted-foreground hover:text-purple-500'
                               }
                             >
                               <Sparkles
-                                className={`h-4 w-4 ${isEmbeddingProvider ? 'fill-current' : ''}`}
+                                className={`h-4 w-4 ${isEmbeddingProvider || isAutoEmbedding ? 'fill-current' : ''}`}
                               />
                             </Button>
                           )}
@@ -443,10 +440,32 @@ export function AIProvidersTab() {
   )
 }
 
+// Embedding models per provider type
+const EMBEDDING_MODELS = {
+  openai: [
+    { value: '', label: 'Default (text-embedding-3-small)' },
+    { value: 'text-embedding-3-small', label: 'text-embedding-3-small' },
+    { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
+    { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002' },
+  ],
+  azure: [
+    { value: '', label: 'Default (text-embedding-ada-002)' },
+    { value: 'text-embedding-3-small', label: 'text-embedding-3-small' },
+    { value: 'text-embedding-3-large', label: 'text-embedding-3-large' },
+    { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002' },
+  ],
+  ollama: [
+    { value: '', label: 'Default (nomic-embed-text)' },
+    { value: 'nomic-embed-text', label: 'nomic-embed-text' },
+    { value: 'mxbai-embed-large', label: 'mxbai-embed-large' },
+    { value: 'all-minilm', label: 'all-minilm' },
+  ],
+}
+
 interface CreateProviderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (data: CreateProviderRequest) => void
+  onSubmit: (data: CreateAIProviderRequest) => void
   isPending: boolean
 }
 
@@ -464,6 +483,7 @@ function CreateProviderDialog({
   const [apiKey, setApiKey] = useState('')
   const [endpoint, setEndpoint] = useState('')
   const [model, setModel] = useState('')
+  const [embeddingModel, setEmbeddingModel] = useState('')
   const [organizationId, setOrganizationId] = useState('')
   const [deploymentName, setDeploymentName] = useState('')
 
@@ -505,10 +525,15 @@ function CreateProviderDialog({
 
     if (model) config.model = model
 
+    // Handle the _default_ sentinel value
+    const effectiveEmbeddingModel =
+      embeddingModel && embeddingModel !== '_default_' ? embeddingModel : null
+
     onSubmit({
       name,
       display_name: displayName,
       provider_type: providerType,
+      embedding_model: effectiveEmbeddingModel,
       config,
     })
   }
@@ -551,9 +576,10 @@ function CreateProviderDialog({
               <Label htmlFor='providerType'>Provider Type</Label>
               <Select
                 value={providerType}
-                onValueChange={(value) =>
+                onValueChange={(value) => {
                   setProviderType(value as 'openai' | 'azure' | 'ollama')
-                }
+                  setEmbeddingModel('') // Reset embedding model when provider changes
+                }}
               >
                 <SelectTrigger id='providerType'>
                   <SelectValue />
@@ -564,6 +590,25 @@ function CreateProviderDialog({
                   <SelectItem value='ollama'>Ollama</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='embeddingModel'>Embedding Model</Label>
+              <Select value={embeddingModel} onValueChange={setEmbeddingModel}>
+                <SelectTrigger id='embeddingModel'>
+                  <SelectValue placeholder='Select embedding model' />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMBEDDING_MODELS[providerType].map((m) => (
+                    <SelectItem key={m.value} value={m.value || '_default_'}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-xs'>
+                Model used for vector embeddings
+              </p>
             </div>
 
             {providerType === 'openai' && (
@@ -701,6 +746,9 @@ function EditProviderDialog({
     provider.config.endpoint || provider.config.base_url || ''
   )
   const [model, setModel] = useState(provider.config.model || '')
+  const [embeddingModel, setEmbeddingModel] = useState(
+    provider.embedding_model || ''
+  )
   const [organizationId, setOrganizationId] = useState(
     provider.config.organization_id || ''
   )
@@ -728,10 +776,15 @@ function EditProviderDialog({
 
     if (model) config.model = model
 
+    // Handle the _default_ sentinel value
+    const effectiveEmbeddingModel =
+      embeddingModel && embeddingModel !== '_default_' ? embeddingModel : null
+
     onSubmit({
       display_name: displayName,
       config,
       enabled,
+      embedding_model: effectiveEmbeddingModel,
     })
   }
 
@@ -772,6 +825,33 @@ function EditProviderDialog({
                   <SelectItem value='disabled'>Disabled</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='edit-embeddingModel'>Embedding Model</Label>
+              <Select
+                value={embeddingModel || '_default_'}
+                onValueChange={setEmbeddingModel}
+              >
+                <SelectTrigger id='edit-embeddingModel'>
+                  <SelectValue placeholder='Select embedding model' />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMBEDDING_MODELS[
+                    provider.provider_type as keyof typeof EMBEDDING_MODELS
+                  ]?.map((m) => (
+                    <SelectItem
+                      key={m.value || '_default_'}
+                      value={m.value || '_default_'}
+                    >
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-xs'>
+                Model used for generating embeddings with this provider
+              </p>
             </div>
 
             {provider.provider_type === 'openai' && (

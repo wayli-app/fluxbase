@@ -727,12 +727,13 @@ func (h *Handler) GetProvider(c *fiber.Ctx) error {
 
 // CreateProviderRequest represents the request to create a provider
 type CreateProviderRequest struct {
-	Name         string         `json:"name"`
-	DisplayName  string         `json:"display_name"`
-	ProviderType string         `json:"provider_type"`
-	IsDefault    bool           `json:"is_default"`
-	Config       map[string]any `json:"config"`
-	Enabled      bool           `json:"enabled"`
+	Name           string         `json:"name"`
+	DisplayName    string         `json:"display_name"`
+	ProviderType   string         `json:"provider_type"`
+	IsDefault      bool           `json:"is_default"`
+	EmbeddingModel *string        `json:"embedding_model"`
+	Config         map[string]any `json:"config"`
+	Enabled        bool           `json:"enabled"`
 }
 
 // normalizeConfig converts any config values to strings and removes empty/invalid values
@@ -792,12 +793,13 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 	}
 
 	provider := &ProviderRecord{
-		Name:         req.Name,
-		DisplayName:  req.DisplayName,
-		ProviderType: req.ProviderType,
-		IsDefault:    isDefault,
-		Config:       normalizedConfig,
-		Enabled:      true, // Always enable new providers
+		Name:           req.Name,
+		DisplayName:    req.DisplayName,
+		ProviderType:   req.ProviderType,
+		IsDefault:      isDefault,
+		EmbeddingModel: req.EmbeddingModel,
+		Config:         normalizedConfig,
+		Enabled:        true, // Always enable new providers
 	}
 
 	if err := h.storage.CreateProvider(ctx, provider); err != nil {
@@ -951,9 +953,10 @@ func (h *Handler) ClearEmbeddingProvider(c *fiber.Ctx) error {
 
 // UpdateProviderRequest represents the request to update a provider
 type UpdateProviderRequest struct {
-	DisplayName *string        `json:"display_name"`
-	Config      map[string]any `json:"config"`
-	Enabled     *bool          `json:"enabled"`
+	DisplayName    *string        `json:"display_name"`
+	Config         map[string]any `json:"config"`
+	Enabled        *bool          `json:"enabled"`
+	EmbeddingModel *string        `json:"embedding_model"`
 }
 
 // UpdateProvider updates an AI provider
@@ -1011,6 +1014,14 @@ func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
 	}
 	if req.Enabled != nil {
 		provider.Enabled = *req.Enabled
+	}
+	if req.EmbeddingModel != nil {
+		// Allow setting to empty string to reset to default
+		if *req.EmbeddingModel == "" {
+			provider.EmbeddingModel = nil
+		} else {
+			provider.EmbeddingModel = req.EmbeddingModel
+		}
 	}
 
 	if err := h.storage.UpdateProvider(ctx, provider); err != nil {
