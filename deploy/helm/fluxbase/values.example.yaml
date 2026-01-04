@@ -43,6 +43,14 @@ config:
       - "https://flux.yourdomain.com"
       - "https://app.int.yourdomain.com"
 
+  ## Environment variables (optional)
+  ## Uncomment and configure as needed
+  # env:
+  #   ## Emergency password login overrides
+  #   ## Use these to temporarily bypass password login restrictions if you get locked out
+  #   # FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN: "true"
+  #   # FLUXBASE_APP_FORCE_PASSWORD_LOGIN: "true"
+
 ## Secret containing sensitive values (REQUIRED)
 ## See the kubectl command at the top of this file
 existingSecret: "fluxbase-secret"

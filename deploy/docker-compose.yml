@@ -130,6 +130,10 @@ services:
       # FLUXBASE_AUTH_TOTP_ISSUER: "Fluxbase"
       # FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS: "${FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS:-true}"  # Allow users to create their own client keys
 
+      # Emergency password login overrides (use if locked out after enabling SSO-only mode)
+      # FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN: "true"  # Force enable dashboard password login
+      # FLUXBASE_APP_FORCE_PASSWORD_LOGIN: "true"        # Force enable app password login
+
       # Anon Key: Pre-generated JWT with 'anon' role for client-side apps
       # Generate with: scripts/generate-keys.sh (option 3)
       # Use in client apps as: VITE_FLUXBASE_ANON_KEY, NEXT_PUBLIC_FLUXBASE_ANON_KEY, etc.

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
@@ -53,6 +55,7 @@ type AuthConfigResponse struct {
 	SignupEnabled            bool                        `json:"signup_enabled"`
 	RequireEmailVerification bool                        `json:"require_email_verification"`
 	MagicLinkEnabled         bool                        `json:"magic_link_enabled"`
+	PasswordLoginEnabled     bool                        `json:"password_login_enabled"`
 	MFAAvailable             bool                        `json:"mfa_available"`
 	PasswordMinLength        int                         `json:"password_min_length"`
 	PasswordRequireUppercase bool                        `json:"password_require_uppercase"`
@@ -224,6 +227,16 @@ func (h *AuthHandler) SignUp(c *fiber.Ctx) error {
 // SignIn handles user login
 // POST /auth/signin
 func (h *AuthHandler) SignIn(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	// Check if password login is disabled for app users
+	if h.isPasswordLoginDisabled(ctx) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Password login is disabled. Please use an OAuth or SAML provider to sign in.",
+			"code":  "PASSWORD_LOGIN_DISABLED",
+		})
+	}
+
 	var req auth.SignInRequest
 	if err := c.BodyParser(&req); err != nil {
 		log.Error().Err(err).Msg("Failed to parse signin request")
@@ -1643,7 +1656,8 @@ func (h *AuthHandler) GetAuthConfig(c *fiber.Ctx) error {
 		SignupEnabled:            h.authService.IsSignupEnabled(),
 		RequireEmailVerification: settingsCache.GetBool(ctx, "app.auth.require_email_verification", false),
 		MagicLinkEnabled:         settingsCache.GetBool(ctx, "app.auth.magic_link_enabled", false),
-		MFAAvailable:             true, // MFA is always available, users opt-in
+		PasswordLoginEnabled:     !settingsCache.GetBool(ctx, "app.auth.disable_app_password_login", false), // Inverted: disabled=false means enabled=true
+		MFAAvailable:             true,                                                                      // MFA is always available, users opt-in
 		PasswordMinLength:        settingsCache.GetInt(ctx, "app.auth.password_min_length", 8),
 		PasswordRequireUppercase: settingsCache.GetBool(ctx, "app.auth.password_require_uppercase", false),
 		PasswordRequireLowercase: settingsCache.GetBool(ctx, "app.auth.password_require_lowercase", false),
@@ -1701,4 +1715,15 @@ func (h *AuthHandler) GetAuthConfig(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// isPasswordLoginDisabled checks if password login is disabled for app users
+func (h *AuthHandler) isPasswordLoginDisabled(ctx context.Context) bool {
+	// Emergency override via environment variable
+	if os.Getenv("FLUXBASE_APP_FORCE_PASSWORD_LOGIN") == "true" {
+		return false // Password login forced enabled
+	}
+
+	settingsCache := h.authService.GetSettingsCache()
+	return settingsCache.GetBool(ctx, "app.auth.disable_app_password_login", false)
 }

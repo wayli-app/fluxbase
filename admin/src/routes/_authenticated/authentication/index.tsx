@@ -2206,6 +2206,21 @@ function AuthSettingsTab() {
 
   const hasDashboardSSOProviders = (ssoData?.providers?.length ?? 0) > 0
 
+  // Fetch OAuth and SAML providers for app login check
+  const { data: oauthProviders = [] } = useQuery({
+    queryKey: ['oauthProviders'],
+    queryFn: oauthProviderApi.list,
+  })
+
+  const { data: samlProviders = [] } = useQuery({
+    queryKey: ['samlProviders'],
+    queryFn: samlProviderApi.list,
+  })
+
+  const hasAppSSOProviders =
+    (oauthProviders?.filter((p) => p.allow_app_login)?.length ?? 0) > 0 ||
+    (samlProviders?.filter((p) => p.allow_app_login)?.length ?? 0) > 0
+
   // Use useMemo to derive the initial settings value from fetched data
   const initialSettings = useMemo(
     () => fetchedSettings || null,
@@ -2476,6 +2491,59 @@ function AuthSettingsTab() {
                 environment variable{' '}
                 <code className='rounded bg-amber-100 px-1 dark:bg-amber-900'>
                   FLUXBASE_DASHBOARD_FORCE_PASSWORD_LOGIN=true
+                </code>{' '}
+                to temporarily re-enable password login.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>App User Login</CardTitle>
+          <CardDescription>
+            Configure authentication methods for application users
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <div className='flex-1 pr-4'>
+              <Label htmlFor='disableAppPasswordLogin'>
+                Disable Password Login
+              </Label>
+              <p className='text-muted-foreground text-sm'>
+                Require OAuth/SAML for all app user logins. Password
+                authentication will be disabled.
+              </p>
+              {!hasAppSSOProviders && (
+                <p className='mt-2 text-sm text-amber-600'>
+                  Configure at least one OAuth or SAML provider with "Allow app
+                  login" enabled before you can disable password login.
+                </p>
+              )}
+            </div>
+            <Switch
+              id='disableAppPasswordLogin'
+              checked={settings.disable_app_password_login}
+              onCheckedChange={(checked) =>
+                setSettings({
+                  ...settings,
+                  disable_app_password_login: checked,
+                })
+              }
+              disabled={
+                !hasAppSSOProviders && !settings.disable_app_password_login
+              }
+            />
+          </div>
+          {settings.disable_app_password_login && (
+            <div className='rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950'>
+              <p className='text-sm text-amber-800 dark:text-amber-200'>
+                <strong>Recovery:</strong> If users get locked out, set the
+                environment variable{' '}
+                <code className='rounded bg-amber-100 px-1 dark:bg-amber-900'>
+                  FLUXBASE_APP_FORCE_PASSWORD_LOGIN=true
                 </code>{' '}
                 to temporarily re-enable password login.
               </p>

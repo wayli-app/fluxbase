@@ -1889,6 +1889,7 @@ export interface AuthSettings {
   session_timeout_minutes: number
   max_sessions_per_user: number
   disable_dashboard_password_login: boolean
+  disable_app_password_login: boolean
 }
 
 // OAuth Provider Management API
