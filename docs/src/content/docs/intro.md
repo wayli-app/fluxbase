@@ -100,23 +100,23 @@ WebSocket-based AI chatbot integration:
 
 ## Quick Comparison
 
-| Feature                | Fluxbase                       | Supabase                 | Firebase            |
-| ---------------------- | ------------------------------ | ------------------------ | ------------------- |
+| Feature                | Fluxbase                        | Supabase                 | Firebase            |
+| ---------------------- | ------------------------------- | ------------------------ | ------------------- |
 | **Deployment**         | ~70MB binary / ~110MB container | ~13 containers (~2.5GB)  | Cloud only          |
-| **Dependencies**       | PostgreSQL only                | PostgreSQL + 5+ services | Proprietary         |
-| **Self-hosting**       | ✅ Easy                        | ⚠️ Complex               | ❌ No               |
-| **REST API**           | ✅ Built-in                    | ✅ PostgREST             | ✅ Auto-generated   |
-| **Authentication**     | ✅ Built-in                    | ✅ GoTrue                | ✅ Built-in         |
-| **Realtime**           | ✅ WebSocket                   | ✅ WebSocket             | ✅ WebSocket        |
-| **Storage**            | ✅ S3 or local                 | ✅ S3 or local           | ✅ Cloud Storage    |
-| **Edge Functions**     | ✅ Deno                        | ✅ Deno                  | ✅ Cloud Functions  |
-| **AI Chatbots**        | ✅ Built-in                    | ❌ No                    | ❌ No               |
-| **Background Jobs**    | ✅ Built-in                    | ✅ pg_cron (ext)         | ❌ No               |
-| **Database**           | PostgreSQL 15+                 | PostgreSQL 15+           | Proprietary (NoSQL) |
-| **Row-Level Security** | ✅ Yes                         | ✅ Yes                   | ⚠️ Rules-based      |
-| **Client SDK**         | TypeScript/JS                  | TypeScript/JS            | TypeScript/JS       |
-| **Horizontal Scaling** | ✅ Yes (distributed backends)  | ✅ Yes (read replicas)   | ✅ Yes (auto)       |
-| **Open Source**        | ✅ ELv2                        | ✅ Apache 2.0            | ❌ Proprietary      |
+| **Dependencies**       | PostgreSQL only                 | PostgreSQL + 5+ services | Proprietary         |
+| **Self-hosting**       | ✅ Easy                         | ⚠️ Complex               | ❌ No               |
+| **REST API**           | ✅ Built-in                     | ✅ PostgREST             | ✅ Auto-generated   |
+| **Authentication**     | ✅ Built-in                     | ✅ GoTrue                | ✅ Built-in         |
+| **Realtime**           | ✅ WebSocket                    | ✅ WebSocket             | ✅ WebSocket        |
+| **Storage**            | ✅ S3 or local                  | ✅ S3 or local           | ✅ Cloud Storage    |
+| **Edge Functions**     | ✅ Deno                         | ✅ Deno                  | ✅ Cloud Functions  |
+| **AI Chatbots**        | ✅ Built-in                     | ❌ No                    | ❌ No               |
+| **Background Jobs**    | ✅ Built-in                     | ✅ pg_cron (ext)         | ❌ No               |
+| **Database**           | PostgreSQL 15+                  | PostgreSQL 15+           | Proprietary (NoSQL) |
+| **Row-Level Security** | ✅ Yes                          | ✅ Yes                   | ⚠️ Rules-based      |
+| **Client SDK**         | TypeScript/JS                   | TypeScript/JS            | TypeScript/JS       |
+| **Horizontal Scaling** | ✅ Yes (distributed backends)   | ✅ Yes (read replicas)   | ✅ Yes (auto)       |
+| **Open Source**        | ✅ AGPLv2                       | ✅ Apache 2.0            | ❌ Proprietary      |
 
 ## Getting Started
 
@@ -222,4 +222,4 @@ graph TB
 
 ## License
 
-Fluxbase is open source and released under the [Elastic License 2.0 (ELv2)](https://github.com/fluxbase-eu/fluxbase/blob/main/LICENSE).
+Fluxbase is open source and released under the [AGPLv2 license](https://github.com/fluxbase-eu/fluxbase/blob/main/LICENSE).
