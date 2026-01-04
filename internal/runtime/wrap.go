@@ -192,6 +192,7 @@ const Fluxbase = _functionUtils;
 
     // Output response with prefix for reliable parsing
     console.log('__RESULT__::' + JSON.stringify(response));
+    Deno.exit(0);
 
   } catch (error) {
     // Output error with prefix for reliable parsing
@@ -201,6 +202,7 @@ const Fluxbase = _functionUtils;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ error: error.message, stack: error.stack })
     }));
+    Deno.exit(1);
   }
 })();
 `, imports, embeddedSDK, string(reqJSON), string(reqJSON), codeWithoutImports, string(reqJSON))
@@ -373,6 +375,7 @@ const Fluxbase = _jobUtils;
       success: true,
       result: finalResult
     }));
+    Deno.exit(0);
 
   } catch (error) {
     // Output error with prefix for reliable parsing
@@ -382,6 +385,7 @@ const Fluxbase = _jobUtils;
       error: error.message,
       stack: error.stack
     }));
+    Deno.exit(1);
   }
 })();
 `, imports, embeddedSDK, string(reqJSON), string(reqJSON), codeWithoutImports, string(reqJSON))
