@@ -405,6 +405,61 @@ export class FluxbaseAdminAI {
     }
   }
 
+  /**
+   * Set a provider as the embedding provider
+   *
+   * @param id - Provider ID
+   * @returns Promise resolving to { data, error } tuple
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.setEmbeddingProvider('uuid')
+   * ```
+   */
+  async setEmbeddingProvider(
+    id: string,
+  ): Promise<{
+    data: { id: string; use_for_embeddings: boolean } | null;
+    error: Error | null;
+  }> {
+    try {
+      const data = await this.fetch.put<{
+        id: string;
+        use_for_embeddings: boolean;
+      }>(`/api/v1/admin/ai/providers/${id}/embedding`, {});
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Clear explicit embedding provider preference (revert to default)
+   *
+   * @param id - Provider ID to clear
+   * @returns Promise resolving to { data, error } tuple
+   *
+   * @example
+   * ```typescript
+   * const { data, error } = await client.admin.ai.clearEmbeddingProvider('uuid')
+   * ```
+   */
+  async clearEmbeddingProvider(
+    id: string,
+  ): Promise<{
+    data: { use_for_embeddings: boolean } | null;
+    error: Error | null;
+  }> {
+    try {
+      const data = await this.fetch.delete<{ use_for_embeddings: boolean }>(
+        `/api/v1/admin/ai/providers/${id}/embedding`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
   // ============================================================================
   // KNOWLEDGE BASE MANAGEMENT (RAG)
   // ============================================================================

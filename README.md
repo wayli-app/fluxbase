@@ -1,7 +1,7 @@
 # Fluxbase
 
 [![CI](https://github.com/fluxbase-eu/fluxbase/actions/workflows/ci.yml/badge.svg)](https://github.com/fluxbase-eu/fluxbase/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/fluxbase-eu/fluxbase/branch/main/graph/badge.svg)](https://codecov.io/gh/fluxbase-eu/fluxbase)
+<!-- [![codecov](https://codecov.io/gh/fluxbase-eu/fluxbase/branch/main/graph/badge.svg)](https://codecov.io/gh/fluxbase-eu/fluxbase) -->
 
 > **Beta Software**: Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
 
@@ -21,7 +21,7 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 
 ### Key Highlights
 
-- Single binary deployment (~80MB)
+- Single binary deployment (~50MB)
 - PostgreSQL as the only external dependency
 - Automatic REST endpoint generation
 - Row Level Security (RLS) support
@@ -58,45 +58,24 @@ That's it! Fluxbase is now running at http://localhost:8080
 
 ## Comparison with Supabase
 
-| Feature        | Fluxbase                | Supabase                       |
-| -------------- | ----------------------- | ------------------------------ |
-| Deployment     | Single binary           | Multiple services              |
-| Dependencies   | PostgreSQL only         | PostgreSQL + multiple services |
-| Size           | ~80MB                   | 2+ GB                          |
-| REST API       | ✅ PostgREST-compatible | ✅ PostgREST                   |
-| Authentication | ✅ Built-in             | ✅ GoTrue                      |
-| Chatbots       | ✅ Built-in             | ❌                             |
-| Realtime       | ✅ Built-in             | ✅ Realtime                    |
-| Storage        | ✅ Built-in             | ✅ Storage API                 |
-| Edge Functions | ✅ Deno                 | ✅ Deno                        |
-| Vector/AI      | ✅                      | ✅                             |
-| Admin UI       | ✅ Built-in             | ✅                             |
-
-## Documentation
-
-### Getting Started
-
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete setup guide with DevContainer and local options
-
-### Production
-
-- **[PRODUCTION_RUNBOOK.md](PRODUCTION_RUNBOOK.md)** - Production deployment, configuration, monitoring, and operations
-- **[VERSIONING.md](VERSIONING.md)** - Version management, build automation, and release process
-
-### GitHub Setup
-
-- **[.github/SETUP_GUIDE.md](.github/SETUP_GUIDE.md)** - Complete GitHub repository configuration
-- **[.github/SECRETS.md](.github/SECRETS.md)** - GitHub secrets and variables reference
-- **[.github/QUICK_REFERENCE.md](.github/QUICK_REFERENCE.md)** - Quick reference card for GitHub setup
-
-### Monitoring
-
-- **[deploy/MONITORING.md](deploy/MONITORING.md)** - Prometheus, Grafana, and observability setup
+| Feature             | Fluxbase               | Supabase                       |
+| ------------------- | ---------------------- | ------------------------------ |
+| Deployment          | Single binary          | Multiple services              |
+| Dependencies        | PostgreSQL only        | PostgreSQL + multiple services |
+| Size                | ~50MB                  | 2+ GB                          |
+| REST API            | ✅ PostgREST-compatible | ✅ PostgREST                    |
+| Authentication      | ✅ Built-in             | ✅ GoTrue                       |
+| Chatbots            | ✅ Built-in             | ❌                              |
+| Realtime            | ✅ Built-in             | ✅ Realtime                     |
+| Storage             | ✅ Built-in             | ✅ Storage API                  |
+| Edge Functions      | ✅ Deno                 | ✅ Deno                         |
+| Vector/AI           | ✅                      | ✅                              |
+| Admin UI            | ✅ Built-in             | ✅                              |
+| CLI for self-hosted | ✅ Built-in             | ❌ Only cloud version           |
 
 ### Additional Resources
 
-- **[docs/](docs/)** - Full Docusaurus documentation (run `make docs` to serve locally)
-- **[.docs/archive/](.docs/archive/)** - Historical project tracking documents
+- **[docs/](docs/)** - Full documentation (run `make docs` to serve locally)
 
 ## Support
 

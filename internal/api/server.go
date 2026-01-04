@@ -1858,6 +1858,8 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 		router.Put("/ai/providers/:id/default", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.SetDefaultProvider)
 		router.Delete("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.DeleteProvider)
 		router.Put("/ai/providers/:id", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.UpdateProvider)
+		router.Put("/ai/providers/:id/embedding", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.SetEmbeddingProvider)
+		router.Delete("/ai/providers/:id/embedding", requireAI, unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.aiHandler.ClearEmbeddingProvider)
 
 		// Knowledge base management (RAG)
 		if s.knowledgeBaseHandler != nil {

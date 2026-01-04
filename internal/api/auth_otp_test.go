@@ -108,7 +108,7 @@ func setupAuthTestServer(t *testing.T) (*fiber.App, *auth.Service, *database.Con
 	})
 
 	// Create auth handler (no captcha service in tests)
-	authHandler := NewAuthHandler(authService, nil)
+	authHandler := NewAuthHandler(db.Pool(), authService, nil, "http://localhost:3000")
 
 	// Setup auth routes
 	auth := app.Group("/api/v1/auth")

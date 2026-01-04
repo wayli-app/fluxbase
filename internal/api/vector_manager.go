@@ -14,12 +14,12 @@ import (
 // VectorManager manages the embedding service with support for dynamic configuration refresh
 // from database-stored AI providers. It follows the pattern established by email.Manager.
 type VectorManager struct {
-	mu              sync.RWMutex
+	mu               sync.RWMutex
 	embeddingService *ai.EmbeddingService
-	aiStorage       *ai.Storage
-	envConfig       *config.AIConfig
-	schemaInspector *database.SchemaInspector
-	db              *database.Connection
+	aiStorage        *ai.Storage
+	envConfig        *config.AIConfig
+	schemaInspector  *database.SchemaInspector
+	db               *database.Connection
 }
 
 // NewVectorManager creates a new vector manager with hot-reload capability
@@ -117,28 +117,49 @@ func (m *VectorManager) RefreshFromDatabase(ctx context.Context) error {
 		return nil
 	}
 
-	// Priority 2: If AI provider is configured in env (ProviderType or inferred from keys), prefer that
-	// Note: GetEffectiveDefaultProvider already implements this priority check internally
-	// It will return config-based provider if ProviderType is set, otherwise database provider
-
-	// Get the effective default provider (config takes precedence over database)
-	provider, err := m.aiStorage.GetEffectiveDefaultProvider(ctx)
+	// Priority 2: Explicit embedding provider preference (database override)
+	embeddingPref, err := m.aiStorage.GetEmbeddingProviderPreference(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get default provider: %w", err)
+		log.Warn().Err(err).Msg("Failed to get embedding provider preference")
+		// Continue to fallback
 	}
+
+	var provider *ai.ProviderRecord
+	if embeddingPref != nil {
+		// Use explicit embedding provider
+		provider = embeddingPref
+		log.Debug().
+			Str("provider_id", provider.ID).
+			Str("provider_name", provider.DisplayName).
+			Msg("Using explicit embedding provider preference")
+	} else {
+		// Priority 3: Default provider (fallback/auto mode)
+		defaultProvider, err := m.aiStorage.GetEffectiveDefaultProvider(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get default provider: %w", err)
+		}
+		provider = defaultProvider
+		if provider != nil {
+			log.Debug().
+				Str("provider_id", provider.ID).
+				Str("provider_name", provider.DisplayName).
+				Msg("No explicit embedding preference, using default provider")
+		}
+	}
+
 	if provider == nil {
 		// No provider available - clear embedding service
 		m.mu.Lock()
 		m.embeddingService = nil
 		m.mu.Unlock()
-		log.Debug().Msg("No default AI provider found, embedding service unavailable")
+		log.Debug().Msg("No embedding provider available")
 		return nil
 	}
 
 	// Check if this is a config-based provider (from env/YAML)
 	// If so, we don't need to reload as it's already loaded in initializeFromEnvConfig
-	if provider.FromConfig {
-		log.Debug().Msg("Default provider is from config, already initialized")
+	if provider.ReadOnly {
+		log.Debug().Msg("Provider is from config, already initialized")
 		return nil
 	}
 

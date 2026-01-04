@@ -525,26 +525,27 @@ func (s *Storage) UpsertChatbot(ctx context.Context, chatbot *Chatbot) error {
 
 // ProviderRecord represents a provider in the database
 type ProviderRecord struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	DisplayName  string            `json:"display_name"`
-	ProviderType string            `json:"provider_type"`
-	IsDefault    bool              `json:"is_default"`
-	Config       map[string]string `json:"config"`
-	Enabled      bool              `json:"enabled"`
-	ReadOnly     bool              `json:"read_only"` // True if configured via environment/YAML (cannot be modified)
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
-	CreatedBy    *string           `json:"created_by,omitempty"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	DisplayName      string            `json:"display_name"`
+	ProviderType     string            `json:"provider_type"`
+	IsDefault        bool              `json:"is_default"`
+	UseForEmbeddings *bool             `json:"use_for_embeddings"` // Pointer to distinguish null (auto) from false
+	Config           map[string]string `json:"config"`
+	Enabled          bool              `json:"enabled"`
+	ReadOnly         bool              `json:"read_only"` // True if configured via environment/YAML (cannot be modified)
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
+	CreatedBy        *string           `json:"created_by,omitempty"`
 }
 
 // CreateProvider creates a new AI provider
 func (s *Storage) CreateProvider(ctx context.Context, provider *ProviderRecord) error {
 	query := `
 		INSERT INTO ai.providers (
-			id, name, display_name, provider_type, is_default, config, enabled, created_by, created_at, updated_at
+			id, name, display_name, provider_type, is_default, use_for_embeddings, config, enabled, created_by, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 		)
 	`
 
@@ -558,7 +559,7 @@ func (s *Storage) CreateProvider(ctx context.Context, provider *ProviderRecord) 
 
 	_, err := s.db.Exec(ctx, query,
 		provider.ID, provider.Name, provider.DisplayName, provider.ProviderType,
-		provider.IsDefault, provider.Config, provider.Enabled, provider.CreatedBy,
+		provider.IsDefault, provider.UseForEmbeddings, provider.Config, provider.Enabled, provider.CreatedBy,
 		provider.CreatedAt, provider.UpdatedAt,
 	)
 
@@ -582,7 +583,8 @@ func (s *Storage) UpdateProvider(ctx context.Context, provider *ProviderRecord) 
 			display_name = $2,
 			config = $3,
 			enabled = $4,
-			updated_at = $5
+			use_for_embeddings = $5,
+			updated_at = $6
 		WHERE id = $1
 	`
 
@@ -593,6 +595,7 @@ func (s *Storage) UpdateProvider(ctx context.Context, provider *ProviderRecord) 
 		provider.DisplayName,
 		provider.Config,
 		provider.Enabled,
+		provider.UseForEmbeddings,
 		provider.UpdatedAt,
 	)
 
@@ -615,7 +618,7 @@ func (s *Storage) UpdateProvider(ctx context.Context, provider *ProviderRecord) 
 // GetProvider retrieves a provider by ID
 func (s *Storage) GetProvider(ctx context.Context, id string) (*ProviderRecord, error) {
 	query := `
-		SELECT id, name, display_name, provider_type, is_default, config, enabled, created_by, created_at, updated_at
+		SELECT id, name, display_name, provider_type, is_default, use_for_embeddings, config, enabled, created_by, created_at, updated_at
 		FROM ai.providers
 		WHERE id = $1
 	`
@@ -623,7 +626,7 @@ func (s *Storage) GetProvider(ctx context.Context, id string) (*ProviderRecord, 
 	provider := &ProviderRecord{}
 	err := s.db.QueryRow(ctx, query, id).Scan(
 		&provider.ID, &provider.Name, &provider.DisplayName, &provider.ProviderType,
-		&provider.IsDefault, &provider.Config, &provider.Enabled, &provider.CreatedBy,
+		&provider.IsDefault, &provider.UseForEmbeddings, &provider.Config, &provider.Enabled, &provider.CreatedBy,
 		&provider.CreatedAt, &provider.UpdatedAt,
 	)
 
@@ -640,7 +643,7 @@ func (s *Storage) GetProvider(ctx context.Context, id string) (*ProviderRecord, 
 // GetDefaultProvider retrieves the default provider
 func (s *Storage) GetDefaultProvider(ctx context.Context) (*ProviderRecord, error) {
 	query := `
-		SELECT id, name, display_name, provider_type, is_default, config, enabled, created_by, created_at, updated_at
+		SELECT id, name, display_name, provider_type, is_default, use_for_embeddings, config, enabled, created_by, created_at, updated_at
 		FROM ai.providers
 		WHERE is_default = true AND enabled = true
 		LIMIT 1
@@ -649,7 +652,7 @@ func (s *Storage) GetDefaultProvider(ctx context.Context) (*ProviderRecord, erro
 	provider := &ProviderRecord{}
 	err := s.db.QueryRow(ctx, query).Scan(
 		&provider.ID, &provider.Name, &provider.DisplayName, &provider.ProviderType,
-		&provider.IsDefault, &provider.Config, &provider.Enabled, &provider.CreatedBy,
+		&provider.IsDefault, &provider.UseForEmbeddings, &provider.Config, &provider.Enabled, &provider.CreatedBy,
 		&provider.CreatedAt, &provider.UpdatedAt,
 	)
 
@@ -825,7 +828,7 @@ func (s *Storage) ListProviders(ctx context.Context, enabledOnly bool) ([]*Provi
 
 	// Query database providers
 	query := `
-		SELECT id, name, display_name, provider_type, is_default, config, enabled, created_by, created_at, updated_at
+		SELECT id, name, display_name, provider_type, is_default, use_for_embeddings, config, enabled, created_by, created_at, updated_at
 		FROM ai.providers
 	`
 
@@ -845,7 +848,7 @@ func (s *Storage) ListProviders(ctx context.Context, enabledOnly bool) ([]*Provi
 		provider := &ProviderRecord{}
 		err := rows.Scan(
 			&provider.ID, &provider.Name, &provider.DisplayName, &provider.ProviderType,
-			&provider.IsDefault, &provider.Config, &provider.Enabled, &provider.CreatedBy,
+			&provider.IsDefault, &provider.UseForEmbeddings, &provider.Config, &provider.Enabled, &provider.CreatedBy,
 			&provider.CreatedAt, &provider.UpdatedAt,
 		)
 		if err != nil {
@@ -907,6 +910,80 @@ func (s *Storage) DeleteProvider(ctx context.Context, id string) error {
 	}
 
 	log.Info().Str("id", id).Msg("Deleted AI provider")
+
+	return nil
+}
+
+// GetEmbeddingProviderPreference returns the provider explicitly set for embeddings (if any)
+// Returns nil if no explicit preference is set (use default provider in auto mode)
+func (s *Storage) GetEmbeddingProviderPreference(ctx context.Context) (*ProviderRecord, error) {
+	query := `
+		SELECT id, name, display_name, provider_type, is_default, use_for_embeddings, config, enabled, created_by, created_at, updated_at
+		FROM ai.providers
+		WHERE use_for_embeddings = true AND enabled = true
+		LIMIT 1
+	`
+
+	provider := &ProviderRecord{}
+	err := s.db.QueryRow(ctx, query).Scan(
+		&provider.ID, &provider.Name, &provider.DisplayName, &provider.ProviderType,
+		&provider.IsDefault, &provider.UseForEmbeddings, &provider.Config, &provider.Enabled, &provider.CreatedBy,
+		&provider.CreatedAt, &provider.UpdatedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		// No explicit preference set - return nil without error (auto mode)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get embedding provider preference: %w", err)
+	}
+
+	// Mark as read-only=false since it's from database
+	provider.ReadOnly = false
+
+	return provider, nil
+}
+
+// SetEmbeddingProviderPreference sets a provider as the embedding provider
+// Pass empty id to clear preference (revert to auto/default mode)
+func (s *Storage) SetEmbeddingProviderPreference(ctx context.Context, id string) error {
+	// Use transaction to ensure atomicity
+	tx, err := s.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Clear any existing embedding preference (set to NULL for auto mode)
+	_, err = tx.Exec(ctx, "UPDATE ai.providers SET use_for_embeddings = NULL WHERE use_for_embeddings = true")
+	if err != nil {
+		return fmt.Errorf("failed to clear embedding preference: %w", err)
+	}
+
+	// If id provided, set it as embedding provider (cannot set read-only providers)
+	if id != "" {
+		result, err := tx.Exec(ctx, `
+			UPDATE ai.providers
+			SET use_for_embeddings = true
+			WHERE id = $1 AND read_only = false
+		`, id)
+		if err != nil {
+			return fmt.Errorf("failed to set embedding provider: %w", err)
+		}
+
+		if result.RowsAffected() == 0 {
+			return fmt.Errorf("provider not found or is read-only: %s", id)
+		}
+
+		log.Info().Str("id", id).Msg("Set embedding provider preference")
+	} else {
+		log.Info().Msg("Cleared embedding provider preference (reverted to auto mode)")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
 	return nil
 }

@@ -6,7 +6,7 @@
 
 ## Key Design Decisions
 
-1. **Single Binary Architecture**: Everything compiles into one ~80MB Go executable for easy deployment
+1. **Single Binary Architecture**: Everything compiles into one ~50MB Go executable for easy deployment
 2. **PostgreSQL Only**: No Redis, no RabbitMQ, just PostgreSQL for all persistence
 3. **PostgREST Compatible**: Maintains API compatibility with Supabase where practical
 4. **Schema-Driven**: Database tables automatically become REST endpoints

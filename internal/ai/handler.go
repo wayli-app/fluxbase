@@ -890,6 +890,65 @@ func (h *Handler) DeleteProvider(c *fiber.Ctx) error {
 	})
 }
 
+// SetEmbeddingProvider sets a provider as the embedding provider
+// PUT /api/v1/admin/ai/providers/:id/embedding
+func (h *Handler) SetEmbeddingProvider(c *fiber.Ctx) error {
+	ctx := c.Context()
+	id := c.Params("id")
+
+	// Prevent modifying config-based provider
+	if id == "FROM_CONFIG" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Cannot modify config-based provider. This provider is configured via environment variables or fluxbase.yaml and is read-only.",
+		})
+	}
+
+	// Set embedding provider preference
+	if err := h.storage.SetEmbeddingProviderPreference(ctx, id); err != nil {
+		log.Error().Err(err).Str("id", id).Msg("Failed to set embedding provider")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to set embedding provider",
+		})
+	}
+
+	// Reload embedding service from database providers
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after setting embedding provider")
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"id":                 id,
+		"use_for_embeddings": true,
+	})
+}
+
+// ClearEmbeddingProvider clears the explicit embedding provider preference
+// DELETE /api/v1/admin/ai/providers/:id/embedding
+func (h *Handler) ClearEmbeddingProvider(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	// Clear embedding preference (revert to auto/default)
+	if err := h.storage.SetEmbeddingProviderPreference(ctx, ""); err != nil {
+		log.Error().Err(err).Msg("Failed to clear embedding provider preference")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to clear embedding provider preference",
+		})
+	}
+
+	// Reload embedding service to use default provider
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after clearing embedding provider")
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"use_for_embeddings": false,
+	})
+}
+
 // UpdateProviderRequest represents the request to update a provider
 type UpdateProviderRequest struct {
 	DisplayName *string        `json:"display_name"`

@@ -2758,6 +2758,8 @@ export interface AIProvider {
   display_name: string;
   provider_type: AIProviderType;
   is_default: boolean;
+  /** When true, this provider is explicitly used for embeddings. null means auto (follow default provider) */
+  use_for_embeddings: boolean | null;
   enabled: boolean;
   config: Record<string, string>;
   /** True if provider was configured via environment variables or fluxbase.yaml */

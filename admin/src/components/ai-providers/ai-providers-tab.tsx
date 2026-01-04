@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AIProvider, UpdateAIProviderRequest } from '@fluxbase/sdk'
 import { useFluxbaseClient } from '@fluxbase/sdk-react'
-import { Bot, Plus, Trash2, Star, Pencil } from 'lucide-react'
+import { Bot, Plus, Trash2, Star, Pencil, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -104,6 +104,36 @@ export function AIProvidersTab() {
     },
   })
 
+  // Set embedding provider mutation using SDK
+  const setEmbeddingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await client.admin.ai.setEmbeddingProvider(id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Embedding provider updated')
+      queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Clear embedding provider mutation using SDK
+  const clearEmbeddingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await client.admin.ai.clearEmbeddingProvider(id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Reverted to default provider for embeddings')
+      queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
   // Create provider mutation using SDK
   const createMutation = useMutation({
     mutationFn: async (data: CreateProviderRequest) => {
@@ -153,8 +183,8 @@ export function AIProvidersTab() {
                 AI Providers
               </CardTitle>
               <CardDescription>
-                Manage AI providers for chatbot functionality. Providers
-                configured via environment variables are read-only.
+                Manage AI providers for chatbot and embedding functionality.
+                Providers configured via environment variables are read-only.
               </CardDescription>
             </div>
             <Button onClick={() => setCreateDialogOpen(true)}>
@@ -194,108 +224,167 @@ export function AIProvidersTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {providers.map((provider) => (
-                  <TableRow key={provider.id}>
-                    <TableCell className='font-medium'>
-                      <div className='flex items-center gap-2'>
-                        {provider.display_name}
-                        {provider.is_default && (
-                          <Badge variant='default' className='text-xs'>
-                            <Star className='mr-1 h-3 w-3' />
-                            Default
+                {providers.map((provider) => {
+                  // Determine embedding provider state
+                  const isEmbeddingProvider =
+                    provider.use_for_embeddings === true
+                  const isAutoEmbedding =
+                    provider.use_for_embeddings === null && provider.is_default
+
+                  return (
+                    <TableRow key={provider.id}>
+                      <TableCell className='font-medium'>
+                        <div className='flex items-center gap-2'>
+                          {provider.display_name}
+                          {provider.is_default && (
+                            <Badge variant='default' className='text-xs'>
+                              <Star className='mr-1 h-3 w-3' />
+                              Default
+                            </Badge>
+                          )}
+                          {(isEmbeddingProvider || isAutoEmbedding) && (
+                            <Badge
+                              variant={
+                                isEmbeddingProvider ? 'default' : 'outline'
+                              }
+                              className='text-xs'
+                            >
+                              <Sparkles className='mr-1 h-3 w-3' />
+                              Embeddings {isAutoEmbedding && '(auto)'}
+                            </Badge>
+                          )}
+                          {provider.from_config && (
+                            <Badge variant='secondary' className='text-xs'>
+                              Config
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant='outline'>
+                          {provider.provider_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-muted-foreground text-sm'>
+                        {provider.config.model ||
+                          (provider.provider_type === 'openai'
+                            ? 'gpt-4-turbo'
+                            : '-')}
+                      </TableCell>
+                      <TableCell>
+                        {provider.enabled ? (
+                          <Badge
+                            variant='outline'
+                            className='border-green-500 text-green-500'
+                          >
+                            Enabled
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant='outline'
+                            className='border-gray-500 text-gray-500'
+                          >
+                            Disabled
                           </Badge>
                         )}
-                        {provider.from_config && (
-                          <Badge variant='secondary' className='text-xs'>
-                            Config
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant='outline'>{provider.provider_type}</Badge>
-                    </TableCell>
-                    <TableCell className='text-muted-foreground text-sm'>
-                      {provider.config.model ||
-                        (provider.provider_type === 'openai'
-                          ? 'gpt-4-turbo'
-                          : '-')}
-                    </TableCell>
-                    <TableCell>
-                      {provider.enabled ? (
-                        <Badge
-                          variant='outline'
-                          className='border-green-500 text-green-500'
-                        >
-                          Enabled
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant='outline'
-                          className='border-gray-500 text-gray-500'
-                        >
-                          Disabled
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex items-center justify-end gap-2'>
-                        {/* Default toggle - always visible for non-config providers */}
-                        {!provider.from_config && (
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            onClick={() =>
-                              !provider.is_default &&
-                              setDefaultMutation.mutate(provider.id)
-                            }
-                            disabled={
-                              setDefaultMutation.isPending ||
-                              provider.is_default
-                            }
-                            title={
-                              provider.is_default
-                                ? 'Current default'
-                                : 'Set as default'
-                            }
-                            className={
-                              provider.is_default
-                                ? 'text-yellow-500'
-                                : 'text-muted-foreground hover:text-yellow-500'
-                            }
-                          >
-                            <Star
-                              className={`h-4 w-4 ${provider.is_default ? 'fill-current' : ''}`}
-                            />
-                          </Button>
-                        )}
-                        {/* Edit button */}
-                        {!provider.from_config && (
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            onClick={() => setEditProvider(provider)}
-                            title='Edit provider'
-                          >
-                            <Pencil className='h-4 w-4' />
-                          </Button>
-                        )}
-                        {/* Delete button */}
-                        {!provider.from_config && (
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            onClick={() => setDeleteConfirm(provider)}
-                            className='text-destructive hover:text-destructive hover:bg-destructive/10'
-                            title='Delete provider'
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex items-center justify-end gap-2'>
+                          {/* Default toggle - always visible for non-config providers */}
+                          {!provider.from_config && (
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() =>
+                                !provider.is_default &&
+                                setDefaultMutation.mutate(provider.id)
+                              }
+                              disabled={
+                                setDefaultMutation.isPending ||
+                                provider.is_default
+                              }
+                              title={
+                                provider.is_default
+                                  ? 'Current default'
+                                  : 'Set as default'
+                              }
+                              className={
+                                provider.is_default
+                                  ? 'text-yellow-500'
+                                  : 'text-muted-foreground hover:text-yellow-500'
+                              }
+                            >
+                              <Star
+                                className={`h-4 w-4 ${provider.is_default ? 'fill-current' : ''}`}
+                              />
+                            </Button>
+                          )}
+                          {/* Embedding provider toggle */}
+                          {!provider.from_config && (
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() => {
+                                if (isEmbeddingProvider) {
+                                  // Clear explicit preference
+                                  clearEmbeddingMutation.mutate(provider.id)
+                                } else {
+                                  // Set as embedding provider
+                                  setEmbeddingMutation.mutate(provider.id)
+                                }
+                              }}
+                              disabled={
+                                setEmbeddingMutation.isPending ||
+                                clearEmbeddingMutation.isPending
+                              }
+                              title={
+                                isEmbeddingProvider
+                                  ? 'Clear embedding preference (use default)'
+                                  : isAutoEmbedding
+                                    ? 'Using default provider for embeddings'
+                                    : 'Set as embedding provider'
+                              }
+                              className={
+                                isEmbeddingProvider
+                                  ? 'text-purple-500'
+                                  : isAutoEmbedding
+                                    ? 'text-muted-foreground opacity-50'
+                                    : 'text-muted-foreground hover:text-purple-500'
+                              }
+                            >
+                              <Sparkles
+                                className={`h-4 w-4 ${isEmbeddingProvider ? 'fill-current' : ''}`}
+                              />
+                            </Button>
+                          )}
+                          {/* Edit button */}
+                          {!provider.from_config && (
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() => setEditProvider(provider)}
+                              title='Edit provider'
+                            >
+                              <Pencil className='h-4 w-4' />
+                            </Button>
+                          )}
+                          {/* Delete button */}
+                          {!provider.from_config && (
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              onClick={() => setDeleteConfirm(provider)}
+                              className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                              title='Delete provider'
+                            >
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
