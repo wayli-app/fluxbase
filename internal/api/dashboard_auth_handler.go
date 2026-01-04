@@ -87,14 +87,6 @@ func (h *DashboardAuthHandler) RegisterRoutes(app *fiber.App) {
 	dashboard.Get("/sso/saml/:provider", h.InitiateSAMLLogin)
 	dashboard.Post("/sso/saml/acs", h.SAMLACSCallback)
 
-	// Also register OAuth/SAML routes at /api/v1/auth paths for unified URLs
-	// These will be registered before the app OAuth handler, so they take priority
-	apiAuth := app.Group("/api/v1/auth")
-	apiAuth.Get("/oauth/:provider/authorize", h.InitiateOAuthLogin)
-	apiAuth.Get("/oauth/:provider/callback", h.OAuthCallback)
-	apiAuth.Get("/saml/:provider", h.InitiateSAMLLogin)
-	apiAuth.Post("/saml/acs", h.SAMLACSCallback)
-
 	// Protected routes (require dashboard JWT)
 	dashboard.Get("/me", h.RequireDashboardAuth, h.GetCurrentUser)
 	dashboard.Put("/profile", h.RequireDashboardAuth, h.UpdateProfile)
@@ -763,11 +755,12 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			log.Debug().
+			log.Warn().
 				Str("provider_id", providerID).
-				Msg("OAuth provider not found for dashboard login, trying app handler")
-			// Provider not configured for dashboard login, let app handler try
-			return c.Next()
+				Msg("OAuth provider not found or not enabled for dashboard login")
+			return c.Status(404).JSON(fiber.Map{
+				"error": "OAuth provider not found or not enabled for dashboard login",
+			})
 		}
 		log.Error().Err(err).Str("provider_id", providerID).Msg("Failed to fetch OAuth provider")
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch OAuth provider")
@@ -840,7 +833,7 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 
 // buildOAuthConfig creates an OAuth2 config for the given provider
 func (h *DashboardAuthHandler) buildOAuthConfig(provider, clientID, clientSecret string, scopes []string, isCustom bool, customAuthURL, customTokenURL *string) *oauth2.Config {
-	callbackURL := h.baseURL + "/api/v1/auth/oauth/" + provider + "/callback"
+	callbackURL := h.baseURL + "/dashboard/auth/sso/oauth/" + provider + "/callback"
 
 	var endpoint oauth2.Endpoint
 
@@ -928,9 +921,10 @@ func (h *DashboardAuthHandler) OAuthCallback(c *fiber.Ctx) error {
 		Msg("Dashboard OAuth state lookup")
 
 	if !ok {
-		// This is not a dashboard OAuth callback, let the app handler process it
-		log.Debug().Msg("State not found in dashboard store, trying app handler")
-		return c.Next()
+		log.Warn().
+			Str("state", state).
+			Msg("Invalid or missing OAuth state in dashboard callback")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Invalid or expired state"))
 	}
 
 	// This is a dashboard OAuth callback, process it
@@ -1191,8 +1185,10 @@ func (h *DashboardAuthHandler) InitiateSAMLLogin(c *fiber.Ctx) error {
 	ctx := c.Context()
 
 	if h.samlService == nil {
-		// SAML not configured for dashboard, let app handler try
-		return c.Next()
+		log.Error().Msg("SAML service not configured for dashboard")
+		return c.Status(500).JSON(fiber.Map{
+			"error": "SAML not configured",
+		})
 	}
 
 	// Resolve provider name from ID or name
@@ -1208,22 +1204,24 @@ func (h *DashboardAuthHandler) InitiateSAMLLogin(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			log.Debug().
+			log.Warn().
 				Str("provider_id", providerIDOrName).
-				Msg("SAML provider not found for dashboard login, trying app handler")
-			// Provider not configured for dashboard login, let app handler try
-			return c.Next()
+				Msg("SAML provider not found for dashboard login")
+			return c.Status(404).JSON(fiber.Map{
+				"error": "SAML provider not found or not enabled for dashboard login",
+			})
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to fetch SAML provider")
 	}
 
 	// Check if provider allows dashboard login
 	if !allowDashboardLogin {
-		log.Debug().
+		log.Warn().
 			Str("provider", providerName).
-			Msg("SAML provider not enabled for dashboard login, trying app handler")
-		// Provider not enabled for dashboard login, let app handler try
-		return c.Next()
+			Msg("SAML provider not enabled for dashboard login")
+		return c.Status(403).JSON(fiber.Map{
+			"error": "SAML provider not enabled for dashboard login",
+		})
 	}
 
 	// Get provider from service (by name)
@@ -1246,8 +1244,8 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	ctx := c.Context()
 
 	if h.samlService == nil {
-		// SAML not configured for dashboard, let app handler try
-		return c.Next()
+		log.Error().Msg("SAML service not configured for dashboard")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("SAML not configured"))
 	}
 
 	// Parse SAML response
@@ -1266,9 +1264,10 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	// Get all dashboard-enabled SAML providers
 	dashboardProviders := h.samlService.GetProvidersForDashboard()
 
-	// If no dashboard providers, this is for app login
+	// If no dashboard providers configured
 	if len(dashboardProviders) == 0 {
-		return c.Next()
+		log.Warn().Msg("No SAML providers enabled for dashboard login")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("No SAML providers configured for dashboard"))
 	}
 
 	for _, provider := range dashboardProviders {
@@ -1280,18 +1279,15 @@ func (h *DashboardAuthHandler) SAMLACSCallback(c *fiber.Ctx) error {
 	}
 
 	if assertion == nil {
-		// Could not parse with any dashboard provider, try app handler
-		if parseErr != nil {
-			log.Debug().Err(parseErr).Msg("SAML assertion not for dashboard, trying app handler")
-		}
-		return c.Next()
+		log.Warn().Err(parseErr).Msg("Could not parse SAML assertion with any dashboard provider")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("Invalid SAML assertion"))
 	}
 
 	// Check if provider allows dashboard login
 	provider, _ := h.samlService.GetProvider(providerName)
 	if provider == nil || !provider.AllowDashboardLogin {
-		// Provider doesn't allow dashboard login, try app handler
-		return c.Next()
+		log.Warn().Str("provider", providerName).Msg("SAML provider not enabled for dashboard login")
+		return c.Redirect("/admin/login?error=" + url.QueryEscape("SAML provider not enabled for dashboard login"))
 	}
 
 	// Extract user info using the service method
