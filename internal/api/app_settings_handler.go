@@ -45,8 +45,8 @@ type SettingOverrides struct {
 
 // AuthenticationSettings contains authentication-related settings
 type AuthenticationSettings struct {
-	EnableSignup             bool `json:"enable_signup"`
-	EnableMagicLink          bool `json:"enable_magic_link"`
+	SignupEnabled            bool `json:"enable_signup"`
+	MagicLinkEnabled         bool `json:"enable_magic_link"`
 	PasswordMinLength        int  `json:"password_min_length"`
 	RequireEmailVerification bool `json:"require_email_verification"`
 	PasswordRequireUppercase bool `json:"password_require_uppercase"`
@@ -235,13 +235,13 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 	for _, setting := range settings {
 		switch setting.Key {
 		// Authentication
-		case "app.auth.enable_signup":
+		case "app.auth.signup_enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
-				appSettings.Authentication.EnableSignup = val
+				appSettings.Authentication.SignupEnabled = val
 			}
-		case "app.auth.enable_magic_link":
+		case "app.auth.magic_link_enabled":
 			if val, ok := setting.Value["value"].(bool); ok {
-				appSettings.Authentication.EnableMagicLink = val
+				appSettings.Authentication.MagicLinkEnabled = val
 			}
 		case "app.auth.password_min_length":
 			if val, ok := setting.Value["value"].(float64); ok {
@@ -417,10 +417,10 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 	// Check for environment variable overrides
 	if h.settingsCache != nil {
 		// Authentication overrides
-		if h.settingsCache.IsOverriddenByEnv("app.auth.enable_signup") {
+		if h.settingsCache.IsOverriddenByEnv("app.auth.signup_enabled") {
 			appSettings.Overrides.Authentication["enable_signup"] = true
 		}
-		if h.settingsCache.IsOverriddenByEnv("app.auth.enable_magic_link") {
+		if h.settingsCache.IsOverriddenByEnv("app.auth.magic_link_enabled") {
 			appSettings.Overrides.Authentication["enable_magic_link"] = true
 		}
 		if h.settingsCache.IsOverriddenByEnv("app.auth.password_min_length") {
@@ -510,8 +510,8 @@ func (h *AppSettingsHandler) buildAppSettings(settings []auth.SystemSetting) App
 // Helper functions to update specific setting categories
 func (h *AppSettingsHandler) updateAuthSettings(ctx context.Context, auth *AuthenticationSettings) error {
 	settingsMap := map[string]interface{}{
-		"app.auth.enable_signup":              auth.EnableSignup,
-		"app.auth.enable_magic_link":          auth.EnableMagicLink,
+		"app.auth.signup_enabled":             auth.SignupEnabled,
+		"app.auth.magic_link_enabled":         auth.MagicLinkEnabled,
 		"app.auth.password_min_length":        auth.PasswordMinLength,
 		"app.auth.require_email_verification": auth.RequireEmailVerification,
 	}

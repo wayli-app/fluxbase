@@ -158,8 +158,8 @@ Environment variables take precedence over configuration file values.
 | `FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY` | Password reset expiration | `1h` | `1h` |
 | `FLUXBASE_AUTH_PASSWORD_MIN_LENGTH` | Minimum password length | `8` | `8` |
 | `FLUXBASE_AUTH_BCRYPT_COST` | Bcrypt cost factor (4-31) | `10` | `10` |
-| `FLUXBASE_AUTH_ENABLE_SIGNUP` | Enable user registration | `true` | `true`, `false` |
-| `FLUXBASE_AUTH_ENABLE_MAGIC_LINK` | Enable magic link auth | `true` | `true`, `false` |
+| `FLUXBASE_AUTH_SIGNUP_ENABLED` | Enable user registration | `true` | `true`, `false` |
+| `FLUXBASE_AUTH_MAGIC_LINK_ENABLED` | Enable magic link auth | `true` | `true`, `false` |
 | `FLUXBASE_AUTH_TOTP_ISSUER` | 2FA TOTP issuer name | `Fluxbase` | `MyApp` |
 
 **OAuth/OIDC Providers:**

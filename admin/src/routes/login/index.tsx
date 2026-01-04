@@ -76,7 +76,7 @@ function LoginPage() {
   }, [navigate])
 
   // Handle SSO login
-  const handleSSOLogin = (provider: SSOProvider) => {
+  const handleSSOLogin = async (provider: SSOProvider) => {
     const baseURL =
       window.__FLUXBASE_CONFIG__?.publicBaseURL ||
       import.meta.env.VITE_API_URL ||
@@ -84,8 +84,22 @@ function LoginPage() {
     const redirectTo = '/'
 
     if (provider.type === 'oauth') {
-      // Redirect to OAuth login endpoint
-      window.location.href = `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_to=${encodeURIComponent(redirectTo)}`
+      try {
+        // Fetch OAuth authorization URL
+        const response = await fetch(
+          `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_to=${encodeURIComponent(redirectTo)}`
+        )
+        if (!response.ok) {
+          throw new Error('Failed to get OAuth URL')
+        }
+        const data = await response.json()
+        // Navigate to OAuth provider
+        window.location.href = data.url
+      } catch (error) {
+        toast.error('Authentication Error', {
+          description: error instanceof Error ? error.message : 'Failed to initiate OAuth login',
+        })
+      }
     } else if (provider.type === 'saml') {
       // Redirect to SAML login endpoint
       window.location.href = `${baseURL}/api/v1/auth/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`

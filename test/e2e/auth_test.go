@@ -20,7 +20,7 @@ func setupAuthTest(t *testing.T) *test.TestContext {
 	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
 	// Enable signup for tests (default is now false for security)
-	tc.Config.Auth.EnableSignup = true
+	tc.Config.Auth.SignupEnabled = true
 
 	return tc
 }
@@ -215,7 +215,7 @@ func TestAuthMagicLink(t *testing.T) {
 	// Enable magic link via database settings
 	tc.ExecuteSQL(`
 		INSERT INTO app.settings (key, value, category)
-		VALUES ('app.auth.enable_magic_link', '{"value": true}'::jsonb, 'system')
+		VALUES ('app.auth.magic_link_enabled', '{"value": true}'::jsonb, 'system')
 		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 	`)
 
@@ -288,14 +288,14 @@ func TestAuthSignupToggle(t *testing.T) {
 		// Note: is_public must be true so anon role can read this setting during signup check
 		tc.ExecuteSQL(`
 			INSERT INTO app.settings (key, value, category, is_public)
-			VALUES ('app.auth.enable_signup', '{"value": false}'::jsonb, 'system', true)
+			VALUES ('app.auth.signup_enabled', '{"value": false}'::jsonb, 'system', true)
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database
 		authService := tc.Server.GetAuthService()
 		require.NotNil(t, authService, "Auth service should not be nil")
-		authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
+		authService.GetSettingsCache().Invalidate("app.auth.signup_enabled")
 
 		// Try to signup with unique email
 		resp := tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -322,14 +322,14 @@ func TestAuthSignupToggle(t *testing.T) {
 		// Note: is_public must be true so anon role can read this setting during signup check
 		tc.ExecuteSQL(`
 			INSERT INTO app.settings (key, value, category, is_public)
-			VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system', true)
+			VALUES ('app.auth.signup_enabled', '{"value": true}'::jsonb, 'system', true)
 			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database
 		authService := tc.Server.GetAuthService()
 		if authService != nil {
-			authService.GetSettingsCache().Invalidate("app.auth.enable_signup")
+			authService.GetSettingsCache().Invalidate("app.auth.signup_enabled")
 		}
 
 		// Try to signup with unique email

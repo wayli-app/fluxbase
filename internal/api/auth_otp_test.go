@@ -85,7 +85,7 @@ func setupAuthTestServer(t *testing.T) (*fiber.App, *auth.Service, *database.Con
 		PasswordResetExpiry: 1 * time.Hour,
 		PasswordMinLen:      8,
 		BcryptCost:          4, // Lower cost for faster tests
-		EnableSignup:        true,
+		SignupEnabled:       true,
 	}
 
 	// Create a no-op email service for testing

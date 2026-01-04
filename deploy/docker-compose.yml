@@ -125,8 +125,8 @@ services:
       # FLUXBASE_AUTH_SERVICE_ROLE_TTL: "24h"  # Service role token expiration
       # FLUXBASE_AUTH_ANON_TTL: "24h"  # Anonymous token expiration
       # FLUXBASE_AUTH_BCRYPT_COST: "10"
-      # FLUXBASE_AUTH_ENABLE_SIGNUP: "true"
-      # FLUXBASE_AUTH_ENABLE_MAGIC_LINK: "true"
+      # FLUXBASE_AUTH_SIGNUP_ENABLED: "true"
+      # FLUXBASE_AUTH_MAGIC_LINK_ENABLED: "true"
       # FLUXBASE_AUTH_TOTP_ISSUER: "Fluxbase"
       # FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS: "${FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS:-true}"  # Allow users to create their own client keys
 

@@ -30,9 +30,9 @@ func TestSettingsCache_GetEnvVarName(t *testing.T) {
 			expected: "FLUXBASE_REALTIME_ENABLED",
 		},
 		{
-			name:     "auth enable signup",
-			key:      "app.auth.enable_signup",
-			expected: "FLUXBASE_AUTH_ENABLE_SIGNUP",
+			name:     "auth signup enabled",
+			key:      "app.auth.signup_enabled",
+			expected: "FLUXBASE_AUTH_SIGNUP_ENABLED",
 		},
 		{
 			name:     "nested key without app prefix",

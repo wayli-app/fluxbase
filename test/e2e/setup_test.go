@@ -340,7 +340,7 @@ func setupTestTables() bool {
 	// Note: is_public must be true so anon role can read this setting during signup
 	_, err = db.Exec(ctx, `
 		INSERT INTO app.settings (key, value, category, is_public)
-		VALUES ('app.auth.enable_signup', '{"value": true}'::jsonb, 'system', true)
+		VALUES ('app.auth.signup_enabled', '{"value": true}'::jsonb, 'system', true)
 		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 	`)
 	if err != nil {

@@ -20,7 +20,7 @@ The admin UI provides clear feedback about configuration sources:
 
 - **Lock Badge** (🔒 Environment Variable) - Setting is controlled by an environment variable
 - **Disabled Input/Switch** - Setting cannot be changed through the UI
-- **Env Var Name** - Shows which environment variable controls the setting (e.g., `FLUXBASE_AUTH_ENABLE_SIGNUP`)
+- **Env Var Name** - Shows which environment variable controls the setting (e.g., `FLUXBASE_AUTH_SIGNUP_ENABLED`)
 
 When you try to update an overridden setting, you'll receive an error: _"This setting is controlled by an environment variable and cannot be changed"_
 
@@ -65,7 +65,7 @@ FLUXBASE_<CATEGORY>_<SETTING>
 
 Examples:
 
-- `app.auth.enable_signup` → `FLUXBASE_AUTH_ENABLE_SIGNUP`
+- `app.auth.enable_signup` → `FLUXBASE_AUTH_SIGNUP_ENABLED`
 - `app.realtime.enabled` → `FLUXBASE_REALTIME_ENABLED`
 - `app.email.enabled` → `FLUXBASE_EMAIL_ENABLED`
 - `app.email.provider` → `FLUXBASE_EMAIL_PROVIDER`
@@ -81,7 +81,7 @@ Set environment variables to enforce configuration:
 ```bash
 # docker-compose.yml or .env
 FLUXBASE_FEATURES_REALTIME_ENABLED=true
-FLUXBASE_AUTH_ENABLE_SIGNUP=false
+FLUXBASE_AUTH_SIGNUP_ENABLED=false
 FLUXBASE_EMAIL_PROVIDER=sendgrid
 ```
 
@@ -95,7 +95,7 @@ Don't set env vars for settings you want to control via UI:
 # Only set credentials, leave feature flags unset
 FLUXBASE_EMAIL_SMTP_HOST=mailhog
 FLUXBASE_EMAIL_SMTP_PORT=1025
-# FLUXBASE_AUTH_ENABLE_SIGNUP not set → editable in UI
+# FLUXBASE_AUTH_SIGNUP_ENABLED not set → editable in UI
 ```
 
 ### Mixed Approach

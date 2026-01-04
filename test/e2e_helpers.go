@@ -506,14 +506,14 @@ func GetTestConfig() *config.Config {
 			HealthCheck:     1 * time.Minute,
 		},
 		Auth: config.AuthConfig{
-			JWTSecret:       "test-secret-key-for-testing-only",
-			JWTExpiry:       15 * time.Minute,
-			RefreshExpiry:   7 * 24 * time.Hour,
-			PasswordMinLen:  8,
-			BcryptCost:      4, // Reduced for test speed (4=~5ms vs 10=~100ms per hash, 20x faster)
-			EnableSignup:    true,
-			EnableMagicLink: true,
-			TOTPIssuer:      "Fluxbase", // Default TOTP issuer for 2FA
+			JWTSecret:        "test-secret-key-for-testing-only",
+			JWTExpiry:        15 * time.Minute,
+			RefreshExpiry:    7 * 24 * time.Hour,
+			PasswordMinLen:   8,
+			BcryptCost:       4, // Reduced for test speed (4=~5ms vs 10=~100ms per hash, 20x faster)
+			SignupEnabled:    true,
+			MagicLinkEnabled: true,
+			TOTPIssuer:       "Fluxbase", // Default TOTP issuer for 2FA
 		},
 		Security: config.SecurityConfig{
 			SetupToken:            "test-setup-token-for-e2e-testing",

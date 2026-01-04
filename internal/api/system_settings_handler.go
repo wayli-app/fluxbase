@@ -190,8 +190,8 @@ func (h *SystemSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 
 // settingDefaults defines default values for known settings
 var settingDefaults = map[string]map[string]interface{}{
-	"app.auth.enable_signup":                {"value": true},
-	"app.auth.enable_magic_link":            {"value": false},
+	"app.auth.signup_enabled":               {"value": true},
+	"app.auth.magic_link_enabled":           {"value": false},
 	"app.auth.password_min_length":          {"value": 12},
 	"app.auth.require_email_verification":   {"value": false},
 	"app.realtime.enabled":                  {"value": true},

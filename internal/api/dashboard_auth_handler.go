@@ -831,7 +831,11 @@ func (h *DashboardAuthHandler) InitiateOAuthLogin(c *fiber.Ctx) error {
 		Str("authorize_url", authorizeURL).
 		Msg("Dashboard OAuth login initiated")
 
-	return c.Redirect(authorizeURL)
+	// Return JSON with authorization URL (client handles the redirect)
+	return c.JSON(fiber.Map{
+		"url":      authorizeURL,
+		"provider": providerID,
+	})
 }
 
 // buildOAuthConfig creates an OAuth2 config for the given provider

@@ -137,8 +137,8 @@ type AuthConfig struct {
 	PasswordResetExpiry time.Duration `mapstructure:"password_reset_expiry"`
 	PasswordMinLen      int           `mapstructure:"password_min_length"`
 	BcryptCost          int           `mapstructure:"bcrypt_cost"`
-	EnableSignup        bool          `mapstructure:"enable_signup"`
-	EnableMagicLink     bool          `mapstructure:"enable_magic_link"`
+	SignupEnabled       bool          `mapstructure:"signup_enabled"`
+	MagicLinkEnabled    bool          `mapstructure:"magic_link_enabled"`
 	TOTPIssuer          string        `mapstructure:"totp_issuer"` // Issuer name displayed in authenticator apps for 2FA (e.g., "MyApp")
 
 	// OAuth/OIDC provider configuration (unified for all providers)
@@ -595,8 +595,8 @@ func setDefaults() {
 	viper.SetDefault("auth.password_reset_expiry", "1h")
 	viper.SetDefault("auth.password_min_length", 12) // Increased for better security
 	viper.SetDefault("auth.bcrypt_cost", 10)
-	viper.SetDefault("auth.enable_signup", true) // Default to enabled to allow user registration
-	viper.SetDefault("auth.enable_magic_link", true)
+	viper.SetDefault("auth.signup_enabled", true) // Default to enabled to allow user registration
+	viper.SetDefault("auth.magic_link_enabled", true)
 	viper.SetDefault("auth.totp_issuer", "Fluxbase") // Default issuer name for 2FA TOTP (shown in authenticator apps)
 
 	// Security defaults

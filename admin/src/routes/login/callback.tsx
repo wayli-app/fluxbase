@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { setAuthToken } from '@/lib/fluxbase-client'
 import { useAuthStore } from '@/stores/auth-store'
+import { decodeJWT } from '@/lib/jwt'
+import type { DashboardUser } from '@/lib/auth'
 
 export const Route = createFileRoute('/login/callback')({
   component: SSOCallbackPage,
@@ -51,6 +53,27 @@ function SSOCallbackPage() {
         localStorage.setItem('fluxbase_admin_access_token', access_token)
         localStorage.setItem('fluxbase_admin_refresh_token', refresh_token)
 
+        // Decode JWT to extract user information
+        const tokenPayload = decodeJWT(access_token)
+
+        // Construct user object for localStorage (matching DashboardUser type)
+        const user: DashboardUser = {
+          id: tokenPayload.user_id,
+          email: tokenPayload.email,
+          email_verified: true, // OAuth users are always email verified
+          full_name: tokenPayload.user_metadata?.name || null,
+          avatar_url: tokenPayload.user_metadata?.avatar || null,
+          totp_enabled: false, // OAuth users don't have TOTP
+          is_active: true,
+          is_locked: false,
+          last_login_at: new Date().toISOString(),
+          created_at: tokenPayload.iat ? new Date(tokenPayload.iat * 1000).toISOString() : new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+
+        // Store user object in localStorage
+        localStorage.setItem('fluxbase_admin_user', JSON.stringify(user))
+
         // Also set token in Fluxbase SDK
         setAuthToken(access_token)
 
@@ -61,7 +84,7 @@ function SSOCallbackPage() {
         // Redirect to the intended destination or dashboard
         const destination = redirect_to && redirect_to !== '/' ? redirect_to : '/admin'
         window.location.href = destination
-      } catch {
+      } catch (_error) {
         toast.error('SSO Login Failed', {
           description: 'Failed to complete authentication',
         })

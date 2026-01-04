@@ -33,7 +33,7 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 	// No need to manually call auth.create_webhook_trigger
 
 	// Enable signup for tests
-	tc.Config.Auth.EnableSignup = true
+	tc.Config.Auth.SignupEnabled = true
 
 	return tc
 }

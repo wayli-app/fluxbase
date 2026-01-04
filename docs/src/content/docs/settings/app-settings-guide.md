@@ -298,7 +298,7 @@ if err != nil {
 }
 
 // Environment Variable Override
-// Set FLUXBASE_AUTH_ENABLE_SIGNUP=true to override database value
+// Set FLUXBASE_AUTH_SIGNUP_ENABLED=true to override database value
 // Priority: Env Var > Cache > Database > Default
 ```
 
@@ -318,7 +318,7 @@ if settingsCache.IsOverriddenByEnv("app.auth.enable_signup") {
 
 // Get environment variable name for a setting
 envVar := settingsCache.GetEnvVarName("app.auth.enable_signup")
-// Returns: "FLUXBASE_AUTH_ENABLE_SIGNUP"
+// Returns: "FLUXBASE_AUTH_SIGNUP_ENABLED"
 ```
 
 ## Migration Guide

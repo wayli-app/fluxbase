@@ -367,8 +367,8 @@ func printConfigSummary(cfg *config.Config) {
 		Msg("  Storage")
 	log.Info().
 		Str("jwt_expiry", cfg.Auth.JWTExpiry.String()).
-		Bool("signup_enabled", cfg.Auth.EnableSignup).
-		Bool("magic_link_enabled", cfg.Auth.EnableMagicLink).
+		Bool("signup_enabled", cfg.Auth.SignupEnabled).
+		Bool("magic_link_enabled", cfg.Auth.MagicLinkEnabled).
 		Msg("  Authentication")
 	log.Info().
 		Bool("email_enabled", cfg.Email.Enabled).

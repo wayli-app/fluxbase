@@ -268,18 +268,10 @@ func (c *SettingsCache) IsOverriddenByEnv(key string) bool {
 }
 
 // GetEnvVarName returns the environment variable name for a given setting key
-// e.g., "app.auth.enable_signup" -> "FLUXBASE_AUTH_ENABLE_SIGNUP"
+// e.g., "app.auth.signup_enabled" -> "FLUXBASE_AUTH_SIGNUP_ENABLED"
 // e.g., "app.realtime.enabled" -> "FLUXBASE_REALTIME_ENABLED"
 func (c *SettingsCache) GetEnvVarName(key string) string {
 	viperKey := c.toViperKey(key)
-
-	// Special handling for feature enabled flags
-	// Convert "<feature>.enabled" to "<FEATURE>_ENABLED"
-	if strings.HasSuffix(viperKey, ".enabled") {
-		// Extract feature name from "<feature>.enabled"
-		featureName := strings.TrimSuffix(viperKey, ".enabled")
-		return "FLUXBASE_" + strings.ToUpper(featureName) + "_ENABLED"
-	}
 
 	// Convert to uppercase and replace dots with underscores
 	envVar := "FLUXBASE_"

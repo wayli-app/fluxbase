@@ -174,9 +174,9 @@ type UpdateOAuthProviderRequest struct {
 
 // Auth settings types
 type AuthSettings struct {
-	EnableSignup                  bool                       `json:"enable_signup"`
+	SignupEnabled                 bool                       `json:"enable_signup"`
 	RequireEmailVerification      bool                       `json:"require_email_verification"`
-	EnableMagicLink               bool                       `json:"enable_magic_link"`
+	MagicLinkEnabled              bool                       `json:"enable_magic_link"`
 	PasswordMinLength             int                        `json:"password_min_length"`
 	PasswordRequireUppercase      bool                       `json:"password_require_uppercase"`
 	PasswordRequireLowercase      bool                       `json:"password_require_lowercase"`
@@ -692,7 +692,7 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 		switch key {
 		case "enable_signup":
 			if v, ok := value.(bool); ok {
-				settings.EnableSignup = v
+				settings.SignupEnabled = v
 			}
 		case "require_email_verification":
 			if v, ok := value.(bool); ok {
@@ -700,7 +700,7 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 			}
 		case "enable_magic_link":
 			if v, ok := value.(bool); ok {
-				settings.EnableMagicLink = v
+				settings.MagicLinkEnabled = v
 			}
 		case "password_min_length":
 			if v, ok := value.(float64); ok {
@@ -740,8 +740,8 @@ func (h *OAuthProviderHandler) GetAuthSettings(c *fiber.Ctx) error {
 	// Populate override information for settings that can be overridden
 	if h.settingsCache != nil {
 		settingsMap := map[string]string{
-			"enable_signup":              "app.auth.enable_signup",
-			"enable_magic_link":          "app.auth.enable_magic_link",
+			"enable_signup":              "app.auth.signup_enabled",
+			"enable_magic_link":          "app.auth.magic_link_enabled",
 			"password_min_length":        "app.auth.password_min_length",
 			"require_email_verification": "app.auth.require_email_verification",
 		}
@@ -773,8 +773,8 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 	// Check for environment variable overrides before updating
 	if h.settingsCache != nil {
 		settingsKeyMap := map[string]string{
-			"enable_signup":              "app.auth.enable_signup",
-			"enable_magic_link":          "app.auth.enable_magic_link",
+			"enable_signup":              "app.auth.signup_enabled",
+			"enable_magic_link":          "app.auth.magic_link_enabled",
 			"password_min_length":        "app.auth.password_min_length",
 			"require_email_verification": "app.auth.require_email_verification",
 		}
@@ -816,9 +816,9 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 	}
 
 	updates := map[string]interface{}{
-		"enable_signup":                    req.EnableSignup,
+		"enable_signup":                    req.SignupEnabled,
 		"require_email_verification":       req.RequireEmailVerification,
-		"enable_magic_link":                req.EnableMagicLink,
+		"enable_magic_link":                req.MagicLinkEnabled,
 		"password_min_length":              req.PasswordMinLength,
 		"password_require_uppercase":       req.PasswordRequireUppercase,
 		"password_require_lowercase":       req.PasswordRequireLowercase,

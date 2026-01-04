@@ -128,8 +128,8 @@ config:
   ## @param config.auth.password_reset_expiry Password reset link expiration
   ## @param config.auth.password_min_length Minimum password length
   ## @param config.auth.bcrypt_cost Bcrypt hashing cost (4-31, recommended 10-14)
-  ## @param config.auth.enable_signup Enable user registration
-  ## @param config.auth.enable_magic_link Enable magic link authentication
+  ## @param config.auth.signup_enabled Enable user registration
+  ## @param config.auth.magic_link_enabled Enable magic link authentication
   ## @param config.auth.totp_issuer TOTP issuer name for 2FA
   ## @param config.auth.oauth_providers OAuth/OIDC provider configurations
   ##
@@ -143,8 +143,8 @@ config:
     password_reset_expiry: "1h"
     password_min_length: 8
     bcrypt_cost: 10
-    enable_signup: true
-    enable_magic_link: true
+    signup_enabled: true
+    magic_link_enabled: true
     totp_issuer: "Fluxbase"
     allow_user_client_keys: true  # Allow users to create their own client keys
 

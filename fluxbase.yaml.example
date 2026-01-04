@@ -45,8 +45,8 @@ auth:
   password_reset_expiry: "1h"           # FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY - Password reset link expiration
   password_min_length: 12               # FLUXBASE_AUTH_PASSWORD_MIN_LENGTH - Minimum password length
   bcrypt_cost: 10                       # FLUXBASE_AUTH_BCRYPT_COST - Bcrypt hashing cost (4-31, recommended 10-14)
-  enable_signup: true                   # FLUXBASE_AUTH_ENABLE_SIGNUP - Enable user registration
-  enable_magic_link: true               # FLUXBASE_AUTH_ENABLE_MAGIC_LINK - Enable magic link authentication
+  signup_enabled: true                  # FLUXBASE_AUTH_SIGNUP_ENABLED - Enable user registration
+  magic_link_enabled: true              # FLUXBASE_AUTH_MAGIC_LINK_ENABLED - Enable magic link authentication
   totp_issuer: "Fluxbase"               # FLUXBASE_AUTH_TOTP_ISSUER - TOTP issuer name for 2FA (shown in authenticator apps)
   allow_user_client_keys: true          # FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS - Allow users to create their own client keys
                                         # When false, only admins (service_role or dashboard_admin) can create/manage client keys
