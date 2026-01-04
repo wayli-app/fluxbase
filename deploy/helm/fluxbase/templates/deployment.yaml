@@ -514,7 +514,7 @@ spec:
             - name: FLUXBASE_REALTIME_READ_BUFFER_SIZE
               value: {{ .Values.config.realtime.read_buffer_size | quote }}
             - name: FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT
-              value: {{ .Values.config.realtime.message_size_limit | quote }}
+              value: {{ .Values.config.realtime.message_size_limit | int | quote }}
             - name: FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE
               value: {{ .Values.config.realtime.channel_buffer_size | quote }}
 
@@ -860,7 +860,7 @@ spec:
             - name: FLUXBASE_MCP_SESSION_TIMEOUT
               value: {{ .Values.config.mcp.session_timeout | quote }}
             - name: FLUXBASE_MCP_MAX_MESSAGE_SIZE
-              value: {{ .Values.config.mcp.max_message_size | quote }}
+              value: {{ .Values.config.mcp.max_message_size | int | quote }}
             - name: FLUXBASE_MCP_RATE_LIMIT_PER_MIN
               value: {{ .Values.config.mcp.rate_limit_per_min | quote }}
             {{- end }}
