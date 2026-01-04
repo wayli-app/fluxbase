@@ -696,7 +696,11 @@ jobs:
         run: |
           npm ci
           npm run build
-          npm version ${{ needs.get-version.outputs.version }} --no-git-tag-version
+
+          # Update version in package.json directly using jq
+          VERSION="${{ needs.get-version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
 
           # Use 'rc' tag for pre-releases, 'latest' for stable releases
           if [ "${{ needs.get-version.outputs.is_prerelease }}" = "true" ]; then
@@ -732,7 +736,11 @@ jobs:
         run: |
           npm ci
           npm run build
-          npm version ${{ needs.get-version.outputs.version }} --no-git-tag-version
+
+          # Update version in package.json directly using jq
+          VERSION="${{ needs.get-version.outputs.version }}"
+          jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
 
           # Use 'rc' tag for pre-releases, 'latest' for stable releases
           if [ "${{ needs.get-version.outputs.is_prerelease }}" = "true" ]; then
