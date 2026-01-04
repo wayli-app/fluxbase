@@ -17,13 +17,13 @@ name: Release
 #
 # Version type options:
 #   - continue: Keep same base version (increment RC number, or promote RC to stable)
-#   - patch/minor/major: Create new release (YYYY.MM.N based on current date)
+#   - new: Create new release (YYYY.MM.N based on current date)
 #
 # CalVer Examples:
 #   - 2026.01.1-rc.1 + continue + rc → 2026.01.1-rc.2 (continue RC series)
 #   - 2026.01.1-rc.5 + continue + stable → 2026.01.1 (promote RC to stable)
-#   - 2026.01.1 + patch + rc → 2026.01.2-rc.1 (new release in same month)
-#   - 2025.12.5 + patch + rc → 2026.01.1-rc.1 (new month, reset to 1)
+#   - 2026.01.1 + new + rc → 2026.01.2-rc.1 (new release in same month)
+#   - 2025.12.5 + new + rc → 2026.01.1-rc.1 (new month, reset to 1)
 #
 # Component Toggles (workflow_dispatch only):
 #   - Publish binaries: Build and publish Go binaries for multiple platforms
@@ -62,15 +62,13 @@ on:
   workflow_dispatch:
     inputs:
       version_type:
-        description: "Version type"
+        description: "Version type (continue = same base version, new = new CalVer release)"
         required: true
         type: choice
         options:
           - continue
-          - patch
-          - minor
-          - major
-        default: "continue"
+          - new
+        default: "new"
       release_type:
         description: "Release type"
         required: true
@@ -184,8 +182,8 @@ jobs:
                   BASE_ITERATION="1"
                 fi
                 ;;
-              new|patch|minor|major)
-                # All bump types now just mean "new release"
+              new)
+                # New release with current date
                 # Use current date and reset iteration to 1
                 BASE_YEAR="$CURRENT_YEAR"
                 BASE_MONTH="$CURRENT_MONTH"
