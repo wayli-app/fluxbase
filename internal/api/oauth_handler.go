@@ -174,14 +174,25 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 		})
 	}
 
-	// Override redirect URL if custom redirect_uri was used during authorization
-	if stateMetadata.RedirectURI != "" {
+	// Determine redirect_uri to use (query parameter takes precedence over state metadata for SDK compatibility)
+	redirectURIParam := c.Query("redirect_uri")
+	var finalRedirectURI string
+
+	if redirectURIParam != "" {
+		// SDK passed redirect_uri as query parameter
+		finalRedirectURI = redirectURIParam
+	} else if stateMetadata.RedirectURI != "" {
+		// Use redirect_uri from state metadata (from authorize request)
+		finalRedirectURI = stateMetadata.RedirectURI
+	}
+
+	// Override redirect URL if custom redirect_uri was provided
+	if finalRedirectURI != "" {
 		// Build full URL if relative path is provided
-		redirectURI := stateMetadata.RedirectURI
-		if redirectURI[0] == '/' {
-			redirectURI = h.baseURL + redirectURI
+		if finalRedirectURI[0] == '/' {
+			finalRedirectURI = h.baseURL + finalRedirectURI
 		}
-		oauthConfig.RedirectURL = redirectURI
+		oauthConfig.RedirectURL = finalRedirectURI
 	}
 
 	// Exchange code for token

@@ -55,6 +55,7 @@ import { wrapAsync, wrapAsyncVoid } from "./utils/error-handling";
 
 const AUTH_STORAGE_KEY = "fluxbase.auth.session";
 const OAUTH_PROVIDER_KEY = "fluxbase.auth.oauth_provider";
+const OAUTH_REDIRECT_URI_KEY = "fluxbase.auth.oauth_redirect_uri";
 
 // Auto-refresh configuration constants
 const AUTO_REFRESH_TICK_THRESHOLD = 10; // seconds before expiry to trigger refresh
@@ -823,18 +824,25 @@ export class FluxbaseAuth {
         throw new Error("No OAuth provider found. Call signInWithOAuth first.");
       }
 
-      // Build query string with code and optional state
+      // Retrieve stored redirect_uri if it was used during authorization
+      const redirectUri = this.storage?.getItem(OAUTH_REDIRECT_URI_KEY);
+
+      // Build query string with code, optional state, and optional redirect_uri
       const params = new URLSearchParams({ code });
       if (state) {
         params.append("state", state);
+      }
+      if (redirectUri) {
+        params.append("redirect_uri", redirectUri);
       }
 
       const response = await this.fetch.get<AuthResponse>(
         `/api/v1/auth/oauth/${provider}/callback?${params.toString()}`,
       );
 
-      // Clear stored provider after successful exchange
+      // Clear stored provider and redirect_uri after successful exchange
       this.storage?.removeItem(OAUTH_PROVIDER_KEY);
+      this.storage?.removeItem(OAUTH_REDIRECT_URI_KEY);
 
       const session: AuthSession = {
         ...response,
@@ -866,8 +874,11 @@ export class FluxbaseAuth {
       const url = result.data.url;
 
       if (typeof window !== "undefined") {
-        // Store the provider for use in exchangeCodeForSession
+        // Store the provider and redirect_uri for use in exchangeCodeForSession
         this.storage?.setItem(OAUTH_PROVIDER_KEY, provider);
+        if (options?.redirect_uri) {
+          this.storage?.setItem(OAUTH_REDIRECT_URI_KEY, options.redirect_uri);
+        }
         window.location.href = url;
       } else {
         throw new Error(

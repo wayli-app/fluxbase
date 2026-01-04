@@ -86,7 +86,8 @@ function LoginPage() {
     if (provider.type === 'oauth') {
       try {
         // Use app OAuth endpoint with custom redirect_uri for dashboard callback
-        const redirectUri = `/dashboard/auth/sso/oauth/${provider.id}/callback`
+        // Build absolute URL with protocol and hostname
+        const redirectUri = `${baseURL}/dashboard/auth/sso/oauth/${provider.id}/callback`
         const response = await fetch(
           `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&redirect_to=${encodeURIComponent(redirectTo)}`
         )
