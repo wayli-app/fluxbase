@@ -1437,6 +1437,43 @@ export interface UpdateSecretSettingRequest {
 }
 
 // ============================================================================
+// User Settings Types (non-encrypted, with system fallback support)
+// ============================================================================
+
+/**
+ * A user's non-encrypted setting
+ * These settings are stored per-user and can be read/written via SDK
+ */
+export interface UserSetting {
+  id: string;
+  key: string;
+  value: Record<string, unknown>;
+  description?: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A setting with source information (user or system)
+ * Returned when fetching a setting with user -> system fallback
+ */
+export interface UserSettingWithSource {
+  key: string;
+  value: Record<string, unknown>;
+  /** Where the value came from: "user" = user's own setting, "system" = system default */
+  source: "user" | "system";
+}
+
+/**
+ * Request to create or update a user setting
+ */
+export interface CreateUserSettingRequest {
+  value: Record<string, unknown>;
+  description?: string;
+}
+
+// ============================================================================
 // Application Settings Types
 // ============================================================================
 

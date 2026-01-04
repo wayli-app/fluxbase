@@ -1209,6 +1209,19 @@ func (s *Server) setupRoutes() {
 	userSecrets.Put("/*", s.userSettingsHandler.UpdateSecret)
 	userSecrets.Delete("/*", s.userSettingsHandler.DeleteSecret)
 
+	// User settings routes - require authentication
+	// Non-encrypted user settings with user -> system fallback support
+	// Mirrors edge function secrets helper pattern for regular settings
+	userSettings := v1.Group("/settings/user",
+		middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+	)
+	userSettings.Get("/list", s.userSettingsHandler.ListSettings)                  // List user's own settings
+	userSettings.Get("/own/:key", s.userSettingsHandler.GetUserOwnSetting)         // Get user's own only
+	userSettings.Get("/system/:key", s.userSettingsHandler.GetSystemSettingPublic) // Get system setting
+	userSettings.Get("/:key", s.userSettingsHandler.GetSetting)                    // Get with user -> system fallback
+	userSettings.Put("/:key", s.userSettingsHandler.SetSetting)                    // Create/update user setting
+	userSettings.Delete("/:key", s.userSettingsHandler.DeleteSetting)              // Delete user setting
+
 	// client keys routes - require authentication
 	// When 'allow_user_client_keys' setting is disabled, only admins can manage keys
 	s.clientKeyHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager, s.authHandler.authService.GetSettingsCache())

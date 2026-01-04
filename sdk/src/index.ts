@@ -368,6 +368,11 @@ export type {
   AppSettings,
   UpdateAppSettingsRequest,
 
+  // Settings types - User Settings (non-encrypted, with system fallback)
+  UserSetting,
+  UserSettingWithSource,
+  CreateUserSettingRequest,
+
   // Email Template types
   EmailTemplateType,
   EmailTemplate,

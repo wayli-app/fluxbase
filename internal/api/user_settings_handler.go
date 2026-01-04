@@ -353,3 +353,288 @@ func (h *UserSettingsHandler) GetUserSecretValue(c *fiber.Ctx) error {
 		"value": value,
 	})
 }
+
+// ============================================================================
+// User Settings (non-encrypted, with system fallback support)
+// These endpoints mirror the edge function secrets helper pattern for regular settings
+// ============================================================================
+
+// GetSetting retrieves a setting with user -> system fallback
+// GET /api/v1/settings/user/:key
+func (h *UserSettingsHandler) GetSetting(c *fiber.Ctx) error {
+	ctx := context.Background()
+	key := c.Params("key")
+
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting key is required",
+		})
+	}
+
+	// Get user ID from context
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid user ID in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	// Get setting with fallback
+	result, err := h.settingsService.GetUserSettingWithFallback(ctx, userID, key)
+	if err != nil {
+		if errors.Is(err, settings.ErrCustomSettingNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Setting not found",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Str("user_id", userID.String()).Msg("Failed to get setting with fallback")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve setting",
+		})
+	}
+
+	return c.JSON(result)
+}
+
+// GetUserOwnSetting retrieves only the user's own setting (no fallback)
+// GET /api/v1/settings/user/own/:key
+func (h *UserSettingsHandler) GetUserOwnSetting(c *fiber.Ctx) error {
+	ctx := context.Background()
+	key := c.Params("key")
+
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting key is required",
+		})
+	}
+
+	// Get user ID from context
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid user ID in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	// Get user's own setting
+	setting, err := h.settingsService.GetUserOwnSetting(ctx, userID, key)
+	if err != nil {
+		if errors.Is(err, settings.ErrCustomSettingNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Setting not found",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Str("user_id", userID.String()).Msg("Failed to get user setting")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve setting",
+		})
+	}
+
+	return c.JSON(setting)
+}
+
+// GetSystemSettingPublic retrieves a system-level setting (user_id IS NULL)
+// GET /api/v1/settings/user/system/:key
+func (h *UserSettingsHandler) GetSystemSettingPublic(c *fiber.Ctx) error {
+	ctx := context.Background()
+	key := c.Params("key")
+
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting key is required",
+		})
+	}
+
+	// Get system setting
+	setting, err := h.settingsService.GetSystemSetting(ctx, key)
+	if err != nil {
+		if errors.Is(err, settings.ErrCustomSettingNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Setting not found",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Msg("Failed to get system setting")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve setting",
+		})
+	}
+
+	// Return only the value (not all metadata) for public access
+	return c.JSON(fiber.Map{
+		"key":   setting.Key,
+		"value": setting.Value,
+	})
+}
+
+// SetSetting creates or updates a user setting
+// PUT /api/v1/settings/user/:key
+func (h *UserSettingsHandler) SetSetting(c *fiber.Ctx) error {
+	ctx := context.Background()
+	key := c.Params("key")
+
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting key is required",
+		})
+	}
+
+	// Get user ID from context
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid user ID in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	var req settings.CreateUserSettingRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error().Err(err).Msg("Failed to parse request body")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Use key from URL
+	req.Key = key
+
+	// Validate required fields
+	if req.Value == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting value is required",
+		})
+	}
+
+	// Upsert the setting
+	setting, err := h.settingsService.UpsertUserSetting(ctx, userID, req)
+	if err != nil {
+		if errors.Is(err, settings.ErrCustomSettingInvalidKey) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid setting key format",
+				"code":  "INVALID_KEY",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Str("user_id", userID.String()).Msg("Failed to set user setting")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to save setting",
+		})
+	}
+
+	log.Info().
+		Str("key", key).
+		Str("user_id", userID.String()).
+		Msg("User setting saved")
+
+	return c.JSON(setting)
+}
+
+// DeleteSetting removes a user's setting
+// DELETE /api/v1/settings/user/:key
+func (h *UserSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
+	ctx := context.Background()
+	key := c.Params("key")
+
+	if key == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Setting key is required",
+		})
+	}
+
+	// Get user ID from context
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid user ID in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	// Delete user's setting
+	err = h.settingsService.DeleteUserSetting(ctx, userID, key)
+	if err != nil {
+		if errors.Is(err, settings.ErrCustomSettingNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Setting not found",
+			})
+		}
+		log.Error().Err(err).Str("key", key).Str("user_id", userID.String()).Msg("Failed to delete user setting")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete setting",
+		})
+	}
+
+	log.Info().
+		Str("key", key).
+		Str("user_id", userID.String()).
+		Msg("User setting deleted")
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ListSettings returns all user's own settings
+// GET /api/v1/settings/user/list
+func (h *UserSettingsHandler) ListSettings(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	// Get user ID from context
+	userIDStr := c.Locals("user_id")
+	if userIDStr == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid user ID in context")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	// List user's settings
+	userSettings, err := h.settingsService.ListUserOwnSettings(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to list user settings")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve settings",
+		})
+	}
+
+	// Return empty array instead of null
+	if userSettings == nil {
+		userSettings = []settings.UserSetting{}
+	}
+
+	return c.JSON(userSettings)
+}
