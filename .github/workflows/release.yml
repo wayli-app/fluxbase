@@ -314,9 +314,16 @@ jobs:
           # Update CLI installation docs with new version
           sed -i "s#install-cli.sh | bash -s -- v[0-9.]*-*[a-z0-9.]*#install-cli.sh | bash -s -- ${TAG}#g" docs/src/content/docs/cli/installation.md
 
-          # Update NPM package versions
-          cd sdk && npm version ${VERSION} --no-git-tag-version && cd ..
-          cd sdk-react && npm version ${VERSION} --no-git-tag-version && npm install && cd ..
+          # Update NPM package versions using jq
+          jq --arg version "$VERSION" '.version = $version' sdk/package.json > sdk/package.json.tmp
+          mv sdk/package.json.tmp sdk/package.json
+
+          jq --arg version "$VERSION" '.version = $version' sdk-react/package.json > sdk-react/package.json.tmp
+          mv sdk-react/package.json.tmp sdk-react/package.json
+
+          # Update package-lock.json files
+          cd sdk && npm install --package-lock-only && cd ..
+          cd sdk-react && npm install --package-lock-only && cd ..
 
       - name: Commit version updates
         run: |
