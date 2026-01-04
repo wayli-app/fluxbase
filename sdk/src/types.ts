@@ -2133,6 +2133,8 @@ export interface AuthConfig {
   require_email_verification: boolean;
   /** Whether magic link authentication is enabled */
   magic_link_enabled: boolean;
+  /** Whether password login is enabled for app users */
+  password_login_enabled: boolean;
   /** Whether MFA/2FA is available (always true, users opt-in) */
   mfa_available: boolean;
   /** Minimum password length requirement */
