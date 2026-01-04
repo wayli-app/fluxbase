@@ -92,6 +92,7 @@ type Server struct {
 	rpcScheduler           *rpc.Scheduler
 	graphqlHandler         *GraphQLHandler
 	extensionsHandler      *extensions.Handler
+	vectorManager          *VectorManager
 	vectorHandler          *VectorHandler
 	loggingService         *logging.Service
 	loggingHandler         *LoggingHandler
@@ -411,10 +412,17 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	migrationsHandler := migrations.NewHandler(db, schemaCache)
 
+	// Create AI storage first (needed for provider lookup)
+	aiStorage := ai.NewStorage(db)
+	aiStorage.SetConfig(&cfg.AI)
+
+	// Create vector manager with hot-reload capability
+	vectorManager := NewVectorManager(&cfg.AI, aiStorage, db.Inspector(), db)
+
 	// Create vector search handler (for pgvector support) - create early for embedding service sharing
 	// Embedding can be enabled explicitly (EmbeddingEnabled=true) or via fallback from AI provider
 	var vectorHandler *VectorHandler
-	vectorHandler, err = NewVectorHandler(&cfg.AI, db.Inspector(), db)
+	vectorHandler, err = NewVectorHandler(vectorManager, db.Inspector(), db)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize vector handler")
 	} else if vectorHandler.IsEmbeddingConfigured() {
@@ -445,18 +453,15 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		// Create AI metrics
 		aiMetrics = observability.NewMetrics()
 
-		// Create AI storage
-		aiStorage := ai.NewStorage(db)
-		aiStorage.SetConfig(&cfg.AI)
-
+		// AI storage already created above for vectorManager
 		// Create AI loader
 		aiLoader := ai.NewLoader(cfg.AI.ChatbotsDir)
 
 		// Create conversation manager
 		aiConversations = ai.NewConversationManager(db, cfg.AI.ConversationCacheTTL, cfg.AI.MaxConversationTurns)
 
-		// Create AI handler for admin endpoints
-		aiHandler = ai.NewHandler(aiStorage, aiLoader, &cfg.AI)
+		// Create AI handler for admin endpoints (pass vectorManager for hot-reload)
+		aiHandler = ai.NewHandler(aiStorage, aiLoader, &cfg.AI, vectorManager)
 
 		// Get embedding service from vector handler (if available) for RAG support
 		var embeddingService *ai.EmbeddingService
@@ -608,6 +613,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		rpcHandler:             rpcHandler,
 		rpcScheduler:           rpcScheduler,
 		extensionsHandler:      extensions.NewHandler(extensions.NewService(db)),
+		vectorManager:          vectorManager,
 		vectorHandler:          vectorHandler,
 		loggingService:         loggingService,
 		loggingHandler:         loggingHandler,

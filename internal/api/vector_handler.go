@@ -16,71 +16,19 @@ import (
 
 // VectorHandler handles vector search endpoints
 type VectorHandler struct {
-	embeddingService *ai.EmbeddingService
-	config           *config.AIConfig
-	schemaInspector  *database.SchemaInspector
-	db               *database.Connection
+	vectorManager   *VectorManager
+	config          *config.AIConfig
+	schemaInspector *database.SchemaInspector
+	db              *database.Connection
 }
 
-// NewVectorHandler creates a new vector handler
-func NewVectorHandler(cfg *config.AIConfig, schemaInspector *database.SchemaInspector, db *database.Connection) (*VectorHandler, error) {
+// NewVectorHandler creates a new vector handler using a VectorManager
+func NewVectorHandler(vectorManager *VectorManager, schemaInspector *database.SchemaInspector, db *database.Connection) (*VectorHandler, error) {
 	handler := &VectorHandler{
-		config:          cfg,
+		vectorManager:   vectorManager,
+		config:          vectorManager.envConfig,
 		schemaInspector: schemaInspector,
 		db:              db,
-	}
-
-	// Initialize embedding service
-	// Priority:
-	// 1. If EmbeddingEnabled is explicitly true, use explicit embedding configuration
-	// 2. If EmbeddingProvider is set (even without EmbeddingEnabled), use it
-	// 3. If AI provider is configured (ProviderType or inferred from client keys), automatically use it for embeddings
-	if cfg.EmbeddingEnabled || cfg.EmbeddingProvider != "" {
-		// Explicit embedding configuration
-		embeddingCfg, err := buildEmbeddingConfig(cfg)
-		if err != nil {
-			if cfg.EmbeddingEnabled {
-				// Only error if explicitly enabled
-				return nil, fmt.Errorf("failed to build embedding config: %w", err)
-			}
-			log.Debug().Err(err).Msg("Could not initialize explicit embedding configuration")
-		} else {
-			service, err := ai.NewEmbeddingService(embeddingCfg)
-			if err != nil {
-				if cfg.EmbeddingEnabled {
-					log.Warn().Err(err).Msg("Failed to initialize embedding service")
-				} else {
-					log.Debug().Err(err).Msg("Failed to initialize embedding service")
-				}
-			} else {
-				handler.embeddingService = service
-				// Log the actual provider being used (may fall back to ProviderType or inferred)
-				actualProvider := inferProviderType(cfg)
-				log.Info().
-					Str("provider", actualProvider).
-					Msg("Embedding service initialized from explicit configuration")
-			}
-		}
-	}
-
-	// Auto-enable from AI provider if no embedding service yet and AI provider is configured
-	// Try explicit ProviderType first, then infer from client keys
-	inferredProvider := inferProviderType(cfg)
-	if handler.embeddingService == nil && inferredProvider != "" {
-		embeddingCfg, err := buildEmbeddingConfigFromAIProvider(cfg)
-		if err != nil {
-			log.Debug().Err(err).Msg("Could not auto-enable embedding from AI provider")
-		} else {
-			service, err := ai.NewEmbeddingService(embeddingCfg)
-			if err != nil {
-				log.Debug().Err(err).Msg("Failed to initialize embedding service from AI provider")
-			} else {
-				handler.embeddingService = service
-				log.Info().
-					Str("provider", inferredProvider).
-					Msg("Embedding service auto-enabled from AI provider")
-			}
-		}
 	}
 
 	return handler, nil
@@ -291,7 +239,8 @@ type VectorSearchResponse struct {
 
 // HandleEmbed handles POST /api/v1/vector/embed
 func (h *VectorHandler) HandleEmbed(c *fiber.Ctx) error {
-	if h.embeddingService == nil {
+	embeddingService := h.vectorManager.GetEmbeddingService()
+	if embeddingService == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error": "Embedding service not configured",
 		})
@@ -318,7 +267,7 @@ func (h *VectorHandler) HandleEmbed(c *fiber.Ctx) error {
 	}
 
 	// Generate embeddings
-	resp, err := h.embeddingService.Embed(c.Context(), texts, req.Model)
+	resp, err := embeddingService.Embed(c.Context(), texts, req.Model)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to generate embeddings")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -377,13 +326,14 @@ func (h *VectorHandler) HandleSearch(c *fiber.Ctx) error {
 
 	if req.Query != "" {
 		// Auto-embed the query text
-		if h.embeddingService == nil {
+		embeddingService := h.vectorManager.GetEmbeddingService()
+		if embeddingService == nil {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"error": "Embedding service not configured; provide vector directly",
 			})
 		}
 
-		embedding, err := h.embeddingService.EmbedSingle(c.Context(), req.Query, "")
+		embedding, err := embeddingService.EmbedSingle(c.Context(), req.Query, "")
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to embed query")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -396,7 +346,7 @@ func (h *VectorHandler) HandleSearch(c *fiber.Ctx) error {
 		for i, v := range embedding {
 			queryVector[i] = float64(v)
 		}
-		embeddingModel = h.embeddingService.DefaultModel()
+		embeddingModel = embeddingService.DefaultModel()
 	} else if len(req.Vector) > 0 {
 		queryVector = req.Vector
 	} else {
@@ -655,12 +605,12 @@ func normalizeOperator(op string) string {
 
 // IsEmbeddingConfigured returns whether the embedding service is available
 func (h *VectorHandler) IsEmbeddingConfigured() bool {
-	return h.embeddingService != nil
+	return h.vectorManager.GetEmbeddingService() != nil
 }
 
 // GetEmbeddingService returns the embedding service (may be nil if not configured)
 func (h *VectorHandler) GetEmbeddingService() *ai.EmbeddingService {
-	return h.embeddingService
+	return h.vectorManager.GetEmbeddingService()
 }
 
 // VectorCapabilities represents the vector search capabilities of the system
@@ -678,7 +628,7 @@ type VectorCapabilities struct {
 // Non-admin users only receive minimal info (enabled status)
 func (h *VectorHandler) HandleGetCapabilities(c *fiber.Ctx) error {
 	// EmbeddingEnabled reflects actual service availability (including fallback)
-	embeddingAvailable := h.embeddingService != nil
+	embeddingAvailable := h.vectorManager.GetEmbeddingService() != nil
 
 	// Check pgvector installation status
 	pgVectorInstalled := false
@@ -722,8 +672,9 @@ func (h *VectorHandler) HandleGetCapabilities(c *fiber.Ctx) error {
 		caps.EmbeddingProvider = provider
 
 		// Get model from service if available
-		if h.embeddingService != nil {
-			caps.EmbeddingModel = h.embeddingService.DefaultModel()
+		embeddingService := h.vectorManager.GetEmbeddingService()
+		if embeddingService != nil {
+			caps.EmbeddingModel = embeddingService.DefaultModel()
 		} else if h.config.EmbeddingModel != "" {
 			caps.EmbeddingModel = h.config.EmbeddingModel
 		}

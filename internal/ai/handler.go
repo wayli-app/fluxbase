@@ -10,19 +10,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// VectorManagerInterface defines the interface for hot-reloading embedding service
+// This interface avoids circular dependency with internal/api package
+type VectorManagerInterface interface {
+	RefreshFromDatabase(ctx context.Context) error
+}
+
 // Handler handles AI-related HTTP endpoints
 type Handler struct {
-	storage *Storage
-	loader  *Loader
-	config  *config.AIConfig
+	storage       *Storage
+	loader        *Loader
+	config        *config.AIConfig
+	vectorManager VectorManagerInterface
 }
 
 // NewHandler creates a new AI handler
-func NewHandler(storage *Storage, loader *Loader, cfg *config.AIConfig) *Handler {
+func NewHandler(storage *Storage, loader *Loader, cfg *config.AIConfig, vectorManager VectorManagerInterface) *Handler {
 	h := &Handler{
-		storage: storage,
-		loader:  loader,
-		config:  cfg,
+		storage:       storage,
+		loader:        loader,
+		config:        cfg,
+		vectorManager: vectorManager,
 	}
 
 	// Validate config at startup
@@ -799,6 +807,13 @@ func (h *Handler) CreateProvider(c *fiber.Ctx) error {
 		})
 	}
 
+	// Reload embedding service from database providers
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after provider creation")
+		}
+	}
+
 	// Mask API key in response
 	if provider.Config != nil {
 		if _, ok := provider.Config["api_key"]; ok {
@@ -829,6 +844,13 @@ func (h *Handler) SetDefaultProvider(c *fiber.Ctx) error {
 		})
 	}
 
+	// Reload embedding service from database providers
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after setting default provider")
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"id":        id,
 		"isDefault": true,
@@ -853,6 +875,13 @@ func (h *Handler) DeleteProvider(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to delete provider",
 		})
+	}
+
+	// Reload embedding service from database providers
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after provider deletion")
+		}
 	}
 
 	return c.JSON(fiber.Map{
@@ -930,6 +959,13 @@ func (h *Handler) UpdateProvider(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update provider",
 		})
+	}
+
+	// Reload embedding service from database providers
+	if h.vectorManager != nil {
+		if err := h.vectorManager.RefreshFromDatabase(ctx); err != nil {
+			log.Warn().Err(err).Msg("Failed to reload embedding service after provider update")
+		}
 	}
 
 	// Mask API key in response
