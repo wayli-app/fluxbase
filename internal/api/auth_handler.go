@@ -7,6 +7,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
@@ -18,17 +19,21 @@ const (
 
 // AuthHandler handles authentication HTTP requests
 type AuthHandler struct {
+	db             *pgxpool.Pool
 	authService    *auth.Service
 	captchaService *auth.CaptchaService
 	samlService    *auth.SAMLService
+	baseURL        string
 	secureCookie   bool // Whether to set Secure flag on cookies (true in production)
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(authService *auth.Service, captchaService *auth.CaptchaService) *AuthHandler {
+func NewAuthHandler(db *pgxpool.Pool, authService *auth.Service, captchaService *auth.CaptchaService, baseURL string) *AuthHandler {
 	return &AuthHandler{
+		db:             db,
 		authService:    authService,
 		captchaService: captchaService,
+		baseURL:        baseURL,
 		secureCookie:   false, // Will be set based on environment
 	}
 }
@@ -41,6 +46,35 @@ func (h *AuthHandler) SetSAMLService(samlService *auth.SAMLService) {
 // SetSecureCookie sets whether cookies should have the Secure flag
 func (h *AuthHandler) SetSecureCookie(secure bool) {
 	h.secureCookie = secure
+}
+
+// AuthConfigResponse represents the public authentication configuration
+type AuthConfigResponse struct {
+	SignupEnabled            bool                        `json:"signup_enabled"`
+	RequireEmailVerification bool                        `json:"require_email_verification"`
+	MagicLinkEnabled         bool                        `json:"magic_link_enabled"`
+	MFAAvailable             bool                        `json:"mfa_available"`
+	PasswordMinLength        int                         `json:"password_min_length"`
+	PasswordRequireUppercase bool                        `json:"password_require_uppercase"`
+	PasswordRequireLowercase bool                        `json:"password_require_lowercase"`
+	PasswordRequireNumber    bool                        `json:"password_require_number"`
+	PasswordRequireSpecial   bool                        `json:"password_require_special"`
+	OAuthProviders           []OAuthProviderPublic       `json:"oauth_providers"`
+	SAMLProviders            []SAMLProviderPublic        `json:"saml_providers"`
+	Captcha                  *auth.CaptchaConfigResponse `json:"captcha"`
+}
+
+// OAuthProviderPublic represents public OAuth provider information
+type OAuthProviderPublic struct {
+	Provider     string `json:"provider"`
+	DisplayName  string `json:"display_name"`
+	AuthorizeURL string `json:"authorize_url"`
+}
+
+// SAMLProviderPublic represents public SAML provider information
+type SAMLProviderPublic struct {
+	Provider    string `json:"provider"`
+	DisplayName string `json:"display_name"`
 }
 
 // setAuthCookies sets httpOnly cookies for access and refresh tokens
@@ -797,6 +831,9 @@ func (h *AuthHandler) RegisterRoutes(router fiber.Router, rateLimiters map[strin
 
 	// CAPTCHA configuration endpoint - returns public config (provider, site key)
 	router.Get("/captcha/config", h.GetCaptchaConfig)
+
+	// Auth configuration endpoint - returns all public auth config (signup, OAuth, SAML, CAPTCHA, password requirements)
+	router.Get("/config", h.GetAuthConfig)
 
 	// Public routes with rate limiting
 	router.Post("/signup", rateLimiters["signup"], h.SignUp)
@@ -1593,4 +1630,75 @@ func (h *AuthHandler) GetCaptchaConfig(c *fiber.Ctx) error {
 
 	config := h.captchaService.GetConfig()
 	return c.Status(fiber.StatusOK).JSON(config)
+}
+
+// GetAuthConfig returns the public authentication configuration for clients
+// GET /auth/config
+func (h *AuthHandler) GetAuthConfig(c *fiber.Ctx) error {
+	ctx := c.Context()
+	settingsCache := h.authService.GetSettingsCache()
+
+	// Build response
+	response := AuthConfigResponse{
+		SignupEnabled:            h.authService.IsSignupEnabled(),
+		RequireEmailVerification: settingsCache.GetBool(ctx, "app.auth.require_email_verification", false),
+		MagicLinkEnabled:         settingsCache.GetBool(ctx, "app.auth.magic_link_enabled", false),
+		MFAAvailable:             true, // MFA is always available, users opt-in
+		PasswordMinLength:        settingsCache.GetInt(ctx, "app.auth.password_min_length", 8),
+		PasswordRequireUppercase: settingsCache.GetBool(ctx, "app.auth.password_require_uppercase", false),
+		PasswordRequireLowercase: settingsCache.GetBool(ctx, "app.auth.password_require_lowercase", false),
+		PasswordRequireNumber:    settingsCache.GetBool(ctx, "app.auth.password_require_number", false),
+		PasswordRequireSpecial:   settingsCache.GetBool(ctx, "app.auth.password_require_special", false),
+		OAuthProviders:           []OAuthProviderPublic{},
+		SAMLProviders:            []SAMLProviderPublic{},
+	}
+
+	// Fetch OAuth providers
+	oauthQuery := `
+		SELECT provider_name, display_name, redirect_url
+		FROM dashboard.oauth_providers
+		WHERE enabled = TRUE AND allow_app_login = TRUE
+		ORDER BY display_name
+	`
+	rows, err := h.db.Query(ctx, oauthQuery)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list OAuth providers for auth config")
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var providerName, displayName, redirectURL string
+			if err := rows.Scan(&providerName, &displayName, &redirectURL); err != nil {
+				log.Error().Err(err).Msg("Failed to scan OAuth provider")
+				continue
+			}
+			response.OAuthProviders = append(response.OAuthProviders, OAuthProviderPublic{
+				Provider:     providerName,
+				DisplayName:  displayName,
+				AuthorizeURL: fmt.Sprintf("%s/api/v1/auth/oauth/%s/authorize", h.baseURL, providerName),
+			})
+		}
+	}
+
+	// Fetch SAML providers
+	if h.samlService != nil {
+		samlProviders := h.samlService.GetProvidersForApp()
+		for _, provider := range samlProviders {
+			response.SAMLProviders = append(response.SAMLProviders, SAMLProviderPublic{
+				Provider:    provider.Name,
+				DisplayName: provider.Name, // SAML providers use Name as display name
+			})
+		}
+	}
+
+	// Get CAPTCHA config
+	if h.captchaService != nil {
+		captchaConfig := h.captchaService.GetConfig()
+		response.Captcha = &captchaConfig
+	} else {
+		response.Captcha = &auth.CaptchaConfigResponse{
+			Enabled: false,
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }

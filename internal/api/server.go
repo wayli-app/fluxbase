@@ -261,7 +261,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 
 	// Create handlers
-	authHandler := NewAuthHandler(authService, captchaService)
+	authHandler := NewAuthHandler(db.Pool(), authService, captchaService, cfg.GetPublicBaseURL())
 	// Create dashboard JWT manager first (shared between auth service and handler)
 	dashboardJWTManager := auth.NewJWTManager(cfg.Auth.JWTSecret, 24*time.Hour, 168*time.Hour)
 	dashboardAuthService := auth.NewDashboardAuthService(db, dashboardJWTManager, cfg.Auth.TOTPIssuer)

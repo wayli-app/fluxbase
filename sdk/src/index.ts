@@ -202,6 +202,10 @@ export type {
   SAMLLoginResponse,
   SAMLSession,
 
+  // Auth configuration types
+  AuthConfig,
+  OAuthProviderPublic,
+
   // Database types
   PostgrestResponse,
   PostgrestError,

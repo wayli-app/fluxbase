@@ -46,6 +46,7 @@ import type {
   UnlinkIdentityParams,
   ReauthenticateResponse,
   SignInWithIdTokenCredentials,
+  AuthConfig,
   CaptchaConfig,
   SAMLProvidersResponse,
   SAMLLoginOptions,
@@ -339,6 +340,34 @@ export class FluxbaseAuth {
   async getCaptchaConfig(): Promise<DataResponse<CaptchaConfig>> {
     return wrapAsync(async () => {
       return await this.fetch.get<CaptchaConfig>("/api/v1/auth/captcha/config");
+    });
+  }
+
+  /**
+   * Get comprehensive authentication configuration from the server
+   * Returns all public auth settings including signup status, OAuth providers,
+   * SAML providers, password requirements, and CAPTCHA config in a single request.
+   *
+   * Use this to:
+   * - Conditionally render signup forms based on signup_enabled
+   * - Display available OAuth/SAML provider buttons
+   * - Show password requirements to users
+   * - Configure CAPTCHA widgets
+   *
+   * @returns Promise with complete authentication configuration
+   * @example
+   * ```typescript
+   * const { data, error } = await client.auth.getAuthConfig();
+   * if (data) {
+   *   console.log('Signup enabled:', data.signup_enabled);
+   *   console.log('OAuth providers:', data.oauth_providers);
+   *   console.log('Password min length:', data.password_min_length);
+   * }
+   * ```
+   */
+  async getAuthConfig(): Promise<DataResponse<AuthConfig>> {
+    return wrapAsync(async () => {
+      return await this.fetch.get<AuthConfig>("/api/v1/auth/config");
     });
   }
 

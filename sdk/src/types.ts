@@ -2073,6 +2073,59 @@ export interface CaptchaConfig {
   cap_server_url?: string
 }
 
+/**
+ * Public OAuth provider information
+ */
+export interface OAuthProviderPublic {
+  /** Provider identifier (e.g., "google", "github") */
+  provider: string
+  /** Display name for UI */
+  display_name: string
+  /** Authorization URL to initiate OAuth flow */
+  authorize_url: string
+}
+
+/**
+ * Public SAML provider information
+ */
+export interface SAMLProvider {
+  /** Provider identifier */
+  provider: string
+  /** Display name for UI */
+  display_name: string
+}
+
+/**
+ * Comprehensive authentication configuration
+ * Returns all public auth settings from the server
+ */
+export interface AuthConfig {
+  /** Whether user signup is enabled */
+  signup_enabled: boolean
+  /** Whether email verification is required after signup */
+  require_email_verification: boolean
+  /** Whether magic link authentication is enabled */
+  magic_link_enabled: boolean
+  /** Whether MFA/2FA is available (always true, users opt-in) */
+  mfa_available: boolean
+  /** Minimum password length requirement */
+  password_min_length: number
+  /** Whether passwords must contain uppercase letters */
+  password_require_uppercase: boolean
+  /** Whether passwords must contain lowercase letters */
+  password_require_lowercase: boolean
+  /** Whether passwords must contain numbers */
+  password_require_number: boolean
+  /** Whether passwords must contain special characters */
+  password_require_special: boolean
+  /** Available OAuth providers for authentication */
+  oauth_providers: OAuthProviderPublic[]
+  /** Available SAML providers for enterprise SSO */
+  saml_providers: SAMLProvider[]
+  /** CAPTCHA configuration */
+  captcha: CaptchaConfig | null
+}
+
 // ============================================================================
 // Auth State Change Types
 // ============================================================================

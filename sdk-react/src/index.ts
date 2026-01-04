@@ -51,6 +51,9 @@ export {
   type CaptchaState,
 } from "./use-captcha";
 
+// Auth configuration hooks
+export { useAuthConfig } from "./use-auth-config";
+
 // SAML SSO hooks
 export {
   useSAMLProviders,
