@@ -221,25 +221,41 @@ func GenerateState() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
+// StateMetadata holds metadata associated with an OAuth state
+type StateMetadata struct {
+	Expiry      time.Time
+	RedirectURI string // Optional custom redirect URI for this OAuth flow
+}
+
 // StateStore manages OAuth state tokens for CSRF protection
 // Uses a mutex to protect concurrent access from multiple goroutines
 type StateStore struct {
 	mu     sync.RWMutex
-	states map[string]time.Time
+	states map[string]*StateMetadata
 }
 
 // NewStateStore creates a new state store
 func NewStateStore() *StateStore {
 	return &StateStore{
-		states: make(map[string]time.Time),
+		states: make(map[string]*StateMetadata),
 	}
 }
 
-// Set stores a state token
-func (s *StateStore) Set(state string) {
+// Set stores a state token with optional redirect URI
+func (s *StateStore) Set(state string, redirectURI ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.states[state] = time.Now().Add(10 * time.Minute)
+
+	metadata := &StateMetadata{
+		Expiry: time.Now().Add(10 * time.Minute),
+	}
+
+	// Store redirect URI if provided
+	if len(redirectURI) > 0 && redirectURI[0] != "" {
+		metadata.RedirectURI = redirectURI[0]
+	}
+
+	s.states[state] = metadata
 }
 
 // Validate checks if a state token is valid and removes it
@@ -248,7 +264,7 @@ func (s *StateStore) Validate(state string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	expiry, exists := s.states[state]
+	metadata, exists := s.states[state]
 	if !exists {
 		return false
 	}
@@ -256,7 +272,28 @@ func (s *StateStore) Validate(state string) bool {
 	delete(s.states, state)
 
 	// Check if expired
-	return time.Now().Before(expiry)
+	return time.Now().Before(metadata.Expiry)
+}
+
+// GetAndValidate checks if a state token is valid, removes it, and returns the metadata
+// Returns the metadata and a boolean indicating if the state was valid
+func (s *StateStore) GetAndValidate(state string) (*StateMetadata, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	metadata, exists := s.states[state]
+	if !exists {
+		return nil, false
+	}
+
+	delete(s.states, state)
+
+	// Check if expired
+	if time.Now().After(metadata.Expiry) {
+		return nil, false
+	}
+
+	return metadata, true
 }
 
 // Cleanup removes expired state tokens
@@ -265,8 +302,8 @@ func (s *StateStore) Cleanup() {
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	for state, expiry := range s.states {
-		if now.After(expiry) {
+	for state, metadata := range s.states {
+		if now.After(metadata.Expiry) {
 			delete(s.states, state)
 		}
 	}

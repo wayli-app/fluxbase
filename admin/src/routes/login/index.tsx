@@ -85,9 +85,10 @@ function LoginPage() {
 
     if (provider.type === 'oauth') {
       try {
-        // Fetch OAuth authorization URL
+        // Use app OAuth endpoint with custom redirect_uri for dashboard callback
+        const redirectUri = `/dashboard/auth/sso/oauth/${provider.id}/callback`
         const response = await fetch(
-          `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_to=${encodeURIComponent(redirectTo)}`
+          `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&redirect_to=${encodeURIComponent(redirectTo)}`
         )
         if (!response.ok) {
           throw new Error('Failed to get OAuth URL')
@@ -97,12 +98,15 @@ function LoginPage() {
         window.location.href = data.url
       } catch (error) {
         toast.error('Authentication Error', {
-          description: error instanceof Error ? error.message : 'Failed to initiate OAuth login',
+          description:
+            error instanceof Error
+              ? error.message
+              : 'Failed to initiate OAuth login',
         })
       }
     } else if (provider.type === 'saml') {
-      // Redirect to SAML login endpoint
-      window.location.href = `${baseURL}/api/v1/auth/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
+      // Redirect to SAML login endpoint (SAML still uses dashboard endpoint)
+      window.location.href = `${baseURL}/dashboard/auth/sso/saml/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`
     }
   }
 

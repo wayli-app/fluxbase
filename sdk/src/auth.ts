@@ -790,6 +790,9 @@ export class FluxbaseAuth {
       if (options?.redirect_to) {
         params.append("redirect_to", options.redirect_to);
       }
+      if (options?.redirect_uri) {
+        params.append("redirect_uri", options.redirect_uri);
+      }
       if (options?.scopes && options.scopes.length > 0) {
         params.append("scopes", options.scopes.join(","));
       }

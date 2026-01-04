@@ -83,6 +83,9 @@ func (h *OAuthHandler) Authorize(c *fiber.Ctx) error {
 	ctx := c.Context()
 	providerName := c.Params("provider")
 
+	// Get optional redirect_uri parameter for custom callback URL
+	redirectURI := c.Query("redirect_uri")
+
 	// Get OAuth provider configuration from database
 	oauthConfig, err := h.getProviderConfig(ctx, providerName)
 	if err != nil {
@@ -90,6 +93,15 @@ func (h *OAuthHandler) Authorize(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{
 			"error": fmt.Sprintf("OAuth provider '%s' not configured or disabled", providerName),
 		})
+	}
+
+	// Override redirect URL if custom redirect_uri is provided
+	if redirectURI != "" {
+		// Build full URL if relative path is provided
+		if redirectURI[0] == '/' {
+			redirectURI = h.baseURL + redirectURI
+		}
+		oauthConfig.RedirectURL = redirectURI
 	}
 
 	// Generate state for CSRF protection
@@ -101,8 +113,8 @@ func (h *OAuthHandler) Authorize(c *fiber.Ctx) error {
 		})
 	}
 
-	// Store state
-	h.stateStore.Set(state)
+	// Store state with optional redirect URI for callback validation
+	h.stateStore.Set(state, redirectURI)
 
 	// Generate authorization URL
 	authURL := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
@@ -110,6 +122,7 @@ func (h *OAuthHandler) Authorize(c *fiber.Ctx) error {
 	log.Info().
 		Str("provider", providerName).
 		Str("state", state).
+		Str("redirect_uri", redirectURI).
 		Msg("OAuth authorization initiated")
 
 	// Return JSON with authorization URL (SDK handles the redirect)
@@ -143,8 +156,9 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate state
-	if !h.stateStore.Validate(state) {
+	// Validate state and retrieve metadata
+	stateMetadata, valid := h.stateStore.GetAndValidate(state)
+	if !valid {
 		log.Warn().Str("provider", providerName).Str("state", state).Msg("Invalid OAuth state")
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Invalid OAuth state parameter",
@@ -158,6 +172,16 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "OAuth provider not configured",
 		})
+	}
+
+	// Override redirect URL if custom redirect_uri was used during authorization
+	if stateMetadata.RedirectURI != "" {
+		// Build full URL if relative path is provided
+		redirectURI := stateMetadata.RedirectURI
+		if redirectURI[0] == '/' {
+			redirectURI = h.baseURL + redirectURI
+		}
+		oauthConfig.RedirectURL = redirectURI
 	}
 
 	// Exchange code for token

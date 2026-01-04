@@ -17,15 +17,13 @@ name: Release
 #
 # Version type options:
 #   - continue: Keep same base version (increment RC number, or promote RC to stable)
-#   - patch: Bump patch version (0.0.1 → 0.0.2)
-#   - minor: Bump minor version (0.0.1 → 0.1.0)
-#   - major: Bump major version (0.0.1 → 1.0.0)
+#   - patch/minor/major: Create new release (YYYY.MM.N based on current date)
 #
-# Examples:
-#   - 2.0.0-rc.1 + continue + rc → 2.0.0-rc.2 (continue RC series)
-#   - 2.0.0-rc.5 + continue + stable → 2.0.0 (promote RC to stable)
-#   - 2.0.0 + minor + rc → 2.1.0-rc.1 (start new minor RC)
-#   - 2.0.0-rc.1 + patch + rc → 2.0.1-rc.1 (start new patch RC)
+# CalVer Examples:
+#   - 2026.01.1-rc.1 + continue + rc → 2026.01.1-rc.2 (continue RC series)
+#   - 2026.01.1-rc.5 + continue + stable → 2026.01.1 (promote RC to stable)
+#   - 2026.01.1 + patch + rc → 2026.01.2-rc.1 (new release in same month)
+#   - 2025.12.5 + patch + rc → 2026.01.1-rc.1 (new month, reset to 1)
 #
 # Component Toggles (workflow_dispatch only):
 #   - Publish binaries: Build and publish Go binaries for multiple platforms
@@ -39,17 +37,17 @@ name: Release
 #   Note: CLI binaries are always published as part of "Publish binaries"
 #
 # RC Release behavior:
-#   - Version format: vMAJOR.MINOR.PATCH-rc.N (e.g., v0.1.1-rc.1, v0.1.1-rc.2)
+#   - Version format: vYYYY.MM.N-rc.N (e.g., v2026.01.1-rc.1, v2026.01.1-rc.2)
 #   - Marked as GitHub pre-release
 #   - Docker images tagged with version and 'rc' (NOT 'latest')
 #   - NPM packages published with 'rc' dist-tag (NOT 'latest')
 #   - Helm charts published with prerelease annotation (filtered by default, opt-in with --devel)
 #   - Binaries and Go module are published normally
 #
-# Stable Release behavior (patch/minor/major):
-#   - Version format: vMAJOR.MINOR.PATCH (e.g., v0.1.1)
+# Stable Release behavior:
+#   - Version format: vYYYY.MM.N (e.g., v2026.01.1)
 #   - Marked as GitHub release (not pre-release)
-#   - Docker images tagged with version, major.minor, major, and 'latest'
+#   - Docker images tagged with version, YYYY.MM, YYYY, and 'latest'
 #   - NPM packages published with 'latest' dist-tag
 #   - Helm charts published to GHCR and GitHub Pages
 #   - All artifacts published normally
@@ -146,54 +144,57 @@ jobs:
             LATEST_TAG=${LATEST_TAG:-v0.0.0}
             LATEST_VERSION=${LATEST_TAG#v}
 
-            # Parse version components
-            # Check if latest version is an RC
-            if [[ "$LATEST_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-rc\.([0-9]+)$ ]]; then
-              MAJOR="${BASH_REMATCH[1]}"
-              MINOR="${BASH_REMATCH[2]}"
-              PATCH="${BASH_REMATCH[3]}"
-              RC_NUM="${BASH_REMATCH[4]}"
+            # Parse version components - support both SemVer (for migration) and CalVer
+            if [[ "$LATEST_VERSION" =~ ^([0-9]{4})\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
+              # CalVer format: YYYY.MM.N[-rc.N]
+              YEAR="${BASH_REMATCH[1]}"
+              MONTH="${BASH_REMATCH[2]}"
+              ITERATION="${BASH_REMATCH[3]}"
+              RC_NUM="${BASH_REMATCH[5]:-0}"
+              IS_CALVER=true
+            elif [[ "$LATEST_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-rc\.([0-9]+))?$ ]]; then
+              # SemVer format (for migration from 0.0.1 to CalVer)
+              # Treat as if it's old version, force new CalVer
+              IS_CALVER=false
             else
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
-              # Remove any pre-release suffix from PATCH
-              PATCH=${PATCH%%-*}
-              RC_NUM=0
+              # Fallback for malformed versions
+              IS_CALVER=false
             fi
 
             # Determine new version based on version_type and release_type
             VERSION_TYPE="${{ github.event.inputs.version_type }}"
             RELEASE_TYPE="${{ github.event.inputs.release_type }}"
 
+            # Get current date for CalVer
+            CURRENT_YEAR=$(date +%Y)
+            CURRENT_MONTH=$(date +%-m)  # %-m removes leading zero (1-12)
+
             # Calculate base version based on version_type
             case $VERSION_TYPE in
               continue)
-                # Keep the same base version (for continuing RC series or promoting to stable)
-                # If not on an RC, fall back to patch bump behavior
-                if [[ "$LATEST_VERSION" =~ -rc\. ]]; then
-                  BASE_MAJOR="$MAJOR"
-                  BASE_MINOR="$MINOR"
-                  BASE_PATCH="$PATCH"
+                if [ "$IS_CALVER" = true ]; then
+                  # Already on CalVer - keep same base version
+                  BASE_YEAR="$YEAR"
+                  BASE_MONTH="$MONTH"
+                  BASE_ITERATION="$ITERATION"
                 else
-                  # Not on an RC, fall back to patch
-                  BASE_MAJOR="$MAJOR"
-                  BASE_MINOR="$MINOR"
-                  BASE_PATCH="$((PATCH + 1))"
+                  # Migrating from SemVer to CalVer - use current date, iteration 1
+                  BASE_YEAR="$CURRENT_YEAR"
+                  BASE_MONTH="$CURRENT_MONTH"
+                  BASE_ITERATION="1"
                 fi
                 ;;
-              major)
-                BASE_MAJOR="$((MAJOR + 1))"
-                BASE_MINOR="0"
-                BASE_PATCH="0"
-                ;;
-              minor)
-                BASE_MAJOR="$MAJOR"
-                BASE_MINOR="$((MINOR + 1))"
-                BASE_PATCH="0"
-                ;;
-              patch)
-                BASE_MAJOR="$MAJOR"
-                BASE_MINOR="$MINOR"
-                BASE_PATCH="$((PATCH + 1))"
+              new|patch|minor|major)
+                # All bump types now just mean "new release"
+                # Use current date and reset iteration to 1
+                BASE_YEAR="$CURRENT_YEAR"
+                BASE_MONTH="$CURRENT_MONTH"
+                BASE_ITERATION="1"
+
+                # If releasing multiple times in same month, increment iteration
+                if [ "$IS_CALVER" = true ] && [ "$YEAR" = "$CURRENT_YEAR" ] && [ "$MONTH" = "$CURRENT_MONTH" ]; then
+                  BASE_ITERATION="$((ITERATION + 1))"
+                fi
                 ;;
             esac
 
@@ -202,15 +203,15 @@ jobs:
               # For RC releases, check if we're continuing an existing RC series
               # If latest version is an RC with the same base version, increment RC number
               if [[ "$LATEST_VERSION" =~ -rc\.([0-9]+)$ ]] && \
-                 [ "$MAJOR" = "$BASE_MAJOR" ] && [ "$MINOR" = "$BASE_MINOR" ] && [ "$PATCH" = "$BASE_PATCH" ]; then
-                NEW_VERSION="${BASE_MAJOR}.${BASE_MINOR}.${BASE_PATCH}-rc.$((RC_NUM + 1))"
+                 [ "$YEAR" = "$BASE_YEAR" ] && [ "$MONTH" = "$BASE_MONTH" ] && [ "$ITERATION" = "$BASE_ITERATION" ]; then
+                NEW_VERSION="${BASE_YEAR}.${BASE_MONTH}.${BASE_ITERATION}-rc.$((RC_NUM + 1))"
               else
-                NEW_VERSION="${BASE_MAJOR}.${BASE_MINOR}.${BASE_PATCH}-rc.1"
+                NEW_VERSION="${BASE_YEAR}.${BASE_MONTH}.${BASE_ITERATION}-rc.1"
               fi
               IS_PRERELEASE="true"
             else
               # Stable release
-              NEW_VERSION="${BASE_MAJOR}.${BASE_MINOR}.${BASE_PATCH}"
+              NEW_VERSION="${BASE_YEAR}.${BASE_MONTH}.${BASE_ITERATION}"
               IS_PRERELEASE="false"
             fi
 

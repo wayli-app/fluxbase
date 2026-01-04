@@ -807,7 +807,8 @@ export interface OAuthProvidersResponse {
 }
 
 export interface OAuthOptions {
-  redirect_to?: string
+  redirect_to?: string      // Post-login redirect URL (where to go after successful login)
+  redirect_uri?: string      // OAuth callback URL (where OAuth provider redirects with code)
   scopes?: string[]
 }
 
