@@ -344,6 +344,11 @@ jobs:
           go test -v -short -race -timeout=3m -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v '/test/e2e' | grep -v '/test$')
           go tool cover -html=coverage.out -o coverage.html
 
+      - name: Check coverage thresholds
+        run: |
+          go install github.com/vladopajic/go-test-coverage/v2@latest
+          go-test-coverage --config=.testcoverage.yml
+
       - name: Run e2e tests
         timeout-minutes: 15
         env:

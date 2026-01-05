@@ -81,7 +81,8 @@
       "Bash(git rev-list:*)",
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(go install:*)"
     ],
     "deny": [],
     "ask": []
