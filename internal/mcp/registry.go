@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -206,4 +207,28 @@ func (r *ResourceRegistry) ListTemplates(authCtx *AuthContext) []ResourceTemplat
 	}
 
 	return templates
+}
+
+// ReadResource reads a resource by URI, checking authorization
+func (r *ResourceRegistry) ReadResource(ctx context.Context, uri string, authCtx *AuthContext) ([]Content, error) {
+	provider := r.GetProvider(uri)
+	if provider == nil {
+		return nil, fmt.Errorf("resource not found: %s", uri)
+	}
+
+	// Check required scopes
+	if !authCtx.HasScopes(provider.RequiredScopes()...) {
+		return nil, fmt.Errorf("access denied: missing required scopes for resource %s", uri)
+	}
+
+	// Check if it's a template provider that needs parameter extraction
+	if tp, ok := provider.(TemplateResourceProvider); ok && tp.IsTemplate() {
+		params, matched := tp.MatchURI(uri)
+		if matched {
+			return tp.ReadWithParams(ctx, authCtx, params)
+		}
+	}
+
+	// Read the resource directly
+	return provider.Read(ctx, authCtx)
 }

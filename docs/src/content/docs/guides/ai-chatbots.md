@@ -288,6 +288,8 @@ Available metadata annotations:
 | `@fluxbase:rag-max-chunks`           | Maximum chunks to retrieve for RAG context                | `5`             |
 | `@fluxbase:rag-similarity-threshold` | Minimum similarity score for RAG (0.0-1.0)                | `0.7`           |
 | `@fluxbase:required-settings`        | Setting keys to load for template resolution              | -               |
+| `@fluxbase:mcp-tools`                | Comma-separated MCP tools to enable (see [MCP Tools](#mcp-tools)) | `""` (legacy execute_sql) |
+| `@fluxbase:use-mcp-schema`           | Fetch schema from MCP resources instead of direct DB introspection | `false`         |
 
 ### HTTP Tool
 
@@ -373,6 +375,92 @@ Current user ID: {{user_id}}
 | `@fluxbase:rag-similarity-threshold` | Minimum similarity (0.0-1.0)               | `0.7`   |
 
 For detailed documentation on creating knowledge bases, adding documents, and configuring RAG, see the [Knowledge Bases & RAG](/docs/guides/knowledge-bases) guide.
+
+### MCP Tools
+
+By default, chatbots use the legacy `execute_sql` tool which allows raw SQL execution. For more structured and secure database access, you can enable MCP (Model Context Protocol) tools.
+
+**Enable MCP tools:**
+
+```typescript
+/**
+ * Order Management Assistant
+ *
+ * @fluxbase:description Helps users manage orders
+ * @fluxbase:allowed-tables orders,order_items,products,analytics.order_metrics
+ * @fluxbase:mcp-tools query_table,insert_record,invoke_function
+ * @fluxbase:use-mcp-schema
+ */
+
+export default `You are an order management assistant.
+You can query orders, create new orders, and call functions.
+Current user: {{user_id}}`;
+```
+
+**Available MCP tools:**
+
+| Tool | Description | Required Scope |
+|------|-------------|----------------|
+| **Data Tools** | | |
+| `query_table` | Query a table with filters, ordering, pagination, and optional vector search | `read:tables` |
+| `insert_record` | Insert a new record into a table | `write:tables` |
+| `update_record` | Update records matching filters | `write:tables` |
+| `delete_record` | Delete records matching filters | `write:tables` |
+| **Execution Tools** | | |
+| `invoke_function` | Call an edge function with body/headers | `execute:functions` |
+| `invoke_rpc` | Execute an RPC procedure with parameters | `execute:rpc` |
+| `submit_job` | Queue a background job for async execution | `execute:jobs` |
+| `get_job_status` | Check the status of a submitted job | `execute:jobs` |
+| **Storage Tools** | | |
+| `list_objects` | List objects in a storage bucket | `read:storage` |
+| `upload_object` | Upload a file to a storage bucket | `write:storage` |
+| `download_object` | Download a file from a storage bucket | `read:storage` |
+| `delete_object` | Delete a file from a storage bucket | `write:storage` |
+| **Vector Search** | | |
+| `search_vectors` | Semantic search over vector embeddings | `read:vectors` |
+
+**Benefits of MCP tools over `execute_sql`:**
+
+1. **Structured queries**: Tools have typed parameters with validation
+2. **Better security**: Scoped permissions per tool (read vs write)
+3. **Vector search**: `query_table` supports semantic search on tables with embeddings
+4. **Cross-resource access**: Call functions, manage storage, run jobs
+5. **Table filtering**: Enforced `allowed-tables` restrictions
+
+**Vector search with `query_table`:**
+
+When a table has a vector/embedding column, the AI can perform semantic search:
+
+```typescript
+// The AI might call query_table with:
+{
+  "table": "documents",
+  "vector_search": {
+    "query": "How do I reset my password?",
+    "column": "embedding",
+    "threshold": 0.7
+  },
+  "limit": 10
+}
+```
+
+**Qualified table names:**
+
+You can use `schema.table` format in `@fluxbase:allowed-tables` to allow access to tables in different schemas:
+
+```typescript
+/**
+ * @fluxbase:allowed-tables users,orders,analytics.metrics,billing.invoices
+ */
+```
+
+- `users`, `orders` → default to `public` schema
+- `analytics.metrics` → explicit `analytics` schema
+- `billing.invoices` → explicit `billing` schema
+
+**MCP schema fetching:**
+
+When `@fluxbase:use-mcp-schema` is enabled, the chatbot fetches schema information from MCP resources instead of querying the database directly. This provides cached schema data for better performance.
 
 ### Settings & Secrets
 

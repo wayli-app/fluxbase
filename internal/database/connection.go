@@ -263,6 +263,63 @@ func (c *Connection) runSystemMigrations() error {
 		return fmt.Errorf("failed to create migrations.fluxbase table: %w", err)
 	}
 
+	// Check if database has a version that doesn't exist in our embedded migration files
+	// This can happen when switching branches or after migrations are renumbered
+	// We must fix this BEFORE creating the migrate instance, as golang-migrate validates files on Force()
+	highestAvailable := c.findHighestMigrationVersion()
+	log.Debug().Int("highest_available", highestAvailable).Msg("Found highest available migration version")
+
+	if highestAvailable > 0 {
+		var recordedVersion int64
+		var dirty bool
+		err = adminConn.QueryRow(ctx, `SELECT version, dirty FROM "migrations"."fluxbase" LIMIT 1`).Scan(&recordedVersion, &dirty)
+		if err == nil {
+			fileExists := c.migrationFileExists(int(recordedVersion))
+			log.Debug().
+				Int64("recorded_version", recordedVersion).
+				Bool("dirty", dirty).
+				Bool("file_exists", fileExists).
+				Msg("Checking migration state")
+
+			needsReset := false
+			reason := ""
+
+			if recordedVersion > int64(highestAvailable) {
+				needsReset = true
+				reason = "version higher than available migrations"
+			} else if !fileExists {
+				needsReset = true
+				reason = "migration file does not exist"
+			} else if dirty {
+				// If dirty but file exists, just clear the dirty flag
+				// This happens when a previous migration was interrupted
+				log.Warn().
+					Int64("recorded_version", recordedVersion).
+					Bool("was_dirty", dirty).
+					Msg("Clearing dirty flag for existing migration version")
+
+				_, err = adminConn.Exec(ctx, `UPDATE "migrations"."fluxbase" SET dirty = false WHERE version = $1`, recordedVersion)
+				if err != nil {
+					return fmt.Errorf("failed to clear dirty flag: %w", err)
+				}
+			}
+
+			if needsReset {
+				log.Warn().
+					Int64("recorded_version", recordedVersion).
+					Int("highest_available", highestAvailable).
+					Bool("was_dirty", dirty).
+					Str("reason", reason).
+					Msg("Resetting database migration version to highest available")
+
+				_, err = adminConn.Exec(ctx, `UPDATE "migrations"."fluxbase" SET version = $1, dirty = false`, highestAvailable)
+				if err != nil {
+					return fmt.Errorf("failed to reset migration version: %w", err)
+				}
+			}
+		}
+	}
+
 	// Create migrations source from embedded filesystem
 	sourceDriver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
@@ -539,6 +596,30 @@ func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 
 	// Run migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		// Check if error is due to missing migration file
+		if strings.Contains(err.Error(), "file does not exist") || strings.Contains(err.Error(), "no migration found") {
+			// Find the highest available migration version
+			highestVersion := c.findHighestMigrationVersion()
+			if highestVersion > 0 && version > uint(highestVersion) {
+				log.Warn().
+					Str("source", source).
+					Uint("recorded_version", version).
+					Int("highest_available", highestVersion).
+					Msg("Database version higher than available migrations, resetting to highest available")
+
+				// Force to highest available version
+				if forceErr := m.Force(highestVersion); forceErr != nil {
+					return fmt.Errorf("failed to force migration version to %d: %w", highestVersion, forceErr)
+				}
+
+				// Try running migrations again
+				if retryErr := m.Up(); retryErr != nil && retryErr != migrate.ErrNoChange {
+					return fmt.Errorf("failed to run %s migrations after version reset: %w", source, retryErr)
+				}
+				log.Info().Str("source", source).Int("version", highestVersion).Msg("Migrations recovered after version reset")
+				return nil
+			}
+		}
 		return fmt.Errorf("failed to run %s migrations: %w", source, err)
 	}
 
@@ -550,6 +631,76 @@ func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 	}
 
 	return nil
+}
+
+// findHighestMigrationVersion scans embedded migrations to find the highest version number
+func (c *Connection) findHighestMigrationVersion() int {
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to read embedded migrations directory")
+		return 0
+	}
+
+	highest := 0
+	versionRegex := regexp.MustCompile(`^(\d+)_.*\.up\.sql$`)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		matches := versionRegex.FindStringSubmatch(entry.Name())
+		if len(matches) > 1 {
+			var version int
+			if _, err := fmt.Sscanf(matches[1], "%d", &version); err == nil {
+				if version > highest {
+					highest = version
+				}
+			}
+		}
+	}
+
+	return highest
+}
+
+// migrationFileExists checks if both up and down migration files exist in the embedded filesystem
+// golang-migrate requires both files to be present for a version to be valid
+func (c *Connection) migrationFileExists(version int) bool {
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to read migrations directory")
+		return false
+	}
+
+	// Try both zero-padded (057_) and non-padded (57_) prefixes
+	prefixes := []string{
+		fmt.Sprintf("%03d_", version),
+		fmt.Sprintf("%d_", version),
+	}
+	hasUp := false
+	hasDown := false
+
+	// Log first few files to see what's embedded
+	for i, entry := range entries {
+		if i < 5 || i >= len(entries)-5 {
+			log.Debug().Str("file", entry.Name()).Int("index", i).Msg("Embedded migration file")
+		}
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(entry.Name(), prefix) {
+				log.Debug().Str("file", entry.Name()).Str("prefix", prefix).Msg("Found matching migration file")
+				if strings.HasSuffix(entry.Name(), ".up.sql") {
+					hasUp = true
+				} else if strings.HasSuffix(entry.Name(), ".down.sql") {
+					hasDown = true
+				}
+				break
+			}
+		}
+		if hasUp && hasDown {
+			return true
+		}
+	}
+	log.Debug().Int("version", version).Bool("hasUp", hasUp).Bool("hasDown", hasDown).Msg("Migration file check result")
+	return hasUp && hasDown
 }
 
 // grantRolesToRuntimeUser grants Fluxbase roles to the runtime database user

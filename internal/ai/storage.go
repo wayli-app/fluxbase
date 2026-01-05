@@ -58,6 +58,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
 			version, source, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
@@ -67,7 +68,8 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			$20, $21, $22,
 			$23, $24, $25,
 			$26, $27, $28, $29,
-			$30, $31, $32, $33, $34
+			$30, $31,
+			$32, $33, $34, $35, $36
 		)
 	`
 
@@ -104,6 +106,7 @@ func (s *Storage) CreateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.PersistConversations, chatbot.ConversationTTLHours, chatbot.MaxConversationTurns,
 		chatbot.RateLimitPerMinute, chatbot.DailyRequestLimit, chatbot.DailyTokenBudget,
 		chatbot.AllowUnauthenticated, chatbot.IsPublic, chatbot.ResponseLanguage, chatbot.DisableExecutionLogs,
+		chatbot.MCPTools, chatbot.UseMCPSchema,
 		chatbot.Version, chatbot.Source,
 		chatbot.CreatedBy, chatbot.CreatedAt, chatbot.UpdatedAt,
 	)
@@ -151,8 +154,10 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 			is_public = $25,
 			response_language = $26,
 			disable_execution_logs = $27,
+			mcp_tools = $28,
+			use_mcp_schema = $29,
 			version = version + 1,
-			updated_at = $28
+			updated_at = $30
 		WHERE id = $1
 	`
 
@@ -202,6 +207,8 @@ func (s *Storage) UpdateChatbot(ctx context.Context, chatbot *Chatbot) error {
 		chatbot.IsPublic,
 		chatbot.ResponseLanguage,
 		chatbot.DisableExecutionLogs,
+		chatbot.MCPTools,
+		chatbot.UseMCPSchema,
 		chatbot.UpdatedAt,
 	)
 
@@ -232,6 +239,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE id = $1
@@ -250,6 +258,7 @@ func (s *Storage) GetChatbot(ctx context.Context, id string) (*Chatbot, error) {
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
 		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
+		&chatbot.MCPTools, &chatbot.UseMCPSchema,
 		&chatbot.Version, &chatbot.Source,
 		&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 	)
@@ -294,6 +303,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE namespace = $1 AND name = $2
@@ -312,6 +322,7 @@ func (s *Storage) GetChatbotByName(ctx context.Context, namespace, name string) 
 		&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 		&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
 		&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
+		&chatbot.MCPTools, &chatbot.UseMCPSchema,
 		&chatbot.Version, &chatbot.Source,
 		&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 	)
@@ -356,6 +367,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 	`
@@ -387,6 +399,7 @@ func (s *Storage) ListChatbots(ctx context.Context, enabledOnly bool) ([]*Chatbo
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
 			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
+			&chatbot.MCPTools, &chatbot.UseMCPSchema,
 			&chatbot.Version, &chatbot.Source,
 			&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 		)
@@ -426,6 +439,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 			persist_conversations, conversation_ttl_hours, max_conversation_turns,
 			rate_limit_per_minute, daily_request_limit, daily_token_budget,
 			allow_unauthenticated, is_public, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
 			version, source, created_by, created_at, updated_at
 		FROM ai.chatbots
 		WHERE namespace = $1
@@ -453,6 +467,7 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
 			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
 			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &responseLanguage, &chatbot.DisableExecutionLogs,
+			&chatbot.MCPTools, &chatbot.UseMCPSchema,
 			&chatbot.Version, &chatbot.Source,
 			&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
 		)
