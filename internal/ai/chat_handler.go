@@ -12,6 +12,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/logging"
+	"github.com/fluxbase-eu/fluxbase/internal/mcp"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -32,6 +33,8 @@ type ChatHandler struct {
 	config         *config.AIConfig
 	providers      map[string]Provider
 	providersMu    sync.RWMutex
+	// MCP integration
+	mcpExecutor *MCPToolExecutor
 }
 
 // NewChatHandler creates a new chat handler
@@ -69,6 +72,18 @@ func NewChatHandler(
 // SetSettingsResolver sets the settings resolver for template variable resolution in system prompts
 func (h *ChatHandler) SetSettingsResolver(resolver *SettingsResolver) {
 	h.schemaBuilder.SetSettingsResolver(resolver)
+}
+
+// SetMCPToolRegistry sets the MCP tool registry for MCP-enabled chatbots
+func (h *ChatHandler) SetMCPToolRegistry(registry *mcp.ToolRegistry) {
+	if registry != nil {
+		h.mcpExecutor = NewMCPToolExecutor(registry)
+	}
+}
+
+// SetMCPResources sets the MCP resource registry for schema fetching
+func (h *ChatHandler) SetMCPResources(resources MCPResourceReader) {
+	h.schemaBuilder.SetMCPResources(resources)
 }
 
 // ClientMessage represents a message from the client
@@ -380,11 +395,32 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 	for iteration := 0; iteration < maxIterations; iteration++ {
 		// Build tools list based on chatbot configuration
-		tools := []Tool{ExecuteSQLTool}
+		var tools []Tool
+
+		// Check if chatbot uses MCP tools
+		if chatbot.HasMCPTools() && h.mcpExecutor != nil {
+			// Use MCP tools - get tool definitions from MCP executor
+			mcpToolDefs := h.mcpExecutor.GetAvailableTools(chatbot)
+			for _, def := range mcpToolDefs {
+				tools = append(tools, Tool{
+					Type:     "function",
+					Function: ToolFunction(def),
+				})
+			}
+			log.Debug().
+				Str("chatbot", chatbot.Name).
+				Int("mcp_tools", len(mcpToolDefs)).
+				Msg("Using MCP tools for chatbot")
+		} else {
+			// Use legacy tools
+			tools = []Tool{ExecuteSQLTool}
+		}
+
+		// Add HTTP tool if domains are configured (works with both MCP and legacy)
 		if len(chatbot.HTTPAllowedDomains) > 0 {
 			tools = append(tools, HttpRequestTool)
 		}
-		// Add vector_search if chatbot has linked knowledge bases
+		// Add vector_search if chatbot has linked knowledge bases (legacy RAG)
 		if h.ragService != nil && h.ragService.IsRAGEnabled(ctx, chatbot.ID) {
 			tools = append(tools, VectorSearchTool)
 		}
@@ -417,16 +453,15 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 				// Collect tool calls to execute after streaming completes
 				if event.ToolCall != nil {
 					toolName := event.ToolCall.FunctionName
-					if toolName == "execute_sql" || toolName == "http_request" || toolName == "vector_search" {
-						pendingToolCalls = append(pendingToolCalls, ToolCall{
-							ID:   event.ToolCall.ID,
-							Type: "function",
-							Function: FunctionCall{
-								Name:      toolName,
-								Arguments: event.ToolCall.ArgumentsDelta,
-							},
-						})
-					}
+					// Accept legacy tools, MCP tools, or any tool requested by the model
+					pendingToolCalls = append(pendingToolCalls, ToolCall{
+						ID:   event.ToolCall.ID,
+						Type: "function",
+						Function: FunctionCall{
+							Name:      toolName,
+							Arguments: event.ToolCall.ArgumentsDelta,
+						},
+					})
 				}
 
 			case "done":
@@ -518,12 +553,19 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		Msg("Message processed")
 }
 
-// executeToolCall executes a tool call and returns:
+// / executeToolCall executes a tool call and returns:
 // - the result as a string for the AI
 // - the QueryResult for persistence (nil if query failed or not a SQL query)
 func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string, userMessage string) (string, *QueryResult) {
-	// Dispatch based on tool name
-	switch toolCall.Function.Name {
+	toolName := toolCall.Function.Name
+
+	// Check if this is an MCP tool
+	if chatbot.HasMCPTools() && h.mcpExecutor != nil && IsToolAllowed(toolName, chatbot.MCPTools) {
+		return h.executeMCPTool(ctx, chatCtx, conversationID, chatbot, toolCall)
+	}
+
+	// Dispatch based on tool name for legacy tools
+	switch toolName {
 	case "execute_sql":
 		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID, userMessage)
 	case "http_request":
@@ -531,7 +573,7 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 	case "vector_search":
 		return h.executeVectorSearchTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID)
 	default:
-		return fmt.Sprintf("Error: Unknown tool '%s'", toolCall.Function.Name), nil
+		return fmt.Sprintf("Error: Unknown tool '%s'", toolName), nil
 	}
 }
 
@@ -854,6 +896,79 @@ func vectorSearchResultsToMapSlice(results []VectorSearchResult) []map[string]an
 		}
 	}
 	return data
+}
+
+// executeMCPTool handles MCP tool execution for chatbots with MCP tools configured
+func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall) (string, *QueryResult) {
+	toolName := toolCall.Function.Name
+
+	// Parse tool arguments
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		log.Error().Err(err).Str("tool", toolName).Str("args", toolCall.Function.Arguments).Msg("Failed to parse MCP tool arguments")
+		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
+	}
+
+	// Send progress to client
+	h.sendProgress(chatCtx, conversationID, "executing", fmt.Sprintf("Executing %s...", toolName))
+
+	// Execute the MCP tool
+	result, err := h.mcpExecutor.ExecuteTool(ctx, toolName, args, chatCtx, chatbot)
+	if err != nil {
+		log.Error().Err(err).Str("tool", toolName).Msg("MCP tool execution error")
+		return fmt.Sprintf("Error executing %s: %v", toolName, err), nil
+	}
+
+	if result.IsError {
+		log.Warn().Str("tool", toolName).Str("error", result.Content).Msg("MCP tool returned error")
+		return fmt.Sprintf("Error: %s", result.Content), nil
+	}
+
+	// Log successful execution
+	log.Debug().
+		Str("chatbot", chatbot.Name).
+		Str("tool", toolName).
+		Int("result_length", len(result.Content)).
+		Msg("MCP tool executed successfully")
+
+	// For query_table results, try to parse and create a QueryResult for persistence
+	var queryResult *QueryResult
+	if toolName == "query_table" {
+		queryResult = h.parseMCPQueryResult(toolName, args, result.Content)
+	}
+
+	// Send result to client
+	h.send(chatCtx, ServerMessage{
+		Type:           "tool_result",
+		ConversationID: conversationID,
+		Message:        toolName,
+		Data:           []map[string]any{{"tool": toolName, "result": result.Content}},
+	})
+
+	return result.Content, queryResult
+}
+
+// parseMCPQueryResult attempts to parse MCP query results for persistence
+func (h *ChatHandler) parseMCPQueryResult(toolName string, args map[string]any, resultContent string) *QueryResult {
+	// Try to parse the result as JSON array
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(resultContent), &rows); err != nil {
+		// Not valid JSON array, skip persistence
+		return nil
+	}
+
+	// Build a description for the query
+	tableName := ""
+	if t, ok := args["table"].(string); ok {
+		tableName = t
+	}
+
+	return &QueryResult{
+		Query:    fmt.Sprintf("MCP %s on %s", toolName, tableName),
+		Summary:  fmt.Sprintf("Query returned %d row(s)", len(rows)),
+		RowCount: len(rows),
+		Data:     rows,
+	}
 }
 
 // parseURLForLogging extracts domain and path from URL for safe logging (no query params)

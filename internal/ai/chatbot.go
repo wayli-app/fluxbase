@@ -70,6 +70,10 @@ type Chatbot struct {
 	// Settings
 	RequiredSettings []string `json:"required_settings,omitempty"` // Setting keys this chatbot requires
 
+	// MCP integration
+	MCPTools     []string `json:"mcp_tools,omitempty"`      // Allowed MCP tools (e.g., query_table, insert_record)
+	UseMCPSchema bool     `json:"use_mcp_schema,omitempty"` // If true, fetch schema from MCP resources
+
 	Version   int       `json:"version"`
 	Source    string    `json:"source"` // "filesystem" or "api"
 	CreatedBy *string   `json:"created_by,omitempty"`
@@ -125,6 +129,10 @@ type ChatbotConfig struct {
 
 	// Settings
 	RequiredSettings []string // Setting keys this chatbot requires
+
+	// MCP integration
+	MCPTools     []string // Allowed MCP tools (e.g., query_table, insert_record)
+	UseMCPSchema bool     // If true, fetch schema from MCP resources
 
 	// Metadata
 	Version int
@@ -248,6 +256,13 @@ var (
 
 	// @fluxbase:required-settings pelias.endpoint,google.maps.api_key
 	requiredSettingsPattern = regexp.MustCompile(`@fluxbase:required-settings\s+([^\n*]+)`)
+
+	// MCP integration annotations
+	// @fluxbase:mcp-tools query_table,insert_record,invoke_function
+	mcpToolsPattern = regexp.MustCompile(`@fluxbase:mcp-tools\s+([^\n*]+)`)
+
+	// @fluxbase:use-mcp-schema (or @fluxbase:use-mcp-schema true)
+	useMCPSchemaPattern = regexp.MustCompile(`@fluxbase:use-mcp-schema(?:\s+(true|false))?`)
 )
 
 // ParseChatbotConfig parses chatbot configuration from TypeScript source code
@@ -440,6 +455,19 @@ func ParseChatbotConfig(code string) ChatbotConfig {
 		config.RequiredSettings = parseCSV(matches[1])
 	}
 
+	// Parse MCP tools
+	if matches := mcpToolsPattern.FindStringSubmatch(code); len(matches) > 1 {
+		config.MCPTools = parseCSV(matches[1])
+	}
+
+	// Parse use-mcp-schema flag
+	if matches := useMCPSchemaPattern.FindStringSubmatch(code); matches != nil {
+		// If no value specified or value is "true", enable MCP schema
+		if len(matches) <= 1 || matches[1] == "" || matches[1] == "true" {
+			config.UseMCPSchema = true
+		}
+	}
+
 	return config
 }
 
@@ -562,6 +590,8 @@ func (c *Chatbot) ApplyConfig(config ChatbotConfig) {
 	c.ResponseLanguage = config.ResponseLanguage
 	c.DisableExecutionLogs = config.DisableExecutionLogs
 	c.RequiredSettings = config.RequiredSettings
+	c.MCPTools = config.MCPTools
+	c.UseMCPSchema = config.UseMCPSchema
 
 	// Only override version if explicitly set in annotation
 	if config.Version > 0 {
@@ -606,4 +636,51 @@ func (c *Chatbot) PopulateDerivedFields() {
 			c.Model = strings.TrimSpace(matches[1])
 		}
 	}
+}
+
+// QualifiedTable represents a table with its schema
+type QualifiedTable struct {
+	Schema string
+	Table  string
+}
+
+// ParseQualifiedTables extracts schema and table from allowed-tables annotation.
+// Tables can be specified as "table" (defaults to public schema) or "schema.table".
+// Returns a list of qualified tables.
+func ParseQualifiedTables(allowedTables []string, defaultSchema string) []QualifiedTable {
+	if defaultSchema == "" {
+		defaultSchema = "public"
+	}
+
+	result := make([]QualifiedTable, 0, len(allowedTables))
+	for _, table := range allowedTables {
+		if strings.Contains(table, ".") {
+			parts := strings.SplitN(table, ".", 2)
+			result = append(result, QualifiedTable{
+				Schema: parts[0],
+				Table:  parts[1],
+			})
+		} else {
+			result = append(result, QualifiedTable{
+				Schema: defaultSchema,
+				Table:  table,
+			})
+		}
+	}
+	return result
+}
+
+// GroupTablesBySchema groups qualified tables by schema for efficient filtering.
+// Returns a map of schema -> []table names.
+func GroupTablesBySchema(tables []QualifiedTable) map[string][]string {
+	result := make(map[string][]string)
+	for _, qt := range tables {
+		result[qt.Schema] = append(result[qt.Schema], qt.Table)
+	}
+	return result
+}
+
+// HasMCPTools returns true if the chatbot has MCP tools configured
+func (c *Chatbot) HasMCPTools() bool {
+	return len(c.MCPTools) > 0
 }

@@ -501,4 +501,69 @@ You are a helpful assistant...`
 		assert.Equal(t, []string{"SELECT"}, config.AllowedOperations)
 		assert.Equal(t, []string{"public"}, config.AllowedSchemas)
 	})
+
+	t.Run("parses mcp-tools annotation", func(t *testing.T) {
+		code := `
+// @fluxbase:mcp-tools query_table, insert_record, invoke_function
+You are a helpful assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.Equal(t, []string{"query_table", "insert_record", "invoke_function"}, config.MCPTools)
+	})
+
+	t.Run("parses use-mcp-schema annotation without value", func(t *testing.T) {
+		code := `
+// @fluxbase:use-mcp-schema
+You are a helpful assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.True(t, config.UseMCPSchema)
+	})
+
+	t.Run("parses use-mcp-schema annotation with true", func(t *testing.T) {
+		code := `
+// @fluxbase:use-mcp-schema true
+You are a helpful assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.True(t, config.UseMCPSchema)
+	})
+
+	t.Run("parses use-mcp-schema annotation with false", func(t *testing.T) {
+		code := `
+// @fluxbase:use-mcp-schema false
+You are a helpful assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.False(t, config.UseMCPSchema)
+	})
+
+	t.Run("parses complete MCP chatbot config", func(t *testing.T) {
+		code := `
+// @fluxbase:description Order management assistant
+// @fluxbase:allowed-tables orders,order_items,products,analytics.order_metrics
+// @fluxbase:mcp-tools query_table,insert_record,invoke_function
+// @fluxbase:use-mcp-schema
+// @fluxbase:public
+// @fluxbase:persist-conversations
+// @fluxbase:rate-limit 30/min
+You are an order management assistant.`
+		config := parseChatbotAnnotations(code)
+
+		assert.Equal(t, "Order management assistant", config.Description)
+		assert.Equal(t, []string{"orders", "order_items", "products", "analytics.order_metrics"}, config.AllowedTables)
+		assert.Equal(t, []string{"query_table", "insert_record", "invoke_function"}, config.MCPTools)
+		assert.True(t, config.UseMCPSchema)
+		assert.True(t, config.IsPublic)
+		assert.True(t, config.PersistConversations)
+		assert.Equal(t, 30, config.RateLimitPerMinute)
+	})
+
+	t.Run("mcp-tools defaults to empty slice", func(t *testing.T) {
+		code := `You are a helpful assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.Equal(t, []string{}, config.MCPTools)
+		assert.False(t, config.UseMCPSchema)
+	})
 }

@@ -2,19 +2,27 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/mcp"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
+
+// MCPResourceReader is an interface for reading MCP resources
+type MCPResourceReader interface {
+	ReadResource(ctx context.Context, uri string, authCtx *mcp.AuthContext) ([]mcp.Content, error)
+}
 
 // SchemaBuilder builds schema descriptions for LLM context
 type SchemaBuilder struct {
 	db               *database.Connection
 	settingsResolver *SettingsResolver
+	mcpResources     MCPResourceReader
 }
 
 // NewSchemaBuilder creates a new schema builder
@@ -27,6 +35,11 @@ func NewSchemaBuilder(db *database.Connection) *SchemaBuilder {
 // SetSettingsResolver sets the settings resolver for template variable resolution
 func (s *SchemaBuilder) SetSettingsResolver(resolver *SettingsResolver) {
 	s.settingsResolver = resolver
+}
+
+// SetMCPResources sets the MCP resource reader for schema fetching
+func (s *SchemaBuilder) SetMCPResources(resources MCPResourceReader) {
+	s.mcpResources = resources
 }
 
 // TableInfo represents information about a database table
@@ -295,8 +308,27 @@ func (s *SchemaBuilder) GetTableInfo(ctx context.Context, allowedSchemas, allowe
 
 // BuildSystemPrompt builds the complete system prompt for a chatbot
 func (s *SchemaBuilder) BuildSystemPrompt(ctx context.Context, chatbot *Chatbot, userID string) (string, error) {
-	// Get schema description for allowed tables
-	schemaDesc, err := s.BuildSchemaDescription(ctx, chatbot.AllowedSchemas, chatbot.AllowedTables)
+	return s.BuildSystemPromptWithAuth(ctx, chatbot, userID, nil)
+}
+
+// BuildSystemPromptWithAuth builds the complete system prompt for a chatbot with MCP auth context
+// When authCtx is provided and chatbot.UseMCPSchema is true, schema is fetched from MCP resources
+func (s *SchemaBuilder) BuildSystemPromptWithAuth(ctx context.Context, chatbot *Chatbot, userID string, authCtx *mcp.AuthContext) (string, error) {
+	var schemaDesc string
+	var err error
+
+	// Use MCP schema if enabled and auth context is available
+	if chatbot.UseMCPSchema && authCtx != nil && s.mcpResources != nil {
+		schemaDesc, err = s.BuildSchemaDescriptionFromMCP(ctx, chatbot.AllowedSchemas, chatbot.AllowedTables, authCtx)
+		if err != nil {
+			// Fall back to direct DB introspection on error
+			log.Warn().Err(err).Msg("Failed to fetch schema from MCP, falling back to direct DB introspection")
+			schemaDesc, err = s.BuildSchemaDescription(ctx, chatbot.AllowedSchemas, chatbot.AllowedTables)
+		}
+	} else {
+		// Get schema description via direct DB introspection
+		schemaDesc, err = s.BuildSchemaDescription(ctx, chatbot.AllowedSchemas, chatbot.AllowedTables)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to build schema description: %w", err)
 	}
@@ -415,6 +447,192 @@ func (s *SchemaBuilder) GetCompactSchemaDescription(ctx context.Context, allowed
 			cols[i] = colDesc
 		}
 		sb.WriteString(strings.Join(cols, ", "))
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
+// GetTableInfoFromMCP fetches table information from MCP schema resources
+// This provides cached schema data instead of querying the database directly
+func (s *SchemaBuilder) GetTableInfoFromMCP(ctx context.Context, allowedSchemas, allowedTables []string, authCtx *mcp.AuthContext) ([]TableInfo, error) {
+	if s.mcpResources == nil {
+		return nil, fmt.Errorf("MCP resources not configured")
+	}
+
+	// Read schema from MCP resource
+	contents, err := s.mcpResources.ReadResource(ctx, "fluxbase://schema/tables", authCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read MCP schema resource: %w", err)
+	}
+
+	if len(contents) == 0 {
+		return nil, fmt.Errorf("empty MCP schema response")
+	}
+
+	// Parse the JSON schema data
+	var schemaData map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(contents[0].Text), &schemaData); err != nil {
+		return nil, fmt.Errorf("failed to parse MCP schema: %w", err)
+	}
+
+	// Build filter sets for efficient lookup
+	allowedSchemaSet := make(map[string]bool)
+	for _, schema := range allowedSchemas {
+		allowedSchemaSet[schema] = true
+	}
+	if len(allowedSchemaSet) == 0 {
+		allowedSchemaSet["public"] = true
+	}
+
+	// Parse qualified table names to handle schema.table format
+	qualifiedTables := ParseQualifiedTables(allowedTables, "public")
+	tablesBySchema := GroupTablesBySchema(qualifiedTables)
+
+	// Convert MCP schema format to TableInfo
+	var tables []TableInfo
+	for tableKey, tableJSON := range schemaData {
+		var tableData struct {
+			Schema  string `json:"schema"`
+			Name    string `json:"name"`
+			Columns []struct {
+				Name       string  `json:"name"`
+				Type       string  `json:"type"`
+				Nullable   bool    `json:"nullable"`
+				Default    *string `json:"default,omitempty"`
+				PrimaryKey bool    `json:"primary_key,omitempty"`
+			} `json:"columns"`
+			PrimaryKey  []string `json:"primary_key,omitempty"`
+			ForeignKeys []struct {
+				Name             string `json:"name"`
+				Column           string `json:"column"`
+				ReferencedTable  string `json:"referenced_table"`
+				ReferencedColumn string `json:"referenced_column"`
+			} `json:"foreign_keys,omitempty"`
+		}
+
+		if err := json.Unmarshal(tableJSON, &tableData); err != nil {
+			log.Warn().Str("table", tableKey).Err(err).Msg("Failed to parse table data from MCP schema")
+			continue
+		}
+
+		// Check if this table should be included
+		if !s.isTableAllowed(tableData.Schema, tableData.Name, allowedSchemaSet, tablesBySchema) {
+			continue
+		}
+
+		// Build foreign key map for column lookup
+		fkMap := make(map[string]struct {
+			Table  string
+			Column string
+		})
+		for _, fk := range tableData.ForeignKeys {
+			fkMap[fk.Column] = struct {
+				Table  string
+				Column string
+			}{
+				Table:  fk.ReferencedTable,
+				Column: fk.ReferencedColumn,
+			}
+		}
+
+		// Convert columns
+		columns := make([]ColumnInfo, 0, len(tableData.Columns))
+		for _, col := range tableData.Columns {
+			colInfo := ColumnInfo{
+				Name:         col.Name,
+				DataType:     col.Type,
+				IsNullable:   col.Nullable,
+				IsPrimaryKey: col.PrimaryKey,
+				Default:      col.Default,
+			}
+
+			// Check if column is a foreign key
+			if fk, exists := fkMap[col.Name]; exists {
+				colInfo.IsForeignKey = true
+				colInfo.ForeignTable = &fk.Table
+				colInfo.ForeignCol = &fk.Column
+			}
+
+			columns = append(columns, colInfo)
+		}
+
+		tables = append(tables, TableInfo{
+			Schema:  tableData.Schema,
+			Name:    tableData.Name,
+			Columns: columns,
+		})
+	}
+
+	return tables, nil
+}
+
+// isTableAllowed checks if a table should be included based on allowed schemas and tables
+func (s *SchemaBuilder) isTableAllowed(schema, tableName string, allowedSchemaSet map[string]bool, tablesBySchema map[string][]string) bool {
+	// If specific tables are configured for this schema, check against them
+	if tables, exists := tablesBySchema[schema]; exists && len(tables) > 0 {
+		for _, t := range tables {
+			if t == tableName {
+				return true
+			}
+		}
+		return false
+	}
+
+	// If the schema is in the allowed list (and no specific tables), allow all tables in that schema
+	if allowedSchemaSet[schema] {
+		return true
+	}
+
+	return false
+}
+
+// BuildSchemaDescriptionFromMCP builds schema description using MCP resources
+func (s *SchemaBuilder) BuildSchemaDescriptionFromMCP(ctx context.Context, allowedSchemas, allowedTables []string, authCtx *mcp.AuthContext) (string, error) {
+	tables, err := s.GetTableInfoFromMCP(ctx, allowedSchemas, allowedTables, authCtx)
+	if err != nil {
+		return "", err
+	}
+
+	if len(tables) == 0 {
+		return "No tables available.", nil
+	}
+
+	// Build schema description using the same format as BuildSchemaDescription
+	var sb strings.Builder
+	sb.WriteString("## Available Database Tables\n\n")
+
+	for _, table := range tables {
+		sb.WriteString(fmt.Sprintf("### %s.%s\n", table.Schema, table.Name))
+		if table.Description != "" {
+			sb.WriteString(fmt.Sprintf("%s\n\n", table.Description))
+		}
+
+		sb.WriteString("| Column | Type | Nullable | Notes |\n")
+		sb.WriteString("|--------|------|----------|-------|\n")
+
+		for _, col := range table.Columns {
+			nullable := "YES"
+			if !col.IsNullable {
+				nullable = "NO"
+			}
+
+			notes := []string{}
+			if col.IsPrimaryKey {
+				notes = append(notes, "PK")
+			}
+			if col.IsForeignKey && col.ForeignTable != nil {
+				notes = append(notes, fmt.Sprintf("FK → %s.%s", *col.ForeignTable, *col.ForeignCol))
+			}
+			if col.Description != "" {
+				notes = append(notes, col.Description)
+			}
+
+			notesStr := strings.Join(notes, ", ")
+			sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n",
+				col.Name, col.DataType, nullable, notesStr))
+		}
+
 		sb.WriteString("\n")
 	}
 

@@ -35,9 +35,11 @@ func (t *SyncChatbotTool) Description() string {
 
 Configuration annotations:
   @fluxbase:description <text> - Chatbot description
-  @fluxbase:allowed-tables <tables> - Comma-separated list of tables the chatbot can query
+  @fluxbase:allowed-tables <tables> - Comma-separated list of tables the chatbot can query (supports schema.table format)
   @fluxbase:allowed-operations <ops> - Allowed SQL operations: SELECT, INSERT, UPDATE, DELETE
   @fluxbase:allowed-schemas <schemas> - Allowed schemas (default: public)
+  @fluxbase:mcp-tools <tools> - Comma-separated MCP tools to enable (e.g., query_table,insert_record,invoke_function)
+  @fluxbase:use-mcp-schema - Fetch schema from MCP resources instead of direct DB introspection
   @fluxbase:public - Make chatbot publicly discoverable
   @fluxbase:allow-unauthenticated - Allow anonymous access
   @fluxbase:model <name> - AI model to use
@@ -50,10 +52,22 @@ Configuration annotations:
   @fluxbase:response-language <lang> - Response language (default: "auto")
   @fluxbase:disable-logs - Disable execution logging
 
+MCP Tools (use with @fluxbase:mcp-tools):
+  query_table - Query tables with filters, ordering, pagination, and optional vector search
+  insert_record - Insert a new record into a table
+  update_record - Update records matching filters
+  delete_record - Delete records matching filters
+  invoke_function - Call an edge function
+  invoke_rpc - Execute an RPC procedure
+  submit_job / get_job_status - Background job management
+  list_objects / upload_object / download_object / delete_object - Storage operations
+  search_vectors - Semantic search over vector embeddings
+
 Example:
 // @fluxbase:description Customer support assistant
-// @fluxbase:allowed-tables users,orders,products
-// @fluxbase:allowed-operations SELECT
+// @fluxbase:allowed-tables users,orders,products,analytics.metrics
+// @fluxbase:mcp-tools query_table,insert_record,invoke_function
+// @fluxbase:use-mcp-schema
 // @fluxbase:public
 // @fluxbase:persist-conversations
 // @fluxbase:rate-limit 30/min
@@ -151,6 +165,8 @@ func (t *SyncChatbotTool) Execute(ctx context.Context, args map[string]any, auth
 			AllowedOperations:    config.AllowedOperations,
 			AllowedSchemas:       config.AllowedSchemas,
 			HTTPAllowedDomains:   config.HTTPAllowedDomains,
+			MCPTools:             config.MCPTools,
+			UseMCPSchema:         config.UseMCPSchema,
 			Enabled:              true,
 			MaxTokens:            config.MaxTokens,
 			Temperature:          config.Temperature,
@@ -205,6 +221,8 @@ func (t *SyncChatbotTool) Execute(ctx context.Context, args map[string]any, auth
 		existing.AllowedOperations = config.AllowedOperations
 		existing.AllowedSchemas = config.AllowedSchemas
 		existing.HTTPAllowedDomains = config.HTTPAllowedDomains
+		existing.MCPTools = config.MCPTools
+		existing.UseMCPSchema = config.UseMCPSchema
 		existing.MaxTokens = config.MaxTokens
 		existing.Temperature = config.Temperature
 		existing.Model = config.Model
@@ -264,6 +282,8 @@ type ChatbotToolConfig struct {
 	AllowedOperations    []string
 	AllowedSchemas       []string
 	HTTPAllowedDomains   []string
+	MCPTools             []string // MCP tools this chatbot can use
+	UseMCPSchema         bool     // If true, fetch schema from MCP resources
 	IsPublic             bool
 	AllowUnauthenticated bool
 	Model                string
@@ -286,6 +306,8 @@ func parseChatbotAnnotations(code string) ChatbotToolConfig {
 		AllowedOperations:    []string{"SELECT"},
 		AllowedSchemas:       []string{"public"},
 		HTTPAllowedDomains:   []string{},
+		MCPTools:             []string{},
+		UseMCPSchema:         false,
 		MaxTokens:            4096,
 		Temperature:          0.7,
 		RateLimitPerMinute:   20,
@@ -390,6 +412,16 @@ func parseChatbotAnnotations(code string) ChatbotToolConfig {
 			config.ResponseLanguage = value
 		case "disable-logs":
 			config.DisableLogs = true
+		case "mcp-tools":
+			tools := parseCommaSeparatedList(value)
+			if len(tools) > 0 {
+				config.MCPTools = tools
+			}
+		case "use-mcp-schema":
+			// Supports both "@fluxbase:use-mcp-schema" and "@fluxbase:use-mcp-schema true"
+			if value == "" || strings.ToLower(value) == "true" {
+				config.UseMCPSchema = true
+			}
 		}
 	}
 

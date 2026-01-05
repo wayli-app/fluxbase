@@ -281,3 +281,148 @@ func TestApplyConfig_ResponseLanguage(t *testing.T) {
 
 	assert.Equal(t, "German", chatbot.ResponseLanguage)
 }
+
+func TestParseChatbotConfig_MCPTools(t *testing.T) {
+	t.Run("parses mcp-tools annotation", func(t *testing.T) {
+		code := "/**\n" +
+			" * Test chatbot\n" +
+			" *\n" +
+			" * @fluxbase:mcp-tools query_table,insert_record,invoke_function\n" +
+			" */\n" +
+			"\n" +
+			"export default `You are a helpful assistant.`;\n"
+
+		config := ParseChatbotConfig(code)
+
+		assert.Equal(t, []string{"query_table", "insert_record", "invoke_function"}, config.MCPTools)
+	})
+
+	t.Run("parses use-mcp-schema annotation", func(t *testing.T) {
+		code := "/**\n" +
+			" * Test chatbot\n" +
+			" *\n" +
+			" * @fluxbase:use-mcp-schema\n" +
+			" */\n" +
+			"\n" +
+			"export default `You are a helpful assistant.`;\n"
+
+		config := ParseChatbotConfig(code)
+
+		assert.True(t, config.UseMCPSchema)
+	})
+
+	t.Run("use-mcp-schema with true value", func(t *testing.T) {
+		code := "/**\n" +
+			" * Test chatbot\n" +
+			" *\n" +
+			" * @fluxbase:use-mcp-schema true\n" +
+			" */\n" +
+			"\n" +
+			"export default `You are a helpful assistant.`;\n"
+
+		config := ParseChatbotConfig(code)
+
+		assert.True(t, config.UseMCPSchema)
+	})
+
+	t.Run("defaults to empty/false for MCP fields", func(t *testing.T) {
+		code := "/**\n" +
+			" * Test chatbot\n" +
+			" *\n" +
+			" * @fluxbase:allowed-tables users\n" +
+			" */\n" +
+			"\n" +
+			"export default `You are a helpful assistant.`;\n"
+
+		config := ParseChatbotConfig(code)
+
+		assert.Empty(t, config.MCPTools)
+		assert.False(t, config.UseMCPSchema)
+	})
+}
+
+func TestApplyConfig_MCPFields(t *testing.T) {
+	config := ChatbotConfig{
+		MCPTools:     []string{"query_table", "insert_record"},
+		UseMCPSchema: true,
+	}
+
+	chatbot := &Chatbot{}
+	chatbot.ApplyConfig(config)
+
+	assert.Equal(t, []string{"query_table", "insert_record"}, chatbot.MCPTools)
+	assert.True(t, chatbot.UseMCPSchema)
+}
+
+func TestChatbot_HasMCPTools(t *testing.T) {
+	t.Run("returns true when MCP tools configured", func(t *testing.T) {
+		chatbot := &Chatbot{
+			MCPTools: []string{"query_table", "insert_record"},
+		}
+		assert.True(t, chatbot.HasMCPTools())
+	})
+
+	t.Run("returns false when MCP tools empty", func(t *testing.T) {
+		chatbot := &Chatbot{
+			MCPTools: []string{},
+		}
+		assert.False(t, chatbot.HasMCPTools())
+	})
+
+	t.Run("returns false when MCP tools nil", func(t *testing.T) {
+		chatbot := &Chatbot{
+			MCPTools: nil,
+		}
+		assert.False(t, chatbot.HasMCPTools())
+	})
+}
+
+func TestParseQualifiedTables(t *testing.T) {
+	t.Run("simple table names use default schema", func(t *testing.T) {
+		result := ParseQualifiedTables([]string{"users", "orders"}, "public")
+		assert.Len(t, result, 2)
+		assert.Equal(t, "public", result[0].Schema)
+		assert.Equal(t, "users", result[0].Table)
+		assert.Equal(t, "public", result[1].Schema)
+		assert.Equal(t, "orders", result[1].Table)
+	})
+
+	t.Run("qualified names extract schema", func(t *testing.T) {
+		result := ParseQualifiedTables([]string{"analytics.metrics", "public.users"}, "public")
+		assert.Len(t, result, 2)
+		assert.Equal(t, "analytics", result[0].Schema)
+		assert.Equal(t, "metrics", result[0].Table)
+		assert.Equal(t, "public", result[1].Schema)
+		assert.Equal(t, "users", result[1].Table)
+	})
+
+	t.Run("mixed qualified and simple names", func(t *testing.T) {
+		result := ParseQualifiedTables([]string{"users", "analytics.metrics"}, "public")
+		assert.Len(t, result, 2)
+		assert.Equal(t, "public", result[0].Schema)
+		assert.Equal(t, "users", result[0].Table)
+		assert.Equal(t, "analytics", result[1].Schema)
+		assert.Equal(t, "metrics", result[1].Table)
+	})
+
+	t.Run("empty list returns empty", func(t *testing.T) {
+		result := ParseQualifiedTables([]string{}, "public")
+		assert.Empty(t, result)
+	})
+}
+
+func TestGroupTablesBySchema(t *testing.T) {
+	tables := []QualifiedTable{
+		{Schema: "public", Table: "users"},
+		{Schema: "public", Table: "orders"},
+		{Schema: "analytics", Table: "metrics"},
+	}
+
+	result := GroupTablesBySchema(tables)
+
+	assert.Len(t, result["public"], 2)
+	assert.Contains(t, result["public"], "users")
+	assert.Contains(t, result["public"], "orders")
+	assert.Len(t, result["analytics"], 1)
+	assert.Contains(t, result["analytics"], "metrics")
+}

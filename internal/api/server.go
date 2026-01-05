@@ -1022,6 +1022,13 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	// Storage resources
 	resourceRegistry.Register(mcpresources.NewBucketsResource(s.db))
 
+	// Wire MCP registries to AI chat handler for MCP-enabled chatbots
+	if s.aiChatHandler != nil {
+		s.aiChatHandler.SetMCPToolRegistry(toolRegistry)
+		s.aiChatHandler.SetMCPResources(resourceRegistry)
+		log.Debug().Msg("MCP registries wired to AI chat handler")
+	}
+
 	log.Debug().
 		Int("tools", len(toolRegistry.ListTools(&mcp.AuthContext{IsServiceRole: true}))).
 		Int("resources", len(resourceRegistry.ListResources(&mcp.AuthContext{IsServiceRole: true}))).

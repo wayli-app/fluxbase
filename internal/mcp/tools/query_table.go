@@ -59,10 +59,16 @@ func executeWithRLS(ctx context.Context, db *database.Connection, authCtx *mcp.A
 	return nil
 }
 
+// EmbeddingGenerator generates embeddings for text
+type EmbeddingGenerator interface {
+	GenerateEmbedding(ctx context.Context, text string) ([]float32, error)
+}
+
 // QueryTableTool implements the query_table MCP tool
 type QueryTableTool struct {
-	db          *database.Connection
-	schemaCache *database.SchemaCache
+	db                 *database.Connection
+	schemaCache        *database.SchemaCache
+	embeddingGenerator EmbeddingGenerator
 }
 
 // NewQueryTableTool creates a new query_table tool
@@ -71,6 +77,11 @@ func NewQueryTableTool(db *database.Connection, schemaCache *database.SchemaCach
 		db:          db,
 		schemaCache: schemaCache,
 	}
+}
+
+// SetEmbeddingGenerator sets the embedding generator for vector search support
+func (t *QueryTableTool) SetEmbeddingGenerator(eg EmbeddingGenerator) {
+	t.embeddingGenerator = eg
 }
 
 func (t *QueryTableTool) Name() string {
@@ -103,7 +114,7 @@ func (t *QueryTableTool) InputSchema() map[string]any {
 			},
 			"order": map[string]any{
 				"type":        "string",
-				"description": "Order by clause (e.g., 'created_at.desc', 'name.asc')",
+				"description": "Order by clause (e.g., 'created_at.desc', 'name.asc'). Ignored when vector_search is used.",
 			},
 			"limit": map[string]any{
 				"type":        "integer",
@@ -113,8 +124,28 @@ func (t *QueryTableTool) InputSchema() map[string]any {
 			},
 			"offset": map[string]any{
 				"type":        "integer",
-				"description": "Number of rows to skip (for pagination)",
+				"description": "Number of rows to skip (for pagination). Ignored when vector_search is used.",
 				"default":     0,
+			},
+			"vector_search": map[string]any{
+				"type":        "object",
+				"description": "Optional vector/semantic search parameters. When provided, performs similarity search on a vector column.",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type":        "string",
+						"description": "The search query text to find semantically similar rows",
+					},
+					"column": map[string]any{
+						"type":        "string",
+						"description": "The vector column name containing embeddings (e.g., 'embedding')",
+					},
+					"threshold": map[string]any{
+						"type":        "number",
+						"description": "Minimum similarity threshold 0-1 (default: 0.7)",
+						"default":     0.7,
+					},
+				},
+				"required": []string{"query", "column"},
 			},
 		},
 		"required": []string{"table"},
@@ -178,7 +209,21 @@ func (t *QueryTableTool) Execute(ctx context.Context, args map[string]any, authC
 		}
 	}
 
-	// Parse order
+	// Parse limit
+	limit := 100
+	if l, ok := args["limit"].(float64); ok {
+		limit = int(l)
+		if limit > 1000 {
+			limit = 1000
+		}
+	}
+
+	// Check for vector search
+	if vectorSearch, ok := args["vector_search"].(map[string]any); ok {
+		return t.executeVectorSearch(ctx, schema, table, columns, filters, vectorSearch, limit, authCtx)
+	}
+
+	// Parse order for regular queries
 	var orderBy []query.OrderBy
 	if orderStr, ok := args["order"].(string); ok && orderStr != "" {
 		order, err := parseOrder(orderStr)
@@ -186,15 +231,6 @@ func (t *QueryTableTool) Execute(ctx context.Context, args map[string]any, authC
 			return nil, fmt.Errorf("invalid order: %w", err)
 		}
 		orderBy = order
-	}
-
-	// Parse limit and offset
-	limit := 100
-	if l, ok := args["limit"].(float64); ok {
-		limit = int(l)
-		if limit > 1000 {
-			limit = 1000
-		}
 	}
 
 	offset := 0
@@ -479,4 +515,178 @@ func scanRowsToMaps(rows pgx.Rows) ([]map[string]any, error) {
 	}
 
 	return results, nil
+}
+
+// executeVectorSearch performs a semantic similarity search on a table with a vector column
+func (t *QueryTableTool) executeVectorSearch(
+	ctx context.Context,
+	schema, table string,
+	columns []string,
+	filters []query.Filter,
+	vectorSearch map[string]any,
+	limit int,
+	authCtx *mcp.AuthContext,
+) (*mcp.ToolResult, error) {
+	// Parse vector search parameters
+	searchQuery, ok := vectorSearch["query"].(string)
+	if !ok || searchQuery == "" {
+		return nil, fmt.Errorf("vector_search.query is required")
+	}
+
+	vectorColumn, ok := vectorSearch["column"].(string)
+	if !ok || vectorColumn == "" {
+		return nil, fmt.Errorf("vector_search.column is required")
+	}
+
+	threshold := 0.7
+	if th, ok := vectorSearch["threshold"].(float64); ok {
+		threshold = th
+	}
+
+	// Check if embedding generator is configured
+	if t.embeddingGenerator == nil {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent("Vector search is not available: embedding generator not configured")},
+			IsError: true,
+		}, nil
+	}
+
+	// Generate embedding for the search query
+	embedding, err := t.embeddingGenerator.GenerateEmbedding(ctx, searchQuery)
+	if err != nil {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Failed to generate embedding: %v", err))},
+			IsError: true,
+		}, nil
+	}
+
+	// Build vector search query
+	sqlQuery, queryArgs := buildVectorSearchQuery(schema, table, columns, vectorColumn, embedding, filters, threshold, limit)
+
+	log.Debug().
+		Str("query", sqlQuery).
+		Str("schema", schema).
+		Str("table", table).
+		Str("vector_column", vectorColumn).
+		Float64("threshold", threshold).
+		Msg("MCP: Executing query_table with vector search")
+
+	// Execute query with RLS context
+	var results []map[string]any
+	err = executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, sqlQuery, queryArgs...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		results, err = scanRowsToMaps(rows)
+		return err
+	})
+
+	if err != nil {
+		log.Error().Err(err).Str("query", sqlQuery).Msg("MCP: query_table vector search failed")
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Vector search failed: %v", err))},
+			IsError: true,
+		}, nil
+	}
+
+	// Serialize results to JSON
+	resultJSON, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{mcp.ErrorContent(fmt.Sprintf("Failed to serialize results: %v", err))},
+			IsError: true,
+		}, nil
+	}
+
+	return &mcp.ToolResult{
+		Content: []mcp.Content{mcp.TextContent(string(resultJSON))},
+	}, nil
+}
+
+// buildVectorSearchQuery builds a SELECT query with vector similarity ordering
+func buildVectorSearchQuery(
+	schema, table string,
+	columns []string,
+	vectorColumn string,
+	embedding []float32,
+	filters []query.Filter,
+	threshold float64,
+	limit int,
+) (string, []interface{}) {
+	var args []interface{}
+	argCounter := 1
+
+	// Build SELECT clause with similarity score
+	selectClause := "*"
+	if len(columns) > 0 {
+		quotedCols := make([]string, 0, len(columns))
+		for _, col := range columns {
+			if quoted := quoteIdentifier(col); quoted != "" {
+				quotedCols = append(quotedCols, quoted)
+			}
+		}
+		if len(quotedCols) > 0 {
+			selectClause = strings.Join(quotedCols, ", ")
+		}
+	}
+
+	// Add similarity score to select
+	quotedVectorCol := quoteIdentifier(vectorColumn)
+	similarityExpr := fmt.Sprintf("1 - (%s <=> $%d::vector) AS similarity", quotedVectorCol, argCounter)
+	args = append(args, embeddingToString(embedding))
+	argCounter++
+
+	// Build query with similarity
+	sqlQuery := fmt.Sprintf("SELECT %s, %s FROM %s.%s",
+		selectClause,
+		similarityExpr,
+		quoteIdentifier(schema),
+		quoteIdentifier(table))
+
+	// Build WHERE clause (including threshold filter)
+	var conditions []string
+
+	// Add similarity threshold condition
+	conditions = append(conditions, fmt.Sprintf("1 - (%s <=> $1::vector) >= %f", quotedVectorCol, threshold))
+
+	// Add other filters
+	for _, filter := range filters {
+		quotedCol := quoteIdentifier(filter.Column)
+		if quotedCol == "" {
+			continue
+		}
+
+		condition, arg := filterToSQL(filter, quotedCol, argCounter)
+		if condition != "" {
+			conditions = append(conditions, condition)
+			if arg != nil {
+				args = append(args, arg)
+				argCounter++
+			}
+		}
+	}
+
+	if len(conditions) > 0 {
+		sqlQuery += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Order by similarity (most similar first)
+	sqlQuery += fmt.Sprintf(" ORDER BY %s <=> $1::vector", quotedVectorCol)
+
+	// Add limit
+	sqlQuery += fmt.Sprintf(" LIMIT %d", limit)
+
+	return sqlQuery, args
+}
+
+// embeddingToString converts a float32 embedding slice to a PostgreSQL vector string
+func embeddingToString(embedding []float32) string {
+	parts := make([]string, len(embedding))
+	for i, v := range embedding {
+		parts[i] = fmt.Sprintf("%f", v)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
 }
