@@ -37,6 +37,11 @@ func (s *SchemaBuilder) SetSettingsResolver(resolver *SettingsResolver) {
 	s.settingsResolver = resolver
 }
 
+// GetSettingsResolver returns the settings resolver for template resolution
+func (s *SchemaBuilder) GetSettingsResolver() *SettingsResolver {
+	return s.settingsResolver
+}
+
 // SetMCPResources sets the MCP resource reader for schema fetching
 func (s *SchemaBuilder) SetMCPResources(resources MCPResourceReader) {
 	s.mcpResources = resources

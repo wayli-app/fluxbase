@@ -180,6 +180,12 @@ func (s *EmbeddingService) EmbedSingle(ctx context.Context, text string, model s
 	return resp.Embeddings[0], nil
 }
 
+// GenerateEmbedding generates an embedding for a single text using the default model.
+// This method implements the EmbeddingGenerator interface used by MCP tools.
+func (s *EmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
+	return s.EmbedSingle(ctx, text, s.defaultModel)
+}
+
 // SupportedModels returns the models supported by the current provider
 func (s *EmbeddingService) SupportedModels() []EmbeddingModel {
 	s.providerMu.RLock()

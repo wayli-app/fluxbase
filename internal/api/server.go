@@ -629,7 +629,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Initialize MCP Server if enabled
 	if cfg.MCP.Enabled {
-		server.setupMCPServer(schemaCache, storageService, functionsHandler, rpcHandler)
+		server.setupMCPServer(schemaCache, storageService, functionsHandler, rpcHandler, vectorHandler)
 		log.Info().
 			Str("base_path", cfg.MCP.BasePath).
 			Dur("session_timeout", cfg.MCP.SessionTimeout).
@@ -902,14 +902,19 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 }
 
 // setupMCPServer initializes the MCP server with tools and resources
-func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageService *storage.Service, functionsHandler *functions.Handler, rpcHandler *rpc.Handler) {
+func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageService *storage.Service, functionsHandler *functions.Handler, rpcHandler *rpc.Handler, vectorHandler *VectorHandler) {
 	mcpServer := s.mcpHandler.Server()
 
 	// Register MCP Tools
 	toolRegistry := mcpServer.ToolRegistry()
 
 	// Database tools
-	toolRegistry.Register(mcptools.NewQueryTableTool(s.db, schemaCache))
+	queryTableTool := mcptools.NewQueryTableTool(s.db, schemaCache)
+	if vectorHandler != nil && vectorHandler.GetEmbeddingService() != nil {
+		queryTableTool.SetEmbeddingGenerator(vectorHandler.GetEmbeddingService())
+		log.Debug().Msg("MCP: QueryTableTool configured with embedding generator for vector search")
+	}
+	toolRegistry.Register(queryTableTool)
 	toolRegistry.Register(mcptools.NewInsertRecordTool(s.db, schemaCache))
 	toolRegistry.Register(mcptools.NewUpdateRecordTool(s.db, schemaCache))
 	toolRegistry.Register(mcptools.NewDeleteRecordTool(s.db, schemaCache))

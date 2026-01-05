@@ -16,6 +16,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -84,6 +85,47 @@ func (h *ChatHandler) SetMCPToolRegistry(registry *mcp.ToolRegistry) {
 // SetMCPResources sets the MCP resource registry for schema fetching
 func (h *ChatHandler) SetMCPResources(resources MCPResourceReader) {
 	h.schemaBuilder.SetMCPResources(resources)
+}
+
+// ResolveChatbotTemplates resolves template variables in chatbot annotation values.
+// This resolves {{key}}, {{user:key}}, and {{system:key}} placeholders in fields
+// like HTTPAllowedDomains that are parsed from annotations.
+func (h *ChatHandler) ResolveChatbotTemplates(ctx context.Context, chatbot *Chatbot, userID *string) error {
+	resolver := h.schemaBuilder.GetSettingsResolver()
+	if resolver == nil {
+		return nil
+	}
+
+	// Convert userID string to uuid.UUID pointer for resolver
+	var userUUID *uuid.UUID
+	if userID != nil && *userID != "" {
+		parsed, err := uuid.Parse(*userID)
+		if err == nil {
+			userUUID = &parsed
+		}
+	}
+
+	// Resolve HTTP allowed domains
+	if len(chatbot.HTTPAllowedDomains) > 0 {
+		resolved := make([]string, 0, len(chatbot.HTTPAllowedDomains))
+		for _, domain := range chatbot.HTTPAllowedDomains {
+			if strings.Contains(domain, "{{") {
+				resolvedDomain, err := resolver.ResolveTemplate(ctx, domain, userUUID)
+				if err != nil {
+					return fmt.Errorf("failed to resolve template in http-allowed-domains: %w", err)
+				}
+				// Only add non-empty resolved values
+				if resolvedDomain != "" {
+					resolved = append(resolved, resolvedDomain)
+				}
+			} else {
+				resolved = append(resolved, domain)
+			}
+		}
+		chatbot.HTTPAllowedDomains = resolved
+	}
+
+	return nil
 }
 
 // ClientMessage represents a message from the client
@@ -325,6 +367,12 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	if chatbot == nil {
 		h.sendError(chatCtx, msg.ConversationID, "NO_CHATBOT", "No active chatbot")
 		return
+	}
+
+	// Resolve template variables in chatbot annotation values (e.g., http-allowed-domains)
+	if err := h.ResolveChatbotTemplates(ctx, chatbot, chatCtx.UserID); err != nil {
+		log.Warn().Err(err).Str("chatbot", chatbot.Name).Msg("Failed to resolve chatbot templates")
+		// Continue with unresolved values - don't fail the request
 	}
 
 	// Check turn limit
