@@ -539,6 +539,30 @@ func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 
 	// Run migrations
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		// Check if error is due to missing migration file
+		if strings.Contains(err.Error(), "file does not exist") || strings.Contains(err.Error(), "no migration found") {
+			// Find the highest available migration version
+			highestVersion := c.findHighestMigrationVersion()
+			if highestVersion > 0 && version > uint(highestVersion) {
+				log.Warn().
+					Str("source", source).
+					Uint("recorded_version", version).
+					Int("highest_available", highestVersion).
+					Msg("Database version higher than available migrations, resetting to highest available")
+
+				// Force to highest available version
+				if forceErr := m.Force(highestVersion); forceErr != nil {
+					return fmt.Errorf("failed to force migration version to %d: %w", highestVersion, forceErr)
+				}
+
+				// Try running migrations again
+				if retryErr := m.Up(); retryErr != nil && retryErr != migrate.ErrNoChange {
+					return fmt.Errorf("failed to run %s migrations after version reset: %w", source, retryErr)
+				}
+				log.Info().Str("source", source).Int("version", highestVersion).Msg("Migrations recovered after version reset")
+				return nil
+			}
+		}
 		return fmt.Errorf("failed to run %s migrations: %w", source, err)
 	}
 
@@ -550,6 +574,35 @@ func (c *Connection) applyMigrations(m *migrate.Migrate, source string) error {
 	}
 
 	return nil
+}
+
+// findHighestMigrationVersion scans embedded migrations to find the highest version number
+func (c *Connection) findHighestMigrationVersion() int {
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to read embedded migrations directory")
+		return 0
+	}
+
+	highest := 0
+	versionRegex := regexp.MustCompile(`^(\d+)_.*\.up\.sql$`)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		matches := versionRegex.FindStringSubmatch(entry.Name())
+		if len(matches) > 1 {
+			var version int
+			if _, err := fmt.Sscanf(matches[1], "%d", &version); err == nil {
+				if version > highest {
+					highest = version
+				}
+			}
+		}
+	}
+
+	return highest
 }
 
 // grantRolesToRuntimeUser grants Fluxbase roles to the runtime database user
