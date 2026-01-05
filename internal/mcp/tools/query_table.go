@@ -293,7 +293,8 @@ func buildSelectQuery(schema, table string, columns []string, filters []query.Fi
 	if len(columns) > 0 {
 		quotedCols := make([]string, 0, len(columns))
 		for _, col := range columns {
-			if quoted := quoteIdentifier(col); quoted != "" {
+			// Use quoteColumnOrExpression to handle both simple columns and SQL expressions
+			if quoted := quoteColumnOrExpression(col); quoted != "" {
 				quotedCols = append(quotedCols, quoted)
 			}
 		}
@@ -462,7 +463,10 @@ func parseFilterValue(column, valueStr string) (query.Filter, error) {
 	}, nil
 }
 
-// parseOrder parses an order string like "column.asc" or "column.desc"
+// parseOrder parses an order string in various formats:
+// - Dot-separated: "column.desc", "column.asc"
+// - Space-separated (SQL-style): "column desc", "column asc", "column DESC"
+// - Multiple columns: "col1.desc,col2.asc" or "col1 desc, col2 asc"
 func parseOrder(orderStr string) ([]query.OrderBy, error) {
 	var result []query.OrderBy
 
@@ -476,11 +480,26 @@ func parseOrder(orderStr string) ([]query.OrderBy, error) {
 		column := part
 		desc := false
 
+		// Try dot-separated format first (e.g., "column.desc")
 		if strings.HasSuffix(part, ".desc") {
 			column = strings.TrimSuffix(part, ".desc")
 			desc = true
 		} else if strings.HasSuffix(part, ".asc") {
 			column = strings.TrimSuffix(part, ".asc")
+		} else {
+			// Try space-separated format (e.g., "column desc" or "column DESC")
+			parts := strings.Fields(part)
+			if len(parts) == 2 {
+				column = parts[0]
+				direction := strings.ToLower(parts[1])
+				if direction == "desc" {
+					desc = true
+				}
+				// "asc" or anything else defaults to ascending
+			} else if len(parts) == 1 {
+				column = parts[0]
+			}
+			// If more than 2 parts, use the whole thing as column name (will likely fail, but let DB report error)
 		}
 
 		result = append(result, query.OrderBy{
@@ -490,6 +509,46 @@ func parseOrder(orderStr string) ([]query.OrderBy, error) {
 	}
 
 	return result, nil
+}
+
+// isSQLExpression checks if a column string is a SQL expression rather than a simple column name.
+// Returns true for things like "sum(x)", "count(*)", "a + b", "col as alias", etc.
+func isSQLExpression(col string) bool {
+	// Check for common SQL expression indicators
+	expressionPatterns := []string{
+		"(", ")", // function calls like sum(), count()
+		" as ",        // aliases (lowercase)
+		" AS ",        // aliases (uppercase)
+		"+", "-", "/", // arithmetic operators (note: * is ambiguous, check separately)
+		"||", // string concatenation
+		"::", // type casting
+	}
+
+	for _, pattern := range expressionPatterns {
+		if strings.Contains(col, pattern) {
+			return true
+		}
+	}
+
+	// Check for * with surrounding content (like "a * b" but not standalone "*")
+	if strings.Contains(col, "*") && strings.TrimSpace(col) != "*" {
+		// Could be multiplication - check if there's content on both sides
+		idx := strings.Index(col, "*")
+		if idx > 0 && idx < len(col)-1 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// quoteColumnOrExpression returns a properly quoted column name, or passes through SQL expressions unchanged.
+func quoteColumnOrExpression(col string) string {
+	if isSQLExpression(col) {
+		// Pass through SQL expressions unchanged - let the database handle/validate them
+		return col
+	}
+	return quoteIdentifier(col)
 }
 
 // scanRowsToMaps scans pgx rows into a slice of maps
