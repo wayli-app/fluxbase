@@ -1,0 +1,61 @@
+# go-test-coverage configuration
+# See: https://github.com/vladopajic/go-test-coverage
+
+profile: coverage.out
+
+threshold:
+  file: 0       # Individual files (initially lenient, will increase over time)
+  package: 0    # Packages (initially lenient, will increase over time)
+  total: 10     # Overall project target (realistic starting point)
+
+# Override rules for specific patterns (evaluated in order, from most to least specific)
+override:
+  # High-importance business logic - set future coverage goals
+  # Note: These are commented out initially to avoid CI failures
+  # Uncomment and increase thresholds incrementally as tests are added
+  # - path: ^internal/api/rest_crud\.go$
+  #   threshold: 50
+  # - path: ^internal/auth
+  #   threshold: 30
+
+  # Test utilities don't need coverage themselves
+  - path: ^internal/testutil
+    threshold: 0
+
+# Exclude patterns (regex) - remove from coverage calculation entirely
+exclude:
+  paths:
+    # Pure type definitions without business logic
+    - ^internal/query/types\.go$
+    - ^internal/branching/types\.go$
+    - ^internal/jobs/types\.go$
+    - ^internal/rpc/types\.go$
+    - ^internal/mcp/types\.go$
+    - ^internal/runtime/types\.go$
+    - ^internal/extensions/models\.go$
+    - ^internal/storage/log_types\.go$
+    - ^internal/api/rest_errors\.go$
+    - ^internal/api/graphql_types\.go$
+    - ^internal/branching/errors\.go$
+    - ^internal/database/errors\.go$
+
+    # Interface definitions
+    - ^internal/auth/interfaces\.go$
+
+    # Large generated specification files
+    - ^internal/api/openapi\.go$
+
+    # Infrastructure code (requires system dependencies, tested via E2E)
+    - ^internal/scaling/leader\.go$
+    - ^internal/database/connection\.go$
+    - ^internal/ai/ocr_tesseract\.go$
+
+    # Entry points and embedded assets
+    - ^cmd/fluxbase/main\.go$
+    - ^internal/adminui/
+
+    # CLI commands (tested via integration tests)
+    - ^cli/
+
+    # Test utilities
+    - ^internal/testutil/
