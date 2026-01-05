@@ -34,6 +34,7 @@ var (
 	jobFollow      bool
 	jobSyncDir     string
 	jobDryRun      bool
+	jobKeep        bool
 )
 
 var jobsListCmd = &cobra.Command{
@@ -151,6 +152,7 @@ func init() {
 	jobsSyncCmd.Flags().StringVar(&jobSyncDir, "dir", "./jobs", "Directory containing job functions")
 	jobsSyncCmd.Flags().StringVar(&jobNamespace, "namespace", "default", "Target namespace")
 	jobsSyncCmd.Flags().BoolVar(&jobDryRun, "dry-run", false, "Preview changes without applying")
+	jobsSyncCmd.Flags().BoolVar(&jobKeep, "keep", false, "Keep jobs not present in directory")
 
 	jobsCmd.AddCommand(jobsListCmd)
 	jobsCmd.AddCommand(jobsSubmitCmd)
@@ -555,6 +557,9 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 	body := map[string]interface{}{
 		"namespace": jobNamespace,
 		"jobs":      jobs,
+		"options": map[string]interface{}{
+			"delete_missing": !jobKeep,
+		},
 	}
 
 	var result map[string]interface{}

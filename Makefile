@@ -92,25 +92,31 @@ clean: ## Clean build artifacts
 test: ## Run all tests with race detector (short mode - skips slow tests, excludes e2e)
 	@./scripts/test-runner.sh go test -timeout 2m -v -race -short -cover $(shell go list ./... | grep -v '/test/e2e')
 
-test-coverage: ## Run tests and generate coverage report (Go + SDK)
+test-coverage: ## Run tests and generate coverage report with enforcement (Go + SDK)
 	@echo "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 	@echo "${BLUE}║                 COVERAGE REPORT                            ║${NC}"
 	@echo "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 	@echo ""
-	@echo "${YELLOW}[1/3] Running Go unit tests with coverage...${NC}"
+	@echo "${YELLOW}[1/4] Running Go unit tests with coverage...${NC}"
 	@go test -short -timeout 5m -coverprofile=coverage.out -covermode=atomic $(shell go list ./... | grep -v '/test/e2e' | grep -v '/test$$')
 	@echo ""
-	@echo "${YELLOW}[2/3] Generating Go coverage report...${NC}"
+	@echo "${YELLOW}[2/4] Enforcing coverage thresholds...${NC}"
+	@go-test-coverage --config=.testcoverage.yml
+	@echo ""
+	@echo "${YELLOW}[3/4] Generating Go coverage report...${NC}"
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out | grep total | awk '{print "  ${GREEN}Go Coverage: " $$3 "${NC}"}'
 	@echo ""
-	@echo "${YELLOW}[3/3] Running SDK tests with coverage...${NC}"
+	@echo "${YELLOW}[4/4] Running SDK tests with coverage...${NC}"
 	@cd sdk && unset NODE_OPTIONS && npx vitest --coverage --run 2>&1 | tail -20 || true
 	@echo ""
 	@echo "${GREEN}Coverage reports generated:${NC}"
 	@echo "  - coverage.out     (Go profile)"
 	@echo "  - coverage.html    (Go HTML report)"
 	@echo "  - sdk/coverage/    (SDK coverage)"
+
+test-coverage-check: ## Check coverage thresholds without running tests (requires coverage.out)
+	@go-test-coverage --config=.testcoverage.yml
 
 test-fast: ## Run all tests without race detector (faster, excludes e2e)
 	@./scripts/test-runner.sh go test -timeout 1m -v -short -cover $(shell go list ./... | grep -v '/test/e2e')

@@ -150,6 +150,31 @@ Format: `NNN_description.up.sql` / `NNN_description.down.sql`
 
 ## Testing
 
+### Test Organization
 - Unit tests: `*_test.go` alongside source
 - E2E tests: `test/e2e/`
 - Test helpers: `internal/testutil/`
+
+### Coverage Targets
+- **Overall:** 20%+ (after exclusions)
+- **Core business logic:** 50%+ per file
+- **Critical modules (auth, API):** 70%+ per file
+
+### Excluded from Coverage
+Files containing only type definitions, interfaces, or requiring external system dependencies are excluded from coverage calculations. See [.testcoverage.yml](.testcoverage.yml) for the complete list:
+- Pure type definition files (e.g., `internal/*/types.go`, `internal/*/errors.go`)
+- Interface-only files (e.g., `internal/auth/interfaces.go`)
+- Infrastructure code requiring system dependencies (leader election, database connections, OCR)
+- CLI commands (tested via integration tests)
+- Entry points and embedded assets
+
+### Running Tests
+```bash
+make test             # Unit tests only (2min)
+make test-coverage    # Unit tests with coverage report and enforcement
+make test-full        # All tests including E2E (10min)
+make test-coverage-check  # Check coverage thresholds without running tests
+```
+
+### Coverage Enforcement
+Coverage thresholds are enforced in CI via [go-test-coverage](https://github.com/vladopajic/go-test-coverage). Pull requests must meet minimum thresholds for affected files. The tool automatically excludes files that shouldn't be counted (pure type definitions, infrastructure code, etc.).

@@ -1,7 +1,7 @@
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: true
   notify:
-    wait_for_ci: yes
+    wait_for_ci: true
 
 coverage:
   precision: 2
@@ -68,3 +68,26 @@ ignore:
   - "internal/database/connection.go"
   - "internal/ai/ocr_tesseract.go"
   - "cli/**"
+
+  # Pure type definitions
+  - "internal/query/types.go"
+  - "internal/branching/types.go"
+  - "internal/jobs/types.go"
+  - "internal/rpc/types.go"
+  - "internal/mcp/types.go"
+  - "internal/runtime/types.go"
+  - "internal/extensions/models.go"
+  - "internal/storage/log_types.go"
+  - "internal/api/rest_errors.go"
+  - "internal/api/graphql_types.go"
+  - "internal/branching/errors.go"
+  - "internal/database/errors.go"
+
+  # Interface definitions
+  - "internal/auth/interfaces.go"
+
+  # Large generated files
+  - "internal/api/openapi.go"
+
+  # Test utilities
+  - "internal/testutil/**"
