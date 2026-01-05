@@ -301,6 +301,12 @@ jobs:
         run: |
           VERSION=${{ needs.get-version.outputs.version }}
           TAG=${{ needs.get-version.outputs.tag_name }}
+          IS_PRERELEASE=${{ needs.get-version.outputs.is_prerelease }}
+
+          # Update VERSION file (only for stable releases)
+          if [ "$IS_PRERELEASE" = "false" ]; then
+            echo "${VERSION}" > VERSION
+          fi
 
           # Update Helm Chart
           sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/fluxbase/Chart.yaml
@@ -328,6 +334,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          git add VERSION
           git add deploy/helm/fluxbase/Chart.yaml
           git add deploy/docker-compose*.yml
           git add sdk/package.json sdk/package-lock.json
