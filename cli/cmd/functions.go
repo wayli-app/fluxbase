@@ -38,6 +38,7 @@ var (
 	fnFollow      bool
 	fnSyncDir     string
 	fnDryRun      bool
+	fnKeep        bool
 )
 
 var functionsListCmd = &cobra.Command{
@@ -175,6 +176,7 @@ func init() {
 	functionsSyncCmd.Flags().StringVar(&fnSyncDir, "dir", "./functions", "Directory containing functions")
 	functionsSyncCmd.Flags().StringVar(&fnNamespace, "namespace", "default", "Target namespace")
 	functionsSyncCmd.Flags().BoolVar(&fnDryRun, "dry-run", false, "Preview changes without applying")
+	functionsSyncCmd.Flags().BoolVar(&fnKeep, "keep", false, "Keep functions not present in directory")
 
 	functionsCmd.AddCommand(functionsListCmd)
 	functionsCmd.AddCommand(functionsGetCmd)
@@ -620,6 +622,9 @@ func runFunctionsSync(cmd *cobra.Command, args []string) error {
 	body := map[string]interface{}{
 		"namespace": fnNamespace,
 		"functions": functions,
+		"options": map[string]interface{}{
+			"delete_missing": !fnKeep,
+		},
 	}
 
 	var result map[string]interface{}

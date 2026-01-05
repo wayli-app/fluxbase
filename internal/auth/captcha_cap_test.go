@@ -13,10 +13,10 @@ import (
 
 func TestNewCapProvider(t *testing.T) {
 	tests := []struct {
-		name           string
-		serverURL      string
-		apiKey         string
-		expectedURL    string
+		name        string
+		serverURL   string
+		apiKey      string
+		expectedURL string
 	}{
 		{
 			name:        "URL without trailing slash",
@@ -128,38 +128,38 @@ func TestCapProvider_Verify_WithoutAPIKey(t *testing.T) {
 
 func TestCapProvider_Verify_Failure(t *testing.T) {
 	tests := []struct {
-		name              string
-		errorCode         string
+		name                string
+		errorCode           string
 		expectedTranslation string
 	}{
 		{
-			name:              "invalid token",
-			errorCode:         "invalid_token",
+			name:                "invalid token",
+			errorCode:           "invalid_token",
 			expectedTranslation: "invalid captcha token",
 		},
 		{
-			name:              "expired token",
-			errorCode:         "expired_token",
+			name:                "expired token",
+			errorCode:           "expired_token",
 			expectedTranslation: "captcha token expired",
 		},
 		{
-			name:              "already used",
-			errorCode:         "already_used",
+			name:                "already used",
+			errorCode:           "already_used",
 			expectedTranslation: "captcha token already used",
 		},
 		{
-			name:              "invalid solution",
-			errorCode:         "invalid_solution",
+			name:                "invalid solution",
+			errorCode:           "invalid_solution",
 			expectedTranslation: "invalid proof-of-work solution",
 		},
 		{
-			name:              "missing token",
-			errorCode:         "missing_token",
+			name:                "missing token",
+			errorCode:           "missing_token",
 			expectedTranslation: "missing captcha token",
 		},
 		{
-			name:              "unknown error",
-			errorCode:         "unknown_error",
+			name:                "unknown error",
+			errorCode:           "unknown_error",
 			expectedTranslation: "verification failed: unknown_error",
 		},
 	}

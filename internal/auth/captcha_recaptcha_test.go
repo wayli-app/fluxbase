@@ -9,10 +9,10 @@ import (
 
 func TestNewReCaptchaProvider(t *testing.T) {
 	tests := []struct {
-		name               string
-		secretKey          string
-		scoreThreshold     float64
-		expectedThreshold  float64
+		name              string
+		secretKey         string
+		scoreThreshold    float64
+		expectedThreshold float64
 	}{
 		{
 			name:              "valid threshold",

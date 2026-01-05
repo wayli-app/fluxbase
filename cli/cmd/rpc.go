@@ -22,13 +22,13 @@ var rpcCmd = &cobra.Command{
 }
 
 var (
-	rpcNamespace  string
-	rpcParams     string
-	rpcFile       string
-	rpcAsync      bool
-	rpcSyncDir    string
-	rpcDryRun     bool
-	rpcDeleteMiss bool
+	rpcNamespace string
+	rpcParams    string
+	rpcFile      string
+	rpcAsync     bool
+	rpcSyncDir   string
+	rpcDryRun    bool
+	rpcKeep      bool
 )
 
 var rpcListCmd = &cobra.Command{
@@ -94,7 +94,7 @@ func init() {
 	rpcSyncCmd.Flags().StringVar(&rpcSyncDir, "dir", "./rpc", "Directory containing RPC SQL files")
 	rpcSyncCmd.Flags().StringVar(&rpcNamespace, "namespace", "default", "Target namespace")
 	rpcSyncCmd.Flags().BoolVar(&rpcDryRun, "dry-run", false, "Preview changes without applying")
-	rpcSyncCmd.Flags().BoolVar(&rpcDeleteMiss, "delete-missing", false, "Delete procedures not in directory")
+	rpcSyncCmd.Flags().BoolVar(&rpcKeep, "keep", false, "Keep procedures not present in directory")
 
 	rpcCmd.AddCommand(rpcListCmd)
 	rpcCmd.AddCommand(rpcGetCmd)
@@ -285,7 +285,7 @@ func runRPCSync(cmd *cobra.Command, args []string) error {
 		"namespace":  rpcNamespace,
 		"procedures": procedures,
 		"options": map[string]interface{}{
-			"delete_missing": rpcDeleteMiss,
+			"delete_missing": !rpcKeep,
 			"dry_run":        false,
 		},
 	}

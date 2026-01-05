@@ -12,12 +12,12 @@ import (
 
 // MockEmailService is a mock implementation of RealEmailService for testing
 type MockEmailService struct {
-	sendCalls             []SendCall
-	sendMagicLinkCalls    []SendMagicLinkCall
+	sendCalls              []SendCall
+	sendMagicLinkCalls     []SendMagicLinkCall
 	sendPasswordResetCalls []SendPasswordResetCall
-	sendVerificationCalls []SendVerificationCall
-	sendError             error
-	configured            bool
+	sendVerificationCalls  []SendVerificationCall
+	sendError              error
+	configured             bool
 }
 
 type SendCall struct {

@@ -36,12 +36,14 @@ var (
 	syncRootDir   string
 	syncNamespace string
 	syncDryRun    bool
+	syncKeep      bool
 )
 
 func init() {
 	syncCmd.Flags().StringVar(&syncRootDir, "dir", "", "Root directory (default: ./fluxbase or current dir)")
 	syncCmd.Flags().StringVar(&syncNamespace, "namespace", "default", "Target namespace for all resources")
 	syncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview changes without applying")
+	syncCmd.Flags().BoolVar(&syncKeep, "keep", false, "Keep items not present in directory")
 }
 
 // detectResourceDir finds the directory for a resource type
@@ -95,7 +97,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	type resourceSync struct {
 		name    string
 		dirName string
-		syncFn  func(ctx context.Context, dir, namespace string, dryRun bool) error
+		syncFn  func(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error
 	}
 
 	resources := []resourceSync{
@@ -120,7 +122,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
 			foundAny = true
 			fmt.Printf("Syncing %s from %s...\n", res.name, dir)
-			if err := res.syncFn(ctx, dir, syncNamespace, syncDryRun); err != nil {
+			if err := res.syncFn(ctx, dir, syncNamespace, syncDryRun, !syncKeep); err != nil {
 				return fmt.Errorf("failed to sync %s: %w", res.name, err)
 			}
 			fmt.Println()
@@ -136,7 +138,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 }
 
 // syncRPCFromDir syncs RPC procedures from a directory
-func syncRPCFromDir(ctx context.Context, dir, namespace string, dryRun bool) error {
+func syncRPCFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory: %w", err)
@@ -184,7 +186,7 @@ func syncRPCFromDir(ctx context.Context, dir, namespace string, dryRun bool) err
 		"namespace":  namespace,
 		"procedures": procedures,
 		"options": map[string]interface{}{
-			"delete_missing": false,
+			"delete_missing": deleteMissing,
 		},
 	}
 
@@ -198,7 +200,7 @@ func syncRPCFromDir(ctx context.Context, dir, namespace string, dryRun bool) err
 }
 
 // syncMigrationsFromDir syncs migrations from a directory
-func syncMigrationsFromDir(ctx context.Context, dir, namespace string, dryRun bool) error {
+func syncMigrationsFromDir(ctx context.Context, dir, namespace string, dryRun, _ bool) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory: %w", err)
@@ -295,7 +297,7 @@ func syncMigrationsFromDir(ctx context.Context, dir, namespace string, dryRun bo
 }
 
 // syncFunctionsFromDir syncs functions from a directory
-func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun bool) error {
+func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error {
 	// Check for _shared directory first
 	sharedDir := filepath.Join(dir, "_shared")
 	sharedModulesMap := make(map[string]string)
@@ -410,6 +412,9 @@ func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun boo
 	body := map[string]interface{}{
 		"namespace": namespace,
 		"functions": functions,
+		"options": map[string]interface{}{
+			"delete_missing": deleteMissing,
+		},
 	}
 
 	var result map[string]interface{}
@@ -422,7 +427,7 @@ func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun boo
 }
 
 // syncJobsFromDir syncs jobs from a directory
-func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun bool) error {
+func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error {
 	// Check for _shared directory first
 	sharedDir := filepath.Join(dir, "_shared")
 	sharedModulesMap := make(map[string]string)
@@ -539,6 +544,9 @@ func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun bool) er
 	body := map[string]interface{}{
 		"namespace": namespace,
 		"jobs":      jobs,
+		"options": map[string]interface{}{
+			"delete_missing": deleteMissing,
+		},
 	}
 
 	var result map[string]interface{}
@@ -551,7 +559,7 @@ func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun bool) er
 }
 
 // syncChatbotsFromDir syncs chatbots from a directory
-func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun bool) error {
+func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory: %w", err)
@@ -599,7 +607,7 @@ func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun bool
 		"namespace": namespace,
 		"chatbots":  chatbots,
 		"options": map[string]interface{}{
-			"delete_missing": false,
+			"delete_missing": deleteMissing,
 		},
 	}
 
