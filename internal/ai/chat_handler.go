@@ -910,7 +910,11 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 	}
 
 	// Send progress to client
-	h.sendProgress(chatCtx, conversationID, "executing", fmt.Sprintf("Executing %s...", toolName))
+	progressMsg := fmt.Sprintf("Executing %s...", toolName)
+	if tableName, ok := args["table"].(string); ok && tableName != "" {
+		progressMsg = fmt.Sprintf("Executing %s on %s...", toolName, tableName)
+	}
+	h.sendProgress(chatCtx, conversationID, "executing", progressMsg)
 
 	// Execute the MCP tool
 	result, err := h.mcpExecutor.ExecuteTool(ctx, toolName, args, chatCtx, chatbot)
