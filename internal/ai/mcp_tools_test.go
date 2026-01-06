@@ -101,7 +101,7 @@ func TestAllMCPTools(t *testing.T) {
 		"query_table", "insert_record", "update_record", "delete_record",
 		"invoke_function", "invoke_rpc", "submit_job", "get_job_status",
 		"list_objects", "upload_object", "download_object", "delete_object",
-		"search_vectors",
+		"search_vectors", "http_request",
 	}
 
 	assert.Len(t, tools, len(expectedTools))
