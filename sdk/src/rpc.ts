@@ -17,6 +17,8 @@ export interface RPCInvokeOptions {
   namespace?: string;
   /** Execute asynchronously (returns execution ID immediately) */
   async?: boolean;
+  /** Request timeout in milliseconds (default: 30000) */
+  timeout?: number;
 }
 
 /**
@@ -65,10 +67,13 @@ export class FluxbaseRPC {
     error: Error | null;
   }> {
     try {
-      const params = namespace ? `?namespace=${encodeURIComponent(namespace)}` : "";
-      const response = await this.fetch.get<{ procedures: RPCProcedureSummary[]; count: number }>(
-        `/api/v1/rpc/procedures${params}`,
-      );
+      const params = namespace
+        ? `?namespace=${encodeURIComponent(namespace)}`
+        : "";
+      const response = await this.fetch.get<{
+        procedures: RPCProcedureSummary[];
+        count: number;
+      }>(`/api/v1/rpc/procedures${params}`);
       return { data: response.procedures || [], error: null };
     } catch (error) {
       return { data: null, error: error as Error };
@@ -112,6 +117,7 @@ export class FluxbaseRPC {
           params,
           async: options?.async,
         },
+        { timeout: options?.timeout },
       );
       return { data: response, error: null };
     } catch (error) {
@@ -170,7 +176,10 @@ export class FluxbaseRPC {
   ): Promise<{ data: RPCExecutionLog[] | null; error: Error | null }> {
     try {
       const params = afterLine !== undefined ? `?after=${afterLine}` : "";
-      const response = await this.fetch.get<{ logs: RPCExecutionLog[]; count: number }>(
+      const response = await this.fetch.get<{
+        logs: RPCExecutionLog[];
+        count: number;
+      }>(
         `/api/v1/rpc/executions/${encodeURIComponent(executionId)}/logs${params}`,
       );
       return { data: response.logs || [], error: null };
@@ -246,6 +255,9 @@ export class FluxbaseRPC {
       interval = Math.min(interval * 1.5, maxInterval);
     }
 
-    return { data: null, error: new Error("Timeout waiting for execution to complete") };
+    return {
+      data: null,
+      error: new Error("Timeout waiting for execution to complete"),
+    };
   }
 }
