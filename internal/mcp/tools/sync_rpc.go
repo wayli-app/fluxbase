@@ -140,7 +140,7 @@ func (t *SyncRPCTool) Execute(ctx context.Context, args map[string]any, authCtx 
 			AllowedTables:           config.AllowedTables,
 			AllowedSchemas:          config.AllowedSchemas,
 			MaxExecutionTimeSeconds: config.Timeout,
-			RequireRole:             config.RequireRole,
+			RequireRoles:            config.RequireRoles,
 			IsPublic:                config.IsPublic,
 			DisableExecutionLogs:    config.DisableLogs,
 			Schedule:                config.Schedule,
@@ -178,7 +178,7 @@ func (t *SyncRPCTool) Execute(ctx context.Context, args map[string]any, authCtx 
 		existing.AllowedTables = config.AllowedTables
 		existing.AllowedSchemas = config.AllowedSchemas
 		existing.MaxExecutionTimeSeconds = config.Timeout
-		existing.RequireRole = config.RequireRole
+		existing.RequireRoles = config.RequireRoles
 		existing.IsPublic = config.IsPublic
 		existing.DisableExecutionLogs = config.DisableLogs
 		existing.Schedule = config.Schedule
@@ -226,7 +226,7 @@ type RPCConfig struct {
 	Description    string
 	IsPublic       bool
 	Timeout        int
-	RequireRole    *string
+	RequireRoles   []string
 	AllowedTables  []string
 	AllowedSchemas []string
 	Schedule       *string
@@ -275,9 +275,16 @@ func parseRPCAnnotations(sqlCode string) RPCConfig {
 				config.Timeout = t
 			}
 		case "require-role":
-			role := strings.ToLower(value)
-			if role == "admin" || role == "authenticated" || role == "anon" {
-				config.RequireRole = &role
+			// Parse comma-separated roles
+			var roles []string
+			for _, role := range strings.Split(value, ",") {
+				role = strings.TrimSpace(strings.ToLower(role))
+				if role != "" {
+					roles = append(roles, role)
+				}
+			}
+			if len(roles) > 0 {
+				config.RequireRoles = roles
 			}
 		case "allowed-tables":
 			tables := parseCommaSeparatedList(value)

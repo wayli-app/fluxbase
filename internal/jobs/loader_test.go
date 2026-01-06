@@ -279,44 +279,53 @@ func TestParseAnnotations_Schedule(t *testing.T) {
 
 func TestParseAnnotations_RequireRole(t *testing.T) {
 	tests := []struct {
-		name       string
-		code       string
-		expectRole *string
+		name        string
+		code        string
+		expectRoles []string
 	}{
 		{
-			name:       "no require-role",
-			code:       "export function handler() {}",
-			expectRole: nil,
+			name:        "no require-role",
+			code:        "export function handler() {}",
+			expectRoles: nil,
 		},
 		{
-			name:       "require admin",
-			code:       "// @fluxbase:require-role admin\nexport function handler() {}",
-			expectRole: strPtr("admin"),
+			name:        "require admin",
+			code:        "// @fluxbase:require-role admin\nexport function handler() {}",
+			expectRoles: []string{"admin"},
 		},
 		{
-			name:       "require authenticated",
-			code:       "// @fluxbase:require-role authenticated\nexport function handler() {}",
-			expectRole: strPtr("authenticated"),
+			name:        "require authenticated",
+			code:        "// @fluxbase:require-role authenticated\nexport function handler() {}",
+			expectRoles: []string{"authenticated"},
 		},
 		{
-			name:       "require anon",
-			code:       "// @fluxbase:require-role anon\nexport function handler() {}",
-			expectRole: strPtr("anon"),
+			name:        "require anon",
+			code:        "// @fluxbase:require-role anon\nexport function handler() {}",
+			expectRoles: []string{"anon"},
+		},
+		{
+			name:        "require multiple roles",
+			code:        "// @fluxbase:require-role admin, editor, moderator\nexport function handler() {}",
+			expectRoles: []string{"admin", "editor", "moderator"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			annotations := parseAnnotations(tt.code)
-			if tt.expectRole == nil {
-				if annotations.RequireRole != nil {
-					t.Errorf("RequireRole = %v, want nil", *annotations.RequireRole)
+			if tt.expectRoles == nil {
+				if len(annotations.RequireRoles) != 0 {
+					t.Errorf("RequireRoles = %v, want nil/empty", annotations.RequireRoles)
 				}
 			} else {
-				if annotations.RequireRole == nil {
-					t.Errorf("RequireRole = nil, want %v", *tt.expectRole)
-				} else if *annotations.RequireRole != *tt.expectRole {
-					t.Errorf("RequireRole = %v, want %v", *annotations.RequireRole, *tt.expectRole)
+				if len(annotations.RequireRoles) != len(tt.expectRoles) {
+					t.Errorf("RequireRoles = %v, want %v", annotations.RequireRoles, tt.expectRoles)
+				} else {
+					for i, role := range annotations.RequireRoles {
+						if role != tt.expectRoles[i] {
+							t.Errorf("RequireRoles[%d] = %v, want %v", i, role, tt.expectRoles[i])
+						}
+					}
 				}
 			}
 		})

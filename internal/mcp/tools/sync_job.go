@@ -164,8 +164,8 @@ func (t *SyncJobTool) Execute(ctx context.Context, args map[string]any, authCtx 
 	if config.Description != "" {
 		fn.Description = &config.Description
 	}
-	if config.RequireRole != "" {
-		fn.RequireRole = &config.RequireRole
+	if len(config.RequireRoles) > 0 {
+		fn.RequireRoles = config.RequireRoles
 	}
 
 	// Use upsert to create or update
@@ -233,15 +233,15 @@ func (t *SyncJobTool) Execute(ctx context.Context, args map[string]any, authCtx 
 
 // JobConfig holds parsed @fluxbase annotations for jobs
 type JobConfig struct {
-	Description string
-	Schedule    string
-	Timeout     int
-	Memory      int
-	MaxRetries  int
-	RequireRole string
-	AllowNet    bool
-	AllowEnv    bool
-	DisableLogs bool
+	Description  string
+	Schedule     string
+	Timeout      int
+	Memory       int
+	MaxRetries   int
+	RequireRoles []string
+	AllowNet     bool
+	AllowEnv     bool
+	DisableLogs  bool
 }
 
 // parseJobAnnotations extracts configuration from @fluxbase: comments in job code
@@ -297,10 +297,16 @@ func parseJobAnnotations(code string) JobConfig {
 				config.MaxRetries = r
 			}
 		case "require-role":
-			// Validate role
-			role := strings.ToLower(value)
-			if role == "admin" || role == "authenticated" || role == "anon" {
-				config.RequireRole = role
+			// Parse comma-separated roles
+			var roles []string
+			for _, role := range strings.Split(value, ",") {
+				role = strings.TrimSpace(strings.ToLower(role))
+				if role != "" {
+					roles = append(roles, role)
+				}
+			}
+			if len(roles) > 0 {
+				config.RequireRoles = roles
 			}
 		case "allow-net":
 			config.AllowNet = true

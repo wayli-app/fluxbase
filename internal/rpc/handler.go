@@ -107,7 +107,7 @@ type UpdateProcedureRequest struct {
 	Description             *string  `json:"description,omitempty"`
 	Enabled                 *bool    `json:"enabled,omitempty"`
 	IsPublic                *bool    `json:"is_public,omitempty"`
-	RequireRole             *string  `json:"require_role,omitempty"`
+	RequireRoles            []string `json:"require_roles,omitempty"`
 	MaxExecutionTimeSeconds *int     `json:"max_execution_time_seconds,omitempty"`
 	AllowedTables           []string `json:"allowed_tables,omitempty"`
 	AllowedSchemas          []string `json:"allowed_schemas,omitempty"`
@@ -153,8 +153,8 @@ func (h *Handler) UpdateProcedure(c *fiber.Ctx) error {
 	if req.IsPublic != nil {
 		procedure.IsPublic = *req.IsPublic
 	}
-	if req.RequireRole != nil {
-		procedure.RequireRole = req.RequireRole
+	if len(req.RequireRoles) > 0 {
+		procedure.RequireRoles = req.RequireRoles
 	}
 	if req.MaxExecutionTimeSeconds != nil {
 		procedure.MaxExecutionTimeSeconds = *req.MaxExecutionTimeSeconds
@@ -442,12 +442,14 @@ func (h *Handler) needsUpdate(existing, new *Procedure) bool {
 	if existing.DisableExecutionLogs != new.DisableExecutionLogs {
 		return true
 	}
-	// Compare require_role
-	if (existing.RequireRole == nil) != (new.RequireRole == nil) {
+	// Compare require_roles
+	if len(existing.RequireRoles) != len(new.RequireRoles) {
 		return true
 	}
-	if existing.RequireRole != nil && new.RequireRole != nil && *existing.RequireRole != *new.RequireRole {
-		return true
+	for i, role := range existing.RequireRoles {
+		if i >= len(new.RequireRoles) || role != new.RequireRoles[i] {
+			return true
+		}
 	}
 	// Compare schedule
 	if (existing.Schedule == nil) != (new.Schedule == nil) {

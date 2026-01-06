@@ -206,7 +206,7 @@ func (s *Scheduler) ScheduleJobFunction(fn *JobFunction) error {
 		AllowEnv:               fn.AllowEnv,
 		AllowRead:              fn.AllowRead,
 		AllowWrite:             fn.AllowWrite,
-		RequireRole:            fn.RequireRole,
+		RequireRoles:           fn.RequireRoles,
 		Source:                 fn.Source,
 	}
 	return s.ScheduleJob(summary)

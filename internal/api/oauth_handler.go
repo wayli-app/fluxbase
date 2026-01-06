@@ -313,6 +313,7 @@ func (h *OAuthHandler) Callback(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
+		"expires_in":    h.authSvc.GetAccessTokenExpirySeconds(),
 		"user":          user,
 		"is_new_user":   isNewUser,
 	})

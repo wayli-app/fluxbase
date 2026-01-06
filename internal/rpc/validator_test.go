@@ -279,20 +279,18 @@ func TestValidator_ValidateAccess(t *testing.T) {
 	})
 
 	t.Run("require-role anon allows anyone", func(t *testing.T) {
-		role := "anon"
-		proc := &Procedure{IsPublic: true, RequireRole: &role}
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"anon"}}
 		err := v.ValidateAccess(proc, "", false)
 		assert.NoError(t, err)
 	})
 
 	t.Run("require-role authenticated requires login", func(t *testing.T) {
-		role := "authenticated"
-		proc := &Procedure{IsPublic: true, RequireRole: &role}
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"authenticated"}}
 
 		// Not authenticated
 		err := v.ValidateAccess(proc, "", false)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "requires authentication")
+		assert.Contains(t, err.Error(), "requires one of roles")
 
 		// Authenticated
 		err = v.ValidateAccess(proc, "user", true)
@@ -300,45 +298,83 @@ func TestValidator_ValidateAccess(t *testing.T) {
 	})
 
 	t.Run("specific role is enforced", func(t *testing.T) {
-		role := "admin"
-		proc := &Procedure{IsPublic: true, RequireRole: &role}
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"admin"}}
 
 		// Wrong role
 		err := v.ValidateAccess(proc, "user", true)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "requires role: admin")
+		assert.Contains(t, err.Error(), "requires one of roles")
 
 		// Correct role
 		err = v.ValidateAccess(proc, "admin", true)
 		assert.NoError(t, err)
 	})
 
+	t.Run("multiple roles allows any matching role", func(t *testing.T) {
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"admin", "editor", "moderator"}}
+
+		// User with one of the allowed roles
+		err := v.ValidateAccess(proc, "editor", true)
+		assert.NoError(t, err)
+
+		// User with different allowed role
+		err = v.ValidateAccess(proc, "moderator", true)
+		assert.NoError(t, err)
+
+		// User with non-allowed role
+		err = v.ValidateAccess(proc, "viewer", true)
+		require.Error(t, err)
+	})
+
 	t.Run("service_role bypasses role check", func(t *testing.T) {
-		role := "admin"
-		proc := &Procedure{IsPublic: true, RequireRole: &role}
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"admin"}}
 
 		err := v.ValidateAccess(proc, "service_role", true)
 		assert.NoError(t, err)
 	})
 
 	t.Run("dashboard_admin bypasses role check", func(t *testing.T) {
-		role := "admin"
-		proc := &Procedure{IsPublic: true, RequireRole: &role}
+		proc := &Procedure{IsPublic: true, RequireRoles: []string{"admin"}}
 
 		err := v.ValidateAccess(proc, "dashboard_admin", true)
 		assert.NoError(t, err)
 	})
 
-	t.Run("empty require_role does not restrict", func(t *testing.T) {
-		emptyRole := ""
-		proc := &Procedure{IsPublic: false, RequireRole: &emptyRole}
+	t.Run("service_role bypasses auth requirement even without user_id", func(t *testing.T) {
+		// This test covers the case where a service_role token is used (which has no user_id)
+		// The isAuthenticated flag is false because there's no user_id, but service_role
+		// should still have full access
+		proc := &Procedure{IsPublic: false, RequireRoles: []string{"authenticated"}}
+
+		// isAuthenticated: false simulates a service_role token (no user_id)
+		err := v.ValidateAccess(proc, "service_role", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("dashboard_admin bypasses auth requirement even without user_id", func(t *testing.T) {
+		proc := &Procedure{IsPublic: false, RequireRoles: []string{"authenticated"}}
+
+		err := v.ValidateAccess(proc, "dashboard_admin", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("service_role can access non-public procedure without authentication", func(t *testing.T) {
+		// Service role should bypass the authentication check entirely
+		proc := &Procedure{IsPublic: false}
+
+		err := v.ValidateAccess(proc, "service_role", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("empty require_roles does not restrict", func(t *testing.T) {
+		proc := &Procedure{IsPublic: false, RequireRoles: []string{}}
 
 		err := v.ValidateAccess(proc, "user", true)
 		assert.NoError(t, err)
 	})
 
-	t.Run("nil require_role does not restrict", func(t *testing.T) {
-		proc := &Procedure{IsPublic: false, RequireRole: nil}
+	t.Run("nil require_roles does not restrict", func(t *testing.T) {
+		proc := &Procedure{IsPublic: false, RequireRoles: nil}
 
 		err := v.ValidateAccess(proc, "user", true)
 		assert.NoError(t, err)

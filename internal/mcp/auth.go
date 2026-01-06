@@ -45,6 +45,11 @@ type AuthContext struct {
 
 	// ImpersonationSessionID is the session ID for tracking impersonation (if IsImpersonating is true)
 	ImpersonationSessionID string
+
+	// Metadata contains additional context-specific data that tools may need.
+	// This is used to pass chatbot-specific configuration (e.g., HTTPAllowedDomains)
+	// to MCP tools without polluting the core auth fields.
+	Metadata map[string]any
 }
 
 // HasScope checks if the auth context has a specific scope
@@ -94,6 +99,26 @@ func (ctx *AuthContext) HasAnyScope(scopes ...string) bool {
 // IsAuthenticated returns true if the request is authenticated
 func (ctx *AuthContext) IsAuthenticated() bool {
 	return ctx.UserID != nil || ctx.AuthType == "service_key"
+}
+
+// GetMetadata returns a metadata value by key, or nil if not found
+func (ctx *AuthContext) GetMetadata(key string) any {
+	if ctx.Metadata == nil {
+		return nil
+	}
+	return ctx.Metadata[key]
+}
+
+// GetMetadataStringSlice returns a metadata value as a string slice, or nil if not found or wrong type
+func (ctx *AuthContext) GetMetadataStringSlice(key string) []string {
+	val := ctx.GetMetadata(key)
+	if val == nil {
+		return nil
+	}
+	if slice, ok := val.([]string); ok {
+		return slice
+	}
+	return nil
 }
 
 // HasNamespaceAccess checks if the auth context can access a specific namespace.
@@ -284,6 +309,12 @@ func inferScopesFromRole(role string) []string {
 	}
 }
 
+// Metadata keys for AuthContext.Metadata
+const (
+	// MetadataKeyHTTPAllowedDomains is the key for allowed domains in AuthContext.Metadata
+	MetadataKeyHTTPAllowedDomains = "http_allowed_domains"
+)
+
 // MCP Scopes
 const (
 	// Table scopes
@@ -309,6 +340,9 @@ const (
 	// Vector/AI scopes
 	ScopeReadVectors   = "read:vectors"
 	ScopeSearchVectors = "read:vectors" // Alias for read:vectors
+
+	// HTTP scopes
+	ScopeExecuteHTTP = "execute:http" // Make HTTP requests to allowed domains
 
 	// Schema scopes (for resources)
 	ScopeReadSchema = "read:schema"

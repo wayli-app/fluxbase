@@ -35,11 +35,11 @@ type Procedure struct {
 	AllowedSchemas []string `json:"allowed_schemas"`
 
 	// Execution config
-	MaxExecutionTimeSeconds int     `json:"max_execution_time_seconds"`
-	RequireRole             *string `json:"require_role,omitempty"`
-	IsPublic                bool    `json:"is_public"`
-	DisableExecutionLogs    bool    `json:"disable_execution_logs"`
-	Schedule                *string `json:"schedule,omitempty"`
+	MaxExecutionTimeSeconds int      `json:"max_execution_time_seconds"`
+	RequireRoles            []string `json:"require_roles,omitempty"`
+	IsPublic                bool     `json:"is_public"`
+	DisableExecutionLogs    bool     `json:"disable_execution_logs"`
+	Schedule                *string  `json:"schedule,omitempty"`
 
 	// Runtime config
 	Enabled   bool      `json:"enabled"`
@@ -59,7 +59,7 @@ type ProcedureSummary struct {
 	AllowedTables           []string  `json:"allowed_tables"`
 	AllowedSchemas          []string  `json:"allowed_schemas"`
 	MaxExecutionTimeSeconds int       `json:"max_execution_time_seconds"`
-	RequireRole             *string   `json:"require_role,omitempty"`
+	RequireRoles            []string  `json:"require_roles,omitempty"`
 	IsPublic                bool      `json:"is_public"`
 	DisableExecutionLogs    bool      `json:"disable_execution_logs"`
 	Schedule                *string   `json:"schedule,omitempty"`
@@ -80,7 +80,7 @@ func (p *Procedure) ToSummary() ProcedureSummary {
 		AllowedTables:           p.AllowedTables,
 		AllowedSchemas:          p.AllowedSchemas,
 		MaxExecutionTimeSeconds: p.MaxExecutionTimeSeconds,
-		RequireRole:             p.RequireRole,
+		RequireRoles:            p.RequireRoles,
 		IsPublic:                p.IsPublic,
 		DisableExecutionLogs:    p.DisableExecutionLogs,
 		Schedule:                p.Schedule,
@@ -158,7 +158,7 @@ type Annotations struct {
 	AllowedTables        []string          `json:"allowed_tables,omitempty"`
 	AllowedSchemas       []string          `json:"allowed_schemas,omitempty"`
 	MaxExecutionTime     time.Duration     `json:"max_execution_time,omitempty"`
-	RequireRole          string            `json:"require_role,omitempty"`
+	RequireRoles         []string          `json:"require_roles,omitempty"`
 	IsPublic             bool              `json:"is_public,omitempty"`
 	DisableExecutionLogs bool              `json:"disable_execution_logs,omitempty"`
 	Version              int               `json:"version,omitempty"`

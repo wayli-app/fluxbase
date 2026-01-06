@@ -179,6 +179,7 @@ func (t *SyncChatbotTool) Execute(ctx context.Context, args map[string]any, auth
 			DailyTokenBudget:     config.DailyTokenBudget,
 			AllowUnauthenticated: config.AllowUnauthenticated,
 			IsPublic:             config.IsPublic,
+			RequireRoles:         config.RequireRoles,
 			ResponseLanguage:     config.ResponseLanguage,
 			DisableExecutionLogs: config.DisableLogs,
 			Version:              1,
@@ -234,6 +235,7 @@ func (t *SyncChatbotTool) Execute(ctx context.Context, args map[string]any, auth
 		existing.DailyTokenBudget = config.DailyTokenBudget
 		existing.AllowUnauthenticated = config.AllowUnauthenticated
 		existing.IsPublic = config.IsPublic
+		existing.RequireRoles = config.RequireRoles
 		existing.ResponseLanguage = config.ResponseLanguage
 		existing.DisableExecutionLogs = config.DisableLogs
 		existing.Source = "mcp"
@@ -286,6 +288,7 @@ type ChatbotToolConfig struct {
 	UseMCPSchema         bool     // If true, fetch schema from MCP resources
 	IsPublic             bool
 	AllowUnauthenticated bool
+	RequireRoles         []string // Required roles to access (OR semantics)
 	Model                string
 	MaxTokens            int
 	Temperature          float64
@@ -349,6 +352,18 @@ func parseChatbotAnnotations(code string) ChatbotToolConfig {
 			config.IsPublic = true
 		case "allow-unauthenticated":
 			config.AllowUnauthenticated = true
+		case "require-role":
+			// Parse comma-separated roles
+			var roles []string
+			for _, role := range strings.Split(value, ",") {
+				role = strings.TrimSpace(strings.ToLower(role))
+				if role != "" {
+					roles = append(roles, role)
+				}
+			}
+			if len(roles) > 0 {
+				config.RequireRoles = roles
+			}
 		case "allowed-tables":
 			tables := parseCommaSeparatedList(value)
 			if len(tables) > 0 {

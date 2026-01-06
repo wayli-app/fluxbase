@@ -52,9 +52,9 @@ func TestRoleSatisfiesRequirement(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := roleSatisfiesRequirement(tt.userRole, tt.requiredRole)
+			result := roleSatisfiesRequirements(tt.userRole, []string{tt.requiredRole})
 			if result != tt.expected {
-				t.Errorf("roleSatisfiesRequirement(%q, %q) = %v, want %v",
+				t.Errorf("roleSatisfiesRequirements(%q, %q) = %v, want %v",
 					tt.userRole, tt.requiredRole, result, tt.expected)
 			}
 		})

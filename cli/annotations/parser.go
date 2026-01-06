@@ -36,7 +36,7 @@ type JobConfig struct {
 	AllowWrite           *bool
 	AllowNet             *bool
 	AllowEnv             *bool
-	RequireRole          *string
+	RequireRoles         []string
 	DisableExecutionLogs bool
 }
 
@@ -193,10 +193,19 @@ func ParseJobAnnotations(code string) JobConfig {
 		config.AllowEnv = &allowEnv
 	}
 
-	// Parse require-role
-	if match := regexp.MustCompile(`@fluxbase:require-role\s+(\w+)`).FindStringSubmatch(code); match != nil {
-		role := strings.TrimSpace(match[1])
-		config.RequireRole = &role
+	// Parse require-role (supports comma-separated list of roles)
+	if match := regexp.MustCompile(`@fluxbase:require-role\s+(.+)`).FindStringSubmatch(code); match != nil {
+		rolesStr := strings.TrimSpace(match[1])
+		var roles []string
+		for _, role := range strings.Split(rolesStr, ",") {
+			role = strings.TrimSpace(role)
+			if role != "" {
+				roles = append(roles, role)
+			}
+		}
+		if len(roles) > 0 {
+			config.RequireRoles = roles
+		}
 	}
 
 	// Parse disable-execution-logs
@@ -283,8 +292,8 @@ func ApplyJobConfig(job map[string]interface{}, config JobConfig) {
 	if config.AllowEnv != nil {
 		job["allow_env"] = *config.AllowEnv
 	}
-	if config.RequireRole != nil {
-		job["require_role"] = *config.RequireRole
+	if len(config.RequireRoles) > 0 {
+		job["require_roles"] = config.RequireRoles
 	}
 	if config.DisableExecutionLogs {
 		job["disable_execution_logs"] = true

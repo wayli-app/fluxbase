@@ -47,7 +47,7 @@ type JobFunction struct {
 	AllowEnv               bool       `db:"allow_env" json:"allow_env"`
 	AllowRead              bool       `db:"allow_read" json:"allow_read"`
 	AllowWrite             bool       `db:"allow_write" json:"allow_write"`
-	RequireRole            *string    `db:"require_role" json:"require_role,omitempty"` // Required role: "admin", "authenticated", "anon", or null for any
+	RequireRoles           []string   `db:"require_roles" json:"require_roles,omitempty"` // Required roles: "admin", "authenticated", "anon", or custom roles. User needs ANY of the specified roles.
 	DisableExecutionLogs   bool       `db:"disable_execution_logs" json:"disable_execution_logs"`
 	Version                int        `db:"version" json:"version"`
 	CreatedBy              *uuid.UUID `db:"created_by" json:"created_by,omitempty"`
@@ -74,7 +74,7 @@ type JobFunctionSummary struct {
 	AllowEnv               bool       `db:"allow_env" json:"allow_env"`
 	AllowRead              bool       `db:"allow_read" json:"allow_read"`
 	AllowWrite             bool       `db:"allow_write" json:"allow_write"`
-	RequireRole            *string    `db:"require_role" json:"require_role,omitempty"`
+	RequireRoles           []string   `db:"require_roles" json:"require_roles,omitempty"`
 	DisableExecutionLogs   bool       `db:"disable_execution_logs" json:"disable_execution_logs"`
 	Version                int        `db:"version" json:"version"`
 	CreatedBy              *uuid.UUID `db:"created_by" json:"created_by,omitempty"`

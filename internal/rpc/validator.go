@@ -244,33 +244,40 @@ func (v *Validator) ValidateSQL(sql string, allowedTables, allowedSchemas []stri
 
 // ValidateAccess checks if a user with the given role can access the procedure
 func (v *Validator) ValidateAccess(proc *Procedure, userRole string, isAuthenticated bool) error {
+	// Service roles bypass all checks (check first, before authentication)
+	// This is important because service_role tokens don't have a user_id,
+	// so isAuthenticated will be false even though service_role should have full access
+	if userRole == "service_role" || userRole == "dashboard_admin" {
+		return nil
+	}
+
 	// Check public access
 	if !isAuthenticated && !proc.IsPublic {
 		return fmt.Errorf("procedure requires authentication")
 	}
 
-	// Check role requirement
-	if proc.RequireRole != nil && *proc.RequireRole != "" {
-		requiredRole := *proc.RequireRole
-
-		switch requiredRole {
-		case "anon":
-			// Anonymous access allowed
-			return nil
-		case "authenticated":
-			// service_role and dashboard_admin are always considered authenticated
-			if userRole == "service_role" || userRole == "dashboard_admin" {
+	// Check role requirement (OR semantics - user needs ANY of the required roles)
+	if len(proc.RequireRoles) > 0 {
+		// Check if user's role satisfies ANY of the required roles
+		for _, requiredRole := range proc.RequireRoles {
+			switch requiredRole {
+			case "anon":
+				// Anonymous access allowed
 				return nil
-			}
-			if !isAuthenticated {
-				return fmt.Errorf("procedure requires authentication")
-			}
-		default:
-			// Specific role required
-			if userRole != requiredRole && userRole != "service_role" && userRole != "dashboard_admin" {
-				return fmt.Errorf("procedure requires role: %s", requiredRole)
+			case "authenticated":
+				if isAuthenticated {
+					return nil
+				}
+			default:
+				// Specific role required - exact match
+				if userRole == requiredRole {
+					return nil
+				}
 			}
 		}
+
+		// None of the required roles matched
+		return fmt.Errorf("procedure requires one of roles: %v", proc.RequireRoles)
 	}
 
 	return nil

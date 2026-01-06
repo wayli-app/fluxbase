@@ -170,14 +170,24 @@ export default async function cleanup() {}`
 		assert.Equal(t, 5, config.MaxRetries)
 	})
 
-	t.Run("parses require-role", func(t *testing.T) {
+	t.Run("parses require-role with single role", func(t *testing.T) {
 		code := `
 // @fluxbase:schedule "0 0 * * *"
 // @fluxbase:require-role admin
 export default async function adminJob() {}`
 		config := parseJobAnnotations(code)
 
-		assert.Equal(t, "admin", config.RequireRole)
+		assert.Equal(t, []string{"admin"}, config.RequireRoles)
+	})
+
+	t.Run("parses require-role with multiple roles", func(t *testing.T) {
+		code := `
+// @fluxbase:schedule "0 0 * * *"
+// @fluxbase:require-role admin, editor, moderator
+export default async function adminJob() {}`
+		config := parseJobAnnotations(code)
+
+		assert.Equal(t, []string{"admin", "editor", "moderator"}, config.RequireRoles)
 	})
 
 	t.Run("uses job defaults", func(t *testing.T) {
@@ -263,14 +273,22 @@ SELECT * FROM users;`
 		assert.Equal(t, []string{"public", "reporting"}, config.AllowedSchemas)
 	})
 
-	t.Run("parses require-role", func(t *testing.T) {
+	t.Run("parses require-role with single role", func(t *testing.T) {
 		sqlCode := `
 -- @fluxbase:require-role authenticated
 SELECT * FROM users WHERE id = $1;`
 		config := parseRPCAnnotations(sqlCode)
 
-		assert.NotNil(t, config.RequireRole)
-		assert.Equal(t, "authenticated", *config.RequireRole)
+		assert.Equal(t, []string{"authenticated"}, config.RequireRoles)
+	})
+
+	t.Run("parses require-role with multiple roles", func(t *testing.T) {
+		sqlCode := `
+-- @fluxbase:require-role admin, editor, moderator
+SELECT * FROM users WHERE id = $1;`
+		config := parseRPCAnnotations(sqlCode)
+
+		assert.Equal(t, []string{"admin", "editor", "moderator"}, config.RequireRoles)
 	})
 
 	t.Run("parses schedule for scheduled procedures", func(t *testing.T) {
@@ -565,5 +583,23 @@ You are an order management assistant.`
 
 		assert.Equal(t, []string{}, config.MCPTools)
 		assert.False(t, config.UseMCPSchema)
+	})
+
+	t.Run("parses require-role with single role", func(t *testing.T) {
+		code := `
+// @fluxbase:require-role admin
+You are an admin assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.Equal(t, []string{"admin"}, config.RequireRoles)
+	})
+
+	t.Run("parses require-role with multiple roles", func(t *testing.T) {
+		code := `
+// @fluxbase:require-role admin, editor, moderator
+You are a privileged assistant...`
+		config := parseChatbotAnnotations(code)
+
+		assert.Equal(t, []string{"admin", "editor", "moderator"}, config.RequireRoles)
 	})
 }

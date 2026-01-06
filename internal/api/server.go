@@ -968,6 +968,9 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	toolRegistry.Register(mcptools.NewDropColumnTool(s.db))
 	toolRegistry.Register(mcptools.NewRenameTableTool(s.db))
 
+	// HTTP request tool (for chatbots with external API access)
+	toolRegistry.Register(mcptools.NewHttpRequestTool())
+
 	// Sync tools (deploy functions, jobs, RPC, migrations, chatbots via MCP)
 	if s.config.Functions.Enabled {
 		functionsStorage := functions.NewStorage(s.db)

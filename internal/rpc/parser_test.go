@@ -17,7 +17,7 @@ func TestParseAnnotations(t *testing.T) {
 -- @fluxbase:allowed-tables users, profiles
 -- @fluxbase:allowed-schemas public, auth
 -- @fluxbase:max-execution-time 30s
--- @fluxbase:require-role admin
+-- @fluxbase:require-role admin, editor
 -- @fluxbase:public true
 -- @fluxbase:version 2
 -- @fluxbase:schedule 0 * * * *
@@ -34,7 +34,7 @@ SELECT * FROM users WHERE id = $user_id LIMIT $limit;`
 		assert.Equal(t, []string{"users", "profiles"}, annotations.AllowedTables)
 		assert.Equal(t, []string{"public", "auth"}, annotations.AllowedSchemas)
 		assert.Equal(t, 30*time.Second, annotations.MaxExecutionTime)
-		assert.Equal(t, "admin", annotations.RequireRole)
+		assert.Equal(t, []string{"admin", "editor"}, annotations.RequireRoles)
 		assert.True(t, annotations.IsPublic)
 		assert.Equal(t, 2, annotations.Version)
 		require.NotNil(t, annotations.Schedule)
@@ -309,7 +309,7 @@ func TestApplyAnnotations(t *testing.T) {
 			AllowedTables:    []string{"users"},
 			AllowedSchemas:   []string{"public"},
 			MaxExecutionTime: 60 * time.Second,
-			RequireRole:      "admin",
+			RequireRoles:     []string{"admin"},
 			IsPublic:         true,
 			Version:          3,
 			Schedule:         &schedule,
@@ -322,8 +322,7 @@ func TestApplyAnnotations(t *testing.T) {
 		assert.Equal(t, []string{"users"}, proc.AllowedTables)
 		assert.Equal(t, []string{"public"}, proc.AllowedSchemas)
 		assert.Equal(t, 60, proc.MaxExecutionTimeSeconds)
-		require.NotNil(t, proc.RequireRole)
-		assert.Equal(t, "admin", *proc.RequireRole)
+		assert.Equal(t, []string{"admin"}, proc.RequireRoles)
 		assert.True(t, proc.IsPublic)
 		assert.Equal(t, 3, proc.Version)
 		require.NotNil(t, proc.Schedule)
@@ -490,7 +489,7 @@ func TestDefaultAnnotations(t *testing.T) {
 		assert.Equal(t, []string{"public"}, defaults.AllowedSchemas)
 		assert.Empty(t, defaults.AllowedTables)
 		assert.Equal(t, 30*time.Second, defaults.MaxExecutionTime)
-		assert.Empty(t, defaults.RequireRole)
+		assert.Empty(t, defaults.RequireRoles)
 		assert.False(t, defaults.IsPublic)
 		assert.Equal(t, 1, defaults.Version)
 		assert.Nil(t, defaults.Schedule)

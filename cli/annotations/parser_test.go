@@ -209,8 +209,8 @@ export function handler() {}`
 	if config.AllowEnv == nil || *config.AllowEnv != false {
 		t.Errorf("AllowEnv = %v, want false", config.AllowEnv)
 	}
-	if config.RequireRole == nil || *config.RequireRole != "admin" {
-		t.Errorf("RequireRole = %v, want 'admin'", config.RequireRole)
+	if len(config.RequireRoles) != 1 || config.RequireRoles[0] != "admin" {
+		t.Errorf("RequireRoles = %v, want ['admin']", config.RequireRoles)
 	}
 	if !config.DisableExecutionLogs {
 		t.Error("DisableExecutionLogs = false, want true")

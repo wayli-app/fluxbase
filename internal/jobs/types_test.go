@@ -31,7 +31,7 @@ func TestJobFunction_Struct(t *testing.T) {
 		desc := "Test function"
 		code := "console.log('hello');"
 		schedule := "*/5 * * * *"
-		requireRole := "admin"
+		requireRoles := []string{"admin", "editor"}
 		now := time.Now()
 
 		fn := &JobFunction{
@@ -52,7 +52,7 @@ func TestJobFunction_Struct(t *testing.T) {
 			AllowEnv:               false,
 			AllowRead:              true,
 			AllowWrite:             false,
-			RequireRole:            &requireRole,
+			RequireRoles:           requireRoles,
 			Version:                1,
 			CreatedBy:              &createdBy,
 			Source:                 "filesystem",
