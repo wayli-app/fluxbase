@@ -249,28 +249,33 @@ func (v *Validator) ValidateAccess(proc *Procedure, userRole string, isAuthentic
 		return fmt.Errorf("procedure requires authentication")
 	}
 
-	// Check role requirement
-	if proc.RequireRole != nil && *proc.RequireRole != "" {
-		requiredRole := *proc.RequireRole
-
-		switch requiredRole {
-		case "anon":
-			// Anonymous access allowed
+	// Check role requirement (OR semantics - user needs ANY of the required roles)
+	if len(proc.RequireRoles) > 0 {
+		// Service roles bypass all checks
+		if userRole == "service_role" || userRole == "dashboard_admin" {
 			return nil
-		case "authenticated":
-			// service_role and dashboard_admin are always considered authenticated
-			if userRole == "service_role" || userRole == "dashboard_admin" {
+		}
+
+		// Check if user's role satisfies ANY of the required roles
+		for _, requiredRole := range proc.RequireRoles {
+			switch requiredRole {
+			case "anon":
+				// Anonymous access allowed
 				return nil
-			}
-			if !isAuthenticated {
-				return fmt.Errorf("procedure requires authentication")
-			}
-		default:
-			// Specific role required
-			if userRole != requiredRole && userRole != "service_role" && userRole != "dashboard_admin" {
-				return fmt.Errorf("procedure requires role: %s", requiredRole)
+			case "authenticated":
+				if isAuthenticated {
+					return nil
+				}
+			default:
+				// Specific role required - exact match
+				if userRole == requiredRole {
+					return nil
+				}
 			}
 		}
+
+		// None of the required roles matched
+		return fmt.Errorf("procedure requires one of roles: %v", proc.RequireRoles)
 	}
 
 	return nil

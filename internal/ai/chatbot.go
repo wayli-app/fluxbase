@@ -58,8 +58,9 @@ type Chatbot struct {
 	DailyTokenBudget   int `json:"daily_token_budget"`
 
 	// Access control
-	AllowUnauthenticated bool `json:"allow_unauthenticated"`
-	IsPublic             bool `json:"is_public"`
+	AllowUnauthenticated bool     `json:"allow_unauthenticated"`
+	IsPublic             bool     `json:"is_public"`
+	RequireRoles         []string `json:"require_roles,omitempty"` // Required roles to access (OR semantics)
 
 	// Response language
 	ResponseLanguage string `json:"response_language"` // "auto" (default), ISO code, or language name
@@ -112,6 +113,7 @@ type ChatbotConfig struct {
 	// Access control
 	AllowUnauthenticated bool
 	IsPublic             bool
+	RequireRoles         []string // Required roles to access (OR semantics)
 
 	// RAG/Knowledge Base settings
 	KnowledgeBases         []string // Knowledge base names to link

@@ -194,7 +194,7 @@ func (l *Loader) LoadFromFilesystem(ctx context.Context, namespace string) error
 			AllowEnv:               annotations.AllowEnv,
 			AllowRead:              annotations.AllowRead,
 			AllowWrite:             annotations.AllowWrite,
-			RequireRole:            annotations.RequireRole,
+			RequireRoles:           annotations.RequireRoles,
 			Schedule:               annotations.Schedule,
 			Version:                1,
 			Source:                 "filesystem",
@@ -338,7 +338,7 @@ func (l *Loader) LoadBuiltinJobs(ctx context.Context, namespace string) error {
 			AllowEnv:               annotations.AllowEnv,
 			AllowRead:              annotations.AllowRead,
 			AllowWrite:             annotations.AllowWrite,
-			RequireRole:            annotations.RequireRole,
+			RequireRoles:           annotations.RequireRoles,
 			Schedule:               annotations.Schedule,
 			Version:                1,
 			Source:                 "builtin",
@@ -567,7 +567,7 @@ type JobAnnotations struct {
 	AllowEnv               bool
 	AllowRead              bool
 	AllowWrite             bool
-	RequireRole            *string
+	RequireRoles           []string
 	DisableExecutionLogs   bool
 }
 
@@ -661,10 +661,19 @@ func parseAnnotations(code string) JobAnnotations {
 		annotations.AllowEnv = false
 	}
 
-	// Parse require-role
-	if match := regexp.MustCompile(`@fluxbase:require-role\s+(\w+)`).FindStringSubmatch(code); match != nil {
-		role := strings.TrimSpace(match[1])
-		annotations.RequireRole = &role
+	// Parse require-role (supports comma-separated list of roles)
+	if match := regexp.MustCompile(`@fluxbase:require-role\s+(.+)`).FindStringSubmatch(code); match != nil {
+		rolesStr := strings.TrimSpace(match[1])
+		var roles []string
+		for _, role := range strings.Split(rolesStr, ",") {
+			role = strings.TrimSpace(role)
+			if role != "" {
+				roles = append(roles, role)
+			}
+		}
+		if len(roles) > 0 {
+			annotations.RequireRoles = roles
+		}
 	}
 
 	// Parse disable-execution-logs

@@ -179,9 +179,19 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 	h.scheduler = scheduler
 }
 
-// roleSatisfiesRequirement checks if the user's role satisfies the required role
+// roleSatisfiesRequirements checks if the user's role satisfies ANY of the required roles (OR semantics)
 // using a hierarchy where: service_role/dashboard_admin > admin > authenticated > anon
-func roleSatisfiesRequirement(userRole, requiredRole string) bool {
+func roleSatisfiesRequirements(userRole string, requiredRoles []string) bool {
+	// If no roles required, allow all
+	if len(requiredRoles) == 0 {
+		return true
+	}
+
+	// Service roles bypass all checks
+	if userRole == "service_role" || userRole == "dashboard_admin" {
+		return true
+	}
+
 	// Define role hierarchy levels (higher number = more privileged)
 	roleLevel := map[string]int{
 		"anon":            0,
@@ -192,24 +202,31 @@ func roleSatisfiesRequirement(userRole, requiredRole string) bool {
 	}
 
 	userLevel, userOk := roleLevel[userRole]
-	requiredLevel, requiredOk := roleLevel[requiredRole]
-
-	// If the required role is not in the hierarchy, require exact match
-	// unless user has service_role or dashboard_admin (which bypass all checks)
-	if !requiredOk {
-		if userRole == "service_role" || userRole == "dashboard_admin" {
-			return true
-		}
-		return userRole == requiredRole
-	}
-
 	// If user role is not in hierarchy, it's treated as authenticated level
 	// (e.g., custom roles like "moderator", "editor" are at authenticated level)
 	if !userOk {
 		userLevel = roleLevel["authenticated"]
 	}
 
-	return userLevel >= requiredLevel
+	// Check if user's role satisfies ANY of the required roles
+	for _, requiredRole := range requiredRoles {
+		requiredLevel, requiredOk := roleLevel[requiredRole]
+
+		// If the required role is not in the hierarchy, require exact match
+		if !requiredOk {
+			if userRole == requiredRole {
+				return true
+			}
+			continue
+		}
+
+		// Check hierarchy
+		if userLevel >= requiredLevel {
+			return true
+		}
+	}
+
+	return false
 }
 
 // NewHandler creates a new jobs handler
@@ -420,21 +437,21 @@ func (h *Handler) SubmitJob(c *fiber.Ctx) error {
 	}
 
 	// Check role-based permissions
-	if jobFunction.RequireRole != nil && *jobFunction.RequireRole != "" {
+	if len(jobFunction.RequireRoles) > 0 {
 		if userRole == nil {
 			return c.Status(403).JSON(fiber.Map{
-				"error":         "Authentication required",
-				"required_role": *jobFunction.RequireRole,
+				"error":          "Authentication required",
+				"required_roles": jobFunction.RequireRoles,
 			})
 		}
 
-		// Check if user's role satisfies the required role using hierarchy
+		// Check if user's role satisfies ANY of the required roles using hierarchy
 		// (admin > authenticated > anon)
-		if !roleSatisfiesRequirement(*userRole, *jobFunction.RequireRole) {
+		if !roleSatisfiesRequirements(*userRole, jobFunction.RequireRoles) {
 			return c.Status(403).JSON(fiber.Map{
-				"error":         "Insufficient permissions",
-				"required_role": *jobFunction.RequireRole,
-				"user_role":     *userRole,
+				"error":          "Insufficient permissions",
+				"required_roles": jobFunction.RequireRoles,
+				"user_role":      *userRole,
 			})
 		}
 	}
@@ -884,22 +901,22 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 	var req struct {
 		Namespace string `json:"namespace"`
 		Jobs      []struct {
-			Name                   string  `json:"name"`
-			Description            *string `json:"description"`
-			Code                   string  `json:"code"`
-			OriginalCode           *string `json:"original_code"`
-			IsPreBundled           bool    `json:"is_pre_bundled"`
-			Enabled                *bool   `json:"enabled"`
-			Schedule               *string `json:"schedule"`
-			TimeoutSeconds         *int    `json:"timeout_seconds"`
-			MemoryLimitMB          *int    `json:"memory_limit_mb"`
-			MaxRetries             *int    `json:"max_retries"`
-			ProgressTimeoutSeconds *int    `json:"progress_timeout_seconds"`
-			AllowNet               *bool   `json:"allow_net"`
-			AllowEnv               *bool   `json:"allow_env"`
-			AllowRead              *bool   `json:"allow_read"`
-			AllowWrite             *bool   `json:"allow_write"`
-			RequireRole            *string `json:"require_role"`
+			Name                   string   `json:"name"`
+			Description            *string  `json:"description"`
+			Code                   string   `json:"code"`
+			OriginalCode           *string  `json:"original_code"`
+			IsPreBundled           bool     `json:"is_pre_bundled"`
+			Enabled                *bool    `json:"enabled"`
+			Schedule               *string  `json:"schedule"`
+			TimeoutSeconds         *int     `json:"timeout_seconds"`
+			MemoryLimitMB          *int     `json:"memory_limit_mb"`
+			MaxRetries             *int     `json:"max_retries"`
+			ProgressTimeoutSeconds *int     `json:"progress_timeout_seconds"`
+			AllowNet               *bool    `json:"allow_net"`
+			AllowEnv               *bool    `json:"allow_env"`
+			AllowRead              *bool    `json:"allow_read"`
+			AllowWrite             *bool    `json:"allow_write"`
+			RequireRoles           []string `json:"require_roles"`
 		} `json:"jobs"`
 		Options struct {
 			DeleteMissing bool `json:"delete_missing"`
@@ -1094,7 +1111,7 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 				AllowEnv:               existing.AllowEnv,
 				AllowRead:              existing.AllowRead,
 				AllowWrite:             existing.AllowWrite,
-				RequireRole:            existing.RequireRole,
+				RequireRoles:           existing.RequireRoles,
 				Source:                 existing.Source, // Preserve original source
 			}
 
@@ -1140,8 +1157,8 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 			if spec.AllowWrite != nil {
 				updatedFn.AllowWrite = *spec.AllowWrite
 			}
-			if spec.RequireRole != nil {
-				updatedFn.RequireRole = spec.RequireRole
+			if len(spec.RequireRoles) > 0 {
+				updatedFn.RequireRoles = spec.RequireRoles
 			}
 
 			if err := h.storage.UpdateJobFunction(ctx, updatedFn); err != nil {
@@ -1174,7 +1191,7 @@ func (h *Handler) SyncJobs(c *fiber.Ctx) error {
 				AllowEnv:               valueOr(spec.AllowEnv, true),
 				AllowRead:              valueOr(spec.AllowRead, false),
 				AllowWrite:             valueOr(spec.AllowWrite, false),
-				RequireRole:            spec.RequireRole,
+				RequireRoles:           spec.RequireRoles,
 				Version:                1,
 				CreatedBy:              createdBy,
 				Source:                 "api",

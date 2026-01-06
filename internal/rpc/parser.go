@@ -84,9 +84,19 @@ func ParseAnnotations(code string) (*Annotations, string, error) {
 		}
 	}
 
-	// Parse require role
+	// Parse require role (supports comma-separated list of roles)
 	if matches := requireRolePattern.FindStringSubmatch(code); len(matches) > 1 {
-		annotations.RequireRole = strings.TrimSpace(matches[1])
+		rolesStr := strings.TrimSpace(matches[1])
+		var roles []string
+		for _, role := range strings.Split(rolesStr, ",") {
+			role = strings.TrimSpace(role)
+			if role != "" {
+				roles = append(roles, role)
+			}
+		}
+		if len(roles) > 0 {
+			annotations.RequireRoles = roles
+		}
 	}
 
 	// Parse public flag
@@ -228,8 +238,8 @@ func ApplyAnnotations(proc *Procedure, annotations *Annotations) {
 	if annotations.MaxExecutionTime > 0 {
 		proc.MaxExecutionTimeSeconds = int(annotations.MaxExecutionTime.Seconds())
 	}
-	if annotations.RequireRole != "" {
-		proc.RequireRole = &annotations.RequireRole
+	if len(annotations.RequireRoles) > 0 {
+		proc.RequireRoles = annotations.RequireRoles
 	}
 	proc.IsPublic = annotations.IsPublic
 	proc.DisableExecutionLogs = annotations.DisableExecutionLogs
