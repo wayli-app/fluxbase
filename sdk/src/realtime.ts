@@ -28,8 +28,11 @@ export class RealtimeChannel {
   private presenceCallbacks: Map<string, Set<PresenceCallback>> = new Map();
   private broadcastCallbacks: Map<string, Set<BroadcastCallback>> = new Map();
   private executionLogCallbacks: Set<ExecutionLogCallback> = new Set();
-  private subscriptionConfig: PostgresChangesConfig | null = null;
-  private subscriptionId: string | null = null;
+  private subscriptionConfigs: Array<{
+    config: PostgresChangesConfig;
+    callbacks: Set<RealtimeCallback>;
+  }> = [];
+  private subscriptionIds: Map<string, string> = new Map(); // "schema.table" -> subscription_id
   private executionLogConfig: { execution_id: string; type?: ExecutionType } | null = null;
   private _presenceState: Record<string, PresenceState[]> = {};
   private myPresenceKey: string | null = null;
@@ -200,14 +203,23 @@ export class RealtimeChannel {
     ) {
       // on('postgres_changes', config, callback)
       const config = configOrCallback as PostgresChangesConfig;
-      this.subscriptionConfig = config;
-      const actualCallback = callback!;
+      const actualCallback = callback as RealtimeCallback;
 
-      const eventType = config.event;
-      if (!this.callbacks.has(eventType)) {
-        this.callbacks.set(eventType, new Set());
+      // Find existing config for same table/schema/event/filter combination
+      let entry = this.subscriptionConfigs.find(
+        (e) =>
+          e.config.schema === config.schema &&
+          e.config.table === config.table &&
+          e.config.event === config.event &&
+          e.config.filter === config.filter
+      );
+
+      if (!entry) {
+        entry = { config, callbacks: new Set() };
+        this.subscriptionConfigs.push(entry);
       }
-      this.callbacks.get(eventType)!.add(actualCallback as RealtimeCallback);
+
+      entry.callbacks.add(actualCallback);
     } else if (event === "broadcast" && typeof configOrCallback !== "function") {
       // on('broadcast', { event }, callback)
       const config = configOrCallback as { event: string };
@@ -305,11 +317,22 @@ export class RealtimeChannel {
 
     return new Promise((resolve) => {
       if (this.ws) {
-        this.sendMessage({
-          type: "unsubscribe",
-          channel: this.channelName,
-          subscription_id: this.subscriptionId || undefined,
-        });
+        // Send unsubscribe for each subscription ID we have
+        if (this.subscriptionIds.size > 0) {
+          for (const subId of this.subscriptionIds.values()) {
+            this.sendMessage({
+              type: "unsubscribe",
+              channel: this.channelName,
+              subscription_id: subId,
+            });
+          }
+        } else {
+          // Fallback: just send channel unsubscribe (server will cleanup all)
+          this.sendMessage({
+            type: "unsubscribe",
+            channel: this.channelName,
+          });
+        }
 
         // Wait for disconnect
         const startTime = Date.now();
@@ -592,18 +615,22 @@ export class RealtimeChannel {
           },
         };
         this.sendMessage(logSubscribeMessage as unknown as RealtimeMessage);
+      } else if (this.subscriptionConfigs.length > 0) {
+        // Send a subscribe message for each postgres_changes config
+        for (const entry of this.subscriptionConfigs) {
+          const subscribeMessage: RealtimeMessage = {
+            type: "subscribe",
+            channel: this.channelName,
+            config: entry.config,
+          };
+          this.sendMessage(subscribeMessage);
+        }
       } else {
-        // Subscribe to channel with optional config (for postgres_changes)
+        // Legacy: no config, just subscribe to channel (for broadcast/presence)
         const subscribeMessage: RealtimeMessage = {
           type: "subscribe",
           channel: this.channelName,
         };
-
-        // Add subscription config if using new postgres_changes API
-        if (this.subscriptionConfig) {
-          subscribeMessage.config = this.subscriptionConfig;
-        }
-
         this.sendMessage(subscribeMessage);
       }
 
@@ -694,7 +721,7 @@ export class RealtimeChannel {
             ackHandler.resolve(message.status || "ok");
           }
         } else if (message.payload && typeof message.payload === 'object' && 'type' in message.payload) {
-          const payload = message.payload as { type: string; updated?: boolean; subscription_id?: string };
+          const payload = message.payload as { type: string; updated?: boolean; subscription_id?: string; schema?: string; table?: string };
 
           // Handle access_token acknowledgment
           if (payload.type === "access_token" && this.pendingAcks.has("access_token")) {
@@ -704,21 +731,32 @@ export class RealtimeChannel {
               this.pendingAcks.delete("access_token");
             }
             console.log("[Fluxbase Realtime] Token updated successfully");
-          } else {
-            // Store subscription_id from subscription acknowledgment
-            if (payload.subscription_id) {
-              this.subscriptionId = payload.subscription_id;
-              console.log("[Fluxbase Realtime] Subscription ID received:", this.subscriptionId);
+          } else if (payload.subscription_id) {
+            // Store subscription_id keyed by schema.table for unsubscribe support
+            const schema = payload.schema || "public";
+            const table = payload.table || "";
+            if (table) {
+              this.subscriptionIds.set(`${schema}.${table}`, payload.subscription_id);
+              console.log("[Fluxbase Realtime] Subscription ID received for", `${schema}.${table}:`, payload.subscription_id);
             } else {
-              // Log other acknowledgments
-              console.log("[Fluxbase Realtime] Acknowledged:", message);
+              console.log("[Fluxbase Realtime] Subscription ID received:", payload.subscription_id);
             }
+          } else {
+            // Log other acknowledgments
+            console.log("[Fluxbase Realtime] Acknowledged:", message);
           }
         } else {
           // Store subscription_id from subscription acknowledgment (legacy format)
           if (message.payload && typeof message.payload === 'object' && 'subscription_id' in message.payload) {
-            this.subscriptionId = (message.payload as { subscription_id: string }).subscription_id;
-            console.log("[Fluxbase Realtime] Subscription ID received:", this.subscriptionId);
+            const payload = message.payload as { subscription_id: string; schema?: string; table?: string };
+            const schema = payload.schema || "public";
+            const table = payload.table || "";
+            if (table) {
+              this.subscriptionIds.set(`${schema}.${table}`, payload.subscription_id);
+              console.log("[Fluxbase Realtime] Subscription ID received for", `${schema}.${table}:`, payload.subscription_id);
+            } else {
+              console.log("[Fluxbase Realtime] Subscription ID received:", payload.subscription_id);
+            }
           } else {
             // Log other acknowledgments
             console.log("[Fluxbase Realtime] Acknowledged:", message);
@@ -839,7 +877,26 @@ export class RealtimeChannel {
       errors: payload.errors || null,
     };
 
-    // Call event-specific callbacks
+    // Route to subscription-specific callbacks based on matching config
+    for (const entry of this.subscriptionConfigs) {
+      const c = entry.config;
+      // Check if this payload matches the subscription config
+      const schemaMatch = !c.schema || c.schema === supabasePayload.schema;
+      const tableMatch = !c.table || c.table === supabasePayload.table;
+      const eventMatch = c.event === "*" || c.event === supabasePayload.eventType;
+
+      if (schemaMatch && tableMatch && eventMatch) {
+        entry.callbacks.forEach((cb) => {
+          try {
+            cb(supabasePayload);
+          } catch (err) {
+            console.error("[Fluxbase Realtime] Error in postgres_changes callback:", err);
+          }
+        });
+      }
+    }
+
+    // Also call legacy event-specific callbacks (for backwards compatibility)
     const callbacks = this.callbacks.get(supabasePayload.eventType);
     if (callbacks) {
       callbacks.forEach((callback) => callback(supabasePayload));

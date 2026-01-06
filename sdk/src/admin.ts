@@ -31,6 +31,7 @@ import { FluxbaseAdminJobs } from "./admin-jobs";
 import { FluxbaseAdminAI } from "./admin-ai";
 import { FluxbaseAdminRPC } from "./admin-rpc";
 import { FluxbaseAdminStorage } from "./admin-storage";
+import { FluxbaseAdminRealtime } from "./admin-realtime";
 
 /**
  * Admin client for managing Fluxbase instance
@@ -99,6 +100,11 @@ export class FluxbaseAdmin {
    */
   public storage: FluxbaseAdminStorage;
 
+  /**
+   * Realtime manager for enabling/disabling realtime on tables
+   */
+  public realtime: FluxbaseAdminRealtime;
+
   constructor(fetch: FluxbaseFetch) {
     this.fetch = fetch;
     this.settings = new FluxbaseSettings(fetch);
@@ -113,6 +119,7 @@ export class FluxbaseAdmin {
     this.ai = new FluxbaseAdminAI(fetch);
     this.rpc = new FluxbaseAdminRPC(fetch);
     this.storage = new FluxbaseAdminStorage(fetch);
+    this.realtime = new FluxbaseAdminRealtime(fetch);
   }
 
   /**

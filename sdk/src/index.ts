@@ -146,6 +146,9 @@ export {
 // DDL module
 export { DDLManager } from "./ddl";
 
+// Realtime Admin module
+export { FluxbaseAdminRealtime } from "./admin-realtime";
+
 // OAuth configuration module
 export {
   FluxbaseOAuth,
@@ -398,6 +401,13 @@ export type {
   Column,
   Table,
   ListTablesResponse,
+
+  // Realtime Admin types
+  EnableRealtimeRequest,
+  EnableRealtimeResponse,
+  RealtimeTableStatus,
+  ListRealtimeTablesResponse,
+  UpdateRealtimeConfigRequest,
 
   // OAuth Provider Configuration types
   OAuthProvider,

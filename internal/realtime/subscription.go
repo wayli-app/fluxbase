@@ -349,15 +349,21 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 }
 
 // isTableAllowedUnsafe checks if a table is allowed for realtime (must be called with lock held)
+// It checks the realtime.schema_registry table to see if the table is enabled for realtime.
 func (sm *SubscriptionManager) isTableAllowedUnsafe(schema, table string) bool {
-	// Allow tables in auth, public, and jobs schemas
-	// In production, this should check a configuration table
-	switch schema {
-	case "auth", "public", "jobs":
-		return true
-	default:
+	// Check the schema registry for realtime-enabled tables
+	var enabled bool
+	err := sm.db.QueryRow(context.Background(), `
+		SELECT realtime_enabled FROM realtime.schema_registry
+		WHERE schema_name = $1 AND table_name = $2
+	`, schema, table).Scan(&enabled)
+
+	if err != nil {
+		// Table not registered in schema_registry - not enabled for realtime
 		return false
 	}
+
+	return enabled
 }
 
 // GetSubscriptionsByConnection returns all subscriptions for a connection
