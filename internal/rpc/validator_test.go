@@ -340,6 +340,32 @@ func TestValidator_ValidateAccess(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("service_role bypasses auth requirement even without user_id", func(t *testing.T) {
+		// This test covers the case where a service_role token is used (which has no user_id)
+		// The isAuthenticated flag is false because there's no user_id, but service_role
+		// should still have full access
+		proc := &Procedure{IsPublic: false, RequireRoles: []string{"authenticated"}}
+
+		// isAuthenticated: false simulates a service_role token (no user_id)
+		err := v.ValidateAccess(proc, "service_role", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("dashboard_admin bypasses auth requirement even without user_id", func(t *testing.T) {
+		proc := &Procedure{IsPublic: false, RequireRoles: []string{"authenticated"}}
+
+		err := v.ValidateAccess(proc, "dashboard_admin", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("service_role can access non-public procedure without authentication", func(t *testing.T) {
+		// Service role should bypass the authentication check entirely
+		proc := &Procedure{IsPublic: false}
+
+		err := v.ValidateAccess(proc, "service_role", false)
+		assert.NoError(t, err)
+	})
+
 	t.Run("empty require_roles does not restrict", func(t *testing.T) {
 		proc := &Procedure{IsPublic: false, RequireRoles: []string{}}
 
