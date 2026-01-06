@@ -26,7 +26,11 @@ export interface RPCInvokeOptions {
  */
 interface RPCFetch {
   get: <T>(path: string) => Promise<T>;
-  post: <T>(path: string, body?: unknown) => Promise<T>;
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: { timeout?: number },
+  ) => Promise<T>;
 }
 
 /**
