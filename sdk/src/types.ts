@@ -3998,6 +3998,82 @@ export interface BranchPoolStats {
 }
 
 // ============================================================================
+// Realtime Admin Types
+// ============================================================================
+
+/**
+ * Request to enable realtime on a table
+ */
+export interface EnableRealtimeRequest {
+  /** Schema name (default: 'public') */
+  schema: string;
+  /** Table name */
+  table: string;
+  /** Events to track (default: ['INSERT', 'UPDATE', 'DELETE']) */
+  events?: ("INSERT" | "UPDATE" | "DELETE")[];
+  /** Columns to exclude from notifications */
+  exclude?: string[];
+}
+
+/**
+ * Response after enabling realtime on a table
+ */
+export interface EnableRealtimeResponse {
+  /** Schema name */
+  schema: string;
+  /** Table name */
+  table: string;
+  /** Events being tracked */
+  events: string[];
+  /** Name of the created trigger */
+  trigger_name: string;
+  /** Columns excluded from notifications */
+  exclude?: string[];
+}
+
+/**
+ * Status of realtime for a table
+ */
+export interface RealtimeTableStatus {
+  /** Registry ID */
+  id?: number;
+  /** Schema name */
+  schema: string;
+  /** Table name */
+  table: string;
+  /** Whether realtime is enabled */
+  realtime_enabled: boolean;
+  /** Events being tracked */
+  events: string[];
+  /** Columns excluded from notifications */
+  excluded_columns?: string[];
+  /** When realtime was enabled */
+  created_at?: string;
+  /** When configuration was last updated */
+  updated_at?: string;
+}
+
+/**
+ * Response listing realtime-enabled tables
+ */
+export interface ListRealtimeTablesResponse {
+  /** List of tables with realtime enabled */
+  tables: RealtimeTableStatus[];
+  /** Total count */
+  count: number;
+}
+
+/**
+ * Request to update realtime configuration
+ */
+export interface UpdateRealtimeConfigRequest {
+  /** Events to track */
+  events?: ("INSERT" | "UPDATE" | "DELETE")[];
+  /** Columns to exclude from notifications */
+  exclude?: string[];
+}
+
+// ============================================================================
 // Deprecated Supabase-compatible type aliases (for backward compatibility)
 // ============================================================================
 

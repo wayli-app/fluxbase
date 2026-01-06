@@ -13,47 +13,47 @@ npm install @fluxbase/sdk
 ## Basic Usage
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient('http://localhost:8080', 'your-anon-key')
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // Subscribe to table changes
 const channel = client.realtime
-  .channel('table:public.products')
-  .on('INSERT', (payload) => {
-    console.log('New product:', payload.new_record)
+  .channel("table:public.products")
+  .on("INSERT", (payload) => {
+    console.log("New product:", payload.new_record);
   })
-  .on('UPDATE', (payload) => {
-    console.log('Updated:', payload.new_record)
-    console.log('Previous:', payload.old_record)
+  .on("UPDATE", (payload) => {
+    console.log("Updated:", payload.new_record);
+    console.log("Previous:", payload.old_record);
   })
-  .on('DELETE', (payload) => {
-    console.log('Deleted:', payload.old_record)
+  .on("DELETE", (payload) => {
+    console.log("Deleted:", payload.old_record);
   })
-  .subscribe()
+  .subscribe();
 
 // Or use wildcard for all events
 const channel = client.realtime
-  .channel('table:public.products')
-  .on('*', (payload) => {
-    console.log('Event:', payload.type) // INSERT, UPDATE, or DELETE
+  .channel("table:public.products")
+  .on("*", (payload) => {
+    console.log("Event:", payload.type); // INSERT, UPDATE, or DELETE
   })
-  .subscribe()
+  .subscribe();
 
 // Unsubscribe
-channel.unsubscribe()
+channel.unsubscribe();
 ```
 
 ## Payload Structure
 
 ```typescript
 interface RealtimeChangePayload {
-  type: 'INSERT' | 'UPDATE' | 'DELETE'
-  schema: string
-  table: string
-  new_record?: Record<string, unknown> // INSERT and UPDATE
-  old_record?: Record<string, unknown> // UPDATE and DELETE
-  timestamp: string
+  type: "INSERT" | "UPDATE" | "DELETE";
+  schema: string;
+  table: string;
+  new_record?: Record<string, unknown>; // INSERT and UPDATE
+  old_record?: Record<string, unknown>; // UPDATE and DELETE
+  timestamp: string;
 }
 ```
 
@@ -113,12 +113,12 @@ Subscribe to specific rows using RLS policies:
 // Only receive updates for rows user has access to
 // Access control is enforced via Row-Level Security policies
 const channel = client.realtime
-  .channel('table:public.posts')
-  .on('*', (payload) => {
+  .channel("table:public.posts")
+  .on("*", (payload) => {
     // Only events matching RLS policies are received
-    console.log('Post update:', payload)
+    console.log("Post update:", payload);
   })
-  .subscribe()
+  .subscribe();
 ```
 
 ## Multiple Subscriptions
@@ -127,18 +127,18 @@ Subscribe to multiple tables:
 
 ```typescript
 const productsChannel = client.realtime
-  .channel('table:public.products')
-  .on('*', handleProductChange)
-  .subscribe()
+  .channel("table:public.products")
+  .on("*", handleProductChange)
+  .subscribe();
 
 const ordersChannel = client.realtime
-  .channel('table:public.orders')
-  .on('*', handleOrderChange)
-  .subscribe()
+  .channel("table:public.orders")
+  .on("*", handleOrderChange)
+  .subscribe();
 
 // Cleanup
-productsChannel.unsubscribe()
-ordersChannel.unsubscribe()
+productsChannel.unsubscribe();
+ordersChannel.unsubscribe();
 ```
 
 ## Connection States
@@ -147,55 +147,90 @@ Monitor connection status:
 
 ```typescript
 const channel = client.realtime
-  .channel('table:public.products')
-  .on('*', handleChange)
+  .channel("table:public.products")
+  .on("*", handleChange)
   .subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      console.log('Connected and listening')
-    } else if (status === 'CHANNEL_ERROR') {
-      console.error('Subscription error')
-    } else if (status === 'CLOSED') {
-      console.log('Connection closed')
+    if (status === "SUBSCRIBED") {
+      console.log("Connected and listening");
+    } else if (status === "CHANNEL_ERROR") {
+      console.error("Subscription error");
+    } else if (status === "CLOSED") {
+      console.log("Connection closed");
     }
-  })
+  });
 ```
 
 ## Enabling Realtime on Tables
 
-By default, realtime is disabled on tables. Enable it with:
+By default, realtime is disabled on user tables. Use the admin API to enable it:
+
+```typescript
+// Enable realtime on a table (all events)
+await client.admin.realtime.enableRealtime("products");
+
+// Enable with specific events only
+await client.admin.realtime.enableRealtime("orders", {
+  events: ["INSERT", "UPDATE"], // Skip DELETE events
+});
+
+// Exclude large columns from notifications (helps with 8KB pg_notify limit)
+await client.admin.realtime.enableRealtime("posts", {
+  exclude: ["content", "raw_html"],
+});
+
+// Enable on a custom schema
+await client.admin.realtime.enableRealtime("events", {
+  schema: "analytics",
+});
+```
+
+### What Happens Under the Hood
+
+When you enable realtime, Fluxbase automatically:
+
+1. Sets `REPLICA IDENTITY FULL` on the table (required for UPDATE/DELETE to include old values)
+2. Creates a trigger that calls `pg_notify('fluxbase_changes', ...)` on INSERT/UPDATE/DELETE
+3. Registers the table in `realtime.schema_registry` for subscription validation
+
+### Managing Realtime Tables
+
+```typescript
+// List all realtime-enabled tables
+const { tables, count } = await client.admin.realtime.listTables();
+console.log(`${count} tables have realtime enabled`);
+
+// Check status of a specific table
+const status = await client.admin.realtime.getStatus("public", "products");
+if (status.realtime_enabled) {
+  console.log("Events:", status.events.join(", "));
+}
+
+// Update configuration (change events or excluded columns)
+await client.admin.realtime.updateConfig("public", "products", {
+  events: ["INSERT"], // Only track inserts now
+  exclude: ["metadata"],
+});
+
+// Disable realtime on a table
+await client.admin.realtime.disableRealtime("public", "products");
+```
+
+### Manual SQL Setup (Alternative)
+
+You can also enable realtime manually with SQL:
 
 ```sql
 -- Enable realtime for a table
 ALTER TABLE products REPLICA IDENTITY FULL;
 
--- Create trigger to publish changes
-CREATE OR REPLACE FUNCTION notify_table_change()
-RETURNS TRIGGER AS $$
-BEGIN
-  PERFORM pg_notify(
-    'table_changes',
-    json_build_object(
-      'schema', TG_TABLE_SCHEMA,
-      'table', TG_TABLE_NAME,
-      'type', TG_OP,
-      'new_record', CASE WHEN TG_OP != 'DELETE' THEN row_to_json(NEW) END,
-      'old_record', CASE WHEN TG_OP != 'INSERT' THEN row_to_json(OLD) END
-    )::text
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Register in schema registry
+INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
+VALUES ('public', 'products', true, ARRAY['INSERT', 'UPDATE', 'DELETE']);
 
--- Attach trigger
-CREATE TRIGGER products_notify_change
+-- Create trigger using the shared notify function
+CREATE TRIGGER products_realtime_notify
 AFTER INSERT OR UPDATE OR DELETE ON products
-FOR EACH ROW EXECUTE FUNCTION notify_table_change();
-```
-
-Or use the admin API:
-
-```typescript
-await client.admin.enableRealtime('products')
+FOR EACH ROW EXECUTE FUNCTION public.notify_realtime_change();
 ```
 
 ## Architecture
@@ -298,12 +333,12 @@ See [Deployment: Scaling](/docs/deployment/scaling#horizontal-scaling) for confi
 // Good: cleanup in effect
 useEffect(() => {
   const channel = client.realtime
-    .channel('table:public.products')
-    .on('*', handleChange)
-    .subscribe()
+    .channel("table:public.products")
+    .on("*", handleChange)
+    .subscribe();
 
-  return () => channel.unsubscribe() // Cleanup
-}, [])
+  return () => channel.unsubscribe(); // Cleanup
+}, []);
 ```
 
 ## Security
@@ -323,21 +358,25 @@ When authenticated, users receive realtime updates only for their own posts.
 ## Best Practices
 
 **Performance:**
+
 - Limit number of active subscriptions per client
 - Unsubscribe from unused channels
 - Use wildcard (`*`) when listening to all event types
 
 **Security:**
+
 - Always use RLS policies to control data access
 - Validate JWT tokens for authenticated subscriptions
 - Never expose sensitive data in realtime payloads
 
 **Reliability:**
+
 - Handle connection errors gracefully
 - Implement reconnection logic for long-running apps
 - Cache local state to handle brief disconnections
 
 **Debugging:**
+
 - Monitor connection status
 - Log payload structures during development
 - Use browser DevTools to inspect WebSocket traffic
@@ -349,18 +388,21 @@ For non-JavaScript environments, see the [Realtime SDK Documentation](/docs/api/
 ## Troubleshooting
 
 **No updates received:**
+
 - Verify realtime is enabled on table (triggers exist)
 - Check RLS policies allow access to rows
 - Confirm WebSocket connection is established
 - Verify channel name matches table: `table:schema.table_name`
 
 **Connection drops:**
+
 - Check network stability
 - Verify Fluxbase server is running
 - Review firewall/proxy WebSocket support
 - Ensure JWT token is valid (not expired)
 
 **Performance issues:**
+
 - Reduce number of subscriptions
 - Optimize RLS policies (avoid slow queries)
 - Consider aggregating rapid changes client-side

@@ -82,6 +82,7 @@ type Server struct {
 	realtimeManager        *realtime.Manager
 	realtimeHandler        *realtime.RealtimeHandler
 	realtimeListener       *realtime.Listener
+	realtimeAdminHandler   *RealtimeAdminHandler
 	webhookTriggerService  *webhook.TriggerService
 	aiHandler              *ai.Handler
 	aiChatHandler          *ai.ChatHandler
@@ -281,6 +282,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	invitationService := auth.NewInvitationService(db)
 	invitationHandler := NewInvitationHandler(invitationService, dashboardAuthService, emailService, cfg.GetPublicBaseURL())
 	ddlHandler := NewDDLHandler(db)
+	realtimeAdminHandler := NewRealtimeAdminHandler(db)
 	serviceKeyHandler := NewServiceKeyHandler(db.Pool())
 	oauthProviderHandler := NewOAuthProviderHandler(db.Pool(), authService.GetSettingsCache(), cfg.EncryptionKey, cfg.GetPublicBaseURL(), cfg.Auth.OAuthProviders)
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.JWTExpiry, cfg.Auth.RefreshExpiry)
@@ -580,6 +582,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		userManagementHandler:  userMgmtHandler,
 		invitationHandler:      invitationHandler,
 		ddlHandler:             ddlHandler,
+		realtimeAdminHandler:   realtimeAdminHandler,
 		oauthProviderHandler:   oauthProviderHandler,
 		oauthHandler:           oauthHandler,
 		samlProviderHandler:    samlProviderHandler,
@@ -1733,6 +1736,13 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Patch("/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.RenameTable)
 	router.Post("/tables/:schema/:table/columns", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.AddColumn)
 	router.Delete("/tables/:schema/:table/columns/:column", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.ddlHandler.DropColumn)
+
+	// Realtime admin routes - manage realtime enablement for tables
+	router.Post("/realtime/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.realtimeAdminHandler.HandleEnableRealtime)
+	router.Get("/realtime/tables", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.realtimeAdminHandler.HandleListRealtimeTables)
+	router.Get("/realtime/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.realtimeAdminHandler.HandleGetRealtimeStatus)
+	router.Patch("/realtime/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.realtimeAdminHandler.HandleUpdateRealtimeConfig)
+	router.Delete("/realtime/tables/:schema/:table", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.realtimeAdminHandler.HandleDisableRealtime)
 
 	// OAuth provider management routes (require admin or dashboard_admin role)
 	router.Get("/oauth/providers", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.oauthProviderHandler.ListOAuthProviders)
