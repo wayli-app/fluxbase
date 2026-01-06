@@ -29,6 +29,9 @@ var MCPToolMapping = map[string][]string{
 
 	// Vector search
 	"search_vectors": {mcp.ScopeReadVectors},
+
+	// HTTP requests
+	"http_request": {mcp.ScopeExecuteHTTP},
 }
 
 // AllMCPTools returns all available MCP tool names
@@ -101,6 +104,7 @@ const (
 	MCPToolCategoryExecution MCPToolCategory = "execution"
 	MCPToolCategoryStorage   MCPToolCategory = "storage"
 	MCPToolCategoryVectors   MCPToolCategory = "vectors"
+	MCPToolCategoryHTTP      MCPToolCategory = "http"
 )
 
 // MCPToolInfo contains information about an MCP tool
@@ -211,6 +215,15 @@ var MCPToolInfoMap = map[string]MCPToolInfo{
 		Category:    MCPToolCategoryVectors,
 		Scopes:      []string{mcp.ScopeReadVectors},
 		ReadOnly:    true,
+	},
+
+	// HTTP requests
+	"http_request": {
+		Name:        "http_request",
+		Description: "Make HTTP GET requests to allowed external APIs",
+		Category:    MCPToolCategoryHTTP,
+		Scopes:      []string{mcp.ScopeExecuteHTTP},
+		ReadOnly:    true, // GET requests don't modify data
 	},
 }
 

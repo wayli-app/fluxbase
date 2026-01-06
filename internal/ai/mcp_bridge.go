@@ -15,6 +15,12 @@ func ChatbotAuthContext(chatCtx *ChatContext, chatbot *Chatbot) *mcp.AuthContext
 		userID = chatCtx.UserID
 	}
 
+	// Build metadata with chatbot-specific configuration
+	metadata := make(map[string]any)
+	if len(chatbot.HTTPAllowedDomains) > 0 {
+		metadata[mcp.MetadataKeyHTTPAllowedDomains] = chatbot.HTTPAllowedDomains
+	}
+
 	return &mcp.AuthContext{
 		UserID:   userID,
 		UserRole: chatCtx.Role,
@@ -25,6 +31,8 @@ func ChatbotAuthContext(chatCtx *ChatContext, chatbot *Chatbot) *mcp.AuthContext
 		// AllowedNamespaces is nil - chatbots don't have namespace restrictions
 		// They operate on the tables configured in allowed-tables/allowed-schemas
 		AllowedNamespaces: nil,
+		// Pass chatbot-specific configuration in metadata
+		Metadata: metadata,
 	}
 }
 
