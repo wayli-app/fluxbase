@@ -1003,6 +1003,8 @@ spec:
           {{- end }}
           resources: {{- include "fluxbase.resources" . | nindent 12 }}
           volumeMounts:
+            - name: deno-cache
+              mountPath: /.cache
             {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
             - name: storage
               mountPath: {{ .Values.config.storage.local_path }}
@@ -1014,6 +1016,8 @@ spec:
         {{- toYaml .Values.sidecars | nindent 8 }}
         {{- end }}
       volumes:
+        - name: deno-cache
+          emptyDir: {}
         {{- if and .Values.persistence.enabled (eq .Values.config.storage.provider "local") }}
         - name: storage
           persistentVolumeClaim:

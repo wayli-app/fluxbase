@@ -499,6 +499,7 @@ services:
 
     volumes:
       - storage_data:/app/storage
+      - deno_cache:/.cache
     depends_on:
       postgres:
         condition: service_healthy
@@ -527,6 +528,8 @@ volumes:
   postgres_data:
     driver: local
   storage_data:
+    driver: local
+  deno_cache:
     driver: local
 
 networks:
