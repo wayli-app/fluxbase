@@ -78,7 +78,7 @@ services:
 
   # Fluxbase API
   fluxbase:
-    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.9-rc.4
+    image: ghcr.io/fluxbase-eu/fluxbase:2026.1.9-rc.5
     container_name: fluxbase
     ports:
       - "8080:8080"
