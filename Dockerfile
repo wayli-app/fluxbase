@@ -8,6 +8,8 @@
 #
 # ------------------------------------------------------------------------------
 
+FROM denoland/deno:bin-2.6.4 AS deno-bin
+
 # ------------------------------------------------------------------------------
 # Stage 1: Build SDKs and Admin UI
 # ------------------------------------------------------------------------------
@@ -124,8 +126,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Deno (official repository, glibc-native)
-RUN curl -fsSL https://deno.land/install.sh | sh
+COPY --from=deno-bin /deno /usr/local/bin/deno
 
 # Create non-root user
 RUN groupadd -g 1000 fluxbase \
