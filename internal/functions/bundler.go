@@ -173,7 +173,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@0.24.0",
 		inputPath,
 		"--bundle",
 		"--format=esm",
@@ -443,7 +443,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@0.24.0",
 		mainPath,
 		"--bundle",
 		"--format=esm",
