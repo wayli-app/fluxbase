@@ -227,7 +227,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 
 	// Build esbuild command via Deno
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@0.24.0",
+		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
 		mainPath,
 		"--bundle",
 		"--format=esm",

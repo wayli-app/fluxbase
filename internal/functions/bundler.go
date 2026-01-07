@@ -14,19 +14,19 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// esbuildCacheOnce ensures esbuild-wasm is downloaded only once to avoid race conditions
+// esbuildCacheOnce ensures esbuild is downloaded only once to avoid race conditions
 // when multiple bundling operations run in parallel
 var esbuildCacheOnce sync.Once
 var esbuildCacheErr error
 
-// esbuildVersion is the version of esbuild-wasm used for bundling
+// esbuildVersion is the version of esbuild used for bundling
 const esbuildVersion = "0.24.0"
 
-// ensureEsbuildCached downloads and caches esbuild-wasm if not already cached.
+// ensureEsbuildCached downloads and caches esbuild if not already cached.
 // This must be called before parallel bundling operations to avoid race conditions.
 func ensureEsbuildCached(denoPath string) error {
 	esbuildCacheOnce.Do(func() {
-		log.Debug().Msg("Pre-caching esbuild-wasm to avoid parallel download race conditions")
+		log.Debug().Msg("Pre-caching esbuild to avoid parallel download race conditions")
 
 		// Build environment with DENO_DIR set
 		env := filterEnvVars(os.Environ(), "DENO_DIR", "HOME")
@@ -40,21 +40,21 @@ func ensureEsbuildCached(denoPath string) error {
 		}
 		env = append(env, "DENO_DIR="+denoDir, "HOME="+home)
 
-		// Use deno cache to download esbuild-wasm
+		// Use deno cache to download esbuild
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, denoPath, "cache", "npm:esbuild-wasm@"+esbuildVersion)
+		cmd := exec.CommandContext(ctx, denoPath, "cache", "npm:esbuild@"+esbuildVersion)
 		cmd.Env = env
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			esbuildCacheErr = fmt.Errorf("failed to cache esbuild-wasm: %w: %s", err, string(output))
-			log.Error().Err(esbuildCacheErr).Msg("Failed to pre-cache esbuild-wasm")
+			esbuildCacheErr = fmt.Errorf("failed to cache esbuild: %w: %s", err, string(output))
+			log.Error().Err(esbuildCacheErr).Msg("Failed to pre-cache esbuild")
 			return
 		}
 
-		log.Info().Str("version", esbuildVersion).Msg("Successfully pre-cached esbuild-wasm")
+		log.Info().Str("version", esbuildVersion).Msg("Successfully pre-cached esbuild")
 	})
 
 	return esbuildCacheErr
@@ -184,7 +184,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 		return result, nil
 	}
 
-	// Ensure esbuild-wasm is cached before bundling to avoid race conditions
+	// Ensure esbuild is cached before bundling to avoid race conditions
 	if err := ensureEsbuildCached(b.denoPath); err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
+		"run", "--allow-all", "--quiet", "npm:esbuild@" + esbuildVersion,
 		inputPath,
 		"--bundle",
 		"--format=esm",
@@ -310,7 +310,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		OriginalCode: mainCode,
 	}
 
-	// Ensure esbuild-wasm is cached before bundling to avoid race conditions
+	// Ensure esbuild is cached before bundling to avoid race conditions
 	if err := ensureEsbuildCached(b.denoPath); err != nil {
 		return nil, err
 	}
@@ -500,7 +500,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
+		"run", "--allow-all", "--quiet", "npm:esbuild@" + esbuildVersion,
 		mainPath,
 		"--bundle",
 		"--format=esm",
