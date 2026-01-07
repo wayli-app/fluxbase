@@ -252,15 +252,18 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...) //nolint:gosec // denoPath is validated in NewBundler
 	cmd.Dir = workDir
 
-	// Set DENO_DIR and HOME to avoid permission issues in containers
-	// Only set defaults if not already configured in the environment
-	cmd.Env = os.Environ()
-	if os.Getenv("DENO_DIR") == "" {
-		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	// Build environment for Deno, ensuring DENO_DIR and HOME are set correctly
+	// Filter out existing DENO_DIR/HOME and add them explicitly at the end
+	cmd.Env = filterEnvVars(os.Environ(), "DENO_DIR", "HOME")
+	denoDir := os.Getenv("DENO_DIR")
+	if denoDir == "" {
+		denoDir = "/tmp/deno"
 	}
-	if os.Getenv("HOME") == "" {
-		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/tmp"
 	}
+	cmd.Env = append(cmd.Env, "DENO_DIR="+denoDir, "HOME="+home)
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
@@ -341,4 +344,22 @@ func cleanBundleError(errMsg string) string {
 
 	// Fallback to full error if we couldn't extract anything
 	return errMsg
+}
+
+// filterEnvVars returns a copy of env with the specified variable names removed
+func filterEnvVars(env []string, names ...string) []string {
+	result := make([]string, 0, len(env))
+	for _, e := range env {
+		skip := false
+		for _, name := range names {
+			if strings.HasPrefix(e, name+"=") {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			result = append(result, e)
+		}
+	}
+	return result
 }

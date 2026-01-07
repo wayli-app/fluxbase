@@ -190,15 +190,18 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	// Run esbuild via Deno
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 
-	// Set DENO_DIR and HOME to avoid permission issues in containers
-	// Only set defaults if not already configured in the environment
-	cmd.Env = os.Environ()
-	if os.Getenv("DENO_DIR") == "" {
-		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	// Build environment for Deno, ensuring DENO_DIR and HOME are set correctly
+	// Filter out existing DENO_DIR/HOME and add them explicitly at the end
+	cmd.Env = filterEnvVars(os.Environ(), "DENO_DIR", "HOME")
+	denoDir := os.Getenv("DENO_DIR")
+	if denoDir == "" {
+		denoDir = "/tmp/deno"
 	}
-	if os.Getenv("HOME") == "" {
-		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/tmp"
 	}
+	cmd.Env = append(cmd.Env, "DENO_DIR="+denoDir, "HOME="+home)
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
@@ -467,15 +470,18 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 	cmd.Dir = tmpDir
 
-	// Set DENO_DIR and HOME to avoid permission issues in containers
-	// Only set defaults if not already configured in the environment
-	cmd.Env = os.Environ()
-	if os.Getenv("DENO_DIR") == "" {
-		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	// Build environment for Deno, ensuring DENO_DIR and HOME are set correctly
+	// Filter out existing DENO_DIR/HOME and add them explicitly at the end
+	cmd.Env = filterEnvVars(os.Environ(), "DENO_DIR", "HOME")
+	denoDir := os.Getenv("DENO_DIR")
+	if denoDir == "" {
+		denoDir = "/tmp/deno"
 	}
-	if os.Getenv("HOME") == "" {
-		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = "/tmp"
 	}
+	cmd.Env = append(cmd.Env, "DENO_DIR="+denoDir, "HOME="+home)
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
@@ -853,4 +859,22 @@ func extractExportNames(code string) []string {
 	}
 
 	return exportNames
+}
+
+// filterEnvVars returns a copy of env with the specified variable names removed
+func filterEnvVars(env []string, names ...string) []string {
+	result := make([]string, 0, len(env))
+	for _, e := range env {
+		skip := false
+		for _, name := range names {
+			if strings.HasPrefix(e, name+"=") {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			result = append(result, e)
+		}
+	}
+	return result
 }
