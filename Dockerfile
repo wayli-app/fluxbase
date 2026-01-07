@@ -121,18 +121,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     libstdc++6 \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Deno (official repository, glibc-native)
-RUN mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://dl.deno.land/debian/deno-archive-keyring.gpg \
-        | gpg --dearmor -o /etc/apt/keyrings/deno.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/deno.gpg] https://dl.deno.land/debian stable main" \
-        > /etc/apt/sources.list.d/deno.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends deno \
-    && rm -rf /var/lib/apt/lists/*
-
+RUN curl -fsSL https://deno.land/install.sh | sh
 
 # Create non-root user
 RUN groupadd -g 1000 fluxbase \
