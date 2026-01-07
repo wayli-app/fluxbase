@@ -44,7 +44,7 @@ func ensureEsbuildCached(denoPath string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, denoPath, "cache", "npm:esbuild@"+esbuildVersion)
+		cmd := exec.CommandContext(ctx, denoPath, "cache", "npm:esbuild-wasm@"+esbuildVersion)
 		cmd.Env = env
 
 		output, err := cmd.CombinedOutput()
@@ -225,7 +225,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@" + esbuildVersion,
+		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
 		inputPath,
 		"--bundle",
 		"--format=esm",
@@ -500,7 +500,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 
 	// Build esbuild command via Deno (replaces deprecated deno bundle)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@" + esbuildVersion,
+		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
 		mainPath,
 		"--bundle",
 		"--format=esm",
