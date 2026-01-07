@@ -557,7 +557,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
-	realtimeSubManager := realtime.NewSubscriptionManager(db.Pool())
+	realtimeSubManager := realtime.NewSubscriptionManager(realtime.NewPgxSubscriptionDB(db.Pool()))
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
 	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager, ps)
 

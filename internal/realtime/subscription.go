@@ -12,6 +12,142 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// SubscriptionDB defines the database operations needed by SubscriptionManager.
+// This interface allows for easier testing with mocks.
+type SubscriptionDB interface {
+	// IsTableRealtimeEnabled checks if a table is enabled for realtime in the schema registry.
+	IsTableRealtimeEnabled(ctx context.Context, schema, table string) (bool, error)
+	// CheckRLSAccess verifies if a user can access a record based on RLS policies.
+	CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error)
+	// CheckRPCOwnership checks if a user owns an RPC execution.
+	CheckRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (isOwner bool, exists bool, err error)
+	// CheckJobOwnership checks if a user owns a job execution.
+	CheckJobOwnership(ctx context.Context, execID, userID uuid.UUID) (isOwner bool, exists bool, err error)
+	// CheckFunctionOwnership checks if a user owns a function execution.
+	CheckFunctionOwnership(ctx context.Context, execID, userID uuid.UUID) (isOwner bool, exists bool, err error)
+}
+
+// pgxSubscriptionDB implements SubscriptionDB using a pgxpool.Pool.
+type pgxSubscriptionDB struct {
+	pool *pgxpool.Pool
+}
+
+// NewPgxSubscriptionDB creates a SubscriptionDB backed by a pgx pool.
+func NewPgxSubscriptionDB(pool *pgxpool.Pool) SubscriptionDB {
+	return &pgxSubscriptionDB{pool: pool}
+}
+
+func (db *pgxSubscriptionDB) IsTableRealtimeEnabled(ctx context.Context, schema, table string) (bool, error) {
+	var enabled bool
+	err := db.pool.QueryRow(ctx, `
+		SELECT realtime_enabled FROM realtime.schema_registry
+		WHERE schema_name = $1 AND table_name = $2
+	`, schema, table).Scan(&enabled)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return enabled, nil
+}
+
+func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error) {
+	conn, err := db.pool.Acquire(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Release()
+
+	// Build minimal JWT claims
+	jwtClaims := map[string]interface{}{
+		"sub":  userID,
+		"role": role,
+	}
+	jwtClaimsJSON, err := json.Marshal(jwtClaims)
+	if err != nil {
+		return false, err
+	}
+
+	// Map application role to database role
+	dbRole := "authenticated"
+	switch role {
+	case "service_role":
+		dbRole = "service_role"
+	case "anon", "":
+		dbRole = "anon"
+	}
+
+	_, err = conn.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
+	if err != nil {
+		return false, err
+	}
+
+	_, err = conn.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
+	if err != nil {
+		return false, err
+	}
+
+	var count int
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", schema, table)
+	err = conn.QueryRow(ctx, query, recordID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+func (db *pgxSubscriptionDB) CheckRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	var ownerID *uuid.UUID
+	err := db.pool.QueryRow(ctx, "SELECT user_id FROM rpc.executions WHERE id = $1", execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil
+	}
+	return *ownerID == userID, true, nil
+}
+
+func (db *pgxSubscriptionDB) CheckJobOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	var ownerID *uuid.UUID
+	err := db.pool.QueryRow(ctx, "SELECT created_by FROM jobs.queue WHERE id = $1", execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil
+	}
+	return *ownerID == userID, true, nil
+}
+
+func (db *pgxSubscriptionDB) CheckFunctionOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	var ownerID *uuid.UUID
+	err := db.pool.QueryRow(ctx, `
+		SELECT ef.created_by
+		FROM functions.edge_executions ee
+		JOIN functions.edge_functions ef ON ee.function_id = ef.id
+		WHERE ee.id = $1
+	`, execID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	if ownerID == nil {
+		return true, true, nil
+	}
+	return *ownerID == userID, true, nil
+}
+
 // Subscription represents an RLS-aware subscription to table changes
 type Subscription struct {
 	ID     string
@@ -49,7 +185,7 @@ type AllLogsSubscription struct {
 
 // SubscriptionManager manages RLS-aware subscriptions
 type SubscriptionManager struct {
-	db            *pgxpool.Pool
+	db            SubscriptionDB
 	subscriptions map[string]*Subscription        // subscription ID -> subscription
 	userSubs      map[string]map[string]bool      // user ID -> subscription IDs
 	tableSubs     map[string]map[string]bool      // "schema.table" -> subscription IDs
@@ -59,8 +195,10 @@ type SubscriptionManager struct {
 	mu            sync.RWMutex
 }
 
-// NewSubscriptionManager creates a new subscription manager
-func NewSubscriptionManager(db *pgxpool.Pool) *SubscriptionManager {
+// NewSubscriptionManager creates a new subscription manager.
+// For production use, pass NewPgxSubscriptionDB(pool).
+// For testing, pass a mock implementation of SubscriptionDB.
+func NewSubscriptionManager(db SubscriptionDB) *SubscriptionManager {
 	return &SubscriptionManager{
 		db:            db,
 		subscriptions: make(map[string]*Subscription),
@@ -265,6 +403,10 @@ func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscripti
 
 // checkRLSAccess verifies if a user can access a record based on RLS policies
 func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscription, event *ChangeEvent) bool {
+	if sm.db == nil {
+		return true // No DB means no RLS check (test mode)
+	}
+
 	// Get record ID from event
 	recordID, ok := event.Record["id"]
 	if !ok {
@@ -279,64 +421,15 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		}
 	}
 
-	// Acquire connection from pool
-	conn, err := sm.db.Acquire(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to acquire connection for RLS check")
-		return false
-	}
-	defer conn.Release()
-
-	// Set RLS session variables using Supabase-compatible request.jwt.claims format
-	// Build minimal JWT claims from subscription data
-	jwtClaims := map[string]interface{}{
-		"sub":  sub.UserID,
-		"role": sub.Role,
-	}
-
-	// Marshal to JSON
-	jwtClaimsJSON, err := json.Marshal(jwtClaims)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal JWT claims for realtime subscription")
-		return false
-	}
-
-	// Map application role to database role and SET LOCAL ROLE
-	dbRole := "authenticated"
-	switch sub.Role {
-	case "service_role":
-		dbRole = "service_role"
-	case "anon", "":
-		dbRole = "anon"
-	}
-	_, err = conn.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
-	if err != nil {
-		log.Error().Err(err).Str("db_role", dbRole).Msg("Failed to SET LOCAL ROLE for realtime subscription")
-		return false
-	}
-
-	// Set request.jwt.claims session variable
-	_, err = conn.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to set request.jwt.claims for realtime subscription")
-		return false
-	}
-
-	// Check if record is visible with RLS
-	var count int
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", sub.Schema, sub.Table)
-	err = conn.QueryRow(ctx, query, recordID).Scan(&count)
-
+	visible, err := sm.db.CheckRLSAccess(ctx, sub.Schema, sub.Table, sub.Role, sub.UserID, recordID)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 			Interface("record_id", recordID).
-			Msg("RLS check query failed")
+			Msg("RLS check failed")
 		return false
 	}
-
-	visible := count > 0
 
 	log.Debug().
 		Str("user_id", sub.UserID).
@@ -351,13 +444,11 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 // isTableAllowedUnsafe checks if a table is allowed for realtime (must be called with lock held)
 // It checks the realtime.schema_registry table to see if the table is enabled for realtime.
 func (sm *SubscriptionManager) isTableAllowedUnsafe(schema, table string) bool {
-	// Check the schema registry for realtime-enabled tables
-	var enabled bool
-	err := sm.db.QueryRow(context.Background(), `
-		SELECT realtime_enabled FROM realtime.schema_registry
-		WHERE schema_name = $1 AND table_name = $2
-	`, schema, table).Scan(&enabled)
+	if sm.db == nil {
+		return true // No DB means all tables allowed (test mode)
+	}
 
+	enabled, err := sm.db.IsTableRealtimeEnabled(context.Background(), schema, table)
 	if err != nil {
 		// Table not registered in schema_registry - not enabled for realtime
 		return false
@@ -624,55 +715,24 @@ func (sm *SubscriptionManager) CheckExecutionOwnership(ctx context.Context, exec
 }
 
 func (sm *SubscriptionManager) checkRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
-	var ownerID *uuid.UUID
-	err := sm.db.QueryRow(ctx, "SELECT user_id FROM rpc.executions WHERE id = $1", execID).Scan(&ownerID)
-	if err == pgx.ErrNoRows {
-		return false, false, nil
+	if sm.db == nil {
+		return true, true, nil // No DB means allow all (test mode)
 	}
-	if err != nil {
-		return false, false, err
-	}
-	if ownerID == nil {
-		return true, true, nil // Anonymous - allow
-	}
-	return *ownerID == userID, true, nil
+	return sm.db.CheckRPCOwnership(ctx, execID, userID)
 }
 
 func (sm *SubscriptionManager) checkJobOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
-	var ownerID *uuid.UUID
-	err := sm.db.QueryRow(ctx, "SELECT created_by FROM jobs.queue WHERE id = $1", execID).Scan(&ownerID)
-	if err == pgx.ErrNoRows {
-		return false, false, nil
+	if sm.db == nil {
+		return true, true, nil // No DB means allow all (test mode)
 	}
-	if err != nil {
-		return false, false, err
-	}
-	if ownerID == nil {
-		return true, true, nil // Anonymous - allow
-	}
-	return *ownerID == userID, true, nil
+	return sm.db.CheckJobOwnership(ctx, execID, userID)
 }
 
 func (sm *SubscriptionManager) checkFunctionOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
-	// Edge function executions are owned by whoever created the function
-	// Join edge_executions → edge_functions to get created_by
-	var ownerID *uuid.UUID
-	err := sm.db.QueryRow(ctx, `
-		SELECT ef.created_by
-		FROM functions.edge_executions ee
-		JOIN functions.edge_functions ef ON ee.function_id = ef.id
-		WHERE ee.id = $1
-	`, execID).Scan(&ownerID)
-	if err == pgx.ErrNoRows {
-		return false, false, nil
+	if sm.db == nil {
+		return true, true, nil // No DB means allow all (test mode)
 	}
-	if err != nil {
-		return false, false, err
-	}
-	if ownerID == nil {
-		return true, true, nil // No owner (system function) - allow
-	}
-	return *ownerID == userID, true, nil
+	return sm.db.CheckFunctionOwnership(ctx, execID, userID)
 }
 
 func (sm *SubscriptionManager) checkAnyExecution(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {

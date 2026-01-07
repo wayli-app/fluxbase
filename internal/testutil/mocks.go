@@ -4,11 +4,13 @@ package testutil
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
+	"github.com/google/uuid"
 )
 
 // ErrMockObjectNotFound is returned when an object is not found in mock storage
@@ -351,4 +353,95 @@ func (m *MockSettingsCache) GetString(ctx context.Context, key string, defaultVa
 		return val
 	}
 	return defaultValue
+}
+
+// MockSubscriptionDB implements realtime.SubscriptionDB for testing.
+// It allows configuring which tables are enabled for realtime and
+// controlling RLS/ownership check results.
+type MockSubscriptionDB struct {
+	mu sync.RWMutex
+
+	// EnabledTables maps "schema.table" to enabled status
+	EnabledTables map[string]bool
+
+	// RLSResults maps "schema.table.recordID" to access result
+	RLSResults map[string]bool
+
+	// OwnershipResults maps execution ID to (isOwner, exists)
+	OwnershipResults map[uuid.UUID]struct {
+		IsOwner bool
+		Exists  bool
+	}
+}
+
+// NewMockSubscriptionDB creates a new mock subscription database
+func NewMockSubscriptionDB() *MockSubscriptionDB {
+	return &MockSubscriptionDB{
+		EnabledTables: make(map[string]bool),
+		RLSResults:    make(map[string]bool),
+		OwnershipResults: make(map[uuid.UUID]struct {
+			IsOwner bool
+			Exists  bool
+		}),
+	}
+}
+
+// EnableTable marks a table as enabled for realtime
+func (m *MockSubscriptionDB) EnableTable(schema, table string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.EnabledTables[schema+"."+table] = true
+}
+
+// IsTableRealtimeEnabled implements SubscriptionDB
+func (m *MockSubscriptionDB) IsTableRealtimeEnabled(ctx context.Context, schema, table string) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.EnabledTables[schema+"."+table], nil
+}
+
+// CheckRLSAccess implements SubscriptionDB
+func (m *MockSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := schema + "." + table + "." + fmt.Sprintf("%v", recordID)
+	if result, exists := m.RLSResults[key]; exists {
+		return result, nil
+	}
+	// Default: allow access
+	return true, nil
+}
+
+// CheckRPCOwnership implements SubscriptionDB
+func (m *MockSubscriptionDB) CheckRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if result, exists := m.OwnershipResults[execID]; exists {
+		return result.IsOwner, result.Exists, nil
+	}
+	return false, false, nil
+}
+
+// CheckJobOwnership implements SubscriptionDB
+func (m *MockSubscriptionDB) CheckJobOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if result, exists := m.OwnershipResults[execID]; exists {
+		return result.IsOwner, result.Exists, nil
+	}
+	return false, false, nil
+}
+
+// CheckFunctionOwnership implements SubscriptionDB
+func (m *MockSubscriptionDB) CheckFunctionOwnership(ctx context.Context, execID, userID uuid.UUID) (bool, bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if result, exists := m.OwnershipResults[execID]; exists {
+		return result.IsOwner, result.Exists, nil
+	}
+	return false, false, nil
 }

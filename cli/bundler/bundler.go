@@ -252,6 +252,16 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...) //nolint:gosec // denoPath is validated in NewBundler
 	cmd.Dir = workDir
 
+	// Set DENO_DIR and HOME to avoid permission issues in containers
+	// Only set defaults if not already configured in the environment
+	cmd.Env = os.Environ()
+	if os.Getenv("DENO_DIR") == "" {
+		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	}
+	if os.Getenv("HOME") == "" {
+		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	}
+
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout

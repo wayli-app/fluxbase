@@ -190,6 +190,16 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	// Run esbuild via Deno
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 
+	// Set DENO_DIR and HOME to avoid permission issues in containers
+	// Only set defaults if not already configured in the environment
+	cmd.Env = os.Environ()
+	if os.Getenv("DENO_DIR") == "" {
+		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	}
+	if os.Getenv("HOME") == "" {
+		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	}
+
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -456,6 +466,16 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	// esbuild will automatically resolve local imports from the directory
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 	cmd.Dir = tmpDir
+
+	// Set DENO_DIR and HOME to avoid permission issues in containers
+	// Only set defaults if not already configured in the environment
+	cmd.Env = os.Environ()
+	if os.Getenv("DENO_DIR") == "" {
+		cmd.Env = append(cmd.Env, "DENO_DIR=/tmp/deno")
+	}
+	if os.Getenv("HOME") == "" {
+		cmd.Env = append(cmd.Env, "HOME=/tmp")
+	}
 
 	// Capture stdout and stderr
 	var stdout, stderr strings.Builder

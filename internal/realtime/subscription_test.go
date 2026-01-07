@@ -4,12 +4,21 @@ package realtime
 import (
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func newTestSubscriptionManager() *SubscriptionManager {
+	mockDB := testutil.NewMockSubscriptionDB()
+	mockDB.EnableTable("public", "users")
+	mockDB.EnableTable("public", "posts")
+	mockDB.EnableTable("public", "comments")
+	return NewSubscriptionManager(mockDB)
+}
+
 func TestSubscriptionManager_CreateSubscription(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	sub, err := sm.CreateSubscription(
 		"sub1",
@@ -33,7 +42,7 @@ func TestSubscriptionManager_CreateSubscription(t *testing.T) {
 }
 
 func TestSubscriptionManager_RemoveSubscription(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Create a subscription
 	_, err := sm.CreateSubscription(
@@ -60,7 +69,7 @@ func TestSubscriptionManager_RemoveSubscription(t *testing.T) {
 }
 
 func TestSubscriptionManager_RemoveNonExistentSubscription(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	err := sm.RemoveSubscription("nonexistent")
 	assert.Error(t, err)
@@ -68,7 +77,7 @@ func TestSubscriptionManager_RemoveNonExistentSubscription(t *testing.T) {
 }
 
 func TestSubscriptionManager_RemoveConnectionSubscriptions(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Create multiple subscriptions for the same connection
 	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "INSERT", "")
@@ -91,7 +100,7 @@ func TestSubscriptionManager_RemoveConnectionSubscriptions(t *testing.T) {
 }
 
 func TestSubscriptionManager_GetSubscriptionsByConnection(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Create subscriptions for different connections
 	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
@@ -112,7 +121,7 @@ func TestSubscriptionManager_GetSubscriptionsByConnection(t *testing.T) {
 }
 
 func TestSubscriptionManager_MultipleUsersAndTables(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Create subscriptions for different users and tables
 	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
@@ -126,7 +135,7 @@ func TestSubscriptionManager_MultipleUsersAndTables(t *testing.T) {
 }
 
 func TestSubscriptionManager_DefaultEventToWildcard(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	sub, err := sm.CreateSubscription(
 		"sub1",
@@ -144,7 +153,7 @@ func TestSubscriptionManager_DefaultEventToWildcard(t *testing.T) {
 }
 
 func TestSubscriptionManager_WithFilter(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	sub, err := sm.CreateSubscription(
 		"sub1",
@@ -162,7 +171,7 @@ func TestSubscriptionManager_WithFilter(t *testing.T) {
 }
 
 func TestSubscriptionManager_InvalidFilter(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	_, err := sm.CreateSubscription(
 		"sub1",
@@ -180,7 +189,7 @@ func TestSubscriptionManager_InvalidFilter(t *testing.T) {
 }
 
 func TestSubscriptionManager_CleanupOnRemove(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Create subscription
 	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
@@ -200,7 +209,7 @@ func TestSubscriptionManager_CleanupOnRemove(t *testing.T) {
 }
 
 func TestSubscriptionManager_MatchesEvent(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	tests := []struct {
 		name      string
@@ -227,7 +236,7 @@ func TestSubscriptionManager_MatchesEvent(t *testing.T) {
 }
 
 func TestSubscriptionManager_MatchesFilter(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	tests := []struct {
 		name     string
@@ -290,7 +299,7 @@ func TestSubscriptionManager_MatchesFilter(t *testing.T) {
 }
 
 func TestSubscriptionManager_Stats(t *testing.T) {
-	sm := NewSubscriptionManager(nil)
+	sm := newTestSubscriptionManager()
 
 	// Initial stats
 	stats := sm.GetStats()
