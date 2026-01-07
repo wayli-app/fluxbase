@@ -102,6 +102,7 @@ LABEL maintainer="Fluxbase Team" \
 # - vips: Image processing library for image transformations (dynamic linking)
 # - poppler-utils: For PDF to image conversion (pdftoppm)
 # - deno: JavaScript/TypeScript runtime for jobs and functions (installed via apk)
+# - libc6-compat: Provides glibc compatibility for npm packages like esbuild that ship glibc binaries
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
@@ -111,6 +112,7 @@ RUN apk add --no-cache \
     vips \
     poppler-utils \
     deno \
+    libc6-compat \
     && deno --version
 
 # Create non-root user
