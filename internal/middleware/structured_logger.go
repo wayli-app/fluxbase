@@ -1,12 +1,17 @@
 package middleware
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+// sensitiveQueryParams are query parameters that should be redacted from logs
+var sensitiveQueryParams = []string{"token", "access_token", "refresh_token", "api_key", "apikey", "key", "secret", "password"}
 
 // StructuredLoggerConfig holds configuration for structured logging
 type StructuredLoggerConfig struct {
@@ -38,6 +43,33 @@ func DefaultStructuredLoggerConfig() StructuredLoggerConfig {
 		LogResponseBody:        false,
 		SlowRequestThreshold:   1 * time.Second, // Warn on requests > 1s
 	}
+}
+
+// redactQueryString redacts sensitive query parameters from a query string
+func redactQueryString(queryString string) string {
+	if queryString == "" {
+		return ""
+	}
+
+	values, err := url.ParseQuery(queryString)
+	if err != nil {
+		// If we can't parse it, redact the whole thing to be safe
+		return "[redacted]"
+	}
+
+	for _, param := range sensitiveQueryParams {
+		if values.Has(param) {
+			values.Set(param, "[redacted]")
+		}
+		// Also check case-insensitive
+		for key := range values {
+			if strings.EqualFold(key, param) && key != param {
+				values.Set(key, "[redacted]")
+			}
+		}
+	}
+
+	return values.Encode()
 }
 
 // StructuredLogger returns a middleware that logs requests with structured logging
@@ -116,9 +148,9 @@ func StructuredLogger(config ...StructuredLoggerConfig) fiber.Handler {
 			Str("user_agent", c.Get("User-Agent")).
 			Str("protocol", c.Protocol())
 
-		// Add query string if present
-		if c.Request().URI().QueryString() != nil {
-			logEvent = logEvent.Str("query", string(c.Request().URI().QueryString()))
+		// Add query string if present (with sensitive params redacted)
+		if queryString := string(c.Request().URI().QueryString()); queryString != "" {
+			logEvent = logEvent.Str("query", redactQueryString(queryString))
 		}
 
 		// Add user context if available

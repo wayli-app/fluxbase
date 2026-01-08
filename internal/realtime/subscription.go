@@ -274,7 +274,7 @@ func (sm *SubscriptionManager) CreateSubscription(
 	}
 	sm.tableSubs[tableKey][subID] = true
 
-	log.Info().
+	log.Debug().
 		Str("sub_id", subID).
 		Str("user_id", userID).
 		Str("table", tableKey).
