@@ -8,6 +8,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -35,13 +36,19 @@ func NewTokenBlacklistRepository(db *database.Connection) *TokenBlacklistReposit
 	return &TokenBlacklistRepository{db: db}
 }
 
-// Add adds a token to the blacklist
-func (r *TokenBlacklistRepository) Add(ctx context.Context, jti, revokedBy, reason string, expiresAt time.Time) error {
+// Add adds a token to the blacklist. revokedBy can be nil for tokens without a user.
+func (r *TokenBlacklistRepository) Add(ctx context.Context, jti string, revokedBy *string, reason string, expiresAt time.Time) error {
 	query := `
 		INSERT INTO auth.token_blacklist (id, token_jti, revoked_by, reason, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (token_jti) DO NOTHING
 	`
+
+	logEvent := log.Info().Str("jti", jti).Str("reason", reason)
+	if revokedBy != nil {
+		logEvent = logEvent.Str("revoked_by", *revokedBy)
+	}
+	logEvent.Msg("Blacklisting token")
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query,
@@ -113,25 +120,11 @@ func (r *TokenBlacklistRepository) RevokeAllUserTokens(ctx context.Context, user
 
 	// For now, we'll add a marker entry that can be checked
 	// A better approach would be to track session revocation separately
-	query := `
-		INSERT INTO auth.token_blacklist (id, token_jti, revoked_by, reason, expires_at)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (token_jti) DO NOTHING
-	`
 
 	// Use a special JTI pattern for "all tokens" revocation
 	specialJTI := "user:" + userID + ":all:" + uuid.New().String()
 
-	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
-			uuid.New().String(),
-			specialJTI,
-			userID,
-			reason,
-			time.Now().Add(24*time.Hour), // Revoke for 24 hours (longer than max token lifetime)
-		)
-		return err
-	})
+	return r.Add(ctx, specialJTI, &userID, reason, time.Now().Add(24*time.Hour))
 }
 
 // DeleteExpired removes expired tokens from the blacklist
@@ -187,8 +180,12 @@ func (s *TokenBlacklistService) RevokeToken(ctx context.Context, token, reason s
 		return err
 	}
 
-	// Add to blacklist
-	return s.repo.Add(ctx, claims.ID, claims.UserID, reason, claims.ExpiresAt.Time)
+	// Add to blacklist (convert empty userID to nil for NULL in database)
+	var revokedBy *string
+	if claims.UserID != "" {
+		revokedBy = &claims.UserID
+	}
+	return s.repo.Add(ctx, claims.ID, revokedBy, reason, claims.ExpiresAt.Time)
 }
 
 // IsTokenRevoked checks if a token has been revoked

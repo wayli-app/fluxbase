@@ -88,7 +88,8 @@ type SessionRepositoryInterface interface {
 type TokenBlacklistRepositoryInterface interface {
 	// Add adds a token to the blacklist
 	// jti is the JWT ID from the token claims
-	Add(ctx context.Context, jti, userID, reason string, expiresAt time.Time) error
+	// revokedBy can be nil for tokens without a user (e.g., anonymous or service tokens)
+	Add(ctx context.Context, jti string, revokedBy *string, reason string, expiresAt time.Time) error
 
 	// IsBlacklisted checks if a token (by JTI) has been revoked
 	IsBlacklisted(ctx context.Context, jti string) (bool, error)

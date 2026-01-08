@@ -286,7 +286,7 @@ func TestMockTokenBlacklistRepository_AddAndCheck(t *testing.T) {
 	jti := "token-jti-123"
 	userID := "user-123"
 
-	err := repo.Add(ctx, jti, userID, "logout", time.Now().Add(time.Hour))
+	err := repo.Add(ctx, jti, &userID, "logout", time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
@@ -314,7 +314,8 @@ func TestMockTokenBlacklistRepository_ExpiredNotBlacklisted(t *testing.T) {
 	ctx := context.Background()
 
 	jti := "expired-jti"
-	err := repo.Add(ctx, jti, "user-123", "logout", time.Now().Add(-time.Hour))
+	userID := "user-123"
+	err := repo.Add(ctx, jti, &userID, "logout", time.Now().Add(-time.Hour))
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
 	}
@@ -332,8 +333,10 @@ func TestMockTokenBlacklistRepository_DeleteExpired(t *testing.T) {
 	repo := NewMockTokenBlacklistRepository()
 	ctx := context.Background()
 
-	repo.Add(ctx, "expired", "user-1", "logout", time.Now().Add(-time.Hour))
-	repo.Add(ctx, "valid", "user-2", "logout", time.Now().Add(time.Hour))
+	user1 := "user-1"
+	user2 := "user-2"
+	repo.Add(ctx, "expired", &user1, "logout", time.Now().Add(-time.Hour))
+	repo.Add(ctx, "valid", &user2, "logout", time.Now().Add(time.Hour))
 
 	deleted, err := repo.DeleteExpired(ctx)
 	if err != nil {

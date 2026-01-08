@@ -426,14 +426,19 @@ func NewMockTokenBlacklistRepository() *MockTokenBlacklistRepository {
 	}
 }
 
-func (m *MockTokenBlacklistRepository) Add(ctx context.Context, jti, userID, reason string, expiresAt time.Time) error {
+func (m *MockTokenBlacklistRepository) Add(ctx context.Context, jti string, revokedBy *string, reason string, expiresAt time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	revokedByValue := ""
+	if revokedBy != nil {
+		revokedByValue = *revokedBy
+	}
 
 	m.entries[jti] = &TokenBlacklistEntry{
 		ID:        uuid.New().String(),
 		TokenJTI:  jti,
-		RevokedBy: userID,
+		RevokedBy: revokedByValue,
 		Reason:    reason,
 		ExpiresAt: expiresAt,
 		CreatedAt: time.Now(),
