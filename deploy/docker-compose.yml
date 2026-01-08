@@ -92,6 +92,14 @@ services:
       # FLUXBASE_SERVER_IDLE_TIMEOUT: "120s"
       # FLUXBASE_SERVER_BODY_LIMIT: "2147483648"  # 2GB
 
+      # Global IP Allowlist - Restrict access to entire server (ALL endpoints)
+      # Empty (default) allows all IPs. When set, only IPs from these CIDR ranges can access the server.
+      # Applied BEFORE authentication. Works alongside feature-specific allowlists (both must pass).
+      # Examples:
+      #   - Development: "127.0.0.0/8,172.16.0.0/12"
+      #   - Production: "10.0.0.0/8,192.168.0.0/16"
+      # FLUXBASE_SERVER_ALLOWED_IP_RANGES: ""
+
       # ==========================================================================
       # Database Configuration
       # ==========================================================================

@@ -173,11 +173,12 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
+	// Note: Deno 2.x requires options before the input file
 	args := []string{
 		"bundle",
 		"--quiet",
+		"-o", outputPath,
 		inputPath,
-		"--output=" + outputPath,
 	}
 
 	// Run deno bundle command
@@ -437,11 +438,12 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
 	// and supports JSON/GeoJSON imports natively
+	// Note: Deno 2.x requires options before the input file
 	args := []string{
 		"bundle",
 		"--quiet",
+		"-o", outputPath,
 		mainPath,
-		"--output=" + outputPath,
 	}
 
 	log.Debug().

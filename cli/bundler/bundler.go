@@ -228,11 +228,12 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
 	// and supports JSON/GeoJSON imports natively
+	// Note: Deno 2.x requires options before the input file
 	args := []string{
 		"bundle",
 		"--quiet",
+		"-o", outputPath,
 		mainPath,
-		"--output=" + outputPath,
 	}
 
 	// Note: deno bundle automatically marks npm:*, https://* etc. as external imports.

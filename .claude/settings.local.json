@@ -83,7 +83,8 @@
       "Bash(npx tsc:*)",
       "Bash(rm:*)",
       "Bash(go install:*)",
-      "Bash(make build:*)"
+      "Bash(make build:*)",
+      "Bash(deno bundle:*)"
     ],
     "deny": [],
     "ask": []
