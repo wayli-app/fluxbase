@@ -101,11 +101,12 @@ type MetricsConfig struct {
 
 // ServerConfig contains HTTP server settings
 type ServerConfig struct {
-	Address      string        `mapstructure:"address"`
-	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout time.Duration `mapstructure:"write_timeout"`
-	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
-	BodyLimit    int           `mapstructure:"body_limit"`
+	Address         string        `mapstructure:"address"`
+	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout     time.Duration `mapstructure:"idle_timeout"`
+	BodyLimit       int           `mapstructure:"body_limit"`
+	AllowedIPRanges []string      `mapstructure:"allowed_ip_ranges"` // Global IP CIDR ranges allowed to access server (empty = allow all)
 }
 
 // DatabaseConfig contains PostgreSQL connection settings
@@ -564,10 +565,11 @@ func loadEnvFile() error {
 func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.address", ":8080")
-	viper.SetDefault("server.read_timeout", "300s")         // 5 min for large file streaming
-	viper.SetDefault("server.write_timeout", "300s")        // 5 min for large file streaming
-	viper.SetDefault("server.idle_timeout", "120s")         // 2 min idle timeout
-	viper.SetDefault("server.body_limit", 2*1024*1024*1024) // 2GB
+	viper.SetDefault("server.read_timeout", "300s")          // 5 min for large file streaming
+	viper.SetDefault("server.write_timeout", "300s")         // 5 min for large file streaming
+	viper.SetDefault("server.idle_timeout", "120s")          // 2 min idle timeout
+	viper.SetDefault("server.body_limit", 2*1024*1024*1024)  // 2GB
+	viper.SetDefault("server.allowed_ip_ranges", []string{}) // Empty = allow all (backward compatible)
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")

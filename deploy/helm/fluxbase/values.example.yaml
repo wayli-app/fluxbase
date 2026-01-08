@@ -43,6 +43,18 @@ config:
       - "https://flux.yourdomain.com"
       - "https://app.int.yourdomain.com"
 
+  ## Server configuration (optional)
+  # server:
+  #   ## Global IP allowlist - restrict access to entire server (applies to ALL endpoints)
+  #   ## Empty array (default) allows all IPs. When configured, only IPs in these CIDR ranges can access the server.
+  #   ## This is applied before authentication and works alongside feature-specific allowlists.
+  #   ## Format: CIDR notation (e.g., "192.168.1.0/24", "10.0.0.0/8")
+  #   # allowed_ip_ranges:
+  #   #   - "10.0.0.0/8"        # Private networks
+  #   #   - "172.16.0.0/12"     # Docker networks
+  #   #   - "192.168.0.0/16"    # Private networks
+  #   #   - "203.0.113.0/24"    # Office network
+
   ## Environment variables (optional)
   ## Uncomment and configure as needed
   # env:
@@ -67,7 +79,30 @@ resourcesPreset: "small"
 #     nginx.ingress.kubernetes.io/proxy-body-size: "1g"
 #     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
 #     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-#   tls: false # Set to true if using cert-manager or providing TLS secrets
+#
+#   ## Example 1: Default auto-generated secret name (backward compatible)
+#   ## Secret name will be: flux.example.com-tls
+#   tls: true
+#
+#   ## Example 2: Custom secret name (for pre-existing secrets)
+#   # tls: true
+#   # tlsSecretName: "fluxbase-production-tls"
+#
+#   ## Example 3: cert-manager automatic certificate
+#   # tls: true
+#   # annotations:
+#   #   cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#
+#   ## Example 4: Multiple domains with different certificates
+#   # tls: true
+#   # tlsSecretName: "main-domain-tls"
+#   # extraHosts:
+#   #   - name: api.example.com
+#   #     path: /
+#   # extraTls:
+#   #   - hosts:
+#   #       - api.example.com
+#   #     secretName: api-tls
 
 ## PostgreSQL (bundled)
 ## You can specify runtime credentials, admin credentials, or both.

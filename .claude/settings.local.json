@@ -82,7 +82,8 @@
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
       "Bash(rm:*)",
-      "Bash(go install:*)"
+      "Bash(go install:*)",
+      "Bash(make build:*)"
     ],
     "deny": [],
     "ask": []

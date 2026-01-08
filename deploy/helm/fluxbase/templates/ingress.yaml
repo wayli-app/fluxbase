@@ -44,10 +44,19 @@ spec:
                 name: {{ include "fluxbase.fullname" . }}
                 port:
                   number: {{ .Values.service.ports.http }}
-  {{- if .Values.ingress.tls }}
+  {{- if or .Values.ingress.tls .Values.ingress.extraTls }}
   tls:
+    {{- if .Values.ingress.tls }}
     - hosts:
         - {{ .Values.ingress.hostname }}
+      {{- if .Values.ingress.tlsSecretName }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+      {{- else }}
       secretName: {{ printf "%s-tls" .Values.ingress.hostname }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.ingress.extraTls }}
+    {{- toYaml .Values.ingress.extraTls | nindent 4 }}
+    {{- end }}
   {{- end }}
 {{- end }}

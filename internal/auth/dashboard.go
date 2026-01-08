@@ -1109,3 +1109,33 @@ func (s *DashboardAuthService) LoginViaSSO(ctx context.Context, user *DashboardU
 		ExpiresIn:    int64(24 * 60 * 60),
 	}, nil
 }
+
+// RefreshToken generates a new access token using a refresh token for dashboard users
+func (s *DashboardAuthService) RefreshToken(ctx context.Context, refreshToken string) (*LoginResponse, error) {
+	// Validate refresh token
+	claims, err := s.jwtManager.ValidateToken(refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	if claims.TokenType != "refresh" {
+		return nil, fmt.Errorf("invalid token type")
+	}
+
+	// Verify the token is for a dashboard user (role should be dashboard_admin)
+	if claims.Role != "dashboard_admin" {
+		return nil, fmt.Errorf("invalid token: not a dashboard user token")
+	}
+
+	// Generate new access token
+	newAccessToken, err := s.jwtManager.RefreshAccessToken(refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %w", err)
+	}
+
+	return &LoginResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: refreshToken, // Refresh token stays the same
+		ExpiresIn:    int64(24 * 60 * 60),
+	}, nil
+}

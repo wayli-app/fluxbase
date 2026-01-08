@@ -196,7 +196,7 @@ func (c *Client) refreshToken(creds *config.Credentials) error {
 	if err != nil {
 		return err
 	}
-	u.Path = "/api/v1/auth/refresh"
+	u.Path = "/dashboard/auth/refresh"
 
 	body := map[string]string{
 		"refresh_token": creds.RefreshToken,

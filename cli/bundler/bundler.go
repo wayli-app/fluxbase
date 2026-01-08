@@ -225,30 +225,20 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build esbuild command via Deno
+	// Build deno bundle command (native bundler using esbuild internally)
+	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
+	// and supports JSON/GeoJSON imports natively
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild@0.24.0",
+		"bundle",
+		"--quiet",
 		mainPath,
-		"--bundle",
-		"--format=esm",
-		"--platform=neutral",
-		"--target=esnext",
-		"--outfile=" + outputPath,
-		// Mark Deno-specific imports as external - Deno resolves them at runtime
-		"--external:npm:*",
-		"--external:https://*",
-		"--external:http://*",
-		"--external:jsr:*",
-		// Enable JSON loader for .geojson files (used for embedded geodata)
-		"--loader:.geojson=json",
+		"--output=" + outputPath,
 	}
 
-	// Note: We intentionally do NOT mark bare imports (like @turf/turf) as external,
-	// even if deno.json maps them to npm:. This is because the bundled code runs on
-	// the server where there's no import map - the bundle must be self-contained.
-	// Only npm:*, https://* etc. are external since Deno can resolve those directly.
+	// Note: deno bundle automatically marks npm:*, https://* etc. as external imports.
+	// The bundled code runs on the server where Deno can resolve those directly at runtime.
 
-	// Run esbuild via Deno
+	// Run deno bundle command
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...) //nolint:gosec // denoPath is validated in NewBundler
 	cmd.Dir = workDir
 

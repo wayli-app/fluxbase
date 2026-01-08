@@ -231,7 +231,7 @@ func performLogin(server, email, password string) (*cliconfig.Credentials, *clic
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	loginURL := server + "/api/v1/auth/signin"
+	loginURL := server + "/dashboard/auth/login"
 
 	body := map[string]string{
 		"email":    email,
@@ -353,7 +353,7 @@ func verify2FACode(serverURL, userID, code string) (*cliconfig.Credentials, *cli
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid server URL: %w", err)
 	}
-	u.Path = "/api/v1/auth/2fa/verify"
+	u.Path = "/dashboard/auth/2fa/verify"
 
 	body := map[string]string{
 		"user_id": userID,

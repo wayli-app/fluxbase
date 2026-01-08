@@ -1142,6 +1142,18 @@ func (s *Server) setupMiddlewares() {
 	s.app.Use(cors.New(corsConfig))
 	log.Debug().Msg("CORS middleware added")
 
+	// Global IP allowlist - restrict access to entire API
+	// Only log and apply if ranges are configured (empty = allow all)
+	if len(s.config.Server.AllowedIPRanges) > 0 {
+		log.Info().
+			Int("ranges", len(s.config.Server.AllowedIPRanges)).
+			Strs("ranges", s.config.Server.AllowedIPRanges).
+			Msg("Adding global IP allowlist middleware")
+		s.app.Use(middleware.RequireGlobalIPAllowlist(&s.config.Server))
+	} else {
+		log.Debug().Msg("Global IP allowlist disabled (no ranges configured)")
+	}
+
 	// Global rate limiting - 100 requests per minute per IP
 	// Uses dynamic limiter that checks settings cache on each request
 	// This allows toggling rate limiting via admin UI without server restart
@@ -1814,12 +1826,12 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/email/templates/:type/reset", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.ResetTemplate)
 	router.Post("/email/templates/:type/test", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.emailTemplateHandler.TestTemplate)
 
-	// User management routes (require admin or dashboard_admin role)
-	router.Get("/users", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.ListUsers)
-	router.Post("/users/invite", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.InviteUser)
-	router.Delete("/users/:id", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.DeleteUser)
-	router.Patch("/users/:id/role", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.UpdateUserRole)
-	router.Post("/users/:id/reset-password", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.userManagementHandler.ResetUserPassword)
+	// User management routes (require admin, dashboard_admin, or service_role)
+	router.Get("/users", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.userManagementHandler.ListUsers)
+	router.Post("/users/invite", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.userManagementHandler.InviteUser)
+	router.Delete("/users/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.userManagementHandler.DeleteUser)
+	router.Patch("/users/:id/role", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.userManagementHandler.UpdateUserRole)
+	router.Post("/users/:id/reset-password", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.userManagementHandler.ResetUserPassword)
 
 	// Invitation management routes (require admin or dashboard_admin role)
 	router.Post("/invitations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.invitationHandler.CreateInvitation)

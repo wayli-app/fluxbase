@@ -339,6 +339,29 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 				}
 			}
 
+			// User JWT and dashboard JWT validation failed, try service role JWT (anon/service_role)
+			// This handles the Supabase pattern where JWTs have role claims instead of user claims
+			if strings.HasPrefix(token, "eyJ") {
+				claims, err := authService.ValidateServiceRoleToken(token)
+				if err == nil {
+					// Check if this is a service_role or anon token
+					if claims.Role == "service_role" || claims.Role == "anon" {
+						// Valid service role JWT
+						c.Locals("user_role", claims.Role)
+						c.Locals("auth_type", "service_role_jwt")
+						c.Locals("jwt_claims", claims)
+						c.Locals("rls_role", claims.Role)
+
+						log.Debug().
+							Str("role", claims.Role).
+							Str("issuer", claims.Issuer).
+							Msg("Authenticated with service role JWT via Bearer header")
+
+						return c.Next()
+					}
+				}
+			}
+
 			// Bearer token was provided but invalid - return specific error
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid or expired Bearer token",

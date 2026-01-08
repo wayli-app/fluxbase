@@ -75,6 +75,7 @@ func (h *DashboardAuthHandler) RegisterRoutes(app *fiber.App) {
 	// Public routes
 	dashboard.Post("/signup", h.Signup)
 	dashboard.Post("/login", h.Login)
+	dashboard.Post("/refresh", h.RefreshToken)
 	dashboard.Post("/2fa/verify", h.VerifyTOTP)
 
 	// Password reset routes (public)
@@ -199,6 +200,32 @@ func (h *DashboardAuthHandler) Login(c *fiber.Ctx) error {
 		"refresh_token": loginResp.RefreshToken,
 		"expires_in":    loginResp.ExpiresIn,
 		"user":          user,
+	})
+}
+
+// RefreshToken handles token refresh for dashboard users
+func (h *DashboardAuthHandler) RefreshToken(c *fiber.Ctx) error {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	if req.RefreshToken == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Refresh token is required")
+	}
+
+	loginResp, err := h.authService.RefreshToken(c.Context(), req.RefreshToken)
+	if err != nil {
+		return fiber.NewError(fiber.StatusUnauthorized, "Invalid or expired refresh token")
+	}
+
+	return c.JSON(fiber.Map{
+		"access_token":  loginResp.AccessToken,
+		"refresh_token": loginResp.RefreshToken,
+		"expires_in":    loginResp.ExpiresIn,
 	})
 }
 

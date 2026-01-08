@@ -173,11 +173,16 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 	}
 
 	// Override token from environment if set
+	// When FLUXBASE_TOKEN is set, it should take priority over stored credentials
 	if envToken := viper.GetString("token"); envToken != "" {
 		if profile.Credentials == nil {
 			profile.Credentials = &cliconfig.Credentials{}
 		}
 		profile.Credentials.APIKey = envToken
+		// Clear AccessToken so env var takes precedence (addAuth prefers AccessToken over APIKey)
+		profile.Credentials.AccessToken = ""
+		profile.Credentials.RefreshToken = ""
+		profile.Credentials.ExpiresAt = 0
 	}
 
 	// Override debug from environment if set

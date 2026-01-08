@@ -8,57 +8,10 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
-
-// esbuildCacheOnce ensures esbuild is downloaded only once to avoid race conditions
-// when multiple bundling operations run in parallel
-var esbuildCacheOnce sync.Once
-var esbuildCacheErr error
-
-// esbuildVersion is the version of esbuild used for bundling
-const esbuildVersion = "0.24.0"
-
-// ensureEsbuildCached downloads and caches esbuild if not already cached.
-// This must be called before parallel bundling operations to avoid race conditions.
-func ensureEsbuildCached(denoPath string) error {
-	esbuildCacheOnce.Do(func() {
-		log.Debug().Msg("Pre-caching esbuild to avoid parallel download race conditions")
-
-		// Build environment with DENO_DIR set
-		env := filterEnvVars(os.Environ(), "DENO_DIR", "HOME")
-		denoDir := os.Getenv("DENO_DIR")
-		if denoDir == "" {
-			denoDir = "/tmp/deno"
-		}
-		home := os.Getenv("HOME")
-		if home == "" {
-			home = "/tmp"
-		}
-		env = append(env, "DENO_DIR="+denoDir, "HOME="+home)
-
-		// Use deno cache to download esbuild
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		cmd := exec.CommandContext(ctx, denoPath, "cache", "npm:esbuild-wasm@"+esbuildVersion)
-		cmd.Env = env
-
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			esbuildCacheErr = fmt.Errorf("failed to cache esbuild: %w: %s", err, string(output))
-			log.Error().Err(esbuildCacheErr).Msg("Failed to pre-cache esbuild")
-			return
-		}
-
-		log.Info().Str("version", esbuildVersion).Msg("Successfully pre-cached esbuild")
-	})
-
-	return esbuildCacheErr
-}
 
 // Bundler handles bundling edge functions with npm dependencies
 type Bundler struct {
@@ -184,11 +137,6 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 		return result, nil
 	}
 
-	// Ensure esbuild is cached before bundling to avoid race conditions
-	if err := ensureEsbuildCached(b.denoPath); err != nil {
-		return nil, err
-	}
-
 	// Validate imports for security
 	if err := b.ValidateImports(code); err != nil {
 		result.Error = err.Error()
@@ -223,23 +171,16 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build esbuild command via Deno (replaces deprecated deno bundle)
+	// Build deno bundle command (native bundler using esbuild internally)
+	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
+		"bundle",
+		"--quiet",
 		inputPath,
-		"--bundle",
-		"--format=esm",
-		"--platform=neutral",
-		"--target=esnext",
-		"--outfile=" + outputPath,
-		// Mark Deno-specific imports as external - Deno resolves them at runtime
-		"--external:npm:*",
-		"--external:https://*",
-		"--external:http://*",
-		"--external:jsr:*",
+		"--output=" + outputPath,
 	}
 
-	// Run esbuild via Deno
+	// Run deno bundle command
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 
 	// Build environment for Deno, ensuring DENO_DIR and HOME are set correctly
@@ -310,11 +251,6 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		OriginalCode: mainCode,
 	}
 
-	// Ensure esbuild is cached before bundling to avoid race conditions
-	if err := ensureEsbuildCached(b.denoPath); err != nil {
-		return nil, err
-	}
-
 	// Validate imports for security
 	if err := b.ValidateImports(mainCode); err != nil {
 		result.Error = err.Error()
@@ -340,10 +276,10 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		}
 	}
 
-	// For Deno 2.x compatibility: Instead of using deno bundle (which is broken),
-	// we'll inline shared modules directly into the code
-	// This creates a single-file bundle manually
-	// However, if there's a deno.json, we need to use the full bundling path to preserve import maps
+	// Optimization: For simple cases with only shared modules and no deno.json,
+	// we can inline shared modules directly into the code instead of using deno bundle.
+	// This creates a single-file bundle manually and is faster.
+	// However, if there's a deno.json, we need to use deno bundle to preserve import maps.
 	if len(sharedModules) > 0 && codeFileCount == 0 && !hasDenoJSON {
 		// Simple case: only shared modules, no other files, no deno.json
 		// We can inline them directly
@@ -378,9 +314,9 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		}
 	}
 
-	// If function has deno.json with external imports (like @fluxbase/sdk),
-	// we need to inline them manually because deno bundle doesn't work with import maps in Deno 2.x
-	// Do this BEFORE writing any files so we write the fully inlined code
+	// If function has deno.json with local path imports (like @fluxbase/sdk mapped to a file),
+	// we have a choice: inline them manually (faster) or use deno bundle (simpler).
+	// We inline when possible for better performance.
 	if functionDenoJSON != "" {
 		// Check if deno.json has npm: or URL imports that require deno bundle
 		hasNpmOrUrlImports := strings.Contains(functionDenoJSON, "npm:") ||
@@ -398,14 +334,14 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 				log.Warn().Err(err).Msg("Failed to inline imports, falling back to deno bundle")
 			} else {
 				// Successfully inlined, use the inlined code
-				log.Info().Str("function", "unknown").Msg("Successfully inlined all imports, skipping deno bundle")
+				log.Info().Str("function", "unknown").Msg("Successfully inlined all imports, skipping deno bundle for better performance")
 				mainCode = inlinedCode
 				// Remove deno.json from supporting files since imports are resolved
 				delete(supportingFiles, "deno.json")
 				delete(supportingFiles, "deno.jsonc")
 
 				// Return the inlined code directly without bundling
-				// (deno bundle doesn't work well with inlined code anyway in Deno 2.x)
+				// (manual inlining is faster than deno bundle for these cases)
 				result.BundledCode = mainCode
 				result.IsBundled = true
 				return result, nil
@@ -498,32 +434,24 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Build esbuild command via Deno (replaces deprecated deno bundle)
+	// Build deno bundle command (native bundler using esbuild internally)
+	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
+	// and supports JSON/GeoJSON imports natively
 	args := []string{
-		"run", "--allow-all", "--quiet", "npm:esbuild-wasm@" + esbuildVersion,
+		"bundle",
+		"--quiet",
 		mainPath,
-		"--bundle",
-		"--format=esm",
-		"--platform=neutral",
-		"--target=esnext",
-		"--outfile=" + outputPath,
-		// Mark Deno-specific imports as external - Deno resolves them at runtime
-		"--external:npm:*",
-		"--external:https://*",
-		"--external:http://*",
-		"--external:jsr:*",
-		// Enable JSON loader for .geojson files (used for embedded geodata)
-		"--loader:.geojson=json",
+		"--output=" + outputPath,
 	}
 
 	log.Debug().
 		Str("command", b.denoPath).
 		Strs("args", args).
 		Str("dir", tmpDir).
-		Msg("Running esbuild for multi-file bundle")
+		Msg("Running deno bundle for multi-file bundle")
 
-	// Run esbuild via Deno on the main file (index.ts)
-	// esbuild will automatically resolve local imports from the directory
+	// Run deno bundle on the main file (index.ts)
+	// Deno will automatically resolve local imports from the directory
 	cmd := exec.CommandContext(bundleCtx, b.denoPath, args...)
 	cmd.Dir = tmpDir
 
@@ -587,7 +515,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 }
 
 // inlineSharedModules manually inlines shared module imports into the main code
-// This is a workaround for Deno 2.x where deno bundle is broken for multi-file projects
+// This optimization avoids using deno bundle for simple cases, improving performance
 func inlineSharedModules(mainCode string, sharedModules map[string]string) string {
 	// Build a map of module imports to their content
 	// Format: import { x, y } from "_shared/cors.ts" -> actual cors.ts content
@@ -735,7 +663,7 @@ func (b *Bundler) mergeDenoConfig(functionDenoJSON string, hasSharedModules bool
 }
 
 // inlineAllImports inlines both shared modules and deno.json import map imports into the main code
-// This is needed because deno bundle doesn't work with import maps in Deno 2.x
+// This optimization provides better performance than deno bundle for functions with local path imports
 func inlineAllImports(mainCode string, sharedModules map[string]string, denoJSON string) (string, error) {
 	var result strings.Builder
 	externalModules := make(map[string]string)
