@@ -138,9 +138,9 @@ func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
 }
 
 // AddConnection adds a new WebSocket connection
-func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string) *Connection {
+func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}) *Connection {
 	m.mu.Lock()
-	connection := NewConnection(id, conn, userID, role)
+	connection := NewConnection(id, conn, userID, role, claims)
 	m.connections[id] = connection
 	m.mu.Unlock()
 

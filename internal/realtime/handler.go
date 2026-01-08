@@ -79,6 +79,7 @@ type TokenClaims struct {
 	Email     string
 	Role      string
 	SessionID string
+	RawClaims map[string]interface{} // Full claims map for RLS (includes custom claims like meeting_id, player_id)
 }
 
 // RealtimeHandler handles WebSocket connections
@@ -110,6 +111,7 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 	token := c.Query("token")
 	var userID *string
 	var role = "anon" // Default to anonymous role
+	var rawClaims map[string]interface{}
 
 	if token != "" && h.authService != nil {
 		claims, err := h.authService.ValidateToken(token)
@@ -120,6 +122,7 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 			})
 		}
 		userID = &claims.UserID
+		rawClaims = claims.RawClaims // Preserve full JWT claims for RLS
 		// Extract role from JWT claims for RLS policy enforcement
 		// Roles can be: "anon", "authenticated", "admin", "dashboard_admin", "service_role"
 		if claims.Role != "" {
@@ -129,9 +132,10 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 		}
 	}
 
-	// Store user ID and role in Fiber locals so handleConnection can access them
+	// Store user ID, role and claims in Fiber locals so handleConnection can access them
 	c.Locals("user_id", userID)
 	c.Locals("role", role)
+	c.Locals("claims", rawClaims)
 
 	// Upgrade to WebSocket
 	return websocket.New(h.handleConnection)(c)
@@ -158,8 +162,16 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 		}
 	}
 
+	// Get full JWT claims from Fiber locals (set in HandleWebSocket)
+	var claims map[string]interface{}
+	if cl := c.Locals("claims"); cl != nil {
+		if claimsMap, ok := cl.(map[string]interface{}); ok {
+			claims = claimsMap
+		}
+	}
+
 	// Add connection to manager
-	connection := h.manager.AddConnection(connectionID, c, userID, role)
+	connection := h.manager.AddConnection(connectionID, c, userID, role, claims)
 	defer func() {
 		// Clean up presence for this connection
 		if h.presenceManager != nil {
@@ -290,8 +302,9 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			event = "*"
 		}
 
-		// Get user's role from connection
+		// Get user's role and claims from connection
 		role := conn.Role
+		claims := conn.Claims
 
 		// Create RLS-aware subscription
 		subID := uuid.New().String()
@@ -300,6 +313,7 @@ func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 			conn.ID,
 			*conn.UserID,
 			role,
+			claims,
 			schema,
 			table,
 			event,
@@ -672,11 +686,15 @@ func (h *RealtimeHandler) handleAccessToken(conn *Connection, msg ClientMessage)
 	}
 
 	oldRole := conn.Role
-	conn.UpdateAuth(userID, claims.Role)
+	conn.UpdateAuth(userID, claims.Role, claims.RawClaims)
 
-	// If role changed, update subscriptions in the subscription manager
+	// If role or claims changed, update subscriptions in the subscription manager
 	if oldRole != claims.Role && h.subManager != nil {
 		h.subManager.UpdateConnectionRole(conn.ID, claims.Role)
+	}
+	// Also update claims in subscriptions for RLS
+	if h.subManager != nil {
+		h.subManager.UpdateConnectionClaims(conn.ID, claims.RawClaims)
 	}
 
 	log.Info().

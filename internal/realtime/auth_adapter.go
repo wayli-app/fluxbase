@@ -28,5 +28,6 @@ func (a *AuthServiceAdapter) ValidateToken(token string) (*TokenClaims, error) {
 		Email:     claims.Email,
 		Role:      claims.Role,
 		SessionID: claims.SessionID,
+		RawClaims: claims.RawClaims, // Pass through full claims for RLS
 	}, nil
 }

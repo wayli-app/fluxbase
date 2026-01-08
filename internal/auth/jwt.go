@@ -28,6 +28,7 @@ type TokenClaims struct {
 	IsAnonymous  bool   `json:"is_anonymous,omitempty"`  // True for anonymous users
 	UserMetadata any    `json:"user_metadata,omitempty"` // User-editable metadata
 	AppMetadata  any    `json:"app_metadata,omitempty"`  // Application/admin-only metadata
+	RawClaims    map[string]interface{} `json:"-"`       // Full claims map for RLS (not serialized)
 	jwt.RegisteredClaims
 }
 
@@ -167,6 +168,20 @@ func (m *JWTManager) ValidateToken(tokenString string) (*TokenClaims, error) {
 	claims, ok := token.Claims.(*TokenClaims)
 	if !ok || !token.Valid {
 		return nil, ErrInvalidToken
+	}
+
+	// Also parse the raw claims to capture custom claims not in TokenClaims struct
+	// This is needed for RLS policies that use custom claims (e.g., meeting_id, player_id)
+	rawToken, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return m.secretKey, nil
+	})
+	if rawToken != nil {
+		if mapClaims, ok := rawToken.Claims.(jwt.MapClaims); ok {
+			claims.RawClaims = make(map[string]interface{})
+			for k, v := range mapClaims {
+				claims.RawClaims[k] = v
+			}
+		}
 	}
 
 	return claims, nil
@@ -330,6 +345,20 @@ func (m *JWTManager) ValidateServiceRoleToken(tokenString string) (*TokenClaims,
 	role := claims.Role
 	if role != "anon" && role != "service_role" && role != "authenticated" {
 		return nil, ErrInvalidToken
+	}
+
+	// Also parse the raw claims to capture custom claims not in TokenClaims struct
+	// This is needed for RLS policies that use custom claims (e.g., meeting_id, player_id)
+	rawToken, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return m.secretKey, nil
+	})
+	if rawToken != nil {
+		if mapClaims, ok := rawToken.Claims.(jwt.MapClaims); ok {
+			claims.RawClaims = make(map[string]interface{})
+			for k, v := range mapClaims {
+				claims.RawClaims[k] = v
+			}
+		}
 	}
 
 	return claims, nil

@@ -18,7 +18,8 @@ type SubscriptionDB interface {
 	// IsTableRealtimeEnabled checks if a table is enabled for realtime in the schema registry.
 	IsTableRealtimeEnabled(ctx context.Context, schema, table string) (bool, error)
 	// CheckRLSAccess verifies if a user can access a record based on RLS policies.
-	CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error)
+	// The claims map contains the full JWT claims to be passed to PostgreSQL for RLS evaluation.
+	CheckRLSAccess(ctx context.Context, schema, table, role string, claims map[string]interface{}, recordID interface{}) (bool, error)
 	// CheckRPCOwnership checks if a user owns an RPC execution.
 	CheckRPCOwnership(ctx context.Context, execID, userID uuid.UUID) (isOwner bool, exists bool, err error)
 	// CheckJobOwnership checks if a user owns a job execution.
@@ -52,7 +53,7 @@ func (db *pgxSubscriptionDB) IsTableRealtimeEnabled(ctx context.Context, schema,
 	return enabled, nil
 }
 
-func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error) {
+func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role string, claims map[string]interface{}, recordID interface{}) (bool, error) {
 	conn, err := db.pool.Acquire(ctx)
 	if err != nil {
 		return false, err
@@ -66,11 +67,14 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 	}
 	defer tx.Rollback(ctx)
 
-	// Build minimal JWT claims
-	jwtClaims := map[string]interface{}{
-		"sub":  userID,
-		"role": role,
+	// Use provided claims, ensuring role is set
+	jwtClaims := claims
+	if jwtClaims == nil {
+		jwtClaims = make(map[string]interface{})
 	}
+	// Ensure role is set in claims for RLS policies that use it
+	jwtClaims["role"] = role
+
 	jwtClaimsJSON, err := json.Marshal(jwtClaims)
 	if err != nil {
 		return false, err
@@ -160,6 +164,7 @@ type Subscription struct {
 	ID     string
 	UserID string
 	Role   string
+	Claims map[string]interface{} // Full JWT claims for RLS (includes custom claims like meeting_id, player_id)
 	Table  string
 	Schema string
 	Event  string  // INSERT, UPDATE, DELETE, or * for all
@@ -223,6 +228,7 @@ func (sm *SubscriptionManager) CreateSubscription(
 	connID string,
 	userID string,
 	role string,
+	claims map[string]interface{},
 	schema string,
 	table string,
 	event string,
@@ -251,6 +257,7 @@ func (sm *SubscriptionManager) CreateSubscription(
 		ID:     subID,
 		UserID: userID,
 		Role:   role,
+		Claims: claims,
 		Table:  table,
 		Schema: schema,
 		Event:  event,
@@ -428,7 +435,8 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		}
 	}
 
-	visible, err := sm.db.CheckRLSAccess(ctx, sub.Schema, sub.Table, sub.Role, sub.UserID, recordID)
+	// Pass full JWT claims for RLS evaluation (includes custom claims like meeting_id, player_id)
+	visible, err := sm.db.CheckRLSAccess(ctx, sub.Schema, sub.Table, sub.Role, sub.Claims, recordID)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -506,6 +514,22 @@ func (sm *SubscriptionManager) UpdateConnectionRole(connID string, newRole strin
 		Str("connection_id", connID).
 		Str("new_role", newRole).
 		Msg("Updated role for connection subscriptions")
+}
+
+// UpdateConnectionClaims updates the claims for all subscriptions belonging to a connection
+func (sm *SubscriptionManager) UpdateConnectionClaims(connID string, newClaims map[string]interface{}) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	for _, sub := range sm.subscriptions {
+		if sub.ConnID == connID {
+			sub.Claims = newClaims
+		}
+	}
+
+	log.Info().
+		Str("connection_id", connID).
+		Msg("Updated claims for connection subscriptions")
 }
 
 // ParseChangeEvent parses a JSON payload into a ChangeEvent
