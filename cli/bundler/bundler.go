@@ -197,9 +197,6 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 		return nil, fmt.Errorf("failed to write main file: %w", err)
 	}
 
-	// Create output file path
-	outputPath := filepath.Join(workDir, ".fluxbase-bundle-output.js")
-
 	// Write all shared modules with transformed imports
 	if len(sharedModules) > 0 {
 		for modulePath, content := range sharedModules {
@@ -228,11 +225,10 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
 	// and supports JSON/GeoJSON imports natively
-	// Note: Deno 2.x requires options before the input file
+	// Output to stdout for maximum compatibility across Deno versions (1.x and 2.x)
 	args := []string{
 		"bundle",
 		"--quiet",
-		"-o", outputPath,
 		mainPath,
 	}
 
@@ -284,13 +280,8 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 		return nil, fmt.Errorf("bundle failed: %s", result.Error)
 	}
 
-	// Read bundled output
-	bundled, err := os.ReadFile(outputPath) //nolint:gosec // Reading from temp file we created
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bundled output: %w", err)
-	}
-
-	result.BundledCode = string(bundled)
+	// Get bundled output from stdout
+	result.BundledCode = stdout.String()
 	result.IsBundled = true
 
 	// Validate bundled size (50MB limit - allows for embedded GeoJSON data)

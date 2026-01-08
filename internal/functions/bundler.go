@@ -158,26 +158,16 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 	}
 	_ = inputFile.Close()
 
-	// Create temporary output file
-	outputFile, err := os.CreateTemp("", "bundled-*.js")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp output file: %w", err)
-	}
-	outputPath := outputFile.Name()
-	_ = outputFile.Close()
-	defer func() { _ = os.Remove(outputPath) }()
-
 	// Set timeout for bundling (30 seconds)
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
-	// Note: Deno 2.x requires options before the input file
+	// Output to stdout for maximum compatibility across Deno versions (1.x and 2.x)
 	args := []string{
 		"bundle",
 		"--quiet",
-		"-o", outputPath,
 		inputPath,
 	}
 
@@ -225,13 +215,8 @@ func (b *Bundler) Bundle(ctx context.Context, code string) (*BundleResult, error
 		return nil, fmt.Errorf("bundle failed: %s", result.Error)
 	}
 
-	// Read bundled output
-	bundled, err := os.ReadFile(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bundled output: %w", err)
-	}
-
-	result.BundledCode = string(bundled)
+	// Get bundled output from stdout
+	result.BundledCode = stdout.String()
 	result.IsBundled = true
 
 	// Validate bundled size (50MB limit - allows for embedded GeoJSON data)
@@ -422,15 +407,6 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		log.Debug().Msg("No deno.json found for function")
 	}
 
-	// Create temporary output file
-	outputFile, err := os.CreateTemp("", "bundled-*.js")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp output file: %w", err)
-	}
-	outputPath := outputFile.Name()
-	_ = outputFile.Close()
-	defer func() { _ = os.Remove(outputPath) }()
-
 	// Set timeout for bundling (30 seconds)
 	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -438,11 +414,10 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 	// Build deno bundle command (native bundler using esbuild internally)
 	// Deno bundle automatically handles external imports (npm:*, https://, jsr:, etc.)
 	// and supports JSON/GeoJSON imports natively
-	// Note: Deno 2.x requires options before the input file
+	// Output to stdout for maximum compatibility across Deno versions (1.x and 2.x)
 	args := []string{
 		"bundle",
 		"--quiet",
-		"-o", outputPath,
 		mainPath,
 	}
 
@@ -498,13 +473,8 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		return nil, fmt.Errorf("bundle failed: %s", result.Error)
 	}
 
-	// Read bundled output
-	bundled, err := os.ReadFile(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read bundled output: %w", err)
-	}
-
-	result.BundledCode = string(bundled)
+	// Get bundled output from stdout
+	result.BundledCode = stdout.String()
 	result.IsBundled = true
 
 	// Validate bundled size (50MB limit - allows for embedded GeoJSON data)
