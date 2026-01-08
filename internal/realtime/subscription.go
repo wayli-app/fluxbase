@@ -59,6 +59,13 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 	}
 	defer conn.Release()
 
+	// Start a transaction for SET LOCAL (required by PostgreSQL)
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+
 	// Build minimal JWT claims
 	jwtClaims := map[string]interface{}{
 		"sub":  userID,
@@ -78,19 +85,19 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 		dbRole = "anon"
 	}
 
-	_, err = conn.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
 	if err != nil {
 		return false, err
 	}
 
-	_, err = conn.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
+	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", string(jwtClaimsJSON))
 	if err != nil {
 		return false, err
 	}
 
 	var count int
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", schema, table)
-	err = conn.QueryRow(ctx, query, recordID).Scan(&count)
+	err = tx.QueryRow(ctx, query, recordID).Scan(&count)
 	if err != nil {
 		return false, err
 	}

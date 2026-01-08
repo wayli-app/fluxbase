@@ -13,6 +13,7 @@ import {
   Clock,
   Globe,
   FolderOpen,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -454,10 +455,10 @@ function SecretsPage() {
                               size='sm'
                               onClick={() => openEditDialog(secret)}
                             >
-                              <Lock className='h-4 w-4' />
+                              <Pencil className='h-4 w-4' />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Update secret value</TooltipContent>
+                          <TooltipContent>Edit secret</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>

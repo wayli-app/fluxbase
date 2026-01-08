@@ -433,10 +433,10 @@ func (m *MockTokenBlacklistRepository) Add(ctx context.Context, jti, userID, rea
 	m.entries[jti] = &TokenBlacklistEntry{
 		ID:        uuid.New().String(),
 		TokenJTI:  jti,
-		UserID:    userID,
+		RevokedBy: userID,
 		Reason:    reason,
 		ExpiresAt: expiresAt,
-		RevokedAt: time.Now(),
+		CreatedAt: time.Now(),
 	}
 	return nil
 }
@@ -495,7 +495,7 @@ func (m *MockTokenBlacklistRepository) DeleteByUser(ctx context.Context, userID 
 	defer m.mu.Unlock()
 
 	for jti, entry := range m.entries {
-		if entry.UserID == userID {
+		if entry.RevokedBy == userID {
 			delete(m.entries, jti)
 		}
 	}

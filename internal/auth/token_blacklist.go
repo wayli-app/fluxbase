@@ -19,9 +19,9 @@ var (
 type TokenBlacklistEntry struct {
 	ID        string    `json:"id" db:"id"`
 	TokenJTI  string    `json:"token_jti" db:"token_jti"`
-	UserID    string    `json:"user_id" db:"user_id"`
+	RevokedBy string    `json:"revoked_by" db:"revoked_by"`
 	Reason    string    `json:"reason" db:"reason"`
-	RevokedAt time.Time `json:"revoked_at" db:"revoked_at"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
 }
 
@@ -36,9 +36,9 @@ func NewTokenBlacklistRepository(db *database.Connection) *TokenBlacklistReposit
 }
 
 // Add adds a token to the blacklist
-func (r *TokenBlacklistRepository) Add(ctx context.Context, jti, userID, reason string, expiresAt time.Time) error {
+func (r *TokenBlacklistRepository) Add(ctx context.Context, jti, revokedBy, reason string, expiresAt time.Time) error {
 	query := `
-		INSERT INTO auth.token_blacklist (id, token_jti, user_id, reason, expires_at)
+		INSERT INTO auth.token_blacklist (id, token_jti, revoked_by, reason, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (token_jti) DO NOTHING
 	`
@@ -47,7 +47,7 @@ func (r *TokenBlacklistRepository) Add(ctx context.Context, jti, userID, reason 
 		_, err := tx.Exec(ctx, query,
 			uuid.New().String(),
 			jti,
-			userID,
+			revokedBy,
 			reason,
 			expiresAt,
 		)
@@ -78,7 +78,7 @@ func (r *TokenBlacklistRepository) IsBlacklisted(ctx context.Context, jti string
 // GetByJTI retrieves a blacklist entry by token JTI
 func (r *TokenBlacklistRepository) GetByJTI(ctx context.Context, jti string) (*TokenBlacklistEntry, error) {
 	query := `
-		SELECT id, token_jti, user_id, reason, revoked_at, expires_at
+		SELECT id, token_jti, revoked_by, reason, created_at, expires_at
 		FROM auth.token_blacklist
 		WHERE token_jti = $1
 	`
@@ -88,9 +88,9 @@ func (r *TokenBlacklistRepository) GetByJTI(ctx context.Context, jti string) (*T
 		return tx.QueryRow(ctx, query, jti).Scan(
 			&entry.ID,
 			&entry.TokenJTI,
-			&entry.UserID,
+			&entry.RevokedBy,
 			&entry.Reason,
-			&entry.RevokedAt,
+			&entry.CreatedAt,
 			&entry.ExpiresAt,
 		)
 	})
@@ -114,7 +114,7 @@ func (r *TokenBlacklistRepository) RevokeAllUserTokens(ctx context.Context, user
 	// For now, we'll add a marker entry that can be checked
 	// A better approach would be to track session revocation separately
 	query := `
-		INSERT INTO auth.token_blacklist (id, token_jti, user_id, reason, expires_at)
+		INSERT INTO auth.token_blacklist (id, token_jti, revoked_by, reason, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (token_jti) DO NOTHING
 	`
@@ -153,7 +153,7 @@ func (r *TokenBlacklistRepository) DeleteExpired(ctx context.Context) (int64, er
 
 // DeleteByUser removes all blacklist entries for a user
 func (r *TokenBlacklistRepository) DeleteByUser(ctx context.Context, userID string) error {
-	query := `DELETE FROM auth.token_blacklist WHERE user_id = $1`
+	query := `DELETE FROM auth.token_blacklist WHERE revoked_by = $1`
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, userID)
