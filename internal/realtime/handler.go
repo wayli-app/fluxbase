@@ -213,6 +213,33 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 func (h *RealtimeHandler) handleMessage(conn *Connection, msg ClientMessage) {
 	switch msg.Type {
 	case MessageTypeSubscribe:
+		// Check if this is an admin channel subscription (broadcast-only, no table required)
+		if len(msg.Channel) >= 15 && msg.Channel[:15] == "realtime:admin:" {
+			// Admin channels require admin role
+			if conn.Role != "admin" && conn.Role != "dashboard_admin" && conn.Role != "service_role" {
+				_ = conn.SendMessage(ServerMessage{
+					Type:  MessageTypeError,
+					Error: "admin access required to subscribe to admin channels",
+				})
+				return
+			}
+
+			// Subscribe connection to channel (broadcast-only, no database subscription)
+			if !conn.IsSubscribed(msg.Channel) {
+				conn.Subscribe(msg.Channel)
+			}
+
+			// Send acknowledgment
+			_ = conn.SendMessage(ServerMessage{
+				Type: MessageTypeAck,
+				Payload: map[string]interface{}{
+					"subscribed": true,
+					"channel":    msg.Channel,
+				},
+			})
+			return
+		}
+
 		// Extract subscription details from either direct fields or config object
 		var event, schema, table, filter string
 
@@ -405,6 +432,34 @@ func (h *RealtimeHandler) handleBroadcast(conn *Connection, msg ClientMessage) {
 		_ = conn.SendMessage(ServerMessage{
 			Type:  MessageTypeError,
 			Error: "channel is required for broadcast",
+		})
+		return
+	}
+
+	// Check if this is an admin channel subscription (read-only)
+	if len(msg.Channel) >= 15 && msg.Channel[:15] == "realtime:admin:" {
+		// Admin channels require admin role and are subscribe-only (no broadcasting)
+		if conn.Role != "admin" && conn.Role != "dashboard_admin" && conn.Role != "service_role" {
+			_ = conn.SendMessage(ServerMessage{
+				Type:  MessageTypeError,
+				Error: "admin access required to subscribe to admin channels",
+			})
+			return
+		}
+
+		// For admin channels, only allow subscription, not broadcasting
+		// Subscribe connection to channel if not already subscribed
+		if !conn.IsSubscribed(msg.Channel) {
+			conn.Subscribe(msg.Channel)
+		}
+
+		// Send acknowledgment for subscription
+		_ = conn.SendMessage(ServerMessage{
+			Type: MessageTypeAck,
+			Payload: map[string]interface{}{
+				"subscribed": true,
+				"channel":    msg.Channel,
+			},
 		})
 		return
 	}

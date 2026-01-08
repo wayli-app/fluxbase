@@ -253,6 +253,7 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS ai CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS rpc CASCADE;" || true
+	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS branching CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS migrations CASCADE;" || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "CREATE SCHEMA IF NOT EXISTS migrations;" || true
 	@echo "${YELLOW}Ensuring test users exist with correct permissions...${NC}"
@@ -275,6 +276,7 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
@@ -293,6 +295,8 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;" || true
@@ -319,6 +323,7 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS realtime CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS ai CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS rpc CASCADE;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS branching CASCADE;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS migrations CASCADE;" || true
 	@echo "${YELLOW}Dropping and recreating public schema...${NC}"
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "DROP SCHEMA IF EXISTS public CASCADE;" || true
@@ -346,6 +351,7 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA rpc TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT USAGE, CREATE ON SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA app TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
@@ -364,6 +370,8 @@ db-reset-full: ## Full database reset (drops ALL schemas including public, auth,
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA migrations TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA ai TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL TABLES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
+	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA branching TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auth TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO fluxbase_app, fluxbase_rls_test;" || true
 	@docker exec fluxbase-postgres-dev psql -U postgres -d fluxbase_dev -c "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fluxbase_app, fluxbase_rls_test;" || true

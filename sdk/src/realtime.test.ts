@@ -156,6 +156,26 @@ describe("FluxbaseRealtime - Connection", () => {
     // The token is stored internally
     expect(realtime).toBeDefined();
   });
+
+  it("should not update channels when setAuth is called with the same token", () => {
+    // Create a channel and spy on updateToken
+    const channel = realtime.channel("test-channel");
+    const updateTokenSpy = vi.spyOn(channel, "updateToken");
+
+    // Set a new token - should call updateToken
+    realtime.setAuth("token-1");
+    expect(updateTokenSpy).toHaveBeenCalledTimes(1);
+    expect(updateTokenSpy).toHaveBeenCalledWith("token-1");
+
+    // Set the same token again - should NOT call updateToken
+    realtime.setAuth("token-1");
+    expect(updateTokenSpy).toHaveBeenCalledTimes(1);
+
+    // Set a different token - should call updateToken again
+    realtime.setAuth("token-2");
+    expect(updateTokenSpy).toHaveBeenCalledTimes(2);
+    expect(updateTokenSpy).toHaveBeenLastCalledWith("token-2");
+  });
 });
 
 describe("RealtimeChannel - Subscriptions", () => {
@@ -246,9 +266,9 @@ describe("RealtimeChannel - Change Events", () => {
     const callback = vi.fn();
     channel.on("INSERT", callback);
 
-    // Simulate receiving an INSERT event
+    // Simulate receiving an INSERT event (server sends type: "postgres_changes")
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "INSERT",
         table: "users",
@@ -266,8 +286,9 @@ describe("RealtimeChannel - Change Events", () => {
     const callback = vi.fn();
     channel.on("UPDATE", callback);
 
+    // Server sends type: "postgres_changes" for database events
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "UPDATE",
         table: "users",
@@ -286,8 +307,9 @@ describe("RealtimeChannel - Change Events", () => {
     const callback = vi.fn();
     channel.on("DELETE", callback);
 
+    // Server sends type: "postgres_changes" for database events
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "DELETE",
         table: "users",
@@ -305,17 +327,17 @@ describe("RealtimeChannel - Change Events", () => {
     const callback = vi.fn();
     channel.on("*", callback);
 
-    // Send multiple events
+    // Send multiple events (server sends type: "postgres_changes")
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "INSERT" },
     });
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "UPDATE" },
     });
     lastMockWebSocket!.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "DELETE" },
     });
 
@@ -361,11 +383,14 @@ describe("RealtimeChannel - Broadcast", () => {
     const callback = vi.fn();
     channel.on("broadcast", { event: "message" }, callback);
 
+    // Server sends broadcast nested inside payload: { payload: { broadcast: {...} } }
     lastMockWebSocket!.simulateMessage({
       type: "broadcast",
-      broadcast: {
-        event: "message",
-        payload: { text: "Hello from another user" },
+      payload: {
+        broadcast: {
+          event: "message",
+          payload: { text: "Hello from another user" },
+        },
       },
     });
 
@@ -406,12 +431,15 @@ describe("RealtimeChannel - Presence", () => {
     const callback = vi.fn();
     channel.on("presence", { event: "sync" }, callback);
 
+    // Server sends presence nested inside payload: { payload: { presence: {...} } }
     lastMockWebSocket!.simulateMessage({
       type: "presence",
-      presence: {
-        event: "sync",
-        key: "user1",
-        currentPresences: { user1: [{ status: "online" }] },
+      payload: {
+        presence: {
+          event: "sync",
+          key: "user1",
+          currentPresences: { user1: [{ status: "online" }] },
+        },
       },
     });
 
@@ -624,9 +652,9 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
-    // Simulate INSERT event
+    // Simulate INSERT event (server sends type: "postgres_changes")
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "INSERT",
         schema: "public",
@@ -653,8 +681,9 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
+    // Server sends type: "postgres_changes" for database events
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "UPDATE",
         schema: "public",
@@ -679,8 +708,9 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
+    // Server sends type: "postgres_changes" for database events
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "DELETE",
         schema: "public",
@@ -705,17 +735,17 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
       callback,
     );
 
-    // Send different event types
+    // Send different event types (server sends type: "postgres_changes")
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "INSERT", schema: "public", table: "jobs" },
     });
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "UPDATE", schema: "public", table: "jobs" },
     });
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: { type: "DELETE", schema: "public", table: "jobs" },
     });
 
@@ -727,9 +757,9 @@ describe("RealtimeChannel - postgres_changes Filtering", () => {
 
     channel.on("INSERT", callback);
 
-    // Simulate INSERT event
+    // Simulate INSERT event (server sends type: "postgres_changes")
     mockWs.simulateMessage({
-      type: "broadcast",
+      type: "postgres_changes",
       payload: {
         type: "INSERT",
         schema: "public",

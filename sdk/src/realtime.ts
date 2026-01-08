@@ -33,7 +33,10 @@ export class RealtimeChannel {
     callbacks: Set<RealtimeCallback>;
   }> = [];
   private subscriptionIds: Map<string, string> = new Map(); // "schema.table" -> subscription_id
-  private executionLogConfig: { execution_id: string; type?: ExecutionType } | null = null;
+  private executionLogConfig: {
+    execution_id: string;
+    type?: ExecutionType;
+  } | null = null;
   private _presenceState: Record<string, PresenceState[]> = {};
   private myPresenceKey: string | null = null;
   private config: RealtimeChannelConfig;
@@ -44,7 +47,11 @@ export class RealtimeChannel {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private pendingAcks: Map<
     string,
-    { resolve: (value: string) => void; reject: (reason: any) => void; timeout: ReturnType<typeof setTimeout> }
+    {
+      resolve: (value: string) => void;
+      reject: (reason: any) => void;
+      timeout: ReturnType<typeof setTimeout>;
+    }
   > = new Map();
   private messageIdCounter = 0;
   private onTokenRefreshNeeded: (() => Promise<string | null>) | null = null;
@@ -93,7 +100,7 @@ export class RealtimeChannel {
   on(
     event: "postgres_changes",
     config: PostgresChangesConfig,
-    callback: RealtimeCallback,
+    callback: RealtimeCallback
   ): this;
 
   /**
@@ -112,7 +119,7 @@ export class RealtimeChannel {
    */
   on(
     event: "INSERT" | "UPDATE" | "DELETE" | "*",
-    callback: RealtimeCallback,
+    callback: RealtimeCallback
   ): this;
 
   /**
@@ -133,7 +140,7 @@ export class RealtimeChannel {
   on(
     event: "broadcast",
     config: { event: string },
-    callback: BroadcastCallback,
+    callback: BroadcastCallback
   ): this;
 
   /**
@@ -154,7 +161,7 @@ export class RealtimeChannel {
   on(
     event: "presence",
     config: { event: "sync" | "join" | "leave" },
-    callback: PresenceCallback,
+    callback: PresenceCallback
   ): this;
 
   /**
@@ -175,7 +182,7 @@ export class RealtimeChannel {
   on(
     event: "execution_log",
     config: { execution_id: string; type?: ExecutionType },
-    callback: ExecutionLogCallback,
+    callback: ExecutionLogCallback
   ): this;
 
   // Implementation
@@ -195,7 +202,11 @@ export class RealtimeChannel {
       | { event: string }
       | { event: "sync" | "join" | "leave" }
       | { execution_id: string; type?: ExecutionType },
-    callback?: RealtimeCallback | BroadcastCallback | PresenceCallback | ExecutionLogCallback,
+    callback?:
+      | RealtimeCallback
+      | BroadcastCallback
+      | PresenceCallback
+      | ExecutionLogCallback
   ): this {
     if (
       event === "postgres_changes" &&
@@ -220,7 +231,10 @@ export class RealtimeChannel {
       }
 
       entry.callbacks.add(actualCallback);
-    } else if (event === "broadcast" && typeof configOrCallback !== "function") {
+    } else if (
+      event === "broadcast" &&
+      typeof configOrCallback !== "function"
+    ) {
       // on('broadcast', { event }, callback)
       const config = configOrCallback as { event: string };
       const actualCallback = callback as BroadcastCallback;
@@ -238,9 +252,15 @@ export class RealtimeChannel {
         this.presenceCallbacks.set(config.event, new Set());
       }
       this.presenceCallbacks.get(config.event)!.add(actualCallback);
-    } else if (event === "execution_log" && typeof configOrCallback !== "function") {
+    } else if (
+      event === "execution_log" &&
+      typeof configOrCallback !== "function"
+    ) {
       // on('execution_log', { execution_id, type }, callback)
-      const config = configOrCallback as { execution_id: string; type?: ExecutionType };
+      const config = configOrCallback as {
+        execution_id: string;
+        type?: ExecutionType;
+      };
       this.executionLogConfig = config;
       const actualCallback = callback as ExecutionLogCallback;
       this.executionLogCallbacks.add(actualCallback);
@@ -263,7 +283,7 @@ export class RealtimeChannel {
    */
   off(
     event: "INSERT" | "UPDATE" | "DELETE" | "*",
-    callback: RealtimeCallback,
+    callback: RealtimeCallback
   ): this {
     const callbacks = this.callbacks.get(event);
     if (callbacks) {
@@ -280,9 +300,9 @@ export class RealtimeChannel {
   subscribe(
     callback?: (
       status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED",
-      err?: Error,
+      err?: Error
     ) => void,
-    _timeout?: number,
+    _timeout?: number
   ): this {
     // Re-enable reconnection in case this is a re-subscribe after unsubscribe
     this.shouldReconnect = true;
@@ -452,7 +472,8 @@ export class RealtimeChannel {
       // Generate presence key if not set
       if (!this.myPresenceKey) {
         this.myPresenceKey =
-          this.config.presence?.key || `presence-${Math.random().toString(36).substr(2, 9)}`;
+          this.config.presence?.key ||
+          `presence-${Math.random().toString(36).substr(2, 9)}`;
       }
 
       this.ws.send(
@@ -539,7 +560,9 @@ export class RealtimeChannel {
       const parts = this.token.split(".");
       if (parts.length !== 3 || !parts[1]) return false;
 
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+      const payload = JSON.parse(
+        atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
+      );
       if (!payload.exp) return false;
 
       // Check if expired or will expire in the next 10 seconds
@@ -560,16 +583,24 @@ export class RealtimeChannel {
     }
 
     // Check if token is expired and we have a refresh callback
-    if (this.isTokenExpired() && this.onTokenRefreshNeeded && !this.isRefreshingToken) {
+    if (
+      this.isTokenExpired() &&
+      this.onTokenRefreshNeeded &&
+      !this.isRefreshingToken
+    ) {
       this.isRefreshingToken = true;
-      console.log("[Fluxbase Realtime] Token expired, requesting refresh before connecting");
+      console.log(
+        "[Fluxbase Realtime] Token expired, requesting refresh before connecting"
+      );
 
       this.onTokenRefreshNeeded()
         .then((newToken) => {
           this.isRefreshingToken = false;
           if (newToken) {
             this.token = newToken;
-            console.log("[Fluxbase Realtime] Token refreshed, connecting with new token");
+            console.log(
+              "[Fluxbase Realtime] Token refreshed, connecting with new token"
+            );
           }
           this.connectWithToken();
         })
@@ -641,9 +672,8 @@ export class RealtimeChannel {
     this.ws.onmessage = (event: MessageEvent) => {
       let message: RealtimeMessage;
       try {
-        message = typeof event.data === 'string'
-          ? JSON.parse(event.data)
-          : event.data;
+        message =
+          typeof event.data === "string" ? JSON.parse(event.data) : event.data;
       } catch (err) {
         console.error("[Fluxbase Realtime] Failed to parse message:", err);
         return;
@@ -652,7 +682,11 @@ export class RealtimeChannel {
       try {
         this.handleMessage(message);
       } catch (err) {
-        console.error("[Fluxbase Realtime] Error handling message:", err, message);
+        console.error(
+          "[Fluxbase Realtime] Error handling message:",
+          err,
+          message
+        );
       }
     };
 
@@ -699,17 +733,35 @@ export class RealtimeChannel {
         break;
 
       case "broadcast":
-        if (message.broadcast) {
-          this.handleBroadcastMessage(message.broadcast);
+        // Server sends: { type: "broadcast", payload: { broadcast: {...} } }
+        // Client interface also supports: { type: "broadcast", broadcast: {...} }
+        const broadcastData =
+          message.broadcast ||
+          (message.payload &&
+          typeof message.payload === "object" &&
+          "broadcast" in message.payload
+            ? (message.payload as { broadcast: unknown }).broadcast
+            : null);
+        if (broadcastData) {
+          this.handleBroadcastMessage(broadcastData);
         } else if (message.payload) {
-          // Legacy postgres_changes format
+          // Legacy postgres_changes format for backwards compatibility
           this.handlePostgresChanges(message.payload);
         }
         break;
 
       case "presence":
-        if (message.presence) {
-          this.handlePresenceMessage(message.presence);
+        // Server sends: { type: "presence", payload: { presence: {...} } }
+        // Client interface also supports: { type: "presence", presence: {...} }
+        const presenceData =
+          message.presence ||
+          (message.payload &&
+          typeof message.payload === "object" &&
+          "presence" in message.payload
+            ? (message.payload as { presence: unknown }).presence
+            : null);
+        if (presenceData) {
+          this.handlePresenceMessage(presenceData);
         }
         break;
 
@@ -720,11 +772,24 @@ export class RealtimeChannel {
           if (ackHandler) {
             ackHandler.resolve(message.status || "ok");
           }
-        } else if (message.payload && typeof message.payload === 'object' && 'type' in message.payload) {
-          const payload = message.payload as { type: string; updated?: boolean; subscription_id?: string; schema?: string; table?: string };
+        } else if (
+          message.payload &&
+          typeof message.payload === "object" &&
+          "type" in message.payload
+        ) {
+          const payload = message.payload as {
+            type: string;
+            updated?: boolean;
+            subscription_id?: string;
+            schema?: string;
+            table?: string;
+          };
 
           // Handle access_token acknowledgment
-          if (payload.type === "access_token" && this.pendingAcks.has("access_token")) {
+          if (
+            payload.type === "access_token" &&
+            this.pendingAcks.has("access_token")
+          ) {
             const ackHandler = this.pendingAcks.get("access_token");
             if (ackHandler) {
               ackHandler.resolve("ok");
@@ -736,30 +801,52 @@ export class RealtimeChannel {
             const schema = payload.schema || "public";
             const table = payload.table || "";
             if (table) {
-              this.subscriptionIds.set(`${schema}.${table}`, payload.subscription_id);
-              console.log("[Fluxbase Realtime] Subscription ID received for", `${schema}.${table}:`, payload.subscription_id);
+              this.subscriptionIds.set(
+                `${schema}.${table}`,
+                payload.subscription_id
+              );
+              console.log(
+                "[Fluxbase Realtime] Subscription ID received for",
+                `${schema}.${table}:`,
+                payload.subscription_id
+              );
             } else {
-              console.log("[Fluxbase Realtime] Subscription ID received:", payload.subscription_id);
+              console.log(
+                "[Fluxbase Realtime] Subscription ID received:",
+                payload.subscription_id
+              );
             }
-          } else {
-            // Log other acknowledgments
-            console.log("[Fluxbase Realtime] Acknowledged:", message);
           }
         } else {
           // Store subscription_id from subscription acknowledgment (legacy format)
-          if (message.payload && typeof message.payload === 'object' && 'subscription_id' in message.payload) {
-            const payload = message.payload as { subscription_id: string; schema?: string; table?: string };
+          if (
+            message.payload &&
+            typeof message.payload === "object" &&
+            "subscription_id" in message.payload
+          ) {
+            const payload = message.payload as {
+              subscription_id: string;
+              schema?: string;
+              table?: string;
+            };
             const schema = payload.schema || "public";
             const table = payload.table || "";
             if (table) {
-              this.subscriptionIds.set(`${schema}.${table}`, payload.subscription_id);
-              console.log("[Fluxbase Realtime] Subscription ID received for", `${schema}.${table}:`, payload.subscription_id);
+              this.subscriptionIds.set(
+                `${schema}.${table}`,
+                payload.subscription_id
+              );
+              console.log(
+                "[Fluxbase Realtime] Subscription ID received for",
+                `${schema}.${table}:`,
+                payload.subscription_id
+              );
             } else {
-              console.log("[Fluxbase Realtime] Subscription ID received:", payload.subscription_id);
+              console.log(
+                "[Fluxbase Realtime] Subscription ID received:",
+                payload.subscription_id
+              );
             }
-          } else {
-            // Log other acknowledgments
-            console.log("[Fluxbase Realtime] Acknowledged:", message);
           }
         }
         break;
@@ -770,7 +857,9 @@ export class RealtimeChannel {
         if (this.pendingAcks.has("access_token")) {
           const ackHandler = this.pendingAcks.get("access_token");
           if (ackHandler) {
-            ackHandler.reject(new Error(message.error || "Token update failed"));
+            ackHandler.reject(
+              new Error(message.error || "Token update failed")
+            );
             this.pendingAcks.delete("access_token");
           }
         }
@@ -801,7 +890,10 @@ export class RealtimeChannel {
       try {
         callback(log);
       } catch (err) {
-        console.error("[Fluxbase Realtime] Error in execution log callback:", err);
+        console.error(
+          "[Fluxbase Realtime] Error in execution log callback:",
+          err
+        );
       }
     });
   }
@@ -883,14 +975,18 @@ export class RealtimeChannel {
       // Check if this payload matches the subscription config
       const schemaMatch = !c.schema || c.schema === supabasePayload.schema;
       const tableMatch = !c.table || c.table === supabasePayload.table;
-      const eventMatch = c.event === "*" || c.event === supabasePayload.eventType;
+      const eventMatch =
+        c.event === "*" || c.event === supabasePayload.eventType;
 
       if (schemaMatch && tableMatch && eventMatch) {
         entry.callbacks.forEach((cb) => {
           try {
             cb(supabasePayload);
           } catch (err) {
-            console.error("[Fluxbase Realtime] Error in postgres_changes callback:", err);
+            console.error(
+              "[Fluxbase Realtime] Error in postgres_changes callback:",
+              err
+            );
           }
         });
       }
@@ -939,6 +1035,11 @@ export class RealtimeChannel {
    * @internal
    */
   updateToken(token: string | null) {
+    // Skip if token hasn't changed
+    if (this.token === token) {
+      return;
+    }
+
     this.token = token;
 
     // Only send update if connected
@@ -1010,7 +1111,7 @@ export class RealtimeChannel {
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
     console.log(
-      `[Fluxbase Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`,
+      `[Fluxbase Realtime] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
     );
 
     setTimeout(() => {
@@ -1096,9 +1197,7 @@ export class FluxbaseRealtime {
    * await realtime.removeChannel(channel)
    * ```
    */
-  async removeChannel(
-    channel: RealtimeChannel
-  ): Promise<"ok" | "error"> {
+  async removeChannel(channel: RealtimeChannel): Promise<"ok" | "error"> {
     // Unsubscribe the channel
     await channel.unsubscribe();
 
@@ -1129,6 +1228,11 @@ export class FluxbaseRealtime {
    * @param token - The new auth token
    */
   setAuth(token: string | null) {
+    // Skip if token hasn't changed
+    if (this.token === token) {
+      return;
+    }
+
     this.token = token;
     // Update all existing connected channels
     this.channels.forEach((channel) => {
@@ -1159,7 +1263,13 @@ export class FluxbaseRealtime {
     executionId: string,
     type: ExecutionType = "function"
   ): ExecutionLogsChannel {
-    return new ExecutionLogsChannel(this.url, executionId, type, this.token, this.tokenRefreshCallback);
+    return new ExecutionLogsChannel(
+      this.url,
+      executionId,
+      type,
+      this.token,
+      this.tokenRefreshCallback
+    );
   }
 }
 
@@ -1237,7 +1347,10 @@ export class ExecutionLogsChannel {
           try {
             cb(log);
           } catch (err) {
-            console.error("[Fluxbase ExecutionLogs] Error in log callback:", err);
+            console.error(
+              "[Fluxbase ExecutionLogs] Error in log callback:",
+              err
+            );
           }
         });
       }

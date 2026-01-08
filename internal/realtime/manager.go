@@ -157,6 +157,12 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string,
 		}()).
 		Msg("New WebSocket connection")
 
+	// Broadcast connection event to admin channel
+	// Email and DisplayName are nil here since we don't query the database on connect
+	// The admin UI should already have this info from the initial stats call
+	event := NewConnectionEvent(ConnectionEventConnected, connection, nil, nil)
+	m.BroadcastConnectionEvent(event)
+
 	return connection
 }
 
@@ -174,6 +180,10 @@ func (m *Manager) RemoveConnection(id string) {
 
 	// Release manager lock before closing connection
 	m.mu.Unlock()
+
+	// Broadcast disconnection event before closing
+	event := NewConnectionEvent(ConnectionEventDisconnected, connection, nil, nil)
+	m.BroadcastConnectionEvent(event)
 
 	_ = connection.Close()
 
@@ -233,6 +243,7 @@ type ConnectionInfo struct {
 	ID          string  `json:"id"`
 	UserID      *string `json:"user_id"`
 	Email       *string `json:"email"`
+	DisplayName *string `json:"display_name,omitempty"`
 	RemoteAddr  string  `json:"remote_addr"`
 	ConnectedAt string  `json:"connected_at"`
 }
@@ -286,6 +297,24 @@ func (m *Manager) GetConnectionsForStats() []ConnectionInfo {
 	}
 
 	return connections
+}
+
+// AdminConnectionsChannel is the channel name for broadcasting connection events to admins
+const AdminConnectionsChannel = "realtime:admin:connections"
+
+// BroadcastConnectionEvent broadcasts a connection event to the admin channel
+// This allows admins to monitor connection lifecycle in real-time
+func (m *Manager) BroadcastConnectionEvent(event ConnectionEvent) {
+	message := event.ToServerMessage()
+
+	// Use global broadcast to ensure all instances receive the event
+	if err := m.BroadcastGlobal(AdminConnectionsChannel, message); err != nil {
+		log.Error().
+			Err(err).
+			Str("event_type", string(event.Type)).
+			Str("connection_id", event.ID).
+			Msg("Failed to broadcast connection event")
+	}
 }
 
 // Shutdown gracefully shuts down the manager

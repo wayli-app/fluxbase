@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -29,8 +29,6 @@ import {
   Search,
   User,
   Globe,
-  PlayCircle,
-  StopCircle,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -40,6 +38,7 @@ import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import api from '@/lib/api'
 import { getPageNumbers } from '@/lib/utils'
+import { useRealtimeConnections } from '@/hooks/use-realtime-connections'
 
 export const Route = createFileRoute('/_authenticated/realtime/')({
   component: RealtimePage,
@@ -50,6 +49,7 @@ interface ConnectionInfo {
   id: string
   user_id: string | null
   email: string | null
+  display_name?: string | null
   remote_addr: string
   connected_at: string
 }
@@ -63,10 +63,8 @@ interface RealtimeStats {
 
 function RealtimePage() {
   // State
-  const [connections, setConnections] = useState<ConnectionInfo[]>([])
-  const [totalConnections, setTotalConnections] = useState(0)
+  const [initialConnections, setInitialConnections] = useState<ConnectionInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -83,21 +81,17 @@ function RealtimePage() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Fetch realtime stats
+  // Fetch initial realtime stats
   const fetchStats = useCallback(async () => {
     try {
-      const offset = currentPage * pageSize
+      // Fetch all connections for initial load (we'll do client-side filtering/pagination)
       const params = new URLSearchParams({
-        limit: pageSize.toString(),
-        offset: offset.toString(),
+        limit: '1000', // Get a large batch for client-side management
+        offset: '0',
       })
-      if (debouncedSearch) {
-        params.set('search', debouncedSearch)
-      }
 
       const response = await api.get<RealtimeStats>(`/api/v1/realtime/stats?${params}`)
-      setConnections(response.data.connections || [])
-      setTotalConnections(response.data.total_connections)
+      setInitialConnections(response.data.connections || [])
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching realtime stats:', error)
@@ -105,20 +99,40 @@ function RealtimePage() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, pageSize, debouncedSearch])
+  }, [])
 
-  // Initial fetch and refetch on dependency changes
-  useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+  // Use realtime connections hook for live updates
+  const {
+    connections: liveConnections,
+    totalConnections,
+    isSubscribed,
+  } = useRealtimeConnections({
+    initialConnections,
+    enabled: true,
+    onSubscribed: fetchStats, // Fetch after WebSocket connects
+  })
 
-  // Auto-refresh every 5 seconds
-  useEffect(() => {
-    if (!autoRefresh) return
+  // Client-side filtering
+  const filteredConnections = useMemo(() => {
+    if (!debouncedSearch) return liveConnections
 
-    const interval = setInterval(fetchStats, 5000)
-    return () => clearInterval(interval)
-  }, [autoRefresh, fetchStats])
+    const search = debouncedSearch.toLowerCase()
+    return liveConnections.filter(
+      (conn) =>
+        conn.id.toLowerCase().includes(search) ||
+        conn.remote_addr.toLowerCase().includes(search) ||
+        (conn.user_id && conn.user_id.toLowerCase().includes(search)) ||
+        (conn.email && conn.email.toLowerCase().includes(search)) ||
+        (conn.display_name && conn.display_name.toLowerCase().includes(search))
+    )
+  }, [liveConnections, debouncedSearch])
+
+  // Client-side pagination
+  const paginatedConnections = useMemo(() => {
+    const start = currentPage * pageSize
+    const end = start + pageSize
+    return filteredConnections.slice(start, end)
+  }, [filteredConnections, currentPage, pageSize])
 
   // Calculate connection duration
   const getConnectionDuration = (connectedAt: string) => {
@@ -129,8 +143,16 @@ function RealtimePage() {
     }
   }
 
+  // Format user display with priority: display_name > email > user_id > Anonymous
+  const formatUserDisplay = (conn: ConnectionInfo) => {
+    if (conn.display_name) return conn.display_name
+    if (conn.email) return conn.email
+    if (conn.user_id) return `${conn.user_id.substring(0, 8)}...`
+    return null
+  }
+
   // Pagination calculations
-  const totalPages = Math.ceil(totalConnections / pageSize) || 1
+  const totalPages = Math.ceil(filteredConnections.length / pageSize) || 1
 
   if (loading) {
     return (
@@ -160,27 +182,9 @@ function RealtimePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant={autoRefresh ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-          >
-            {autoRefresh ? (
-              <>
-                <StopCircle className="mr-2 h-4 w-4" />
-                Stop Auto-Refresh
-              </>
-            ) : (
-              <>
-                <PlayCircle className="mr-2 h-4 w-4" />
-                Start Auto-Refresh
-              </>
-            )}
-          </Button>
-
           <Button variant="outline" size="sm" onClick={fetchStats}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh Now
+            Refresh
           </Button>
         </div>
       </div>
@@ -201,21 +205,28 @@ function RealtimePage() {
 
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-              <Activity className="h-5 w-5 text-green-500" />
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                isSubscribed ? 'bg-green-500/10' : 'bg-red-500/10'
+              }`}
+            >
+              <Activity className={`h-5 w-5 ${isSubscribed ? 'text-green-500' : 'text-red-500'}`} />
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {autoRefresh ? (
+                {isSubscribed ? (
                   <span className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                     Live
                   </span>
                 ) : (
-                  'Paused'
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    Disconnected
+                  </span>
                 )}
               </p>
-              <p className="text-sm text-muted-foreground">Auto-Refresh Status</p>
+              <p className="text-sm text-muted-foreground">WebSocket Status</p>
             </div>
           </div>
         </Card>
@@ -247,7 +258,7 @@ function RealtimePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {connections.length === 0 ? (
+                {paginatedConnections.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8">
                       <div className="flex flex-col items-center gap-2">
@@ -259,7 +270,7 @@ function RealtimePage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  connections.map((conn) => (
+                  paginatedConnections.map((conn) => (
                     <TableRow key={conn.id}>
                       <TableCell className="font-mono text-xs">
                         {conn.id.substring(0, 8)}...
@@ -268,13 +279,7 @@ function RealtimePage() {
                         {conn.user_id ? (
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">
-                              {conn.email || (
-                                <span className="font-mono text-xs text-muted-foreground">
-                                  {conn.user_id.substring(0, 8)}...
-                                </span>
-                              )}
-                            </span>
+                            <span className="text-sm">{formatUserDisplay(conn)}</span>
                           </div>
                         ) : (
                           <Badge variant="secondary">Anonymous</Badge>
@@ -300,7 +305,7 @@ function RealtimePage() {
           </ScrollArea>
 
           {/* Pagination */}
-          {totalConnections > 0 && (
+          {filteredConnections.length > 0 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Rows per page:</span>
@@ -326,7 +331,8 @@ function RealtimePage() {
 
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">
-                  Page {currentPage + 1} of {totalPages} ({totalConnections} total)
+                  Page {currentPage + 1} of {totalPages} ({filteredConnections.length}{' '}
+                  {debouncedSearch ? 'filtered' : 'total'})
                 </span>
 
                 {/* First page */}

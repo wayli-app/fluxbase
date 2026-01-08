@@ -2432,28 +2432,37 @@ func (s *Server) handleRealtimeStats(c *fiber.Ctx) error {
 		}
 	}
 
-	// Lookup user emails
-	emailMap := make(map[string]string)
+	// Lookup user emails and display names
+	type userInfo struct {
+		email       string
+		displayName *string
+	}
+	userInfoMap := make(map[string]userInfo)
 	if len(userIDs) > 0 {
-		query := `SELECT id, email FROM auth.users WHERE id = ANY($1)`
+		query := `SELECT id, email, raw_user_meta_data->>'display_name' as display_name FROM auth.users WHERE id = ANY($1)`
 		rows, err := s.db.Pool().Query(c.Context(), query, userIDs)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
 				var id, email string
-				if err := rows.Scan(&id, &email); err == nil {
-					emailMap[id] = email
+				var displayName *string
+				if err := rows.Scan(&id, &email, &displayName); err == nil {
+					userInfoMap[id] = userInfo{
+						email:       email,
+						displayName: displayName,
+					}
 				}
 			}
 		}
 	}
 
-	// Enrich connections with emails
+	// Enrich connections with emails and display names
 	enrichedConnections := make([]realtime.ConnectionInfo, 0, len(allConnections))
 	for _, conn := range allConnections {
 		if conn.UserID != nil {
-			if email, ok := emailMap[*conn.UserID]; ok {
-				conn.Email = &email
+			if info, ok := userInfoMap[*conn.UserID]; ok {
+				conn.Email = &info.email
+				conn.DisplayName = info.displayName
 			}
 		}
 		enrichedConnections = append(enrichedConnections, conn)
@@ -2463,11 +2472,12 @@ func (s *Server) handleRealtimeStats(c *fiber.Ctx) error {
 	var filteredConnections []realtime.ConnectionInfo
 	if search != "" {
 		for _, conn := range enrichedConnections {
-			// Search by connection ID, user ID, email, or IP address
+			// Search by connection ID, user ID, email, display name, or IP address
 			if strings.Contains(strings.ToLower(conn.ID), search) ||
 				strings.Contains(strings.ToLower(conn.RemoteAddr), search) ||
 				(conn.UserID != nil && strings.Contains(strings.ToLower(*conn.UserID), search)) ||
-				(conn.Email != nil && strings.Contains(strings.ToLower(*conn.Email), search)) {
+				(conn.Email != nil && strings.Contains(strings.ToLower(*conn.Email), search)) ||
+				(conn.DisplayName != nil && strings.Contains(strings.ToLower(*conn.DisplayName), search)) {
 				filteredConnections = append(filteredConnections, conn)
 			}
 		}
