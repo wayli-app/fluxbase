@@ -346,7 +346,8 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 				if err == nil {
 					// Check if this is a service_role or anon token
 					if claims.Role == "service_role" || claims.Role == "anon" {
-						// Valid service role JWT
+						// Valid service role JWT - intentionally skip revocation check.
+						// Service role tokens are system-level credentials that should never be blacklisted.
 						c.Locals("user_role", claims.Role)
 						c.Locals("auth_type", "service_role_jwt")
 						c.Locals("jwt_claims", claims)
@@ -508,7 +509,8 @@ func OptionalAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.
 				if err == nil {
 					// Check if this is a service_role or anon token (not a user token)
 					if claims.Role == "service_role" || claims.Role == "anon" {
-						// Valid service role JWT - bypass user validation
+						// Valid service role JWT - intentionally skip revocation check.
+						// Service role tokens are system-level credentials that should never be blacklisted.
 						c.Locals("user_role", claims.Role)
 						c.Locals("auth_type", "service_role_jwt")
 						c.Locals("jwt_claims", claims)

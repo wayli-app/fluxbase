@@ -168,8 +168,18 @@ func NewTokenBlacklistService(repo *TokenBlacklistRepository, jwtManager *JWTMan
 	}
 }
 
+// ErrCannotRevokeServiceRole is returned when attempting to revoke a service role token
+var ErrCannotRevokeServiceRole = errors.New("cannot revoke service role tokens")
+
 // RevokeToken revokes a specific token
 func (s *TokenBlacklistService) RevokeToken(ctx context.Context, token, reason string) error {
+	// Service role tokens should never be revoked - they are system-level credentials
+	if serviceRoleClaims, err := s.jwtManager.ValidateServiceRoleToken(token); err == nil {
+		if serviceRoleClaims.Role == "service_role" {
+			return ErrCannotRevokeServiceRole
+		}
+	}
+
 	// Validate and parse the token to get the JTI
 	claims, err := s.jwtManager.ValidateToken(token)
 	if err != nil {
