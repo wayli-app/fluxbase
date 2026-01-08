@@ -436,12 +436,21 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 	}
 
 	// Pass full JWT claims for RLS evaluation (includes custom claims like meeting_id, player_id)
+	log.Debug().
+		Str("user_id", sub.UserID).
+		Str("role", sub.Role).
+		Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
+		Interface("record_id", recordID).
+		Interface("claims", sub.Claims).
+		Msg("Starting RLS access check")
+
 	visible, err := sm.db.CheckRLSAccess(ctx, sub.Schema, sub.Table, sub.Role, sub.Claims, recordID)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 			Interface("record_id", recordID).
+			Interface("claims", sub.Claims).
 			Msg("RLS check failed")
 		return false
 	}
@@ -451,7 +460,7 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 		Interface("record_id", recordID).
 		Bool("visible", visible).
-		Msg("RLS access check")
+		Msg("RLS access check completed")
 
 	return visible
 }
