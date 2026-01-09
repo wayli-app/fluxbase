@@ -19,16 +19,16 @@ var (
 
 // TokenClaims represents the JWT claims
 type TokenClaims struct {
-	UserID       string `json:"user_id"`
-	Email        string `json:"email,omitempty"` // Empty for anonymous users
-	Name         string `json:"name,omitempty"`  // Display name of the user
-	Role         string `json:"role,omitempty"`
-	SessionID    string `json:"session_id,omitempty"`    // Empty for anonymous users (no session)
-	TokenType    string `json:"token_type"`              // "access" or "refresh"
-	IsAnonymous  bool   `json:"is_anonymous,omitempty"`  // True for anonymous users
-	UserMetadata any    `json:"user_metadata,omitempty"` // User-editable metadata
-	AppMetadata  any    `json:"app_metadata,omitempty"`  // Application/admin-only metadata
-	RawClaims    map[string]interface{} `json:"-"`       // Full claims map for RLS (not serialized)
+	UserID       string                 `json:"user_id"`
+	Email        string                 `json:"email,omitempty"` // Empty for anonymous users
+	Name         string                 `json:"name,omitempty"`  // Display name of the user
+	Role         string                 `json:"role,omitempty"`
+	SessionID    string                 `json:"session_id,omitempty"`    // Empty for anonymous users (no session)
+	TokenType    string                 `json:"token_type"`              // "access" or "refresh"
+	IsAnonymous  bool                   `json:"is_anonymous,omitempty"`  // True for anonymous users
+	UserMetadata any                    `json:"user_metadata,omitempty"` // User-editable metadata
+	AppMetadata  any                    `json:"app_metadata,omitempty"`  // Application/admin-only metadata
+	RawClaims    map[string]interface{} `json:"-"`                       // Full claims map for RLS (not serialized)
 	jwt.RegisteredClaims
 }
 

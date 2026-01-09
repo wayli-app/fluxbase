@@ -219,6 +219,23 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 		// First, try to validate as auth.users token
 		claims, err := authService.ValidateToken(token)
 		if err == nil {
+			// Check if this is a dashboard admin token (dashboard.users)
+			// Dashboard tokens use the same JWT secret but have role="dashboard_admin"
+			// and store the user ID in Subject instead of UserID
+			if claims.Role == "dashboard_admin" {
+				c.Locals("user_id", claims.Subject)
+				c.Locals("user_email", claims.Email)
+				c.Locals("user_role", claims.Role)
+				c.Locals("jwt_claims", claims)
+
+				log.Debug().
+					Str("user_id", claims.Subject).
+					Str("role", claims.Role).
+					Msg("Authenticated as dashboard.users via role check")
+
+				return c.Next()
+			}
+
 			// Successfully validated as auth.users token
 			// Check if token has been revoked
 			isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)

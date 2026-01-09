@@ -188,11 +188,26 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 		h.manager.RemoveConnection(connectionID)
 	}()
 
+	// Channel for incoming messages - read in background goroutine
+	msgChan := make(chan ClientMessage, 10)
+	errChan := make(chan error, 1)
+
+	go func() {
+		for {
+			var msg ClientMessage
+			if err := c.ReadJSON(&msg); err != nil {
+				errChan <- err
+				return
+			}
+			msgChan <- msg
+		}
+	}()
+
 	// Start heartbeat ticker
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	// Handle incoming messages
+	// Non-blocking main loop
 	for {
 		select {
 		case <-ticker.C:
@@ -204,19 +219,16 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 				return
 			}
 
-		default:
-			// Read message
-			var msg ClientMessage
-			if err := c.ReadJSON(&msg); err != nil {
-				// Check if connection was closed
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Error().Err(err).Str("connection_id", connectionID).Msg("WebSocket error")
-				}
-				return
-			}
-
-			// Handle message
+		case msg := <-msgChan:
+			// Handle message from read goroutine
 			h.handleMessage(connection, msg)
+
+		case err := <-errChan:
+			// Handle read error
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Error().Err(err).Str("connection_id", connectionID).Msg("WebSocket error")
+			}
+			return
 		}
 	}
 }

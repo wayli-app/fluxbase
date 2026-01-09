@@ -299,7 +299,42 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 
 			// First, try to validate as auth.users token (app users)
 			claims, err := authService.ValidateToken(token)
+			if err != nil {
+				log.Debug().
+					Err(err).
+					Msg("RequireAuthOrServiceKey: authService.ValidateToken failed")
+			}
 			if err == nil {
+				// DEBUG: Log what we got from validation
+				log.Debug().
+					Str("role", claims.Role).
+					Str("user_id", claims.UserID).
+					Str("subject", claims.Subject).
+					Msg("RequireAuthOrServiceKey: JWT validated, checking role")
+
+				// Check if this is a dashboard admin token (dashboard.users)
+				// Dashboard tokens use the same JWT secret but have role="dashboard_admin"
+				// and store the user ID in Subject instead of UserID
+				if claims.Role == "dashboard_admin" {
+					log.Debug().
+						Str("user_id", claims.Subject).
+						Str("role", claims.Role).
+						Msg("RequireAuthOrServiceKey: Detected dashboard_admin token")
+
+					c.Locals("user_id", claims.Subject)
+					c.Locals("user_email", claims.Email)
+					c.Locals("user_name", claims.Name)
+					c.Locals("user_role", claims.Role)
+					c.Locals("auth_type", "jwt")
+					c.Locals("is_anonymous", false)
+
+					// Set RLS context for dashboard admin
+					c.Locals("rls_user_id", claims.Subject)
+					c.Locals("rls_role", claims.Role)
+
+					return c.Next()
+				}
+
 				// Check if token has been revoked
 				isRevoked, err := authService.IsTokenRevoked(c.Context(), claims.ID)
 				if err == nil && !isRevoked {

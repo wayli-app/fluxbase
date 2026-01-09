@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -171,8 +172,24 @@ func NewTokenBlacklistService(repo *TokenBlacklistRepository, jwtManager *JWTMan
 // ErrCannotRevokeServiceRole is returned when attempting to revoke a service role token
 var ErrCannotRevokeServiceRole = errors.New("cannot revoke service role tokens")
 
+// ErrCannotRevokeServiceKey is returned when attempting to blacklist a service key
+var ErrCannotRevokeServiceKey = errors.New("cannot blacklist service keys - use disable endpoint instead")
+
+// ErrCannotRevokeClientKey is returned when attempting to blacklist a client key
+var ErrCannotRevokeClientKey = errors.New("cannot blacklist client keys - use revoke endpoint instead")
+
 // RevokeToken revokes a specific token
 func (s *TokenBlacklistService) RevokeToken(ctx context.Context, token, reason string) error {
+	// Service keys (sk_) should never be blacklisted - they have their own disable mechanism
+	if strings.HasPrefix(token, "sk_") {
+		return ErrCannotRevokeServiceKey
+	}
+
+	// Client keys (fbk_) should never be blacklisted - they have their own revoke mechanism
+	if strings.HasPrefix(token, "fbk_") {
+		return ErrCannotRevokeClientKey
+	}
+
 	// Service role tokens should never be revoked - they are system-level credentials
 	if serviceRoleClaims, err := s.jwtManager.ValidateServiceRoleToken(token); err == nil {
 		if serviceRoleClaims.Role == "service_role" {

@@ -59,3 +59,35 @@ func TestRevokeToken_OnlyServiceRoleBlocked(t *testing.T) {
 	// Only service_role tokens should be blocked from revocation
 	// This is because service_role is a system-level credential that should never be blacklisted
 }
+
+func TestRevokeToken_ServiceKeyRejected(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	// Create service without repository (we only need the jwtManager for this test)
+	service := &TokenBlacklistService{
+		repo:       nil, // Not needed since we expect early return
+		jwtManager: manager,
+	}
+
+	// Attempt to revoke a service key - should be rejected
+	err := service.RevokeToken(context.Background(), "sk_test1234567890abcdef", "logout")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrCannotRevokeServiceKey)
+}
+
+func TestRevokeToken_ClientKeyRejected(t *testing.T) {
+	manager := NewJWTManager("test-secret", 15*time.Minute, 7*24*time.Hour)
+
+	// Create service without repository (we only need the jwtManager for this test)
+	service := &TokenBlacklistService{
+		repo:       nil, // Not needed since we expect early return
+		jwtManager: manager,
+	}
+
+	// Attempt to revoke a client key - should be rejected
+	err := service.RevokeToken(context.Background(), "fbk_test1234abcd", "logout")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrCannotRevokeClientKey)
+}
