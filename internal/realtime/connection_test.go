@@ -49,7 +49,7 @@ func TestNewConnection(t *testing.T) {
 	conn := &websocket.Conn{}
 	userID := "user123"
 
-	connection := NewConnection("conn1", conn, &userID, "authenticated")
+	connection := NewConnection("conn1", conn, &userID, "authenticated", nil)
 
 	assert.NotNil(t, connection)
 	assert.Equal(t, "conn1", connection.ID)
@@ -61,7 +61,7 @@ func TestNewConnection(t *testing.T) {
 
 func TestConnection_Subscribe(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to a channel
 	connection.Subscribe("table:public.products")
@@ -72,7 +72,7 @@ func TestConnection_Subscribe(t *testing.T) {
 
 func TestConnection_SubscribeMultiple(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to multiple channels
 	connection.Subscribe("table:public.products")
@@ -87,7 +87,7 @@ func TestConnection_SubscribeMultiple(t *testing.T) {
 
 func TestConnection_SubscribeDuplicate(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to same channel twice
 	connection.Subscribe("table:public.products")
@@ -99,7 +99,7 @@ func TestConnection_SubscribeDuplicate(t *testing.T) {
 
 func TestConnection_Unsubscribe(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe then unsubscribe
 	connection.Subscribe("table:public.products")
@@ -112,7 +112,7 @@ func TestConnection_Unsubscribe(t *testing.T) {
 
 func TestConnection_UnsubscribeNonExistent(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Unsubscribe from channel we never subscribed to
 	connection.Unsubscribe("table:public.products")
@@ -123,7 +123,7 @@ func TestConnection_UnsubscribeNonExistent(t *testing.T) {
 
 func TestConnection_IsSubscribed(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Initially not subscribed
 	assert.False(t, connection.IsSubscribed("table:public.products"))
@@ -139,7 +139,7 @@ func TestConnection_IsSubscribed(t *testing.T) {
 
 func TestConnection_ConcurrentSubscribe(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	var wg sync.WaitGroup
 	numGoroutines := 100
@@ -162,7 +162,7 @@ func TestConnection_ConcurrentSubscribe(t *testing.T) {
 
 func TestConnection_ConcurrentUnsubscribe(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to multiple channels first
 	numChannels := 100
@@ -193,7 +193,7 @@ func TestConnection_ConcurrentUnsubscribe(t *testing.T) {
 
 func TestConnection_ConcurrentIsSubscribed(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	connection.Subscribe("table:public.products")
 
@@ -218,7 +218,7 @@ func TestConnection_ConcurrentIsSubscribed(t *testing.T) {
 
 func TestConnection_MixedConcurrentOperations(t *testing.T) {
 	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon")
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	var wg sync.WaitGroup
 	numGoroutines := 50
