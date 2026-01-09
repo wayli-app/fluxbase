@@ -29,53 +29,7 @@ A lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase
 
 ## Quick Start
 
-> 📖 **See [GETTING_STARTED.md](GETTING_STARTED.md) for complete setup instructions**
-
-### Try it Now: Docker Compose (2 minutes)
-
-Get Fluxbase running instantly with Docker:
-
-```bash
-# Clone the repository
-git clone https://github.com/fluxbase-eu/fluxbase.git
-cd fluxbase/deploy
-
-# Start all services (PostgreSQL + Fluxbase + MinIO)
-docker compose up -d
-
-# Check health
-curl http://localhost:8080/health
-
-# Access admin dashboard
-open http://localhost:8080
-```
-
-That's it! Fluxbase is now running at http://localhost:8080
-
-**Default credentials:**
-
-- Database: `postgres:postgres`
-
-## Comparison with Supabase
-
-| Feature             | Fluxbase               | Supabase                       |
-| ------------------- | ---------------------- | ------------------------------ |
-| Deployment          | Single binary          | Multiple services              |
-| Dependencies        | PostgreSQL only        | PostgreSQL + multiple services |
-| Size                | ~50MB                  | 2+ GB                          |
-| REST API            | ✅ PostgREST-compatible | ✅ PostgREST                    |
-| Authentication      | ✅ Built-in             | ✅ GoTrue                       |
-| Chatbots            | ✅ Built-in             | ❌                              |
-| Realtime            | ✅ Built-in             | ✅ Realtime                     |
-| Storage             | ✅ Built-in             | ✅ Storage API                  |
-| Edge Functions      | ✅ Deno                 | ✅ Deno                         |
-| Vector/AI           | ✅                      | ✅                              |
-| Admin UI            | ✅ Built-in             | ✅                              |
-| CLI for self-hosted | ✅ Built-in             | ❌ Only cloud version           |
-
-### Additional Resources
-
-- **[docs/](docs/)** - Full documentation (run `make docs` to serve locally)
+For more information about Fluxbase, look into [the docs](https://fluxbase.eu/getting-started/quick-start/).
 
 ## Support
 
