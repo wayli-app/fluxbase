@@ -25,6 +25,7 @@ func TestSubscriptionManager_CreateSubscription(t *testing.T) {
 		"conn1",
 		"user1",
 		"authenticated",
+		nil,
 		"public",
 		"users",
 		"INSERT",
@@ -50,6 +51,7 @@ func TestSubscriptionManager_RemoveSubscription(t *testing.T) {
 		"conn1",
 		"user1",
 		"authenticated",
+		nil,
 		"public",
 		"users",
 		"INSERT",
@@ -80,9 +82,9 @@ func TestSubscriptionManager_RemoveConnectionSubscriptions(t *testing.T) {
 	sm := newTestSubscriptionManager()
 
 	// Create multiple subscriptions for the same connection
-	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "INSERT", "")
-	sm.CreateSubscription("sub2", "conn1", "user1", "authenticated", "public", "posts", "UPDATE", "")
-	sm.CreateSubscription("sub3", "conn2", "user2", "authenticated", "public", "comments", "DELETE", "")
+	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", nil, "public", "users", "INSERT", "")
+	sm.CreateSubscription("sub2", "conn1", "user1", "authenticated", nil, "public", "posts", "UPDATE", "")
+	sm.CreateSubscription("sub3", "conn2", "user2", "authenticated", nil, "public", "comments", "DELETE", "")
 
 	stats := sm.GetStats()
 	assert.Equal(t, 3, stats["total_subscriptions"])
@@ -103,9 +105,9 @@ func TestSubscriptionManager_GetSubscriptionsByConnection(t *testing.T) {
 	sm := newTestSubscriptionManager()
 
 	// Create subscriptions for different connections
-	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
-	sm.CreateSubscription("sub2", "conn1", "user1", "authenticated", "public", "posts", "*", "")
-	sm.CreateSubscription("sub3", "conn2", "user2", "authenticated", "public", "comments", "*", "")
+	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", nil, "public", "users", "*", "")
+	sm.CreateSubscription("sub2", "conn1", "user1", "authenticated", nil, "public", "posts", "*", "")
+	sm.CreateSubscription("sub3", "conn2", "user2", "authenticated", nil, "public", "comments", "*", "")
 
 	// Get subscriptions for conn1
 	subs := sm.GetSubscriptionsByConnection("conn1")
@@ -124,9 +126,9 @@ func TestSubscriptionManager_MultipleUsersAndTables(t *testing.T) {
 	sm := newTestSubscriptionManager()
 
 	// Create subscriptions for different users and tables
-	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
-	sm.CreateSubscription("sub2", "conn2", "user2", "authenticated", "public", "users", "*", "")
-	sm.CreateSubscription("sub3", "conn3", "user1", "authenticated", "public", "posts", "*", "")
+	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", nil, "public", "users", "*", "")
+	sm.CreateSubscription("sub2", "conn2", "user2", "authenticated", nil, "public", "users", "*", "")
+	sm.CreateSubscription("sub3", "conn3", "user1", "authenticated", nil, "public", "posts", "*", "")
 
 	stats := sm.GetStats()
 	assert.Equal(t, 3, stats["total_subscriptions"])
@@ -142,6 +144,7 @@ func TestSubscriptionManager_DefaultEventToWildcard(t *testing.T) {
 		"conn1",
 		"user1",
 		"authenticated",
+		nil,
 		"public",
 		"users",
 		"", // Empty event should default to "*"
@@ -160,6 +163,7 @@ func TestSubscriptionManager_WithFilter(t *testing.T) {
 		"conn1",
 		"user1",
 		"authenticated",
+		nil,
 		"public",
 		"users",
 		"UPDATE",
@@ -178,6 +182,7 @@ func TestSubscriptionManager_InvalidFilter(t *testing.T) {
 		"conn1",
 		"user1",
 		"authenticated",
+		nil,
 		"public",
 		"users",
 		"UPDATE",
@@ -192,7 +197,7 @@ func TestSubscriptionManager_CleanupOnRemove(t *testing.T) {
 	sm := newTestSubscriptionManager()
 
 	// Create subscription
-	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
+	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", nil, "public", "users", "*", "")
 
 	stats := sm.GetStats()
 	assert.Equal(t, 1, stats["total_subscriptions"])
@@ -308,8 +313,8 @@ func TestSubscriptionManager_Stats(t *testing.T) {
 	assert.Equal(t, 0, stats["tables_with_subs"])
 
 	// Add subscriptions
-	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", "public", "users", "*", "")
-	sm.CreateSubscription("sub2", "conn2", "user2", "authenticated", "public", "posts", "*", "")
+	sm.CreateSubscription("sub1", "conn1", "user1", "authenticated", nil, "public", "users", "*", "")
+	sm.CreateSubscription("sub2", "conn2", "user2", "authenticated", nil, "public", "posts", "*", "")
 
 	stats = sm.GetStats()
 	assert.Equal(t, 2, stats["total_subscriptions"])

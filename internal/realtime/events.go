@@ -28,7 +28,7 @@ type ConnectionEvent struct {
 // NewConnectionEvent creates a new connection event
 func NewConnectionEvent(eventType ConnectionEventType, conn *Connection, email *string, displayName *string) ConnectionEvent {
 	remoteAddr := "unknown"
-	if conn.Conn != nil {
+	if conn.Conn != nil && conn.Conn.RemoteAddr() != nil {
 		remoteAddr = conn.Conn.RemoteAddr().String()
 	}
 

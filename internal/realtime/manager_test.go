@@ -25,7 +25,7 @@ func TestManager_AddConnection(t *testing.T) {
 	manager := NewManager(ctx)
 	conn := &websocket.Conn{}
 
-	connection := manager.AddConnection("conn1", conn, nil, "anon")
+	connection := manager.AddConnection("conn1", conn, nil, "anon", nil)
 
 	assert.NotNil(t, connection)
 	assert.Equal(t, "conn1", connection.ID)
@@ -36,9 +36,9 @@ func TestManager_AddMultipleConnections(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon")
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon")
-	manager.AddConnection("conn3", &websocket.Conn{}, nil, "anon")
+	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn3", &websocket.Conn{}, nil, "anon", nil)
 
 	assert.Equal(t, 3, manager.GetConnectionCount())
 }
@@ -48,7 +48,7 @@ func TestManager_AddConnectionWithUserID(t *testing.T) {
 	manager := NewManager(ctx)
 	userID := "user123"
 
-	connection := manager.AddConnection("conn1", &websocket.Conn{}, &userID, "authenticated")
+	connection := manager.AddConnection("conn1", &websocket.Conn{}, &userID, "authenticated", nil)
 
 	assert.NotNil(t, connection.UserID)
 	assert.Equal(t, "user123", *connection.UserID)
@@ -58,7 +58,7 @@ func TestManager_RemoveConnection(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon")
+	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
 	assert.Equal(t, 1, manager.GetConnectionCount())
 
 	manager.RemoveConnection("conn1")
@@ -80,10 +80,10 @@ func TestManager_GetConnectionCount(t *testing.T) {
 
 	assert.Equal(t, 0, manager.GetConnectionCount())
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon")
+	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
 	assert.Equal(t, 1, manager.GetConnectionCount())
 
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon")
+	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
 	assert.Equal(t, 2, manager.GetConnectionCount())
 
 	manager.RemoveConnection("conn1")
@@ -104,7 +104,7 @@ func TestManager_ConcurrentAddConnection(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			manager.AddConnection("conn"+string(rune(n)), &websocket.Conn{}, nil, "anon")
+			manager.AddConnection("conn"+string(rune(n)), &websocket.Conn{}, nil, "anon", nil)
 		}(i)
 	}
 
@@ -120,7 +120,7 @@ func TestManager_ConcurrentRemoveConnection(t *testing.T) {
 	// Add connections first
 	numConnections := 100
 	for i := 0; i < numConnections; i++ {
-		manager.AddConnection("conn"+string(rune(i)), &websocket.Conn{}, nil, "anon")
+		manager.AddConnection("conn"+string(rune(i)), &websocket.Conn{}, nil, "anon", nil)
 	}
 
 	assert.Equal(t, numConnections, manager.GetConnectionCount())
@@ -144,8 +144,8 @@ func TestManager_Shutdown(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon")
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon")
+	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
 
 	manager.Shutdown()
 
@@ -169,7 +169,7 @@ func TestManager_MixedConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			manager.AddConnection("conn"+string(rune(n%20)), &websocket.Conn{}, nil, "anon")
+			manager.AddConnection("conn"+string(rune(n%20)), &websocket.Conn{}, nil, "anon", nil)
 		}(i)
 
 		// Remove connection

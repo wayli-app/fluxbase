@@ -401,7 +401,7 @@ func (m *MockSubscriptionDB) IsTableRealtimeEnabled(ctx context.Context, schema,
 }
 
 // CheckRLSAccess implements SubscriptionDB
-func (m *MockSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role, userID string, recordID interface{}) (bool, error) {
+func (m *MockSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role string, claims map[string]interface{}, recordID interface{}) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
