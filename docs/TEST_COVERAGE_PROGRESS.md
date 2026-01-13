@@ -59,7 +59,7 @@
 
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
-| `auth_handler.go` | 0% | 0% | 90% | ⏳ Pending |
+| `auth_handler.go` | 0% | ~35%* | 90% | 🔄 In Progress |
 | `rest_crud.go` | 0% | 0% | 85% | ⏳ Pending |
 | `rest_handler.go` | 0% | 0% | 85% | ⏳ Pending |
 | `storage_files.go` | 0% | 0% | 85% | ⏳ Pending |
@@ -232,6 +232,19 @@
   - Error variable tests
   - Edge case tests (large data, corrupted/truncated data, binary data)
   - 25+ new test cases + 6 benchmarks
+- [x] Created `api/auth_handler_test.go`:
+  - Cookie name constants tests
+  - AuthConfigResponse, OAuthProviderPublic, SAMLProviderPublic struct tests
+  - NewAuthHandler construction tests
+  - getAccessToken tests (cookie priority, Bearer header, edge cases)
+  - getRefreshToken tests
+  - Cookie setting/clearing tests (setAuthCookies, clearAuthCookies)
+  - SignInAnonymous disabled test
+  - GetCSRFToken test
+  - Request validation tests (empty fields for all endpoints)
+  - Invalid JSON body tests
+  - Protected route tests (no auth scenarios)
+  - 60+ test cases + 3 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
