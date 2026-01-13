@@ -27,7 +27,7 @@
 | `dashboard.go` | 0% | 0% | 90% | ⏳ Pending |
 | `oauth.go` | 0% | ~70%* | 85% | 🔄 In Progress |
 | `otp.go` | 0% | ~60%* | 85% | 🔄 In Progress |
-| `invitation.go` | 0% | 0% | 80% | ⏳ Pending |
+| `invitation.go` | 0% | ~60%* | 80% | 🔄 In Progress |
 | `impersonation.go` | 1.6% | ~40%* | 90% | 🔄 In Progress |
 | `identity.go` | 1.9% | ~50%* | 85% | 🔄 In Progress |
 | `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
@@ -39,9 +39,9 @@
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
 | `clientkey_auth.go` | 0% | ~50%* | 90% | 🔄 In Progress |
-| `auth.go` | N/A | N/A | N/A | ❌ File doesn't exist |
-| `cors.go` | 0% | 0% | 80% | ⏳ Pending |
-| `ratelimit.go` | 0% | 0% | 80% | ⏳ Pending |
+| `rate_limiter.go` | 0% | ~60%* | 80% | 🔄 In Progress |
+| `rls.go` | 0% | 0% | 80% | ⏳ Pending |
+| `csrf.go` | 0% | 0% | 80% | ⏳ Pending |
 
 ### crypto/ Module
 
@@ -162,6 +162,30 @@
   - StateMetadata tests
   - Concurrent access tests
   - 50+ test cases + 6 benchmarks
+- [x] Enhanced `auth/identity_test.go`:
+  - Provider-specific tests (Google, GitHub, Microsoft)
+  - IdentityData handling tests
+  - Service integration tests with OAuth manager
+  - 30+ new test cases + 3 benchmarks
+- [x] Enhanced `auth/impersonation_test.go`:
+  - Well-known user ID tests (AnonUserID, ServiceUserID)
+  - ImpersonationType tests
+  - Session duration and audit trail tests
+  - 25+ new test cases + 4 benchmarks
+- [x] Created `auth/invitation_test.go`:
+  - Error variable tests
+  - InvitationToken struct tests (fields, nullable, roles, expiration)
+  - GenerateToken tests (uniqueness, base64 encoding, length)
+  - Validation logic tests without database
+  - ListInvitations filter logic tests
+  - 30+ test cases + 3 benchmarks
+- [x] Created `middleware/rate_limiter_test.go`:
+  - RateLimiterConfig struct tests
+  - NewRateLimiter tests (defaults, custom message, retry-after header)
+  - Preset limiter tests (AuthLoginLimiter, GlobalAPILimiter, etc.)
+  - Integration tests for limiters with Fiber
+  - MigrationAPILimiter service_role bypass tests
+  - 40+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
