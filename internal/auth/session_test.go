@@ -174,7 +174,7 @@ func TestMockSessionRepository_GetByUserID_Empty(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
-func TestMockSessionRepository_UpdateTokens(t *testing.T) {
+func TestMockSessionRepository_UpdateTokens_WithValidation(t *testing.T) {
 	repo := NewMockSessionRepository()
 	ctx := context.Background()
 
@@ -206,7 +206,7 @@ func TestMockSessionRepository_UpdateTokens_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSessionNotFound)
 }
 
-func TestMockSessionRepository_Delete(t *testing.T) {
+func TestMockSessionRepository_Delete_WithValidation(t *testing.T) {
 	repo := NewMockSessionRepository()
 	ctx := context.Background()
 
@@ -249,7 +249,7 @@ func TestMockSessionRepository_DeleteByAccessToken(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSessionNotFound)
 }
 
-func TestMockSessionRepository_DeleteByUserID(t *testing.T) {
+func TestMockSessionRepository_DeleteByUserID_WithValidation(t *testing.T) {
 	repo := NewMockSessionRepository()
 	ctx := context.Background()
 
@@ -269,7 +269,7 @@ func TestMockSessionRepository_DeleteByUserID(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
-func TestMockSessionRepository_DeleteExpired(t *testing.T) {
+func TestMockSessionRepository_DeleteExpired_WithValidation(t *testing.T) {
 	repo := NewMockSessionRepository()
 	ctx := context.Background()
 

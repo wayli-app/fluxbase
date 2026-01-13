@@ -31,7 +31,7 @@
 | `impersonation.go` | 1.6% | ~40%* | 90% | 🔄 In Progress |
 | `identity.go` | 1.9% | ~50%* | 85% | 🔄 In Progress |
 | `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
-| `saml.go` | 13.7% | 13.7% | 80% | ⏳ Pending |
+| `saml.go` | 13.7% | ~45%* | 80% | 🔄 In Progress |
 | `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
 
 ### middleware/ Module
@@ -40,8 +40,8 @@
 |------|-------|---------|--------|--------|
 | `clientkey_auth.go` | 0% | ~50%* | 90% | 🔄 In Progress |
 | `rate_limiter.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `rls.go` | 0% | 0% | 80% | ⏳ Pending |
-| `csrf.go` | 0% | 0% | 80% | ⏳ Pending |
+| `rls.go` | 0% | ~55%* | 80% | 🔄 In Progress |
+| `csrf.go` | 0% | ~60%* | 80% | 🔄 In Progress |
 
 ### crypto/ Module
 
@@ -186,6 +186,35 @@
   - Integration tests for limiters with Fiber
   - MigrationAPILimiter service_role bypass tests
   - 40+ test cases + 4 benchmarks
+- [x] Created `auth/saml_test.go`:
+  - Error variable tests (18 SAML-specific errors)
+  - SAMLProvider struct tests (fields, defaults, login targets)
+  - SAMLSession and SAMLAssertion struct tests
+  - ValidateRelayState tests (relative URLs, protocol-relative blocking, allowed hosts)
+  - SanitizeSAMLAttribute tests (control chars, unicode, truncation)
+  - ValidateGroupMembership tests (denied groups, required groups, combined rules)
+  - AttributeMapping tests
+  - 50+ test cases + 6 benchmarks
+- [x] Created `middleware/rls_test.go`:
+  - RLSConfig and RLSContext struct tests
+  - mapAppRoleToDatabaseRole tests (service_role, anon, authenticated mappings)
+  - splitTableName tests (with/without schema, edge cases)
+  - GetRLSContext tests (user/role retrieval, defaults)
+  - RLSMiddleware tests (anonymous, authenticated, role preservation)
+  - Role mapping security tests (SQL injection prevention)
+  - 35+ test cases + 4 benchmarks
+- [x] Enhanced `middleware/csrf_test.go`:
+  - Added expired token rejection tests
+  - Added form token lookup tests
+  - Added CSRF attack prevention tests
+  - Added short Authorization header tests
+  - Added storage initialization tests
+  - Added token generation edge cases (various lengths, zero length)
+  - Added OAuth path tests
+  - 25+ new test cases + 5 benchmarks
+- [x] Fixed duplicate function declarations:
+  - Renamed duplicates in session_test.go (TestMockSessionRepository_*_WithValidation)
+  - Renamed duplicates in user_test.go (TestMockUserRepository_*_WithValidation)
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---

@@ -204,7 +204,7 @@ func TestMockUserRepository_List_Empty(t *testing.T) {
 	assert.Empty(t, users)
 }
 
-func TestMockUserRepository_Update(t *testing.T) {
+func TestMockUserRepository_Update_WithValidation(t *testing.T) {
 	repo := NewMockUserRepository()
 	ctx := context.Background()
 
@@ -367,7 +367,7 @@ func TestMockUserRepository_UnlockUser(t *testing.T) {
 	assert.False(t, retrieved.IsLocked)
 }
 
-func TestMockUserRepository_Delete(t *testing.T) {
+func TestMockUserRepository_Delete_WithValidation(t *testing.T) {
 	repo := NewMockUserRepository()
 	ctx := context.Background()
 
@@ -398,7 +398,7 @@ func TestMockUserRepository_Delete_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }
 
-func TestMockUserRepository_Count(t *testing.T) {
+func TestMockUserRepository_Count_WithValidation(t *testing.T) {
 	repo := NewMockUserRepository()
 	ctx := context.Background()
 
@@ -522,7 +522,7 @@ func TestMockTokenBlacklistRepository_GetByJTI_NotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestMockTokenBlacklistRepository_DeleteExpired(t *testing.T) {
+func TestMockTokenBlacklistRepository_DeleteExpired_WithValidation(t *testing.T) {
 	repo := NewMockTokenBlacklistRepository()
 	ctx := context.Background()
 
