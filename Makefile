@@ -194,6 +194,7 @@ setup-dev: ## Set up development environment (first-time setup)
 	@echo "${YELLOW}Setting up development environment...${NC}"
 	@go mod download
 	@go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	@go install github.com/vladopajic/go-test-coverage/v2@latest
 	@cd admin && unset NODE_OPTIONS && npm install
 	@cp .env.example .env 2>/dev/null || echo ".env already exists"
 	@$(MAKE) install-hooks

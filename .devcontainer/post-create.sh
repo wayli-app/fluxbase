@@ -42,6 +42,7 @@ go install -v github.com/go-delve/delve/cmd/dlv@latest 2>/dev/null || true
 go install -v github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.2 2>/dev/null || true
 go install -v github.com/cosmtrek/air@latest 2>/dev/null || true
 go install -v -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest 2>/dev/null || true
+go install -v github.com/vladopajic/go-test-coverage/v2@latest 2>/dev/null || true
 
 # Create .env file if it doesn't exist
 if [ ! -f /workspace/.env ]; then
