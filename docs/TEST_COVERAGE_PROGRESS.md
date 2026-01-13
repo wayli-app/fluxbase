@@ -28,8 +28,8 @@
 | `oauth.go` | 0% | ~70%* | 85% | 🔄 In Progress |
 | `otp.go` | 0% | ~60%* | 85% | 🔄 In Progress |
 | `invitation.go` | 0% | 0% | 80% | ⏳ Pending |
-| `impersonation.go` | 1.6% | 1.6% | 90% | ⏳ Pending |
-| `identity.go` | 1.9% | 1.9% | 85% | ⏳ Pending |
+| `impersonation.go` | 1.6% | ~40%* | 90% | 🔄 In Progress |
+| `identity.go` | 1.9% | ~50%* | 85% | 🔄 In Progress |
 | `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
 | `saml.go` | 13.7% | 13.7% | 80% | ⏳ Pending |
 | `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
