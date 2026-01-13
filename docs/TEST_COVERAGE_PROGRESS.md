@@ -61,8 +61,8 @@
 |------|-------|---------|--------|--------|
 | `auth_handler.go` | 0% | ~35%* | 90% | 🔄 In Progress |
 | `rest_crud.go` | 0% | ~40%* | 85% | 🔄 In Progress |
-| `rest_handler.go` | 0% | 0% | 85% | ⏳ Pending |
-| `storage_files.go` | 0% | 0% | 85% | ⏳ Pending |
+| `rest_handler.go` | 0% | ~35%* | 85% | 🔄 In Progress |
+| `storage_files.go` | 0% | ~30%* | 85% | 🔄 In Progress |
 | `dashboard_auth_handler.go` | 0% | ~45%* | 85% | 🔄 In Progress |
 | `server.go` | 0% | 0% | 70% | ⏳ Pending |
 | `oauth_handler.go` | 0% | ~40%* | 85% | 🔄 In Progress |
@@ -281,6 +281,21 @@
   - Handler validation tests (POST, PUT invalid body, unknown column)
   - Prefer header parsing tests (upsert, ignore-duplicates)
   - 65+ test cases + 7 benchmarks
+- [x] Created `api/rest_handler_test.go`:
+  - NewRESTHandler construction tests
+  - parseTableFromPath tests (single segment, two segment, custom schema)
+  - BuildTablePath tests (public schema, custom schema)
+  - BuildFullTablePath tests
+  - columnExists tests (existing, non-existing, case sensitive)
+  - TableInfo type tests (table, view, materialized view)
+  - RLS and primary key tests
+  - 30+ test cases + 4 benchmarks
+- [x] Enhanced `api/storage_files_test.go`:
+  - detectContentType tests (images, documents, case insensitive, unknown)
+  - getUserID tests (string, UUID, nil, non-string)
+  - MIME type wildcard matching tests
+  - Safe content types tests (for inline disposition)
+  - 25+ new unit tests + 3 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
