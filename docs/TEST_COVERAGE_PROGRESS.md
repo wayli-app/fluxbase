@@ -24,7 +24,7 @@
 | `session.go` | 0% | ~60%* | 90% | 🔄 In Progress |
 | `user.go` | 0% | ~50%* | 90% | 🔄 In Progress |
 | `user_management.go` | 0% | ~30%* | 90% | 🔄 In Progress |
-| `dashboard.go` | 0% | 0% | 90% | ⏳ Pending |
+| `dashboard.go` | 0% | ~35%* | 90% | 🔄 In Progress |
 | `oauth.go` | 0% | ~70%* | 85% | 🔄 In Progress |
 | `otp.go` | 0% | ~60%* | 85% | 🔄 In Progress |
 | `invitation.go` | 0% | ~60%* | 80% | 🔄 In Progress |
@@ -47,7 +47,7 @@
 
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
-| `encrypt.go` | 76% | 76% | 95% | ⏳ Pending |
+| `encrypt.go` | 76% | ~90%* | 95% | 🔄 In Progress |
 
 ---
 
@@ -215,6 +215,23 @@
 - [x] Fixed duplicate function declarations:
   - Renamed duplicates in session_test.go (TestMockSessionRepository_*_WithValidation)
   - Renamed duplicates in user_test.go (TestMockUserRepository_*_WithValidation)
+- [x] Created `auth/dashboard_test.go`:
+  - DashboardUser struct tests (fields, nullable, locked state)
+  - DashboardSession struct tests
+  - LoginResponse and SSOIdentity struct tests
+  - generateBackupCode tests (length, uniqueness, base32 chars)
+  - Provider format validation tests
+  - IP address handling tests
+  - User metadata for JWT tests
+  - Lock/session expiration tests
+  - NewDashboardAuthService tests
+  - 40+ test cases + 5 benchmarks
+- [x] Enhanced `crypto/encrypt_test.go`:
+  - DeriveUserKey tests (success, deterministic, different users/keys, invalid key)
+  - DeriveUserKey security tests (encryption roundtrip, wrong user cannot decrypt)
+  - Error variable tests
+  - Edge case tests (large data, corrupted/truncated data, binary data)
+  - 25+ new test cases + 6 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
