@@ -25,14 +25,14 @@
 | `user.go` | 0% | ~50%* | 90% | 🔄 In Progress |
 | `user_management.go` | 0% | ~30%* | 90% | 🔄 In Progress |
 | `dashboard.go` | 0% | 0% | 90% | ⏳ Pending |
-| `oauth.go` | 0% | 0% | 85% | ⏳ Pending |
-| `otp.go` | 0% | 0% | 85% | ⏳ Pending |
+| `oauth.go` | 0% | ~70%* | 85% | 🔄 In Progress |
+| `otp.go` | 0% | ~60%* | 85% | 🔄 In Progress |
 | `invitation.go` | 0% | 0% | 80% | ⏳ Pending |
 | `impersonation.go` | 1.6% | 1.6% | 90% | ⏳ Pending |
 | `identity.go` | 1.9% | 1.9% | 85% | ⏳ Pending |
-| `clientkey.go` | 2.4% | 2.4% | 85% | ⏳ Pending |
+| `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
 | `saml.go` | 13.7% | 13.7% | 80% | ⏳ Pending |
-| `settings_cache.go` | 19.2% | 19.2% | 80% | ⏳ Pending |
+| `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
 
 ### middleware/ Module
 
@@ -134,6 +134,34 @@
   - Context locals tests (client key info, JWT info, RLS context)
   - Header parsing tests
   - 25+ test cases + 3 benchmarks
+- [x] Found existing `auth/clientkey_test.go` with integration tests:
+  - hashClientKey unit tests
+  - Integration tests for GenerateClientKey, ValidateClientKey, ListClientKeys
+  - Integration tests for RevokeClientKey, DeleteClientKey, UpdateClientKey
+  - 15+ test cases using test database
+- [x] Created `auth/otp_test.go`:
+  - GenerateOTPCode tests (length, uniqueness, digit-only, distribution)
+  - OTPCode struct validation tests
+  - Error variable tests
+  - Validation logic tests without database
+  - MockOTPSender for testing
+  - 30+ test cases + 3 benchmarks
+- [x] Enhanced `auth/settings_cache_test.go`:
+  - Concurrent access tests (ConcurrentInvalidate, ConcurrentInvalidateAll, ConcurrentReadWrite)
+  - Additional GetEnvVarName tests with special characters
+  - Cache TTL tests
+  - CacheEntry type tests
+  - 15+ new test cases + 5 benchmarks
+- [x] Created `auth/oauth_test.go`:
+  - GenerateState tests (uniqueness, base64 encoding, length)
+  - OAuthProvider constants tests
+  - Error variable tests
+  - OAuthConfig struct tests
+  - OAuthManager tests (RegisterProvider, GetEndpoint, GetUserInfoURL, GetAuthURL)
+  - StateStore tests (Set, Validate, GetAndValidate, Cleanup)
+  - StateMetadata tests
+  - Concurrent access tests
+  - 50+ test cases + 6 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
