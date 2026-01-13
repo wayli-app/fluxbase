@@ -53,19 +53,19 @@
 
 ## Phase 2: Core API (Target: 85%)
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
 
 ### api/ Module
 
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
 | `auth_handler.go` | 0% | ~35%* | 90% | 🔄 In Progress |
-| `rest_crud.go` | 0% | 0% | 85% | ⏳ Pending |
+| `rest_crud.go` | 0% | ~40%* | 85% | 🔄 In Progress |
 | `rest_handler.go` | 0% | 0% | 85% | ⏳ Pending |
 | `storage_files.go` | 0% | 0% | 85% | ⏳ Pending |
-| `dashboard_auth_handler.go` | 0% | 0% | 85% | ⏳ Pending |
+| `dashboard_auth_handler.go` | 0% | ~45%* | 85% | 🔄 In Progress |
 | `server.go` | 0% | 0% | 70% | ⏳ Pending |
-| `oauth_handler.go` | 0% | 0% | 85% | ⏳ Pending |
+| `oauth_handler.go` | 0% | ~40%* | 85% | 🔄 In Progress |
 | `storage_buckets.go` | 0% | 0% | 85% | ⏳ Pending |
 | `rest_batch.go` | 0% | 0% | 80% | ⏳ Pending |
 
@@ -245,6 +245,42 @@
   - Invalid JSON body tests
   - Protected route tests (no auth scenarios)
   - 60+ test cases + 3 benchmarks
+- [x] Created `api/dashboard_auth_handler_test.go`:
+  - Helper function tests (getFirstAttribute, convertSAMLAttributesToMap, capitalizeWords)
+  - generateOAuthState tests (uniqueness, base64 encoding)
+  - parseIDTokenClaims tests (valid/invalid JWT parsing)
+  - SSOProvider and dashboardOAuthState struct tests
+  - NewDashboardAuthHandler construction tests
+  - getIPAddress tests (X-Forwarded-For, X-Real-IP, IPv6)
+  - buildOAuthConfig tests (Google, GitHub, Microsoft, GitLab, custom)
+  - Handler validation tests (Signup, Login, RefreshToken, VerifyTOTP, ChangePassword, DeleteAccount, UpdateProfile, EnableTOTP, DisableTOTP, RequestPasswordReset, VerifyPasswordResetToken, ConfirmPasswordReset)
+  - RequireDashboardAuth middleware tests
+  - SSO route tests (SAML not configured scenarios)
+  - OAuth state management tests
+  - 85+ test cases + 6 benchmarks
+- [x] Created `api/oauth_handler_test.go`:
+  - NewOAuthHandler construction tests (valid/invalid encryption keys)
+  - extractEmail tests (standard providers, GitHub fallback)
+  - extractProviderUserID tests (string, float64, OIDC sub)
+  - getStandardEndpoint tests (Google, GitHub, Microsoft, GitLab)
+  - Handler endpoint tests (Authorize, Callback, ListEnabledProviders, Logout, LogoutCallback)
+  - GetAndValidateState tests (state consumption, uniqueness)
+  - OAuth2 config construction tests
+  - Error description extraction tests
+  - 55+ test cases + 4 benchmarks
+- [x] Created `api/rest_crud_test.go`:
+  - isAdminUser tests (admin, dashboard_admin, authenticated, anon, nil)
+  - isGeoJSON tests (Point, LineString, Polygon, Multi*, invalid cases)
+  - isPartialGeoJSON tests (type without coordinates)
+  - isGeometryColumn tests (geometry, geography, other types)
+  - buildSelectColumns tests (with/without geometry)
+  - buildReturningClause tests
+  - quoteIdentifier tests (valid, SQL injection prevention)
+  - isValidIdentifier tests (alphanumeric, underscore, special chars)
+  - RESTHandler method tests (getConflictTarget, isInConflictTarget)
+  - Handler validation tests (POST, PUT invalid body, unknown column)
+  - Prefer header parsing tests (upsert, ignore-duplicates)
+  - 65+ test cases + 7 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
