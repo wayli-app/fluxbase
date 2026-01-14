@@ -140,6 +140,7 @@
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
 | `types.go` | 0% | ~90%* | 75% | ✅ Done |
+| `imports.go` | 0% | ~95%* | 75% | ✅ Done |
 
 ### email/ Module
 
@@ -635,6 +636,17 @@
   - Security permission combinations tests
   - ExecutionRequest field combinations tests (anonymous, system-triggered, retry)
   - 45+ test cases + 6 benchmarks
+- [x] Created `runtime/imports_test.go`:
+  - extractImports function tests for single-line imports
+  - Export type/interface/enum tests (single-line and multi-line)
+  - Export braces tests (single-line and multi-line)
+  - No imports scenarios tests
+  - Mixed code tests (imports and code interleaved)
+  - Edge cases (string literals, comments, late imports, nested braces)
+  - Order preservation tests
+  - Real-world edge function and job function code examples
+  - Whitespace handling tests (spaces, tabs, mixed)
+  - 40+ test cases + 5 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
