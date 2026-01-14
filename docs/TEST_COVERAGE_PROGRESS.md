@@ -33,6 +33,7 @@
 | `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
 | `saml.go` | 13.7% | ~45%* | 80% | 🔄 In Progress |
 | `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
+| `namespace_scopes.go` | 0% | ~95%* | 90% | ✅ Done |
 
 ### middleware/ Module
 
@@ -584,6 +585,14 @@
   - Dangerous function detection tests (pg_read_file, dblink, etc.)
   - Edge cases (subqueries, CTEs, UNION queries, invalid SQL)
   - 50+ test cases + 4 benchmarks
+- [x] Created `auth/namespace_scopes_test.go`:
+  - ParseNamespaceScope tests (wildcard, two-part, three-part, colons in namespace, edge cases)
+  - MatchNamespacePattern tests (wildcard, exact match, prefix match, case sensitivity)
+  - HasScopeForNamespace tests (wildcards, exact, patterns, multiple scopes, action/resource mismatch)
+  - ExtractAllowedNamespaces tests (wildcards, specific namespaces, mixed, backward compatibility)
+  - IsNamespaceAllowed tests (nil = all, empty = default only, specific list, patterns)
+  - Security-focused tests (ReDoS prevention, privilege escalation prevention)
+  - 65+ test cases + 5 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
