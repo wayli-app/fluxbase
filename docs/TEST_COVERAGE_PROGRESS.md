@@ -135,6 +135,12 @@
 | `branching.go` | 0% | ~90%* | 75% | ✅ Done |
 | `graphql.go` | 0% | ~90%* | 75% | ✅ Done |
 
+### observability/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `tracer.go` | 0% | ~85%* | 75% | ✅ Done |
+
 ---
 
 ## Phase 6: Polish (Target: 80% overall)
@@ -516,6 +522,18 @@
   - DataCloneMode constants tests (schema_only, full_clone, seed_data)
   - BranchingConfig_SeedsPathDefault tests (default setting, preserves custom)
   - 35+ new test cases
+- [x] Created `observability/tracer_test.go`:
+  - TracerConfig tests (DefaultTracerConfig, struct fields, zero value)
+  - Tracer struct tests (IsEnabled, Tracer method, StartSpan, Shutdown)
+  - Context helper tests (SpanFromContext, ContextWithSpan)
+  - Span recording tests (RecordError, SetSpanAttributes, AddSpanEvent)
+  - Trace ID extraction tests (ExtractTraceID, ExtractSpanID)
+  - Database tracing helper tests (StartDBSpan, EndDBSpan)
+  - Storage tracing helper tests (StartStorageSpan)
+  - Auth tracing helper tests (StartAuthSpan)
+  - NewTracer disabled mode tests
+  - Edge cases and error scenarios
+  - 50+ test cases + 10 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
