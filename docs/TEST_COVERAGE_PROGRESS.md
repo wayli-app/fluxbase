@@ -108,6 +108,12 @@
 |------|-------|---------|--------|--------|
 | `types.go` | 0% | ~90%* | 80% | ✅ Done |
 
+### query/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `types.go` | 0% | ~95%* | 80% | ✅ Done |
+
 ---
 
 ## Phase 4: Features (Target: 80%)
@@ -551,6 +557,14 @@
   - ListExecutionsOptions struct tests
   - JSON serialization/deserialization tests
   - 40+ test cases + 4 benchmarks
+- [x] Created `query/types_test.go`:
+  - FilterOperator constants tests (comparison, text, set, null, array/jsonb, text search, range, PostGIS, pgvector)
+  - Operator distinctness and alias verification tests
+  - Filter struct tests (all fields, zero value, nil value, slice value, OR grouping)
+  - OrderBy struct tests (all fields, ascending/descending, nulls handling, vector similarity)
+  - Operator category tests (spatial start with st_, vector start with vec_)
+  - Edge cases (empty columns, custom operators, complex nested values)
+  - 50+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
