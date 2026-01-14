@@ -121,6 +121,12 @@
 | `templates.go` | 0% | ~85%* | 75% | ✅ Done |
 | `service.go` | 0% | ~80%* | 75% | ✅ Done |
 
+### storage/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `transform.go` | 0% | ~75%* | 75% | ✅ Done |
+
 ---
 
 ## Phase 6: Polish (Target: 80% overall)
@@ -481,6 +487,20 @@
   - NoOpService tests (all methods return errors with reason, IsConfigured returns false)
   - Service interface implementation verification
   - 25+ test cases + 3 benchmarks
+- [x] Created `storage/transform_test.go`:
+  - FitMode constants tests (cover, contain, fill, inside, outside)
+  - Transform error variables tests (7 error types)
+  - BucketDimension function tests (rounding, edge cases, zero/negative)
+  - SupportedOutputFormats and SupportedInputMimeTypes map tests
+  - CanTransform function tests (mime types, charset handling, case insensitive)
+  - NewImageTransformer and NewImageTransformerWithOptions constructor tests
+  - ValidateOptions tests (dimensions, format, quality, fit, bucketing, errors)
+  - calculateDimensions tests (aspect ratio, single dimension, clamping)
+  - determineOutputFormat tests (requested format, input type fallback)
+  - ParseTransformOptions tests (all parameters, fit mode parsing)
+  - TransformOptions and TransformResult struct tests
+  - Constants tests (MaxTransformDimension, DefaultMaxTotalPixels, DefaultBucketSize)
+  - 65+ test cases + 5 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
