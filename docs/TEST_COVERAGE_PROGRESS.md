@@ -112,7 +112,14 @@
 
 ## Phase 5: Supporting Modules (Target: 75%)
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
+
+### email/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `templates.go` | 0% | ~85%* | 75% | ✅ Done |
+| `service.go` | 0% | ~80%* | 75% | ✅ Done |
 
 ---
 
@@ -458,6 +465,22 @@
   - Error wrapping and errors.Is compatibility tests
   - Error categorization tests (not found, access, state, validation, config, operation)
   - 25+ test cases + 2 benchmarks
+- [x] Created `email/templates_test.go`:
+  - renderMagicLinkHTML tests (default template, custom template, nonexistent, empty, special chars)
+  - renderVerificationHTML tests (default template, custom template, nonexistent)
+  - renderPasswordResetHTML tests (default template, custom template, invalid syntax)
+  - renderInvitationHTML tests (with/without inviter name, special chars)
+  - loadAndRenderTemplate tests (valid, nonexistent, invalid syntax, missing vars, nil data)
+  - Fallback HTML functions tests (all 4 fallback templates)
+  - Template security tests (HTML escaping, XSS prevention)
+  - Template output validation (valid HTML structure)
+  - 45+ test cases + 6 benchmarks
+- [x] Created `email/service_test.go`:
+  - NewService tests (disabled, unsupported provider, smtp, sendgrid, mailgun, ses)
+  - NewService configuration validation (not configured returns NoOpService)
+  - NoOpService tests (all methods return errors with reason, IsConfigured returns false)
+  - Service interface implementation verification
+  - 25+ test cases + 3 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
