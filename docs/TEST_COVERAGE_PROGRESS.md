@@ -64,7 +64,7 @@
 | `rest_handler.go` | 0% | ~35%* | 85% | 🔄 In Progress |
 | `storage_files.go` | 0% | ~30%* | 85% | 🔄 In Progress |
 | `dashboard_auth_handler.go` | 0% | ~45%* | 85% | 🔄 In Progress |
-| `server.go` | 0% | 0% | 70% | ⏳ Pending |
+| `server.go` | 0% | ~25%* | 70% | 🔄 In Progress |
 | `oauth_handler.go` | 0% | ~40%* | 85% | 🔄 In Progress |
 | `storage_buckets.go` | 0% | ~35%* | 85% | 🔄 In Progress |
 | `rest_batch.go` | 0% | ~40%* | 80% | 🔄 In Progress |
@@ -310,6 +310,13 @@
   - defaultToNull mode tests (updates missing columns to NULL)
   - Batch operation behavior tests
   - 35+ test cases + 3 benchmarks
+- [x] Created `api/server_test.go`:
+  - NormalizePaginationParams tests (valid, invalid, edge cases, different defaults)
+  - customErrorHandler tests (generic errors, Fiber errors for 400/401/403/404/429/502/503)
+  - Admin role checking tests (admin, dashboard_admin, service_role, authenticated, anon)
+  - Health check response format tests
+  - Query parameter parsing tests
+  - 40+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
