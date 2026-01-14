@@ -8,7 +8,7 @@
 | **Phase** | - | Phase 1 | Phase 6 |
 | **Zero-Coverage Files** | 156 | 156 | 0 |
 
-**Last Updated**: 2026-01-13
+**Last Updated**: 2026-01-14
 
 ---
 
@@ -42,6 +42,9 @@
 | `rate_limiter.go` | 0% | ~60%* | 80% | 🔄 In Progress |
 | `rls.go` | 0% | ~55%* | 80% | 🔄 In Progress |
 | `csrf.go` | 0% | ~60%* | 80% | 🔄 In Progress |
+| `structured_logger.go` | 0% | ~65%* | 75% | 🔄 In Progress |
+| `migrations_security.go` | 0% | ~60%* | 80% | 🔄 In Progress |
+| `global_ip_allowlist.go` | 0% | ~70%* | 80% | 🔄 In Progress |
 
 ### crypto/ Module
 
@@ -317,6 +320,35 @@
   - Health check response format tests
   - Query parameter parsing tests
   - 40+ test cases + 4 benchmarks
+
+### 2026-01-14
+
+- [x] Created `middleware/structured_logger_test.go`:
+  - DefaultStructuredLoggerConfig tests (default skip paths, settings, slow threshold)
+  - redactQueryString tests (token, access_token, refresh_token, api_key, password, case insensitive)
+  - toString tests (nil, string, various non-string types)
+  - SlowQueryLogger tests (fast queries, long query truncation)
+  - AuditLogger tests (LogAuth success/failure, LogUserManagement, LogClientKeyOperation, LogConfigChange, LogSecurityEvent with severity levels)
+  - StructuredLogger middleware tests (skip paths, custom logger, skip successful, request ID, user context, status codes, log request body, query string redaction, referer, handler errors)
+  - 70+ test cases + 7 benchmarks
+- [x] Created `middleware/migrations_security_test.go`:
+  - getClientIP tests (X-Forwarded-For, X-Real-IP, IPv6, proxy chains, invalid headers)
+  - min function tests
+  - RequireMigrationsEnabled tests (enabled/disabled)
+  - RequireMigrationsIPAllowlist tests (empty allows all, single IP in range, IP not in range, multiple ranges, invalid CIDR, /32 exact IP)
+  - RequireMigrationScope tests (JWT service_role, JWT non-service_role, service_key with scope, wildcard scope, no migrations scope, no scopes, unknown auth type)
+  - MigrationsAuditLog tests (logs request/response, with/without service key info)
+  - RequireServiceKeyOnly validation tests (no auth, invalid key format, header parsing)
+  - 55+ test cases + 5 benchmarks
+- [x] Created `middleware/global_ip_allowlist_test.go`:
+  - RequireGlobalIPAllowlist tests (empty config allows all, IP in various CIDR ranges /8 /16 /24 /32)
+  - Multiple range tests (first match wins)
+  - IPv6 support tests
+  - Mixed IPv4/IPv6 tests
+  - Invalid CIDR handling tests
+  - Proxy chain IP extraction tests
+  - Large network (0.0.0.0/0) tests
+  - 35+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
