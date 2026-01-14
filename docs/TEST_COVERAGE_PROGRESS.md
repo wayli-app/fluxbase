@@ -102,6 +102,12 @@
 | `types.go` | 0% | ~90%* | 80% | ✅ Done |
 | `errors.go` | 0% | ~100%* | 80% | ✅ Done |
 
+### rpc/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `types.go` | 0% | ~90%* | 80% | ✅ Done |
+
 ---
 
 ## Phase 4: Features (Target: 80%)
@@ -534,6 +540,17 @@
   - NewTracer disabled mode tests
   - Edge cases and error scenarios
   - 50+ test cases + 10 benchmarks
+- [x] Created `rpc/types_test.go`:
+  - ExecutionStatus constants tests (all values, distinctness, string conversion)
+  - Procedure struct tests (all fields, zero value)
+  - Procedure.ToSummary tests (field mapping, nil handling, slice handling)
+  - Execution struct tests (all fields, nullable pointers)
+  - CallerContext, InvokeRequest, InvokeResponse struct tests
+  - Annotations struct tests
+  - Sync types tests (ProcedureSpec, SyncRequest, SyncResult, SyncError)
+  - ListExecutionsOptions struct tests
+  - JSON serialization/deserialization tests
+  - 40+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
