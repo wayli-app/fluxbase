@@ -127,6 +127,14 @@
 |------|-------|---------|--------|--------|
 | `transform.go` | 0% | ~75%* | 75% | ✅ Done |
 
+### config/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `mcp.go` | 0% | ~90%* | 75% | ✅ Done |
+| `branching.go` | 0% | ~90%* | 75% | ✅ Done |
+| `graphql.go` | 0% | ~90%* | 75% | ✅ Done |
+
 ---
 
 ## Phase 6: Polish (Target: 80% overall)
@@ -501,6 +509,13 @@
   - TransformOptions and TransformResult struct tests
   - Constants tests (MaxTransformDimension, DefaultMaxTotalPixels, DefaultBucketSize)
   - 65+ test cases + 5 benchmarks
+- [x] Enhanced `config/config_test.go`:
+  - MCPConfig validation tests (enabled/disabled, base path, session timeout, message size, rate limit, allowed tools/resources)
+  - BranchingConfig validation tests (enabled/disabled, max branches, data clone modes, auto delete, database prefix, seeds path default)
+  - GraphQLConfig validation tests (enabled/disabled, max depth, max complexity, introspection)
+  - DataCloneMode constants tests (schema_only, full_clone, seed_data)
+  - BranchingConfig_SeedsPathDefault tests (default setting, preserves custom)
+  - 35+ new test cases
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---

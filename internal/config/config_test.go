@@ -1240,3 +1240,316 @@ func TestAIConfig_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPConfig_Validate(t *testing.T) {
+	validConfig := func() MCPConfig {
+		return MCPConfig{
+			Enabled:         true,
+			BasePath:        "/mcp",
+			SessionTimeout:  30 * time.Minute,
+			MaxMessageSize:  1024 * 1024,
+			RateLimitPerMin: 100,
+		}
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(*MCPConfig)
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid config",
+			modify:  func(c *MCPConfig) {},
+			wantErr: false,
+		},
+		{
+			name:    "disabled skips validation",
+			modify:  func(c *MCPConfig) { c.Enabled = false; c.BasePath = "" },
+			wantErr: false,
+		},
+		{
+			name:    "empty base path when enabled",
+			modify:  func(c *MCPConfig) { c.BasePath = "" },
+			wantErr: true,
+			errMsg:  "mcp base_path cannot be empty when enabled",
+		},
+		{
+			name:    "negative session timeout",
+			modify:  func(c *MCPConfig) { c.SessionTimeout = -1 * time.Minute },
+			wantErr: true,
+			errMsg:  "mcp session_timeout cannot be negative",
+		},
+		{
+			name:    "negative max message size",
+			modify:  func(c *MCPConfig) { c.MaxMessageSize = -1 },
+			wantErr: true,
+			errMsg:  "mcp max_message_size cannot be negative",
+		},
+		{
+			name:    "negative rate limit",
+			modify:  func(c *MCPConfig) { c.RateLimitPerMin = -1 },
+			wantErr: true,
+			errMsg:  "mcp rate_limit_per_min cannot be negative",
+		},
+		{
+			name:    "zero session timeout is valid",
+			modify:  func(c *MCPConfig) { c.SessionTimeout = 0 },
+			wantErr: false,
+		},
+		{
+			name:    "zero max message size is valid",
+			modify:  func(c *MCPConfig) { c.MaxMessageSize = 0 },
+			wantErr: false,
+		},
+		{
+			name:    "zero rate limit is valid (unlimited)",
+			modify:  func(c *MCPConfig) { c.RateLimitPerMin = 0 },
+			wantErr: false,
+		},
+		{
+			name:    "with allowed tools",
+			modify:  func(c *MCPConfig) { c.AllowedTools = []string{"query", "storage"} },
+			wantErr: false,
+		},
+		{
+			name:    "with allowed resources",
+			modify:  func(c *MCPConfig) { c.AllowedResources = []string{"schema://", "storage://"} },
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := validConfig()
+			tt.modify(&config)
+			err := config.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestBranchingConfig_Validate(t *testing.T) {
+	validConfig := func() BranchingConfig {
+		return BranchingConfig{
+			Enabled:              true,
+			MaxTotalBranches:     50,
+			DefaultDataCloneMode: DataCloneModeSchemaOnly,
+			AutoDeleteAfter:      24 * time.Hour,
+			DatabasePrefix:       "branch_",
+			SeedsPath:            "./seeds",
+		}
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(*BranchingConfig)
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid config",
+			modify:  func(c *BranchingConfig) {},
+			wantErr: false,
+		},
+		{
+			name:    "disabled skips validation",
+			modify:  func(c *BranchingConfig) { c.Enabled = false; c.DatabasePrefix = "" },
+			wantErr: false,
+		},
+		{
+			name:    "negative max total branches",
+			modify:  func(c *BranchingConfig) { c.MaxTotalBranches = -1 },
+			wantErr: true,
+			errMsg:  "branching max_total_branches cannot be negative",
+		},
+		{
+			name:    "invalid data clone mode",
+			modify:  func(c *BranchingConfig) { c.DefaultDataCloneMode = "invalid_mode" },
+			wantErr: true,
+			errMsg:  "branching default_data_clone_mode must be one of",
+		},
+		{
+			name:    "valid full_clone mode",
+			modify:  func(c *BranchingConfig) { c.DefaultDataCloneMode = DataCloneModeFullClone },
+			wantErr: false,
+		},
+		{
+			name:    "valid seed_data mode",
+			modify:  func(c *BranchingConfig) { c.DefaultDataCloneMode = DataCloneModeSeedData },
+			wantErr: false,
+		},
+		{
+			name:    "empty data clone mode defaults to schema_only",
+			modify:  func(c *BranchingConfig) { c.DefaultDataCloneMode = "" },
+			wantErr: false,
+		},
+		{
+			name:    "negative auto delete after",
+			modify:  func(c *BranchingConfig) { c.AutoDeleteAfter = -1 * time.Hour },
+			wantErr: true,
+			errMsg:  "branching auto_delete_after cannot be negative",
+		},
+		{
+			name:    "zero auto delete after is valid (never)",
+			modify:  func(c *BranchingConfig) { c.AutoDeleteAfter = 0 },
+			wantErr: false,
+		},
+		{
+			name:    "empty database prefix when enabled",
+			modify:  func(c *BranchingConfig) { c.DatabasePrefix = "" },
+			wantErr: true,
+			errMsg:  "branching database_prefix cannot be empty when enabled",
+		},
+		{
+			name:    "empty seeds path gets default",
+			modify:  func(c *BranchingConfig) { c.SeedsPath = "" },
+			wantErr: false,
+		},
+		{
+			name:    "zero max total branches is valid",
+			modify:  func(c *BranchingConfig) { c.MaxTotalBranches = 0 },
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := validConfig()
+			tt.modify(&config)
+			err := config.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestBranchingConfig_SeedsPathDefault(t *testing.T) {
+	t.Run("sets default seeds path when empty", func(t *testing.T) {
+		config := BranchingConfig{
+			Enabled:        true,
+			DatabasePrefix: "branch_",
+			SeedsPath:      "",
+		}
+
+		err := config.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "./seeds", config.SeedsPath)
+	})
+
+	t.Run("preserves custom seeds path", func(t *testing.T) {
+		config := BranchingConfig{
+			Enabled:        true,
+			DatabasePrefix: "branch_",
+			SeedsPath:      "/custom/seeds",
+		}
+
+		err := config.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "/custom/seeds", config.SeedsPath)
+	})
+}
+
+func TestGraphQLConfig_Validate(t *testing.T) {
+	validConfig := func() GraphQLConfig {
+		return GraphQLConfig{
+			Enabled:       true,
+			MaxDepth:      10,
+			MaxComplexity: 1000,
+			Introspection: true,
+		}
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(*GraphQLConfig)
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid config",
+			modify:  func(c *GraphQLConfig) {},
+			wantErr: false,
+		},
+		{
+			name:    "disabled skips validation",
+			modify:  func(c *GraphQLConfig) { c.Enabled = false; c.MaxDepth = 0 },
+			wantErr: false,
+		},
+		{
+			name:    "zero max depth when enabled",
+			modify:  func(c *GraphQLConfig) { c.MaxDepth = 0 },
+			wantErr: true,
+			errMsg:  "graphql max_depth must be at least 1",
+		},
+		{
+			name:    "negative max depth",
+			modify:  func(c *GraphQLConfig) { c.MaxDepth = -1 },
+			wantErr: true,
+			errMsg:  "graphql max_depth must be at least 1",
+		},
+		{
+			name:    "zero max complexity when enabled",
+			modify:  func(c *GraphQLConfig) { c.MaxComplexity = 0 },
+			wantErr: true,
+			errMsg:  "graphql max_complexity must be at least 1",
+		},
+		{
+			name:    "negative max complexity",
+			modify:  func(c *GraphQLConfig) { c.MaxComplexity = -1 },
+			wantErr: true,
+			errMsg:  "graphql max_complexity must be at least 1",
+		},
+		{
+			name:    "min valid max depth",
+			modify:  func(c *GraphQLConfig) { c.MaxDepth = 1 },
+			wantErr: false,
+		},
+		{
+			name:    "min valid max complexity",
+			modify:  func(c *GraphQLConfig) { c.MaxComplexity = 1 },
+			wantErr: false,
+		},
+		{
+			name:    "introspection disabled",
+			modify:  func(c *GraphQLConfig) { c.Introspection = false },
+			wantErr: false,
+		},
+		{
+			name:    "high values are valid",
+			modify:  func(c *GraphQLConfig) { c.MaxDepth = 100; c.MaxComplexity = 100000 },
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := validConfig()
+			tt.modify(&config)
+			err := config.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDataCloneModeConstants(t *testing.T) {
+	t.Run("constants have expected values", func(t *testing.T) {
+		assert.Equal(t, "schema_only", DataCloneModeSchemaOnly)
+		assert.Equal(t, "full_clone", DataCloneModeFullClone)
+		assert.Equal(t, "seed_data", DataCloneModeSeedData)
+	})
+}
