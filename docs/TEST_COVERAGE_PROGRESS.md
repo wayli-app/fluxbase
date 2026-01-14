@@ -67,6 +67,7 @@
 
 | File | Start | Current | Target | Status |
 |------|-------|---------|--------|--------|
+| `graphql_types.go` | 0% | ~90%* | 85% | ✅ Done |
 | `auth_handler.go` | 0% | ~35%* | 90% | 🔄 In Progress |
 | `rest_crud.go` | 0% | ~40%* | 85% | 🔄 In Progress |
 | `rest_handler.go` | 0% | ~35%* | 85% | 🔄 In Progress |
@@ -604,6 +605,17 @@
   - GetConfig tests (disabled, enabled, cap provider CapServerURL inclusion)
   - Verify/VerifyForEndpoint tests (disabled skip, empty token, endpoint check)
   - 45+ test cases + 4 benchmarks
+- [x] Created `api/graphql_types_test.go`:
+  - DateTimeScalar tests (Serialize, ParseValue, ParseLiteral for time.Time)
+  - UUIDScalar tests (Serialize, ParseValue, ParseLiteral for uuid.UUID and binary)
+  - JSONScalar tests (Serialize, ParseValue, ParseLiteral for maps, slices, strings)
+  - BigIntScalar tests (Serialize, ParseValue, ParseLiteral for int64, string, float64)
+  - parseObjectValue, parseListValue, parseASTValue helper tests
+  - PostgresTypeToGraphQL tests (string, integer, bigint, float, boolean, uuid, json, datetime, array, binary, network, geometric, range, fts, vector types)
+  - NonNull wrapping tests
+  - GetFilterOperatorsForType tests (string, numeric, boolean, uuid, json, datetime types)
+  - GraphQLFilterOperators struct tests
+  - 80+ test cases + 6 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
