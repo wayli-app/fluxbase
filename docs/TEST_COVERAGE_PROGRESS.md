@@ -45,6 +45,9 @@
 | `structured_logger.go` | 0% | ~65%* | 75% | 🔄 In Progress |
 | `migrations_security.go` | 0% | ~60%* | 80% | 🔄 In Progress |
 | `global_ip_allowlist.go` | 0% | ~70%* | 80% | 🔄 In Progress |
+| `branch.go` | 0% | ~55%* | 75% | 🔄 In Progress |
+| `tracing.go` | 0% | ~50%* | 70% | 🔄 In Progress |
+| `sync_security.go` | 0% | ~70%* | 80% | 🔄 In Progress |
 
 ### crypto/ Module
 
@@ -349,6 +352,38 @@
   - Proxy chain IP extraction tests
   - Large network (0.0.0.0/0) tests
   - 35+ test cases + 4 benchmarks
+- [x] Created `middleware/branch_test.go`:
+  - Branch constants tests (header, query param, locals keys)
+  - BranchContextConfig struct tests
+  - GetBranchSlug tests (from locals, not set, wrong type)
+  - GetBranchPool tests (not set, wrong type)
+  - IsUsingBranch tests (main, feature branches)
+  - BranchContext middleware tests (no router, header/query extraction)
+  - Access control tests (RequireAccess, AllowAnonymous)
+  - BranchContextSimple and RequireBranchAccess tests
+  - 40+ test cases + 5 benchmarks
+- [x] Created `middleware/tracing_test.go`:
+  - TracingConfig struct tests (default, custom)
+  - DefaultTracingConfig tests (enabled, service name, skip paths)
+  - TracingMiddleware disabled tests
+  - Skip paths functionality tests
+  - GetTraceContext, GetTraceID, GetSpanID tests (no span scenarios)
+  - AddSpanEvent, SetSpanError, SetSpanAttributes tests (no panic when no span)
+  - StartChildSpan tests
+  - Request lifecycle tests (success, errors, fiber errors)
+  - User context and body recording tests
+  - 45+ test cases + 5 benchmarks
+- [x] Created `middleware/sync_security_test.go`:
+  - RequireSyncIPAllowlist tests (empty/nil config allows all)
+  - IP matching tests (/8, /16, /24, /32 ranges)
+  - Multiple ranges tests
+  - Error message with feature name tests
+  - Invalid CIDR handling tests
+  - IPv6 support tests
+  - Proxy chain (X-Forwarded-For) tests
+  - X-Real-IP fallback tests
+  - Different feature names tests
+  - 40+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
