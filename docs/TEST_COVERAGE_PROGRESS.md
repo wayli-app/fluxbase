@@ -66,8 +66,8 @@
 | `dashboard_auth_handler.go` | 0% | ~45%* | 85% | 🔄 In Progress |
 | `server.go` | 0% | 0% | 70% | ⏳ Pending |
 | `oauth_handler.go` | 0% | ~40%* | 85% | 🔄 In Progress |
-| `storage_buckets.go` | 0% | 0% | 85% | ⏳ Pending |
-| `rest_batch.go` | 0% | 0% | 80% | ⏳ Pending |
+| `storage_buckets.go` | 0% | ~35%* | 85% | 🔄 In Progress |
+| `rest_batch.go` | 0% | ~40%* | 80% | 🔄 In Progress |
 
 ---
 
@@ -296,6 +296,20 @@
   - MIME type wildcard matching tests
   - Safe content types tests (for inline disposition)
   - 25+ new unit tests + 3 benchmarks
+- [x] Enhanced `api/storage_buckets_test.go`:
+  - Missing bucket name validation tests (CreateBucket, UpdateBucketSettings, DeleteBucket)
+  - ListBuckets role checking tests (admin, dashboard_admin, service_role, authenticated, anon)
+  - UpdateBucketSettings invalid body and no fields tests
+  - Bucket configuration struct tests
+  - 15+ new unit tests + 1 benchmark
+- [x] Created `api/rest_batch_test.go`:
+  - makeBatchPatchHandler validation (invalid body, empty body, unknown column)
+  - makeBatchDeleteHandler validation (requires filters, invalid query)
+  - batchInsert validation (empty array, unknown column, upsert without PK)
+  - Conflict target parsing tests
+  - defaultToNull mode tests (updates missing columns to NULL)
+  - Batch operation behavior tests
+  - 35+ test cases + 3 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
