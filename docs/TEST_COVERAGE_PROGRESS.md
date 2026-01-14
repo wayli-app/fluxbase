@@ -169,6 +169,12 @@
 |------|-------|---------|--------|--------|
 | `tracer.go` | 0% | ~85%* | 75% | ✅ Done |
 
+### settings/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `secrets_service.go` | 0% | ~90%* | 75% | ✅ Done |
+
 ---
 
 ## Phase 6: Polish (Target: 80% overall)
@@ -647,6 +653,15 @@
   - Real-world edge function and job function code examples
   - Whitespace handling tests (spaces, tabs, mixed)
   - 40+ test cases + 5 benchmarks
+- [x] Created `settings/secrets_service_test.go`:
+  - Error variables tests (ErrSecretNotFound, ErrDecryptionFailed, ErrSettingNotFound)
+  - Error distinctness and errors.Is compatibility tests
+  - extractJSONStringValue tests (direct strings, value objects, nested data)
+  - JSON edge cases (empty, null, unicode, special characters)
+  - Type handling tests (string, number, boolean, array, object values)
+  - Security cases (malformed JSON, special characters)
+  - NewSecretsService constructor tests
+  - 35+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
