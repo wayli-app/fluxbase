@@ -95,6 +95,13 @@
 | `auth.go` | 0% | ~85%* | 85% | ✅ Done |
 | `registry.go` | 0% | ~80%* | 80% | ✅ Done |
 
+### branching/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `types.go` | 0% | ~90%* | 80% | ✅ Done |
+| `errors.go` | 0% | ~100%* | 80% | ✅ Done |
+
 ---
 
 ## Phase 4: Features (Target: 80%)
@@ -437,6 +444,20 @@
   - ListTemplates tests (excludes static, filters by scope)
   - ReadResource tests (static, template with params, not found, missing scope)
   - 40+ test cases + 4 benchmarks
+- [x] Created `branching/types_test.go`:
+  - BranchStatus, BranchType, DataCloneMode constants tests
+  - ActivityAction, ActivityStatus, BranchAccessLevel constants tests
+  - Branch struct tests (all fields, minimal branch)
+  - Branch.IsMain and Branch.IsReady method tests
+  - MigrationHistory, ActivityLog, GitHubConfig struct tests
+  - BranchAccess, CreateBranchRequest, ListBranchesFilter struct tests
+  - 40+ test cases + 2 benchmarks
+- [x] Created `branching/errors_test.go`:
+  - All 10 branching error variable tests
+  - Error distinctness verification tests
+  - Error wrapping and errors.Is compatibility tests
+  - Error categorization tests (not found, access, state, validation, config, operation)
+  - 25+ test cases + 2 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
