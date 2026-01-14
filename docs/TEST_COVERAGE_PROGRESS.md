@@ -118,7 +118,13 @@
 
 ## Phase 4: Features (Target: 80%)
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
+
+### ai/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `validator.go` | 0% | ~85%* | 80% | ✅ Done |
 
 ---
 
@@ -564,6 +570,19 @@
   - OrderBy struct tests (all fields, ascending/descending, nulls handling, vector similarity)
   - Operator category tests (spatial start with st_, vector start with vec_)
   - Edge cases (empty columns, custom operators, complex nested values)
+  - 50+ test cases + 4 benchmarks
+- [x] Created `ai/validator_test.go`:
+  - NewSQLValidator tests (schemas, tables, operations, normalization, blocked patterns)
+  - Validate tests (SELECT, INSERT, UPDATE, DELETE operations)
+  - Blocked pattern detection tests (pg_catalog, information_schema, SQL comments)
+  - Multiple statement rejection tests
+  - Schema and table restriction tests
+  - JOIN query table extraction tests
+  - normalizeQuery tests (whitespace collapse, newlines, tabs)
+  - ValidationResult struct tests
+  - ValidateAndNormalize tests
+  - Dangerous function detection tests (pg_read_file, dblink, etc.)
+  - Edge cases (subqueries, CTEs, UNION queries, invalid SQL)
   - 50+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
