@@ -79,7 +79,21 @@
 
 ## Phase 3: Data Layer (Target: 80%)
 
-### Status: NOT STARTED
+### Status: IN PROGRESS
+
+### database/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `connection.go` | 0% | ~60%* | 80% | 🔄 In Progress |
+| `schema_inspector.go` | 0% | ~50%* | 75% | 🔄 In Progress |
+
+### mcp/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `auth.go` | 0% | ~85%* | 85% | ✅ Done |
+| `registry.go` | 0% | ~80%* | 80% | ✅ Done |
 
 ---
 
@@ -383,6 +397,45 @@
   - Proxy chain (X-Forwarded-For) tests
   - X-Real-IP fallback tests
   - Different feature names tests
+  - 40+ test cases + 4 benchmarks
+- [x] Created `database/connection_test.go`:
+  - extractTableName tests (SELECT, INSERT, UPDATE, DELETE, JOIN, subquery, CTE)
+  - extractOperation tests (all SQL statement types)
+  - truncateQuery tests (short/long queries, unicode, SQL injection in query text)
+  - Edge case tests (empty SQL, whitespace only, malformed queries)
+  - 50+ test cases + 7 benchmarks
+- [x] Created `database/schema_inspector_test.go`:
+  - TableInfo struct tests (basic, view, materialized view, composite PK, REST path)
+  - ColumnInfo struct tests (nullable, default, max length, PK, FK, unique, geometry, jsonb)
+  - ForeignKey struct tests (CASCADE, SET NULL, RESTRICT)
+  - IndexInfo struct tests (primary, composite, non-unique)
+  - FunctionInfo struct tests (volatility, set-returning, languages)
+  - FunctionParam struct tests (IN, OUT, INOUT, defaults)
+  - VectorColumnInfo struct tests (fixed/variable dimensions)
+  - BuildRESTPath tests (pluralization, schemas, special cases)
+  - NewSchemaInspector tests
+  - 40+ test cases + 3 benchmarks
+- [x] Created `mcp/auth_test.go`:
+  - AuthContext.HasScope tests (service role, wildcard, exact match, not present)
+  - AuthContext.HasScopes tests (all required, missing one, service role)
+  - AuthContext.HasAnyScope tests (first, second, neither, empty)
+  - AuthContext.IsAuthenticated tests (with user ID, service key, both, neither)
+  - AuthContext.GetMetadata tests (nil, empty, existing, missing key)
+  - AuthContext.GetMetadataStringSlice tests (nil, missing, correct type, wrong type)
+  - AuthContext.HasNamespaceAccess tests (service role, nil allowed, empty allowed, specific list)
+  - AuthContext.FilterNamespaces tests (service role, nil, filter, empty default)
+  - inferScopesFromRole tests (admin, dashboard_admin, authenticated, anon, unknown)
+  - Scope constants tests (all MCP scopes)
+  - AuthContext struct tests (all fields, zero value)
+  - 50+ test cases + 6 benchmarks
+- [x] Created `mcp/registry_test.go`:
+  - Mock tool handler implementation
+  - Mock resource provider implementation
+  - Mock template resource provider implementation
+  - ToolRegistry tests (NewToolRegistry, Register, GetTool, ListTools, overwrite)
+  - ResourceRegistry tests (NewResourceRegistry, Register, GetProvider, ListResources)
+  - ListTemplates tests (excludes static, filters by scope)
+  - ReadResource tests (static, template with params, not found, missing scope)
   - 40+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
