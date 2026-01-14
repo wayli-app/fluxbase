@@ -34,6 +34,7 @@
 | `saml.go` | 13.7% | ~45%* | 80% | 🔄 In Progress |
 | `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
 | `namespace_scopes.go` | 0% | ~95%* | 90% | ✅ Done |
+| `captcha.go` | 0% | ~80%* | 85% | ✅ Done |
 
 ### middleware/ Module
 
@@ -593,6 +594,16 @@
   - IsNamespaceAllowed tests (nil = all, empty = default only, specific list, patterns)
   - Security-focused tests (ReDoS prevention, privilege escalation prevention)
   - 65+ test cases + 5 benchmarks
+- [x] Created `auth/captcha_test.go`:
+  - Captcha error variables tests (distinctness, messages)
+  - CaptchaResult struct tests (success, failure, zero value)
+  - CaptchaConfigResponse struct tests (enabled, cap provider, disabled)
+  - NewCaptchaService tests (nil config, disabled, provider validation errors)
+  - Provider-specific validation (hcaptcha, recaptcha, turnstile, cap)
+  - CaptchaService method tests (IsEnabled, IsEnabledForEndpoint, GetSiteKey, GetProvider)
+  - GetConfig tests (disabled, enabled, cap provider CapServerURL inclusion)
+  - Verify/VerifyForEndpoint tests (disabled skip, empty token, endpoint check)
+  - 45+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
