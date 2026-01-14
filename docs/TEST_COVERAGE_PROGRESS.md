@@ -135,6 +135,12 @@
 
 ### Status: IN PROGRESS
 
+### runtime/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `types.go` | 0% | ~90%* | 75% | ✅ Done |
+
 ### email/ Module
 
 | File | Start | Current | Target | Status |
@@ -616,6 +622,19 @@
   - GetFilterOperatorsForType tests (string, numeric, boolean, uuid, json, datetime types)
   - GraphQLFilterOperators struct tests
   - 80+ test cases + 6 benchmarks
+- [x] Created `runtime/types_test.go`:
+  - RuntimeType constants tests (RuntimeTypeFunction, RuntimeTypeJob, distinctness)
+  - RuntimeType.String() tests (function, job, unknown, negative)
+  - ExecutionRequest struct tests (zero value, function with HTTP, job with payload)
+  - ExecutionResult struct tests (zero value, success, failure, job result)
+  - Progress struct tests (zero value, all fields, edge cases 0%/100%/negative/over 100%)
+  - Permissions struct tests (zero value, all enabled, restrictive)
+  - DefaultPermissions tests (expected values, new instance each call)
+  - DefaultFunctionPermissions tests (512MB memory, new instance each call)
+  - DefaultJobPermissions tests (matches function defaults, new instance each call)
+  - Security permission combinations tests
+  - ExecutionRequest field combinations tests (anonymous, system-triggered, retry)
+  - 45+ test cases + 6 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
