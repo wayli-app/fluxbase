@@ -129,6 +129,12 @@
 |------|-------|---------|--------|--------|
 | `validator.go` | 0% | ~85%* | 80% | ✅ Done |
 
+### realtime/ Module
+
+| File | Start | Current | Target | Status |
+|------|-------|---------|--------|--------|
+| `events.go` | 0% | ~95%* | 80% | ✅ Done |
+
 ---
 
 ## Phase 5: Supporting Modules (Target: 75%)
@@ -662,6 +668,18 @@
   - Security cases (malformed JSON, special characters)
   - NewSecretsService constructor tests
   - 35+ test cases + 4 benchmarks
+- [x] Created `realtime/events_test.go`:
+  - ConnectionEventType constants tests (connected, disconnected)
+  - ConnectionEvent struct tests (zero value, connected, disconnected, anonymous)
+  - ConnectionEvent JSON serialization tests (marshal, unmarshal, omitempty)
+  - ConnectionEvent.ToServerMessage() tests (broadcast format, JSON serialization)
+  - MessageType constants tests (all 13 message types, distinctness)
+  - ClientMessage struct tests (subscribe, broadcast, access_token)
+  - ServerMessage struct tests (success, error, broadcast)
+  - LogSubscriptionConfig tests (function, job, rpc)
+  - PostgresChangesConfig tests (INSERT, wildcard, filter)
+  - TokenClaims tests (authenticated, admin, service_role, custom RLS claims)
+  - 55+ test cases + 4 benchmarks
 - [ ] Run tests (blocked by network issues in current environment)
 
 ---
