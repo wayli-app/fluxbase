@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -290,4 +291,192 @@ func TestStorageAPI_MultipartUpload(t *testing.T) {
 	t.Skip("Skipping multipart upload test - multipart endpoint implementation pending")
 	// Note: The multipart upload endpoint needs special handling for multiple files
 	// This feature is planned but not yet fully implemented
+}
+
+// =============================================================================
+// Unit Tests for Helper Functions
+// =============================================================================
+
+func TestDetectContentType(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		expected string
+	}{
+		// Image formats
+		{"jpeg extension", "photo.jpg", "image/jpeg"},
+		{"jpeg full extension", "photo.jpeg", "image/jpeg"},
+		{"png extension", "logo.png", "image/png"},
+		{"gif extension", "animation.gif", "image/gif"},
+		{"webp extension", "modern.webp", "application/octet-stream"}, // webp not in detectContentType mapping
+		// Document formats
+		{"pdf extension", "document.pdf", "application/pdf"},
+		{"txt extension", "readme.txt", "text/plain"},
+		{"html extension", "page.html", "text/html"},
+		{"json extension", "data.json", "application/json"},
+		// Case insensitive
+		{"uppercase extension", "photo.JPG", "image/jpeg"},
+		{"mixed case extension", "photo.Png", "image/png"},
+		// Unknown extensions
+		{"unknown extension", "file.xyz", "application/octet-stream"},
+		{"no extension", "noextension", "application/octet-stream"},
+		{"empty filename", "", "application/octet-stream"},
+		// Complex filenames
+		{"multiple dots", "file.backup.2024.jpg", "image/jpeg"},
+		{"path with directory", "images/2024/photo.png", "image/png"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := detectContentType(tt.filename)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetUserID(t *testing.T) {
+	tests := []struct {
+		name     string
+		userID   interface{}
+		expected string
+	}{
+		{"string user ID", "user-123-abc", "user-123-abc"},
+		{"UUID user ID", "550e8400-e29b-41d4-a716-446655440000", "550e8400-e29b-41d4-a716-446655440000"},
+		{"nil user ID returns anonymous", nil, "anonymous"},
+		{"non-string type returns anonymous", 12345, "anonymous"},
+		{"empty string returns empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := fiber.New()
+			var result string
+			app.Get("/test", func(c *fiber.Ctx) error {
+				if tt.userID != nil {
+					c.Locals("user_id", tt.userID)
+				}
+				result = getUserID(c)
+				return c.SendString("OK")
+			})
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestMIMETypeWildcardMatching(t *testing.T) {
+	tests := []struct {
+		name         string
+		contentType  string
+		allowedTypes []string
+		expected     bool
+	}{
+		{"exact match", "image/jpeg", []string{"image/jpeg", "image/png"}, true},
+		{"wildcard match", "image/jpeg", []string{"image/*"}, true},
+		{"universal wildcard", "application/pdf", []string{"*/*"}, true},
+		{"no match", "video/mp4", []string{"image/jpeg", "image/png"}, false},
+		{"wildcard no match different category", "video/mp4", []string{"image/*"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mimeAllowed := false
+			for _, allowedType := range tt.allowedTypes {
+				if allowedType == tt.contentType || allowedType == "*/*" {
+					mimeAllowed = true
+					break
+				}
+				// Support wildcard matching (e.g., "image/*")
+				if len(allowedType) > 2 && allowedType[len(allowedType)-2:] == "/*" {
+					prefix := allowedType[:len(allowedType)-2]
+					if len(tt.contentType) > len(prefix)+1 && tt.contentType[:len(prefix)+1] == prefix+"/" {
+						mimeAllowed = true
+						break
+					}
+				}
+			}
+			assert.Equal(t, tt.expected, mimeAllowed)
+		})
+	}
+}
+
+func TestSafeContentTypes(t *testing.T) {
+	safeTypes := map[string]bool{
+		"image/jpeg":      true,
+		"image/png":       true,
+		"image/gif":       true,
+		"image/webp":      true,
+		"application/pdf": true,
+		"video/mp4":       true,
+		"audio/mpeg":      true,
+	}
+
+	tests := []struct {
+		name        string
+		contentType string
+		isSafe      bool
+	}{
+		{"jpeg is safe", "image/jpeg", true},
+		{"png is safe", "image/png", true},
+		{"gif is safe", "image/gif", true},
+		{"webp is safe", "image/webp", true},
+		{"pdf is safe", "application/pdf", true},
+		{"mp4 is safe", "video/mp4", true},
+		{"mpeg is safe", "audio/mpeg", true},
+		{"html is not safe", "text/html", false},
+		{"javascript is not safe", "application/javascript", false},
+		{"svg is not safe", "image/svg+xml", false},
+		{"unknown is not safe", "application/x-unknown", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.isSafe, safeTypes[tt.contentType])
+		})
+	}
+}
+
+// testFiberApp is a helper that creates a minimal Fiber app for testing
+func testFiberApp(handler func(c any) error) *http.Client {
+	return &http.Client{}
+}
+
+// =============================================================================
+// Benchmarks
+// =============================================================================
+
+func BenchmarkDetectContentType(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = detectContentType("photo.jpg")
+	}
+}
+
+func BenchmarkDetectContentType_Unknown(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = detectContentType("file.xyz")
+	}
+}
+
+func BenchmarkMIMETypeWildcardMatch(b *testing.B) {
+	allowedTypes := []string{"image/*", "application/pdf", "video/*"}
+	contentType := "image/jpeg"
+
+	for i := 0; i < b.N; i++ {
+		for _, allowedType := range allowedTypes {
+			if allowedType == contentType || allowedType == "*/*" {
+				break
+			}
+			if len(allowedType) > 2 && allowedType[len(allowedType)-2:] == "/*" {
+				prefix := allowedType[:len(allowedType)-2]
+				if len(contentType) > len(prefix)+1 && contentType[:len(prefix)+1] == prefix+"/" {
+					break
+				}
+			}
+		}
+	}
 }

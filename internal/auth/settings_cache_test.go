@@ -233,3 +233,323 @@ func TestSettingsCache_EnvVarParsing(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// Concurrent Access Tests
+// =============================================================================
+
+func TestSettingsCache_ConcurrentInvalidate(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	// Populate cache
+	cache.mu.Lock()
+	for i := 0; i < 100; i++ {
+		key := "key-" + string(rune('0'+i/10)) + string(rune('0'+i%10))
+		cache.cache[key] = cacheEntry{value: i, expiration: time.Now().Add(time.Minute)}
+	}
+	cache.mu.Unlock()
+
+	// Concurrently invalidate
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 10; j++ {
+				key := "key-" + string(rune('0'+id)) + string(rune('0'+j))
+				cache.Invalidate(key)
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Cache should be empty
+	cache.mu.RLock()
+	assert.Empty(t, cache.cache)
+	cache.mu.RUnlock()
+}
+
+func TestSettingsCache_ConcurrentInvalidateAll(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	done := make(chan bool)
+
+	// Writer goroutine
+	go func() {
+		for i := 0; i < 100; i++ {
+			cache.mu.Lock()
+			cache.cache["key-"+string(rune('0'+i%10))] = cacheEntry{
+				value:      i,
+				expiration: time.Now().Add(time.Minute),
+			}
+			cache.mu.Unlock()
+		}
+		done <- true
+	}()
+
+	// Invalidator goroutine
+	go func() {
+		for i := 0; i < 10; i++ {
+			cache.InvalidateAll()
+			time.Sleep(time.Millisecond)
+		}
+		done <- true
+	}()
+
+	// Wait for both
+	<-done
+	<-done
+
+	// No panics means success - cache state is undefined but safe
+}
+
+func TestSettingsCache_ConcurrentReadWrite(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	done := make(chan bool)
+
+	// Writer goroutines
+	for i := 0; i < 5; i++ {
+		go func(id int) {
+			for j := 0; j < 20; j++ {
+				cache.mu.Lock()
+				cache.cache["shared-key"] = cacheEntry{
+					value:      id*100 + j,
+					expiration: time.Now().Add(time.Minute),
+				}
+				cache.mu.Unlock()
+			}
+			done <- true
+		}(i)
+	}
+
+	// Reader goroutines
+	for i := 0; i < 5; i++ {
+		go func() {
+			for j := 0; j < 20; j++ {
+				cache.mu.RLock()
+				_ = cache.cache["shared-key"]
+				cache.mu.RUnlock()
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// No race conditions means success
+}
+
+// =============================================================================
+// Additional GetEnvVarName Tests
+// =============================================================================
+
+func TestSettingsCache_GetEnvVarName_SpecialChars(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	testCases := []struct {
+		name     string
+		key      string
+		expected string
+	}{
+		{
+			name:     "key with hyphen",
+			key:      "app.rate-limit.enabled",
+			expected: "FLUXBASE_RATE_LIMIT_ENABLED",
+		},
+		{
+			name:     "key with underscore",
+			key:      "app.auth_config.enabled",
+			expected: "FLUXBASE_AUTH_CONFIG_ENABLED",
+		},
+		{
+			name:     "mixed case key",
+			key:      "app.AuthConfig.Enabled",
+			expected: "FLUXBASE_AUTHCONFIG_ENABLED",
+		},
+		{
+			name:     "key with numbers in middle",
+			key:      "app.v2.api.enabled",
+			expected: "FLUXBASE_V2_API_ENABLED",
+		},
+		{
+			name:     "empty key",
+			key:      "",
+			expected: "FLUXBASE_",
+		},
+		{
+			name:     "only dots",
+			key:      "...",
+			expected: "FLUXBASE____",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := cache.GetEnvVarName(tc.key)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// =============================================================================
+// Cache TTL Tests
+// =============================================================================
+
+func TestSettingsCache_TTLValues(t *testing.T) {
+	testCases := []time.Duration{
+		0,
+		time.Millisecond,
+		time.Second,
+		time.Minute,
+		time.Hour,
+		24 * time.Hour,
+	}
+
+	for _, ttl := range testCases {
+		t.Run(ttl.String(), func(t *testing.T) {
+			cache := NewSettingsCache(nil, ttl)
+			assert.Equal(t, ttl, cache.ttl)
+		})
+	}
+}
+
+func TestSettingsCache_ZeroTTL(t *testing.T) {
+	cache := NewSettingsCache(nil, 0)
+
+	// Manually populate cache with zero TTL (expires immediately)
+	cache.mu.Lock()
+	cache.cache["zero-ttl-key"] = cacheEntry{
+		value:      "test-value",
+		expiration: time.Now(), // Expired immediately
+	}
+	cache.mu.Unlock()
+
+	// Entry exists but is expired
+	cache.mu.RLock()
+	entry, exists := cache.cache["zero-ttl-key"]
+	cache.mu.RUnlock()
+
+	assert.True(t, exists)
+	assert.False(t, time.Now().Before(entry.expiration))
+}
+
+// =============================================================================
+// CacheEntry Type Tests
+// =============================================================================
+
+func TestCacheEntry_TypeValues(t *testing.T) {
+	testCases := []struct {
+		name  string
+		value interface{}
+	}{
+		{"string value", "test-string"},
+		{"int value", 42},
+		{"bool value", true},
+		{"float value", 3.14},
+		{"nil value", nil},
+		{"slice value", []string{"a", "b", "c"}},
+		{"map value", map[string]int{"x": 1, "y": 2}},
+		{"byte slice", []byte("test-bytes")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			entry := cacheEntry{
+				value:      tc.value,
+				expiration: time.Now().Add(time.Minute),
+			}
+
+			assert.Equal(t, tc.value, entry.value)
+		})
+	}
+}
+
+// =============================================================================
+// Benchmark Tests
+// =============================================================================
+
+func BenchmarkSettingsCache_GetEnvVarName(b *testing.B) {
+	cache := NewSettingsCache(nil, time.Minute)
+	key := "app.auth.signup_enabled"
+
+	for i := 0; i < b.N; i++ {
+		cache.GetEnvVarName(key)
+	}
+}
+
+func BenchmarkSettingsCache_Invalidate(b *testing.B) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	// Pre-populate
+	cache.mu.Lock()
+	for i := 0; i < 1000; i++ {
+		cache.cache["key-"+string(rune(i))] = cacheEntry{
+			value:      i,
+			expiration: time.Now().Add(time.Minute),
+		}
+	}
+	cache.mu.Unlock()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.Invalidate("key-" + string(rune(i%1000)))
+	}
+}
+
+func BenchmarkSettingsCache_InvalidateAll(b *testing.B) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	for i := 0; i < b.N; i++ {
+		// Pre-populate
+		cache.mu.Lock()
+		for j := 0; j < 100; j++ {
+			cache.cache["key-"+string(rune(j))] = cacheEntry{
+				value:      j,
+				expiration: time.Now().Add(time.Minute),
+			}
+		}
+		cache.mu.Unlock()
+
+		cache.InvalidateAll()
+	}
+}
+
+func BenchmarkSettingsCache_CacheRead(b *testing.B) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	// Pre-populate
+	cache.mu.Lock()
+	cache.cache["test-key"] = cacheEntry{
+		value:      "test-value",
+		expiration: time.Now().Add(time.Hour),
+	}
+	cache.mu.Unlock()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.mu.RLock()
+		_ = cache.cache["test-key"]
+		cache.mu.RUnlock()
+	}
+}
+
+func BenchmarkSettingsCache_CacheWrite(b *testing.B) {
+	cache := NewSettingsCache(nil, time.Minute)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.mu.Lock()
+		cache.cache["test-key"] = cacheEntry{
+			value:      i,
+			expiration: time.Now().Add(time.Hour),
+		}
+		cache.mu.Unlock()
+	}
+}

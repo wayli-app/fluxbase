@@ -310,3 +310,331 @@ func TestCSRFConfig_CustomConfig(t *testing.T) {
 	assert.Equal(t, "Lax", cfg.CookieSameSite)
 	assert.Equal(t, 12*time.Hour, cfg.Expiration)
 }
+
+// =============================================================================
+// Additional Security Tests
+// =============================================================================
+
+func TestCSRF_RejectsMismatchedToken(t *testing.T) {
+	// Test that CSRF middleware rejects when cookie and header tokens don't match
+	storage := memory.New()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		TokenLength: 32,
+		TokenLookup: "header:X-CSRF-Token",
+		CookieName:  "csrf_token",
+		Storage:     storage,
+		Expiration:  time.Hour,
+	}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Store a valid token
+	validToken := "valid-token-123456789012345678901"
+	storage.Set(validToken, []byte("1"), time.Hour)
+
+	// Send a different token in header (cookie and header don't match)
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.Header.Set("Cookie", "csrf_token="+validToken)
+	req.Header.Set("X-CSRF-Token", "different-token")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 403, resp.StatusCode, "Should reject when cookie and header tokens don't match")
+}
+
+func TestCSRF_RejectsEmptyHeaderToken(t *testing.T) {
+	storage := memory.New()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		TokenLength: 32,
+		TokenLookup: "header:X-CSRF-Token",
+		CookieName:  "csrf_token",
+		Storage:     storage,
+		Expiration:  time.Hour,
+	}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	validToken := "valid-token-12345678901234567890"
+	storage.Set(validToken, []byte("1"), time.Hour)
+
+	// Request with cookie but empty header token
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.Header.Set("Cookie", "csrf_token="+validToken)
+	req.Header.Set("X-CSRF-Token", "")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 403, resp.StatusCode)
+}
+
+func TestCSRF_FormTokenLookup(t *testing.T) {
+	storage := memory.New()
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		TokenLength: 32,
+		TokenLookup: "form:_csrf",
+		CookieName:  "csrf_token",
+		Storage:     storage,
+		Expiration:  time.Hour,
+	}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	validToken := "valid-token-form-12345678901234567890"
+	storage.Set(validToken, []byte("1"), time.Hour)
+
+	// Request with form data
+	req := httptest.NewRequest("POST", "/test", strings.NewReader("_csrf="+validToken))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Cookie", "csrf_token="+validToken)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestCSRF_PreventsAttackWithoutToken(t *testing.T) {
+	app := fiber.New()
+	app.Use(CSRF())
+
+	handlerCalled := false
+	app.Post("/api/transfer", func(c *fiber.Ctx) error {
+		handlerCalled = true
+		return c.SendString("Transfer completed")
+	})
+
+	// Attacker tries to submit without CSRF token
+	req := httptest.NewRequest("POST", "/api/transfer", strings.NewReader("amount=1000&to=attacker"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 403, resp.StatusCode)
+	assert.False(t, handlerCalled, "Handler should not be called without CSRF token")
+}
+
+func TestCSRF_ShortAuthorizationHeader(t *testing.T) {
+	app := fiber.New()
+	app.Use(CSRF())
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Authorization header too short to be "Bearer X"
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.Header.Set("Authorization", "Bear")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	// Should reject because it's not a valid Bearer token
+	assert.Equal(t, 403, resp.StatusCode)
+}
+
+func TestCSRF_DefaultStorageInitialized(t *testing.T) {
+	// Test that CSRF middleware with no config initializes storage properly
+	app := fiber.New()
+	app.Use(CSRF())
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Should not panic
+	req := httptest.NewRequest("GET", "/test", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestCSRF_NilStorageInitialized(t *testing.T) {
+	// Test that nil storage in config gets initialized
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		TokenLength: 32,
+		Storage:     nil, // Explicitly nil
+	}))
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// Should not panic
+	req := httptest.NewRequest("GET", "/test", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+// =============================================================================
+// Token Generation Edge Cases
+// =============================================================================
+
+func TestGenerateCSRFToken_VariousLengths(t *testing.T) {
+	lengths := []int{8, 16, 32, 64, 128, 256}
+
+	for _, length := range lengths {
+		t.Run("length_"+string(rune('0'+length/10))+string(rune('0'+length%10)), func(t *testing.T) {
+			token, err := generateCSRFToken(length)
+			require.NoError(t, err)
+			assert.NotEmpty(t, token)
+		})
+	}
+}
+
+func TestGenerateCSRFToken_ZeroLength(t *testing.T) {
+	token, err := generateCSRFToken(0)
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+func TestGenerateCSRFToken_URLSafeCharacters(t *testing.T) {
+	token, err := generateCSRFToken(32)
+	require.NoError(t, err)
+
+	// URL-safe base64 should only contain: A-Z, a-z, 0-9, -, _, =
+	for _, char := range token {
+		valid := (char >= 'A' && char <= 'Z') ||
+			(char >= 'a' && char <= 'z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' || char == '='
+		assert.True(t, valid, "Invalid character in token: %c", char)
+	}
+}
+
+// =============================================================================
+// Public Auth Endpoint Edge Cases
+// =============================================================================
+
+func TestIsPublicAuthEndpoint_OAuthPaths(t *testing.T) {
+	oauthPaths := []string{
+		"/api/v1/auth/oauth/google",
+		"/api/v1/auth/oauth/github",
+		"/api/v1/auth/oauth/facebook",
+		"/api/v1/auth/oauth/microsoft",
+		"/api/v1/auth/oauth/apple",
+	}
+
+	for _, path := range oauthPaths {
+		t.Run(path, func(t *testing.T) {
+			assert.True(t, isPublicAuthEndpoint(path), "OAuth path should be public: %s", path)
+		})
+	}
+}
+
+func TestIsPublicAuthEndpoint_AllPublicPaths(t *testing.T) {
+	publicPaths := []string{
+		"/api/v1/auth/signup",
+		"/api/v1/auth/signin",
+		"/api/v1/auth/signout",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/password/reset",
+		"/api/v1/auth/password/reset/confirm",
+		"/api/v1/auth/password/reset/verify",
+		"/api/v1/auth/magic-link",
+		"/api/v1/auth/magic-link/verify",
+		"/api/v1/auth/magiclink",
+		"/api/v1/auth/magiclink/verify",
+		"/api/v1/auth/verify-email",
+		"/api/v1/auth/oauth",
+		"/api/v1/auth/2fa/verify",
+		"/api/v1/admin/setup",
+		"/api/v1/admin/setup/status",
+		"/api/v1/admin/login",
+		"/api/v1/admin/login/2fa",
+		"/api/v1/admin/2fa/verify",
+		"/api/v1/admin/refresh",
+		"/dashboard/auth/signup",
+		"/dashboard/auth/login",
+		"/dashboard/auth/2fa/verify",
+	}
+
+	for _, path := range publicPaths {
+		t.Run(path, func(t *testing.T) {
+			assert.True(t, isPublicAuthEndpoint(path), "Should be public: %s", path)
+		})
+	}
+}
+
+// =============================================================================
+// Benchmark Tests
+// =============================================================================
+
+func BenchmarkGenerateCSRFToken(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = generateCSRFToken(32)
+	}
+}
+
+func BenchmarkIsPublicAuthEndpoint_Public(b *testing.B) {
+	path := "/api/v1/auth/signin"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = isPublicAuthEndpoint(path)
+	}
+}
+
+func BenchmarkIsPublicAuthEndpoint_Private(b *testing.B) {
+	path := "/api/v1/users/data"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = isPublicAuthEndpoint(path)
+	}
+}
+
+func BenchmarkCSRF_SafeMethod(b *testing.B) {
+	app := fiber.New()
+	app.Use(CSRF())
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/test", nil)
+		_, _ = app.Test(req)
+	}
+}
+
+func BenchmarkCSRF_BearerSkip(b *testing.B) {
+	app := fiber.New()
+	app.Use(CSRF())
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/test", nil)
+		req.Header.Set("Authorization", "Bearer token_value")
+		_, _ = app.Test(req)
+	}
+}
+
+func BenchmarkCSRF_ValidToken(b *testing.B) {
+	storage := memory.New()
+	token := "benchmark-token-12345678901234567890"
+	_ = storage.Set(token, []byte("1"), 24*time.Hour)
+
+	app := fiber.New()
+	app.Use(CSRF(CSRFConfig{
+		TokenLength: 32,
+		TokenLookup: "header:X-CSRF-Token",
+		CookieName:  "csrf_token",
+		Storage:     storage,
+		Expiration:  time.Hour,
+	}))
+	app.Post("/test", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/test", nil)
+		req.Header.Set("Cookie", "csrf_token="+token)
+		req.Header.Set("X-CSRF-Token", token)
+		_, _ = app.Test(req)
+	}
+}
