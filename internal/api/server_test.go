@@ -127,58 +127,58 @@ func TestNormalizePaginationParams_DifferentDefaults(t *testing.T) {
 
 func TestCustomErrorHandler(t *testing.T) {
 	tests := []struct {
-		name           string
-		err            error
-		expectedCode   int
-		expectedError  string
+		name          string
+		err           error
+		expectedCode  int
+		expectedError string
 	}{
 		{
-			name:           "generic error returns 500",
-			err:            errors.New("something went wrong"),
-			expectedCode:   500,
-			expectedError:  "Internal Server Error",
+			name:          "generic error returns 500",
+			err:           errors.New("something went wrong"),
+			expectedCode:  500,
+			expectedError: "Internal Server Error",
 		},
 		{
-			name:           "fiber 400 error",
-			err:            fiber.NewError(fiber.StatusBadRequest, "Invalid request"),
-			expectedCode:   400,
-			expectedError:  "Invalid request",
+			name:          "fiber 400 error",
+			err:           fiber.NewError(fiber.StatusBadRequest, "Invalid request"),
+			expectedCode:  400,
+			expectedError: "Invalid request",
 		},
 		{
-			name:           "fiber 401 error",
-			err:            fiber.NewError(fiber.StatusUnauthorized, "Unauthorized"),
-			expectedCode:   401,
-			expectedError:  "Unauthorized",
+			name:          "fiber 401 error",
+			err:           fiber.NewError(fiber.StatusUnauthorized, "Unauthorized"),
+			expectedCode:  401,
+			expectedError: "Unauthorized",
 		},
 		{
-			name:           "fiber 403 error",
-			err:            fiber.NewError(fiber.StatusForbidden, "Forbidden"),
-			expectedCode:   403,
-			expectedError:  "Forbidden",
+			name:          "fiber 403 error",
+			err:           fiber.NewError(fiber.StatusForbidden, "Forbidden"),
+			expectedCode:  403,
+			expectedError: "Forbidden",
 		},
 		{
-			name:           "fiber 404 error",
-			err:            fiber.NewError(fiber.StatusNotFound, "Not found"),
-			expectedCode:   404,
-			expectedError:  "Not found",
+			name:          "fiber 404 error",
+			err:           fiber.NewError(fiber.StatusNotFound, "Not found"),
+			expectedCode:  404,
+			expectedError: "Not found",
 		},
 		{
-			name:           "fiber 429 error",
-			err:            fiber.NewError(fiber.StatusTooManyRequests, "Rate limit exceeded"),
-			expectedCode:   429,
-			expectedError:  "Rate limit exceeded",
+			name:          "fiber 429 error",
+			err:           fiber.NewError(fiber.StatusTooManyRequests, "Rate limit exceeded"),
+			expectedCode:  429,
+			expectedError: "Rate limit exceeded",
 		},
 		{
-			name:           "fiber 502 error",
-			err:            fiber.NewError(fiber.StatusBadGateway, "Bad gateway"),
-			expectedCode:   502,
-			expectedError:  "Bad gateway",
+			name:          "fiber 502 error",
+			err:           fiber.NewError(fiber.StatusBadGateway, "Bad gateway"),
+			expectedCode:  502,
+			expectedError: "Bad gateway",
 		},
 		{
-			name:           "fiber 503 error",
-			err:            fiber.NewError(fiber.StatusServiceUnavailable, "Service unavailable"),
-			expectedCode:   503,
-			expectedError:  "Service unavailable",
+			name:          "fiber 503 error",
+			err:           fiber.NewError(fiber.StatusServiceUnavailable, "Service unavailable"),
+			expectedCode:  503,
+			expectedError: "Service unavailable",
 		},
 	}
 
@@ -216,9 +216,9 @@ func TestCustomErrorHandler(t *testing.T) {
 
 func TestAdminRoleChecking(t *testing.T) {
 	tests := []struct {
-		name       string
-		role       string
-		isAdmin    bool
+		name    string
+		role    string
+		isAdmin bool
 	}{
 		{"admin role", "admin", true},
 		{"dashboard_admin role", "dashboard_admin", true},

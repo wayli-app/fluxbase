@@ -45,9 +45,9 @@ func TestDefaultStructuredLoggerConfig(t *testing.T) {
 
 func TestRedactQueryString(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected []string // Expected substrings that should be in output
+		name        string
+		input       string
+		expected    []string // Expected substrings that should be in output
 		notExpected []string // Substrings that should NOT be in output
 	}{
 		{

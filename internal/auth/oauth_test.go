@@ -244,9 +244,9 @@ func TestOAuthManager_GetEndpoint_URLs(t *testing.T) {
 	manager := NewOAuthManager()
 
 	tests := []struct {
-		provider    OAuthProvider
-		authURL     string
-		tokenURL    string
+		provider OAuthProvider
+		authURL  string
+		tokenURL string
 	}{
 		{
 			ProviderMicrosoft,

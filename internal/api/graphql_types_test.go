@@ -69,10 +69,10 @@ func TestDateTimeScalar_Serialize(t *testing.T) {
 
 func TestDateTimeScalar_ParseValue(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       interface{}
-		expectTime  bool
-		expectNil   bool
+		name       string
+		input      interface{}
+		expectTime bool
+		expectNil  bool
 	}{
 		{
 			name:       "valid RFC3339 string",
@@ -116,10 +116,10 @@ func TestDateTimeScalar_ParseValue(t *testing.T) {
 
 func TestDateTimeScalar_ParseLiteral(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       ast.Value
-		expectTime  bool
-		expectNil   bool
+		name       string
+		input      ast.Value
+		expectTime bool
+		expectNil  bool
 	}{
 		{
 			name:       "valid string literal",

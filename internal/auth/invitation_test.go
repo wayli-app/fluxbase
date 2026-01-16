@@ -434,10 +434,10 @@ func TestListInvitations_FilterLogic(t *testing.T) {
 
 	// Sample invitations for testing filter logic
 	invitations := []InvitationToken{
-		{ID: uuid.New(), Accepted: false, ExpiresAt: future},  // Active
-		{ID: uuid.New(), Accepted: true, ExpiresAt: future},   // Accepted, not expired
-		{ID: uuid.New(), Accepted: false, ExpiresAt: past},    // Not accepted, expired
-		{ID: uuid.New(), Accepted: true, ExpiresAt: past},     // Accepted and expired
+		{ID: uuid.New(), Accepted: false, ExpiresAt: future}, // Active
+		{ID: uuid.New(), Accepted: true, ExpiresAt: future},  // Accepted, not expired
+		{ID: uuid.New(), Accepted: false, ExpiresAt: past},   // Not accepted, expired
+		{ID: uuid.New(), Accepted: true, ExpiresAt: past},    // Accepted and expired
 	}
 
 	t.Run("filter active only", func(t *testing.T) {

@@ -162,7 +162,7 @@ func TestSplitTableName_EdgeCases(t *testing.T) {
 		expected []string
 	}{
 		{"empty string", "", []string{""}},
-		{"dot at start", ".table", []string{".table"}}, // dotIndex=0, not > 0, so returns whole string
+		{"dot at start", ".table", []string{".table"}},   // dotIndex=0, not > 0, so returns whole string
 		{"multiple dots", "a.b.c", []string{"a", "b.c"}}, // Only splits on first dot
 	}
 

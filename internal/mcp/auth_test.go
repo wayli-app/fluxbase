@@ -12,10 +12,10 @@ import (
 
 func TestAuthContext_HasScope(t *testing.T) {
 	tests := []struct {
-		name          string
-		ctx           *AuthContext
-		scope         string
-		expectedHas   bool
+		name        string
+		ctx         *AuthContext
+		scope       string
+		expectedHas bool
 	}{
 		{
 			name: "service role has all scopes",
@@ -257,7 +257,7 @@ func TestAuthContext_IsAuthenticated(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "not authenticated - empty context",
+			name:     "not authenticated - empty context",
 			ctx:      &AuthContext{},
 			expected: false,
 		},
@@ -367,10 +367,10 @@ func TestAuthContext_GetMetadataStringSlice(t *testing.T) {
 
 func TestAuthContext_HasNamespaceAccess(t *testing.T) {
 	tests := []struct {
-		name       string
-		ctx        *AuthContext
-		namespace  string
-		expected   bool
+		name      string
+		ctx       *AuthContext
+		namespace string
+		expected  bool
 	}{
 		{
 			name: "service role bypasses all checks",
