@@ -478,7 +478,7 @@ func TestBuildReturningClause(t *testing.T) {
 // quoteIdentifier Tests
 // =============================================================================
 
-func TestQuoteIdentifier(t *testing.T) {
+func TestQuoteIdentifier_CRUD(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -538,7 +538,7 @@ func TestQuoteIdentifier(t *testing.T) {
 // isValidIdentifier Tests
 // =============================================================================
 
-func TestIsValidIdentifier(t *testing.T) {
+func TestIsValidIdentifier_CRUD(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string

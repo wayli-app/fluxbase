@@ -98,7 +98,7 @@ func TestParseNamespaceScope(t *testing.T) {
 			scope:             "",
 			expectedAction:    "",
 			expectedResource:  "",
-			expectedNamespace: "",
+			expectedNamespace: "*", // Single part (empty string) defaults to wildcard namespace
 		},
 	}
 

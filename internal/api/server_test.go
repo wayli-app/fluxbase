@@ -239,20 +239,6 @@ func TestAdminRoleChecking(t *testing.T) {
 
 // Test the role checking in a Fiber context
 func TestAdminRoleCheckingInFiberContext(t *testing.T) {
-	createApp := func() *fiber.App {
-		app := fiber.New()
-		app.Get("/admin-only", func(c *fiber.Ctx) error {
-			role, _ := c.Locals("user_role").(string)
-			if role != "admin" && role != "dashboard_admin" && role != "service_role" {
-				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "Admin access required",
-				})
-			}
-			return c.JSON(fiber.Map{"message": "success"})
-		})
-		return app
-	}
-
 	tests := []struct {
 		name           string
 		role           interface{}

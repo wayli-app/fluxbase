@@ -571,7 +571,7 @@ func TestValidateGroupMembership_RequiredGroupsAll(t *testing.T) {
 	}
 }
 
-func TestValidateGroupMembership_CombinedRules(t *testing.T) {
+func TestValidateGroupMembership_CombinedRules_Extended(t *testing.T) {
 	provider := &SAMLProvider{
 		RequiredGroups:    []string{"editors", "admins"},
 		RequiredGroupsAll: []string{"verified"},

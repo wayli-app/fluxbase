@@ -225,10 +225,9 @@ func TestBranchContext_NoRouter(t *testing.T) {
 			Router: nil,
 		}
 
-		var branchSlug string
 		app.Use(BranchContext(config))
 		app.Get("/test", func(c *fiber.Ctx) error {
-			branchSlug = GetBranchSlug(c)
+			_ = GetBranchSlug(c)
 			return c.SendString("OK")
 		})
 
@@ -271,14 +270,13 @@ func TestBranchContext_NoRouter(t *testing.T) {
 			Router: nil,
 		}
 
-		var capturedSlug string
 		app.Use(func(c *fiber.Ctx) error {
 			// Capture before middleware
 			return c.Next()
 		})
 		app.Use(BranchContext(config))
 		app.Get("/test", func(c *fiber.Ctx) error {
-			capturedSlug = GetBranchSlug(c)
+			_ = GetBranchSlug(c)
 			return c.SendString("OK")
 		})
 

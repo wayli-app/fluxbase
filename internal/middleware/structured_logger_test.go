@@ -305,8 +305,6 @@ func TestNewAuditLogger(t *testing.T) {
 }
 
 func TestAuditLogger_LogAuth(t *testing.T) {
-	app := fiber.New()
-
 	tests := []struct {
 		name    string
 		event   string
@@ -346,6 +344,9 @@ func TestAuditLogger_LogAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a fresh Fiber app for each test to avoid route stacking
+			app := fiber.New()
+
 			var buf bytes.Buffer
 			logger := zerolog.New(&buf)
 			auditLogger := NewAuditLogger(logger)

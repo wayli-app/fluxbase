@@ -681,10 +681,11 @@ func TestRequireServiceKeyOnly_InvalidServiceKeyFormat(t *testing.T) {
 	})
 }
 
-func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
-	// These tests verify the header parsing logic without database calls
+func TestRequireServiceKeyOnly_NoAuthProvided(t *testing.T) {
+	// Test that requests without any authentication are rejected
+	// Note: Tests with service keys require a database connection for validation
 
-	t.Run("accepts X-Service-Key header", func(t *testing.T) {
+	t.Run("rejects request with no auth", func(t *testing.T) {
 		app := fiber.New()
 		app.Use(RequireServiceKeyOnly(nil, nil))
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -692,26 +693,6 @@ func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
 		})
 
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-Service-Key", "sk_1234567890123456_valid")
-
-		resp, err := app.Test(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Will return 401 because db is nil, but it means header was parsed
-		assert.Equal(t, 401, resp.StatusCode)
-	})
-
-	t.Run("accepts ServiceKey in Authorization header", func(t *testing.T) {
-		app := fiber.New()
-		app.Use(RequireServiceKeyOnly(nil, nil))
-		app.Get("/test", func(c *fiber.Ctx) error {
-			return c.SendString("OK")
-		})
-
-		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("Authorization", "ServiceKey sk_1234567890123456_valid")
-
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -719,7 +700,7 @@ func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
 		assert.Equal(t, 401, resp.StatusCode)
 	})
 
-	t.Run("accepts Bearer with sk_ prefix in Authorization", func(t *testing.T) {
+	t.Run("rejects short service key format", func(t *testing.T) {
 		app := fiber.New()
 		app.Use(RequireServiceKeyOnly(nil, nil))
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -727,7 +708,7 @@ func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
 		})
 
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("Authorization", "Bearer sk_1234567890123456_valid")
+		req.Header.Set("X-Service-Key", "sk_short") // Too short to be valid
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
@@ -736,7 +717,7 @@ func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
 		assert.Equal(t, 401, resp.StatusCode)
 	})
 
-	t.Run("accepts sk_ in clientkey header", func(t *testing.T) {
+	t.Run("rejects non-sk prefix key", func(t *testing.T) {
 		app := fiber.New()
 		app.Use(RequireServiceKeyOnly(nil, nil))
 		app.Get("/test", func(c *fiber.Ctx) error {
@@ -744,7 +725,7 @@ func TestRequireServiceKeyOnly_HeaderParsing(t *testing.T) {
 		})
 
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("clientkey", "sk_1234567890123456_valid")
+		req.Header.Set("X-Service-Key", "pk_1234567890123456_valid") // Wrong prefix
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)

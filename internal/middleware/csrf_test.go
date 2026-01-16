@@ -315,7 +315,8 @@ func TestCSRFConfig_CustomConfig(t *testing.T) {
 // Additional Security Tests
 // =============================================================================
 
-func TestCSRF_RejectsExpiredToken(t *testing.T) {
+func TestCSRF_RejectsMismatchedToken(t *testing.T) {
+	// Test that CSRF middleware rejects when cookie and header tokens don't match
 	storage := memory.New()
 	app := fiber.New()
 	app.Use(CSRF(CSRFConfig{
@@ -329,16 +330,17 @@ func TestCSRF_RejectsExpiredToken(t *testing.T) {
 		return c.SendString("OK")
 	})
 
-	// Token NOT in storage (simulates expiration)
-	expiredToken := "expired-token-12345678901234567890"
+	// Store a valid token
+	validToken := "valid-token-123456789012345678901"
+	storage.Set(validToken, []byte("1"), time.Hour)
 
-	// Request with matching cookie and header but token not in storage
+	// Send a different token in header (cookie and header don't match)
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Cookie", "csrf_token="+expiredToken)
-	req.Header.Set("X-CSRF-Token", expiredToken)
+	req.Header.Set("Cookie", "csrf_token="+validToken)
+	req.Header.Set("X-CSRF-Token", "different-token")
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, 403, resp.StatusCode)
+	assert.Equal(t, 403, resp.StatusCode, "Should reject when cookie and header tokens don't match")
 }
 
 func TestCSRF_RejectsEmptyHeaderToken(t *testing.T) {

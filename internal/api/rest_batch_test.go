@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ import (
 func TestMakeBatchPatchHandler_InvalidBody(t *testing.T) {
 	app := fiber.New()
 	handler := &RESTHandler{
-		parser: NewQueryParser(),
+		parser: NewQueryParser(&config.Config{}),
 	}
 
 	table := database.TableInfo{
@@ -98,7 +99,7 @@ func TestMakeBatchPatchHandler_InvalidBody(t *testing.T) {
 func TestMakeBatchDeleteHandler_Validation(t *testing.T) {
 	app := fiber.New()
 	handler := &RESTHandler{
-		parser: NewQueryParser(),
+		parser: NewQueryParser(&config.Config{}),
 	}
 
 	table := database.TableInfo{
@@ -279,44 +280,9 @@ func TestBatchInsert_UpsertWithUnknownConflictColumn(t *testing.T) {
 // GeoJSON Handling Tests
 // =============================================================================
 
-func TestBatchInsert_InvalidGeoJSON(t *testing.T) {
-	app := fiber.New()
-	handler := &RESTHandler{}
-
-	table := database.TableInfo{
-		Schema:     "public",
-		Name:       "places",
-		PrimaryKey: []string{"id"},
-		Columns: []database.ColumnInfo{
-			{Name: "id", DataType: "uuid"},
-			{Name: "location", DataType: "geometry"},
-		},
-	}
-
-	app.Post("/places", func(c *fiber.Ctx) error {
-		// Create data with GeoJSON that would fail marshaling
-		// In practice, GeoJSON from user input is already a map, so this tests edge cases
-		data := []map[string]interface{}{
-			{
-				"id": "123",
-				"location": map[string]interface{}{
-					"type":        "Point",
-					"coordinates": []float64{0, 0},
-				},
-			},
-		}
-		return handler.batchInsert(c.Context(), c, table, data, false, false, false, "")
-	})
-
-	req := httptest.NewRequest("POST", "/places", nil)
-
-	resp, err := app.Test(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	// Will fail at database level, not validation
-	// GeoJSON marshaling should succeed
-}
+// NOTE: TestBatchInsert_InvalidGeoJSON was removed because it passes valid data
+// and proceeds to database execution, which requires a database connection.
+// GeoJSON handling should be tested via integration tests.
 
 // =============================================================================
 // Batch Operation Behavior Tests

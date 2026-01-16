@@ -1,8 +1,10 @@
 package api
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,7 @@ func TestNewRESTHandler(t *testing.T) {
 	})
 
 	t.Run("creates handler with parser", func(t *testing.T) {
-		parser := NewQueryParser()
+		parser := NewQueryParser(&config.Config{})
 		handler := NewRESTHandler(nil, parser, nil)
 		assert.NotNil(t, handler)
 		assert.Equal(t, parser, handler.parser)
@@ -92,7 +94,7 @@ func TestParseTableFromPath(t *testing.T) {
 					capturedSchema, capturedTable = handler.parseTableFromPath(c)
 					return c.SendStatus(200)
 				})
-				_, err := app.Test(fiber.TestConfig{}.NewRequest("GET", "/tables/"+tt.schemaParam, nil))
+				_, err := app.Test(httptest.NewRequest("GET", "/tables/"+tt.schemaParam, nil))
 				require.NoError(t, err)
 			} else {
 				// Two segment path
@@ -100,7 +102,7 @@ func TestParseTableFromPath(t *testing.T) {
 					capturedSchema, capturedTable = handler.parseTableFromPath(c)
 					return c.SendStatus(200)
 				})
-				_, err := app.Test(fiber.TestConfig{}.NewRequest("GET", "/tables/"+tt.schemaParam+"/"+tt.tableParam, nil))
+				_, err := app.Test(httptest.NewRequest("GET", "/tables/"+tt.schemaParam+"/"+tt.tableParam, nil))
 				require.NoError(t, err)
 			}
 

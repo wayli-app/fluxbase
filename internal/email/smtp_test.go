@@ -171,7 +171,7 @@ func TestSMTPService_TemplateRendering_Fallback(t *testing.T) {
 	// The fallback code is already tested indirectly through the rendering tests
 }
 
-func TestNewService(t *testing.T) {
+func TestNewService_SMTP(t *testing.T) {
 	tests := []struct {
 		name      string
 		cfg       *config.EmailConfig
@@ -280,7 +280,7 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestNoOpService(t *testing.T) {
+func TestNoOpService_SMTP(t *testing.T) {
 	service := NewNoOpService("email is disabled")
 	ctx := context.Background()
 

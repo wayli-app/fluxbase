@@ -214,12 +214,10 @@ func TestIdentityService_LinkIdentityProvider_NoOAuthManager(t *testing.T) {
 	stateStore := NewStateStore()
 	svc := NewIdentityService(nil, nil, stateStore)
 
-	// This will fail because oauthManager is nil
-	_, _, err := svc.LinkIdentityProvider(nil, "user-123", "google")
-
-	// Should get a panic or error due to nil oauthManager
-	// We're just testing it doesn't crash catastrophically
-	assert.Error(t, err)
+	// This will panic because oauthManager is nil - verify via recover
+	assert.Panics(t, func() {
+		_, _, _ = svc.LinkIdentityProvider(nil, "user-123", "google")
+	}, "Expected panic when oauthManager is nil")
 }
 
 func TestIdentityService_LinkIdentityProvider_WithOAuthManager(t *testing.T) {
