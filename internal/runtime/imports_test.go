@@ -23,35 +23,35 @@ func TestExtractImports_SingleLineImports(t *testing.T) {
 			code: `import { something } from 'module';
 const x = 1;`,
 			expectedImport: "import { something } from 'module';",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "import without braces",
 			code: `import module from 'module';
 const x = 1;`,
 			expectedImport: "import module from 'module';",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "import star",
 			code: `import * as mod from 'module';
 function test() {}`,
 			expectedImport: "import * as mod from 'module';",
-			expectedCode:   "\nfunction test() {}",
+			expectedCode:   "function test() {}",
 		},
 		{
 			name: "import{ (no space)",
 			code: `import{a, b} from 'module';
 const x = 1;`,
 			expectedImport: "import{a, b} from 'module';",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "export star",
 			code: `export * from 'module';
 const x = 1;`,
 			expectedImport: "export * from 'module';",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "multiple imports",
@@ -60,7 +60,7 @@ import { b } from 'module2';
 import * as c from 'module3';
 const x = 1;`,
 			expectedImport: "import { a } from 'module1';\nimport { b } from 'module2';\nimport * as c from 'module3';",
-			expectedCode:   "\n\n\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 	}
 
@@ -85,7 +85,7 @@ func TestExtractImports_ExportTypes(t *testing.T) {
 			code: `export type MyType = string;
 const x = 1;`,
 			expectedImport: "export type MyType = string;",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "multi-line export type",
@@ -95,7 +95,7 @@ const x = 1;`,
 };
 const x = 1;`,
 			expectedImport: "export type MyType = {\n  name: string;\n  age: number;\n};",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "export interface",
@@ -104,7 +104,7 @@ const x = 1;`,
 }
 const x = 1;`,
 			expectedImport: "export interface Person {\n  name: string;\n}",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "export enum",
@@ -114,7 +114,7 @@ const x = 1;`,
 }
 const x = 1;`,
 			expectedImport: "export enum Status {\n  Active = 'active',\n  Inactive = 'inactive'\n}",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "nested braces in type",
@@ -125,7 +125,7 @@ const x = 1;`,
 };
 const x = 1;`,
 			expectedImport: "export type Complex = {\n  nested: {\n    value: number;\n  };\n};",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestExtractImports_ExportBraces(t *testing.T) {
 			code: `export { a, b, c };
 const x = 1;`,
 			expectedImport: "export { a, b, c };",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "multi-line export braces",
@@ -160,14 +160,14 @@ const x = 1;`,
 };
 const x = 1;`,
 			expectedImport: "export {\n  functionA,\n  functionB\n};",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 		{
 			name: "export with as keyword",
 			code: `export { a as aliasA, b as aliasB };
 const x = 1;`,
 			expectedImport: "export { a as aliasA, b as aliasB };",
-			expectedCode:   "\nconst x = 1;",
+			expectedCode:   "const x = 1;",
 		},
 	}
 

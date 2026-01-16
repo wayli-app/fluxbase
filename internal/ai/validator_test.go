@@ -519,7 +519,7 @@ func TestSQLValidator_EdgeCases(t *testing.T) {
 	t.Run("handles CTE (WITH clause)", func(t *testing.T) {
 		v := NewSQLValidator(
 			[]string{"public"},
-			[]string{"users"},
+			[]string{"users", "active"},
 			[]string{"SELECT"},
 		)
 

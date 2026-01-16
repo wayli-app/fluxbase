@@ -682,9 +682,21 @@ func (si *SchemaInspector) BuildRESTPath(table TableInfo) string {
 	// Convert table name to plural form (simple pluralization)
 	tableName := table.Name
 	if !strings.HasSuffix(tableName, "s") {
-		if strings.HasSuffix(tableName, "y") {
-			tableName = strings.TrimSuffix(tableName, "y") + "ies"
-		} else {
+		switch {
+		case strings.HasSuffix(tableName, "x"),
+			strings.HasSuffix(tableName, "ch"),
+			strings.HasSuffix(tableName, "sh"):
+			// box -> boxes, match -> matches, dish -> dishes
+			tableName += "es"
+		case strings.HasSuffix(tableName, "y") && len(tableName) >= 2:
+			// Check if preceded by consonant (y -> ies) or vowel (y -> ys)
+			beforeY := tableName[len(tableName)-2]
+			if beforeY == 'a' || beforeY == 'e' || beforeY == 'i' || beforeY == 'o' || beforeY == 'u' {
+				tableName += "s" // vowel + y: key -> keys, day -> days
+			} else {
+				tableName = strings.TrimSuffix(tableName, "y") + "ies" // consonant + y: story -> stories
+			}
+		default:
 			tableName += "s"
 		}
 	}

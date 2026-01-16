@@ -2,11 +2,11 @@
 
 ## Current Status
 
-| Metric | Start | Current | Target |
-|--------|-------|---------|--------|
-| **Overall Coverage** | 11.1% | 11.1% | 80% |
-| **Phase** | - | Phase 1 | Phase 6 |
-| **Zero-Coverage Files** | 156 | 156 | 0 |
+| Metric                  | Start | Current | Target  |
+| ----------------------- | ----- | ------- | ------- |
+| **Overall Coverage**    | 11.1% | 11.1%   | 80%     |
+| **Phase**               | -     | Phase 1 | Phase 6 |
+| **Zero-Coverage Files** | 156   | 156     | 0       |
 
 **Last Updated**: 2026-01-14
 
@@ -18,44 +18,44 @@
 
 ### auth/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `service.go` | 0% | ~40%* | 90% | 🔄 In Progress |
-| `session.go` | 0% | ~60%* | 90% | 🔄 In Progress |
-| `user.go` | 0% | ~50%* | 90% | 🔄 In Progress |
-| `user_management.go` | 0% | ~30%* | 90% | 🔄 In Progress |
-| `dashboard.go` | 0% | ~35%* | 90% | 🔄 In Progress |
-| `oauth.go` | 0% | ~70%* | 85% | 🔄 In Progress |
-| `otp.go` | 0% | ~60%* | 85% | 🔄 In Progress |
-| `invitation.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `impersonation.go` | 1.6% | ~40%* | 90% | 🔄 In Progress |
-| `identity.go` | 1.9% | ~50%* | 85% | 🔄 In Progress |
-| `clientkey.go` | 2.4% | ~50%* | 85% | 🔄 In Progress |
-| `saml.go` | 13.7% | ~45%* | 80% | 🔄 In Progress |
-| `settings_cache.go` | 19.2% | ~50%* | 80% | 🔄 In Progress |
-| `namespace_scopes.go` | 0% | ~95%* | 90% | ✅ Done |
-| `captcha.go` | 0% | ~80%* | 85% | ✅ Done |
+| File                  | Start | Current | Target | Status         |
+| --------------------- | ----- | ------- | ------ | -------------- |
+| `service.go`          | 0%    | ~40%\*  | 90%    | 🔄 In Progress |
+| `session.go`          | 0%    | ~60%\*  | 90%    | 🔄 In Progress |
+| `user.go`             | 0%    | ~50%\*  | 90%    | 🔄 In Progress |
+| `user_management.go`  | 0%    | ~30%\*  | 90%    | 🔄 In Progress |
+| `dashboard.go`        | 0%    | ~35%\*  | 90%    | 🔄 In Progress |
+| `oauth.go`            | 0%    | ~70%\*  | 85%    | 🔄 In Progress |
+| `otp.go`              | 0%    | ~60%\*  | 85%    | 🔄 In Progress |
+| `invitation.go`       | 0%    | ~60%\*  | 80%    | 🔄 In Progress |
+| `impersonation.go`    | 1.6%  | ~40%\*  | 90%    | 🔄 In Progress |
+| `identity.go`         | 1.9%  | ~50%\*  | 85%    | 🔄 In Progress |
+| `clientkey.go`        | 2.4%  | ~50%\*  | 85%    | 🔄 In Progress |
+| `saml.go`             | 13.7% | ~45%\*  | 80%    | 🔄 In Progress |
+| `settings_cache.go`   | 19.2% | ~50%\*  | 80%    | 🔄 In Progress |
+| `namespace_scopes.go` | 0%    | ~95%\*  | 90%    | ✅ Done        |
+| `captcha.go`          | 0%    | ~80%\*  | 85%    | ✅ Done        |
 
 ### middleware/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `clientkey_auth.go` | 0% | ~50%* | 90% | 🔄 In Progress |
-| `rate_limiter.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `rls.go` | 0% | ~55%* | 80% | 🔄 In Progress |
-| `csrf.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `structured_logger.go` | 0% | ~65%* | 75% | 🔄 In Progress |
-| `migrations_security.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `global_ip_allowlist.go` | 0% | ~70%* | 80% | 🔄 In Progress |
-| `branch.go` | 0% | ~55%* | 75% | 🔄 In Progress |
-| `tracing.go` | 0% | ~50%* | 70% | 🔄 In Progress |
-| `sync_security.go` | 0% | ~70%* | 80% | 🔄 In Progress |
+| File                     | Start | Current | Target | Status         |
+| ------------------------ | ----- | ------- | ------ | -------------- |
+| `clientkey_auth.go`      | 0%    | ~50%\*  | 90%    | 🔄 In Progress |
+| `rate_limiter.go`        | 0%    | ~60%\*  | 80%    | 🔄 In Progress |
+| `rls.go`                 | 0%    | ~55%\*  | 80%    | 🔄 In Progress |
+| `csrf.go`                | 0%    | ~60%\*  | 80%    | 🔄 In Progress |
+| `structured_logger.go`   | 0%    | ~65%\*  | 75%    | 🔄 In Progress |
+| `migrations_security.go` | 0%    | ~60%\*  | 80%    | 🔄 In Progress |
+| `global_ip_allowlist.go` | 0%    | ~70%\*  | 80%    | 🔄 In Progress |
+| `branch.go`              | 0%    | ~55%\*  | 75%    | 🔄 In Progress |
+| `tracing.go`             | 0%    | ~50%\*  | 70%    | 🔄 In Progress |
+| `sync_security.go`       | 0%    | ~70%\*  | 80%    | 🔄 In Progress |
 
 ### crypto/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `encrypt.go` | 76% | ~90%* | 95% | 🔄 In Progress |
+| File         | Start | Current | Target | Status         |
+| ------------ | ----- | ------- | ------ | -------------- |
+| `encrypt.go` | 76%   | ~90%\*  | 95%    | 🔄 In Progress |
 
 ---
 
@@ -65,18 +65,18 @@
 
 ### api/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `graphql_types.go` | 0% | ~90%* | 85% | ✅ Done |
-| `auth_handler.go` | 0% | ~35%* | 90% | 🔄 In Progress |
-| `rest_crud.go` | 0% | ~40%* | 85% | 🔄 In Progress |
-| `rest_handler.go` | 0% | ~35%* | 85% | 🔄 In Progress |
-| `storage_files.go` | 0% | ~30%* | 85% | 🔄 In Progress |
-| `dashboard_auth_handler.go` | 0% | ~45%* | 85% | 🔄 In Progress |
-| `server.go` | 0% | ~25%* | 70% | 🔄 In Progress |
-| `oauth_handler.go` | 0% | ~40%* | 85% | 🔄 In Progress |
-| `storage_buckets.go` | 0% | ~35%* | 85% | 🔄 In Progress |
-| `rest_batch.go` | 0% | ~40%* | 80% | 🔄 In Progress |
+| File                        | Start | Current | Target | Status         |
+| --------------------------- | ----- | ------- | ------ | -------------- |
+| `graphql_types.go`          | 0%    | ~90%\*  | 85%    | ✅ Done        |
+| `auth_handler.go`           | 0%    | ~35%\*  | 90%    | 🔄 In Progress |
+| `rest_crud.go`              | 0%    | ~40%\*  | 85%    | 🔄 In Progress |
+| `rest_handler.go`           | 0%    | ~35%\*  | 85%    | 🔄 In Progress |
+| `storage_files.go`          | 0%    | ~30%\*  | 85%    | 🔄 In Progress |
+| `dashboard_auth_handler.go` | 0%    | ~45%\*  | 85%    | 🔄 In Progress |
+| `server.go`                 | 0%    | ~25%\*  | 70%    | 🔄 In Progress |
+| `oauth_handler.go`          | 0%    | ~40%\*  | 85%    | 🔄 In Progress |
+| `storage_buckets.go`        | 0%    | ~35%\*  | 85%    | 🔄 In Progress |
+| `rest_batch.go`             | 0%    | ~40%\*  | 80%    | 🔄 In Progress |
 
 ---
 
@@ -86,36 +86,36 @@
 
 ### database/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `connection.go` | 0% | ~60%* | 80% | 🔄 In Progress |
-| `schema_inspector.go` | 0% | ~50%* | 75% | 🔄 In Progress |
+| File                  | Start | Current | Target | Status         |
+| --------------------- | ----- | ------- | ------ | -------------- |
+| `connection.go`       | 0%    | ~60%\*  | 80%    | 🔄 In Progress |
+| `schema_inspector.go` | 0%    | ~50%\*  | 75%    | 🔄 In Progress |
 
 ### mcp/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `auth.go` | 0% | ~85%* | 85% | ✅ Done |
-| `registry.go` | 0% | ~80%* | 80% | ✅ Done |
+| File          | Start | Current | Target | Status  |
+| ------------- | ----- | ------- | ------ | ------- |
+| `auth.go`     | 0%    | ~85%\*  | 85%    | ✅ Done |
+| `registry.go` | 0%    | ~80%\*  | 80%    | ✅ Done |
 
 ### branching/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `types.go` | 0% | ~90%* | 80% | ✅ Done |
-| `errors.go` | 0% | ~100%* | 80% | ✅ Done |
+| File        | Start | Current | Target | Status  |
+| ----------- | ----- | ------- | ------ | ------- |
+| `types.go`  | 0%    | ~90%\*  | 80%    | ✅ Done |
+| `errors.go` | 0%    | ~100%\* | 80%    | ✅ Done |
 
 ### rpc/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `types.go` | 0% | ~90%* | 80% | ✅ Done |
+| File       | Start | Current | Target | Status  |
+| ---------- | ----- | ------- | ------ | ------- |
+| `types.go` | 0%    | ~90%\*  | 80%    | ✅ Done |
 
 ### query/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `types.go` | 0% | ~95%* | 80% | ✅ Done |
+| File       | Start | Current | Target | Status  |
+| ---------- | ----- | ------- | ------ | ------- |
+| `types.go` | 0%    | ~95%\*  | 80%    | ✅ Done |
 
 ---
 
@@ -125,15 +125,15 @@
 
 ### ai/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `validator.go` | 0% | ~85%* | 80% | ✅ Done |
+| File           | Start | Current | Target | Status  |
+| -------------- | ----- | ------- | ------ | ------- |
+| `validator.go` | 0%    | ~85%\*  | 80%    | ✅ Done |
 
 ### realtime/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `events.go` | 0% | ~95%* | 80% | ✅ Done |
+| File        | Start | Current | Target | Status  |
+| ----------- | ----- | ------- | ------ | ------- |
+| `events.go` | 0%    | ~95%\*  | 80%    | ✅ Done |
 
 ---
 
@@ -143,43 +143,43 @@
 
 ### runtime/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `types.go` | 0% | ~90%* | 75% | ✅ Done |
-| `imports.go` | 0% | ~95%* | 75% | ✅ Done |
+| File         | Start | Current | Target | Status  |
+| ------------ | ----- | ------- | ------ | ------- |
+| `types.go`   | 0%    | ~90%\*  | 75%    | ✅ Done |
+| `imports.go` | 0%    | ~95%\*  | 75%    | ✅ Done |
 
 ### email/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `templates.go` | 0% | ~85%* | 75% | ✅ Done |
-| `service.go` | 0% | ~80%* | 75% | ✅ Done |
+| File           | Start | Current | Target | Status  |
+| -------------- | ----- | ------- | ------ | ------- |
+| `templates.go` | 0%    | ~85%\*  | 75%    | ✅ Done |
+| `service.go`   | 0%    | ~80%\*  | 75%    | ✅ Done |
 
 ### storage/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `transform.go` | 0% | ~75%* | 75% | ✅ Done |
+| File           | Start | Current | Target | Status  |
+| -------------- | ----- | ------- | ------ | ------- |
+| `transform.go` | 0%    | ~75%\*  | 75%    | ✅ Done |
 
 ### config/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `mcp.go` | 0% | ~90%* | 75% | ✅ Done |
-| `branching.go` | 0% | ~90%* | 75% | ✅ Done |
-| `graphql.go` | 0% | ~90%* | 75% | ✅ Done |
+| File           | Start | Current | Target | Status  |
+| -------------- | ----- | ------- | ------ | ------- |
+| `mcp.go`       | 0%    | ~90%\*  | 75%    | ✅ Done |
+| `branching.go` | 0%    | ~90%\*  | 75%    | ✅ Done |
+| `graphql.go`   | 0%    | ~90%\*  | 75%    | ✅ Done |
 
 ### observability/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `tracer.go` | 0% | ~85%* | 75% | ✅ Done |
+| File        | Start | Current | Target | Status  |
+| ----------- | ----- | ------- | ------ | ------- |
+| `tracer.go` | 0%    | ~85%\*  | 75%    | ✅ Done |
 
 ### settings/ Module
 
-| File | Start | Current | Target | Status |
-|------|-------|---------|--------|--------|
-| `secrets_service.go` | 0% | ~90%* | 75% | ✅ Done |
+| File                 | Start | Current | Target | Status  |
+| -------------------- | ----- | ------- | ------ | ------- |
+| `secrets_service.go` | 0%    | ~90%\*  | 75%    | ✅ Done |
 
 ---
 
@@ -307,8 +307,8 @@
   - Added OAuth path tests
   - 25+ new test cases + 5 benchmarks
 - [x] Fixed duplicate function declarations:
-  - Renamed duplicates in session_test.go (TestMockSessionRepository_*_WithValidation)
-  - Renamed duplicates in user_test.go (TestMockUserRepository_*_WithValidation)
+  - Renamed duplicates in session*test.go (TestMockSessionRepository*\*\_WithValidation)
+  - Renamed duplicates in user*test.go (TestMockUserRepository*\*\_WithValidation)
 - [x] Created `auth/dashboard_test.go`:
   - DashboardUser struct tests (fields, nullable, locked state)
   - DashboardSession struct tests
@@ -364,7 +364,7 @@
   - 55+ test cases + 4 benchmarks
 - [x] Created `api/rest_crud_test.go`:
   - isAdminUser tests (admin, dashboard_admin, authenticated, anon, nil)
-  - isGeoJSON tests (Point, LineString, Polygon, Multi*, invalid cases)
+  - isGeoJSON tests (Point, LineString, Polygon, Multi\*, invalid cases)
   - isPartialGeoJSON tests (type without coordinates)
   - isGeometryColumn tests (geometry, geography, other types)
   - buildSelectColumns tests (with/without geometry)
@@ -590,7 +590,7 @@
   - Operator distinctness and alias verification tests
   - Filter struct tests (all fields, zero value, nil value, slice value, OR grouping)
   - OrderBy struct tests (all fields, ascending/descending, nulls handling, vector similarity)
-  - Operator category tests (spatial start with st_, vector start with vec_)
+  - Operator category tests (spatial start with st*, vector start with vec*)
   - Edge cases (empty columns, custom operators, complex nested values)
   - 50+ test cases + 4 benchmarks
 - [x] Created `ai/validator_test.go`:

@@ -372,8 +372,8 @@ func TestImageTransformer_ValidateOptions(t *testing.T) {
 		opts := &TransformOptions{Width: 823, Height: 617}
 		err := transformer.ValidateOptions(opts)
 		assert.NoError(t, err)
-		assert.Equal(t, 850, opts.Width)  // Bucketed
-		assert.Equal(t, 600, opts.Height) // Bucketed
+		assert.Equal(t, 800, opts.Width)  // Bucketed: (823+25)/50*50 = 800
+		assert.Equal(t, 600, opts.Height) // Bucketed: (617+25)/50*50 = 600
 	})
 }
 

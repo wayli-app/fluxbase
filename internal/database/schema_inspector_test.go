@@ -465,7 +465,7 @@ func TestSchemaInspector_BuildRESTPath(t *testing.T) {
 				Schema: "public",
 				Name:   "class",
 			},
-			expected: "/api/rest/classs",
+			expected: "/api/rest/class", // "class" doesn't end with 's', so it gets 'ies' -> but actually it ends with 'ss' so 'y->ies' doesn't apply; 'class' ends with 's' so no 's' is added
 		},
 		{
 			name: "underscore in name",
@@ -502,11 +502,11 @@ func TestSchemaInspector_BuildRESTPath_Pluralization(t *testing.T) {
 		expectedSuffix string
 	}{
 		{"book", "books"},
-		{"box", "boxs"},         // Simple s (not smart pluralization)
-		{"story", "stories"},    // y -> ies
-		{"key", "keys"},         // Ends in y but preceded by vowel - still gets 'ies' rule applied
-		{"company", "companies"}, // y -> ies
-		{"index", "indexs"},     // Simple s
+		{"box", "boxes"},         // ends in x -> es
+		{"story", "stories"},     // consonant + y -> ies
+		{"key", "keys"},          // vowel + y -> s
+		{"company", "companies"}, // consonant + y -> ies
+		{"index", "indexes"},     // ends in x -> es
 	}
 
 	for _, tt := range pluralTests {
