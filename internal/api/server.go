@@ -121,6 +121,9 @@ type Server struct {
 	metricsServer   *observability.MetricsServer
 	startTime       time.Time
 	metricsStopChan chan struct{}
+
+	// Idempotency middleware for cleanup on shutdown
+	idempotencyMiddleware *middleware.IdempotencyMiddleware
 }
 
 // NewServer creates a new HTTP server
@@ -1213,6 +1216,17 @@ func (s *Server) setupMiddlewares() {
 			Msg("Per-endpoint body limits enabled")
 	}
 
+	// Idempotency key support for safe request retries
+	// Stores responses in database to return cached results for duplicate POST/PUT/DELETE/PATCH requests
+	idempotencyConfig := middleware.DefaultIdempotencyConfig()
+	idempotencyConfig.DB = s.db.Pool()
+	s.idempotencyMiddleware = middleware.NewIdempotencyMiddleware(idempotencyConfig)
+	s.app.Use(s.idempotencyMiddleware.Middleware())
+	log.Info().
+		Str("header", idempotencyConfig.HeaderName).
+		Dur("ttl", idempotencyConfig.TTL).
+		Msg("Idempotency key support enabled")
+
 	// Compression middleware
 	s.app.Use(compress.New(compress.Config{
 		Level: compress.LevelDefault,
@@ -2294,6 +2308,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Close AI conversation manager
 	if s.aiConversations != nil {
 		s.aiConversations.Close()
+	}
+
+	// Stop idempotency middleware cleanup goroutine
+	if s.idempotencyMiddleware != nil {
+		s.idempotencyMiddleware.Stop()
 	}
 
 	// Stop branch cleanup scheduler
