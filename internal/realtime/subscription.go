@@ -15,11 +15,17 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// RLSCacheTTL is the duration for which RLS check results are cached
-const RLSCacheTTL = 2 * time.Second
+// Default RLS cache settings (used when no config provided)
+const (
+	DefaultRLSCacheTTL     = 30 * time.Second // 30 seconds default
+	DefaultRLSCacheMaxSize = 100000           // 100K entries default
+)
 
-// RLSCacheMaxSize is the maximum number of entries in the RLS cache
-const RLSCacheMaxSize = 10000
+// RLSCacheConfig holds configuration for the RLS cache
+type RLSCacheConfig struct {
+	MaxSize int           // Maximum number of entries (0 = use default)
+	TTL     time.Duration // Cache entry TTL (0 = use default)
+}
 
 // rlsCacheEntry represents a cached RLS check result
 type rlsCacheEntry struct {
@@ -31,12 +37,31 @@ type rlsCacheEntry struct {
 type rlsCache struct {
 	mu      sync.RWMutex
 	entries map[string]*rlsCacheEntry
+	maxSize int
+	ttl     time.Duration
 }
 
-// newRLSCache creates a new RLS cache
+// newRLSCache creates a new RLS cache with default settings
 func newRLSCache() *rlsCache {
+	return newRLSCacheWithConfig(RLSCacheConfig{})
+}
+
+// newRLSCacheWithConfig creates a new RLS cache with custom configuration
+func newRLSCacheWithConfig(config RLSCacheConfig) *rlsCache {
+	maxSize := config.MaxSize
+	if maxSize <= 0 {
+		maxSize = DefaultRLSCacheMaxSize
+	}
+
+	ttl := config.TTL
+	if ttl <= 0 {
+		ttl = DefaultRLSCacheTTL
+	}
+
 	cache := &rlsCache{
 		entries: make(map[string]*rlsCacheEntry),
+		maxSize: maxSize,
+		ttl:     ttl,
 	}
 	// Start cleanup goroutine
 	go cache.cleanup()
@@ -79,13 +104,13 @@ func (c *rlsCache) set(key string, allowed bool) {
 	defer c.mu.Unlock()
 
 	// Evict old entries if cache is too large
-	if len(c.entries) >= RLSCacheMaxSize {
+	if len(c.entries) >= c.maxSize {
 		c.evictExpiredLocked()
 	}
 
 	c.entries[key] = &rlsCacheEntry{
 		allowed:   allowed,
-		expiresAt: time.Now().Add(RLSCacheTTL),
+		expiresAt: time.Now().Add(c.ttl),
 	}
 }
 
@@ -110,9 +135,6 @@ func (c *rlsCache) cleanup() {
 		c.mu.Unlock()
 	}
 }
-
-// globalRLSCache is the shared RLS cache instance
-var globalRLSCache = newRLSCache()
 
 // SubscriptionDB defines the database operations needed by SubscriptionManager.
 // This interface allows for easier testing with mocks.
@@ -306,13 +328,19 @@ type SubscriptionManager struct {
 	logSubs       map[string]*LogSubscription     // subscription ID -> log subscription
 	execLogSubs   map[string]map[string]bool      // execution ID -> subscription IDs
 	allLogsSubs   map[string]*AllLogsSubscription // subscription ID -> all-logs subscription
+	rlsCache      *rlsCache                       // RLS check result cache
 	mu            sync.RWMutex
 }
 
-// NewSubscriptionManager creates a new subscription manager.
+// NewSubscriptionManager creates a new subscription manager with default RLS cache settings.
 // For production use, pass NewPgxSubscriptionDB(pool).
 // For testing, pass a mock implementation of SubscriptionDB.
 func NewSubscriptionManager(db SubscriptionDB) *SubscriptionManager {
+	return NewSubscriptionManagerWithConfig(db, RLSCacheConfig{})
+}
+
+// NewSubscriptionManagerWithConfig creates a new subscription manager with custom RLS cache settings.
+func NewSubscriptionManagerWithConfig(db SubscriptionDB, cacheConfig RLSCacheConfig) *SubscriptionManager {
 	return &SubscriptionManager{
 		db:            db,
 		subscriptions: make(map[string]*Subscription),
@@ -321,6 +349,7 @@ func NewSubscriptionManager(db SubscriptionDB) *SubscriptionManager {
 		logSubs:       make(map[string]*LogSubscription),
 		execLogSubs:   make(map[string]map[string]bool),
 		allLogsSubs:   make(map[string]*AllLogsSubscription),
+		rlsCache:      newRLSCacheWithConfig(cacheConfig),
 	}
 }
 
@@ -544,8 +573,8 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 	}
 
 	// Generate cache key and check cache first
-	cacheKey := globalRLSCache.generateCacheKey(sub.Schema, sub.Table, sub.Role, recordID, sub.Claims)
-	if allowed, found := globalRLSCache.get(cacheKey); found {
+	cacheKey := sm.rlsCache.generateCacheKey(sub.Schema, sub.Table, sub.Role, recordID, sub.Claims)
+	if allowed, found := sm.rlsCache.get(cacheKey); found {
 		log.Debug().
 			Str("user_id", sub.UserID).
 			Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
@@ -577,7 +606,7 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 	}
 
 	// Cache the result
-	globalRLSCache.set(cacheKey, visible)
+	sm.rlsCache.set(cacheKey, visible)
 
 	log.Debug().
 		Str("user_id", sub.UserID).

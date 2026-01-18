@@ -3,6 +3,7 @@ package realtime
 
 import (
 	"testing"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/testutil"
 	"github.com/stretchr/testify/assert"
@@ -320,4 +321,72 @@ func TestSubscriptionManager_Stats(t *testing.T) {
 	assert.Equal(t, 2, stats["total_subscriptions"])
 	assert.Equal(t, 2, stats["users_with_subs"])
 	assert.Equal(t, 2, stats["tables_with_subs"])
+}
+
+// Tests for RLS cache configuration
+
+func TestRLSCacheConfig_Defaults(t *testing.T) {
+	cache := newRLSCache()
+
+	assert.Equal(t, DefaultRLSCacheMaxSize, cache.maxSize)
+	assert.Equal(t, DefaultRLSCacheTTL, cache.ttl)
+}
+
+func TestRLSCacheConfig_Custom(t *testing.T) {
+	config := RLSCacheConfig{
+		MaxSize: 50000,
+		TTL:     60 * time.Second,
+	}
+	cache := newRLSCacheWithConfig(config)
+
+	assert.Equal(t, 50000, cache.maxSize)
+	assert.Equal(t, 60*time.Second, cache.ttl)
+}
+
+func TestRLSCacheConfig_ZeroValuesUseDefaults(t *testing.T) {
+	config := RLSCacheConfig{
+		MaxSize: 0,
+		TTL:     0,
+	}
+	cache := newRLSCacheWithConfig(config)
+
+	assert.Equal(t, DefaultRLSCacheMaxSize, cache.maxSize)
+	assert.Equal(t, DefaultRLSCacheTTL, cache.ttl)
+}
+
+func TestRLSCacheConfig_NegativeValuesUseDefaults(t *testing.T) {
+	config := RLSCacheConfig{
+		MaxSize: -1,
+		TTL:     -1,
+	}
+	cache := newRLSCacheWithConfig(config)
+
+	assert.Equal(t, DefaultRLSCacheMaxSize, cache.maxSize)
+	assert.Equal(t, DefaultRLSCacheTTL, cache.ttl)
+}
+
+func TestSubscriptionManager_WithCustomRLSCache(t *testing.T) {
+	mockDB := testutil.NewMockSubscriptionDB()
+	mockDB.EnableTable("public", "users")
+
+	config := RLSCacheConfig{
+		MaxSize: 1000,
+		TTL:     10 * time.Second,
+	}
+	sm := NewSubscriptionManagerWithConfig(mockDB, config)
+
+	// Verify cache was created with custom config
+	require.NotNil(t, sm.rlsCache)
+	assert.Equal(t, 1000, sm.rlsCache.maxSize)
+	assert.Equal(t, 10*time.Second, sm.rlsCache.ttl)
+}
+
+func TestSubscriptionManager_DefaultRLSCache(t *testing.T) {
+	mockDB := testutil.NewMockSubscriptionDB()
+	sm := NewSubscriptionManager(mockDB)
+
+	// Verify cache was created with default config
+	require.NotNil(t, sm.rlsCache)
+	assert.Equal(t, DefaultRLSCacheMaxSize, sm.rlsCache.maxSize)
+	assert.Equal(t, DefaultRLSCacheTTL, sm.rlsCache.ttl)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"sync"
 
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
@@ -12,18 +13,35 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// splitHostPort is a wrapper around net.SplitHostPort
+func splitHostPort(hostport string) (host, port string, err error) {
+	return net.SplitHostPort(hostport)
+}
+
 // ErrMaxConnectionsReached is returned when the maximum number of connections is reached
 var ErrMaxConnectionsReached = errors.New("maximum number of websocket connections reached")
 
+// ErrMaxUserConnectionsReached is returned when a user has exceeded their connection limit
+var ErrMaxUserConnectionsReached = errors.New("maximum number of websocket connections per user reached")
+
+// ErrMaxIPConnectionsReached is returned when an IP has exceeded its connection limit
+var ErrMaxIPConnectionsReached = errors.New("maximum number of websocket connections per IP reached")
+
 // Manager manages all WebSocket connections
 type Manager struct {
-	connections    map[string]*Connection // connection ID -> connection
-	mu             sync.RWMutex
-	ctx            context.Context
-	cancel         context.CancelFunc
-	ps             pubsub.PubSub // For cross-instance broadcasting
-	metrics        *observability.Metrics
-	maxConnections int // Maximum allowed connections (0 = unlimited)
+	connections           map[string]*Connection // connection ID -> connection
+	userConnections       map[string]int         // user ID -> connection count
+	ipConnections         map[string]int         // IP address -> connection count
+	connectionUserMap     map[string]string      // connection ID -> user ID (for tracking)
+	connectionIPMap       map[string]string      // connection ID -> IP address (for tracking)
+	mu                    sync.RWMutex
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	ps                    pubsub.PubSub // For cross-instance broadcasting
+	metrics               *observability.Metrics
+	maxConnections        int // Maximum allowed connections (0 = unlimited)
+	maxConnectionsPerUser int // Maximum connections per user (0 = unlimited)
+	maxConnectionsPerIP   int // Maximum connections per IP for anonymous (0 = unlimited)
 }
 
 // SetMetrics sets the metrics instance for recording realtime metrics
@@ -55,19 +73,38 @@ func (m *Manager) updateMetrics() {
 	m.metrics.UpdateRealtimeStats(connections, channels, subscriptions)
 }
 
+// ManagerConfig holds configuration for the connection manager
+type ManagerConfig struct {
+	MaxConnections        int // Maximum total connections (0 = unlimited)
+	MaxConnectionsPerUser int // Maximum connections per user (0 = unlimited)
+	MaxConnectionsPerIP   int // Maximum connections per IP for anonymous (0 = unlimited)
+}
+
 // NewManager creates a new connection manager
 func NewManager(ctx context.Context) *Manager {
-	return NewManagerWithLimit(ctx, 0) // 0 = unlimited (backward compatible)
+	return NewManagerWithConfig(ctx, ManagerConfig{}) // All defaults (unlimited)
 }
 
 // NewManagerWithLimit creates a new connection manager with a connection limit
+// Deprecated: Use NewManagerWithConfig for more control
 func NewManagerWithLimit(ctx context.Context, maxConnections int) *Manager {
+	return NewManagerWithConfig(ctx, ManagerConfig{MaxConnections: maxConnections})
+}
+
+// NewManagerWithConfig creates a new connection manager with full configuration
+func NewManagerWithConfig(ctx context.Context, config ManagerConfig) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		connections:    make(map[string]*Connection),
-		ctx:            ctx,
-		cancel:         cancel,
-		maxConnections: maxConnections,
+		connections:           make(map[string]*Connection),
+		userConnections:       make(map[string]int),
+		ipConnections:         make(map[string]int),
+		connectionUserMap:     make(map[string]string),
+		connectionIPMap:       make(map[string]string),
+		ctx:                   ctx,
+		cancel:                cancel,
+		maxConnections:        config.MaxConnections,
+		maxConnectionsPerUser: config.MaxConnectionsPerUser,
+		maxConnectionsPerIP:   config.MaxConnectionsPerIP,
 	}
 }
 
@@ -157,10 +194,28 @@ func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
 
 // AddConnection adds a new WebSocket connection
 // Returns nil and ErrMaxConnectionsReached if the connection limit is exceeded
+// Returns nil and ErrMaxUserConnectionsReached if the per-user limit is exceeded
+// Returns nil and ErrMaxIPConnectionsReached if the per-IP limit is exceeded (for anonymous)
 func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}) (*Connection, error) {
+	// Get remote IP for tracking
+	remoteIP := ""
+	if conn != nil {
+		remoteIP = conn.RemoteAddr().String()
+		// Extract just the IP part (remove port)
+		if host, _, err := splitHostPort(remoteIP); err == nil {
+			remoteIP = host
+		}
+	}
+
+	return m.AddConnectionWithIP(id, conn, userID, role, claims, remoteIP)
+}
+
+// AddConnectionWithIP adds a new WebSocket connection with explicit IP address
+// This is useful when the IP is already known (e.g., from X-Forwarded-For header)
+func (m *Manager) AddConnectionWithIP(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, remoteIP string) (*Connection, error) {
 	m.mu.Lock()
 
-	// Check connection limit before adding
+	// Check global connection limit before adding
 	if m.maxConnections > 0 && len(m.connections) >= m.maxConnections {
 		m.mu.Unlock()
 		log.Warn().
@@ -174,8 +229,58 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string,
 		return nil, ErrMaxConnectionsReached
 	}
 
+	// Check per-user limit for authenticated users
+	if userID != nil && m.maxConnectionsPerUser > 0 {
+		currentUserConns := m.userConnections[*userID]
+		if currentUserConns >= m.maxConnectionsPerUser {
+			m.mu.Unlock()
+			log.Warn().
+				Str("user_id", *userID).
+				Int("current_connections", currentUserConns).
+				Int("max_per_user", m.maxConnectionsPerUser).
+				Str("connection_id", id).
+				Msg("Rejecting WebSocket connection: per-user limit exceeded")
+			if m.metrics != nil {
+				m.metrics.RecordRealtimeError("max_user_connections_reached")
+			}
+			return nil, ErrMaxUserConnectionsReached
+		}
+	}
+
+	// Check per-IP limit for anonymous connections
+	if userID == nil && remoteIP != "" && m.maxConnectionsPerIP > 0 {
+		currentIPConns := m.ipConnections[remoteIP]
+		if currentIPConns >= m.maxConnectionsPerIP {
+			m.mu.Unlock()
+			log.Warn().
+				Str("remote_ip", remoteIP).
+				Int("current_connections", currentIPConns).
+				Int("max_per_ip", m.maxConnectionsPerIP).
+				Str("connection_id", id).
+				Msg("Rejecting WebSocket connection: per-IP limit exceeded")
+			if m.metrics != nil {
+				m.metrics.RecordRealtimeError("max_ip_connections_reached")
+			}
+			return nil, ErrMaxIPConnectionsReached
+		}
+	}
+
+	// Create and track the connection
 	connection := NewConnection(id, conn, userID, role, claims)
 	m.connections[id] = connection
+
+	// Track per-user connections
+	if userID != nil {
+		m.userConnections[*userID]++
+		m.connectionUserMap[id] = *userID
+	}
+
+	// Track per-IP connections for anonymous users
+	if userID == nil && remoteIP != "" {
+		m.ipConnections[remoteIP]++
+		m.connectionIPMap[id] = remoteIP
+	}
+
 	m.mu.Unlock()
 
 	// Update metrics after releasing lock
@@ -189,6 +294,7 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string,
 			}
 			return "anonymous"
 		}()).
+		Str("remote_ip", remoteIP).
 		Msg("New WebSocket connection")
 
 	// Broadcast connection event to admin channel
@@ -211,6 +317,24 @@ func (m *Manager) RemoveConnection(id string) {
 	}
 
 	delete(m.connections, id)
+
+	// Decrement per-user connection count
+	if userID, ok := m.connectionUserMap[id]; ok {
+		m.userConnections[userID]--
+		if m.userConnections[userID] <= 0 {
+			delete(m.userConnections, userID)
+		}
+		delete(m.connectionUserMap, id)
+	}
+
+	// Decrement per-IP connection count
+	if ip, ok := m.connectionIPMap[id]; ok {
+		m.ipConnections[ip]--
+		if m.ipConnections[ip] <= 0 {
+			delete(m.ipConnections, ip)
+		}
+		delete(m.connectionIPMap, id)
+	}
 
 	// Release manager lock before closing connection
 	m.mu.Unlock()
@@ -363,8 +487,12 @@ func (m *Manager) Shutdown() {
 		connsToClose = append(connsToClose, conn)
 	}
 
-	// Clear connections map while holding the lock
+	// Clear all maps while holding the lock
 	m.connections = make(map[string]*Connection)
+	m.userConnections = make(map[string]int)
+	m.ipConnections = make(map[string]int)
+	m.connectionUserMap = make(map[string]string)
+	m.connectionIPMap = make(map[string]string)
 
 	m.mu.Unlock()
 
@@ -373,4 +501,26 @@ func (m *Manager) Shutdown() {
 		_ = conn.Close()
 		log.Info().Str("connection_id", conn.ID).Msg("Closed connection during shutdown")
 	}
+}
+
+// GetUserConnectionCount returns the number of connections for a specific user
+func (m *Manager) GetUserConnectionCount(userID string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.userConnections[userID]
+}
+
+// GetIPConnectionCount returns the number of connections for a specific IP
+func (m *Manager) GetIPConnectionCount(ip string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.ipConnections[ip]
+}
+
+// SetConnectionLimits updates the per-user and per-IP connection limits
+func (m *Manager) SetConnectionLimits(maxPerUser, maxPerIP int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxConnectionsPerUser = maxPerUser
+	m.maxConnectionsPerIP = maxPerIP
 }

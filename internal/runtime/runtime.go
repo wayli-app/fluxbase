@@ -263,6 +263,7 @@ func (r *DenoRuntime) Execute(
 	cmd.Env = buildEnv(req, r.runtimeType, r.publicURL, userToken, serviceToken, cancelSignal, secrets)
 
 	// Capture stdout and stderr with streaming
+	// Note: Pipes must be closed on error to avoid file descriptor leaks
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
@@ -270,11 +271,17 @@ func (r *DenoRuntime) Execute(
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
+		// Close stdout pipe to prevent FD leak
+		stdoutPipe.Close()
 		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	// Start command
 	if err := cmd.Start(); err != nil {
+		// Close both pipes to prevent FD leak
+		// Note: After Start() is called successfully, pipes are managed by Wait()
+		stdoutPipe.Close()
+		stderrPipe.Close()
 		return nil, fmt.Errorf("failed to start deno: %w", err)
 	}
 

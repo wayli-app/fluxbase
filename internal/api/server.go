@@ -555,8 +555,12 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("RPC components initialized")
 	}
 
-	// Create realtime components with connection limit from config
-	realtimeManager := realtime.NewManagerWithLimit(context.Background(), cfg.Realtime.MaxConnections)
+	// Create realtime components with connection limits from config
+	realtimeManager := realtime.NewManagerWithConfig(context.Background(), realtime.ManagerConfig{
+		MaxConnections:        cfg.Realtime.MaxConnections,
+		MaxConnectionsPerUser: cfg.Realtime.MaxConnectionsPerUser,
+		MaxConnectionsPerIP:   cfg.Realtime.MaxConnectionsPerIP,
+	})
 
 	// Set up cross-instance broadcasting via pub/sub (if configured)
 	if ps != nil {
@@ -564,7 +568,13 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	}
 
 	realtimeAuthAdapter := realtime.NewAuthServiceAdapter(authService)
-	realtimeSubManager := realtime.NewSubscriptionManager(realtime.NewPgxSubscriptionDB(db.Pool()))
+	realtimeSubManager := realtime.NewSubscriptionManagerWithConfig(
+		realtime.NewPgxSubscriptionDB(db.Pool()),
+		realtime.RLSCacheConfig{
+			MaxSize: cfg.Realtime.RLSCacheSize,
+			TTL:     cfg.Realtime.RLSCacheTTL,
+		},
+	)
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
 	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager, ps)
 

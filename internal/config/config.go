@@ -294,14 +294,18 @@ type TransformConfig struct {
 
 // RealtimeConfig contains realtime/websocket settings
 type RealtimeConfig struct {
-	Enabled           bool          `mapstructure:"enabled"`
-	MaxConnections    int           `mapstructure:"max_connections"`
-	PingInterval      time.Duration `mapstructure:"ping_interval"`
-	PongTimeout       time.Duration `mapstructure:"pong_timeout"`
-	WriteBufferSize   int           `mapstructure:"write_buffer_size"`
-	ReadBufferSize    int           `mapstructure:"read_buffer_size"`
-	MessageSizeLimit  int64         `mapstructure:"message_size_limit"`
-	ChannelBufferSize int           `mapstructure:"channel_buffer_size"`
+	Enabled               bool          `mapstructure:"enabled"`
+	MaxConnections        int           `mapstructure:"max_connections"`
+	MaxConnectionsPerUser int           `mapstructure:"max_connections_per_user"` // Max connections per authenticated user (0 = unlimited)
+	MaxConnectionsPerIP   int           `mapstructure:"max_connections_per_ip"`   // Max connections per IP for anonymous connections (0 = unlimited)
+	PingInterval          time.Duration `mapstructure:"ping_interval"`
+	PongTimeout           time.Duration `mapstructure:"pong_timeout"`
+	WriteBufferSize       int           `mapstructure:"write_buffer_size"`
+	ReadBufferSize        int           `mapstructure:"read_buffer_size"`
+	MessageSizeLimit      int64         `mapstructure:"message_size_limit"`
+	ChannelBufferSize     int           `mapstructure:"channel_buffer_size"`
+	RLSCacheSize          int           `mapstructure:"rls_cache_size"` // Maximum entries in RLS cache (default: 100000)
+	RLSCacheTTL           time.Duration `mapstructure:"rls_cache_ttl"`  // TTL for RLS cache entries (default: 30s)
 }
 
 // EmailConfig contains email/SMTP settings
@@ -665,12 +669,16 @@ func setDefaults() {
 	// Realtime defaults
 	viper.SetDefault("realtime.enabled", true)
 	viper.SetDefault("realtime.max_connections", 1000)
+	viper.SetDefault("realtime.max_connections_per_user", 10) // Limit per authenticated user
+	viper.SetDefault("realtime.max_connections_per_ip", 20)   // Limit per IP for anonymous connections
 	viper.SetDefault("realtime.ping_interval", "30s")
 	viper.SetDefault("realtime.pong_timeout", "60s")
 	viper.SetDefault("realtime.write_buffer_size", 1024)
 	viper.SetDefault("realtime.read_buffer_size", 1024)
 	viper.SetDefault("realtime.message_size_limit", 512*1024) // 512KB
 	viper.SetDefault("realtime.channel_buffer_size", 100)
+	viper.SetDefault("realtime.rls_cache_size", 100000) // 100K entries for high-throughput realtime
+	viper.SetDefault("realtime.rls_cache_ttl", "30s")   // 30 second TTL (balance freshness vs DB load)
 
 	// Email defaults
 	viper.SetDefault("email.enabled", true)
