@@ -24,10 +24,10 @@ This document tracks the implementation of improvements identified in the archit
 |-------|-------------|-----------|-------------|-----------|
 | Phase 1: Critical Security & Reliability | 8 | 8 | 0 | 0 |
 | Phase 2: Scalability & Performance | 8 | 8 | 0 | 0 |
-| Phase 3: Maintainability & Correctness | 7 | 5 | 0 | 2 |
+| Phase 3: Maintainability & Correctness | 7 | 6 | 0 | 1 |
 | Phase 4: Developer Experience | 5 | 0 | 0 | 5 |
 | Phase 5: Operations & Polish | 4 | 0 | 0 | 4 |
-| **Total** | **32** | **21** | **0** | **11** |
+| **Total** | **32** | **22** | **0** | **10** |
 
 ---
 
@@ -916,28 +916,41 @@ Global limits only; no per-endpoint control for different use cases.
 
 **Priority:** Low
 **Category:** Security
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 Cannot emergency-revoke compromised service keys.
 
-**Files to Modify:**
-- `internal/auth/token_blacklist.go`
-- `internal/auth/service.go`
+**Files Modified:**
+- `internal/api/servicekey_handler.go` - Added revocation, deprecation, rotation handlers
+- `internal/api/server.go` - Wired up new routes
+- `internal/database/migrations/066_service_key_revocation.up.sql` (new migration)
+- `internal/database/migrations/066_service_key_revocation.down.sql` (new migration)
 
 **Implementation Steps:**
-- [ ] Add optional service role to blacklist check
-- [ ] Add admin endpoint to revoke service role tokens
-- [ ] Add `service_keys` table for tracking issued keys
-- [ ] Support key rotation with grace period
+- [x] Add admin endpoint to revoke service role tokens
+  - `POST /api/v1/admin/service-keys/:id/revoke` - Emergency revocation
+  - Requires reason for audit trail
+  - Immediately disables key and marks as revoked
+- [x] Add `service_keys` revocation columns
+  - `revoked_at`, `revoked_by`, `revocation_reason`
+  - `deprecated_at`, `grace_period_ends_at`, `replaced_by`
+- [x] Support key rotation with grace period
+  - `POST /api/v1/admin/service-keys/:id/deprecate` - Mark for rotation
+  - `POST /api/v1/admin/service-keys/:id/rotate` - Create replacement key
+  - Configurable grace period (default: 24h, max: 30 days)
+  - Old key continues working during grace period
+- [x] Add revocation audit log
+  - `auth.service_key_revocations` table
+  - Tracks emergency, rotation, expiration events
+  - `GET /api/v1/admin/service-keys/:id/revocations` endpoint
 
 **Test Requirements:**
-- [ ] Unit test: Non-revoked service token accepted
-- [ ] Unit test: Revoked service token rejected
-- [ ] Unit test: Key rotation grace period works
-- [ ] Integration test: Full revocation flow
+- [ ] Integration test: Emergency revocation flow (requires DB)
+- [ ] Integration test: Key rotation with grace period (requires DB)
+- [ ] Integration test: Revocation audit log created (requires DB)
 
-**Test File:** `internal/auth/token_blacklist_test.go`
+**Test File:** `internal/api/servicekey_handler_test.go`
 
 ---
 

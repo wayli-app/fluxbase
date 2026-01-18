@@ -1914,6 +1914,10 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Delete("/service-keys/:id", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.DeleteServiceKey)
 	router.Post("/service-keys/:id/disable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.DisableServiceKey)
 	router.Post("/service-keys/:id/enable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.serviceKeyHandler.EnableServiceKey)
+	router.Post("/service-keys/:id/revoke", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.serviceKeyHandler.RevokeServiceKey)
+	router.Post("/service-keys/:id/deprecate", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.serviceKeyHandler.DeprecateServiceKey)
+	router.Post("/service-keys/:id/rotate", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.serviceKeyHandler.RotateServiceKey)
+	router.Get("/service-keys/:id/revocations", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.serviceKeyHandler.GetRevocationHistory)
 
 	// SQL Editor route (require admin or dashboard_admin role)
 	router.Post("/sql/execute", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.sqlHandler.ExecuteSQL)
