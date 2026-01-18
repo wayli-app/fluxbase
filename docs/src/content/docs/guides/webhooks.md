@@ -204,7 +204,34 @@ deliveries.forEach((delivery) => {
 
 ### Verifying Webhook Signatures
 
-The SDK provides utilities to verify webhook signatures in your webhook receiver.
+Fluxbase signs all webhook requests with a timestamp-based HMAC-SHA256 signature to ensure authenticity and prevent replay attacks.
+
+#### Signature Headers
+
+When a webhook has a secret configured, Fluxbase sends two signature headers:
+
+| Header | Format | Description |
+|--------|--------|-------------|
+| `X-Fluxbase-Signature` | `t=timestamp,v1=signature` | Timestamped signature (recommended) |
+| `X-Webhook-Signature` | `hexstring` | Legacy signature (for backwards compatibility) |
+
+**Example Header:**
+```
+X-Fluxbase-Signature: t=1705678901,v1=5d41402abc4b2a76b9719d911017c592
+```
+
+#### How the Signature is Computed
+
+The signature is computed over `timestamp.payload`:
+
+```
+signed_data = timestamp + "." + raw_request_body
+signature = HMAC-SHA256(signed_data, webhook_secret)
+```
+
+The timestamp is included to prevent replay attacks - signatures older than 5 minutes should be rejected.
+
+#### Using the SDK (Recommended)
 
 ```typescript
 import { FluxbaseClient } from "@fluxbase/sdk";
@@ -240,6 +267,109 @@ app.post("/webhooks/fluxbase", (req, res) => {
 });
 
 app.listen(3000);
+```
+
+#### Manual Verification (Go)
+
+```go
+import (
+    "github.com/fluxbase-eu/fluxbase/internal/webhook"
+    "time"
+)
+
+func handleWebhook(body []byte, signatureHeader, secret string) error {
+    // Verify with 5 minute tolerance
+    err := webhook.VerifyWebhookSignature(
+        body,
+        signatureHeader,
+        secret,
+        5*time.Minute,
+    )
+    if err != nil {
+        return fmt.Errorf("invalid signature: %w", err)
+    }
+    // Process webhook...
+    return nil
+}
+```
+
+#### Manual Verification (Node.js)
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhookSignature(payload, header, secret, toleranceMs = 300000) {
+  // Parse header: t=timestamp,v1=signature
+  const parts = header.split(',').reduce((acc, part) => {
+    const [key, value] = part.split('=');
+    if (key === 't') acc.timestamp = parseInt(value, 10);
+    if (key === 'v1') acc.signatures = [...(acc.signatures || []), value];
+    return acc;
+  }, {});
+
+  // Check timestamp (replay protection)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parts.timestamp) > toleranceMs / 1000) {
+    throw new Error('Signature timestamp too old or in future');
+  }
+
+  // Compute expected signature
+  const signedPayload = `${parts.timestamp}.${JSON.stringify(payload)}`;
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+
+  // Compare signatures (constant-time)
+  const isValid = parts.signatures.some(sig =>
+    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))
+  );
+
+  if (!isValid) {
+    throw new Error('Signature mismatch');
+  }
+
+  return true;
+}
+```
+
+#### Manual Verification (Python)
+
+```python
+import hmac
+import hashlib
+import time
+import json
+
+def verify_webhook_signature(payload: bytes, header: str, secret: str, tolerance_seconds: int = 300) -> bool:
+    # Parse header: t=timestamp,v1=signature
+    parts = {}
+    signatures = []
+    for part in header.split(','):
+        key, value = part.split('=', 1)
+        if key == 't':
+            parts['timestamp'] = int(value)
+        elif key == 'v1':
+            signatures.append(value)
+
+    # Check timestamp
+    now = int(time.time())
+    if abs(now - parts['timestamp']) > tolerance_seconds:
+        raise ValueError('Signature timestamp too old or in future')
+
+    # Compute expected signature
+    signed_payload = f"{parts['timestamp']}.{payload.decode('utf-8')}"
+    expected_sig = hmac.new(
+        secret.encode('utf-8'),
+        signed_payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    # Compare signatures (constant-time)
+    if not any(hmac.compare_digest(sig, expected_sig) for sig in signatures):
+        raise ValueError('Signature mismatch')
+
+    return True
 ```
 
 ---

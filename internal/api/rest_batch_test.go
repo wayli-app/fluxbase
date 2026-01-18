@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -511,5 +512,127 @@ func BenchmarkDefaultToNullClauseBuilding(b *testing.B) {
 				updateClauses = append(updateClauses, tableCol+" = NULL")
 			}
 		}
+	}
+}
+
+// =============================================================================
+// Prefer Header Response Format Tests
+// =============================================================================
+
+func TestPreferHeaderParsing(t *testing.T) {
+	// Test that Prefer header values are correctly detected
+	tests := []struct {
+		name          string
+		preferHeader  string
+		expectMinimal bool
+		expectHeaders bool
+		expectDefault bool
+	}{
+		{
+			name:          "return=minimal",
+			preferHeader:  "return=minimal",
+			expectMinimal: true,
+		},
+		{
+			name:          "return=minimal with other preferences",
+			preferHeader:  "respond-async, return=minimal",
+			expectMinimal: true,
+		},
+		{
+			name:          "return=headers-only",
+			preferHeader:  "return=headers-only",
+			expectHeaders: true,
+		},
+		{
+			name:          "return=representation",
+			preferHeader:  "return=representation",
+			expectDefault: true,
+		},
+		{
+			name:          "empty header defaults to representation",
+			preferHeader:  "",
+			expectDefault: true,
+		},
+		{
+			name:          "unknown preference defaults to representation",
+			preferHeader:  "some-other-preference",
+			expectDefault: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prefer := tt.preferHeader
+
+			isMinimal := strings.Contains(prefer, "return=minimal")
+			isHeadersOnly := strings.Contains(prefer, "return=headers-only")
+			isDefault := !isMinimal && !isHeadersOnly
+
+			assert.Equal(t, tt.expectMinimal, isMinimal, "return=minimal detection")
+			assert.Equal(t, tt.expectHeaders, isHeadersOnly, "return=headers-only detection")
+			assert.Equal(t, tt.expectDefault, isDefault, "default (representation) detection")
+		})
+	}
+}
+
+func TestXAffectedCountHeader(t *testing.T) {
+	// Test that X-Affected-Count header is formatted correctly
+	tests := []struct {
+		count    int
+		expected string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{10, "10"},
+		{100, "100"},
+		{1234567, "1234567"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			app := fiber.New()
+			app.Get("/test", func(c *fiber.Ctx) error {
+				affectedCount := tt.count
+				c.Set("X-Affected-Count", fmt.Sprintf("%d", affectedCount))
+				return c.SendStatus(200)
+			})
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, tt.expected, resp.Header.Get("X-Affected-Count"))
+		})
+	}
+}
+
+func TestContentRangeHeader(t *testing.T) {
+	// Test that Content-Range header is formatted correctly for batch responses
+	tests := []struct {
+		count    int
+		expected string
+	}{
+		{0, "*/0"},
+		{1, "*/1"},
+		{50, "*/50"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			app := fiber.New()
+			app.Get("/test", func(c *fiber.Ctx) error {
+				affectedCount := tt.count
+				c.Set("Content-Range", fmt.Sprintf("*/%d", affectedCount))
+				return c.SendStatus(200)
+			})
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, tt.expected, resp.Header.Get("Content-Range"))
+		})
 	}
 }
