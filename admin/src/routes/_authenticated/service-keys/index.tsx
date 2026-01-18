@@ -14,6 +14,10 @@ import {
   Power,
   PowerOff,
   Pencil,
+  ShieldAlert,
+  Clock,
+  RefreshCw,
+  History,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -22,6 +26,11 @@ import {
   type ServiceKeyWithPlaintext,
   type CreateServiceKeyRequest,
   type UpdateServiceKeyRequest,
+  type RevokeServiceKeyRequest,
+  type DeprecateServiceKeyRequest,
+  type RotateServiceKeyRequest,
+  type RotateServiceKeyResponse,
+  type ServiceKeyRevocation,
 } from '@/lib/api'
 import {
   AlertDialog,
@@ -203,6 +212,19 @@ function ServiceKeysPage() {
   const [editRateLimitPerMinute, setEditRateLimitPerMinute] = useState<number | undefined>(undefined)
   const [editRateLimitPerHour, setEditRateLimitPerHour] = useState<number | undefined>(undefined)
 
+  // Revocation state
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false)
+  const [showDeprecateDialog, setShowDeprecateDialog] = useState(false)
+  const [showRotateDialog, setShowRotateDialog] = useState(false)
+  const [showRotatedKeyDialog, setShowRotatedKeyDialog] = useState(false)
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [targetKey, setTargetKey] = useState<ServiceKey | null>(null)
+  const [revokeReason, setRevokeReason] = useState('')
+  const [deprecateReason, setDeprecateReason] = useState('')
+  const [gracePeriod, setGracePeriod] = useState('24h')
+  const [rotatedKey, setRotatedKey] = useState<RotateServiceKeyResponse | null>(null)
+  const [revocationHistory, setRevocationHistory] = useState<ServiceKeyRevocation[]>([])
+
   // Fetch service keys
   const { data: serviceKeys, isLoading } = useQuery<ServiceKey[]>({
     queryKey: ['service-keys'],
@@ -281,6 +303,56 @@ function ServiceKeysPage() {
     },
   })
 
+  // Revoke service key
+  const revokeMutation = useMutation({
+    mutationFn: ({ id, request }: { id: string; request: RevokeServiceKeyRequest }) =>
+      serviceKeysApi.revoke(id, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-keys'] })
+      setShowRevokeDialog(false)
+      setTargetKey(null)
+      setRevokeReason('')
+      toast.success('Service key revoked')
+    },
+    onError: () => {
+      toast.error('Failed to revoke service key')
+    },
+  })
+
+  // Deprecate service key
+  const deprecateMutation = useMutation({
+    mutationFn: ({ id, request }: { id: string; request: DeprecateServiceKeyRequest }) =>
+      serviceKeysApi.deprecate(id, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service-keys'] })
+      setShowDeprecateDialog(false)
+      setTargetKey(null)
+      setDeprecateReason('')
+      setGracePeriod('24h')
+      toast.success('Service key deprecated')
+    },
+    onError: () => {
+      toast.error('Failed to deprecate service key')
+    },
+  })
+
+  // Rotate service key
+  const rotateMutation = useMutation({
+    mutationFn: ({ id, request }: { id: string; request: RotateServiceKeyRequest }) =>
+      serviceKeysApi.rotate(id, request),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['service-keys'] })
+      setRotatedKey(data)
+      setShowRotateDialog(false)
+      setShowRotatedKeyDialog(true)
+      setTargetKey(null)
+      setGracePeriod('24h')
+    },
+    onError: () => {
+      toast.error('Failed to rotate service key')
+    },
+  })
+
   const handleCreateKey = () => {
     if (!name.trim()) {
       toast.error('Please enter a key name')
@@ -334,11 +406,91 @@ function ServiceKeysPage() {
   }
 
   const getKeyStatus = (key: ServiceKey) => {
+    // Check if revoked (highest priority)
+    if (key.revoked_at)
+      return { label: 'Revoked', variant: 'destructive' as const }
+    // Check if deprecated (within grace period)
+    if (key.deprecated_at) {
+      if (key.grace_period_ends_at && new Date(key.grace_period_ends_at) > new Date()) {
+        return { label: 'Deprecated', variant: 'outline' as const }
+      }
+      return { label: 'Expired', variant: 'destructive' as const }
+    }
     if (!key.enabled)
       return { label: 'Disabled', variant: 'secondary' as const }
     if (isExpired(key.expires_at))
       return { label: 'Expired', variant: 'destructive' as const }
     return { label: 'Active', variant: 'default' as const }
+  }
+
+  // Check if key can be modified (not revoked)
+  const canModify = (key: ServiceKey) => !key.revoked_at
+
+  // Open revoke dialog
+  const openRevokeDialog = (key: ServiceKey) => {
+    setTargetKey(key)
+    setRevokeReason('')
+    setShowRevokeDialog(true)
+  }
+
+  // Open deprecate dialog
+  const openDeprecateDialog = (key: ServiceKey) => {
+    setTargetKey(key)
+    setDeprecateReason('')
+    setGracePeriod('24h')
+    setShowDeprecateDialog(true)
+  }
+
+  // Open rotate dialog
+  const openRotateDialog = (key: ServiceKey) => {
+    setTargetKey(key)
+    setGracePeriod('24h')
+    setShowRotateDialog(true)
+  }
+
+  // Open history dialog
+  const openHistoryDialog = async (key: ServiceKey) => {
+    setTargetKey(key)
+    try {
+      const history = await serviceKeysApi.revocations(key.id)
+      setRevocationHistory(history)
+      setShowHistoryDialog(true)
+    } catch {
+      toast.error('Failed to load revocation history')
+    }
+  }
+
+  // Handle revoke
+  const handleRevoke = () => {
+    if (!targetKey || !revokeReason.trim()) {
+      toast.error('Please provide a reason for revocation')
+      return
+    }
+    revokeMutation.mutate({
+      id: targetKey.id,
+      request: { reason: revokeReason.trim() },
+    })
+  }
+
+  // Handle deprecate
+  const handleDeprecate = () => {
+    if (!targetKey) return
+    deprecateMutation.mutate({
+      id: targetKey.id,
+      request: {
+        grace_period: gracePeriod,
+        reason: deprecateReason.trim() || undefined,
+      },
+    })
+  }
+
+  // Handle rotate
+  const handleRotate = () => {
+    if (!targetKey) return
+    rotateMutation.mutate({
+      id: targetKey.id,
+      request: { grace_period: gracePeriod },
+    })
   }
 
   const formatRateLimit = (key: ServiceKey) => {
@@ -552,45 +704,110 @@ function ServiceKeysPage() {
                       </TableCell>
                       <TableCell className='text-right'>
                         <div className='flex justify-end gap-1'>
+                          {/* History button - always available */}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant='ghost'
                                 size='sm'
-                                onClick={() => openEditDialog(key)}
+                                onClick={() => openHistoryDialog(key)}
                               >
-                                <Pencil className='h-4 w-4' />
+                                <History className='h-4 w-4' />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Edit service key</TooltipContent>
+                            <TooltipContent>View history</TooltipContent>
                           </Tooltip>
-                          {key.enabled ? (
+                          {/* Edit - only if not revoked */}
+                          {canModify(key) && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant='ghost'
                                   size='sm'
-                                  onClick={() => disableMutation.mutate(key.id)}
-                                  disabled={disableMutation.isPending}
+                                  onClick={() => openEditDialog(key)}
                                 >
-                                  <PowerOff className='h-4 w-4' />
+                                  <Pencil className='h-4 w-4' />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Disable service key</TooltipContent>
+                              <TooltipContent>Edit service key</TooltipContent>
                             </Tooltip>
-                          ) : (
+                          )}
+                          {/* Rotate - only if active */}
+                          {canModify(key) && key.enabled && !key.deprecated_at && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant='ghost'
                                   size='sm'
-                                  onClick={() => enableMutation.mutate(key.id)}
-                                  disabled={enableMutation.isPending}
+                                  onClick={() => openRotateDialog(key)}
                                 >
-                                  <Power className='h-4 w-4' />
+                                  <RefreshCw className='h-4 w-4' />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Enable service key</TooltipContent>
+                              <TooltipContent>Rotate key</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {/* Deprecate - only if active and not already deprecated */}
+                          {canModify(key) && key.enabled && !key.deprecated_at && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => openDeprecateDialog(key)}
+                                >
+                                  <Clock className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Deprecate with grace period</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {/* Enable/Disable - only if not revoked */}
+                          {canModify(key) && !key.deprecated_at && (
+                            key.enabled ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    onClick={() => disableMutation.mutate(key.id)}
+                                    disabled={disableMutation.isPending}
+                                  >
+                                    <PowerOff className='h-4 w-4' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Disable service key</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    onClick={() => enableMutation.mutate(key.id)}
+                                    disabled={enableMutation.isPending}
+                                  >
+                                    <Power className='h-4 w-4' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Enable service key</TooltipContent>
+                              </Tooltip>
+                            )
+                          )}
+                          {/* Revoke - only if not already revoked */}
+                          {canModify(key) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => openRevokeDialog(key)}
+                                  className='text-destructive hover:text-destructive hover:bg-destructive/10'
+                                >
+                                  <ShieldAlert className='h-4 w-4' />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Revoke (emergency)</TooltipContent>
                             </Tooltip>
                           )}
                           <AlertDialog>
@@ -994,6 +1211,330 @@ function ServiceKeysPage() {
           <DialogFooter>
             <Button onClick={() => setShowKeyDialog(false)}>
               I've Saved the Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Service Key Dialog */}
+      <Dialog open={showRevokeDialog} onOpenChange={setShowRevokeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2 text-destructive'>
+              <ShieldAlert className='h-5 w-5' />
+              Emergency Revoke
+            </DialogTitle>
+            <DialogDescription>
+              This action is irreversible. The key "{targetKey?.name}" will be immediately
+              disabled and marked as revoked. Any applications using this key will lose
+              access instantly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='rounded-md bg-red-50 p-4 dark:bg-red-950'>
+              <div className='flex'>
+                <AlertCircle className='h-5 w-5 text-red-600 dark:text-red-400' />
+                <div className='ml-3'>
+                  <h3 className='text-sm font-medium text-red-800 dark:text-red-200'>
+                    Warning: This cannot be undone
+                  </h3>
+                  <div className='mt-2 text-sm text-red-700 dark:text-red-300'>
+                    <p>
+                      Use this only for security incidents. For planned key rotation,
+                      use the Rotate or Deprecate options instead.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='revokeReason'>
+                Reason for revocation <span className='text-destructive'>*</span>
+              </Label>
+              <Input
+                id='revokeReason'
+                placeholder='e.g., Key compromised, employee departure'
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+              />
+              <p className='text-muted-foreground text-xs'>
+                This will be recorded in the audit log.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setShowRevokeDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleRevoke}
+              disabled={revokeMutation.isPending || !revokeReason.trim()}
+            >
+              {revokeMutation.isPending ? 'Revoking...' : 'Revoke Key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deprecate Service Key Dialog */}
+      <Dialog open={showDeprecateDialog} onOpenChange={setShowDeprecateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <Clock className='h-5 w-5' />
+              Deprecate Service Key
+            </DialogTitle>
+            <DialogDescription>
+              Mark "{targetKey?.name}" as deprecated with a grace period. The key will
+              continue working during the grace period, allowing time for migration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='grid gap-2'>
+              <Label htmlFor='gracePeriodDeprecate'>Grace Period</Label>
+              <select
+                id='gracePeriodDeprecate'
+                value={gracePeriod}
+                onChange={(e) => setGracePeriod(e.target.value)}
+                className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background'
+              >
+                <option value='1h'>1 hour</option>
+                <option value='6h'>6 hours</option>
+                <option value='12h'>12 hours</option>
+                <option value='24h'>24 hours</option>
+                <option value='48h'>48 hours</option>
+                <option value='7d'>7 days</option>
+                <option value='14d'>14 days</option>
+                <option value='30d'>30 days</option>
+              </select>
+              <p className='text-muted-foreground text-xs'>
+                The key will stop working after this period.
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='deprecateReason'>Reason (optional)</Label>
+              <Input
+                id='deprecateReason'
+                placeholder='e.g., Scheduled rotation, security policy'
+                value={deprecateReason}
+                onChange={(e) => setDeprecateReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setShowDeprecateDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeprecate}
+              disabled={deprecateMutation.isPending}
+            >
+              {deprecateMutation.isPending ? 'Deprecating...' : 'Deprecate Key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rotate Service Key Dialog */}
+      <Dialog open={showRotateDialog} onOpenChange={setShowRotateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <RefreshCw className='h-5 w-5' />
+              Rotate Service Key
+            </DialogTitle>
+            <DialogDescription>
+              Create a new key to replace "{targetKey?.name}". The old key will be
+              deprecated with a grace period for migration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='grid gap-2'>
+              <Label htmlFor='gracePeriodRotate'>Grace Period for Old Key</Label>
+              <select
+                id='gracePeriodRotate'
+                value={gracePeriod}
+                onChange={(e) => setGracePeriod(e.target.value)}
+                className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background'
+              >
+                <option value='1h'>1 hour</option>
+                <option value='6h'>6 hours</option>
+                <option value='12h'>12 hours</option>
+                <option value='24h'>24 hours</option>
+                <option value='48h'>48 hours</option>
+                <option value='7d'>7 days</option>
+                <option value='14d'>14 days</option>
+                <option value='30d'>30 days</option>
+              </select>
+              <p className='text-muted-foreground text-xs'>
+                The old key will continue working for this period.
+              </p>
+            </div>
+            <div className='rounded-md bg-blue-50 p-4 dark:bg-blue-950'>
+              <div className='text-sm text-blue-700 dark:text-blue-300'>
+                <p className='font-medium'>What happens on rotation:</p>
+                <ul className='mt-2 list-disc pl-5 space-y-1'>
+                  <li>A new key is created with the same configuration</li>
+                  <li>The old key is marked as deprecated</li>
+                  <li>The old key continues working during the grace period</li>
+                  <li>After the grace period, the old key stops working</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setShowRotateDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRotate}
+              disabled={rotateMutation.isPending}
+            >
+              {rotateMutation.isPending ? 'Rotating...' : 'Rotate Key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Show Rotated Key Dialog */}
+      <Dialog open={showRotatedKeyDialog} onOpenChange={setShowRotatedKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Key Rotated Successfully</DialogTitle>
+            <DialogDescription>
+              Save the new key now. You won't be able to see it again!
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='rounded-md bg-yellow-50 p-4 dark:bg-yellow-950'>
+              <div className='flex'>
+                <AlertCircle className='h-5 w-5 text-yellow-600 dark:text-yellow-400' />
+                <div className='ml-3'>
+                  <h3 className='text-sm font-medium text-yellow-800 dark:text-yellow-200'>
+                    Important: Copy the new key now
+                  </h3>
+                  <div className='mt-2 text-sm text-yellow-700 dark:text-yellow-300'>
+                    <p>
+                      This is the only time you'll see the new service key. The old key
+                      will continue working during the grace period.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='grid gap-2'>
+              <Label>New Service Key</Label>
+              <div className='flex gap-2'>
+                <Input
+                  value={rotatedKey?.key || ''}
+                  readOnly
+                  className='font-mono text-xs'
+                />
+                <Button
+                  variant='outline'
+                  size='icon'
+                  onClick={() => copyToClipboard(rotatedKey?.key || '')}
+                >
+                  <Copy className='h-4 w-4' />
+                </Button>
+              </div>
+            </div>
+            <div className='grid gap-2'>
+              <Label>Name</Label>
+              <Input value={rotatedKey?.name || ''} readOnly />
+            </div>
+            {rotatedKey?.grace_period_ends_at && (
+              <div className='grid gap-2'>
+                <Label>Old Key Expires</Label>
+                <Input
+                  value={new Date(rotatedKey.grace_period_ends_at).toLocaleString()}
+                  readOnly
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowRotatedKeyDialog(false)}>
+              I've Saved the New Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revocation History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className='max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2'>
+              <History className='h-5 w-5' />
+              Key History: {targetKey?.name}
+            </DialogTitle>
+            <DialogDescription>
+              View the revocation and rotation history for this service key.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='py-4'>
+            {revocationHistory.length === 0 ? (
+              <div className='text-center py-8 text-muted-foreground'>
+                <History className='h-12 w-12 mx-auto mb-4 opacity-50' />
+                <p>No revocation history for this key.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>By</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {revocationHistory.map((rev) => (
+                    <TableRow key={rev.id}>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            rev.revocation_type === 'emergency'
+                              ? 'destructive'
+                              : rev.revocation_type === 'rotation'
+                              ? 'default'
+                              : 'secondary'
+                          }
+                        >
+                          {rev.revocation_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='max-w-[200px] truncate'>
+                        {rev.reason || '-'}
+                      </TableCell>
+                      <TableCell className='text-sm text-muted-foreground'>
+                        {rev.revoked_by || '-'}
+                      </TableCell>
+                      <TableCell className='text-sm text-muted-foreground'>
+                        {formatDistanceToNow(new Date(rev.created_at), {
+                          addSuffix: true,
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowHistoryDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

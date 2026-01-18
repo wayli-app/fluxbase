@@ -3178,6 +3178,40 @@ export interface ServiceKey {
   created_at: string
   last_used_at?: string
   expires_at?: string
+  // Revocation fields
+  revoked_at?: string
+  revoked_by?: string
+  revocation_reason?: string
+  // Deprecation fields
+  deprecated_at?: string
+  grace_period_ends_at?: string
+  replaced_by?: string
+}
+
+export interface ServiceKeyRevocation {
+  id: string
+  service_key_id: string
+  revocation_type: 'emergency' | 'rotation' | 'expiration' | 'deprecation'
+  reason: string
+  revoked_by: string
+  created_at: string
+}
+
+export interface RevokeServiceKeyRequest {
+  reason: string
+}
+
+export interface DeprecateServiceKeyRequest {
+  grace_period: string
+  reason?: string
+}
+
+export interface RotateServiceKeyRequest {
+  grace_period: string
+}
+
+export interface RotateServiceKeyResponse extends ServiceKeyWithPlaintext {
+  grace_period_ends_at: string
 }
 
 export interface ServiceKeyWithPlaintext extends ServiceKey {
@@ -3262,6 +3296,50 @@ export const serviceKeysApi = {
   ): Promise<{ success: boolean; message: string }> => {
     const response = await api.post<{ success: boolean; message: string }>(
       `/api/v1/admin/service-keys/${id}/enable`
+    )
+    return response.data
+  },
+
+  // Revoke a service key (emergency, immediate)
+  revoke: async (
+    id: string,
+    request: RevokeServiceKeyRequest
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/api/v1/admin/service-keys/${id}/revoke`,
+      request
+    )
+    return response.data
+  },
+
+  // Deprecate a service key (with grace period)
+  deprecate: async (
+    id: string,
+    request: DeprecateServiceKeyRequest
+  ): Promise<ServiceKey> => {
+    const response = await api.post<ServiceKey>(
+      `/api/v1/admin/service-keys/${id}/deprecate`,
+      request
+    )
+    return response.data
+  },
+
+  // Rotate a service key (create replacement)
+  rotate: async (
+    id: string,
+    request: RotateServiceKeyRequest
+  ): Promise<RotateServiceKeyResponse> => {
+    const response = await api.post<RotateServiceKeyResponse>(
+      `/api/v1/admin/service-keys/${id}/rotate`,
+      request
+    )
+    return response.data
+  },
+
+  // Get revocation history for a service key
+  revocations: async (id: string): Promise<ServiceKeyRevocation[]> => {
+    const response = await api.get<ServiceKeyRevocation[]>(
+      `/api/v1/admin/service-keys/${id}/revocations`
     )
     return response.data
   },
