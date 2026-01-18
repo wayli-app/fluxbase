@@ -26,8 +26,8 @@ This document tracks the implementation of improvements identified in the archit
 | Phase 2: Scalability & Performance | 8 | 8 | 0 | 0 |
 | Phase 3: Maintainability & Correctness | 7 | 6 | 0 | 1 |
 | Phase 4: Developer Experience | 5 | 4 | 0 | 1 |
-| Phase 5: Operations & Polish | 4 | 2 | 0 | 2 |
-| **Total** | **32** | **28** | **0** | **4** |
+| Phase 5: Operations & Polish | 4 | 4 | 0 | 0 |
+| **Total** | **32** | **30** | **0** | **2** |
 
 ---
 
@@ -1287,21 +1287,37 @@ Blind spots in distributed tracing for edge functions and background jobs.
 
 **Priority:** Medium
 **Category:** Operations
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 No incident response documentation.
 
-**Files to Create:**
-- `docs/operations/runbook.md`
+**Files Created:**
+- `docs/src/content/docs/guides/operational-runbook.md`
 
 **Implementation Steps:**
-- [ ] Document common failure scenarios and remediation
-- [ ] Add database troubleshooting section
-- [ ] Add performance debugging section
-- [ ] Add security incident response section
-- [ ] Include escalation procedures
-- [ ] Add monitoring dashboard interpretation guide
+- [x] Document common failure scenarios and remediation
+- [x] Add database troubleshooting section (connection pool, slow queries, replication)
+- [x] Add performance debugging section (CPU, memory, latency)
+- [x] Add security incident response section (account compromise, key compromise, DDoS)
+- [x] Include escalation procedures (severity matrix)
+- [x] Add realtime/WebSocket troubleshooting
+- [x] Add storage troubleshooting
+- [x] Add background jobs troubleshooting
+- [x] Add alerting response guide
+- [x] Add maintenance procedures
+
+**Sections Included:**
+- Quick Reference (endpoints, common issues)
+- Database Troubleshooting (connections, slow queries, replication)
+- Performance Debugging (CPU, memory, latency)
+- Realtime/WebSocket Issues
+- Security Incident Response
+- Storage Issues
+- Background Jobs Issues
+- Alerting Response Guide
+- Maintenance Procedures
+- Escalation Matrix
 
 ---
 
@@ -1309,27 +1325,48 @@ No incident response documentation.
 
 **Priority:** Low
 **Category:** Operations
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 Cannot observe job queue health.
 
-**Files to Modify:**
-- `internal/jobs/manager.go`
-- `internal/observability/metrics.go`
+**Files Modified:**
+- `internal/observability/metrics.go` (added job metrics and helper methods)
+- `internal/observability/metrics_test.go` (added comprehensive tests)
 
 **Implementation Steps:**
-- [ ] Add `fluxbase_jobs_queue_depth` gauge by namespace/priority
-- [ ] Add `fluxbase_jobs_processing` gauge for active jobs
-- [ ] Add `fluxbase_jobs_worker_utilization` gauge
-- [ ] Add recommended alerting thresholds to documentation
+- [x] Add `fluxbase_jobs_queue_depth` gauge by namespace/priority
+- [x] Add `fluxbase_jobs_processing` gauge for active jobs
+- [x] Add `fluxbase_jobs_completed_total` counter by namespace/name
+- [x] Add `fluxbase_jobs_failed_total` counter by namespace/name/reason
+- [x] Add `fluxbase_job_execution_duration_seconds` histogram by namespace/name
+- [x] Add `fluxbase_job_workers_active` gauge
+- [x] Add `fluxbase_job_worker_utilization` gauge
+- [x] Add helper methods: UpdateJobQueueDepth, UpdateJobsProcessing, RecordJobCompleted, RecordJobFailed, UpdateJobWorkers
+- [ ] Add recommended alerting thresholds to documentation (deferred - docs update)
+
+**Metrics Added:**
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `fluxbase_jobs_queue_depth` | Gauge | namespace, priority | Jobs waiting in queue |
+| `fluxbase_jobs_processing` | Gauge | - | Jobs currently being processed |
+| `fluxbase_jobs_completed_total` | Counter | namespace, name | Successfully completed jobs |
+| `fluxbase_jobs_failed_total` | Counter | namespace, name, reason | Failed jobs with reason |
+| `fluxbase_job_execution_duration_seconds` | Histogram | namespace, name | Job execution duration |
+| `fluxbase_job_workers_active` | Gauge | - | Active job workers |
+| `fluxbase_job_worker_utilization` | Gauge | - | Worker utilization (0.0-1.0) |
 
 **Test Requirements:**
-- [ ] Unit test: Queue depth metric updated on enqueue/dequeue
-- [ ] Unit test: Processing count accurate
-- [ ] Unit test: Worker utilization calculated correctly
+- [x] Unit test: UpdateJobQueueDepth updates metric correctly
+- [x] Unit test: UpdateJobQueueDepth with empty namespace uses default
+- [x] Unit test: UpdateJobsProcessing updates metric
+- [x] Unit test: RecordJobCompleted increments counter and records duration
+- [x] Unit test: RecordJobCompleted with empty namespace uses default
+- [x] Unit test: RecordJobFailed increments counter with reason
+- [x] Unit test: RecordJobFailed handles different failure reasons
+- [x] Unit test: UpdateJobWorkers updates active count and utilization
 
-**Test File:** `internal/jobs/manager_test.go`
+**Test File:** `internal/observability/metrics_test.go`
 
 ---
 

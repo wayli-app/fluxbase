@@ -57,6 +57,15 @@ type Metrics struct {
 	// Rate limiting metrics
 	rateLimitHitsTotal *prometheus.CounterVec
 
+	// Job metrics
+	jobsQueueDepth        *prometheus.GaugeVec
+	jobsProcessing        prometheus.Gauge
+	jobsCompletedTotal    *prometheus.CounterVec
+	jobsFailedTotal       *prometheus.CounterVec
+	jobExecutionDuration  *prometheus.HistogramVec
+	jobWorkersActive      prometheus.Gauge
+	jobWorkerUtilization  prometheus.Gauge
+
 	// AI Chatbot metrics
 	aiChatRequestsTotal     *prometheus.CounterVec
 	aiChatRequestDuration   *prometheus.HistogramVec
@@ -254,6 +263,55 @@ func createMetrics() *Metrics {
 			[]string{"limiter_type", "identifier"},
 		),
 
+		// Job metrics
+		jobsQueueDepth: promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "fluxbase_jobs_queue_depth",
+				Help: "Current number of jobs waiting in queue",
+			},
+			[]string{"namespace", "priority"},
+		),
+		jobsProcessing: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "fluxbase_jobs_processing",
+				Help: "Current number of jobs being processed",
+			},
+		),
+		jobsCompletedTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "fluxbase_jobs_completed_total",
+				Help: "Total number of jobs completed successfully",
+			},
+			[]string{"namespace", "name"},
+		),
+		jobsFailedTotal: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "fluxbase_jobs_failed_total",
+				Help: "Total number of jobs that failed",
+			},
+			[]string{"namespace", "name", "reason"},
+		),
+		jobExecutionDuration: promauto.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "fluxbase_job_execution_duration_seconds",
+				Help:    "Job execution duration in seconds",
+				Buckets: []float64{.1, .5, 1, 5, 10, 30, 60, 120, 300, 600},
+			},
+			[]string{"namespace", "name"},
+		),
+		jobWorkersActive: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "fluxbase_job_workers_active",
+				Help: "Current number of active job workers",
+			},
+		),
+		jobWorkerUtilization: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "fluxbase_job_worker_utilization",
+				Help: "Job worker utilization (0.0-1.0)",
+			},
+		),
+
 		// AI Chatbot metrics
 		aiChatRequestsTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
@@ -428,6 +486,46 @@ func (m *Metrics) RecordAuthToken(tokenType string) {
 // RecordRateLimitHit records a rate limit hit
 func (m *Metrics) RecordRateLimitHit(limiterType, identifier string) {
 	m.rateLimitHitsTotal.WithLabelValues(limiterType, identifier).Inc()
+}
+
+// UpdateJobQueueDepth updates the job queue depth metric
+// priority should be "high", "normal", or "low"
+func (m *Metrics) UpdateJobQueueDepth(namespace, priority string, count int) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	m.jobsQueueDepth.WithLabelValues(namespace, priority).Set(float64(count))
+}
+
+// UpdateJobsProcessing updates the number of jobs currently being processed
+func (m *Metrics) UpdateJobsProcessing(count int) {
+	m.jobsProcessing.Set(float64(count))
+}
+
+// RecordJobCompleted records a successfully completed job
+func (m *Metrics) RecordJobCompleted(namespace, name string, duration time.Duration) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	m.jobsCompletedTotal.WithLabelValues(namespace, name).Inc()
+	m.jobExecutionDuration.WithLabelValues(namespace, name).Observe(duration.Seconds())
+}
+
+// RecordJobFailed records a failed job
+// reason should be descriptive like "timeout", "error", "cancelled", "panic"
+func (m *Metrics) RecordJobFailed(namespace, name, reason string, duration time.Duration) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	m.jobsFailedTotal.WithLabelValues(namespace, name, reason).Inc()
+	m.jobExecutionDuration.WithLabelValues(namespace, name).Observe(duration.Seconds())
+}
+
+// UpdateJobWorkers updates job worker metrics
+// utilization is the ratio of active jobs to total capacity (0.0 to 1.0)
+func (m *Metrics) UpdateJobWorkers(activeWorkers int, utilization float64) {
+	m.jobWorkersActive.Set(float64(activeWorkers))
+	m.jobWorkerUtilization.Set(utilization)
 }
 
 // UpdateUptime updates the system uptime metric

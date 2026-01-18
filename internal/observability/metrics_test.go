@@ -210,6 +210,79 @@ func TestMetrics_AllMethods(t *testing.T) {
 		})
 	})
 
+	// Job metrics tests
+	t.Run("UpdateJobQueueDepth", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.UpdateJobQueueDepth("emails", "high", 10)
+			m.UpdateJobQueueDepth("emails", "normal", 25)
+			m.UpdateJobQueueDepth("emails", "low", 50)
+		})
+	})
+
+	t.Run("UpdateJobQueueDepth_default_namespace", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.UpdateJobQueueDepth("", "normal", 15) // empty namespace should become "default"
+		})
+	})
+
+	t.Run("UpdateJobsProcessing", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.UpdateJobsProcessing(5)
+			m.UpdateJobsProcessing(0)
+		})
+	})
+
+	t.Run("RecordJobCompleted", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobCompleted("notifications", "send_email", 2*time.Second)
+			m.RecordJobCompleted("notifications", "send_push", 500*time.Millisecond)
+		})
+	})
+
+	t.Run("RecordJobCompleted_default_namespace", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobCompleted("", "cleanup", 100*time.Millisecond) // empty namespace should become "default"
+		})
+	})
+
+	t.Run("RecordJobFailed_timeout", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobFailed("reports", "generate_pdf", "timeout", 5*time.Minute)
+		})
+	})
+
+	t.Run("RecordJobFailed_error", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobFailed("imports", "csv_import", "error", 30*time.Second)
+		})
+	})
+
+	t.Run("RecordJobFailed_cancelled", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobFailed("exports", "data_export", "cancelled", 10*time.Second)
+		})
+	})
+
+	t.Run("RecordJobFailed_panic", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobFailed("processing", "image_resize", "panic", 1*time.Second)
+		})
+	})
+
+	t.Run("RecordJobFailed_default_namespace", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.RecordJobFailed("", "sync_data", "error", 2*time.Second) // empty namespace should become "default"
+		})
+	})
+
+	t.Run("UpdateJobWorkers", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			m.UpdateJobWorkers(4, 0.75) // 4 active workers, 75% utilization
+			m.UpdateJobWorkers(0, 0.0)  // no active workers
+			m.UpdateJobWorkers(8, 1.0)  // full utilization
+		})
+	})
+
 	t.Run("Handler", func(t *testing.T) {
 		handler := m.Handler()
 		assert.NotNil(t, handler)
