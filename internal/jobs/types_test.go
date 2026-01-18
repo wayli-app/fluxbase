@@ -16,6 +16,7 @@ func TestJobStatus_Constants(t *testing.T) {
 	assert.Equal(t, JobStatus("completed"), JobStatusCompleted)
 	assert.Equal(t, JobStatus("failed"), JobStatusFailed)
 	assert.Equal(t, JobStatus("cancelled"), JobStatusCancelled)
+	assert.Equal(t, JobStatus("interrupted"), JobStatusInterrupted)
 }
 
 func TestWorkerStatus_Constants(t *testing.T) {

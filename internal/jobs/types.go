@@ -15,11 +15,12 @@ var ErrDuplicateJob = errors.New("duplicate job already pending or running")
 type JobStatus string
 
 const (
-	JobStatusPending   JobStatus = "pending"
-	JobStatusRunning   JobStatus = "running"
-	JobStatusCompleted JobStatus = "completed"
-	JobStatusFailed    JobStatus = "failed"
-	JobStatusCancelled JobStatus = "cancelled"
+	JobStatusPending     JobStatus = "pending"
+	JobStatusRunning     JobStatus = "running"
+	JobStatusCompleted   JobStatus = "completed"
+	JobStatusFailed      JobStatus = "failed"
+	JobStatusCancelled   JobStatus = "cancelled"
+	JobStatusInterrupted JobStatus = "interrupted" // Worker shutdown interrupted this job
 )
 
 // WorkerStatus represents the status of a worker

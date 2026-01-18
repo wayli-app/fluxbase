@@ -386,6 +386,7 @@ type JobsConfig struct {
 	FunctionsLogsRetentionDays int           `mapstructure:"functions_logs_retention_days"` // Retention period for functions execution logs (days)
 	RPCLogsRetentionDays       int           `mapstructure:"rpc_logs_retention_days"`       // Retention period for RPC execution logs (days)
 	JobsLogsRetentionDays      int           `mapstructure:"jobs_logs_retention_days"`      // Retention period for jobs execution logs (days)
+	GracefulShutdownTimeout    time.Duration `mapstructure:"graceful_shutdown_timeout"`     // Time to wait for running jobs during shutdown (default: 5m)
 }
 
 // MigrationsConfig contains migrations API security settings
@@ -777,6 +778,7 @@ func setDefaults() {
 	viper.SetDefault("jobs.functions_logs_retention_days", 30) // 30 days retention for functions execution logs
 	viper.SetDefault("jobs.rpc_logs_retention_days", 30)       // 30 days retention for RPC execution logs
 	viper.SetDefault("jobs.jobs_logs_retention_days", 30)      // 30 days retention for jobs execution logs
+	viper.SetDefault("jobs.graceful_shutdown_timeout", "5m")   // Wait up to 5 minutes for jobs during shutdown
 
 	// Tracing defaults (OpenTelemetry)
 	viper.SetDefault("tracing.enabled", false)             // Disabled by default

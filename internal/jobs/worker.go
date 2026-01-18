@@ -36,6 +36,8 @@ type Worker struct {
 	currentJobCountMutex   sync.RWMutex
 	shutdownChan           chan struct{}
 	shutdownComplete       chan struct{}
+	draining               bool       // True when worker is draining (not accepting new jobs)
+	drainingMutex          sync.RWMutex
 }
 
 // NewWorker creates a new worker
@@ -119,21 +121,38 @@ func (w *Worker) Start(ctx context.Context) error {
 	// Wait for shutdown signal
 	<-w.shutdownChan
 
-	log.Info().Str("worker_id", w.ID.String()).Msg("Worker shutting down gracefully")
+	// Set draining mode to stop accepting new jobs
+	w.setDraining(true)
 
-	// Wait for all jobs to complete (with timeout)
-	shutdownTimeout := time.After(30 * time.Second)
+	log.Info().
+		Str("worker_id", w.ID.String()).
+		Dur("timeout", w.Config.GracefulShutdownTimeout).
+		Msg("Worker shutting down gracefully, waiting for running jobs")
+
+	// Update worker status in database to draining
+	if err := w.Storage.UpdateWorkerStatus(ctx, w.ID, WorkerStatusDraining); err != nil {
+		log.Warn().Err(err).Msg("Failed to update worker status to draining")
+	}
+
+	// Use configured timeout (default 5m) instead of hard-coded 30s
+	timeout := w.Config.GracefulShutdownTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Minute
+	}
+	shutdownTimeout := time.After(timeout)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-shutdownTimeout:
+			remainingJobs := w.getCurrentJobCount()
 			log.Warn().
 				Str("worker_id", w.ID.String()).
-				Int("remaining_jobs", w.getCurrentJobCount()).
-				Msg("Shutdown timeout reached, forcing shutdown")
-			w.cancelAllJobs()
+				Int("remaining_jobs", remainingJobs).
+				Dur("timeout", timeout).
+				Msg("Shutdown timeout reached, interrupting remaining jobs")
+			w.interruptAllJobs()
 			close(w.shutdownComplete)
 			return nil
 		case <-ticker.C:
@@ -144,6 +163,20 @@ func (w *Worker) Start(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// isDraining returns true if the worker is draining (not accepting new jobs)
+func (w *Worker) isDraining() bool {
+	w.drainingMutex.RLock()
+	defer w.drainingMutex.RUnlock()
+	return w.draining
+}
+
+// setDraining sets the draining state
+func (w *Worker) setDraining(draining bool) {
+	w.drainingMutex.Lock()
+	defer w.drainingMutex.Unlock()
+	w.draining = draining
 }
 
 // Stop stops the worker gracefully
@@ -161,6 +194,11 @@ func (w *Worker) pollLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
+			// Don't accept new jobs if draining
+			if w.isDraining() {
+				continue
+			}
+
 			// Check if we have capacity
 			if w.hasCapacity() {
 				// Try to claim a job
@@ -566,6 +604,40 @@ func (w *Worker) cancelAllJobs() {
 		if cancelSignal, ok := value.(*runtime.CancelSignal); ok {
 			cancelSignal.Cancel()
 		}
+		return true
+	})
+}
+
+// interruptAllJobs cancels all running jobs and marks them as interrupted.
+// This is called during graceful shutdown timeout, marking jobs as "interrupted"
+// rather than "failed" so they can be distinguished from actual failures.
+func (w *Worker) interruptAllJobs() {
+	ctx := context.Background()
+	reason := "Worker shutdown timeout - job interrupted"
+
+	w.currentJobs.Range(func(key, value interface{}) bool {
+		jobID, ok := key.(uuid.UUID)
+		if !ok {
+			return true
+		}
+
+		// Cancel the job execution
+		if cancelSignal, ok := value.(*runtime.CancelSignal); ok {
+			cancelSignal.Cancel()
+		}
+
+		// Mark the job as interrupted in the database
+		if err := w.Storage.InterruptJob(ctx, jobID, reason); err != nil {
+			log.Warn().
+				Err(err).
+				Str("job_id", jobID.String()).
+				Msg("Failed to mark job as interrupted, will be marked as failed by cleanup")
+		} else {
+			log.Info().
+				Str("job_id", jobID.String()).
+				Msg("Job marked as interrupted due to worker shutdown")
+		}
+
 		return true
 	})
 }

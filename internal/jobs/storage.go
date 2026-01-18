@@ -538,6 +538,26 @@ func (s *Storage) CancelJob(ctx context.Context, jobID uuid.UUID) error {
 	return nil
 }
 
+// InterruptJob marks a running job as interrupted (used during graceful shutdown)
+func (s *Storage) InterruptJob(ctx context.Context, jobID uuid.UUID, reason string) error {
+	query := `
+		UPDATE jobs.queue
+		SET status = $1, error_message = $2, completed_at = NOW()
+		WHERE id = $3 AND status = $4
+	`
+
+	result, err := s.conn.Pool().Exec(ctx, query, JobStatusInterrupted, reason, jobID, JobStatusRunning)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("job not found or not running: %s", jobID)
+	}
+
+	return nil
+}
+
 // RequeueJob requeues a failed job for retry
 func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	query := `
