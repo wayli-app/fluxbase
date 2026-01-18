@@ -748,7 +748,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 		rows, err := tx.Query(ctx, objectsQuery, bucket, prefix, delimiter, limit, offset)
 		if err != nil {
 			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query files")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list files"})
+			return SendOperationFailed(c, "list files")
 		}
 		defer rows.Close()
 
@@ -770,7 +770,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 		prefixRows, err := tx.Query(ctx, prefixesQuery, bucket, prefix, delimiter)
 		if err != nil {
 			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query prefixes")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list files"})
+			return SendOperationFailed(c, "list files")
 		}
 		defer prefixRows.Close()
 
@@ -806,7 +806,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 		rows, err := tx.Query(ctx, query, args...)
 		if err != nil {
 			log.Error().Err(err).Str("bucket", bucket).Msg("Failed to query files")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list files"})
+			return SendOperationFailed(c, "list files")
 		}
 		defer rows.Close()
 
@@ -821,7 +821,7 @@ func (h *StorageHandler) ListFiles(c *fiber.Ctx) error {
 
 	if err := tx.Commit(ctx); err != nil {
 		log.Error().Err(err).Msg("Failed to commit file list transaction")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list files"})
+		return SendOperationFailed(c, "list files")
 	}
 
 	response := fiber.Map{"bucket": bucket, "objects": objects, "count": len(objects)}

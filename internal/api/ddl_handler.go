@@ -292,28 +292,26 @@ func (h *DDLHandler) AddColumn(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	var req AddColumnRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return SendInvalidBody(c)
 	}
 
 	// Validate column name
 	if err := validateIdentifier(req.Name, "column"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	// Validate data type
 	dataType := strings.ToLower(strings.TrimSpace(req.Type))
 	if !validDataTypes[dataType] {
-		return c.Status(400).JSON(fiber.Map{
-			"error": fmt.Sprintf("Invalid data type '%s'", req.Type),
-		})
+		return SendBadRequest(c, fmt.Sprintf("Invalid data type '%s'", req.Type), ErrCodeInvalidInput)
 	}
 
 	ctx := c.Context()
@@ -322,24 +320,20 @@ func (h *DDLHandler) AddColumn(c *fiber.Ctx) error {
 	exists, err := h.tableExists(ctx, schema, table)
 	if err != nil {
 		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+		return SendOperationFailed(c, "check table existence")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' does not exist", schema, table))
 	}
 
 	// Check if column already exists
 	colExists, err := h.columnExists(ctx, schema, table, req.Name)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to check column existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check column existence"})
+		return SendOperationFailed(c, "check column existence")
 	}
 	if colExists {
-		return c.Status(409).JSON(fiber.Map{
-			"error": fmt.Sprintf("Column '%s' already exists in table '%s.%s'", req.Name, schema, table),
-		})
+		return SendConflict(c, fmt.Sprintf("Column '%s' already exists in table '%s.%s'", req.Name, schema, table), ErrCodeAlreadyExists)
 	}
 
 	// Build ALTER TABLE ADD COLUMN statement
@@ -387,13 +381,13 @@ func (h *DDLHandler) DropColumn(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(column, "column"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	ctx := c.Context()
@@ -402,24 +396,20 @@ func (h *DDLHandler) DropColumn(c *fiber.Ctx) error {
 	exists, err := h.tableExists(ctx, schema, table)
 	if err != nil {
 		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+		return SendOperationFailed(c, "check table existence")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' does not exist", schema, table))
 	}
 
 	// Check if column exists
 	colExists, err := h.columnExists(ctx, schema, table, column)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to check column existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check column existence"})
+		return SendOperationFailed(c, "check column existence")
 	}
 	if !colExists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Column '%s' does not exist in table '%s.%s'", column, schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Column '%s' does not exist in table '%s.%s'", column, schema, table))
 	}
 
 	query := fmt.Sprintf("ALTER TABLE %s.%s DROP COLUMN %s",
@@ -433,9 +423,7 @@ func (h *DDLHandler) DropColumn(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		log.Error().Err(err).Str("table", schema+"."+table).Str("column", column).Msg("Failed to drop column")
-		return c.Status(500).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to drop column: %v", err),
-		})
+		return SendInternalError(c, fmt.Sprintf("Failed to drop column: %v", err))
 	}
 
 	log.Info().Str("table", schema+"."+table).Str("column", column).Msg("Column dropped successfully")
@@ -457,20 +445,20 @@ func (h *DDLHandler) RenameTable(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	var req RenameTableRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return SendInvalidBody(c)
 	}
 
 	// Validate new table name
 	if err := validateIdentifier(req.NewName, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	ctx := c.Context()
@@ -479,24 +467,20 @@ func (h *DDLHandler) RenameTable(c *fiber.Ctx) error {
 	exists, err := h.tableExists(ctx, schema, table)
 	if err != nil {
 		log.Error().Err(err).Str("table", schema+"."+table).Msg("Failed to check table existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check table existence"})
+		return SendOperationFailed(c, "check table existence")
 	}
 	if !exists {
-		return c.Status(404).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' does not exist", schema, table),
-		})
+		return SendNotFound(c, fmt.Sprintf("Table '%s.%s' does not exist", schema, table))
 	}
 
 	// Check if target table name already exists
 	targetExists, err := h.tableExists(ctx, schema, req.NewName)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to check target table existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to check target table existence"})
+		return SendOperationFailed(c, "check target table existence")
 	}
 	if targetExists {
-		return c.Status(409).JSON(fiber.Map{
-			"error": fmt.Sprintf("Table '%s.%s' already exists", schema, req.NewName),
-		})
+		return SendConflict(c, fmt.Sprintf("Table '%s.%s' already exists", schema, req.NewName), ErrCodeAlreadyExists)
 	}
 
 	query := fmt.Sprintf("ALTER TABLE %s.%s RENAME TO %s",
@@ -647,7 +631,7 @@ func (h *DDLHandler) ListSchemas(c *fiber.Ctx) error {
 	schemas, err := h.db.Inspector().GetSchemas(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list schemas")
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to list schemas"})
+		return SendOperationFailed(c, "list schemas")
 	}
 
 	// Filter out system schemas and build response
@@ -682,7 +666,7 @@ func (h *DDLHandler) ListTables(c *fiber.Ctx) error {
 		schemas, err := h.db.Inspector().GetSchemas(ctx)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to list schemas")
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to list schemas"})
+			return SendOperationFailed(c, "list schemas")
 		}
 
 		// Filter out system schemas
