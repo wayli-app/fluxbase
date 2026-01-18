@@ -19,11 +19,11 @@ var typesCmd = &cobra.Command{
 }
 
 var (
-	typesSchemas         []string
+	typesSchemas          []string
 	typesIncludeFunctions bool
-	typesIncludeViews    bool
-	typesOutput          string
-	typesFormat          string
+	typesIncludeViews     bool
+	typesOutput           string
+	typesFormat           string
 )
 
 var typesGenerateCmd = &cobra.Command{

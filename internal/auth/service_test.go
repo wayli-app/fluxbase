@@ -964,7 +964,7 @@ func TestTOTPEncryption_EncryptSecretWithValidKey(t *testing.T) {
 	// Test that crypto.Encrypt works correctly with a valid key
 	// This validates the encryption mechanism used for TOTP secrets
 
-	secret := "JBSWY3DPEHPK3PXP" // Example TOTP secret
+	secret := "JBSWY3DPEHPK3PXP"              // Example TOTP secret
 	key := "12345678901234567890123456789012" // 32-byte key
 
 	encrypted, err := crypto.Encrypt(secret, key)

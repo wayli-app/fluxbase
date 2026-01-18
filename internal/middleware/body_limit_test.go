@@ -26,10 +26,10 @@ func TestPatternBodyLimiter_GetLimit(t *testing.T) {
 	limiter := NewPatternBodyLimiter(config)
 
 	tests := []struct {
-		name        string
-		path        string
-		wantLimit   int64
-		wantDesc    string
+		name      string
+		path      string
+		wantLimit int64
+		wantDesc  string
 	}{
 		{
 			name:      "storage upload",

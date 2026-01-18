@@ -13,13 +13,13 @@ import (
 // These codes are returned in the "code" field of error responses.
 const (
 	// Authentication errors (401)
-	ErrCodeMissingAuth    = "MISSING_AUTHENTICATION"
-	ErrCodeInvalidToken   = "INVALID_TOKEN"
-	ErrCodeExpiredToken   = "EXPIRED_TOKEN"
-	ErrCodeRevokedToken   = "REVOKED_TOKEN"
-	ErrCodeAuthRequired   = "AUTHENTICATION_REQUIRED"
-	ErrCodeInvalidUserID  = "INVALID_USER_ID"
-	ErrCodeAccountLocked  = "ACCOUNT_LOCKED"
+	ErrCodeMissingAuth        = "MISSING_AUTHENTICATION"
+	ErrCodeInvalidToken       = "INVALID_TOKEN"
+	ErrCodeExpiredToken       = "EXPIRED_TOKEN"
+	ErrCodeRevokedToken       = "REVOKED_TOKEN"
+	ErrCodeAuthRequired       = "AUTHENTICATION_REQUIRED"
+	ErrCodeInvalidUserID      = "INVALID_USER_ID"
+	ErrCodeAccountLocked      = "ACCOUNT_LOCKED"
 	ErrCodeInvalidCredentials = "INVALID_CREDENTIALS"
 
 	// Authorization errors (403)
@@ -55,13 +55,13 @@ const (
 	ErrCodeOperationFailed = "OPERATION_FAILED"
 
 	// Rate limiting (429)
-	ErrCodeRateLimited = "RATE_LIMIT_EXCEEDED"
+	ErrCodeRateLimited     = "RATE_LIMIT_EXCEEDED"
 	ErrCodeTooManyRequests = "TOO_MANY_REQUESTS"
 
 	// Setup/config errors
-	ErrCodeSetupRequired  = "SETUP_REQUIRED"
-	ErrCodeSetupCompleted = "SETUP_ALREADY_COMPLETED"
-	ErrCodeSetupDisabled  = "SETUP_DISABLED"
+	ErrCodeSetupRequired     = "SETUP_REQUIRED"
+	ErrCodeSetupCompleted    = "SETUP_ALREADY_COMPLETED"
+	ErrCodeSetupDisabled     = "SETUP_DISABLED"
 	ErrCodeInvalidSetupToken = "INVALID_SETUP_TOKEN"
 )
 

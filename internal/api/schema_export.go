@@ -27,10 +27,10 @@ func NewSchemaExportHandler(schemaCache *database.SchemaCache, inspector *databa
 
 // TypeScriptExportRequest represents a request for TypeScript type generation
 type TypeScriptExportRequest struct {
-	Schemas         []string `json:"schemas"`          // Schemas to include (default: ["public"])
-	IncludeFunctions bool    `json:"include_functions"` // Include RPC function types
-	IncludeViews    bool     `json:"include_views"`    // Include view types
-	Format          string   `json:"format"`           // "types" (interfaces only) or "full" (with helpers)
+	Schemas          []string `json:"schemas"`           // Schemas to include (default: ["public"])
+	IncludeFunctions bool     `json:"include_functions"` // Include RPC function types
+	IncludeViews     bool     `json:"include_views"`     // Include view types
+	Format           string   `json:"format"`            // "types" (interfaces only) or "full" (with helpers)
 }
 
 // HandleExportTypeScript generates TypeScript type definitions from the database schema

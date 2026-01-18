@@ -58,13 +58,13 @@ type Metrics struct {
 	rateLimitHitsTotal *prometheus.CounterVec
 
 	// Job metrics
-	jobsQueueDepth        *prometheus.GaugeVec
-	jobsProcessing        prometheus.Gauge
-	jobsCompletedTotal    *prometheus.CounterVec
-	jobsFailedTotal       *prometheus.CounterVec
-	jobExecutionDuration  *prometheus.HistogramVec
-	jobWorkersActive      prometheus.Gauge
-	jobWorkerUtilization  prometheus.Gauge
+	jobsQueueDepth       *prometheus.GaugeVec
+	jobsProcessing       prometheus.Gauge
+	jobsCompletedTotal   *prometheus.CounterVec
+	jobsFailedTotal      *prometheus.CounterVec
+	jobExecutionDuration *prometheus.HistogramVec
+	jobWorkersActive     prometheus.Gauge
+	jobWorkerUtilization prometheus.Gauge
 
 	// AI Chatbot metrics
 	aiChatRequestsTotal     *prometheus.CounterVec

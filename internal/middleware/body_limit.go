@@ -194,12 +194,12 @@ func BodyLimitsFromConfig(defaultLimit, restLimit, authLimit, storageLimit, bulk
 
 // compiledPattern holds a pre-compiled pattern for efficient matching
 type compiledPattern struct {
-	original    string
-	parts       []string
-	isWildcard  []bool // true for * or ** segments
+	original         string
+	parts            []string
+	isWildcard       []bool // true for * or ** segments
 	isDoubleWildcard []bool
-	limit       int64
-	description string
+	limit            int64
+	description      string
 }
 
 // PatternBodyLimiter provides efficient route-based body limiting

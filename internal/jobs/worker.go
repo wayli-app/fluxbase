@@ -36,7 +36,7 @@ type Worker struct {
 	currentJobCountMutex   sync.RWMutex
 	shutdownChan           chan struct{}
 	shutdownComplete       chan struct{}
-	draining               bool       // True when worker is draining (not accepting new jobs)
+	draining               bool // True when worker is draining (not accepting new jobs)
 	drainingMutex          sync.RWMutex
 }
 

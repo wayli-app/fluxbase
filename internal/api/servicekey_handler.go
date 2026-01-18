@@ -583,11 +583,11 @@ func (h *ServiceKeyHandler) DeprecateServiceKey(c *fiber.Ctx) error {
 		Msg("Service key deprecated for rotation")
 
 	return c.JSON(fiber.Map{
-		"success":             true,
-		"message":             "Service key deprecated for rotation",
-		"key_id":              id,
-		"grace_period_ends":   graceEndTime,
-		"grace_period_hours":  gracePeriod,
+		"success":            true,
+		"message":            "Service key deprecated for rotation",
+		"key_id":             id,
+		"grace_period_ends":  graceEndTime,
+		"grace_period_hours": gracePeriod,
 	})
 }
 
@@ -732,10 +732,10 @@ func (h *ServiceKeyHandler) RotateServiceKey(c *fiber.Ctx) error {
 		Msg("Service key rotated")
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"success":            true,
-		"message":            "Service key rotated successfully",
-		"old_key_id":         id,
-		"grace_period_ends":  graceEndTime,
+		"success":           true,
+		"message":           "Service key rotated successfully",
+		"old_key_id":        id,
+		"grace_period_ends": graceEndTime,
 		"new_key": ServiceKeyWithKey{
 			ServiceKey: newKey,
 			Key:        plainKey,
@@ -764,13 +764,13 @@ func (h *ServiceKeyHandler) GetRevocationHistory(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	type RevocationEntry struct {
-		ID              uuid.UUID  `json:"id"`
-		KeyID           uuid.UUID  `json:"key_id"`
-		KeyPrefix       string     `json:"key_prefix"`
-		RevokedBy       *uuid.UUID `json:"revoked_by,omitempty"`
-		Reason          string     `json:"reason"`
-		RevocationType  string     `json:"revocation_type"`
-		CreatedAt       time.Time  `json:"created_at"`
+		ID             uuid.UUID  `json:"id"`
+		KeyID          uuid.UUID  `json:"key_id"`
+		KeyPrefix      string     `json:"key_prefix"`
+		RevokedBy      *uuid.UUID `json:"revoked_by,omitempty"`
+		Reason         string     `json:"reason"`
+		RevocationType string     `json:"revocation_type"`
+		CreatedAt      time.Time  `json:"created_at"`
 	}
 
 	var entries []RevocationEntry

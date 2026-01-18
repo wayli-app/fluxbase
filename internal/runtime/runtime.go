@@ -73,7 +73,7 @@ func NewRuntime(runtimeType RuntimeType, jwtSecret, publicURL string, opts ...Op
 	switch runtimeType {
 	case RuntimeTypeFunction:
 		r.defaultTimeout = 30 * time.Second
-		r.memoryLimitMB = 512          // Same limit as jobs
+		r.memoryLimitMB = 512              // Same limit as jobs
 		r.maxOutputSize = 10 * 1024 * 1024 // 10MB default
 	case RuntimeTypeJob:
 		r.defaultTimeout = 300 * time.Second

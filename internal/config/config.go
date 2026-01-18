@@ -317,24 +317,24 @@ type TransformConfig struct {
 
 // RealtimeConfig contains realtime/websocket settings
 type RealtimeConfig struct {
-	Enabled               bool          `mapstructure:"enabled"`
-	MaxConnections        int           `mapstructure:"max_connections"`
-	MaxConnectionsPerUser int           `mapstructure:"max_connections_per_user"` // Max connections per authenticated user (0 = unlimited)
-	MaxConnectionsPerIP   int           `mapstructure:"max_connections_per_ip"`   // Max connections per IP for anonymous connections (0 = unlimited)
-	PingInterval          time.Duration `mapstructure:"ping_interval"`
-	PongTimeout           time.Duration `mapstructure:"pong_timeout"`
-	WriteBufferSize       int           `mapstructure:"write_buffer_size"`
-	ReadBufferSize        int           `mapstructure:"read_buffer_size"`
-	MessageSizeLimit      int64         `mapstructure:"message_size_limit"`
-	ChannelBufferSize     int           `mapstructure:"channel_buffer_size"`
-	RLSCacheSize          int           `mapstructure:"rls_cache_size"`          // Maximum entries in RLS cache (default: 100000)
-	RLSCacheTTL           time.Duration `mapstructure:"rls_cache_ttl"`           // TTL for RLS cache entries (default: 30s)
-	ListenerPoolSize       int           `mapstructure:"listener_pool_size"`       // Number of LISTEN connections for redundancy (default: 2)
-	NotificationWorkers    int           `mapstructure:"notification_workers"`     // Number of workers for parallel notification processing (default: 4)
-	NotificationQueueSize  int           `mapstructure:"notification_queue_size"`  // Size of notification queue per worker (default: 1000)
+	Enabled                bool          `mapstructure:"enabled"`
+	MaxConnections         int           `mapstructure:"max_connections"`
+	MaxConnectionsPerUser  int           `mapstructure:"max_connections_per_user"` // Max connections per authenticated user (0 = unlimited)
+	MaxConnectionsPerIP    int           `mapstructure:"max_connections_per_ip"`   // Max connections per IP for anonymous connections (0 = unlimited)
+	PingInterval           time.Duration `mapstructure:"ping_interval"`
+	PongTimeout            time.Duration `mapstructure:"pong_timeout"`
+	WriteBufferSize        int           `mapstructure:"write_buffer_size"`
+	ReadBufferSize         int           `mapstructure:"read_buffer_size"`
+	MessageSizeLimit       int64         `mapstructure:"message_size_limit"`
+	ChannelBufferSize      int           `mapstructure:"channel_buffer_size"`
+	RLSCacheSize           int           `mapstructure:"rls_cache_size"`            // Maximum entries in RLS cache (default: 100000)
+	RLSCacheTTL            time.Duration `mapstructure:"rls_cache_ttl"`             // TTL for RLS cache entries (default: 30s)
+	ListenerPoolSize       int           `mapstructure:"listener_pool_size"`        // Number of LISTEN connections for redundancy (default: 2)
+	NotificationWorkers    int           `mapstructure:"notification_workers"`      // Number of workers for parallel notification processing (default: 4)
+	NotificationQueueSize  int           `mapstructure:"notification_queue_size"`   // Size of notification queue per worker (default: 1000)
 	ClientMessageQueueSize int           `mapstructure:"client_message_queue_size"` // Size of per-client message queue for async sending (default: 256)
-	SlowClientThreshold    int           `mapstructure:"slow_client_threshold"`    // Queue length threshold for slow client detection (default: 100)
-	SlowClientTimeout      time.Duration `mapstructure:"slow_client_timeout"`      // Duration before disconnecting slow clients (default: 30s)
+	SlowClientThreshold    int           `mapstructure:"slow_client_threshold"`     // Queue length threshold for slow client detection (default: 100)
+	SlowClientTimeout      time.Duration `mapstructure:"slow_client_timeout"`       // Duration before disconnecting slow clients (default: 30s)
 }
 
 // EmailConfig contains email/SMTP settings
@@ -610,13 +610,13 @@ func setDefaults() {
 
 	// Per-endpoint body limits (more granular than global body_limit)
 	viper.SetDefault("server.body_limits.enabled", true)
-	viper.SetDefault("server.body_limits.default_limit", 1*1024*1024)       // 1MB default
-	viper.SetDefault("server.body_limits.rest_limit", 1*1024*1024)          // 1MB for REST CRUD
-	viper.SetDefault("server.body_limits.auth_limit", 64*1024)              // 64KB for auth
-	viper.SetDefault("server.body_limits.storage_limit", 100*1024*1024)     // 100MB for uploads
-	viper.SetDefault("server.body_limits.bulk_limit", 10*1024*1024)         // 10MB for bulk/RPC
-	viper.SetDefault("server.body_limits.admin_limit", 5*1024*1024)         // 5MB for admin
-	viper.SetDefault("server.body_limits.max_json_depth", 64)               // Max JSON nesting
+	viper.SetDefault("server.body_limits.default_limit", 1*1024*1024)   // 1MB default
+	viper.SetDefault("server.body_limits.rest_limit", 1*1024*1024)      // 1MB for REST CRUD
+	viper.SetDefault("server.body_limits.auth_limit", 64*1024)          // 64KB for auth
+	viper.SetDefault("server.body_limits.storage_limit", 100*1024*1024) // 100MB for uploads
+	viper.SetDefault("server.body_limits.bulk_limit", 10*1024*1024)     // 10MB for bulk/RPC
+	viper.SetDefault("server.body_limits.admin_limit", 5*1024*1024)     // 5MB for admin
+	viper.SetDefault("server.body_limits.max_json_depth", 64)           // Max JSON nesting
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")
@@ -728,8 +728,8 @@ func setDefaults() {
 	viper.SetDefault("realtime.notification_workers", 4)
 	viper.SetDefault("realtime.notification_queue_size", 1000)
 	viper.SetDefault("realtime.client_message_queue_size", 256) // Per-client message queue for async sending
-	viper.SetDefault("realtime.slow_client_threshold", 100)    // Disconnect clients with 100+ pending messages
-	viper.SetDefault("realtime.slow_client_timeout", "30s")    // After 30s of being slow
+	viper.SetDefault("realtime.slow_client_threshold", 100)     // Disconnect clients with 100+ pending messages
+	viper.SetDefault("realtime.slow_client_timeout", "30s")     // After 30s of being slow
 
 	// Email defaults
 	viper.SetDefault("email.enabled", true)
@@ -760,12 +760,12 @@ func setDefaults() {
 	// Functions defaults
 	viper.SetDefault("functions.enabled", true)
 	viper.SetDefault("functions.functions_dir", "./functions")
-	viper.SetDefault("functions.auto_load_on_boot", true)   // Enabled by default for better DX
-	viper.SetDefault("functions.default_timeout", 30)       // 30 seconds
-	viper.SetDefault("functions.max_timeout", 300)          // 5 minutes
-	viper.SetDefault("functions.default_memory_limit", 128)       // 128MB
-	viper.SetDefault("functions.max_memory_limit", 1024)          // 1GB
-	viper.SetDefault("functions.max_output_size", 10*1024*1024)   // 10MB - prevents OOM from large function output
+	viper.SetDefault("functions.auto_load_on_boot", true)       // Enabled by default for better DX
+	viper.SetDefault("functions.default_timeout", 30)           // 30 seconds
+	viper.SetDefault("functions.max_timeout", 300)              // 5 minutes
+	viper.SetDefault("functions.default_memory_limit", 128)     // 128MB
+	viper.SetDefault("functions.max_memory_limit", 1024)        // 1GB
+	viper.SetDefault("functions.max_output_size", 10*1024*1024) // 10MB - prevents OOM from large function output
 	viper.SetDefault("functions.sync_allowed_ip_ranges", []string{
 		"172.16.0.0/12",  // Docker default bridge networks
 		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)

@@ -54,7 +54,7 @@ type ListenerPool struct {
 	connWg            sync.WaitGroup
 
 	// Metrics
-	notificationsReceived uint64
+	notificationsReceived  uint64
 	notificationsProcessed uint64
 	connectionFailures     uint64
 	reconnections          uint64
