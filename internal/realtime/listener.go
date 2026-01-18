@@ -30,6 +30,13 @@ const LogChannel = "fluxbase:logs"
 // AllLogsChannel is the PubSub channel for all log notifications (admin streaming).
 const AllLogsChannel = "fluxbase:all_logs"
 
+// RealtimeListener is the interface for PostgreSQL LISTEN/NOTIFY handlers.
+// Both the simple Listener and the pooled ListenerPool implement this interface.
+type RealtimeListener interface {
+	Start() error
+	Stop()
+}
+
 // Listener handles PostgreSQL LISTEN/NOTIFY and PubSub log events
 type Listener struct {
 	pool       *pgxpool.Pool

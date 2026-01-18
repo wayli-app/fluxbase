@@ -81,7 +81,7 @@ type Server struct {
 	migrationsHandler      *migrations.Handler
 	realtimeManager        *realtime.Manager
 	realtimeHandler        *realtime.RealtimeHandler
-	realtimeListener       *realtime.Listener
+	realtimeListener       realtime.RealtimeListener
 	realtimeAdminHandler   *RealtimeAdminHandler
 	webhookTriggerService  *webhook.TriggerService
 	aiHandler              *ai.Handler
@@ -576,7 +576,17 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		},
 	)
 	realtimeHandler := realtime.NewRealtimeHandler(realtimeManager, realtimeAuthAdapter, realtimeSubManager)
-	realtimeListener := realtime.NewListener(db.Pool(), realtimeHandler, realtimeSubManager, ps)
+	realtimeListener := realtime.NewListenerPool(
+		db.Pool(),
+		realtimeHandler,
+		realtimeSubManager,
+		ps,
+		realtime.ListenerPoolConfig{
+			PoolSize:    cfg.Realtime.ListenerPoolSize,
+			WorkerCount: cfg.Realtime.NotificationWorkers,
+			QueueSize:   cfg.Realtime.NotificationQueueSize,
+		},
+	)
 
 	// Create monitoring handler
 	monitoringHandler := NewMonitoringHandler(db.Pool(), realtimeHandler, storageService.Provider)

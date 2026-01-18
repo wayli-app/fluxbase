@@ -62,13 +62,12 @@ func NewSchemaInspector(conn *Connection) *SchemaInspector {
 	return &SchemaInspector{conn: conn}
 }
 
-// GetAllTables retrieves information about all tables in the specified schemas
+// GetAllTables retrieves information about all tables in the specified schemas.
+// This uses batched queries to avoid N+1 query patterns.
 func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) ([]TableInfo, error) {
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
-
-	var tables []TableInfo
 
 	// Query to get all tables from specified schemas
 	query := `
@@ -96,6 +95,10 @@ func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) 
 	}
 	defer rows.Close()
 
+	// Collect all table names and build initial TableInfo map
+	tableMap := make(map[string]*TableInfo) // key: "schema.table"
+	var tableKeys []string
+
 	for rows.Next() {
 		var schema, name string
 		var rlsEnabled bool
@@ -104,15 +107,31 @@ func (si *SchemaInspector) GetAllTables(ctx context.Context, schemas ...string) 
 			return nil, fmt.Errorf("failed to scan table: %w", err)
 		}
 
-		tableInfo, err := si.GetTableInfo(ctx, schema, name)
-		if err != nil {
-			log.Warn().Err(err).Str("table", fmt.Sprintf("%s.%s", schema, name)).Msg("Failed to get table info")
-			continue
+		key := fmt.Sprintf("%s.%s", schema, name)
+		tableMap[key] = &TableInfo{
+			Schema:     schema,
+			Name:       name,
+			Type:       "table",
+			RLSEnabled: rlsEnabled,
 		}
+		tableKeys = append(tableKeys, key)
+	}
 
-		tableInfo.Type = "table"
-		tableInfo.RLSEnabled = rlsEnabled
-		tables = append(tables, *tableInfo)
+	if len(tableMap) == 0 {
+		return []TableInfo{}, nil
+	}
+
+	// Batch fetch all metadata
+	if err := si.batchFetchTableMetadata(ctx, schemas, tableMap, "table"); err != nil {
+		return nil, err
+	}
+
+	// Build result slice in original order
+	tables := make([]TableInfo, 0, len(tableKeys))
+	for _, key := range tableKeys {
+		if info, ok := tableMap[key]; ok {
+			tables = append(tables, *info)
+		}
 	}
 
 	return tables, nil
@@ -416,6 +435,371 @@ func (si *SchemaInspector) getIndexes(ctx context.Context, schema, table string)
 	return indexes, nil
 }
 
+// batchFetchTableMetadata fetches columns, primary keys, foreign keys, and indexes
+// for all tables in the map using batched queries. This avoids the N+1 query problem.
+// The objectType parameter specifies whether we're fetching for "table", "view", or "materialized_view".
+func (si *SchemaInspector) batchFetchTableMetadata(ctx context.Context, schemas []string, tableMap map[string]*TableInfo, objectType string) error {
+	// Batch fetch columns
+	columns, err := si.batchGetColumns(ctx, schemas, objectType)
+	if err != nil {
+		return fmt.Errorf("failed to batch get columns: %w", err)
+	}
+
+	// Assign columns to tables
+	for key, cols := range columns {
+		if info, ok := tableMap[key]; ok {
+			info.Columns = cols
+		}
+	}
+
+	// For tables, also fetch primary keys, foreign keys, and indexes
+	if objectType == "table" {
+		// Batch fetch primary keys
+		primaryKeys, err := si.batchGetPrimaryKeys(ctx, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get primary keys: %w", err)
+		}
+
+		for key, pks := range primaryKeys {
+			if info, ok := tableMap[key]; ok {
+				info.PrimaryKey = pks
+				// Mark primary key columns
+				for i := range info.Columns {
+					for _, pk := range pks {
+						if info.Columns[i].Name == pk {
+							info.Columns[i].IsPrimaryKey = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Batch fetch foreign keys
+		foreignKeys, err := si.batchGetForeignKeys(ctx, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get foreign keys: %w", err)
+		}
+
+		for key, fks := range foreignKeys {
+			if info, ok := tableMap[key]; ok {
+				info.ForeignKeys = fks
+				// Mark foreign key columns
+				for i := range info.Columns {
+					for _, fk := range fks {
+						if info.Columns[i].Name == fk.ColumnName {
+							info.Columns[i].IsForeignKey = true
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Batch fetch indexes
+		indexes, err := si.batchGetIndexes(ctx, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get indexes: %w", err)
+		}
+
+		for key, idxs := range indexes {
+			if info, ok := tableMap[key]; ok {
+				info.Indexes = idxs
+			}
+		}
+	}
+
+	// For materialized views, fetch indexes (they can have indexes)
+	if objectType == "materialized_view" {
+		indexes, err := si.batchGetIndexes(ctx, schemas)
+		if err != nil {
+			return fmt.Errorf("failed to batch get indexes: %w", err)
+		}
+
+		for key, idxs := range indexes {
+			if info, ok := tableMap[key]; ok {
+				info.Indexes = idxs
+			}
+		}
+	}
+
+	return nil
+}
+
+// batchGetColumns retrieves columns for all tables/views in the specified schemas in a single query.
+// Returns a map from "schema.table" to column list.
+func (si *SchemaInspector) batchGetColumns(ctx context.Context, schemas []string, objectType string) (map[string][]ColumnInfo, error) {
+	result := make(map[string][]ColumnInfo)
+
+	if objectType == "materialized_view" {
+		// Materialized views need pg_attribute query
+		return si.batchGetMaterializedViewColumns(ctx, schemas)
+	}
+
+	// For tables and regular views, use information_schema
+	query := `
+		SELECT
+			table_schema,
+			table_name,
+			column_name,
+			CASE
+				WHEN data_type = 'USER-DEFINED' THEN udt_name
+				ELSE data_type
+			END as data_type,
+			is_nullable,
+			column_default,
+			character_maximum_length,
+			ordinal_position
+		FROM information_schema.columns
+		WHERE table_schema = ANY($1)
+		ORDER BY table_schema, table_name, ordinal_position
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var col ColumnInfo
+		var isNullable string
+		var maxLength *int32
+
+		err := rows.Scan(
+			&schema,
+			&table,
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&maxLength,
+			&col.Position,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable == "YES"
+		if maxLength != nil {
+			length := int(*maxLength)
+			col.MaxLength = &length
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], col)
+	}
+
+	return result, nil
+}
+
+// batchGetMaterializedViewColumns retrieves columns for all materialized views using pg_attribute.
+func (si *SchemaInspector) batchGetMaterializedViewColumns(ctx context.Context, schemas []string) (map[string][]ColumnInfo, error) {
+	result := make(map[string][]ColumnInfo)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+			NOT a.attnotnull AS is_nullable,
+			pg_get_expr(d.adbin, d.adrelid) AS column_default,
+			a.attnum AS ordinal_position
+		FROM pg_catalog.pg_attribute a
+		JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+		WHERE n.nspname = ANY($1)
+		  AND c.relkind = 'm'  -- 'm' = materialized view
+		  AND a.attnum > 0     -- skip system columns
+		  AND NOT a.attisdropped
+		ORDER BY n.nspname, c.relname, a.attnum
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var col ColumnInfo
+		var isNullable bool
+
+		err := rows.Scan(
+			&schema,
+			&table,
+			&col.Name,
+			&col.DataType,
+			&isNullable,
+			&col.DefaultValue,
+			&col.Position,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		col.IsNullable = isNullable
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], col)
+	}
+
+	return result, nil
+}
+
+// batchGetPrimaryKeys retrieves primary keys for all tables in the specified schemas.
+func (si *SchemaInspector) batchGetPrimaryKeys(ctx context.Context, schemas []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			c.relname AS table_name,
+			a.attname AS column_name,
+			array_position(i.indkey, a.attnum) AS key_position
+		FROM pg_index i
+		JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+		JOIN pg_class c ON c.oid = i.indrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = ANY($1)
+			AND i.indisprimary
+		ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum)
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table, column string
+		var position int
+
+		if err := rows.Scan(&schema, &table, &column, &position); err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], column)
+	}
+
+	return result, nil
+}
+
+// batchGetForeignKeys retrieves foreign keys for all tables in the specified schemas.
+func (si *SchemaInspector) batchGetForeignKeys(ctx context.Context, schemas []string) (map[string][]ForeignKey, error) {
+	result := make(map[string][]ForeignKey)
+
+	query := `
+		SELECT
+			tc.table_schema,
+			tc.table_name,
+			tc.constraint_name,
+			kcu.column_name,
+			ccu.table_schema || '.' || ccu.table_name AS referenced_table,
+			ccu.column_name AS referenced_column,
+			rc.delete_rule,
+			rc.update_rule
+		FROM information_schema.table_constraints AS tc
+		JOIN information_schema.key_column_usage AS kcu
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_schema = kcu.table_schema
+		JOIN information_schema.constraint_column_usage AS ccu
+			ON ccu.constraint_name = tc.constraint_name
+			AND ccu.table_schema = tc.table_schema
+		JOIN information_schema.referential_constraints AS rc
+			ON rc.constraint_name = tc.constraint_name
+			AND rc.constraint_schema = tc.table_schema
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+			AND tc.table_schema = ANY($1)
+		ORDER BY tc.table_schema, tc.table_name, tc.constraint_name
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var fk ForeignKey
+		err := rows.Scan(
+			&schema,
+			&table,
+			&fk.Name,
+			&fk.ColumnName,
+			&fk.ReferencedTable,
+			&fk.ReferencedColumn,
+			&fk.OnDelete,
+			&fk.OnUpdate,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], fk)
+	}
+
+	return result, nil
+}
+
+// batchGetIndexes retrieves indexes for all tables in the specified schemas.
+func (si *SchemaInspector) batchGetIndexes(ctx context.Context, schemas []string) (map[string][]IndexInfo, error) {
+	result := make(map[string][]IndexInfo)
+
+	query := `
+		SELECT
+			n.nspname AS schema_name,
+			t.relname AS table_name,
+			i.relname AS index_name,
+			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns,
+			ix.indisunique,
+			ix.indisprimary
+		FROM pg_index ix
+		JOIN pg_class t ON t.oid = ix.indrelid
+		JOIN pg_class i ON i.oid = ix.indexrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+		WHERE n.nspname = ANY($1)
+		GROUP BY n.nspname, t.relname, i.relname, ix.indisunique, ix.indisprimary
+		ORDER BY n.nspname, t.relname, i.relname
+	`
+
+	rows, err := si.conn.Query(ctx, query, schemas)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schema, table string
+		var idx IndexInfo
+		err := rows.Scan(
+			&schema,
+			&table,
+			&idx.Name,
+			&idx.Columns,
+			&idx.IsUnique,
+			&idx.IsPrimary,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s.%s", schema, table)
+		result[key] = append(result[key], idx)
+	}
+
+	return result, nil
+}
+
 // GetSchemas retrieves all available schemas
 func (si *SchemaInspector) GetSchemas(ctx context.Context) ([]string, error) {
 	query := `
@@ -444,13 +828,12 @@ func (si *SchemaInspector) GetSchemas(ctx context.Context) ([]string, error) {
 	return schemas, nil
 }
 
-// GetAllViews retrieves information about all views in the specified schemas
+// GetAllViews retrieves information about all views in the specified schemas.
+// This uses batched queries to avoid N+1 query patterns.
 func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
-
-	var views []TableInfo
 
 	// Query to get all views from specified schemas
 	query := `
@@ -469,6 +852,10 @@ func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) (
 	}
 	defer rows.Close()
 
+	// Collect all view names and build initial TableInfo map
+	viewMap := make(map[string]*TableInfo)
+	var viewKeys []string
+
 	for rows.Next() {
 		var schema, name string
 
@@ -476,28 +863,42 @@ func (si *SchemaInspector) GetAllViews(ctx context.Context, schemas ...string) (
 			return nil, fmt.Errorf("failed to scan view: %w", err)
 		}
 
-		viewInfo, err := si.GetTableInfo(ctx, schema, name)
-		if err != nil {
-			log.Warn().Err(err).Str("view", fmt.Sprintf("%s.%s", schema, name)).Msg("Failed to get view info")
-			continue
+		key := fmt.Sprintf("%s.%s", schema, name)
+		viewMap[key] = &TableInfo{
+			Schema:     schema,
+			Name:       name,
+			Type:       "view",
+			RLSEnabled: false,
 		}
+		viewKeys = append(viewKeys, key)
+	}
 
-		// Mark as read-only (view)
-		viewInfo.Type = "view"
-		viewInfo.RLSEnabled = false
-		views = append(views, *viewInfo)
+	if len(viewMap) == 0 {
+		return []TableInfo{}, nil
+	}
+
+	// Batch fetch all metadata (views don't have primary keys, foreign keys, or indexes)
+	if err := si.batchFetchTableMetadata(ctx, schemas, viewMap, "view"); err != nil {
+		return nil, err
+	}
+
+	// Build result slice in original order
+	views := make([]TableInfo, 0, len(viewKeys))
+	for _, key := range viewKeys {
+		if info, ok := viewMap[key]; ok {
+			views = append(views, *info)
+		}
 	}
 
 	return views, nil
 }
 
-// GetAllMaterializedViews retrieves information about all materialized views in the specified schemas
+// GetAllMaterializedViews retrieves information about all materialized views in the specified schemas.
+// This uses batched queries to avoid N+1 query patterns.
 func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas ...string) ([]TableInfo, error) {
 	if len(schemas) == 0 {
 		schemas = []string{"public"}
 	}
-
-	var matviews []TableInfo
 
 	// Query to get all materialized views from specified schemas
 	query := `
@@ -516,6 +917,10 @@ func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas 
 	}
 	defer rows.Close()
 
+	// Collect all materialized view names and build initial TableInfo map
+	matviewMap := make(map[string]*TableInfo)
+	var matviewKeys []string
+
 	for rows.Next() {
 		var schema, name string
 
@@ -523,16 +928,31 @@ func (si *SchemaInspector) GetAllMaterializedViews(ctx context.Context, schemas 
 			return nil, fmt.Errorf("failed to scan materialized view: %w", err)
 		}
 
-		matviewInfo, err := si.GetTableInfo(ctx, schema, name)
-		if err != nil {
-			log.Warn().Err(err).Str("materialized_view", fmt.Sprintf("%s.%s", schema, name)).Msg("Failed to get materialized view info")
-			continue
+		key := fmt.Sprintf("%s.%s", schema, name)
+		matviewMap[key] = &TableInfo{
+			Schema:     schema,
+			Name:       name,
+			Type:       "materialized_view",
+			RLSEnabled: false,
 		}
+		matviewKeys = append(matviewKeys, key)
+	}
 
-		// Mark as read-only (materialized view)
-		matviewInfo.Type = "materialized_view"
-		matviewInfo.RLSEnabled = false
-		matviews = append(matviews, *matviewInfo)
+	if len(matviewMap) == 0 {
+		return []TableInfo{}, nil
+	}
+
+	// Batch fetch all metadata (materialized views have indexes but no primary/foreign keys)
+	if err := si.batchFetchTableMetadata(ctx, schemas, matviewMap, "materialized_view"); err != nil {
+		return nil, err
+	}
+
+	// Build result slice in original order
+	matviews := make([]TableInfo, 0, len(matviewKeys))
+	for _, key := range matviewKeys {
+		if info, ok := matviewMap[key]; ok {
+			matviews = append(matviews, *info)
+		}
 	}
 
 	return matviews, nil
