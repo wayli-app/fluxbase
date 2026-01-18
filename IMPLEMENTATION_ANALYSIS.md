@@ -51,6 +51,19 @@ The following critical and high-priority issues have been fixed in this branch:
 - Added `max_branches_per_user` to branching docs
 - Clarified signed URL transforms are not yet implemented
 
+### Phase 4 Fixes (Partial/Broken Implementations)
+
+| Issue | Status | Fix Description |
+|-------|--------|-----------------|
+| Monitoring Logs API Placeholder | ✅ Fixed | Connected to logging service with proper query support |
+| Webhooks Rate Limiting | ✅ Fixed | Added per-endpoint sliding window rate limiter (60 req/min) |
+| Webhooks Delivery History | ✅ Fixed | Fixed schema mismatch and added delivery record creation |
+| CAPTCHA Test Bypass | ✅ Fixed | Added `test_bypass_token` config for development/testing |
+
+**Remaining Known Limitations:**
+- Signed URL transforms are not implemented (docs claim support but handler doesn't)
+- To work around: Use regular authenticated download endpoint for transforms
+
 ---
 
 ## Extended Analysis: Additional Features

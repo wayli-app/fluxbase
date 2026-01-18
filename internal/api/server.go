@@ -564,6 +564,11 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	// Create monitoring handler
 	monitoringHandler := NewMonitoringHandler(db.Pool(), realtimeHandler, storageService.Provider)
 
+	// Set logging service if available for log queries
+	if loggingService != nil {
+		monitoringHandler.SetLoggingService(loggingService)
+	}
+
 	// Create server instance
 	server := &Server{
 		app:                    app,

@@ -152,6 +152,12 @@ func (s *CaptchaService) Verify(ctx context.Context, token string, remoteIP stri
 		return ErrCaptchaRequired
 	}
 
+	// Check for test bypass token (for development/testing only)
+	// WARNING: Never set TestBypassToken in production environments
+	if s.config.TestBypassToken != "" && token == s.config.TestBypassToken {
+		return nil // Bypass verification with test token
+	}
+
 	result, err := s.provider.Verify(ctx, token, remoteIP)
 	if err != nil {
 		return fmt.Errorf("captcha verification error: %w", err)
