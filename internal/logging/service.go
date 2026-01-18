@@ -425,27 +425,24 @@ func (s *Service) cleanupStaleLineNumbers() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			s.mu.RLock()
-			if s.closed {
-				s.mu.RUnlock()
-				return
-			}
+	for range ticker.C {
+		s.mu.RLock()
+		if s.closed {
 			s.mu.RUnlock()
-
-			s.lineMu.Lock()
-			now := time.Now()
-			staleThreshold := 30 * time.Minute
-			for execID, lastUsed := range s.lineLastUsed {
-				if now.Sub(lastUsed) > staleThreshold {
-					delete(s.lineNumber, execID)
-					delete(s.lineLastUsed, execID)
-				}
-			}
-			s.lineMu.Unlock()
+			return
 		}
+		s.mu.RUnlock()
+
+		s.lineMu.Lock()
+		now := time.Now()
+		staleThreshold := 30 * time.Minute
+		for execID, lastUsed := range s.lineLastUsed {
+			if now.Sub(lastUsed) > staleThreshold {
+				delete(s.lineNumber, execID)
+				delete(s.lineLastUsed, execID)
+			}
+		}
+		s.lineMu.Unlock()
 	}
 }
 
