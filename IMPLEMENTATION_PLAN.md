@@ -24,10 +24,10 @@ This document tracks the implementation of improvements identified in the archit
 |-------|-------------|-----------|-------------|-----------|
 | Phase 1: Critical Security & Reliability | 8 | 8 | 0 | 0 |
 | Phase 2: Scalability & Performance | 8 | 8 | 0 | 0 |
-| Phase 3: Maintainability & Correctness | 7 | 0 | 0 | 7 |
+| Phase 3: Maintainability & Correctness | 7 | 3 | 0 | 4 |
 | Phase 4: Developer Experience | 5 | 0 | 0 | 5 |
 | Phase 5: Operations & Polish | 4 | 0 | 0 | 4 |
-| **Total** | **32** | **16** | **0** | **16** |
+| **Total** | **32** | **19** | **0** | **13** |
 
 ---
 
@@ -846,27 +846,37 @@ In-memory OAuth state breaks with load balancing; callback may hit different ins
 
 **Priority:** Medium
 **Category:** Security
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 Global limits only; no per-endpoint control for different use cases.
 
-**Files to Modify:**
+**Files Modified:**
 - `internal/middleware/body_limit.go` (new file)
+- `internal/middleware/body_limit_test.go` (new file)
 - `internal/api/server.go`
 - `internal/config/config.go`
 
 **Implementation Steps:**
-- [ ] Add configurable limits per route pattern
-- [ ] Default limits by endpoint type (REST: 1MB, Upload: 100MB, etc.)
-- [ ] Add JSON depth limiting to prevent stack overflow
-- [ ] Return 413 Payload Too Large with clear message
+- [x] Add configurable limits per route pattern
+  - Created `PatternBodyLimiter` with glob pattern matching (* and **)
+  - Patterns evaluated in order, first match wins
+  - Configurable via `server.body_limits.*` config keys
+- [x] Default limits by endpoint type (REST: 1MB, Upload: 100MB, etc.)
+  - Auth: 64KB, REST: 1MB, Admin: 5MB, Bulk/RPC: 10MB, Storage: 100MB
+  - All limits configurable via config file or environment variables
+- [x] Add JSON depth limiting to prevent stack overflow
+  - `JSONDepthLimiter` with configurable max depth (default: 64)
+  - Returns 400 Bad Request with JSON_TOO_DEEP code
+- [x] Return 413 Payload Too Large with clear message
+  - Human-readable size formatting (KB, MB, GB)
+  - Includes endpoint type and hint for resolution
 
 **Test Requirements:**
-- [ ] Unit test: Requests under limit accepted
-- [ ] Unit test: Requests over limit rejected with 413
-- [ ] Unit test: Different endpoints have different limits
-- [ ] Unit test: Deeply nested JSON rejected
+- [x] Unit test: Requests under limit accepted
+- [x] Unit test: Requests over limit rejected with 413
+- [x] Unit test: Different endpoints have different limits
+- [x] Unit test: Deeply nested JSON rejected
 
 **Test File:** `internal/middleware/body_limit_test.go`
 

@@ -107,6 +107,29 @@ type ServerConfig struct {
 	IdleTimeout     time.Duration `mapstructure:"idle_timeout"`
 	BodyLimit       int           `mapstructure:"body_limit"`
 	AllowedIPRanges []string      `mapstructure:"allowed_ip_ranges"` // Global IP CIDR ranges allowed to access server (empty = allow all)
+
+	// Per-endpoint body limits (if not specified, uses defaults from middleware)
+	BodyLimits BodyLimitsConfig `mapstructure:"body_limits"`
+}
+
+// BodyLimitsConfig contains per-endpoint body size limits
+type BodyLimitsConfig struct {
+	// Enabled controls whether per-endpoint limits are enforced (default: true)
+	Enabled bool `mapstructure:"enabled"`
+	// DefaultLimit is used when no pattern matches (default: 1MB)
+	DefaultLimit int64 `mapstructure:"default_limit"`
+	// RESTLimit for REST API CRUD operations (default: 1MB)
+	RESTLimit int64 `mapstructure:"rest_limit"`
+	// AuthLimit for authentication endpoints (default: 64KB)
+	AuthLimit int64 `mapstructure:"auth_limit"`
+	// StorageLimit for file uploads (default: 100MB)
+	StorageLimit int64 `mapstructure:"storage_limit"`
+	// BulkLimit for bulk operations and RPC (default: 10MB)
+	BulkLimit int64 `mapstructure:"bulk_limit"`
+	// AdminLimit for admin endpoints (default: 5MB)
+	AdminLimit int64 `mapstructure:"admin_limit"`
+	// MaxJSONDepth limits nesting depth to prevent stack overflow (default: 64)
+	MaxJSONDepth int `mapstructure:"max_json_depth"`
 }
 
 // DatabaseConfig contains PostgreSQL connection settings
@@ -584,6 +607,16 @@ func setDefaults() {
 	viper.SetDefault("server.idle_timeout", "120s")          // 2 min idle timeout
 	viper.SetDefault("server.body_limit", 2*1024*1024*1024)  // 2GB
 	viper.SetDefault("server.allowed_ip_ranges", []string{}) // Empty = allow all (backward compatible)
+
+	// Per-endpoint body limits (more granular than global body_limit)
+	viper.SetDefault("server.body_limits.enabled", true)
+	viper.SetDefault("server.body_limits.default_limit", 1*1024*1024)       // 1MB default
+	viper.SetDefault("server.body_limits.rest_limit", 1*1024*1024)          // 1MB for REST CRUD
+	viper.SetDefault("server.body_limits.auth_limit", 64*1024)              // 64KB for auth
+	viper.SetDefault("server.body_limits.storage_limit", 100*1024*1024)     // 100MB for uploads
+	viper.SetDefault("server.body_limits.bulk_limit", 10*1024*1024)         // 10MB for bulk/RPC
+	viper.SetDefault("server.body_limits.admin_limit", 5*1024*1024)         // 5MB for admin
+	viper.SetDefault("server.body_limits.max_json_depth", 64)               // Max JSON nesting
 
 	// Database defaults
 	viper.SetDefault("database.host", "localhost")

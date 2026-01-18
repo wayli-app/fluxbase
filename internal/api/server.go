@@ -1192,6 +1192,27 @@ func (s *Server) setupMiddlewares() {
 	// This allows toggling rate limiting via admin UI without server restart
 	s.app.Use(middleware.DynamicGlobalAPILimiter(s.authHandler.authService.GetSettingsCache()))
 
+	// Per-endpoint body size limits and JSON depth protection
+	if s.config.Server.BodyLimits.Enabled {
+		bodyLimitConfig := middleware.BodyLimitsFromConfig(
+			s.config.Server.BodyLimits.DefaultLimit,
+			s.config.Server.BodyLimits.RESTLimit,
+			s.config.Server.BodyLimits.AuthLimit,
+			s.config.Server.BodyLimits.StorageLimit,
+			s.config.Server.BodyLimits.BulkLimit,
+			s.config.Server.BodyLimits.AdminLimit,
+			s.config.Server.BodyLimits.MaxJSONDepth,
+		)
+		s.app.Use(middleware.BodyLimitMiddleware(bodyLimitConfig))
+		log.Info().
+			Int64("default", s.config.Server.BodyLimits.DefaultLimit).
+			Int64("rest", s.config.Server.BodyLimits.RESTLimit).
+			Int64("auth", s.config.Server.BodyLimits.AuthLimit).
+			Int64("storage", s.config.Server.BodyLimits.StorageLimit).
+			Int("max_json_depth", s.config.Server.BodyLimits.MaxJSONDepth).
+			Msg("Per-endpoint body limits enabled")
+	}
+
 	// Compression middleware
 	s.app.Use(compress.New(compress.Config{
 		Level: compress.LevelDefault,
