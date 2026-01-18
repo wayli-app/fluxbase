@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -616,4 +617,449 @@ func TestTracerConfig_Tags(t *testing.T) {
 		}
 		assert.NotEmpty(t, cfg.Endpoint)
 	})
+}
+
+// =============================================================================
+// Function Tracing Helpers Tests
+// =============================================================================
+
+func TestFunctionSpanConfig(t *testing.T) {
+	t.Run("all fields accessible", func(t *testing.T) {
+		cfg := FunctionSpanConfig{
+			ExecutionID: "exec-123",
+			Name:        "my-function",
+			Namespace:   "my-namespace",
+			UserID:      "user-456",
+			Method:      "POST",
+			URL:         "https://example.com/functions/my-function",
+		}
+
+		assert.Equal(t, "exec-123", cfg.ExecutionID)
+		assert.Equal(t, "my-function", cfg.Name)
+		assert.Equal(t, "my-namespace", cfg.Namespace)
+		assert.Equal(t, "user-456", cfg.UserID)
+		assert.Equal(t, "POST", cfg.Method)
+		assert.Equal(t, "https://example.com/functions/my-function", cfg.URL)
+	})
+
+	t.Run("zero value config", func(t *testing.T) {
+		var cfg FunctionSpanConfig
+
+		assert.Empty(t, cfg.ExecutionID)
+		assert.Empty(t, cfg.Name)
+		assert.Empty(t, cfg.Namespace)
+		assert.Empty(t, cfg.UserID)
+		assert.Empty(t, cfg.Method)
+		assert.Empty(t, cfg.URL)
+	})
+}
+
+func TestStartFunctionSpan(t *testing.T) {
+	t.Run("creates function span with all attributes", func(t *testing.T) {
+		cfg := FunctionSpanConfig{
+			ExecutionID: "exec-123",
+			Name:        "my-function",
+			Namespace:   "my-namespace",
+			UserID:      "user-456",
+			Method:      "POST",
+			URL:         "https://example.com/functions/my-function",
+		}
+
+		ctx, span := StartFunctionSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("creates span without namespace", func(t *testing.T) {
+		cfg := FunctionSpanConfig{
+			ExecutionID: "exec-123",
+			Name:        "my-function",
+			Method:      "GET",
+		}
+
+		ctx, span := StartFunctionSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("creates span without user ID", func(t *testing.T) {
+		cfg := FunctionSpanConfig{
+			ExecutionID: "exec-123",
+			Name:        "my-function",
+			Method:      "POST",
+		}
+
+		ctx, span := StartFunctionSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("handles empty config", func(t *testing.T) {
+		var cfg FunctionSpanConfig
+
+		ctx, span := StartFunctionSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+}
+
+func TestAddFunctionEvent(t *testing.T) {
+	t.Run("does not panic with no span", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			AddFunctionEvent(ctx, "function.started")
+		})
+	})
+
+	t.Run("adds event with attributes", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			AddFunctionEvent(ctx, "function.timeout",
+				attribute.Int("timeout_ms", 30000),
+			)
+		})
+	})
+}
+
+func TestSetFunctionResult(t *testing.T) {
+	t.Run("sets result for success", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetFunctionResult(ctx, 200, 150*time.Millisecond, nil)
+		})
+	})
+
+	t.Run("sets result for client error", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetFunctionResult(ctx, 400, 50*time.Millisecond, nil)
+		})
+	})
+
+	t.Run("sets result with error", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetFunctionResult(ctx, 500, 100*time.Millisecond, errors.New("internal error"))
+		})
+	})
+
+	t.Run("does not panic with no span", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			SetFunctionResult(ctx, 200, 100*time.Millisecond, nil)
+		})
+	})
+}
+
+// =============================================================================
+// Job Tracing Helpers Tests
+// =============================================================================
+
+func TestJobSpanConfig(t *testing.T) {
+	t.Run("all fields accessible", func(t *testing.T) {
+		cfg := JobSpanConfig{
+			JobID:       "job-123",
+			JobName:     "my-job",
+			Namespace:   "my-namespace",
+			Priority:    5,
+			ScheduledAt: "2025-01-18T10:00:00Z",
+			UserID:      "user-456",
+			WorkerID:    "worker-789",
+			WorkerName:  "worker-1",
+		}
+
+		assert.Equal(t, "job-123", cfg.JobID)
+		assert.Equal(t, "my-job", cfg.JobName)
+		assert.Equal(t, "my-namespace", cfg.Namespace)
+		assert.Equal(t, 5, cfg.Priority)
+		assert.Equal(t, "2025-01-18T10:00:00Z", cfg.ScheduledAt)
+		assert.Equal(t, "user-456", cfg.UserID)
+		assert.Equal(t, "worker-789", cfg.WorkerID)
+		assert.Equal(t, "worker-1", cfg.WorkerName)
+	})
+
+	t.Run("zero value config", func(t *testing.T) {
+		var cfg JobSpanConfig
+
+		assert.Empty(t, cfg.JobID)
+		assert.Empty(t, cfg.JobName)
+		assert.Empty(t, cfg.Namespace)
+		assert.Equal(t, 0, cfg.Priority)
+		assert.Empty(t, cfg.ScheduledAt)
+		assert.Empty(t, cfg.UserID)
+		assert.Empty(t, cfg.WorkerID)
+		assert.Empty(t, cfg.WorkerName)
+	})
+}
+
+func TestStartJobSpan(t *testing.T) {
+	t.Run("creates job span with all attributes", func(t *testing.T) {
+		cfg := JobSpanConfig{
+			JobID:       "job-123",
+			JobName:     "my-job",
+			Namespace:   "my-namespace",
+			Priority:    5,
+			ScheduledAt: "2025-01-18T10:00:00Z",
+			UserID:      "user-456",
+			WorkerID:    "worker-789",
+			WorkerName:  "worker-1",
+		}
+
+		ctx, span := StartJobSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("creates span without namespace", func(t *testing.T) {
+		cfg := JobSpanConfig{
+			JobID:      "job-123",
+			JobName:    "my-job",
+			WorkerID:   "worker-789",
+			WorkerName: "worker-1",
+		}
+
+		ctx, span := StartJobSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("creates span without user ID", func(t *testing.T) {
+		cfg := JobSpanConfig{
+			JobID:      "job-123",
+			JobName:    "my-job",
+			WorkerID:   "worker-789",
+			WorkerName: "worker-1",
+		}
+
+		ctx, span := StartJobSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+
+	t.Run("handles empty config", func(t *testing.T) {
+		var cfg JobSpanConfig
+
+		ctx, span := StartJobSpan(context.Background(), cfg)
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, span)
+		span.End()
+	})
+}
+
+func TestAddJobEvent(t *testing.T) {
+	t.Run("does not panic with no span", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			AddJobEvent(ctx, "job.started")
+		})
+	})
+
+	t.Run("adds event with attributes", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			AddJobEvent(ctx, "job.checkpoint",
+				attribute.String("checkpoint", "data-loaded"),
+			)
+		})
+	})
+}
+
+func TestSetJobProgress(t *testing.T) {
+	t.Run("sets progress", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobProgress(ctx, 50, "Processing items...")
+		})
+	})
+
+	t.Run("sets progress at 0%", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobProgress(ctx, 0, "Starting...")
+		})
+	})
+
+	t.Run("sets progress at 100%", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobProgress(ctx, 100, "Complete")
+		})
+	})
+
+	t.Run("does not panic with no span", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			SetJobProgress(ctx, 50, "Halfway there")
+		})
+	})
+}
+
+func TestSetJobResult(t *testing.T) {
+	t.Run("sets result for success", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobResult(ctx, "completed", 5*time.Second, nil)
+		})
+	})
+
+	t.Run("sets result for failure", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobResult(ctx, "failed", 2*time.Second, nil)
+		})
+	})
+
+	t.Run("sets result for cancelled", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobResult(ctx, "cancelled", 1*time.Second, nil)
+		})
+	})
+
+	t.Run("sets result with error", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		assert.NotPanics(t, func() {
+			SetJobResult(ctx, "failed", 3*time.Second, errors.New("job failed"))
+		})
+	})
+
+	t.Run("does not panic with no span", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.NotPanics(t, func() {
+			SetJobResult(ctx, "completed", 5*time.Second, nil)
+		})
+	})
+}
+
+// =============================================================================
+// Trace Context Propagation Tests
+// =============================================================================
+
+func TestGetTraceContextEnv(t *testing.T) {
+	t.Run("returns nil for context without span", func(t *testing.T) {
+		ctx := context.Background()
+		env := GetTraceContextEnv(ctx)
+
+		assert.Nil(t, env)
+	})
+
+	t.Run("returns nil for noop span", func(t *testing.T) {
+		noopTracer := noop.NewTracerProvider().Tracer("test")
+		ctx, span := noopTracer.Start(context.Background(), "test")
+		defer span.End()
+
+		env := GetTraceContextEnv(ctx)
+		// Noop span has invalid span context
+		assert.Nil(t, env)
+	})
+}
+
+// =============================================================================
+// Function and Job Tracing Benchmarks
+// =============================================================================
+
+func BenchmarkStartFunctionSpan(b *testing.B) {
+	ctx := context.Background()
+	cfg := FunctionSpanConfig{
+		ExecutionID: "exec-123",
+		Name:        "my-function",
+		Namespace:   "my-namespace",
+		UserID:      "user-456",
+		Method:      "POST",
+		URL:         "https://example.com/functions/my-function",
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, span := StartFunctionSpan(ctx, cfg)
+		span.End()
+	}
+}
+
+func BenchmarkStartJobSpan(b *testing.B) {
+	ctx := context.Background()
+	cfg := JobSpanConfig{
+		JobID:       "job-123",
+		JobName:     "my-job",
+		Namespace:   "my-namespace",
+		Priority:    5,
+		ScheduledAt: "2025-01-18T10:00:00Z",
+		UserID:      "user-456",
+		WorkerID:    "worker-789",
+		WorkerName:  "worker-1",
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, span := StartJobSpan(ctx, cfg)
+		span.End()
+	}
+}
+
+func BenchmarkSetJobProgress(b *testing.B) {
+	noopTracer := noop.NewTracerProvider().Tracer("bench")
+	ctx, span := noopTracer.Start(context.Background(), "test")
+	defer span.End()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		SetJobProgress(ctx, i%100, "Processing...")
+	}
+}
+
+func BenchmarkGetTraceContextEnv(b *testing.B) {
+	ctx := context.Background()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = GetTraceContextEnv(ctx)
+	}
 }

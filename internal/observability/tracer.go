@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
@@ -271,4 +272,188 @@ func ExtractSpanID(ctx context.Context) string {
 		return span.SpanContext().SpanID().String()
 	}
 	return ""
+}
+
+// Function tracing helpers
+
+// FunctionSpanConfig holds configuration for function span attributes
+type FunctionSpanConfig struct {
+	ExecutionID string
+	Name        string
+	Namespace   string
+	UserID      string
+	Method      string
+	URL         string
+}
+
+// StartFunctionSpan starts a span for an edge function invocation
+func StartFunctionSpan(ctx context.Context, cfg FunctionSpanConfig) (context.Context, trace.Span) {
+	tracer := otel.Tracer("fluxbase-functions")
+
+	spanName := fmt.Sprintf("function.%s", cfg.Name)
+	if cfg.Namespace != "" {
+		spanName = fmt.Sprintf("function.%s.%s", cfg.Namespace, cfg.Name)
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("function.execution_id", cfg.ExecutionID),
+		attribute.String("function.name", cfg.Name),
+		attribute.String("function.namespace", cfg.Namespace),
+		attribute.String("http.method", cfg.Method),
+		attribute.String("http.url", cfg.URL),
+	}
+
+	if cfg.UserID != "" {
+		attrs = append(attrs, attribute.String("user.id", cfg.UserID))
+	}
+
+	return tracer.Start(ctx, spanName,
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(attrs...),
+	)
+}
+
+// AddFunctionEvent adds an event to a function span
+func AddFunctionEvent(ctx context.Context, eventName string, attrs ...attribute.KeyValue) {
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		defaultAttrs := []attribute.KeyValue{
+			attribute.String("component", "function"),
+		}
+		span.AddEvent(eventName, trace.WithAttributes(append(defaultAttrs, attrs...)...))
+	}
+}
+
+// SetFunctionResult sets the result attributes on a function span
+func SetFunctionResult(ctx context.Context, statusCode int, duration time.Duration, err error) {
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.Int("http.status_code", statusCode),
+			attribute.Int64("function.duration_ms", duration.Milliseconds()),
+		)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else if statusCode >= 400 {
+			span.SetStatus(codes.Error, fmt.Sprintf("HTTP %d", statusCode))
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
+	}
+}
+
+// Job tracing helpers
+
+// JobSpanConfig holds configuration for job span attributes
+type JobSpanConfig struct {
+	JobID       string
+	JobName     string
+	Namespace   string
+	Priority    int
+	ScheduledAt string
+	UserID      string
+	WorkerID    string
+	WorkerName  string
+}
+
+// StartJobSpan starts a span for a background job execution
+func StartJobSpan(ctx context.Context, cfg JobSpanConfig) (context.Context, trace.Span) {
+	tracer := otel.Tracer("fluxbase-jobs")
+
+	spanName := fmt.Sprintf("job.%s", cfg.JobName)
+	if cfg.Namespace != "" {
+		spanName = fmt.Sprintf("job.%s.%s", cfg.Namespace, cfg.JobName)
+	}
+
+	attrs := []attribute.KeyValue{
+		attribute.String("job.id", cfg.JobID),
+		attribute.String("job.name", cfg.JobName),
+		attribute.String("job.namespace", cfg.Namespace),
+		attribute.Int("job.priority", cfg.Priority),
+		attribute.String("job.scheduled_at", cfg.ScheduledAt),
+		attribute.String("worker.id", cfg.WorkerID),
+		attribute.String("worker.name", cfg.WorkerName),
+	}
+
+	if cfg.UserID != "" {
+		attrs = append(attrs, attribute.String("user.id", cfg.UserID))
+	}
+
+	return tracer.Start(ctx, spanName,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(attrs...),
+	)
+}
+
+// AddJobEvent adds an event to a job span
+func AddJobEvent(ctx context.Context, eventName string, attrs ...attribute.KeyValue) {
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		defaultAttrs := []attribute.KeyValue{
+			attribute.String("component", "job"),
+		}
+		span.AddEvent(eventName, trace.WithAttributes(append(defaultAttrs, attrs...)...))
+	}
+}
+
+// SetJobProgress updates job progress on the span
+func SetJobProgress(ctx context.Context, progress int, message string) {
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		span.AddEvent("job.progress", trace.WithAttributes(
+			attribute.Int("job.progress_percent", progress),
+			attribute.String("job.progress_message", message),
+		))
+	}
+}
+
+// SetJobResult sets the result attributes on a job span
+func SetJobResult(ctx context.Context, status string, duration time.Duration, err error) {
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.String("job.status", status),
+			attribute.Int64("job.duration_ms", duration.Milliseconds()),
+		)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else if status == "failed" || status == "cancelled" {
+			span.SetStatus(codes.Error, status)
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
+	}
+}
+
+// GetTraceContextEnv returns trace context as environment variables for propagation
+// This is useful for propagating trace context to subprocesses like Deno
+func GetTraceContextEnv(ctx context.Context) map[string]string {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return nil
+	}
+
+	env := make(map[string]string)
+	sc := span.SpanContext()
+
+	// W3C Trace Context format
+	if sc.HasTraceID() {
+		env["TRACEPARENT"] = fmt.Sprintf("00-%s-%s-%s",
+			sc.TraceID().String(),
+			sc.SpanID().String(),
+			sc.TraceFlags().String(),
+		)
+	}
+
+	// Also include individual fields for easier access
+	if sc.HasTraceID() {
+		env["OTEL_TRACE_ID"] = sc.TraceID().String()
+	}
+	if sc.HasSpanID() {
+		env["OTEL_SPAN_ID"] = sc.SpanID().String()
+	}
+
+	return env
 }
