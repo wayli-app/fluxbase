@@ -258,16 +258,13 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 		// Validate and sanitize column names for regular selects
 		validColumns := []string{}
 		for _, col := range params.Select {
-			if h.columnExists(table, col) {
+			// Use O(1) lookup to get column info directly
+			if tableCol := table.GetColumn(col); tableCol != nil {
 				// Check if this column needs geometry conversion
-				for _, tableCol := range table.Columns {
-					if tableCol.Name == col && isGeometryColumn(tableCol.DataType) {
-						validColumns = append(validColumns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col, col))
-						break
-					} else if tableCol.Name == col {
-						validColumns = append(validColumns, col)
-						break
-					}
+				if isGeometryColumn(tableCol.DataType) {
+					validColumns = append(validColumns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col, col))
+				} else {
+					validColumns = append(validColumns, col)
 				}
 			}
 		}
@@ -299,14 +296,9 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 	return query, args
 }
 
-// columnExists checks if a column exists in the table
+// columnExists checks if a column exists in the table using O(1) lookup
 func (h *RESTHandler) columnExists(table database.TableInfo, columnName string) bool {
-	for _, col := range table.Columns {
-		if col.Name == columnName {
-			return true
-		}
-	}
-	return false
+	return table.HasColumn(columnName)
 }
 
 // getCount gets the row count for a query

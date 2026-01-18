@@ -821,3 +821,225 @@ func TestMaterializedViewHasIndexes(t *testing.T) {
 	assert.Nil(t, matviewMap["public.monthly_stats"].ForeignKeys)
 	assert.Len(t, matviewMap["public.monthly_stats"].Indexes, 1)
 }
+
+// =============================================================================
+// ColumnMap Tests (O(1) column lookup)
+// =============================================================================
+
+func TestTableInfo_BuildColumnMap(t *testing.T) {
+	t.Run("builds map from columns", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid", IsPrimaryKey: true},
+				{Name: "email", DataType: "text", IsNullable: false},
+				{Name: "name", DataType: "text", IsNullable: true},
+			},
+		}
+
+		// Map should be nil before building
+		assert.Nil(t, table.ColumnMap)
+
+		// Build the map
+		table.BuildColumnMap()
+
+		// Map should now be populated
+		assert.NotNil(t, table.ColumnMap)
+		assert.Len(t, table.ColumnMap, 3)
+		assert.Contains(t, table.ColumnMap, "id")
+		assert.Contains(t, table.ColumnMap, "email")
+		assert.Contains(t, table.ColumnMap, "name")
+	})
+
+	t.Run("empty columns creates empty map", func(t *testing.T) {
+		table := TableInfo{
+			Schema:  "public",
+			Name:    "empty_table",
+			Columns: []ColumnInfo{},
+		}
+
+		table.BuildColumnMap()
+
+		assert.NotNil(t, table.ColumnMap)
+		assert.Len(t, table.ColumnMap, 0)
+	})
+
+	t.Run("column map points to actual column data", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid", IsPrimaryKey: true},
+			},
+		}
+
+		table.BuildColumnMap()
+
+		col := table.ColumnMap["id"]
+		assert.NotNil(t, col)
+		assert.Equal(t, "uuid", col.DataType)
+		assert.True(t, col.IsPrimaryKey)
+	})
+}
+
+func TestTableInfo_GetColumn(t *testing.T) {
+	t.Run("returns column when map is built", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid", IsPrimaryKey: true},
+				{Name: "email", DataType: "text", IsNullable: false},
+			},
+		}
+		table.BuildColumnMap()
+
+		col := table.GetColumn("email")
+		assert.NotNil(t, col)
+		assert.Equal(t, "email", col.Name)
+		assert.Equal(t, "text", col.DataType)
+	})
+
+	t.Run("returns nil for non-existent column with map", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+			},
+		}
+		table.BuildColumnMap()
+
+		col := table.GetColumn("nonexistent")
+		assert.Nil(t, col)
+	})
+
+	t.Run("falls back to linear search without map", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+				{Name: "email", DataType: "text"},
+			},
+		}
+		// Deliberately NOT building the map
+
+		col := table.GetColumn("email")
+		assert.NotNil(t, col)
+		assert.Equal(t, "email", col.Name)
+	})
+
+	t.Run("fallback returns nil for non-existent", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+			},
+		}
+		// No map built
+
+		col := table.GetColumn("nonexistent")
+		assert.Nil(t, col)
+	})
+}
+
+func TestTableInfo_HasColumn(t *testing.T) {
+	t.Run("returns true for existing column", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+				{Name: "email", DataType: "text"},
+			},
+		}
+		table.BuildColumnMap()
+
+		assert.True(t, table.HasColumn("id"))
+		assert.True(t, table.HasColumn("email"))
+	})
+
+	t.Run("returns false for non-existent column", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+			},
+		}
+		table.BuildColumnMap()
+
+		assert.False(t, table.HasColumn("nonexistent"))
+		assert.False(t, table.HasColumn(""))
+	})
+
+	t.Run("works without column map (fallback)", func(t *testing.T) {
+		table := TableInfo{
+			Schema: "public",
+			Name:   "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DataType: "uuid"},
+				{Name: "email", DataType: "text"},
+			},
+		}
+		// No map built
+
+		assert.True(t, table.HasColumn("id"))
+		assert.True(t, table.HasColumn("email"))
+		assert.False(t, table.HasColumn("nonexistent"))
+	})
+}
+
+// Benchmark O(1) lookup vs O(n) fallback
+func BenchmarkTableInfo_HasColumn_WithMap(b *testing.B) {
+	table := TableInfo{
+		Schema: "public",
+		Name:   "users",
+		Columns: []ColumnInfo{
+			{Name: "id", DataType: "uuid"},
+			{Name: "email", DataType: "text"},
+			{Name: "name", DataType: "text"},
+			{Name: "created_at", DataType: "timestamptz"},
+			{Name: "updated_at", DataType: "timestamptz"},
+			{Name: "avatar_url", DataType: "text"},
+			{Name: "bio", DataType: "text"},
+			{Name: "status", DataType: "text"},
+			{Name: "role", DataType: "text"},
+			{Name: "last_login", DataType: "timestamptz"},
+		},
+	}
+	table.BuildColumnMap()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = table.HasColumn("last_login") // Last column - worst case for linear
+	}
+}
+
+func BenchmarkTableInfo_HasColumn_WithoutMap(b *testing.B) {
+	table := TableInfo{
+		Schema: "public",
+		Name:   "users",
+		Columns: []ColumnInfo{
+			{Name: "id", DataType: "uuid"},
+			{Name: "email", DataType: "text"},
+			{Name: "name", DataType: "text"},
+			{Name: "created_at", DataType: "timestamptz"},
+			{Name: "updated_at", DataType: "timestamptz"},
+			{Name: "avatar_url", DataType: "text"},
+			{Name: "bio", DataType: "text"},
+			{Name: "status", DataType: "text"},
+			{Name: "role", DataType: "text"},
+			{Name: "last_login", DataType: "timestamptz"},
+		},
+	}
+	// No map built - uses linear search
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = table.HasColumn("last_login")
+	}
+}

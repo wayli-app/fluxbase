@@ -38,6 +38,8 @@ type QueryParams struct {
 	Order          []OrderBy          // ORDER BY clauses
 	Limit          *int               // LIMIT clause
 	Offset         *int               // OFFSET clause
+	Cursor         *string            // Base64-encoded cursor for keyset pagination
+	CursorColumn   *string            // Column to use for cursor (default: primary key)
 	Embedded       []EmbeddedRelation // Relations to embed
 	Count          CountType          // Count preference
 	Aggregations   []Aggregation      // Aggregation functions
@@ -202,6 +204,23 @@ func (qp *QueryParser) ParseWithOptions(values url.Values, opts ParseOptions) (*
 				return nil, fmt.Errorf("invalid offset parameter: %w", err)
 			}
 			params.Offset = &offset
+
+		case "cursor":
+			// Base64-encoded cursor for keyset pagination
+			cursor := vals[0]
+			if cursor != "" {
+				params.Cursor = &cursor
+			}
+
+		case "cursor_column":
+			// Column to use for cursor (must be a valid identifier)
+			col := vals[0]
+			if col != "" {
+				if !isValidIdentifier(col) {
+					return nil, fmt.Errorf("invalid cursor_column: must be a valid column name")
+				}
+				params.CursorColumn = &col
+			}
 
 		case "count":
 			params.Count = CountType(vals[0])

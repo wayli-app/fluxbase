@@ -438,3 +438,60 @@ func TestManager_GlobalLimitTakesPrecedence(t *testing.T) {
 	_, err := manager.AddConnectionWithIP("conn4", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
 	assert.Equal(t, ErrMaxConnectionsReached, err)
 }
+
+// =============================================================================
+// Slow Client Tests
+// =============================================================================
+
+func TestManager_SlowClientConfig(t *testing.T) {
+	t.Run("default slow client settings", func(t *testing.T) {
+		manager := NewManagerWithConfig(context.Background(), ManagerConfig{})
+
+		// Check defaults
+		assert.Equal(t, 100, manager.slowClientThreshold)
+		assert.Equal(t, 30*time.Second, manager.slowClientTimeout)
+	})
+
+	t.Run("custom slow client settings", func(t *testing.T) {
+		manager := NewManagerWithConfig(context.Background(), ManagerConfig{
+			SlowClientThreshold: 50,
+			SlowClientTimeout:   10 * time.Second,
+		})
+
+		assert.Equal(t, 50, manager.slowClientThreshold)
+		assert.Equal(t, 10*time.Second, manager.slowClientTimeout)
+	})
+}
+
+func TestManager_SlowClientTrackingMap(t *testing.T) {
+	manager := NewManagerWithConfig(context.Background(), ManagerConfig{
+		SlowClientThreshold: 5, // Low threshold for testing
+		SlowClientTimeout:   1 * time.Second,
+	})
+
+	// Verify the tracking map is initialized
+	assert.NotNil(t, manager.slowClientFirstSeen)
+	assert.Empty(t, manager.slowClientFirstSeen)
+}
+
+func TestManager_GetSlowClientsDisconnected(t *testing.T) {
+	manager := NewManager(context.Background())
+
+	// Initially should be 0
+	assert.Equal(t, uint64(0), manager.GetSlowClientsDisconnected())
+}
+
+func TestManagerConfig_SlowClientFields(t *testing.T) {
+	config := ManagerConfig{
+		MaxConnections:         100,
+		MaxConnectionsPerUser:  10,
+		MaxConnectionsPerIP:    20,
+		ClientMessageQueueSize: 256,
+		SlowClientThreshold:    150,
+		SlowClientTimeout:      45 * time.Second,
+	}
+
+	assert.Equal(t, 100, config.MaxConnections)
+	assert.Equal(t, 150, config.SlowClientThreshold)
+	assert.Equal(t, 45*time.Second, config.SlowClientTimeout)
+}

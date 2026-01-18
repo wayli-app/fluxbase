@@ -310,6 +310,8 @@ type RealtimeConfig struct {
 	NotificationWorkers    int           `mapstructure:"notification_workers"`     // Number of workers for parallel notification processing (default: 4)
 	NotificationQueueSize  int           `mapstructure:"notification_queue_size"`  // Size of notification queue per worker (default: 1000)
 	ClientMessageQueueSize int           `mapstructure:"client_message_queue_size"` // Size of per-client message queue for async sending (default: 256)
+	SlowClientThreshold    int           `mapstructure:"slow_client_threshold"`    // Queue length threshold for slow client detection (default: 100)
+	SlowClientTimeout      time.Duration `mapstructure:"slow_client_timeout"`      // Duration before disconnecting slow clients (default: 30s)
 }
 
 // EmailConfig contains email/SMTP settings
@@ -354,6 +356,7 @@ type FunctionsConfig struct {
 	MaxTimeout          int      `mapstructure:"max_timeout"`            // seconds
 	DefaultMemoryLimit  int      `mapstructure:"default_memory_limit"`   // MB
 	MaxMemoryLimit      int      `mapstructure:"max_memory_limit"`       // MB
+	MaxOutputSize       int      `mapstructure:"max_output_size"`        // Max output size in bytes (0 = unlimited, default: 10MB)
 	SyncAllowedIPRanges []string `mapstructure:"sync_allowed_ip_ranges"` // IP CIDR ranges allowed to sync functions
 }
 
@@ -590,8 +593,12 @@ func setDefaults() {
 	viper.SetDefault("database.admin_password", "") // Empty means use password
 	viper.SetDefault("database.database", "fluxbase")
 	viper.SetDefault("database.ssl_mode", "disable")
-	viper.SetDefault("database.max_connections", 25)
-	viper.SetDefault("database.min_connections", 5)
+	// Connection pool sizing: 50 is suitable for single-instance deployments.
+	// For multi-instance deployments, divide by instance count (e.g., 3 instances = 17 per instance).
+	// Approximate connection usage: API (20), Jobs (15), Realtime (10), Schema cache (5).
+	// Monitor pg_stat_activity and pool exhaustion metrics in production.
+	viper.SetDefault("database.max_connections", 50)
+	viper.SetDefault("database.min_connections", 10)
 	viper.SetDefault("database.max_conn_lifetime", "1h")
 	viper.SetDefault("database.max_conn_idle_time", "30m")
 	viper.SetDefault("database.health_check_period", "1m")
@@ -687,6 +694,8 @@ func setDefaults() {
 	viper.SetDefault("realtime.notification_workers", 4)
 	viper.SetDefault("realtime.notification_queue_size", 1000)
 	viper.SetDefault("realtime.client_message_queue_size", 256) // Per-client message queue for async sending
+	viper.SetDefault("realtime.slow_client_threshold", 100)    // Disconnect clients with 100+ pending messages
+	viper.SetDefault("realtime.slow_client_timeout", "30s")    // After 30s of being slow
 
 	// Email defaults
 	viper.SetDefault("email.enabled", true)
@@ -720,8 +729,9 @@ func setDefaults() {
 	viper.SetDefault("functions.auto_load_on_boot", true)   // Enabled by default for better DX
 	viper.SetDefault("functions.default_timeout", 30)       // 30 seconds
 	viper.SetDefault("functions.max_timeout", 300)          // 5 minutes
-	viper.SetDefault("functions.default_memory_limit", 128) // 128MB
-	viper.SetDefault("functions.max_memory_limit", 1024)    // 1GB
+	viper.SetDefault("functions.default_memory_limit", 128)       // 128MB
+	viper.SetDefault("functions.max_memory_limit", 1024)          // 1GB
+	viper.SetDefault("functions.max_output_size", 10*1024*1024)   // 10MB - prevents OOM from large function output
 	viper.SetDefault("functions.sync_allowed_ip_ranges", []string{
 		"172.16.0.0/12",  // Docker default bridge networks
 		"10.0.0.0/8",     // Private networks (AWS VPC, etc.)

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/fluxbase-eu/fluxbase/internal/pubsub"
@@ -34,15 +36,21 @@ type Manager struct {
 	ipConnections          map[string]int         // IP address -> connection count
 	connectionUserMap      map[string]string      // connection ID -> user ID (for tracking)
 	connectionIPMap        map[string]string      // connection ID -> IP address (for tracking)
+	slowClientFirstSeen    map[string]time.Time   // connection ID -> when first marked slow
 	mu                     sync.RWMutex
 	ctx                    context.Context
 	cancel                 context.CancelFunc
 	ps                     pubsub.PubSub // For cross-instance broadcasting
 	metrics                *observability.Metrics
-	maxConnections         int // Maximum allowed connections (0 = unlimited)
-	maxConnectionsPerUser  int // Maximum connections per user (0 = unlimited)
-	maxConnectionsPerIP    int // Maximum connections per IP for anonymous (0 = unlimited)
-	clientMessageQueueSize int // Size of per-client message queue (0 = default)
+	maxConnections         int           // Maximum allowed connections (0 = unlimited)
+	maxConnectionsPerUser  int           // Maximum connections per user (0 = unlimited)
+	maxConnectionsPerIP    int           // Maximum connections per IP for anonymous (0 = unlimited)
+	clientMessageQueueSize int           // Size of per-client message queue (0 = default)
+	slowClientThreshold    int           // Queue length threshold for slow client (default: 100)
+	slowClientTimeout      time.Duration // Duration before disconnecting slow clients (default: 30s)
+
+	// Metrics
+	slowClientsDisconnected atomic.Uint64
 }
 
 // SetMetrics sets the metrics instance for recording realtime metrics
@@ -76,10 +84,12 @@ func (m *Manager) updateMetrics() {
 
 // ManagerConfig holds configuration for the connection manager
 type ManagerConfig struct {
-	MaxConnections         int // Maximum total connections (0 = unlimited)
-	MaxConnectionsPerUser  int // Maximum connections per user (0 = unlimited)
-	MaxConnectionsPerIP    int // Maximum connections per IP for anonymous (0 = unlimited)
-	ClientMessageQueueSize int // Size of per-client message queue for async sending (0 = default)
+	MaxConnections         int           // Maximum total connections (0 = unlimited)
+	MaxConnectionsPerUser  int           // Maximum connections per user (0 = unlimited)
+	MaxConnectionsPerIP    int           // Maximum connections per IP for anonymous (0 = unlimited)
+	ClientMessageQueueSize int           // Size of per-client message queue for async sending (0 = default)
+	SlowClientThreshold    int           // Queue length threshold for slow client detection (default: 100)
+	SlowClientTimeout      time.Duration // Duration before disconnecting slow clients (default: 30s)
 }
 
 // NewManager creates a new connection manager
@@ -96,19 +106,38 @@ func NewManagerWithLimit(ctx context.Context, maxConnections int) *Manager {
 // NewManagerWithConfig creates a new connection manager with full configuration
 func NewManagerWithConfig(ctx context.Context, config ManagerConfig) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{
+
+	// Apply defaults for slow client settings
+	slowClientThreshold := config.SlowClientThreshold
+	if slowClientThreshold <= 0 {
+		slowClientThreshold = 100 // Default: 100 pending messages
+	}
+	slowClientTimeout := config.SlowClientTimeout
+	if slowClientTimeout <= 0 {
+		slowClientTimeout = 30 * time.Second // Default: 30 seconds
+	}
+
+	m := &Manager{
 		connections:            make(map[string]*Connection),
 		userConnections:        make(map[string]int),
 		ipConnections:          make(map[string]int),
 		connectionUserMap:      make(map[string]string),
 		connectionIPMap:        make(map[string]string),
+		slowClientFirstSeen:    make(map[string]time.Time),
 		ctx:                    ctx,
 		cancel:                 cancel,
 		maxConnections:         config.MaxConnections,
 		maxConnectionsPerUser:  config.MaxConnectionsPerUser,
 		maxConnectionsPerIP:    config.MaxConnectionsPerIP,
 		clientMessageQueueSize: config.ClientMessageQueueSize,
+		slowClientThreshold:    slowClientThreshold,
+		slowClientTimeout:      slowClientTimeout,
 	}
+
+	// Start slow client checker goroutine
+	go m.slowClientChecker()
+
+	return m
 }
 
 // SetMaxConnections sets the maximum number of allowed connections
@@ -531,4 +560,95 @@ func (m *Manager) SetConnectionLimits(maxPerUser, maxPerIP int) {
 	defer m.mu.Unlock()
 	m.maxConnectionsPerUser = maxPerUser
 	m.maxConnectionsPerIP = maxPerIP
+}
+
+// slowClientChecker periodically checks for slow clients and disconnects them
+func (m *Manager) slowClientChecker() {
+	// Check every 5 seconds
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-ticker.C:
+			m.checkAndDisconnectSlowClients()
+		}
+	}
+}
+
+// checkAndDisconnectSlowClients scans connections and disconnects slow ones
+func (m *Manager) checkAndDisconnectSlowClients() {
+	m.mu.Lock()
+	now := time.Now()
+	toDisconnect := []string{}
+
+	for id, conn := range m.connections {
+		// Get queue stats
+		stats := conn.GetQueueStats()
+		isSlowNow := stats.QueueLength >= m.slowClientThreshold || conn.IsSlowClient()
+
+		if isSlowNow {
+			// Check if we've seen this client as slow before
+			firstSeen, exists := m.slowClientFirstSeen[id]
+			if !exists {
+				// First time seeing this client as slow
+				m.slowClientFirstSeen[id] = now
+				log.Debug().
+					Str("connection_id", id).
+					Int("queue_length", stats.QueueLength).
+					Int("threshold", m.slowClientThreshold).
+					Msg("Client marked as slow")
+			} else if now.Sub(firstSeen) >= m.slowClientTimeout {
+				// Client has been slow for too long
+				toDisconnect = append(toDisconnect, id)
+			}
+		} else {
+			// Client is no longer slow - remove from tracking
+			delete(m.slowClientFirstSeen, id)
+		}
+	}
+	m.mu.Unlock()
+
+	// Disconnect slow clients outside the lock
+	for _, id := range toDisconnect {
+		m.disconnectSlowClient(id)
+	}
+}
+
+// disconnectSlowClient closes a slow client connection with a proper close frame
+func (m *Manager) disconnectSlowClient(id string) {
+	m.mu.RLock()
+	conn, exists := m.connections[id]
+	m.mu.RUnlock()
+
+	if !exists {
+		return
+	}
+
+	m.slowClientsDisconnected.Add(1)
+
+	log.Warn().
+		Str("connection_id", id).
+		Msg("Disconnecting slow client - exceeded timeout")
+
+	// Send close frame with 1008 Policy Violation before disconnect
+	if conn.Conn != nil {
+		// 1008 = Policy Violation
+		_ = conn.Conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(1008, "Connection too slow"),
+			time.Now().Add(time.Second),
+		)
+	}
+
+	// Close and remove the connection
+	conn.Close()
+	m.RemoveConnection(id)
+}
+
+// GetSlowClientsDisconnected returns the count of slow clients disconnected
+func (m *Manager) GetSlowClientsDisconnected() uint64 {
+	return m.slowClientsDisconnected.Load()
 }

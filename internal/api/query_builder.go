@@ -1,24 +1,58 @@
 package api
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
+
+// CursorData represents decoded cursor pagination data
+type CursorData struct {
+	Column string      `json:"c"` // Column name (short key for smaller cursor)
+	Value  interface{} `json:"v"` // Last value
+	Desc   bool        `json:"d"` // True if descending order
+}
+
+// EncodeCursor creates a base64-encoded cursor from the given data
+func EncodeCursor(column string, value interface{}, desc bool) string {
+	data := CursorData{Column: column, Value: value, Desc: desc}
+	jsonBytes, _ := json.Marshal(data)
+	return base64.URLEncoding.EncodeToString(jsonBytes)
+}
+
+// DecodeCursor decodes a base64-encoded cursor
+func DecodeCursor(cursor string) (*CursorData, error) {
+	jsonBytes, err := base64.URLEncoding.DecodeString(cursor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	var data CursorData
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
+	if data.Column == "" {
+		return nil, fmt.Errorf("cursor missing column")
+	}
+	return &data, nil
+}
 
 // QueryBuilder provides a fluent interface for building SQL queries.
 // It separates query construction from execution, enabling unit testing
 // of query generation without database access.
 type QueryBuilder struct {
-	schema     string
-	table      string
-	columns    []string
-	filters    []Filter
-	orderBy    []OrderBy
-	limit      *int
-	offset     *int
-	groupBy    []string
-	returning  []string
-	argCounter int
+	schema       string
+	table        string
+	columns      []string
+	filters      []Filter
+	orderBy      []OrderBy
+	limit        *int
+	offset       *int
+	groupBy      []string
+	returning    []string
+	argCounter   int
+	cursorData   *CursorData // Cursor for keyset pagination
+	cursorColumn string      // Column override for cursor
 }
 
 // NewQueryBuilder creates a new QueryBuilder for the given schema and table.
@@ -72,6 +106,24 @@ func (qb *QueryBuilder) WithReturning(columns []string) *QueryBuilder {
 	return qb
 }
 
+// WithCursor sets cursor pagination parameters.
+// The cursor is a base64-encoded string containing the last row's value.
+// cursorColumn overrides the column in the cursor (optional).
+func (qb *QueryBuilder) WithCursor(cursor string, cursorColumn string) error {
+	if cursor == "" {
+		return nil
+	}
+	data, err := DecodeCursor(cursor)
+	if err != nil {
+		return err
+	}
+	qb.cursorData = data
+	if cursorColumn != "" {
+		qb.cursorColumn = cursorColumn
+	}
+	return nil
+}
+
 // BuildSelect builds a SELECT query and returns the SQL string and arguments.
 func (qb *QueryBuilder) BuildSelect() (string, []interface{}) {
 	// Build SELECT clause
@@ -95,14 +147,29 @@ func (qb *QueryBuilder) BuildSelect() (string, []interface{}) {
 		quoteIdentifier(qb.table))
 
 	var args []interface{}
+	var whereClauses []string
 
-	// Build WHERE clause
+	// Build WHERE clause from filters
 	if len(qb.filters) > 0 {
 		whereClause, whereArgs := qb.buildWhereClause()
 		if whereClause != "" {
-			query += " WHERE " + whereClause
+			whereClauses = append(whereClauses, whereClause)
 			args = append(args, whereArgs...)
 		}
+	}
+
+	// Add cursor condition for keyset pagination
+	if qb.cursorData != nil {
+		cursorClause, cursorArg := qb.buildCursorCondition()
+		if cursorClause != "" {
+			whereClauses = append(whereClauses, cursorClause)
+			args = append(args, cursorArg)
+		}
+	}
+
+	// Combine WHERE clauses
+	if len(whereClauses) > 0 {
+		query += " WHERE " + strings.Join(whereClauses, " AND ")
 	}
 
 	// Build GROUP BY clause
@@ -431,4 +498,36 @@ func (qb *QueryBuilder) buildGroupByClause() string {
 	}
 
 	return " GROUP BY " + strings.Join(quotedCols, ", ")
+}
+
+// buildCursorCondition builds a keyset pagination condition.
+// For ascending order: column > value
+// For descending order: column < value
+func (qb *QueryBuilder) buildCursorCondition() (string, interface{}) {
+	if qb.cursorData == nil {
+		return "", nil
+	}
+
+	// Use cursor column override if provided, otherwise use the column from cursor data
+	column := qb.cursorData.Column
+	if qb.cursorColumn != "" {
+		column = qb.cursorColumn
+	}
+
+	quoted := quoteIdentifier(column)
+	if quoted == "" {
+		return "", nil
+	}
+
+	// Determine comparison operator based on order direction
+	op := ">"
+	if qb.cursorData.Desc {
+		op = "<"
+	}
+
+	// Build the condition: column > $N or column < $N
+	condition := fmt.Sprintf("%s %s $%d", quoted, op, qb.argCounter)
+	qb.argCounter++
+
+	return condition, qb.cursorData.Value
 }

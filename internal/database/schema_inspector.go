@@ -24,6 +24,38 @@ type TableInfo struct {
 	ForeignKeys []ForeignKey `json:"foreign_keys"`
 	Indexes     []IndexInfo  `json:"indexes"`
 	RLSEnabled  bool         `json:"rls_enabled"`
+
+	// ColumnMap provides O(1) column lookup by name (populated lazily or by BuildColumnMap)
+	ColumnMap map[string]*ColumnInfo `json:"-"`
+}
+
+// BuildColumnMap populates the ColumnMap for O(1) column lookups.
+// This is called automatically during schema cache refresh.
+func (t *TableInfo) BuildColumnMap() {
+	t.ColumnMap = make(map[string]*ColumnInfo, len(t.Columns))
+	for i := range t.Columns {
+		t.ColumnMap[t.Columns[i].Name] = &t.Columns[i]
+	}
+}
+
+// GetColumn returns the column info for the given column name, or nil if not found.
+// Uses ColumnMap for O(1) lookup if available, otherwise falls back to O(n) search.
+func (t *TableInfo) GetColumn(name string) *ColumnInfo {
+	if t.ColumnMap != nil {
+		return t.ColumnMap[name]
+	}
+	// Fallback to linear search if map not built
+	for i := range t.Columns {
+		if t.Columns[i].Name == name {
+			return &t.Columns[i]
+		}
+	}
+	return nil
+}
+
+// HasColumn checks if a column exists in the table using O(1) lookup.
+func (t *TableInfo) HasColumn(name string) bool {
+	return t.GetColumn(name) != nil
 }
 
 // ColumnInfo represents metadata about a table column
@@ -191,6 +223,9 @@ func (si *SchemaInspector) GetTableInfo(ctx context.Context, schema, table strin
 			}
 		}
 	}
+
+	// Build column lookup map for O(1) access
+	tableInfo.BuildColumnMap()
 
 	return tableInfo, nil
 }
@@ -521,6 +556,11 @@ func (si *SchemaInspector) batchFetchTableMetadata(ctx context.Context, schemas 
 				info.Indexes = idxs
 			}
 		}
+	}
+
+	// Build column lookup maps for O(1) access
+	for _, info := range tableMap {
+		info.BuildColumnMap()
 	}
 
 	return nil

@@ -28,6 +28,7 @@ type DenoRuntime struct {
 	denoPath       string
 	defaultTimeout time.Duration
 	memoryLimitMB  int // V8 heap limit in MB
+	maxOutputSize  int // Max output size in bytes (0 = unlimited)
 	jwtSecret      string
 	publicURL      string
 	runtimeType    RuntimeType
@@ -52,6 +53,13 @@ func WithMemoryLimit(mb int) Option {
 	}
 }
 
+// WithMaxOutputSize sets the maximum output size in bytes (0 = unlimited)
+func WithMaxOutputSize(bytes int) Option {
+	return func(r *DenoRuntime) {
+		r.maxOutputSize = bytes
+	}
+}
+
 // NewRuntime creates a new Deno runtime for the specified type
 func NewRuntime(runtimeType RuntimeType, jwtSecret, publicURL string, opts ...Option) *DenoRuntime {
 	r := &DenoRuntime{
@@ -65,10 +73,12 @@ func NewRuntime(runtimeType RuntimeType, jwtSecret, publicURL string, opts ...Op
 	switch runtimeType {
 	case RuntimeTypeFunction:
 		r.defaultTimeout = 30 * time.Second
-		r.memoryLimitMB = 512 // Same limit as jobs
+		r.memoryLimitMB = 512          // Same limit as jobs
+		r.maxOutputSize = 10 * 1024 * 1024 // 10MB default
 	case RuntimeTypeJob:
 		r.defaultTimeout = 300 * time.Second
 		r.memoryLimitMB = 512
+		r.maxOutputSize = 50 * 1024 * 1024 // 50MB default for jobs (more output expected)
 	}
 
 	// Apply options
@@ -288,6 +298,9 @@ func (r *DenoRuntime) Execute(
 	// Process output streams concurrently
 	var wg sync.WaitGroup
 	var stdoutBuilder, stderrBuilder strings.Builder
+	var outputTruncated bool
+	var lastResultLine string // Preserve the result line even if output is truncated
+	var totalOutputSize int
 
 	// Process stdout (progress updates and final result)
 	wg.Add(1)
@@ -305,9 +318,31 @@ func (r *DenoRuntime) Execute(
 
 		for scanner.Scan() {
 			line := scanner.Text()
-			stdoutBuilder.WriteString(line + "\n")
+			lineLen := len(line) + 1 // +1 for newline
 
-			// Check for progress updates
+			// Always capture the result line (it's needed for parsing)
+			if strings.HasPrefix(line, "__RESULT__::") {
+				lastResultLine = line
+			}
+
+			// Check output size limit (0 = unlimited)
+			if r.maxOutputSize > 0 && totalOutputSize+lineLen > r.maxOutputSize {
+				if !outputTruncated {
+					outputTruncated = true
+					stdoutBuilder.WriteString(fmt.Sprintf("\n[OUTPUT TRUNCATED: exceeded %d bytes limit]\n", r.maxOutputSize))
+					log.Warn().
+						Str("id", req.ID.String()).
+						Int("max_output_size", r.maxOutputSize).
+						Int("total_output_size", totalOutputSize).
+						Msg("Function output truncated - exceeded size limit")
+				}
+				// Still process progress updates and logs, just don't accumulate
+			} else if !outputTruncated {
+				stdoutBuilder.WriteString(line + "\n")
+				totalOutputSize += lineLen
+			}
+
+			// Check for progress updates (always process, even if truncated)
 			if strings.HasPrefix(line, "__PROGRESS__::") {
 				progressJSON := strings.TrimPrefix(line, "__PROGRESS__::")
 				var progress Progress
@@ -322,6 +357,11 @@ func (r *DenoRuntime) Execute(
 					r.onLog(req.ID, "info", line)
 				}
 			}
+		}
+
+		// If we truncated output but have a result line, append it
+		if outputTruncated && lastResultLine != "" {
+			stdoutBuilder.WriteString(lastResultLine + "\n")
 		}
 
 		// Check for scanner errors

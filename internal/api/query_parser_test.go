@@ -210,6 +210,56 @@ func TestQueryParser_ParsePagination(t *testing.T) {
 	assert.Equal(t, 20, *params.Offset)
 }
 
+func TestQueryParser_ParseCursor(t *testing.T) {
+	parser := NewQueryParser(testConfig())
+
+	t.Run("parses cursor parameter", func(t *testing.T) {
+		cursor := EncodeCursor("id", "abc123", false)
+		values, _ := url.ParseQuery("cursor=" + cursor)
+		params, err := parser.Parse(values)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, params.Cursor)
+		assert.Equal(t, cursor, *params.Cursor)
+	})
+
+	t.Run("parses cursor_column parameter", func(t *testing.T) {
+		values, _ := url.ParseQuery("cursor_column=created_at")
+		params, err := parser.Parse(values)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, params.CursorColumn)
+		assert.Equal(t, "created_at", *params.CursorColumn)
+	})
+
+	t.Run("parses both cursor and cursor_column", func(t *testing.T) {
+		cursor := EncodeCursor("id", "abc123", false)
+		values, _ := url.ParseQuery("cursor=" + cursor + "&cursor_column=updated_at")
+		params, err := parser.Parse(values)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, params.Cursor)
+		assert.NotNil(t, params.CursorColumn)
+		assert.Equal(t, "updated_at", *params.CursorColumn)
+	})
+
+	t.Run("rejects invalid cursor_column", func(t *testing.T) {
+		values, _ := url.ParseQuery("cursor_column=invalid-column-name")
+		_, err := parser.Parse(values)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid cursor_column")
+	})
+
+	t.Run("empty cursor is ignored", func(t *testing.T) {
+		values, _ := url.ParseQuery("cursor=")
+		params, err := parser.Parse(values)
+
+		assert.NoError(t, err)
+		assert.Nil(t, params.Cursor)
+	})
+}
+
 func TestQueryParams_ToSQL(t *testing.T) {
 	tests := []struct {
 		name         string

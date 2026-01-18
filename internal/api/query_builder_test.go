@@ -462,3 +462,137 @@ func TestNewQueryBuilder(t *testing.T) {
 		assert.Nil(t, args)
 	})
 }
+
+// =============================================================================
+// Cursor Pagination Tests
+// =============================================================================
+
+func TestEncodeCursor(t *testing.T) {
+	t.Run("encodes cursor correctly", func(t *testing.T) {
+		cursor := EncodeCursor("id", "abc123", false)
+		assert.NotEmpty(t, cursor)
+
+		// Should be valid base64
+		decoded, err := DecodeCursor(cursor)
+		assert.NoError(t, err)
+		assert.Equal(t, "id", decoded.Column)
+		assert.Equal(t, "abc123", decoded.Value)
+		assert.False(t, decoded.Desc)
+	})
+
+	t.Run("encodes descending cursor", func(t *testing.T) {
+		cursor := EncodeCursor("created_at", "2025-01-01", true)
+		decoded, err := DecodeCursor(cursor)
+		assert.NoError(t, err)
+		assert.Equal(t, "created_at", decoded.Column)
+		assert.True(t, decoded.Desc)
+	})
+
+	t.Run("encodes numeric value", func(t *testing.T) {
+		cursor := EncodeCursor("count", 42, false)
+		decoded, err := DecodeCursor(cursor)
+		assert.NoError(t, err)
+		assert.Equal(t, float64(42), decoded.Value) // JSON unmarshals numbers as float64
+	})
+}
+
+func TestDecodeCursor(t *testing.T) {
+	t.Run("decodes valid cursor", func(t *testing.T) {
+		// First encode, then decode
+		original := EncodeCursor("id", "test123", false)
+		decoded, err := DecodeCursor(original)
+		assert.NoError(t, err)
+		assert.Equal(t, "id", decoded.Column)
+		assert.Equal(t, "test123", decoded.Value)
+	})
+
+	t.Run("fails on invalid base64", func(t *testing.T) {
+		_, err := DecodeCursor("not-valid-base64!!!")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid cursor encoding")
+	})
+
+	t.Run("fails on invalid JSON", func(t *testing.T) {
+		// Valid base64 but invalid JSON
+		_, err := DecodeCursor("bm90LWpzb24=") // "not-json" in base64
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid cursor format")
+	})
+
+	t.Run("fails on missing column", func(t *testing.T) {
+		// Valid base64 of {"v": "value"} without column
+		_, err := DecodeCursor("eyJ2IjoidmFsdWUifQ==")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cursor missing column")
+	})
+}
+
+func TestQueryBuilder_WithCursor(t *testing.T) {
+	t.Run("applies cursor condition ascending", func(t *testing.T) {
+		cursor := EncodeCursor("id", "last123", false)
+
+		qb := NewQueryBuilder("public", "users")
+		err := qb.WithCursor(cursor, "")
+		assert.NoError(t, err)
+
+		sql, args := qb.BuildSelect()
+		assert.Contains(t, sql, `WHERE "id" > $1`)
+		assert.Len(t, args, 1)
+		assert.Equal(t, "last123", args[0])
+	})
+
+	t.Run("applies cursor condition descending", func(t *testing.T) {
+		cursor := EncodeCursor("created_at", "2025-01-01", true)
+
+		qb := NewQueryBuilder("public", "users")
+		err := qb.WithCursor(cursor, "")
+		assert.NoError(t, err)
+
+		sql, args := qb.BuildSelect()
+		assert.Contains(t, sql, `WHERE "created_at" < $1`)
+		assert.Len(t, args, 1)
+	})
+
+	t.Run("cursor column override", func(t *testing.T) {
+		cursor := EncodeCursor("old_column", "value", false)
+
+		qb := NewQueryBuilder("public", "users")
+		err := qb.WithCursor(cursor, "new_column")
+		assert.NoError(t, err)
+
+		sql, args := qb.BuildSelect()
+		assert.Contains(t, sql, `WHERE "new_column" > $1`)
+		assert.Len(t, args, 1)
+	})
+
+	t.Run("combines cursor with filters", func(t *testing.T) {
+		cursor := EncodeCursor("id", "last123", false)
+
+		qb := NewQueryBuilder("public", "users").
+			WithFilters([]Filter{{Column: "status", Operator: OpEqual, Value: "active"}})
+		err := qb.WithCursor(cursor, "")
+		assert.NoError(t, err)
+
+		sql, args := qb.BuildSelect()
+		assert.Contains(t, sql, "WHERE")
+		assert.Contains(t, sql, `"status" = $1`)
+		assert.Contains(t, sql, `"id" > $2`)
+		assert.Len(t, args, 2)
+	})
+
+	t.Run("empty cursor is no-op", func(t *testing.T) {
+		qb := NewQueryBuilder("public", "users")
+		err := qb.WithCursor("", "")
+		assert.NoError(t, err)
+
+		sql, args := qb.BuildSelect()
+		assert.Equal(t, `SELECT * FROM "public"."users"`, sql)
+		assert.Nil(t, args)
+	})
+
+	t.Run("invalid cursor returns error", func(t *testing.T) {
+		qb := NewQueryBuilder("public", "users")
+		err := qb.WithCursor("invalid!!!", "")
+		assert.Error(t, err)
+	})
+}

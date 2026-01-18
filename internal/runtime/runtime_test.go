@@ -430,3 +430,72 @@ func TestEncryptionKeyBlocked(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// Output Size Limit Tests
+// =============================================================================
+
+func TestWithMaxOutputSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		bytes    int
+		expected int
+	}{
+		{"zero (unlimited)", 0, 0},
+		{"10MB", 10 * 1024 * 1024, 10 * 1024 * 1024},
+		{"1KB", 1024, 1024},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost")
+			WithMaxOutputSize(tt.bytes)(r)
+			if r.maxOutputSize != tt.expected {
+				t.Errorf("expected maxOutputSize=%d, got %d", tt.expected, r.maxOutputSize)
+			}
+		})
+	}
+}
+
+func TestNewRuntime_DefaultMaxOutputSize(t *testing.T) {
+	t.Run("function runtime has 10MB default", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost")
+		expected := 10 * 1024 * 1024
+		if r.maxOutputSize != expected {
+			t.Errorf("expected maxOutputSize=%d for functions, got %d", expected, r.maxOutputSize)
+		}
+	})
+
+	t.Run("job runtime has 50MB default", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeJob, "secret", "http://localhost")
+		expected := 50 * 1024 * 1024
+		if r.maxOutputSize != expected {
+			t.Errorf("expected maxOutputSize=%d for jobs, got %d", expected, r.maxOutputSize)
+		}
+	})
+
+	t.Run("custom option overrides default", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost", WithMaxOutputSize(5*1024*1024))
+		expected := 5 * 1024 * 1024
+		if r.maxOutputSize != expected {
+			t.Errorf("expected maxOutputSize=%d with custom option, got %d", expected, r.maxOutputSize)
+		}
+	})
+}
+
+func TestWithMemoryLimit(t *testing.T) {
+	r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost")
+	WithMemoryLimit(256)(r)
+	if r.memoryLimitMB != 256 {
+		t.Errorf("expected memoryLimitMB=256, got %d", r.memoryLimitMB)
+	}
+}
+
+func TestWithTimeout(t *testing.T) {
+	r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost")
+	timeout := 60 * 1000 * 1000 * 1000 // 60 seconds in nanoseconds
+	WithTimeout(60 * 1000000000)(r)
+	if r.defaultTimeout != 60*1000000000 {
+		t.Errorf("expected defaultTimeout=%d, got %d", timeout, r.defaultTimeout)
+	}
+}
