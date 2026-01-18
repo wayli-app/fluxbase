@@ -193,8 +193,22 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c *fiber.Ctx, table datab
 		return handleDatabaseError(c, err, "create records")
 	}
 
-	c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))
-	return c.Status(201).JSON(results)
+	// Set affected count headers
+	affectedCount := len(results)
+	c.Set("Content-Range", fmt.Sprintf("*/%d", affectedCount))
+	c.Set("X-Affected-Count", fmt.Sprintf("%d", affectedCount))
+
+	// Check Prefer header for response format
+	prefer := c.Get("Prefer")
+	switch {
+	case strings.Contains(prefer, "return=minimal"):
+		return c.Status(201).Send(nil)
+	case strings.Contains(prefer, "return=headers-only"):
+		return c.Status(201).JSON(fiber.Map{"affected": affectedCount})
+	default:
+		// return=representation or no preference - return full records
+		return c.Status(201).JSON(results)
+	}
 }
 
 // makeBatchPatchHandler creates a PATCH handler for batch updates with filters
@@ -298,8 +312,22 @@ func (h *RESTHandler) makeBatchPatchHandler(table database.TableInfo) fiber.Hand
 			return handleDatabaseError(c, err, "update records")
 		}
 
-		c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))
-		return c.JSON(results)
+		// Set affected count headers
+		affectedCount := len(results)
+		c.Set("Content-Range", fmt.Sprintf("*/%d", affectedCount))
+		c.Set("X-Affected-Count", fmt.Sprintf("%d", affectedCount))
+
+		// Check Prefer header for response format
+		prefer := c.Get("Prefer")
+		switch {
+		case strings.Contains(prefer, "return=minimal"):
+			return c.Status(200).Send(nil)
+		case strings.Contains(prefer, "return=headers-only"):
+			return c.JSON(fiber.Map{"affected": affectedCount})
+		default:
+			// return=representation or no preference - return full records
+			return c.JSON(results)
+		}
 	}
 }
 
@@ -359,10 +387,24 @@ func (h *RESTHandler) makeBatchDeleteHandler(table database.TableInfo) fiber.Han
 			return handleDatabaseError(c, err, "delete records")
 		}
 
-		c.Set("Content-Range", fmt.Sprintf("*/%d", len(results)))
-		return c.Status(200).JSON(fiber.Map{
-			"deleted": len(results),
-			"records": results,
-		})
+		// Set affected count headers
+		affectedCount := len(results)
+		c.Set("Content-Range", fmt.Sprintf("*/%d", affectedCount))
+		c.Set("X-Affected-Count", fmt.Sprintf("%d", affectedCount))
+
+		// Check Prefer header for response format
+		prefer := c.Get("Prefer")
+		switch {
+		case strings.Contains(prefer, "return=minimal"):
+			return c.Status(200).Send(nil)
+		case strings.Contains(prefer, "return=headers-only"):
+			return c.Status(200).JSON(fiber.Map{"affected": affectedCount})
+		default:
+			// return=representation or no preference - return deleted records with count
+			return c.Status(200).JSON(fiber.Map{
+				"affected": affectedCount,
+				"records":  results,
+			})
+		}
 	}
 }

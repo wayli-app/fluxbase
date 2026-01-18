@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -413,4 +414,173 @@ func TestWebhookDeliveryStatus(t *testing.T) {
 			assert.LessOrEqual(t, delivery.Attempt, maxRetries)
 		}
 	})
+}
+
+// Test timestamped signature generation and verification
+func TestTimestampedSignature(t *testing.T) {
+	t.Run("Generate timestamped signature", func(t *testing.T) {
+		payload := []byte(`{"event":"INSERT","table":"users"}`)
+		secret := "test-secret-key"
+		timestamp := time.Now().Unix()
+
+		signature := generateTimestampedSignature(payload, secret, timestamp)
+
+		// Verify signature is not empty
+		assert.NotEmpty(t, signature)
+
+		// Verify signature is hex encoded
+		_, err := hex.DecodeString(signature)
+		assert.NoError(t, err)
+
+		// Verify signature length (SHA256 produces 64 hex characters)
+		assert.Equal(t, 64, len(signature))
+	})
+
+	t.Run("Different timestamps produce different signatures", func(t *testing.T) {
+		payload := []byte(`{"test":"data"}`)
+		secret := "my-secret"
+		ts1 := time.Now().Unix()
+		ts2 := ts1 + 1
+
+		sig1 := generateTimestampedSignature(payload, secret, ts1)
+		sig2 := generateTimestampedSignature(payload, secret, ts2)
+
+		assert.NotEqual(t, sig1, sig2)
+	})
+
+	t.Run("Same inputs produce same signature", func(t *testing.T) {
+		payload := []byte(`{"test":"data"}`)
+		secret := "my-secret"
+		timestamp := int64(1234567890)
+
+		sig1 := generateTimestampedSignature(payload, secret, timestamp)
+		sig2 := generateTimestampedSignature(payload, secret, timestamp)
+
+		assert.Equal(t, sig1, sig2)
+	})
+}
+
+func TestParseWebhookSignature(t *testing.T) {
+	t.Run("Parse valid signature", func(t *testing.T) {
+		header := "t=1234567890,v1=abc123def456"
+
+		sig, err := ParseWebhookSignature(header)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1234567890), sig.Timestamp)
+		assert.Contains(t, sig.Signatures, "abc123def456")
+	})
+
+	t.Run("Parse signature with multiple v1 values", func(t *testing.T) {
+		header := "t=1234567890,v1=sig1,v1=sig2"
+
+		sig, err := ParseWebhookSignature(header)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1234567890), sig.Timestamp)
+		assert.Len(t, sig.Signatures, 2)
+		assert.Contains(t, sig.Signatures, "sig1")
+		assert.Contains(t, sig.Signatures, "sig2")
+	})
+
+	t.Run("Parse signature with whitespace", func(t *testing.T) {
+		header := "  t=1234567890 , v1=abc123  "
+
+		sig, err := ParseWebhookSignature(header)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1234567890), sig.Timestamp)
+		assert.Contains(t, sig.Signatures, "abc123")
+	})
+
+	t.Run("Error on empty header", func(t *testing.T) {
+		_, err := ParseWebhookSignature("")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "empty signature header")
+	})
+
+	t.Run("Error on missing timestamp", func(t *testing.T) {
+		_, err := ParseWebhookSignature("v1=abc123")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing timestamp")
+	})
+
+	t.Run("Error on missing signature", func(t *testing.T) {
+		_, err := ParseWebhookSignature("t=1234567890")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing signature")
+	})
+
+	t.Run("Error on invalid timestamp", func(t *testing.T) {
+		_, err := ParseWebhookSignature("t=notanumber,v1=abc123")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timestamp")
+	})
+}
+
+func TestVerifyWebhookSignature(t *testing.T) {
+	secret := "test-secret"
+	payload := []byte(`{"event":"INSERT","table":"users"}`)
+
+	t.Run("Verify valid signature", func(t *testing.T) {
+		timestamp := time.Now().Unix()
+		signature := generateTimestampedSignature(payload, secret, timestamp)
+		header := "t=" + time.Now().Format("1136239445") // Use Unix format
+		header = "t=" + timeUnixString(timestamp) + ",v1=" + signature
+
+		err := VerifyWebhookSignature(payload, header, secret, 5*time.Minute)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Reject old signature", func(t *testing.T) {
+		// Signature from 10 minutes ago
+		timestamp := time.Now().Add(-10 * time.Minute).Unix()
+		signature := generateTimestampedSignature(payload, secret, timestamp)
+		header := "t=" + timeUnixString(timestamp) + ",v1=" + signature
+
+		err := VerifyWebhookSignature(payload, header, secret, 5*time.Minute)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "too old")
+	})
+
+	t.Run("Reject future signature", func(t *testing.T) {
+		// Signature 10 minutes in the future
+		timestamp := time.Now().Add(10 * time.Minute).Unix()
+		signature := generateTimestampedSignature(payload, secret, timestamp)
+		header := "t=" + timeUnixString(timestamp) + ",v1=" + signature
+
+		err := VerifyWebhookSignature(payload, header, secret, 5*time.Minute)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "future")
+	})
+
+	t.Run("Reject wrong signature", func(t *testing.T) {
+		timestamp := time.Now().Unix()
+		header := "t=" + timeUnixString(timestamp) + ",v1=wrongsignature"
+
+		err := VerifyWebhookSignature(payload, header, secret, 5*time.Minute)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mismatch")
+	})
+
+	t.Run("Reject wrong secret", func(t *testing.T) {
+		timestamp := time.Now().Unix()
+		signature := generateTimestampedSignature(payload, secret, timestamp)
+		header := "t=" + timeUnixString(timestamp) + ",v1=" + signature
+
+		err := VerifyWebhookSignature(payload, header, "wrong-secret", 5*time.Minute)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mismatch")
+	})
+
+	t.Run("Verify with multiple signatures", func(t *testing.T) {
+		timestamp := time.Now().Unix()
+		correctSig := generateTimestampedSignature(payload, secret, timestamp)
+		header := "t=" + timeUnixString(timestamp) + ",v1=wrongsig,v1=" + correctSig
+
+		err := VerifyWebhookSignature(payload, header, secret, 5*time.Minute)
+		assert.NoError(t, err)
+	})
+}
+
+// Helper function to convert Unix timestamp to string
+func timeUnixString(ts int64) string {
+	return fmt.Sprintf("%d", ts)
 }

@@ -102,6 +102,7 @@ type Server struct {
 	secretsHandler         *secrets.Handler
 	secretsStorage         *secrets.Storage
 	serviceKeyHandler      *ServiceKeyHandler
+	schemaExportHandler    *SchemaExportHandler
 	mcpHandler             *mcp.Handler
 
 	// Database branching components
@@ -424,6 +425,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	migrationsHandler := migrations.NewHandler(db, schemaCache)
 
+	// Create schema export handler for TypeScript type generation
+	schemaExportHandler := NewSchemaExportHandler(schemaCache, db.Inspector())
+
 	// Create AI storage first (needed for provider lookup)
 	aiStorage := ai.NewStorage(db)
 	aiStorage.SetConfig(&cfg.AI)
@@ -661,6 +665,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		secretsHandler:         secretsHandler,
 		secretsStorage:         secretsStorage,
 		serviceKeyHandler:      serviceKeyHandler,
+		schemaExportHandler:    schemaExportHandler,
 		mcpHandler:             mcp.NewHandler(&cfg.MCP, db),
 		metrics:                observability.NewMetrics(),
 		startTime:              time.Now(),
@@ -1266,6 +1271,13 @@ func (s *Server) setupRoutes() {
 	if s.branchRouter != nil {
 		restMiddlewares = append(restMiddlewares, middleware.BranchContextSimple(s.branchRouter))
 	}
+	// Add ETag middleware for conditional requests (304 Not Modified)
+	restMiddlewares = append(restMiddlewares, middleware.ETagWithConfig(middleware.ETagConfig{
+		Weak:              true,
+		SkipPaths:         []string{}, // Don't skip any paths within /tables
+		IncludeMethods:    []string{"GET"},
+		EnableConditional: true,
+	}))
 	rest := v1.Group("/tables", restMiddlewares...)
 	s.setupRESTRoutes(rest)
 
@@ -1921,6 +1933,10 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 
 	// SQL Editor route (require admin or dashboard_admin role)
 	router.Post("/sql/execute", unifiedAuth, RequireRole("admin", "dashboard_admin"), s.sqlHandler.ExecuteSQL)
+
+	// Schema export routes (for TypeScript type generation) - require admin, dashboard_admin, or service_role
+	router.Get("/schema/typescript", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.schemaExportHandler.HandleExportTypeScript)
+	router.Post("/schema/typescript", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.schemaExportHandler.HandleExportTypeScript)
 
 	// Functions management routes (require admin, dashboard_admin, or service_role)
 	router.Post("/functions/reload", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.functionsHandler.ReloadFunctions)

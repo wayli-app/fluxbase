@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -683,10 +684,17 @@ func (s *WebhookService) sendWebhookSync(ctx context.Context, webhook *Webhook, 
 		req.Header.Set(key, value)
 	}
 
-	// Add HMAC signature if secret is provided
+	// Add HMAC signature with timestamp if secret is provided
+	// Format: t=timestamp,v1=signature
+	// This enables replay protection and is similar to Stripe's webhook signing
 	if webhook.Secret != nil && *webhook.Secret != "" {
-		signature := s.generateSignature(payloadJSON, *webhook.Secret)
-		req.Header.Set("X-Webhook-Signature", signature)
+		timestamp := time.Now().Unix()
+		signature := generateTimestampedSignature(payloadJSON, *webhook.Secret, timestamp)
+		signatureHeader := fmt.Sprintf("t=%d,v1=%s", timestamp, signature)
+		req.Header.Set("X-Fluxbase-Signature", signatureHeader)
+		// Also keep legacy header for backwards compatibility
+		legacySignature := s.generateSignature(payloadJSON, *webhook.Secret)
+		req.Header.Set("X-Webhook-Signature", legacySignature)
 	}
 
 	// Send request with timeout
@@ -735,10 +743,15 @@ func (s *WebhookService) sendWebhook(ctx context.Context, deliveryID uuid.UUID, 
 		req.Header.Set(key, value)
 	}
 
-	// Add HMAC signature if secret is provided
+	// Add HMAC signature with timestamp if secret is provided
 	if webhook.Secret != nil && *webhook.Secret != "" {
-		signature := s.generateSignature(payloadJSON, *webhook.Secret)
-		req.Header.Set("X-Webhook-Signature", signature)
+		timestamp := time.Now().Unix()
+		signature := generateTimestampedSignature(payloadJSON, *webhook.Secret, timestamp)
+		signatureHeader := fmt.Sprintf("t=%d,v1=%s", timestamp, signature)
+		req.Header.Set("X-Fluxbase-Signature", signatureHeader)
+		// Also keep legacy header for backwards compatibility
+		legacySignature := s.generateSignature(payloadJSON, *webhook.Secret)
+		req.Header.Set("X-Webhook-Signature", legacySignature)
 	}
 
 	// Send request with timeout
@@ -765,11 +778,109 @@ func (s *WebhookService) sendWebhook(ctx context.Context, deliveryID uuid.UUID, 
 	}
 }
 
-// generateSignature generates HMAC SHA256 signature
+// generateSignature generates HMAC SHA256 signature (legacy, without timestamp)
 func (s *WebhookService) generateSignature(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// generateTimestampedSignature generates HMAC SHA256 signature with timestamp
+// The signature is computed over: timestamp + "." + payload
+// This prevents replay attacks by including the timestamp in the signed data
+func generateTimestampedSignature(payload []byte, secret string, timestamp int64) string {
+	// Create the signed payload: timestamp.payload
+	signedPayload := fmt.Sprintf("%d.%s", timestamp, string(payload))
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signedPayload))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// WebhookSignature represents a parsed webhook signature header
+type WebhookSignature struct {
+	Timestamp  int64
+	Signatures []string
+}
+
+// ParseWebhookSignature parses an X-Fluxbase-Signature header
+// Format: t=timestamp,v1=signature[,v1=signature2...]
+// Example: t=1234567890,v1=abc123def456
+func ParseWebhookSignature(header string) (*WebhookSignature, error) {
+	if header == "" {
+		return nil, fmt.Errorf("empty signature header")
+	}
+
+	sig := &WebhookSignature{}
+
+	parts := strings.Split(header, ",")
+	for _, part := range parts {
+		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+
+		switch key {
+		case "t":
+			ts, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid timestamp: %w", err)
+			}
+			sig.Timestamp = ts
+		case "v1":
+			sig.Signatures = append(sig.Signatures, value)
+		}
+	}
+
+	if sig.Timestamp == 0 {
+		return nil, fmt.Errorf("missing timestamp in signature")
+	}
+	if len(sig.Signatures) == 0 {
+		return nil, fmt.Errorf("missing signature value")
+	}
+
+	return sig, nil
+}
+
+// VerifyWebhookSignature verifies a webhook signature
+// Parameters:
+//   - payload: the raw request body
+//   - header: the X-Fluxbase-Signature header value
+//   - secret: the webhook secret
+//   - tolerance: maximum age of the signature (recommended: 5 minutes)
+//
+// Returns nil if signature is valid, error otherwise
+func VerifyWebhookSignature(payload []byte, header, secret string, tolerance time.Duration) error {
+	sig, err := ParseWebhookSignature(header)
+	if err != nil {
+		return fmt.Errorf("failed to parse signature: %w", err)
+	}
+
+	// Check timestamp is not too old (replay protection)
+	signedAt := time.Unix(sig.Timestamp, 0)
+	if time.Since(signedAt) > tolerance {
+		return fmt.Errorf("signature timestamp too old (signed at %v, tolerance %v)", signedAt, tolerance)
+	}
+
+	// Check timestamp is not in the future (clock skew protection)
+	if signedAt.After(time.Now().Add(tolerance)) {
+		return fmt.Errorf("signature timestamp in the future")
+	}
+
+	// Compute expected signature
+	expectedSig := generateTimestampedSignature(payload, secret, sig.Timestamp)
+
+	// Compare signatures (constant time comparison to prevent timing attacks)
+	for _, providedSig := range sig.Signatures {
+		if hmac.Equal([]byte(expectedSig), []byte(providedSig)) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("signature mismatch")
 }
 
 // CreateDeliveryRecord creates a delivery record before attempting delivery
