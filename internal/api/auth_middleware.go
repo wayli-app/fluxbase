@@ -21,9 +21,7 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 		if token == "" {
 			authHeader := c.Get("Authorization")
 			if authHeader == "" {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Missing authentication",
-				})
+				return SendMissingAuth(c)
 			}
 
 			// Extract token from "Bearer <token>" format
@@ -37,9 +35,7 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 		claims, err := authService.ValidateToken(token)
 		if err != nil {
 			log.Debug().Err(err).Msg("Invalid token")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired token",
-			})
+			return SendInvalidToken(c)
 		}
 
 		// Check if token has been revoked
@@ -49,9 +45,7 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 			// Continue anyway - revocation check failure shouldn't block valid tokens
 		} else if isRevoked {
 			log.Debug().Str("jti", claims.ID).Msg("Token has been revoked")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Token has been revoked",
-			})
+			return SendTokenRevoked(c)
 		}
 
 		// Store user information in context
@@ -137,17 +131,13 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userRole := c.Locals("user_role")
 		if userRole == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Unauthorized",
-			})
+			return SendUnauthorized(c, "Unauthorized", ErrCodeAuthRequired)
 		}
 
 		// Check if user role is in allowed roles (with safe type assertion)
 		role, ok := userRole.(string)
 		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid role type",
-			})
+			return SendUnauthorized(c, "Invalid role type", ErrCodeInvalidRole)
 		}
 		for _, allowedRole := range allowedRoles {
 			if role == allowedRole {
@@ -155,9 +145,7 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 			}
 		}
 
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Insufficient permissions",
-		})
+		return SendInsufficientPermissions(c)
 	}
 }
 
@@ -204,9 +192,7 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 		if token == "" {
 			authHeader := c.Get("Authorization")
 			if authHeader == "" {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Missing authentication",
-				})
+				return SendMissingAuth(c)
 			}
 
 			// Extract token from "Bearer <token>" format
@@ -244,9 +230,7 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 				// Continue anyway - revocation check failure shouldn't block valid tokens
 			} else if isRevoked {
 				log.Debug().Str("jti", claims.ID).Msg("Token has been revoked")
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error": "Token has been revoked",
-				})
+				return SendTokenRevoked(c)
 			}
 
 			// Store user information in context
@@ -279,17 +263,13 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 		if err != nil {
 			// Both validations failed
 			log.Debug().Err(err).Msg("Invalid token for both auth types")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or expired token",
-			})
+			return SendInvalidToken(c)
 		}
 
 		// Successfully validated as dashboard.users token
 		userID, err := uuid.Parse(dashboardClaims.Subject)
 		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid user ID in token",
-			})
+			return SendUnauthorized(c, "Invalid user ID in token", ErrCodeInvalidUserID)
 		}
 
 		// Store user information in context

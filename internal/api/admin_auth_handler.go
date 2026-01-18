@@ -83,9 +83,7 @@ func (h *AdminAuthHandler) GetSetupStatus(c *fiber.Ctx) error {
 	// Check if setup has been completed using system settings
 	setupComplete, err := h.systemSettings.IsSetupComplete(ctx)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to check setup status",
-		})
+		return SendOperationFailed(c, "check setup status")
 	}
 
 	return c.JSON(SetupStatusResponse{
@@ -102,59 +100,43 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 	// Check if setup has already been completed using system settings
 	setupComplete, err := h.systemSettings.IsSetupComplete(ctx)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to check setup status",
-		})
+		return SendOperationFailed(c, "check setup status")
 	}
 
 	if setupComplete {
-		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Setup has already been completed",
-		})
+		return SendForbidden(c, "Setup has already been completed", ErrCodeSetupCompleted)
 	}
 
 	// Parse request
 	var req InitialSetupRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return SendInvalidBody(c)
 	}
 
 	// Validate setup token using constant-time comparison to prevent timing attacks
 	configuredToken := h.config.Security.SetupToken
 	if configuredToken == "" {
-		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin setup is disabled. Set FLUXBASE_SECURITY_SETUP_TOKEN to enable.",
-		})
+		return SendForbidden(c, "Admin setup is disabled. Set FLUXBASE_SECURITY_SETUP_TOKEN to enable.", ErrCodeSetupDisabled)
 	}
 
 	if req.SetupToken == "" {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "setup_token is required",
-		})
+		return SendMissingField(c, "setup_token")
 	}
 
 	// Use constant-time comparison to prevent timing attacks
 	if subtle.ConstantTimeCompare([]byte(req.SetupToken), []byte(configuredToken)) != 1 {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid setup token",
-		})
+		return SendUnauthorized(c, "Invalid setup token", ErrCodeInvalidSetupToken)
 	}
 
 	// Validate password strength
 	if err := auth.ValidateDashboardPassword(req.Password); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	// Create the first dashboard admin user
 	user, err := h.dashboardAuth.CreateUser(ctx, req.Email, req.Password, req.Name)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Failed to create admin user: %v", err),
-		})
+		return SendInternalError(c, fmt.Sprintf("Failed to create admin user: %v", err))
 	}
 
 	// Update user to be dashboard_admin with email verified
@@ -165,24 +147,18 @@ func (h *AdminAuthHandler) InitialSetup(c *fiber.Ctx) error {
 		WHERE id = $1
 	`, user.ID)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to set admin role and verify email",
-		})
+		return SendOperationFailed(c, "set admin role and verify email")
 	}
 
 	// Mark setup as complete in system settings
 	if err := h.systemSettings.MarkSetupComplete(ctx, user.ID, user.Email); err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to mark setup as complete",
-		})
+		return SendOperationFailed(c, "mark setup as complete")
 	}
 
 	// Log in the user to get access token
 	loggedInUser, loginResp, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "User created but failed to generate access token",
-		})
+		return SendInternalError(c, "User created but failed to generate access token")
 	}
 
 	return c.Status(http.StatusCreated).JSON(InitialSetupResponse{
@@ -200,27 +176,19 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 
 	var req AdminLoginRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return SendInvalidBody(c)
 	}
 
 	// Use the dashboard auth service to sign in (dashboard.users, not auth.users)
 	user, loginResp, err := h.dashboardAuth.Login(ctx, req.Email, req.Password, nil, c.Get("User-Agent"))
 	if err != nil {
 		if errors.Is(err, auth.ErrInvalidCredentials) {
-			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid email or password",
-			})
+			return SendUnauthorized(c, "Invalid email or password", ErrCodeInvalidCredentials)
 		}
 		if errors.Is(err, auth.ErrAccountLocked) {
-			return c.Status(http.StatusForbidden).JSON(fiber.Map{
-				"error": "Account is locked due to too many failed login attempts",
-			})
+			return SendForbidden(c, "Account is locked due to too many failed login attempts", ErrCodeAccountLocked)
 		}
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Authentication failed: %v", err),
-		})
+		return SendInternalError(c, fmt.Sprintf("Authentication failed: %v", err))
 	}
 
 	// Query user's role from database (DashboardUser struct doesn't include role)
@@ -230,16 +198,12 @@ func (h *AdminAuthHandler) AdminLogin(c *fiber.Ctx) error {
 		user.ID,
 	).Scan(&userRole)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to verify user role",
-		})
+		return SendOperationFailed(c, "verify user role")
 	}
 
 	// Check if user has dashboard_admin role
 	if userRole != "dashboard_admin" {
-		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Access denied. Admin role required.",
-		})
+		return SendForbidden(c, "Access denied. Admin role required.", ErrCodeAdminRequired)
 	}
 
 	return c.JSON(AdminLoginResponse{
@@ -260,9 +224,7 @@ func (h *AdminAuthHandler) AdminRefreshToken(c *fiber.Ctx) error {
 	}
 
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return SendInvalidBody(c)
 	}
 
 	refreshReq := auth.RefreshTokenRequest{
@@ -271,32 +233,24 @@ func (h *AdminAuthHandler) AdminRefreshToken(c *fiber.Ctx) error {
 
 	refreshResp, err := h.authService.RefreshToken(ctx, refreshReq)
 	if err != nil {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid or expired refresh token",
-		})
+		return SendUnauthorized(c, "Invalid or expired refresh token", ErrCodeInvalidToken)
 	}
 
 	// Get user from the new access token to verify admin role
 	claims, err := h.authService.ValidateToken(refreshResp.AccessToken)
 	if err != nil {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Failed to validate refreshed token",
-		})
+		return SendUnauthorized(c, "Failed to validate refreshed token", ErrCodeInvalidToken)
 	}
 
 	// Fetch user details
 	user, err := h.userRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch user",
-		})
+		return SendOperationFailed(c, "fetch user")
 	}
 
 	// Verify user still has admin role
 	if user.Role != "admin" {
-		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin role required",
-		})
+		return SendAdminRequired(c)
 	}
 
 	return c.JSON(fiber.Map{
@@ -315,26 +269,20 @@ func (h *AdminAuthHandler) AdminLogout(c *fiber.Ctx) error {
 	// Get the access token from the Authorization header
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "No authorization token provided",
-		})
+		return SendMissingAuth(c)
 	}
 
 	// Extract token from "Bearer <token>"
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid authorization header format",
-		})
+		return SendUnauthorized(c, "Invalid authorization header format", ErrCodeInvalidFormat)
 	}
 
 	token := parts[1]
 
 	// Sign out using the auth service
 	if err := h.authService.SignOut(ctx, token); err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to logout",
-		})
+		return SendOperationFailed(c, "logout")
 	}
 
 	return c.JSON(fiber.Map{
@@ -348,9 +296,7 @@ func (h *AdminAuthHandler) GetCurrentAdmin(c *fiber.Ctx) error {
 	// Get user info from context (set by auth middleware)
 	userID, ok := c.Locals("user_id").(string)
 	if !ok {
-		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-			"error": "User not authenticated",
-		})
+		return SendUnauthorized(c, "User not authenticated", ErrCodeAuthRequired)
 	}
 
 	userEmail, _ := c.Locals("user_email").(string)
@@ -358,9 +304,7 @@ func (h *AdminAuthHandler) GetCurrentAdmin(c *fiber.Ctx) error {
 
 	// Verify admin role
 	if userRole != "admin" {
-		return c.Status(http.StatusForbidden).JSON(fiber.Map{
-			"error": "Admin role required",
-		})
+		return SendAdminRequired(c)
 	}
 
 	// Return user info from JWT claims (sufficient for UI needs)
