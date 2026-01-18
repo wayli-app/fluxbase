@@ -233,20 +233,18 @@ func TestWebhookDelivery_Struct(t *testing.T) {
 		now := time.Now()
 
 		delivery := &WebhookDelivery{
-			EventType:      "INSERT",
-			TableName:      "users",
-			AttemptNumber:  1,
-			Status:         "success",
-			HTTPStatusCode: &statusCode,
-			ResponseBody:   &responseBody,
-			DeliveredAt:    &now,
+			Event:        "INSERT",
+			Attempt:      1,
+			Status:       "success",
+			StatusCode:   &statusCode,
+			ResponseBody: &responseBody,
+			DeliveredAt:  &now,
 		}
 
-		assert.Equal(t, "INSERT", delivery.EventType)
-		assert.Equal(t, "users", delivery.TableName)
-		assert.Equal(t, 1, delivery.AttemptNumber)
+		assert.Equal(t, "INSERT", delivery.Event)
+		assert.Equal(t, 1, delivery.Attempt)
 		assert.Equal(t, "success", delivery.Status)
-		assert.Equal(t, 200, *delivery.HTTPStatusCode)
+		assert.Equal(t, 200, *delivery.StatusCode)
 		assert.Equal(t, "OK", *delivery.ResponseBody)
 		assert.NotNil(t, delivery.DeliveredAt)
 	})
@@ -256,27 +254,25 @@ func TestWebhookDelivery_Struct(t *testing.T) {
 		errorMsg := "Internal Server Error"
 
 		delivery := &WebhookDelivery{
-			EventType:      "UPDATE",
-			TableName:      "products",
-			AttemptNumber:  2,
-			Status:         "failed",
-			HTTPStatusCode: &statusCode,
-			ErrorMessage:   &errorMsg,
+			Event:      "UPDATE",
+			Attempt:    2,
+			Status:     "failed",
+			StatusCode: &statusCode,
+			Error:      &errorMsg,
 		}
 
 		assert.Equal(t, "failed", delivery.Status)
-		assert.Equal(t, 2, delivery.AttemptNumber)
-		assert.Equal(t, 500, *delivery.HTTPStatusCode)
-		assert.Equal(t, "Internal Server Error", *delivery.ErrorMessage)
+		assert.Equal(t, 2, delivery.Attempt)
+		assert.Equal(t, 500, *delivery.StatusCode)
+		assert.Equal(t, "Internal Server Error", *delivery.Error)
 	})
 
 	t.Run("WebhookDelivery marshaling", func(t *testing.T) {
 		delivery := &WebhookDelivery{
-			EventType:     "DELETE",
-			TableName:     "posts",
-			Payload:       json.RawMessage(`{"id":5}`),
-			AttemptNumber: 1,
-			Status:        "pending",
+			Event:   "DELETE",
+			Payload: json.RawMessage(`{"id":5}`),
+			Attempt: 1,
+			Status:  "pending",
 		}
 
 		data, err := json.Marshal(delivery)
@@ -286,10 +282,9 @@ func TestWebhookDelivery_Struct(t *testing.T) {
 		err = json.Unmarshal(data, &result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "DELETE", result.EventType)
-		assert.Equal(t, "posts", result.TableName)
+		assert.Equal(t, "DELETE", result.Event)
 		assert.Equal(t, "pending", result.Status)
-		assert.Equal(t, 1, result.AttemptNumber)
+		assert.Equal(t, 1, result.Attempt)
 	})
 }
 
@@ -412,10 +407,10 @@ func TestWebhookDeliveryStatus(t *testing.T) {
 		maxRetries := 3
 		for attempt := 1; attempt <= maxRetries; attempt++ {
 			delivery := &WebhookDelivery{
-				AttemptNumber: attempt,
-				Status:        "retrying",
+				Attempt: attempt,
+				Status:  "retrying",
 			}
-			assert.LessOrEqual(t, delivery.AttemptNumber, maxRetries)
+			assert.LessOrEqual(t, delivery.Attempt, maxRetries)
 		}
 	})
 }

@@ -148,9 +148,10 @@ func createTestService(cfg *config.LoggingConfig) (*Service, *serviceTestMockSto
 
 	// Create service manually to bypass the database/storage dependencies
 	s := &Service{
-		config:     cfg,
-		storage:    mockStorage,
-		lineNumber: make(map[string]int),
+		config:       cfg,
+		storage:      mockStorage,
+		lineNumber:   make(map[string]int),
+		lineLastUsed: make(map[string]time.Time),
 	}
 
 	// Create a batcher with our mock

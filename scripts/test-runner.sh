@@ -58,6 +58,7 @@ START_TIME=$(date +%s)
 TEST_CMD_JSON="${TEST_CMD/go test/go test -json}"
 
 # Parse JSON output to show real-time progress
+# Use a subshell to capture go test exit code separately from the pipeline
 eval "$TEST_CMD_JSON" 2>&1 | tee "$TEST_OUTPUT" | awk '
 BEGIN {
     running = 0
@@ -103,9 +104,12 @@ BEGIN {
 }
 END {
     printf "\r\033[K"
+    exit 0
 }
 '
 
+# Get exit code from the first command in the pipeline (go test)
+# PIPESTATUS[0] = eval/go test, PIPESTATUS[1] = tee, PIPESTATUS[2] = awk
 TEST_EXIT_CODE=${PIPESTATUS[0]}
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))

@@ -155,8 +155,8 @@ func (h *Handler) handlePost(c *fiber.Ctx) error {
 
 	// Check rate limit using client key or user ID as the key
 	rateLimitKey := authCtx.ClientKeyID
-	if rateLimitKey == "" && authCtx.UserID != "" {
-		rateLimitKey = authCtx.UserID
+	if rateLimitKey == "" && authCtx.UserID != nil && *authCtx.UserID != "" {
+		rateLimitKey = *authCtx.UserID
 	}
 	if rateLimitKey == "" {
 		rateLimitKey = c.IP() // Fallback to IP for anonymous requests

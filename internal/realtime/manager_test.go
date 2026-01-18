@@ -25,8 +25,9 @@ func TestManager_AddConnection(t *testing.T) {
 	manager := NewManager(ctx)
 	conn := &websocket.Conn{}
 
-	connection := manager.AddConnection("conn1", conn, nil, "anon", nil)
+	connection, err := manager.AddConnection("conn1", conn, nil, "anon", nil)
 
+	assert.NoError(t, err)
 	assert.NotNil(t, connection)
 	assert.Equal(t, "conn1", connection.ID)
 	assert.Equal(t, 1, manager.GetConnectionCount())
@@ -48,8 +49,9 @@ func TestManager_AddConnectionWithUserID(t *testing.T) {
 	manager := NewManager(ctx)
 	userID := "user123"
 
-	connection := manager.AddConnection("conn1", &websocket.Conn{}, &userID, "authenticated", nil)
+	connection, err := manager.AddConnection("conn1", &websocket.Conn{}, &userID, "authenticated", nil)
 
+	assert.NoError(t, err)
 	assert.NotNil(t, connection.UserID)
 	assert.Equal(t, "user123", *connection.UserID)
 }

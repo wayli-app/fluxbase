@@ -175,9 +175,9 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 	if err != nil {
 		// Connection limit reached - send error and close
 		_ = c.WriteJSON(ServerMessage{
-			Type:    MessageTypeSystem,
-			Event:   "error",
-			Payload: map[string]interface{}{"error": "max_connections_reached", "message": "Server connection limit reached. Please try again later."},
+			Type:    MessageTypeError,
+			Error:   "max_connections_reached",
+			Payload: map[string]interface{}{"message": "Server connection limit reached. Please try again later."},
 		})
 		return // Close the WebSocket
 	}

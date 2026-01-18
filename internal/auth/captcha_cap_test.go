@@ -5,11 +5,22 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// newCapProviderForTest creates a CapProvider for testing without URL validation.
+// This allows tests to use httptest servers with localhost addresses.
+func newCapProviderForTest(serverURL, apiKey string, httpClient *http.Client) *CapProvider {
+	return &CapProvider{
+		serverURL:  strings.TrimSuffix(serverURL, "/"),
+		apiKey:     apiKey,
+		httpClient: httpClient,
+	}
+}
 
 func TestNewCapProvider(t *testing.T) {
 	tests := []struct {
@@ -47,7 +58,7 @@ func TestNewCapProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &http.Client{}
-			provider := NewCapProvider(tt.serverURL, tt.apiKey, client)
+			provider, _ := NewCapProvider(tt.serverURL, tt.apiKey, client)
 
 			assert.NotNil(t, provider)
 			assert.Equal(t, tt.expectedURL, provider.serverURL)
@@ -58,7 +69,7 @@ func TestNewCapProvider(t *testing.T) {
 }
 
 func TestCapProvider_Name(t *testing.T) {
-	provider := NewCapProvider("https://cap.example.com", "test-key", &http.Client{})
+	provider, _ := NewCapProvider("https://cap.example.com", "test-key", &http.Client{})
 	assert.Equal(t, "cap", provider.Name())
 }
 
@@ -92,7 +103,7 @@ func TestCapProvider_Verify_Success(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "test-key", client)
+	provider := newCapProviderForTest(server.URL, "test-key", client)
 
 	ctx := context.Background()
 	result, err := provider.Verify(ctx, "test-token", "")
@@ -117,7 +128,7 @@ func TestCapProvider_Verify_WithoutAPIKey(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "", client)
+	provider := newCapProviderForTest(server.URL, "", client)
 
 	ctx := context.Background()
 	result, err := provider.Verify(ctx, "test-token", "")
@@ -177,7 +188,7 @@ func TestCapProvider_Verify_Failure(t *testing.T) {
 			defer server.Close()
 
 			client := server.Client()
-			provider := NewCapProvider(server.URL, "test-key", client)
+			provider := newCapProviderForTest(server.URL, "test-key", client)
 
 			ctx := context.Background()
 			result, err := provider.Verify(ctx, "test-token", "")
@@ -191,7 +202,7 @@ func TestCapProvider_Verify_Failure(t *testing.T) {
 }
 
 func TestCapProvider_TranslateErrorCode(t *testing.T) {
-	provider := NewCapProvider("https://cap.example.com", "test-key", &http.Client{})
+	provider, _ := NewCapProvider("https://cap.example.com", "test-key", &http.Client{})
 
 	tests := []struct {
 		code     string
@@ -234,7 +245,7 @@ func TestCapProvider_Verify_HTTPError(t *testing.T) {
 			defer server.Close()
 
 			client := server.Client()
-			provider := NewCapProvider(server.URL, "test-key", client)
+			provider := newCapProviderForTest(server.URL, "test-key", client)
 
 			ctx := context.Background()
 			result, err := provider.Verify(ctx, "test-token", "")
@@ -254,7 +265,7 @@ func TestCapProvider_Verify_InvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "test-key", client)
+	provider := newCapProviderForTest(server.URL, "test-key", client)
 
 	ctx := context.Background()
 	result, err := provider.Verify(ctx, "test-token", "")
@@ -276,7 +287,7 @@ func TestCapProvider_Verify_FailureWithoutErrorCode(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "test-key", client)
+	provider := newCapProviderForTest(server.URL, "test-key", client)
 
 	ctx := context.Background()
 	result, err := provider.Verify(ctx, "test-token", "")
@@ -305,7 +316,7 @@ func TestCapProvider_Verify_RemoteIPIgnored(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "test-key", client)
+	provider := newCapProviderForTest(server.URL, "test-key", client)
 
 	ctx := context.Background()
 	result, err := provider.Verify(ctx, "test-token", "1.2.3.4")
@@ -322,7 +333,7 @@ func TestCapProvider_Verify_ContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	client := server.Client()
-	provider := NewCapProvider(server.URL, "test-key", client)
+	provider := newCapProviderForTest(server.URL, "test-key", client)
 
 	// Create cancelled context
 	ctx, cancel := context.WithCancel(context.Background())

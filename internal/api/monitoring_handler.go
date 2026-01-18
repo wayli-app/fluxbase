@@ -375,21 +375,28 @@ func (h *MonitoringHandler) GetLogs(c *fiber.Ctx) error {
 	// Convert to response format
 	logs := make([]LogEntry, 0, len(result.Entries))
 	for _, entry := range result.Entries {
+		// Extract error from fields if present
+		errStr := ""
+		if entry.Fields != nil {
+			if e, ok := entry.Fields["error"].(string); ok {
+				errStr = e
+			}
+		}
 		logs = append(logs, LogEntry{
 			Timestamp: entry.Timestamp,
 			Level:     string(entry.Level),
 			Message:   entry.Message,
 			Module:    entry.Component,
-			Error:     entry.Error,
+			Error:     errStr,
 			Fields:    entry.Fields,
 		})
 	}
 
 	return c.JSON(fiber.Map{
 		"logs":    logs,
-		"total":   result.Total,
+		"total":   result.TotalCount,
 		"limit":   limit,
 		"offset":  opts.Offset,
-		"hasMore": result.Total > int64(opts.Offset+len(logs)),
+		"hasMore": result.TotalCount > int64(opts.Offset+len(logs)),
 	})
 }

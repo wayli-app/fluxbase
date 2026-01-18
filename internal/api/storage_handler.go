@@ -48,8 +48,8 @@ func NewStorageHandler(storageSvc *storage.Service, db *database.Connection, tra
 		defer cancel()
 
 		cacheOpts := storage.TransformCacheOptions{
-			TTL:     time.Duration(transformCfg.CacheTTLSeconds) * time.Second,
-			MaxSize: int64(transformCfg.CacheMaxSizeMB) * 1024 * 1024,
+			TTL:     transformCfg.CacheTTL,
+			MaxSize: transformCfg.CacheMaxSize,
 		}
 		// Use defaults if not configured
 		if cacheOpts.TTL <= 0 {
@@ -60,7 +60,7 @@ func NewStorageHandler(storageSvc *storage.Service, db *database.Connection, tra
 		}
 
 		var err error
-		cache, err = storage.NewTransformCache(ctx, storageSvc.Provider(), cacheOpts)
+		cache, err = storage.NewTransformCache(ctx, storageSvc.Provider, cacheOpts)
 		if err != nil {
 			// Log error but don't fail - transforms will work without caching
 			log.Warn().Err(err).Msg("Failed to initialize transform cache, transforms will not be cached")

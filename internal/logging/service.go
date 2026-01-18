@@ -17,13 +17,13 @@ import (
 // Service is the central logging service that orchestrates log collection,
 // batching, storage, and realtime notifications.
 type Service struct {
-	config     *config.LoggingConfig
-	storage    storage.LogStorage
-	batcher    *Batcher
-	notifier   *PubSubNotifier
-	writer     *Writer
-	mu         sync.RWMutex
-	closed     bool
+	config       *config.LoggingConfig
+	storage      storage.LogStorage
+	batcher      *Batcher
+	notifier     *PubSubNotifier
+	writer       *Writer
+	mu           sync.RWMutex
+	closed       bool
 	lineNumber   map[string]int       // Track line numbers per execution
 	lineLastUsed map[string]time.Time // Track last access time for cleanup
 	lineMu       sync.Mutex

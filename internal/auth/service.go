@@ -572,7 +572,7 @@ func (s *Service) RefreshToken(ctx context.Context, req RefreshTokenRequest) (*R
 	}
 
 	// Calculate new expiry (extend session)
-	newExpiresAt := time.Now().Add(s.config.RefreshTokenExpiry)
+	newExpiresAt := time.Now().Add(s.config.RefreshExpiry)
 
 	// Update session with new tokens (rotation)
 	if err := s.sessionRepo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiresAt); err != nil {

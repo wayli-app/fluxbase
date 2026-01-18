@@ -43,14 +43,14 @@ type signedURLToken struct {
 
 // SignedTokenResult contains the result of validating a signed URL token
 type SignedTokenResult struct {
-	Bucket          string
-	Key             string
-	Method          string
-	TransformWidth  int
-	TransformHeight int
-	TransformFormat string
+	Bucket           string
+	Key              string
+	Method           string
+	TransformWidth   int
+	TransformHeight  int
+	TransformFormat  string
 	TransformQuality int
-	TransformFit    string
+	TransformFit     string
 }
 
 // NewLocalStorage creates a new local filesystem storage provider

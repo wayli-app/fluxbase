@@ -182,7 +182,7 @@ func (t *InsertRecordTool) Execute(ctx context.Context, args map[string]any, aut
 
 	// Execute query with RLS context
 	var results []map[string]any
-	err := executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
+	err = executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, values...)
 		if err != nil {
 			return err
@@ -377,7 +377,7 @@ func (t *UpdateRecordTool) Execute(ctx context.Context, args map[string]any, aut
 
 	// Execute query with RLS context
 	var results []map[string]any
-	err := executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
+	err = executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, values...)
 		if err != nil {
 			return err
@@ -545,7 +545,7 @@ func (t *DeleteRecordTool) Execute(ctx context.Context, args map[string]any, aut
 
 	// Execute query with RLS context
 	var results []map[string]any
-	err := executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
+	err = executeWithRLS(ctx, t.db, authCtx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, values...)
 		if err != nil {
 			return err

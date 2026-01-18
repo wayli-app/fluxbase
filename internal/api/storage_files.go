@@ -563,9 +563,8 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 
 	// Invalidate transform cache for this file
 	if h.transformCache != nil {
-		sourceKey := bucket + "/" + key
-		if err := h.transformCache.Invalidate(ctx, sourceKey); err != nil {
-			log.Warn().Err(err).Str("source_key", sourceKey).Msg("Failed to invalidate transform cache")
+		if err := h.transformCache.Invalidate(ctx, bucket, key); err != nil {
+			log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to invalidate transform cache")
 		}
 	}
 

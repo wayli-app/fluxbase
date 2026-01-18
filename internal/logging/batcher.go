@@ -27,9 +27,9 @@ type Batcher struct {
 	closed        bool
 
 	// Metrics for monitoring backpressure
-	droppedCount     atomic.Int64
-	lastDroppedWarn  time.Time
-	droppedWarnMu    sync.Mutex
+	droppedCount    atomic.Int64
+	lastDroppedWarn time.Time
+	droppedWarnMu   sync.Mutex
 }
 
 // NewBatcher creates a new log entry batcher.

@@ -7,13 +7,13 @@ import (
 
 // BranchingConfig contains database branching settings for isolated development/testing environments
 type BranchingConfig struct {
-	Enabled              bool          `mapstructure:"enabled"`                  // Enable database branching feature
-	MaxTotalBranches     int           `mapstructure:"max_total_branches"`       // Maximum total branches across all users (default: 50)
-	MaxBranchesPerUser   int           `mapstructure:"max_branches_per_user"`    // Maximum branches per user (default: 5)
-	DefaultDataCloneMode string        `mapstructure:"default_data_clone_mode"`  // Default data clone mode: schema_only, full_clone, seed_data
-	AutoDeleteAfter      time.Duration `mapstructure:"auto_delete_after"`        // Auto-delete preview branches after this duration (0 = never)
-	DatabasePrefix       string        `mapstructure:"database_prefix"`          // Prefix for branch database names (default: "branch_")
-	SeedsPath            string        `mapstructure:"seeds_path"`               // Path to seed data files directory (default: "./seeds")
+	Enabled              bool          `mapstructure:"enabled"`                 // Enable database branching feature
+	MaxTotalBranches     int           `mapstructure:"max_total_branches"`      // Maximum total branches across all users (default: 50)
+	MaxBranchesPerUser   int           `mapstructure:"max_branches_per_user"`   // Maximum branches per user (default: 5)
+	DefaultDataCloneMode string        `mapstructure:"default_data_clone_mode"` // Default data clone mode: schema_only, full_clone, seed_data
+	AutoDeleteAfter      time.Duration `mapstructure:"auto_delete_after"`       // Auto-delete preview branches after this duration (0 = never)
+	DatabasePrefix       string        `mapstructure:"database_prefix"`         // Prefix for branch database names (default: "branch_")
+	SeedsPath            string        `mapstructure:"seeds_path"`              // Path to seed data files directory (default: "./seeds")
 }
 
 // DataCloneModes are the valid values for DefaultDataCloneMode
