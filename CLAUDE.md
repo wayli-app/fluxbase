@@ -178,3 +178,59 @@ make test-coverage-check  # Check coverage thresholds without running tests
 
 ### Coverage Enforcement
 Coverage thresholds are enforced in CI via [go-test-coverage](https://github.com/vladopajic/go-test-coverage). Pull requests must meet minimum thresholds for affected files. The tool automatically excludes files that shouldn't be counted (pure type definitions, infrastructure code, etc.).
+
+## Development Workflow Requirements
+
+### Writing Tests
+
+**IMPORTANT:** When making code changes, always consider writing or updating tests:
+
+1. **New features** - Write unit tests covering the main functionality and edge cases
+2. **Bug fixes** - Add a regression test that would have caught the bug
+3. **Refactoring** - Ensure existing tests still pass; add tests if coverage gaps exist
+
+**Test file locations:**
+- Unit tests: Place `*_test.go` files alongside the source file being tested
+- E2E tests: Add to `test/e2e/` for integration scenarios
+- Test helpers: Use `internal/testutil/` for shared test utilities
+
+**Test naming conventions:**
+```go
+func TestFunctionName_Scenario_ExpectedBehavior(t *testing.T)
+// Example: TestCreateBranch_ExceedsUserLimit_ReturnsError
+```
+
+**When to skip tests:**
+- Pure type definitions or interface files
+- Simple configuration structs with no logic
+- Code that only wraps external dependencies (but do test the integration)
+
+### Updating Documentation
+
+**IMPORTANT:** When making code changes, always consider updating documentation:
+
+1. **New features** - Add documentation in `docs/src/content/docs/guides/`
+2. **API changes** - Update SDK documentation in `docs/src/content/docs/api/`
+3. **Configuration changes** - Update the relevant guide and CLAUDE.md if needed
+4. **Breaking changes** - Document migration steps clearly
+
+**Documentation locations:**
+- Feature guides: `docs/src/content/docs/guides/<feature>.md`
+- API reference: `docs/src/content/docs/api/` (auto-generated from SDK)
+- Project overview: `CLAUDE.md` (this file)
+- Implementation notes: `IMPLEMENTATION_ANALYSIS.md`
+
+**Documentation checklist:**
+- [ ] Does the feature documentation match the implementation?
+- [ ] Are all configuration options documented?
+- [ ] Are error messages and edge cases explained?
+- [ ] Are code examples correct and runnable?
+
+### Pre-Commit Checklist
+
+Before committing changes, verify:
+1. `make test` passes
+2. `make lint` passes (if available)
+3. Documentation is updated for user-facing changes
+4. New tests are added for new functionality
+5. Existing tests are updated if behavior changed

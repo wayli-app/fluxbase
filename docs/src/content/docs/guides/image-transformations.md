@@ -225,10 +225,14 @@ function ResponsiveImage({ path }: { path: string }) {
 
 ## Signed URLs with Transforms
 
-Transform parameters are included in the signed URL signature, preventing tampering:
+:::note[Coming Soon]
+Signed URL transforms are not yet implemented. Currently, transforms only work with public bucket URLs. Signed URL transform support is planned for a future release.
+:::
+
+When available, transform parameters will be included in the signed URL signature, preventing tampering:
 
 ```typescript
-// Create signed URL with transforms
+// PLANNED: Create signed URL with transforms
 const { data } = await storage
   .from('private-bucket')
   .createSignedUrl('image.jpg', {
@@ -240,7 +244,7 @@ const { data } = await storage
     }
   })
 
-// Signed URL includes transform params in signature
+// Signed URL will include transform params in signature
 // Modifying ?w=400 to ?w=800 will invalidate the signature
 ```
 

@@ -255,7 +255,7 @@ func runKBCreate(cmd *cobra.Command, args []string) error {
 		body["description"] = kbDescription
 	}
 	if kbEmbeddingModel != "" {
-		body["embeddings_model"] = kbEmbeddingModel
+		body["embedding_model"] = kbEmbeddingModel
 	}
 
 	var result map[string]interface{}
@@ -357,8 +357,8 @@ func runKBUpload(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Build request
-	uploadURL := apiClient.BaseURL + "/api/v1/admin/ai/knowledge-bases/" + url.PathEscape(kbID) + "/documents"
+	// Build request - use /upload endpoint for multipart uploads
+	uploadURL := apiClient.BaseURL + "/api/v1/admin/ai/knowledge-bases/" + url.PathEscape(kbID) + "/documents/upload"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, &buf)
 	if err != nil {
@@ -407,10 +407,15 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var docs []map[string]interface{}
-	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/documents", nil, &docs); err != nil {
+	// API returns wrapped response: {"documents": [...], "count": N}
+	var response struct {
+		Documents []map[string]interface{} `json:"documents"`
+		Count     int                      `json:"count"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/knowledge-bases/"+url.PathEscape(kbID)+"/documents", nil, &response); err != nil {
 		return err
 	}
+	docs := response.Documents
 
 	if len(docs) == 0 {
 		fmt.Println("No documents found.")
@@ -421,7 +426,7 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 
 	if formatter.Format == output.FormatTable {
 		data := output.TableData{
-			Headers: []string{"ID", "TITLE", "TYPE", "SIZE", "STATUS"},
+			Headers: []string{"ID", "TITLE", "TYPE", "CHUNKS", "STATUS"},
 			Rows:    make([][]string, len(docs)),
 		}
 
@@ -431,11 +436,14 @@ func runKBDocuments(cmd *cobra.Command, args []string) error {
 			if title == "" {
 				title = getStringValue(doc, "filename")
 			}
-			docType := getStringValue(doc, "content_type")
-			size := util.FormatBytes(int64(getIntValue(doc, "size")))
+			docType := getStringValue(doc, "file_type")
+			if docType == "" {
+				docType = getStringValue(doc, "content_type")
+			}
+			chunks := fmt.Sprintf("%d", getIntValue(doc, "chunk_count"))
 			status := getStringValue(doc, "status")
 
-			data.Rows[i] = []string{id, title, docType, size, status}
+			data.Rows[i] = []string{id, title, docType, chunks, status}
 		}
 
 		formatter.PrintTable(data)

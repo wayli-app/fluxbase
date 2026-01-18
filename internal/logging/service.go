@@ -24,8 +24,9 @@ type Service struct {
 	writer     *Writer
 	mu         sync.RWMutex
 	closed     bool
-	lineNumber map[string]int // Track line numbers per execution
-	lineMu     sync.Mutex
+	lineNumber   map[string]int       // Track line numbers per execution
+	lineLastUsed map[string]time.Time // Track last access time for cleanup
+	lineMu       sync.Mutex
 }
 
 // New creates a new logging service based on configuration.
@@ -47,10 +48,14 @@ func New(cfg *config.LoggingConfig, db *database.Connection, fileStorage storage
 	}
 
 	s := &Service{
-		config:     cfg,
-		storage:    logService.Storage,
-		lineNumber: make(map[string]int),
+		config:       cfg,
+		storage:      logService.Storage,
+		lineNumber:   make(map[string]int),
+		lineLastUsed: make(map[string]time.Time),
 	}
+
+	// Start background cleanup goroutine for stale line number entries
+	go s.cleanupStaleLineNumbers()
 
 	// Create PubSub notifier if enabled
 	if cfg.PubSubEnabled && ps != nil {
@@ -400,6 +405,7 @@ func (s *Service) nextLineNumber(executionID string) int {
 	defer s.lineMu.Unlock()
 
 	s.lineNumber[executionID]++
+	s.lineLastUsed[executionID] = time.Now()
 	return s.lineNumber[executionID]
 }
 
@@ -410,6 +416,37 @@ func (s *Service) ClearLineNumbers(executionID string) {
 	defer s.lineMu.Unlock()
 
 	delete(s.lineNumber, executionID)
+	delete(s.lineLastUsed, executionID)
+}
+
+// cleanupStaleLineNumbers periodically removes stale line number entries
+// to prevent memory leaks from executions that never called ClearLineNumbers.
+func (s *Service) cleanupStaleLineNumbers() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.mu.RLock()
+			if s.closed {
+				s.mu.RUnlock()
+				return
+			}
+			s.mu.RUnlock()
+
+			s.lineMu.Lock()
+			now := time.Now()
+			staleThreshold := 30 * time.Minute
+			for execID, lastUsed := range s.lineLastUsed {
+				if now.Sub(lastUsed) > staleThreshold {
+					delete(s.lineNumber, execID)
+					delete(s.lineLastUsed, execID)
+				}
+			}
+			s.lineMu.Unlock()
+		}
+	}
 }
 
 // GetRetentionPolicy returns the retention days for a category.

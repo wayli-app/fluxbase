@@ -8,6 +8,29 @@ This report provides a thorough analysis of seven key Fluxbase features, compari
 
 ---
 
+## Fixed Issues Summary
+
+The following critical and high-priority issues have been fixed in this branch:
+
+| Issue | Status | Fix Description |
+|-------|--------|-----------------|
+| L1: S3 Append Memory Issue | ✅ Fixed | Changed to chunked writes with timestamp suffixes |
+| L2: Line Number Memory Leak | ✅ Fixed | Added automatic cleanup goroutine for stale entries |
+| L3: Silent Entry Drop | ✅ Fixed | Added warning logs and metrics for dropped entries |
+| B1: Per-User Branch Limit | ✅ Fixed | Added `MaxBranchesPerUser` config and enforcement |
+| B2: SQL Injection LIMIT/OFFSET | ✅ Fixed | Changed to parameterized queries |
+| K1-K3: CLI Issues | ✅ Fixed | Fixed endpoint, response parsing, and field names |
+| C1: CAPTCHA SSRF | ✅ Fixed | Added URL validation in NewCapProvider |
+| I1: Transform Cache Init | ✅ Fixed | Cache now auto-initialized in NewStorageHandler |
+| I2: Cache Invalidation | ✅ Fixed | Added invalidation on file delete |
+| W1: AllowPrivateIPs in Update | ✅ Fixed | Now respects flag in Update method |
+
+**Documentation Updates:**
+- Added `max_branches_per_user` to branching docs
+- Clarified signed URL transforms are not yet implemented
+
+---
+
 ## Executive Summary
 
 | Feature | Critical Issues | High Issues | Medium Issues | Doc Mismatches |

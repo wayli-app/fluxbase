@@ -561,6 +561,14 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to delete file from provider (metadata already deleted)")
 	}
 
+	// Invalidate transform cache for this file
+	if h.transformCache != nil {
+		sourceKey := bucket + "/" + key
+		if err := h.transformCache.Invalidate(ctx, sourceKey); err != nil {
+			log.Warn().Err(err).Str("source_key", sourceKey).Msg("Failed to invalidate transform cache")
+		}
+	}
+
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to commit file deletion")

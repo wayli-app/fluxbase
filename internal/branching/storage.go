@@ -237,16 +237,22 @@ func (s *Storage) ListBranches(ctx context.Context, filter ListBranchesFilter) (
 	if filter.GitHubRepo != nil {
 		query += fmt.Sprintf(" AND github_repo = $%d", argCounter)
 		args = append(args, *filter.GitHubRepo)
+		argCounter++
 	}
 
 	query += " ORDER BY created_at DESC"
 
+	// Use parameterized queries for LIMIT and OFFSET to prevent SQL injection
 	if filter.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", filter.Limit)
+		query += fmt.Sprintf(" LIMIT $%d", argCounter)
+		args = append(args, filter.Limit)
+		argCounter++
 	}
 
 	if filter.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", filter.Offset)
+		query += fmt.Sprintf(" OFFSET $%d", argCounter)
+		args = append(args, filter.Offset)
+		argCounter++ //nolint:ineffassign // keeping for consistency
 	}
 
 	rows, err := s.pool.Query(ctx, query, args...)

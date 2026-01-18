@@ -392,6 +392,17 @@ func (m *Manager) checkLimits(ctx context.Context, userID *uuid.UUID) error {
 		}
 	}
 
+	// Check per-user branch limit
+	if m.config.MaxBranchesPerUser > 0 && userID != nil {
+		userCount, err := m.storage.CountBranchesByUser(ctx, *userID)
+		if err != nil {
+			return fmt.Errorf("failed to count user branches: %w", err)
+		}
+		if userCount >= m.config.MaxBranchesPerUser {
+			return ErrMaxUserBranchesReached
+		}
+	}
+
 	return nil
 }
 

@@ -486,9 +486,11 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 
 // Update updates a webhook
 func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webhook) error {
-	// Validate webhook URL to prevent SSRF attacks
-	if err := validateWebhookURL(webhook.URL); err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
+	if !s.AllowPrivateIPs {
+		if err := validateWebhookURL(webhook.URL); err != nil {
+			return fmt.Errorf("invalid webhook URL: %w", err)
+		}
 	}
 
 	// Validate custom headers to prevent header injection

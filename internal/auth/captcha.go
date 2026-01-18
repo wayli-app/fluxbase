@@ -89,7 +89,11 @@ func NewCaptchaService(cfg *config.CaptchaConfig) (*CaptchaService, error) {
 		if cfg.CapServerURL == "" {
 			return nil, fmt.Errorf("cap_server_url is required for cap provider")
 		}
-		provider = NewCapProvider(cfg.CapServerURL, cfg.CapAPIKey, httpClient)
+		capProvider, err := NewCapProvider(cfg.CapServerURL, cfg.CapAPIKey, httpClient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cap provider: %w", err)
+		}
+		provider = capProvider
 	default:
 		return nil, fmt.Errorf("unknown captcha provider: %s", cfg.Provider)
 	}

@@ -93,7 +93,8 @@ That's it! The server will use its existing database credentials to create and m
 ```yaml
 branching:
   enabled: true
-  max_total_branches: 50
+  max_total_branches: 50       # Maximum total branches across all users
+  max_branches_per_user: 5     # Maximum branches per user (default: 5)
   default_data_clone_mode: schema_only
   auto_delete_after: 24h
   database_prefix: branch_
