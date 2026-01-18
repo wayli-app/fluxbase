@@ -48,20 +48,17 @@ type EventConfig struct {
 
 // WebhookDelivery represents a webhook delivery attempt
 type WebhookDelivery struct {
-	ID             uuid.UUID       `json:"id"`
-	WebhookID      uuid.UUID       `json:"webhook_id"`
-	EventType      string          `json:"event_type"`
-	TableName      string          `json:"table_name"`
-	RecordID       *string         `json:"record_id,omitempty"`
-	Payload        json.RawMessage `json:"payload"`
-	AttemptNumber  int             `json:"attempt_number"`
-	Status         string          `json:"status"` // pending, success, failed, retrying
-	HTTPStatusCode *int            `json:"http_status_code,omitempty"`
-	ResponseBody   *string         `json:"response_body,omitempty"`
-	ErrorMessage   *string         `json:"error_message,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	DeliveredAt    *time.Time      `json:"delivered_at,omitempty"`
-	NextRetryAt    *time.Time      `json:"next_retry_at,omitempty"`
+	ID           uuid.UUID       `json:"id"`
+	WebhookID    uuid.UUID       `json:"webhook_id"`
+	Event        string          `json:"event"`
+	Payload      json.RawMessage `json:"payload"`
+	Status       string          `json:"status"` // pending, success, failed
+	StatusCode   *int            `json:"status_code,omitempty"`
+	ResponseBody *string         `json:"response_body,omitempty"`
+	Error        *string         `json:"error,omitempty"`
+	Attempt      int             `json:"attempt"`
+	DeliveredAt  *time.Time      `json:"delivered_at,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 // WebhookPayload represents the payload sent to webhooks
@@ -486,9 +483,11 @@ func (s *WebhookService) Get(ctx context.Context, id uuid.UUID) (*Webhook, error
 
 // Update updates a webhook
 func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webhook) error {
-	// Validate webhook URL to prevent SSRF attacks
-	if err := validateWebhookURL(webhook.URL); err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+	// Validate webhook URL to prevent SSRF attacks (skip for tests with AllowPrivateIPs)
+	if !s.AllowPrivateIPs {
+		if err := validateWebhookURL(webhook.URL); err != nil {
+			return fmt.Errorf("invalid webhook URL: %w", err)
+		}
 	}
 
 	// Validate custom headers to prevent header injection
@@ -773,11 +772,30 @@ func (s *WebhookService) generateSignature(payload []byte, secret string) string
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// CreateDeliveryRecord creates a delivery record before attempting delivery
+func (s *WebhookService) CreateDeliveryRecord(ctx context.Context, webhookID uuid.UUID, event string, payload []byte, attempt int) (uuid.UUID, error) {
+	query := `
+		INSERT INTO auth.webhook_deliveries (webhook_id, event, payload, status, attempt)
+		VALUES ($1, $2, $3, 'pending', $4)
+		RETURNING id
+	`
+
+	var deliveryID uuid.UUID
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, webhookID, event, payload, attempt).Scan(&deliveryID)
+	})
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to create delivery record: %w", err)
+	}
+
+	return deliveryID, nil
+}
+
 // markDeliverySuccess marks a delivery as successful
 func (s *WebhookService) markDeliverySuccess(ctx context.Context, deliveryID uuid.UUID, statusCode int, responseBody *string) {
 	query := `
 		UPDATE auth.webhook_deliveries
-		SET status = 'success', http_status_code = $1, response_body = $2, delivered_at = NOW()
+		SET status = 'success', status_code = $1, response_body = $2, delivered_at = NOW()
 		WHERE id = $3
 	`
 
@@ -794,7 +812,7 @@ func (s *WebhookService) markDeliverySuccess(ctx context.Context, deliveryID uui
 func (s *WebhookService) markDeliveryFailed(ctx context.Context, deliveryID uuid.UUID, statusCode int, responseBody *string, errorMsg string) {
 	query := `
 		UPDATE auth.webhook_deliveries
-		SET status = 'failed', http_status_code = $1, response_body = $2, error_message = $3
+		SET status = 'failed', status_code = $1, response_body = $2, error = $3
 		WHERE id = $4
 	`
 
@@ -810,8 +828,7 @@ func (s *WebhookService) markDeliveryFailed(ctx context.Context, deliveryID uuid
 // ListDeliveries lists webhook deliveries
 func (s *WebhookService) ListDeliveries(ctx context.Context, webhookID uuid.UUID, limit int) ([]*WebhookDelivery, error) {
 	query := `
-		SELECT id, webhook_id, event_type, table_name, record_id, payload, attempt_number, status,
-		       http_status_code, response_body, error_message, created_at, delivered_at, next_retry_at
+		SELECT id, webhook_id, event, payload, status, status_code, response_body, error, attempt, delivered_at, created_at
 		FROM auth.webhook_deliveries
 		WHERE webhook_id = $1
 		ORDER BY created_at DESC
@@ -832,18 +849,15 @@ func (s *WebhookService) ListDeliveries(ctx context.Context, webhookID uuid.UUID
 			err := rows.Scan(
 				&delivery.ID,
 				&delivery.WebhookID,
-				&delivery.EventType,
-				&delivery.TableName,
-				&delivery.RecordID,
+				&delivery.Event,
 				&delivery.Payload,
-				&delivery.AttemptNumber,
 				&delivery.Status,
-				&delivery.HTTPStatusCode,
+				&delivery.StatusCode,
 				&delivery.ResponseBody,
-				&delivery.ErrorMessage,
-				&delivery.CreatedAt,
+				&delivery.Error,
+				&delivery.Attempt,
 				&delivery.DeliveredAt,
-				&delivery.NextRetryAt,
+				&delivery.CreatedAt,
 			)
 			if err != nil {
 				return err

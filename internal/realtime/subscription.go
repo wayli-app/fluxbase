@@ -2,15 +2,117 @@ package realtime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
+
+// RLSCacheTTL is the duration for which RLS check results are cached
+const RLSCacheTTL = 2 * time.Second
+
+// RLSCacheMaxSize is the maximum number of entries in the RLS cache
+const RLSCacheMaxSize = 10000
+
+// rlsCacheEntry represents a cached RLS check result
+type rlsCacheEntry struct {
+	allowed   bool
+	expiresAt time.Time
+}
+
+// rlsCache provides a simple time-based cache for RLS check results
+type rlsCache struct {
+	mu      sync.RWMutex
+	entries map[string]*rlsCacheEntry
+}
+
+// newRLSCache creates a new RLS cache
+func newRLSCache() *rlsCache {
+	cache := &rlsCache{
+		entries: make(map[string]*rlsCacheEntry),
+	}
+	// Start cleanup goroutine
+	go cache.cleanup()
+	return cache
+}
+
+// generateCacheKey creates a unique cache key for an RLS check
+func (c *rlsCache) generateCacheKey(schema, table, role string, recordID interface{}, claims map[string]interface{}) string {
+	// Create a deterministic key from all parameters
+	data := fmt.Sprintf("%s:%s:%s:%v", schema, table, role, recordID)
+	// Include a hash of the claims to handle custom claims
+	if claims != nil {
+		claimsJSON, _ := json.Marshal(claims)
+		hash := sha256.Sum256(claimsJSON)
+		data += ":" + hex.EncodeToString(hash[:8]) // Use first 8 bytes of hash for brevity
+	}
+	return data
+}
+
+// get retrieves a cached result, returning (allowed, found)
+func (c *rlsCache) get(key string) (bool, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, exists := c.entries[key]
+	if !exists {
+		return false, false
+	}
+
+	if time.Now().After(entry.expiresAt) {
+		return false, false // Entry expired
+	}
+
+	return entry.allowed, true
+}
+
+// set stores a result in the cache
+func (c *rlsCache) set(key string, allowed bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Evict old entries if cache is too large
+	if len(c.entries) >= RLSCacheMaxSize {
+		c.evictExpiredLocked()
+	}
+
+	c.entries[key] = &rlsCacheEntry{
+		allowed:   allowed,
+		expiresAt: time.Now().Add(RLSCacheTTL),
+	}
+}
+
+// evictExpiredLocked removes expired entries (must be called with lock held)
+func (c *rlsCache) evictExpiredLocked() {
+	now := time.Now()
+	for key, entry := range c.entries {
+		if now.After(entry.expiresAt) {
+			delete(c.entries, key)
+		}
+	}
+}
+
+// cleanup periodically removes expired entries
+func (c *rlsCache) cleanup() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.mu.Lock()
+		c.evictExpiredLocked()
+		c.mu.Unlock()
+	}
+}
+
+// globalRLSCache is the shared RLS cache instance
+var globalRLSCache = newRLSCache()
 
 // SubscriptionDB defines the database operations needed by SubscriptionManager.
 // This interface allows for easier testing with mocks.
@@ -416,9 +518,15 @@ func (sm *SubscriptionManager) matchesFilter(event *ChangeEvent, sub *Subscripti
 }
 
 // checkRLSAccess verifies if a user can access a record based on RLS policies
+// Uses a short-lived cache to reduce database load for repeated checks
 func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscription, event *ChangeEvent) bool {
 	if sm.db == nil {
 		return true // No DB means no RLS check (test mode)
+	}
+
+	// Service role users bypass RLS
+	if sub.Role == "service_role" {
+		return true
 	}
 
 	// Get record ID from event
@@ -435,7 +543,20 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		}
 	}
 
-	// Pass full JWT claims for RLS evaluation (includes custom claims like meeting_id, player_id)
+	// Generate cache key and check cache first
+	cacheKey := globalRLSCache.generateCacheKey(sub.Schema, sub.Table, sub.Role, recordID, sub.Claims)
+	if allowed, found := globalRLSCache.get(cacheKey); found {
+		log.Debug().
+			Str("user_id", sub.UserID).
+			Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
+			Interface("record_id", recordID).
+			Bool("visible", allowed).
+			Bool("cached", true).
+			Msg("RLS access check (cached)")
+		return allowed
+	}
+
+	// Cache miss - perform actual RLS check
 	log.Debug().
 		Str("user_id", sub.UserID).
 		Str("role", sub.Role).
@@ -455,11 +576,15 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		return false
 	}
 
+	// Cache the result
+	globalRLSCache.set(cacheKey, visible)
+
 	log.Debug().
 		Str("user_id", sub.UserID).
 		Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 		Interface("record_id", recordID).
 		Bool("visible", visible).
+		Bool("cached", false).
 		Msg("RLS access check completed")
 
 	return visible

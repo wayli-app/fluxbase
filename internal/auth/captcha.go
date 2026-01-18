@@ -89,7 +89,11 @@ func NewCaptchaService(cfg *config.CaptchaConfig) (*CaptchaService, error) {
 		if cfg.CapServerURL == "" {
 			return nil, fmt.Errorf("cap_server_url is required for cap provider")
 		}
-		provider = NewCapProvider(cfg.CapServerURL, cfg.CapAPIKey, httpClient)
+		capProvider, err := NewCapProvider(cfg.CapServerURL, cfg.CapAPIKey, httpClient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cap provider: %w", err)
+		}
+		provider = capProvider
 	default:
 		return nil, fmt.Errorf("unknown captcha provider: %s", cfg.Provider)
 	}
@@ -146,6 +150,12 @@ func (s *CaptchaService) Verify(ctx context.Context, token string, remoteIP stri
 
 	if token == "" {
 		return ErrCaptchaRequired
+	}
+
+	// Check for test bypass token (for development/testing only)
+	// WARNING: Never set TestBypassToken in production environments
+	if s.config.TestBypassToken != "" && token == s.config.TestBypassToken {
+		return nil // Bypass verification with test token
 	}
 
 	result, err := s.provider.Verify(ctx, token, remoteIP)

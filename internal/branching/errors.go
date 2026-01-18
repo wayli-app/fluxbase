@@ -19,6 +19,9 @@ var (
 	// ErrMaxBranchesReached is returned when the maximum number of branches has been reached
 	ErrMaxBranchesReached = errors.New("maximum number of branches reached")
 
+	// ErrMaxUserBranchesReached is returned when a user has reached their maximum number of branches
+	ErrMaxUserBranchesReached = errors.New("maximum number of branches per user reached")
+
 	// ErrInvalidSlug is returned when a branch slug is invalid
 	ErrInvalidSlug = errors.New("invalid branch slug")
 

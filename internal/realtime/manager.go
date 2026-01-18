@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
@@ -11,14 +12,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// ErrMaxConnectionsReached is returned when the maximum number of connections is reached
+var ErrMaxConnectionsReached = errors.New("maximum number of websocket connections reached")
+
 // Manager manages all WebSocket connections
 type Manager struct {
-	connections map[string]*Connection // connection ID -> connection
-	mu          sync.RWMutex
-	ctx         context.Context
-	cancel      context.CancelFunc
-	ps          pubsub.PubSub // For cross-instance broadcasting
-	metrics     *observability.Metrics
+	connections    map[string]*Connection // connection ID -> connection
+	mu             sync.RWMutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	ps             pubsub.PubSub // For cross-instance broadcasting
+	metrics        *observability.Metrics
+	maxConnections int // Maximum allowed connections (0 = unlimited)
 }
 
 // SetMetrics sets the metrics instance for recording realtime metrics
@@ -52,12 +57,25 @@ func (m *Manager) updateMetrics() {
 
 // NewManager creates a new connection manager
 func NewManager(ctx context.Context) *Manager {
+	return NewManagerWithLimit(ctx, 0) // 0 = unlimited (backward compatible)
+}
+
+// NewManagerWithLimit creates a new connection manager with a connection limit
+func NewManagerWithLimit(ctx context.Context, maxConnections int) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		connections: make(map[string]*Connection),
-		ctx:         ctx,
-		cancel:      cancel,
+		connections:    make(map[string]*Connection),
+		ctx:            ctx,
+		cancel:         cancel,
+		maxConnections: maxConnections,
 	}
+}
+
+// SetMaxConnections sets the maximum number of allowed connections
+func (m *Manager) SetMaxConnections(max int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxConnections = max
 }
 
 // SetPubSub sets the pub/sub backend for cross-instance broadcasting.
@@ -138,8 +156,24 @@ func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
 }
 
 // AddConnection adds a new WebSocket connection
-func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}) *Connection {
+// Returns nil and ErrMaxConnectionsReached if the connection limit is exceeded
+func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}) (*Connection, error) {
 	m.mu.Lock()
+
+	// Check connection limit before adding
+	if m.maxConnections > 0 && len(m.connections) >= m.maxConnections {
+		m.mu.Unlock()
+		log.Warn().
+			Int("current_connections", len(m.connections)).
+			Int("max_connections", m.maxConnections).
+			Str("connection_id", id).
+			Msg("Rejecting WebSocket connection: maximum connections reached")
+		if m.metrics != nil {
+			m.metrics.RecordRealtimeError("max_connections_reached")
+		}
+		return nil, ErrMaxConnectionsReached
+	}
+
 	connection := NewConnection(id, conn, userID, role, claims)
 	m.connections[id] = connection
 	m.mu.Unlock()
@@ -163,7 +197,7 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string,
 	event := NewConnectionEvent(ConnectionEventConnected, connection, nil, nil)
 	m.BroadcastConnectionEvent(event)
 
-	return connection
+	return connection, nil
 }
 
 // RemoveConnection removes a WebSocket connection

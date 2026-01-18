@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -11,6 +12,85 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
+
+// DefaultRateLimitPerEndpoint is the default rate limit per webhook endpoint (requests per minute)
+const DefaultRateLimitPerEndpoint = 60
+
+// endpointRateLimiter tracks request counts per webhook URL using a sliding window
+type endpointRateLimiter struct {
+	mu       sync.Mutex
+	requests map[string][]time.Time // webhook URL -> list of request timestamps
+	limit    int                    // requests per minute per endpoint
+}
+
+// newEndpointRateLimiter creates a new endpoint rate limiter
+func newEndpointRateLimiter(limitPerMin int) *endpointRateLimiter {
+	if limitPerMin <= 0 {
+		limitPerMin = DefaultRateLimitPerEndpoint
+	}
+	rl := &endpointRateLimiter{
+		requests: make(map[string][]time.Time),
+		limit:    limitPerMin,
+	}
+	// Start cleanup goroutine
+	go rl.cleanup()
+	return rl
+}
+
+// allow checks if a request to the given endpoint should be allowed
+func (rl *endpointRateLimiter) allow(endpoint string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	windowStart := now.Add(-time.Minute)
+
+	// Get existing requests and filter to sliding window
+	existing := rl.requests[endpoint]
+	var valid []time.Time
+	for _, t := range existing {
+		if t.After(windowStart) {
+			valid = append(valid, t)
+		}
+	}
+
+	// Check if we're at limit
+	if len(valid) >= rl.limit {
+		rl.requests[endpoint] = valid // Update with filtered list
+		return false
+	}
+
+	// Allow and record
+	rl.requests[endpoint] = append(valid, now)
+	return true
+}
+
+// cleanup periodically removes old entries to prevent memory growth
+func (rl *endpointRateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		windowStart := now.Add(-time.Minute)
+
+		for key, times := range rl.requests {
+			var valid []time.Time
+			for _, t := range times {
+				if t.After(windowStart) {
+					valid = append(valid, t)
+				}
+			}
+			if len(valid) == 0 {
+				delete(rl.requests, key)
+			} else {
+				rl.requests[key] = valid
+			}
+		}
+		rl.mu.Unlock()
+	}
+}
 
 // WebhookEvent represents an event waiting to be delivered
 type WebhookEvent struct {
@@ -41,6 +121,7 @@ type TriggerService struct {
 	backlogTicker   *time.Ticker
 	cleanupTicker   *time.Ticker
 	cancel          context.CancelFunc
+	rateLimiter     *endpointRateLimiter // Rate limiter per webhook endpoint
 }
 
 // NewTriggerService creates a new webhook trigger service
@@ -56,6 +137,7 @@ func NewTriggerService(db *database.Connection, webhookSvc *WebhookService, work
 		backlogInterval: 30 * time.Second, // Default 30 seconds
 		eventChan:       make(chan uuid.UUID, 1000),
 		stopChan:        make(chan struct{}),
+		rateLimiter:     newEndpointRateLimiter(DefaultRateLimitPerEndpoint),
 	}
 }
 
@@ -307,6 +389,17 @@ func (s *TriggerService) processWebhookEvents(ctx context.Context, webhookID uui
 
 // deliverEvent delivers a single webhook event
 func (s *TriggerService) deliverEvent(ctx context.Context, webhook *Webhook, event *WebhookEvent) {
+	// Check rate limit for this endpoint
+	if !s.rateLimiter.allow(webhook.URL) {
+		log.Warn().
+			Str("webhook_id", webhook.ID.String()).
+			Str("url", webhook.URL).
+			Msg("Webhook rate limit exceeded, will retry later")
+		// Schedule retry without incrementing attempt count
+		s.scheduleRetryWithoutIncrement(ctx, event)
+		return
+	}
+
 	// Create payload
 	payload := &WebhookPayload{
 		Event:     event.EventType,
@@ -326,14 +419,58 @@ func (s *TriggerService) deliverEvent(ctx context.Context, webhook *Webhook, eve
 		payload.Record = event.OldData
 	}
 
+	// Marshal payload for delivery record
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to marshal payload")
+		s.handleDeliveryFailure(ctx, event, webhook, "failed to marshal payload: "+err.Error())
+		return
+	}
+
+	// Create delivery record for history tracking
+	deliveryID, err := s.webhookSvc.CreateDeliveryRecord(ctx, webhook.ID, event.EventType, payloadJSON, event.Attempts+1)
+	if err != nil {
+		log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to create delivery record")
+		// Continue with delivery even if record creation fails
+	}
+
 	// Deliver webhook
-	err := s.webhookSvc.Deliver(ctx, webhook, payload)
+	deliveryErr := s.webhookSvc.Deliver(ctx, webhook, payload)
+
+	// Update delivery record status
+	if deliveryID != uuid.Nil {
+		if deliveryErr != nil {
+			s.webhookSvc.markDeliveryFailed(ctx, deliveryID, 0, nil, deliveryErr.Error())
+		} else {
+			s.webhookSvc.markDeliverySuccess(ctx, deliveryID, 200, nil)
+		}
+	}
 
 	// Update event status
-	if err != nil {
-		s.handleDeliveryFailure(ctx, event, webhook, err.Error())
+	if deliveryErr != nil {
+		s.handleDeliveryFailure(ctx, event, webhook, deliveryErr.Error())
 	} else {
 		s.markEventSuccess(ctx, event.ID)
+	}
+}
+
+// scheduleRetryWithoutIncrement schedules a retry without incrementing the attempt count
+// Used for rate limiting scenarios where we want to retry but not count it as a failed attempt
+func (s *TriggerService) scheduleRetryWithoutIncrement(ctx context.Context, event *WebhookEvent) {
+	// Schedule retry in 10 seconds
+	nextRetry := time.Now().Add(10 * time.Second)
+
+	query := `
+		UPDATE auth.webhook_events
+		SET next_retry_at = $1
+		WHERE id = $2
+	`
+	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, nextRetry, event.ID)
+		return err
+	})
+	if err != nil {
+		log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to schedule rate-limited retry")
 	}
 }
 

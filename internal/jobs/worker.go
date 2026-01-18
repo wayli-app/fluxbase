@@ -218,8 +218,13 @@ func (w *Worker) heartbeatLoop(ctx context.Context) {
 
 // staleWorkerCleanupLoop periodically removes workers that haven't sent heartbeats
 func (w *Worker) staleWorkerCleanupLoop(ctx context.Context) {
-	// Run cleanup every WorkerTimeout interval
-	ticker := time.NewTicker(w.Config.WorkerTimeout)
+	// Run cleanup at half the WorkerTimeout interval for faster detection
+	// This reduces worst-case detection time from 2*timeout to 1.5*timeout
+	cleanupInterval := w.Config.WorkerTimeout / 2
+	if cleanupInterval < 5*time.Second {
+		cleanupInterval = 5 * time.Second // Minimum 5 seconds to avoid excessive DB queries
+	}
+	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 
 	for {
@@ -504,8 +509,11 @@ func (w *Worker) handleProgressUpdate(jobID uuid.UUID, progress *runtime.Progres
 		return
 	}
 
-	// Update in database
-	ctx := context.Background()
+	// Update in database with a short timeout to avoid blocking on slow DB
+	// Using a timeout context instead of job context since progress updates
+	// are async and should complete even if job is finishing
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := w.Storage.UpdateJobProgress(ctx, jobID, string(progressJSON)); err != nil {
 		log.Error().Err(err).Str("job_id", jobID.String()).Msg("Failed to update job progress")
 	}

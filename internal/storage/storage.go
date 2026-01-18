@@ -39,6 +39,12 @@ type SignedURLOptions struct {
 	ExpiresIn   time.Duration
 	Method      string // GET, PUT, DELETE
 	ContentType string
+	// Transform options (for image downloads)
+	TransformWidth   int    // Target width in pixels
+	TransformHeight  int    // Target height in pixels
+	TransformFormat  string // Output format: webp, jpg, png, avif
+	TransformQuality int    // Output quality 1-100
+	TransformFit     string // Fit mode: cover, contain, fill, inside, outside
 }
 
 // ListOptions contains options for listing objects

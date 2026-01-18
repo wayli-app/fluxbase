@@ -3,9 +3,11 @@ package logging
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
+	"github.com/rs/zerolog/log"
 )
 
 // BatchWriteFunc is the function called to write a batch of entries.
@@ -23,6 +25,11 @@ type Batcher struct {
 	flushReq      chan chan error // Channel to request a flush and receive result
 	mu            sync.Mutex
 	closed        bool
+
+	// Metrics for monitoring backpressure
+	droppedCount    atomic.Int64
+	lastDroppedWarn time.Time
+	droppedWarnMu   sync.Mutex
 }
 
 // NewBatcher creates a new log entry batcher.
@@ -53,7 +60,7 @@ func NewBatcher(batchSize int, flushInterval time.Duration, bufferSize int, writ
 }
 
 // Add adds a log entry to the batch buffer.
-// If the buffer is full, the entry is dropped (logged as a warning).
+// If the buffer is full, the entry is dropped and a warning is logged periodically.
 func (b *Batcher) Add(entry *storage.LogEntry) {
 	b.mu.Lock()
 	if b.closed {
@@ -66,8 +73,19 @@ func (b *Batcher) Add(entry *storage.LogEntry) {
 	case b.entries <- entry:
 		// Entry added successfully
 	default:
-		// Buffer is full, drop the entry
-		// This is a trade-off: we don't block on logging, but may lose entries under heavy load
+		// Buffer is full, drop the entry and track metrics
+		dropped := b.droppedCount.Add(1)
+
+		// Log warning periodically (not for every dropped entry to avoid log spam)
+		b.droppedWarnMu.Lock()
+		if time.Since(b.lastDroppedWarn) > 10*time.Second {
+			log.Warn().
+				Int64("dropped_count", dropped).
+				Int("buffer_size", cap(b.entries)).
+				Msg("Log buffer full, entries being dropped. Consider increasing buffer_size or reducing log volume.")
+			b.lastDroppedWarn = time.Now()
+		}
+		b.droppedWarnMu.Unlock()
 	}
 }
 
@@ -198,6 +216,7 @@ type BatcherStats struct {
 	BufferSize    int
 	BufferUsed    int
 	BufferPercent float64
+	DroppedCount  int64
 }
 
 // Stats returns current batcher statistics.
@@ -208,5 +227,11 @@ func (b *Batcher) Stats() BatcherStats {
 		BufferSize:    cap,
 		BufferUsed:    used,
 		BufferPercent: float64(used) / float64(cap) * 100,
+		DroppedCount:  b.droppedCount.Load(),
 	}
+}
+
+// ResetDroppedCount resets the dropped entry counter.
+func (b *Batcher) ResetDroppedCount() {
+	b.droppedCount.Store(0)
 }

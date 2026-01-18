@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )
 
@@ -36,9 +38,38 @@ type StorageHandler struct {
 	transformSem chan struct{}
 }
 
-// NewStorageHandler creates a new storage handler
+// NewStorageHandler creates a new storage handler with automatic cache initialization
 func NewStorageHandler(storageSvc *storage.Service, db *database.Connection, transformCfg *config.TransformConfig) *StorageHandler {
-	return NewStorageHandlerWithCache(storageSvc, db, transformCfg, nil)
+	var cache *storage.TransformCache
+
+	// Initialize transform cache if transforms are enabled
+	if transformCfg != nil && transformCfg.Enabled && storageSvc != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		cacheOpts := storage.TransformCacheOptions{
+			TTL:     transformCfg.CacheTTL,
+			MaxSize: transformCfg.CacheMaxSize,
+		}
+		// Use defaults if not configured
+		if cacheOpts.TTL <= 0 {
+			cacheOpts.TTL = 24 * time.Hour
+		}
+		if cacheOpts.MaxSize <= 0 {
+			cacheOpts.MaxSize = 1024 * 1024 * 1024 // 1GB
+		}
+
+		var err error
+		cache, err = storage.NewTransformCache(ctx, storageSvc.Provider, cacheOpts)
+		if err != nil {
+			// Log error but don't fail - transforms will work without caching
+			log.Warn().Err(err).Msg("Failed to initialize transform cache, transforms will not be cached")
+		} else {
+			log.Info().Msg("Transform cache initialized")
+		}
+	}
+
+	return NewStorageHandlerWithCache(storageSvc, db, transformCfg, cache)
 }
 
 // NewStorageHandlerWithCache creates a new storage handler with optional transform cache

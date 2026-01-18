@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/realtime"
 	"github.com/fluxbase-eu/fluxbase/internal/storage"
@@ -18,6 +19,7 @@ type MonitoringHandler struct {
 	db              *pgxpool.Pool
 	realtimeHandler *realtime.RealtimeHandler
 	storageProvider storage.Provider
+	loggingService  *logging.Service // Optional - may be nil if logging not configured
 }
 
 // NewMonitoringHandler creates a new monitoring handler
@@ -27,6 +29,11 @@ func NewMonitoringHandler(db *pgxpool.Pool, realtimeHandler *realtime.RealtimeHa
 		realtimeHandler: realtimeHandler,
 		storageProvider: storageProvider,
 	}
+}
+
+// SetLoggingService sets the logging service for log queries
+func (h *MonitoringHandler) SetLoggingService(loggingService *logging.Service) {
+	h.loggingService = loggingService
 }
 
 // RegisterRoutes registers monitoring routes with authentication
@@ -303,11 +310,93 @@ func (h *MonitoringHandler) GetLogs(c *fiber.Ctx) error {
 		})
 	}
 
-	// For MVP, return a placeholder indicating logs are not yet stored
-	// In production, this would query from a log storage system (e.g., database table, file, or external service)
+	// Check if logging service is available
+	if h.loggingService == nil {
+		return c.JSON(fiber.Map{
+			"message": "Logging service not configured. Enable logging in configuration to view logs.",
+			"logs":    []LogEntry{},
+		})
+	}
+
+	// Parse query parameters
+	opts := storage.LogQueryOptions{}
+
+	// Parse level filter
+	if level := c.Query("level"); level != "" {
+		opts.Levels = []storage.LogLevel{storage.LogLevel(level)}
+	}
+
+	// Parse category filter
+	if category := c.Query("category"); category != "" {
+		opts.Category = storage.LogCategory(category)
+	}
+
+	// Parse component filter
+	if component := c.Query("component"); component != "" {
+		opts.Component = component
+	}
+
+	// Parse search text
+	if search := c.Query("search"); search != "" {
+		opts.Search = search
+	}
+
+	// Parse time range - default to last hour
+	if startTime := c.Query("start_time"); startTime != "" {
+		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
+			opts.StartTime = t
+		}
+	} else {
+		opts.StartTime = time.Now().Add(-1 * time.Hour)
+	}
+
+	if endTime := c.Query("end_time"); endTime != "" {
+		if t, err := time.Parse(time.RFC3339, endTime); err == nil {
+			opts.EndTime = t
+		}
+	}
+
+	// Parse pagination
+	limit := c.QueryInt("limit", 100)
+	if limit > 1000 {
+		limit = 1000 // Cap at 1000
+	}
+	opts.Limit = limit
+	opts.Offset = c.QueryInt("offset", 0)
+
+	// Query logs from storage
+	result, err := h.loggingService.Storage().Query(c.Context(), opts)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to query logs: " + err.Error(),
+		})
+	}
+
+	// Convert to response format
+	logs := make([]LogEntry, 0, len(result.Entries))
+	for _, entry := range result.Entries {
+		// Extract error from fields if present
+		errStr := ""
+		if entry.Fields != nil {
+			if e, ok := entry.Fields["error"].(string); ok {
+				errStr = e
+			}
+		}
+		logs = append(logs, LogEntry{
+			Timestamp: entry.Timestamp,
+			Level:     string(entry.Level),
+			Message:   entry.Message,
+			Module:    entry.Component,
+			Error:     errStr,
+			Fields:    entry.Fields,
+		})
+	}
 
 	return c.JSON(fiber.Map{
-		"message": "Log storage not yet implemented. Use server console output for now.",
-		"logs":    []LogEntry{},
+		"logs":    logs,
+		"total":   result.TotalCount,
+		"limit":   limit,
+		"offset":  opts.Offset,
+		"hasMore": result.TotalCount > int64(opts.Offset+len(logs)),
 	})
 }

@@ -311,9 +311,15 @@ jobs:
           # Update Helm Chart
           sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" deploy/helm/fluxbase/Chart.yaml
 
-          # Update Docker Compose files
-          # Update the main example docker-compose.yml
-          sed -i "s|image: ghcr.io/fluxbase-eu/fluxbase:.*|image: ghcr.io/fluxbase-eu/fluxbase:${VERSION}|g" deploy/docker-compose.yml
+          # Update Docker Compose default version (only for stable releases)
+          # Update the fallback version in compose files and .env.example
+          if [ "$IS_PRERELEASE" = "false" ]; then
+            # Update fallback version in docker-compose files
+            sed -i "s|\${FLUXBASE_VERSION:-[^}]*}|\${FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.yml
+            sed -i "s|\${FLUXBASE_VERSION:-[^}]*}|\${FLUXBASE_VERSION:-${VERSION}}|g" deploy/docker-compose.minimal.yaml
+            # Update commented example in .env.example
+            sed -i "s|# FLUXBASE_VERSION=.*|# FLUXBASE_VERSION=${VERSION}|g" deploy/.env.example
+          fi
 
           # Update CLI installation docs with new version
           sed -i "s#install-cli.sh | bash -s -- v[0-9.]*-*[a-z0-9.]*#install-cli.sh | bash -s -- ${TAG}#g" docs/src/content/docs/cli/installation.md
@@ -337,6 +343,7 @@ jobs:
           git add VERSION
           git add deploy/helm/fluxbase/Chart.yaml
           git add deploy/docker-compose*.yml
+          git add deploy/.env.example
           git add sdk/package.json sdk/package-lock.json
           git add sdk-react/package.json sdk-react/package-lock.json
           git add docs/src/content/docs/cli/installation.md

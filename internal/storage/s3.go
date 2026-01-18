@@ -583,3 +583,105 @@ func (s3s *S3Storage) AbortChunkedUpload(ctx context.Context, session *ChunkedUp
 
 	return nil
 }
+
+// CleanupExpiredMultipartUploads lists and aborts incomplete multipart uploads
+// that are older than the specified max age. This prevents storage costs from
+// orphaned multipart uploads that were never completed or aborted.
+func (s3s *S3Storage) CleanupExpiredMultipartUploads(ctx context.Context, bucket string, maxAge time.Duration) (int, error) {
+	cleaned := 0
+	cutoff := time.Now().Add(-maxAge)
+
+	// List incomplete multipart uploads
+	// Note: This lists all incomplete uploads, not just those initiated by us
+	for upload := range s3s.client.ListIncompleteUploads(ctx, bucket, "", true) {
+		if upload.Err != nil {
+			log.Warn().Err(upload.Err).Str("bucket", bucket).Msg("Error listing incomplete uploads")
+			continue
+		}
+
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return cleaned, ctx.Err()
+		default:
+		}
+
+		// Only abort uploads older than the cutoff
+		if upload.Initiated.Before(cutoff) {
+			err := s3s.core.AbortMultipartUpload(ctx, bucket, upload.Key, upload.UploadID)
+			if err != nil {
+				log.Warn().
+					Err(err).
+					Str("bucket", bucket).
+					Str("key", upload.Key).
+					Str("upload_id", upload.UploadID).
+					Msg("Failed to abort expired multipart upload")
+				continue
+			}
+
+			cleaned++
+			log.Debug().
+				Str("bucket", bucket).
+				Str("key", upload.Key).
+				Str("upload_id", upload.UploadID).
+				Time("initiated", upload.Initiated).
+				Msg("Aborted expired multipart upload")
+		}
+	}
+
+	if cleaned > 0 {
+		log.Info().
+			Int("cleaned", cleaned).
+			Str("bucket", bucket).
+			Dur("max_age", maxAge).
+			Msg("Cleaned up expired S3 multipart uploads")
+	}
+
+	return cleaned, nil
+}
+
+// StartMultipartUploadCleanup starts a background goroutine to periodically clean up
+// expired multipart uploads across all buckets. Call this once when initializing the storage.
+func (s3s *S3Storage) StartMultipartUploadCleanup(ctx context.Context, maxAge time.Duration) {
+	go func() {
+		// Run cleanup every hour
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		// Also run once on startup after a short delay
+		time.Sleep(30 * time.Second)
+		s3s.cleanupAllBuckets(ctx, maxAge)
+
+		for {
+			select {
+			case <-ticker.C:
+				s3s.cleanupAllBuckets(ctx, maxAge)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// cleanupAllBuckets runs cleanup across all buckets
+func (s3s *S3Storage) cleanupAllBuckets(ctx context.Context, maxAge time.Duration) {
+	buckets, err := s3s.client.ListBuckets(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list buckets for multipart upload cleanup")
+		return
+	}
+
+	totalCleaned := 0
+	for _, bucket := range buckets {
+		cleaned, err := s3s.CleanupExpiredMultipartUploads(ctx, bucket.Name, maxAge)
+		if err != nil {
+			log.Error().Err(err).Str("bucket", bucket.Name).Msg("Failed to cleanup multipart uploads")
+			continue
+		}
+		totalCleaned += cleaned
+	}
+
+	if totalCleaned > 0 {
+		log.Info().Int("total_cleaned", totalCleaned).Msg("Completed S3 multipart upload cleanup across all buckets")
+	}
+}

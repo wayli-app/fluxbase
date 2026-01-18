@@ -1265,12 +1265,10 @@ function SAMLProvidersTab() {
       } else {
         setMetadataValid(false)
         setMetadataError(result.error || 'Invalid metadata')
-        toast.error(result.error || 'Invalid metadata')
       }
     } catch {
       setMetadataValid(false)
       setMetadataError('Failed to validate metadata')
-      toast.error('Failed to validate metadata')
     } finally {
       setValidatingMetadata(false)
     }
@@ -1289,10 +1287,9 @@ function SAMLProvidersTab() {
       } else {
         setMetadataValid(false)
         setMetadataError(result.error || 'Invalid metadata file')
-        toast.error(result.error || 'Invalid metadata file')
       }
     } catch {
-      toast.error('Failed to upload metadata file')
+      setMetadataError('Failed to upload metadata file')
     }
   }
 
@@ -1790,6 +1787,9 @@ function SAMLProvidersTab() {
                     ) : null}
                     Validate XML
                   </Button>
+                  {metadataError && (
+                    <p className='text-xs text-red-500'>{metadataError}</p>
+                  )}
                 </div>
               </div>
             )}
@@ -2016,6 +2016,9 @@ function SAMLProvidersTab() {
                     )}
                   </Button>
                 </div>
+                {metadataError && (
+                  <p className='text-xs text-red-500'>{metadataError}</p>
+                )}
               </div>
             ) : (
               <div className='space-y-2'>
@@ -2029,8 +2032,26 @@ function SAMLProvidersTab() {
                   className='h-32 w-full rounded-md border p-2 font-mono text-xs'
                   placeholder='Paste IdP metadata XML here...'
                   value={metadataXml}
-                  onChange={(e) => setMetadataXml(e.target.value)}
+                  onChange={(e) => {
+                    setMetadataXml(e.target.value)
+                    setMetadataValid(null)
+                  }}
                 />
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={validateMetadata}
+                  disabled={!metadataXml || validatingMetadata}
+                >
+                  {validatingMetadata ? (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  ) : null}
+                  Validate XML
+                </Button>
+                {metadataError && (
+                  <p className='text-xs text-red-500'>{metadataError}</p>
+                )}
               </div>
             )}
 

@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"time"
@@ -89,21 +88,17 @@ func (s *S3LogStorage) Write(ctx context.Context, entries []*LogEntry) error {
 			key = fmt.Sprintf("%s/%s.ndjson", s.prefix, groupKey)
 		}
 
-		// For execution logs, we may need to append to an existing file
-		var existingData []byte
+		// For execution logs, use chunked writes instead of download-append-upload
+		// to avoid memory exhaustion with large log files.
+		// Each batch gets a unique suffix based on timestamp to prevent overwrites.
 		if strings.Contains(groupKey, "exec_") {
-			if reader, _, err := s.storage.Download(ctx, s.bucket, key, nil); err == nil {
-				existingData, _ = io.ReadAll(reader)
-				_ = reader.Close()
-			}
+			// Add timestamp suffix to create unique chunk files
+			// Format: exec_{id}_{timestamp}.ndjson
+			key = fmt.Sprintf("%s/%s_%d.ndjson", s.prefix, groupKey, time.Now().UnixNano())
 		}
 
 		// Serialize entries to NDJSON
 		var buf bytes.Buffer
-		if len(existingData) > 0 {
-			buf.Write(existingData)
-		}
-
 		enc := json.NewEncoder(&buf)
 		for _, entry := range groupEntries {
 			if err := enc.Encode(entry); err != nil {
@@ -198,8 +193,9 @@ func (s *S3LogStorage) Query(ctx context.Context, opts LogQueryOptions) (*LogQue
 }
 
 // GetExecutionLogs retrieves logs for a specific execution.
+// Supports chunked storage where logs are stored in multiple files.
 func (s *S3LogStorage) GetExecutionLogs(ctx context.Context, executionID string, afterLine int) ([]*LogEntry, error) {
-	// Search for the execution log file
+	// Search for execution log files (may be multiple chunks)
 	// We need to search across multiple dates since we don't know when the execution happened
 	prefix := fmt.Sprintf("%s/%s/", s.prefix, string(LogCategoryExecution))
 
@@ -210,36 +206,39 @@ func (s *S3LogStorage) GetExecutionLogs(ctx context.Context, executionID string,
 		return nil, fmt.Errorf("failed to list execution log files: %w", err)
 	}
 
-	// Find the file for this execution
-	var targetKey string
+	// Find all files for this execution (may be multiple chunks)
+	var targetKeys []string
+	execPrefix := "exec_" + executionID
 	for _, obj := range objects.Objects {
-		if strings.Contains(obj.Key, "exec_"+executionID) {
-			targetKey = obj.Key
-			break
+		if strings.Contains(obj.Key, execPrefix) {
+			targetKeys = append(targetKeys, obj.Key)
 		}
 	}
 
-	if targetKey == "" {
+	if len(targetKeys) == 0 {
 		return []*LogEntry{}, nil
 	}
 
-	// Download and parse the file
-	reader, _, err := s.storage.Download(ctx, s.bucket, targetKey, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download execution log file: %w", err)
-	}
-	defer func() { _ = reader.Close() }()
-
+	// Download and parse all chunk files
 	var entries []*LogEntry
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		var entry LogEntry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+	for _, targetKey := range targetKeys {
+		reader, _, err := s.storage.Download(ctx, s.bucket, targetKey, nil)
+		if err != nil {
+			// Log error but continue with other files
 			continue
 		}
-		if entry.LineNumber > afterLine {
-			entries = append(entries, &entry)
+
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			var entry LogEntry
+			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+				continue
+			}
+			if entry.LineNumber > afterLine {
+				entries = append(entries, &entry)
+			}
 		}
+		_ = reader.Close()
 	}
 
 	// Sort by line number

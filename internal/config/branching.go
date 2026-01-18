@@ -9,6 +9,7 @@ import (
 type BranchingConfig struct {
 	Enabled              bool          `mapstructure:"enabled"`                 // Enable database branching feature
 	MaxTotalBranches     int           `mapstructure:"max_total_branches"`      // Maximum total branches across all users (default: 50)
+	MaxBranchesPerUser   int           `mapstructure:"max_branches_per_user"`   // Maximum branches per user (default: 5)
 	DefaultDataCloneMode string        `mapstructure:"default_data_clone_mode"` // Default data clone mode: schema_only, full_clone, seed_data
 	AutoDeleteAfter      time.Duration `mapstructure:"auto_delete_after"`       // Auto-delete preview branches after this duration (0 = never)
 	DatabasePrefix       string        `mapstructure:"database_prefix"`         // Prefix for branch database names (default: "branch_")
@@ -30,6 +31,10 @@ func (bc *BranchingConfig) Validate() error {
 
 	if bc.MaxTotalBranches < 0 {
 		return fmt.Errorf("branching max_total_branches cannot be negative, got: %d", bc.MaxTotalBranches)
+	}
+
+	if bc.MaxBranchesPerUser < 0 {
+		return fmt.Errorf("branching max_branches_per_user cannot be negative, got: %d", bc.MaxBranchesPerUser)
 	}
 
 	// Validate data clone mode

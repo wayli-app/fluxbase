@@ -34,11 +34,17 @@ type OAuthHandler struct {
 func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.JWTManager, baseURL, encryptionKey string, configProviders []config.OAuthProviderConfig) *OAuthHandler {
 	stateStore := auth.NewStateStore()
 
-	// Warn if encryption key is not set (OAuth tokens will be stored unencrypted)
+	// SECURITY: Validate encryption key for OAuth token storage
+	// OAuth tokens (refresh tokens especially) are sensitive credentials that should be encrypted at rest
 	if encryptionKey == "" {
-		log.Warn().Msg("FLUXBASE_ENCRYPTION_KEY not set: OAuth tokens will be stored unencrypted")
+		log.Error().Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY not set - OAuth tokens will be stored UNENCRYPTED in database. " +
+			"Set a 32-byte encryption key in production to protect OAuth refresh tokens.")
 	} else if len(encryptionKey) != 32 {
-		log.Warn().Msg("FLUXBASE_ENCRYPTION_KEY must be exactly 32 bytes for AES-256: OAuth tokens will be stored unencrypted")
+		log.Error().
+			Int("key_length", len(encryptionKey)).
+			Int("required_length", 32).
+			Msg("SECURITY WARNING: FLUXBASE_ENCRYPTION_KEY must be exactly 32 bytes for AES-256 - OAuth tokens will be stored UNENCRYPTED. " +
+				"Fix the key length to enable encryption.")
 		encryptionKey = "" // Clear invalid key
 	}
 

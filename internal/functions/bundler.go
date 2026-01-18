@@ -6,12 +6,61 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+// validateModulePath validates a module path to prevent path traversal attacks.
+// It ensures the path doesn't contain dangerous sequences like ".." or absolute paths.
+func validateModulePath(modulePath string) error {
+	// Check for path traversal sequences
+	if strings.Contains(modulePath, "..") {
+		return fmt.Errorf("path traversal detected in module path: %s", modulePath)
+	}
+
+	// Check for absolute paths
+	if filepath.IsAbs(modulePath) {
+		return fmt.Errorf("absolute paths not allowed in module path: %s", modulePath)
+	}
+
+	// Check for null bytes
+	if strings.ContainsRune(modulePath, '\x00') {
+		return fmt.Errorf("null byte detected in module path: %s", modulePath)
+	}
+
+	return nil
+}
+
+// sanitizeAndValidatePath cleans a path and verifies it stays within the allowed base directory.
+// Returns the full validated path or an error if the path would escape the base directory.
+func sanitizeAndValidatePath(baseDir, relativePath string) (string, error) {
+	// First validate the raw input
+	if err := validateModulePath(relativePath); err != nil {
+		return "", err
+	}
+
+	// Clean and join the paths
+	cleanedPath := filepath.Clean(relativePath)
+	fullPath := filepath.Join(baseDir, cleanedPath)
+
+	// Verify the result stays within baseDir
+	// Use filepath.Rel to check containment
+	rel, err := filepath.Rel(baseDir, fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+
+	// If the relative path starts with "..", the target is outside baseDir
+	if strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("path escapes base directory: %s", relativePath)
+	}
+
+	return fullPath, nil
+}
 
 // Bundler handles bundling edge functions with npm dependencies
 type Bundler struct {
@@ -365,7 +414,7 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 
 	// Write shared modules under _shared/ (if not already inlined)
 	if len(sharedModules) > 0 {
-		sharedDir := fmt.Sprintf("%s/_shared", tmpDir)
+		sharedDir := filepath.Join(tmpDir, "_shared")
 		if err := os.MkdirAll(sharedDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create _shared directory: %w", err)
 		}
@@ -373,10 +422,15 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		for modulePath, content := range sharedModules {
 			// Remove "_shared/" prefix if present
 			cleanPath := strings.TrimPrefix(modulePath, "_shared/")
-			fullPath := fmt.Sprintf("%s/_shared/%s", tmpDir, cleanPath)
+
+			// SECURITY: Validate module path to prevent path traversal attacks
+			fullPath, err := sanitizeAndValidatePath(sharedDir, cleanPath)
+			if err != nil {
+				return nil, fmt.Errorf("invalid shared module path %s: %w", modulePath, err)
+			}
 
 			// Create parent directory if needed (for nested modules like _shared/utils/db.ts)
-			dir := fullPath[:strings.LastIndex(fullPath, "/")]
+			dir := filepath.Dir(fullPath)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return nil, fmt.Errorf("failed to create directory for %s: %w", modulePath, err)
 			}

@@ -239,6 +239,8 @@ type CaptchaConfig struct {
 	// Cap provider settings (self-hosted proof-of-work CAPTCHA)
 	CapServerURL string `mapstructure:"cap_server_url"` // URL of Cap server (e.g., http://localhost:3000)
 	CapAPIKey    string `mapstructure:"cap_api_key"`    // API key for Cap server authentication
+	// Test mode settings (for development/testing only - DO NOT use in production)
+	TestBypassToken string `mapstructure:"test_bypass_token"` // Token that bypasses verification (leave empty in production)
 }
 
 // CORSConfig contains CORS settings
