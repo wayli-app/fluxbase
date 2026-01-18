@@ -548,8 +548,8 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("RPC components initialized")
 	}
 
-	// Create realtime components
-	realtimeManager := realtime.NewManager(context.Background())
+	// Create realtime components with connection limit from config
+	realtimeManager := realtime.NewManagerWithLimit(context.Background(), cfg.Realtime.MaxConnections)
 
 	// Set up cross-instance broadcasting via pub/sub (if configured)
 	if ps != nil {

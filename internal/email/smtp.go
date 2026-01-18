@@ -136,16 +136,40 @@ func (s *SMTPService) sendWithTLS(addr string, auth smtp.Auth, to string, messag
 	return client.Quit()
 }
 
+// sanitizeHeaderValue removes or escapes characters that could lead to header injection attacks.
+// This prevents CRLF injection by removing \r and \n characters from header values.
+func sanitizeHeaderValue(value string) string {
+	// Replace CR and LF with spaces to prevent header injection
+	result := make([]byte, 0, len(value))
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '\r' || c == '\n' {
+			// Skip CRLF characters entirely
+			continue
+		}
+		result = append(result, c)
+	}
+	return string(result)
+}
+
 // buildMessage builds an email message
+// All user-controlled header values are sanitized to prevent header injection attacks.
 func (s *SMTPService) buildMessage(to, subject, body string) []byte {
 	var buf bytes.Buffer
 
-	buf.WriteString(fmt.Sprintf("From: %s <%s>\r\n", s.config.FromName, s.config.FromAddress))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	if s.config.ReplyToAddress != "" {
-		buf.WriteString(fmt.Sprintf("Reply-To: %s\r\n", s.config.ReplyToAddress))
+	// Sanitize all header values to prevent CRLF injection
+	safeFromName := sanitizeHeaderValue(s.config.FromName)
+	safeFromAddress := sanitizeHeaderValue(s.config.FromAddress)
+	safeTo := sanitizeHeaderValue(to)
+	safeSubject := sanitizeHeaderValue(subject)
+	safeReplyTo := sanitizeHeaderValue(s.config.ReplyToAddress)
+
+	buf.WriteString(fmt.Sprintf("From: %s <%s>\r\n", safeFromName, safeFromAddress))
+	buf.WriteString(fmt.Sprintf("To: %s\r\n", safeTo))
+	if safeReplyTo != "" {
+		buf.WriteString(fmt.Sprintf("Reply-To: %s\r\n", safeReplyTo))
 	}
-	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	buf.WriteString(fmt.Sprintf("Subject: %s\r\n", safeSubject))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 	buf.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	buf.WriteString("\r\n")

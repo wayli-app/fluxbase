@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -11,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
+
+// validIdentifierRegex validates SQL identifiers (table names, column names)
+// Allows alphanumeric characters, underscores, and must start with letter or underscore
+var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// validateAndQuoteReturning validates and sanitizes the RETURNING clause
+// to prevent SQL injection. Only allows "*" or comma-separated column names.
+func validateAndQuoteReturning(returning string, tableInfo *database.TableInfo) (string, error) {
+	returning = strings.TrimSpace(returning)
+	if returning == "" || returning == "*" {
+		return "*", nil
+	}
+
+	// Split by comma and validate each column
+	columns := strings.Split(returning, ",")
+	quotedColumns := make([]string, 0, len(columns))
+
+	for _, col := range columns {
+		col = strings.TrimSpace(col)
+		if col == "" {
+			continue
+		}
+
+		// Validate the identifier format
+		if !validIdentifierRegex.MatchString(col) {
+			return "", fmt.Errorf("invalid column name in returning clause: %s", col)
+		}
+
+		// If we have table info, validate column exists
+		if tableInfo != nil && !columnExists(tableInfo, col) {
+			return "", fmt.Errorf("unknown column in returning clause: %s", col)
+		}
+
+		quotedColumns = append(quotedColumns, quoteIdentifier(col))
+	}
+
+	if len(quotedColumns) == 0 {
+		return "*", nil
+	}
+
+	return strings.Join(quotedColumns, ", "), nil
+}
 
 // InsertRecordTool implements the insert_record MCP tool
 type InsertRecordTool struct {
@@ -94,10 +137,14 @@ func (t *InsertRecordTool) Execute(ctx context.Context, args map[string]any, aut
 		tableInfo = info
 	}
 
-	// Parse returning columns
-	returning := "*"
+	// Parse and validate returning columns to prevent SQL injection
+	returningInput := "*"
 	if ret, ok := args["returning"].(string); ok && ret != "" {
-		returning = ret
+		returningInput = ret
+	}
+	returning, err := validateAndQuoteReturning(returningInput, tableInfo)
+	if err != nil {
+		return nil, fmt.Errorf("invalid returning clause: %w", err)
 	}
 
 	// Build INSERT query
@@ -269,10 +316,14 @@ func (t *UpdateRecordTool) Execute(ctx context.Context, args map[string]any, aut
 		tableInfo = info
 	}
 
-	// Parse returning columns
-	returning := "*"
+	// Parse and validate returning columns to prevent SQL injection
+	returningInput := "*"
 	if ret, ok := args["returning"].(string); ok && ret != "" {
-		returning = ret
+		returningInput = ret
+	}
+	returning, err := validateAndQuoteReturning(returningInput, tableInfo)
+	if err != nil {
+		return nil, fmt.Errorf("invalid returning clause: %w", err)
 	}
 
 	// Build UPDATE query
@@ -435,20 +486,26 @@ func (t *DeleteRecordTool) Execute(ctx context.Context, args map[string]any, aut
 	}
 
 	// Validate table exists
+	var tableInfo *database.TableInfo
 	if t.schemaCache != nil {
-		_, exists, err := t.schemaCache.GetTable(ctx, schema, table)
+		info, exists, err := t.schemaCache.GetTable(ctx, schema, table)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get table metadata: %w", err)
 		}
-		if !exists {
+		if !exists || info == nil {
 			return nil, fmt.Errorf("table not found: %s.%s", schema, table)
 		}
+		tableInfo = info
 	}
 
-	// Parse returning columns
-	returning := "*"
+	// Parse and validate returning columns to prevent SQL injection
+	returningInput := "*"
 	if ret, ok := args["returning"].(string); ok && ret != "" {
-		returning = ret
+		returningInput = ret
+	}
+	returning, err := validateAndQuoteReturning(returningInput, tableInfo)
+	if err != nil {
+		return nil, fmt.Errorf("invalid returning clause: %w", err)
 	}
 
 	// Build WHERE clause from filters

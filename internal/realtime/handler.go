@@ -170,8 +170,17 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 		}
 	}
 
-	// Add connection to manager
-	connection := h.manager.AddConnection(connectionID, c, userID, role, claims)
+	// Add connection to manager (checks connection limit)
+	connection, err := h.manager.AddConnection(connectionID, c, userID, role, claims)
+	if err != nil {
+		// Connection limit reached - send error and close
+		_ = c.WriteJSON(ServerMessage{
+			Type:    MessageTypeSystem,
+			Event:   "error",
+			Payload: map[string]interface{}{"error": "max_connections_reached", "message": "Server connection limit reached. Please try again later."},
+		})
+		return // Close the WebSocket
+	}
 	defer func() {
 		// Clean up presence for this connection
 		if h.presenceManager != nil {
