@@ -2,10 +2,14 @@ package jobs
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ErrDuplicateJob is returned when a duplicate job is already pending or running
+var ErrDuplicateJob = errors.New("duplicate job already pending or running")
 
 // JobStatus represents the execution status of a job
 type JobStatus string
@@ -118,6 +122,10 @@ type Job struct {
 	ProgressPercent *int                   `db:"-" json:"progress_percent,omitempty"`
 	ProgressMessage *string                `db:"-" json:"progress_message,omitempty"`
 	ProgressData    map[string]interface{} `db:"-" json:"progress_data,omitempty"`
+
+	// DeduplicationKey (optional) - if set, prevents duplicate pending/running jobs with same key
+	// Calculated from namespace + job_name + payload hash
+	DeduplicationKey *string `db:"-" json:"deduplication_key,omitempty"`
 }
 
 // FlattenProgress parses the Progress JSON string and populates the flattened progress fields

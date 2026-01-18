@@ -18,6 +18,57 @@ type ScheduleConfig struct {
 	Params         map[string]interface{} `json:"params,omitempty"`
 }
 
+// MinCronInterval is the minimum allowed interval between cron job runs (1 minute)
+// This prevents DoS attacks via extremely frequent cron schedules
+const MinCronInterval = time.Minute
+
+// ValidateCronSchedule validates a cron expression and ensures it doesn't run too frequently.
+// Returns an error if the schedule would run more frequently than MinCronInterval.
+func ValidateCronSchedule(cronExpr string) error {
+	// Use the same parser as the scheduler
+	parser := cron.NewParser(
+		cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+	)
+
+	schedule, err := parser.Parse(cronExpr)
+	if err != nil {
+		return err
+	}
+
+	// Calculate the next 5 runs to check interval
+	now := time.Now()
+	var lastRun time.Time
+	for i := 0; i < 5; i++ {
+		nextRun := schedule.Next(now)
+		if i > 0 && !lastRun.IsZero() {
+			interval := nextRun.Sub(lastRun)
+			if interval < MinCronInterval {
+				return &CronIntervalError{
+					Expression: cronExpr,
+					Interval:   interval,
+					MinAllowed: MinCronInterval,
+				}
+			}
+		}
+		lastRun = nextRun
+		now = nextRun
+	}
+
+	return nil
+}
+
+// CronIntervalError is returned when a cron schedule runs too frequently
+type CronIntervalError struct {
+	Expression string
+	Interval   time.Duration
+	MinAllowed time.Duration
+}
+
+func (e *CronIntervalError) Error() string {
+	return "cron schedule runs too frequently: " + e.Expression + " would run every " +
+		e.Interval.String() + ", minimum allowed is " + e.MinAllowed.String()
+}
+
 // Scheduler manages scheduled execution of jobs via cron
 type Scheduler struct {
 	cron          *cron.Cron
@@ -145,6 +196,16 @@ func (s *Scheduler) ScheduleJob(fn *JobFunctionSummary) error {
 
 	// Parse the schedule which may include params
 	scheduleConfig := s.parseScheduleConfig(*fn.Schedule)
+
+	// Validate the cron expression to prevent DoS via frequent schedules
+	if err := ValidateCronSchedule(scheduleConfig.CronExpression); err != nil {
+		log.Error().
+			Err(err).
+			Str("job", fn.Name).
+			Str("schedule", scheduleConfig.CronExpression).
+			Msg("Cron schedule validation failed")
+		return err
+	}
 
 	s.jobsMu.Lock()
 	defer s.jobsMu.Unlock()

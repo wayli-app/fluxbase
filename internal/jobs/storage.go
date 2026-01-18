@@ -2,6 +2,8 @@ package jobs
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -354,6 +356,63 @@ func (s *Storage) EnqueueJob(ctx context.Context, job *Job) error {
 		job.Priority, job.MaxDurationSeconds, job.ProgressTimeoutSeconds,
 		job.MaxRetries, job.CreatedBy, job.UserRole, job.UserEmail, job.ScheduledAt,
 	).Scan(&job.CreatedAt)
+}
+
+// ComputeDeduplicationKey generates a deduplication key from job parameters
+// The key is a hash of namespace + job_name + payload (if any)
+func ComputeDeduplicationKey(namespace, jobName string, payload *string) string {
+	data := namespace + ":" + jobName
+	if payload != nil && *payload != "" {
+		data += ":" + *payload
+	}
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
+}
+
+// IsDuplicateJob checks if a pending or running job with the same parameters exists
+func (s *Storage) IsDuplicateJob(ctx context.Context, namespace, jobName string, payload *string) (bool, *uuid.UUID, error) {
+	// Check for pending or running jobs with matching namespace, job_name, and payload
+	query := `
+		SELECT id FROM jobs.queue
+		WHERE namespace = $1
+		  AND job_name = $2
+		  AND status IN ($3, $4)
+		  AND (
+		      (payload IS NULL AND $5::text IS NULL) OR
+		      (payload IS NOT NULL AND $5::text IS NOT NULL AND payload::text = $5::text)
+		  )
+		LIMIT 1
+	`
+
+	var existingID uuid.UUID
+	err := s.conn.Pool().QueryRow(ctx, query, namespace, jobName, JobStatusPending, JobStatusRunning, payload).Scan(&existingID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil, nil
+		}
+		return false, nil, err
+	}
+
+	return true, &existingID, nil
+}
+
+// EnqueueJobWithDedup enqueues a job with deduplication check
+// If a pending or running job with the same parameters exists, returns ErrDuplicateJob
+func (s *Storage) EnqueueJobWithDedup(ctx context.Context, job *Job) error {
+	// Check for duplicates
+	isDup, existingID, err := s.IsDuplicateJob(ctx, job.Namespace, job.JobName, job.Payload)
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicate jobs: %w", err)
+	}
+
+	if isDup {
+		// Store the existing job ID in the deduplication key field for reference
+		existingIDStr := existingID.String()
+		job.DeduplicationKey = &existingIDStr
+		return ErrDuplicateJob
+	}
+
+	return s.EnqueueJob(ctx, job)
 }
 
 // ClaimNextJob claims the next available job for a worker (using SELECT FOR UPDATE SKIP LOCKED)

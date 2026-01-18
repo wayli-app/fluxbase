@@ -8,9 +8,11 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fluxbase-eu/fluxbase/internal/config"
+	"github.com/fluxbase-eu/fluxbase/internal/crypto"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/fluxbase-eu/fluxbase/internal/observability"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 // Service provides a high-level authentication API
@@ -37,6 +39,12 @@ type Service struct {
 	baseURL                 string
 	emailVerificationExpiry time.Duration
 	metrics                 *observability.Metrics
+	encryptionKey           string // 32-byte key for encrypting sensitive data (TOTP secrets)
+}
+
+// SetEncryptionKey sets the encryption key for encrypting sensitive data at rest
+func (s *Service) SetEncryptionKey(key string) {
+	s.encryptionKey = key
 }
 
 // SetMetrics sets the metrics instance for recording auth metrics
@@ -497,7 +505,9 @@ type RefreshTokenResponse struct {
 	ExpiresIn    int64  `json:"expires_in"` // seconds
 }
 
-// RefreshToken generates a new access token using a refresh token
+// RefreshToken generates new access and refresh tokens using a refresh token (token rotation)
+// SECURITY: Implements refresh token rotation - each refresh generates a new refresh token
+// and invalidates the old one. This limits the window of opportunity for stolen tokens.
 func (s *Service) RefreshToken(ctx context.Context, req RefreshTokenRequest) (*RefreshTokenResponse, error) {
 	// Validate refresh token
 	claims, err := s.jwtManager.ValidateToken(req.RefreshToken)
@@ -513,6 +523,13 @@ func (s *Service) RefreshToken(ctx context.Context, req RefreshTokenRequest) (*R
 	session, err := s.sessionRepo.GetByRefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
+			// SECURITY: If the session is not found but the token is valid, it may indicate
+			// that a stolen token was used after the legitimate user rotated it.
+			// Log this as a potential security event.
+			log.Warn().
+				Str("user_id", claims.UserID).
+				Str("session_id", claims.SessionID).
+				Msg("Valid refresh token used but session not found - possible token theft detected")
 			return nil, fmt.Errorf("session not found or expired")
 		}
 		return nil, fmt.Errorf("failed to get session: %w", err)
@@ -523,20 +540,48 @@ func (s *Service) RefreshToken(ctx context.Context, req RefreshTokenRequest) (*R
 		return nil, fmt.Errorf("session expired")
 	}
 
-	// Generate new access token
-	newAccessToken, err := s.jwtManager.RefreshAccessToken(req.RefreshToken)
+	// Get user to include metadata in new tokens
+	user, err := s.userRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to refresh token: %w", err)
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Update session with new access token
-	if err := s.sessionRepo.UpdateAccessToken(ctx, session.ID, newAccessToken); err != nil {
+	// Generate new access token
+	newAccessToken, _, err := s.jwtManager.GenerateAccessToken(
+		claims.UserID,
+		claims.Email,
+		user.Role,
+		claims.UserMetadata,
+		claims.AppMetadata,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	// Generate new refresh token (rotation)
+	newRefreshToken, _, err := s.jwtManager.GenerateRefreshToken(
+		claims.UserID,
+		claims.Email,
+		user.Role,
+		claims.SessionID,
+		claims.UserMetadata,
+		claims.AppMetadata,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Calculate new expiry (extend session)
+	newExpiresAt := time.Now().Add(s.config.RefreshTokenExpiry)
+
+	// Update session with new tokens (rotation)
+	if err := s.sessionRepo.UpdateTokens(ctx, session.ID, newAccessToken, newRefreshToken, newExpiresAt); err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
 	}
 
 	return &RefreshTokenResponse{
 		AccessToken:  newAccessToken,
-		RefreshToken: req.RefreshToken, // Refresh token stays the same
+		RefreshToken: newRefreshToken, // New rotated refresh token
 		ExpiresIn:    int64(s.config.JWTExpiry.Seconds()),
 	}, nil
 }
@@ -867,6 +912,16 @@ func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string
 		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
 	}
 
+	// Encrypt the TOTP secret before storing
+	secretToStore := secret
+	if s.encryptionKey != "" {
+		encryptedSecret, err := crypto.Encrypt(secret, s.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt TOTP secret: %w", err)
+		}
+		secretToStore = encryptedSecret
+	}
+
 	// Enable TOTP for the user
 	updateQuery := `
 		UPDATE auth.users
@@ -874,7 +929,7 @@ func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string
 		WHERE id = $3
 	`
 
-	_, err = s.userRepo.db.Pool().Exec(ctx, updateQuery, secret, hashedCodes, userID)
+	_, err = s.userRepo.db.Pool().Exec(ctx, updateQuery, secretToStore, hashedCodes, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable TOTP: %w", err)
 	}
@@ -892,7 +947,7 @@ func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string
 // VerifyTOTP verifies a TOTP code during login
 func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
 	// Fetch user's TOTP secret and backup codes
-	var secret string
+	var storedSecret string
 	var backupCodes []string
 	query := `
 		SELECT totp_secret, COALESCE(backup_codes, ARRAY[]::text[])
@@ -900,9 +955,21 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
 		WHERE id = $1 AND totp_enabled = TRUE
 	`
 
-	err := s.userRepo.db.Pool().QueryRow(ctx, query, userID).Scan(&secret, &backupCodes)
+	err := s.userRepo.db.Pool().QueryRow(ctx, query, userID).Scan(&storedSecret, &backupCodes)
 	if err != nil {
 		return fmt.Errorf("2FA not enabled for this user: %w", err)
+	}
+
+	// Decrypt the TOTP secret if encryption is enabled
+	secret := storedSecret
+	if s.encryptionKey != "" {
+		decrypted, err := crypto.Decrypt(storedSecret, s.encryptionKey)
+		if err != nil {
+			// Log but don't fail - might be a legacy unencrypted secret
+			log.Warn().Err(err).Str("user_id", userID).Msg("Failed to decrypt TOTP secret, trying as plaintext")
+		} else {
+			secret = decrypted
+		}
 	}
 
 	// Try TOTP code first
