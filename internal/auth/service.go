@@ -40,11 +40,17 @@ type Service struct {
 	emailVerificationExpiry time.Duration
 	metrics                 *observability.Metrics
 	encryptionKey           string // 32-byte key for encrypting sensitive data (TOTP secrets)
+	totpRateLimiter         *TOTPRateLimiter
 }
 
 // SetEncryptionKey sets the encryption key for encrypting sensitive data at rest
 func (s *Service) SetEncryptionKey(key string) {
 	s.encryptionKey = key
+}
+
+// SetTOTPRateLimiter sets the TOTP rate limiter for protecting against brute force attacks
+func (s *Service) SetTOTPRateLimiter(limiter *TOTPRateLimiter) {
+	s.totpRateLimiter = limiter
 }
 
 // SetMetrics sets the metrics instance for recording auth metrics
@@ -946,6 +952,18 @@ func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string
 
 // VerifyTOTP verifies a TOTP code during login
 func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
+	return s.VerifyTOTPWithContext(ctx, userID, code, "", "")
+}
+
+// VerifyTOTPWithContext verifies a TOTP code with IP address and user agent for rate limiting
+func (s *Service) VerifyTOTPWithContext(ctx context.Context, userID, code, ipAddress, userAgent string) error {
+	// Check rate limit before attempting verification
+	if s.totpRateLimiter != nil {
+		if err := s.totpRateLimiter.CheckRateLimit(ctx, userID); err != nil {
+			return err
+		}
+	}
+
 	// Fetch user's TOTP secret and backup codes
 	var storedSecret string
 	var backupCodes []string
@@ -978,6 +996,10 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
 	// Try TOTP code first
 	valid, err := VerifyTOTPCode(code, secret)
 	if err == nil && valid {
+		// Record successful attempt (clears rate limit counter effectively)
+		if s.totpRateLimiter != nil {
+			_ = s.totpRateLimiter.RecordAttempt(ctx, userID, true, ipAddress, userAgent)
+		}
 		return nil
 	}
 
@@ -1004,15 +1026,25 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
 				VALUES ($1, $2, TRUE)
 			`, userID, "backup_code")
 
+			// Record successful attempt
+			if s.totpRateLimiter != nil {
+				_ = s.totpRateLimiter.RecordAttempt(ctx, userID, true, ipAddress, userAgent)
+			}
+
 			return nil
 		}
 	}
 
-	// Log failed attempt
-	_, _ = s.userRepo.db.Pool().Exec(ctx, `
-		INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
-		VALUES ($1, $2, FALSE)
-	`, userID, code)
+	// Record failed attempt for rate limiting
+	if s.totpRateLimiter != nil {
+		_ = s.totpRateLimiter.RecordAttempt(ctx, userID, false, ipAddress, userAgent)
+	} else {
+		// Fallback: Log failed attempt directly if no rate limiter configured
+		_, _ = s.userRepo.db.Pool().Exec(ctx, `
+			INSERT INTO auth.two_factor_recovery_attempts (user_id, code_used, success)
+			VALUES ($1, $2, FALSE)
+		`, userID, "totp_code")
+	}
 
 	return errors.New("invalid 2FA code")
 }

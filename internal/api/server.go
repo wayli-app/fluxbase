@@ -194,6 +194,10 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	// Set encryption key for TOTP secrets (uses the global encryption key)
 	authService.SetEncryptionKey(cfg.EncryptionKey)
 
+	// Initialize TOTP rate limiter to protect against brute force attacks
+	totpRateLimiter := auth.NewTOTPRateLimiter(db.Pool(), auth.DefaultTOTPRateLimiterConfig())
+	authService.SetTOTPRateLimiter(totpRateLimiter)
+
 	// Initialize API key service
 	// Settings cache will be injected after auth service is initialized to enable
 	// the 'allow_user_client_keys' setting check during client key validation
