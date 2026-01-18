@@ -219,10 +219,10 @@ func (h *RealtimeAdminHandler) HandleDisableRealtime(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	ctx := c.Context()
@@ -345,10 +345,10 @@ func (h *RealtimeAdminHandler) HandleGetRealtimeStatus(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	ctx := c.Context()
@@ -412,10 +412,10 @@ func (h *RealtimeAdminHandler) HandleUpdateRealtimeConfig(c *fiber.Ctx) error {
 
 	// Validate identifiers
 	if err := validateIdentifier(schema, "schema"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 	if err := validateIdentifier(table, "table"); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return SendBadRequest(c, err.Error(), ErrCodeValidationFailed)
 	}
 
 	var req struct {
@@ -423,9 +423,7 @@ func (h *RealtimeAdminHandler) HandleUpdateRealtimeConfig(c *fiber.Ctx) error {
 		Exclude []string `json:"exclude,omitempty"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+		return SendInvalidBody(c)
 	}
 
 	ctx := c.Context()

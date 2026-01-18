@@ -2093,7 +2093,7 @@ func (s *Server) handleGetTables(c *fiber.Ctx) error {
 		// Otherwise, get all schemas (backward compatible behavior)
 		schemas, err := s.db.Inspector().GetSchemas(ctx)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return SendOperationFailed(c, "list schemas")
 		}
 
 		// Filter out system schemas
@@ -2163,7 +2163,7 @@ func (s *Server) handleGetSchemas(c *fiber.Ctx) error {
 	ctx := c.Context()
 	schemas, err := s.db.Inspector().GetSchemas(ctx)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return SendOperationFailed(c, "list schemas")
 	}
 
 	// Filter out system schemas
