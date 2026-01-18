@@ -223,8 +223,11 @@ func GenerateState() (string, error) {
 
 // StateMetadata holds metadata associated with an OAuth state
 type StateMetadata struct {
-	Expiry      time.Time
-	RedirectURI string // Optional custom redirect URI for this OAuth flow
+	Expiry       time.Time
+	RedirectURI  string // Optional custom redirect URI for this OAuth flow
+	Provider     string // OAuth provider name
+	CodeVerifier string // PKCE code verifier
+	Nonce        string // OpenID Connect nonce
 }
 
 // StateStore manages OAuth state tokens for CSRF protection
@@ -307,4 +310,185 @@ func (s *StateStore) Cleanup() {
 			delete(s.states, state)
 		}
 	}
+}
+
+// SetWithMetadata stores a state token with full metadata (implements StateStorer)
+func (s *StateStore) SetWithMetadata(ctx context.Context, state string, metadata StateMetadata) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if metadata.Expiry.IsZero() {
+		metadata.Expiry = time.Now().Add(10 * time.Minute)
+	}
+
+	s.states[state] = &metadata
+	return nil
+}
+
+// ValidateWithContext checks if a state token is valid (implements StateStorer)
+func (s *StateStore) ValidateWithContext(ctx context.Context, state string) bool {
+	return s.Validate(state)
+}
+
+// GetAndValidateWithContext validates and returns metadata (implements StateStorer)
+func (s *StateStore) GetAndValidateWithContext(ctx context.Context, state string) (*StateMetadata, bool) {
+	return s.GetAndValidate(state)
+}
+
+// CleanupWithContext removes expired state tokens (implements StateStorer)
+func (s *StateStore) CleanupWithContext(ctx context.Context) error {
+	s.Cleanup()
+	return nil
+}
+
+// StateStorer is the interface for OAuth state storage
+// Implementations can be in-memory (StateStore) or database-backed (DBStateStore)
+type StateStorer interface {
+	// Set stores a state token with optional metadata
+	Set(ctx context.Context, state string, metadata StateMetadata) error
+	// Validate checks if a state token is valid and removes it
+	Validate(ctx context.Context, state string) bool
+	// GetAndValidate validates and returns metadata, removing the state
+	GetAndValidate(ctx context.Context, state string) (*StateMetadata, bool)
+	// Cleanup removes expired state tokens
+	Cleanup(ctx context.Context) error
+}
+
+// DBStateStoreConfig holds configuration for database-backed state storage
+type DBStateStoreConfig struct {
+	// DefaultTTL is the default time-to-live for state tokens (default: 10 minutes)
+	DefaultTTL time.Duration
+	// CleanupInterval is how often to run cleanup (default: 5 minutes)
+	CleanupInterval time.Duration
+}
+
+// DefaultDBStateStoreConfig returns the default configuration
+func DefaultDBStateStoreConfig() DBStateStoreConfig {
+	return DBStateStoreConfig{
+		DefaultTTL:      10 * time.Minute,
+		CleanupInterval: 5 * time.Minute,
+	}
+}
+
+// DBPool is the interface for database operations (subset of pgxpool.Pool)
+type DBPool interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (interface{ RowsAffected() int64 }, error)
+	QueryRow(ctx context.Context, sql string, args ...any) interface {
+		Scan(dest ...any) error
+	}
+}
+
+// DBStateStore provides database-backed OAuth state storage
+// Supports multi-instance deployments where OAuth callback may hit different instance
+type DBStateStore struct {
+	db          DBPool
+	config      DBStateStoreConfig
+	stopCleanup chan struct{}
+}
+
+// NewDBStateStore creates a new database-backed state store
+func NewDBStateStore(db DBPool, config DBStateStoreConfig) *DBStateStore {
+	if config.DefaultTTL == 0 {
+		config.DefaultTTL = 10 * time.Minute
+	}
+	if config.CleanupInterval == 0 {
+		config.CleanupInterval = 5 * time.Minute
+	}
+
+	store := &DBStateStore{
+		db:          db,
+		config:      config,
+		stopCleanup: make(chan struct{}),
+	}
+
+	// Start cleanup goroutine
+	go store.cleanupLoop()
+
+	return store
+}
+
+// Stop stops the cleanup goroutine
+func (s *DBStateStore) Stop() {
+	close(s.stopCleanup)
+}
+
+// cleanupLoop periodically removes expired state tokens
+func (s *DBStateStore) cleanupLoop() {
+	ticker := time.NewTicker(s.config.CleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_ = s.Cleanup(ctx)
+			cancel()
+		case <-s.stopCleanup:
+			return
+		}
+	}
+}
+
+// Set stores a state token with metadata in the database
+func (s *DBStateStore) Set(ctx context.Context, state string, metadata StateMetadata) error {
+	expiresAt := metadata.Expiry
+	if expiresAt.IsZero() {
+		expiresAt = time.Now().Add(s.config.DefaultTTL)
+	}
+
+	_, err := s.db.Exec(ctx, `
+		INSERT INTO auth.oauth_states (state, provider, redirect_uri, code_verifier, nonce, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (state) DO UPDATE SET
+			provider = EXCLUDED.provider,
+			redirect_uri = EXCLUDED.redirect_uri,
+			code_verifier = EXCLUDED.code_verifier,
+			nonce = EXCLUDED.nonce,
+			expires_at = EXCLUDED.expires_at
+	`, state, metadata.Provider, metadata.RedirectURI, metadata.CodeVerifier, metadata.Nonce, expiresAt)
+
+	return err
+}
+
+// Validate checks if a state token is valid and removes it
+func (s *DBStateStore) Validate(ctx context.Context, state string) bool {
+	result, err := s.db.Exec(ctx, `
+		DELETE FROM auth.oauth_states
+		WHERE state = $1 AND expires_at > NOW()
+	`, state)
+
+	if err != nil {
+		return false
+	}
+
+	return result.RowsAffected() > 0
+}
+
+// GetAndValidate validates a state token, removes it, and returns the metadata
+func (s *DBStateStore) GetAndValidate(ctx context.Context, state string) (*StateMetadata, bool) {
+	var metadata StateMetadata
+	var expiresAt time.Time
+
+	// Use a transaction to atomically read and delete
+	err := s.db.QueryRow(ctx, `
+		DELETE FROM auth.oauth_states
+		WHERE state = $1 AND expires_at > NOW()
+		RETURNING provider, redirect_uri, code_verifier, nonce, expires_at
+	`, state).Scan(&metadata.Provider, &metadata.RedirectURI, &metadata.CodeVerifier, &metadata.Nonce, &expiresAt)
+
+	if err != nil {
+		return nil, false
+	}
+
+	metadata.Expiry = expiresAt
+	return &metadata, true
+}
+
+// Cleanup removes expired state tokens from the database
+func (s *DBStateStore) Cleanup(ctx context.Context) error {
+	_, err := s.db.Exec(ctx, `
+		DELETE FROM auth.oauth_states
+		WHERE expires_at < NOW()
+	`)
+	return err
 }

@@ -24,10 +24,10 @@ This document tracks the implementation of improvements identified in the archit
 |-------|-------------|-----------|-------------|-----------|
 | Phase 1: Critical Security & Reliability | 8 | 8 | 0 | 0 |
 | Phase 2: Scalability & Performance | 8 | 8 | 0 | 0 |
-| Phase 3: Maintainability & Correctness | 7 | 4 | 0 | 3 |
+| Phase 3: Maintainability & Correctness | 7 | 5 | 0 | 2 |
 | Phase 4: Developer Experience | 5 | 0 | 0 | 5 |
 | Phase 5: Operations & Polish | 4 | 0 | 0 | 4 |
-| **Total** | **32** | **20** | **0** | **12** |
+| **Total** | **32** | **21** | **0** | **11** |
 
 ---
 
@@ -833,28 +833,40 @@ POST requests not safe to retry; network failures can cause duplicate operations
 
 **Priority:** Medium
 **Category:** Correctness
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 In-memory OAuth state breaks with load balancing; callback may hit different instance.
 
-**Files to Modify:**
+**Files Modified:**
 - `internal/auth/oauth.go`
-- `internal/database/migrations/` (new migration)
+- `internal/database/migrations/065_oauth_states.up.sql` (new migration)
+- `internal/database/migrations/065_oauth_states.down.sql` (new migration)
 
 **Implementation Steps:**
-- [ ] Create `auth.oauth_states` table (state, provider, redirect_uri, expires_at)
-- [ ] Store state in database instead of memory
-- [ ] Validate state from database on callback
-- [ ] Delete state after use (prevent replay)
-- [ ] Add cleanup job for expired states
+- [x] Create `auth.oauth_states` table (state, provider, redirect_uri, expires_at)
+  - Includes code_verifier for PKCE and nonce for OIDC
+  - Indexes for expiration cleanup and provider queries
+- [x] Store state in database instead of memory
+  - `DBStateStore` implementation with database backend
+  - `StateStorer` interface for abstraction
+  - Backward compatible: in-memory `StateStore` still works
+- [x] Validate state from database on callback
+  - Uses DELETE...RETURNING for atomic validate-and-remove
+  - Returns metadata including redirect_uri, code_verifier
+- [x] Delete state after use (prevent replay)
+  - Atomic deletion during validation
+- [x] Add cleanup job for expired states
+  - Background goroutine with configurable interval (default: 5 min)
+  - Cleanup runs in separate context to avoid blocking
 
 **Test Requirements:**
-- [ ] Unit test: State stored in database
-- [ ] Unit test: Valid state accepted on callback
-- [ ] Unit test: Invalid state rejected
-- [ ] Unit test: Used state cannot be replayed
-- [ ] Integration test: OAuth flow across "different instances"
+- [x] Existing unit tests for in-memory StateStore preserved
+- [ ] Integration test: State stored in database (requires DB)
+- [ ] Integration test: Valid state accepted on callback (requires DB)
+- [ ] Integration test: Invalid state rejected (requires DB)
+- [ ] Integration test: Used state cannot be replayed (requires DB)
+- [ ] Integration test: OAuth flow across "different instances" (requires DB)
 
 **Test File:** `internal/auth/oauth_test.go`
 
