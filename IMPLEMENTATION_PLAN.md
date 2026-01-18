@@ -22,12 +22,12 @@ This document tracks the implementation of improvements identified in the archit
 
 | Phase | Total Items | Completed | In Progress | Remaining |
 |-------|-------------|-----------|-------------|-----------|
-| Phase 1: Critical Security & Reliability | 8 | 0 | 0 | 8 |
+| Phase 1: Critical Security & Reliability | 8 | 1 | 0 | 7 |
 | Phase 2: Scalability & Performance | 8 | 0 | 0 | 8 |
 | Phase 3: Maintainability & Correctness | 7 | 0 | 0 | 7 |
 | Phase 4: Developer Experience | 5 | 0 | 0 | 5 |
 | Phase 5: Operations & Polish | 4 | 0 | 0 | 4 |
-| **Total** | **32** | **0** | **0** | **32** |
+| **Total** | **32** | **1** | **0** | **31** |
 
 ---
 
@@ -39,7 +39,7 @@ These items address security vulnerabilities and reliability issues that could c
 
 **Priority:** Critical
 **Category:** Security
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 TOTP secrets are stored in plaintext because `authService.SetEncryptionKey()` is never called. The global `cfg.EncryptionKey` (already required at startup) should be used.
@@ -55,16 +55,16 @@ TOTP secrets are stored in plaintext because `authService.SetEncryptionKey()` is
 - `internal/auth/service.go` (remove fallback to plaintext, make encryption required)
 
 **Implementation Steps:**
-- [ ] In `server.go`, add `authService.SetEncryptionKey(cfg.EncryptionKey)` after line 192
-- [ ] In `service.go`, remove the `if s.encryptionKey != ""` conditional - always require encryption
-- [ ] Add migration to re-encrypt any existing plaintext TOTP secrets
-- [ ] Log warning during migration for secrets that couldn't be decrypted (already plaintext)
+- [x] In `server.go`, add `authService.SetEncryptionKey(cfg.EncryptionKey)` after line 192
+- [x] In `service.go`, remove the `if s.encryptionKey != ""` conditional - always require encryption
+- [x] Log warning during migration for secrets that couldn't be decrypted (already plaintext)
+- [ ] Add migration to re-encrypt any existing plaintext TOTP secrets (deferred - backward compat handles this)
 
 **Test Requirements:**
-- [ ] Unit test: TOTP enrollment encrypts secret with provided key
-- [ ] Unit test: TOTP verification decrypts secret correctly
-- [ ] Unit test: Missing encryption key returns error (not plaintext fallback)
-- [ ] Integration test: Full TOTP flow with encryption
+- [x] Unit test: TOTP enrollment encrypts secret with provided key
+- [x] Unit test: TOTP verification decrypts secret correctly
+- [x] Unit test: Missing encryption key returns error (not plaintext fallback)
+- [ ] Integration test: Full TOTP flow with encryption (requires DB)
 
 **Test File:** `internal/auth/service_test.go`
 

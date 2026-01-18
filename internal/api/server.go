@@ -191,6 +191,9 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	// Initialize auth service (use public URL for user-facing links like magic links, password resets)
 	authService := auth.NewService(db, &cfg.Auth, emailService, cfg.GetPublicBaseURL())
 
+	// Set encryption key for TOTP secrets (uses the global encryption key)
+	authService.SetEncryptionKey(cfg.EncryptionKey)
+
 	// Initialize API key service
 	// Settings cache will be injected after auth service is initialized to enable
 	// the 'allow_user_client_keys' setting check during client key validation

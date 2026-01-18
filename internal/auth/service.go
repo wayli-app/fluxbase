@@ -912,15 +912,15 @@ func (s *Service) EnableTOTP(ctx context.Context, userID, code string) ([]string
 		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
 	}
 
-	// Encrypt the TOTP secret before storing
-	secretToStore := secret
-	if s.encryptionKey != "" {
-		encryptedSecret, err := crypto.Encrypt(secret, s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt TOTP secret: %w", err)
-		}
-		secretToStore = encryptedSecret
+	// Encrypt the TOTP secret before storing (encryption is required)
+	if s.encryptionKey == "" {
+		return nil, errors.New("TOTP encryption key not configured - cannot store TOTP secrets securely")
 	}
+	encryptedSecret, err := crypto.Encrypt(secret, s.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt TOTP secret: %w", err)
+	}
+	secretToStore := encryptedSecret
 
 	// Enable TOTP for the user
 	updateQuery := `
@@ -960,13 +960,16 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID, code string) error {
 		return fmt.Errorf("2FA not enabled for this user: %w", err)
 	}
 
-	// Decrypt the TOTP secret if encryption is enabled
+	// Decrypt the TOTP secret
 	secret := storedSecret
-	if s.encryptionKey != "" {
+	if s.encryptionKey == "" {
+		// This should not happen in production - encryption key should always be set
+		log.Warn().Str("user_id", userID).Msg("TOTP encryption key not configured - TOTP secrets may be stored insecurely")
+	} else {
 		decrypted, err := crypto.Decrypt(storedSecret, s.encryptionKey)
 		if err != nil {
 			// Log but don't fail - might be a legacy unencrypted secret
-			log.Warn().Err(err).Str("user_id", userID).Msg("Failed to decrypt TOTP secret, trying as plaintext")
+			log.Warn().Err(err).Str("user_id", userID).Msg("Failed to decrypt TOTP secret, trying as plaintext (legacy secret)")
 		} else {
 			secret = decrypted
 		}
