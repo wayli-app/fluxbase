@@ -557,9 +557,10 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	// Create realtime components with connection limits from config
 	realtimeManager := realtime.NewManagerWithConfig(context.Background(), realtime.ManagerConfig{
-		MaxConnections:        cfg.Realtime.MaxConnections,
-		MaxConnectionsPerUser: cfg.Realtime.MaxConnectionsPerUser,
-		MaxConnectionsPerIP:   cfg.Realtime.MaxConnectionsPerIP,
+		MaxConnections:         cfg.Realtime.MaxConnections,
+		MaxConnectionsPerUser:  cfg.Realtime.MaxConnectionsPerUser,
+		MaxConnectionsPerIP:    cfg.Realtime.MaxConnectionsPerIP,
+		ClientMessageQueueSize: cfg.Realtime.ClientMessageQueueSize,
 	})
 
 	// Set up cross-instance broadcasting via pub/sub (if configured)

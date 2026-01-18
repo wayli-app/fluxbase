@@ -29,19 +29,20 @@ var ErrMaxIPConnectionsReached = errors.New("maximum number of websocket connect
 
 // Manager manages all WebSocket connections
 type Manager struct {
-	connections           map[string]*Connection // connection ID -> connection
-	userConnections       map[string]int         // user ID -> connection count
-	ipConnections         map[string]int         // IP address -> connection count
-	connectionUserMap     map[string]string      // connection ID -> user ID (for tracking)
-	connectionIPMap       map[string]string      // connection ID -> IP address (for tracking)
-	mu                    sync.RWMutex
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	ps                    pubsub.PubSub // For cross-instance broadcasting
-	metrics               *observability.Metrics
-	maxConnections        int // Maximum allowed connections (0 = unlimited)
-	maxConnectionsPerUser int // Maximum connections per user (0 = unlimited)
-	maxConnectionsPerIP   int // Maximum connections per IP for anonymous (0 = unlimited)
+	connections            map[string]*Connection // connection ID -> connection
+	userConnections        map[string]int         // user ID -> connection count
+	ipConnections          map[string]int         // IP address -> connection count
+	connectionUserMap      map[string]string      // connection ID -> user ID (for tracking)
+	connectionIPMap        map[string]string      // connection ID -> IP address (for tracking)
+	mu                     sync.RWMutex
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	ps                     pubsub.PubSub // For cross-instance broadcasting
+	metrics                *observability.Metrics
+	maxConnections         int // Maximum allowed connections (0 = unlimited)
+	maxConnectionsPerUser  int // Maximum connections per user (0 = unlimited)
+	maxConnectionsPerIP    int // Maximum connections per IP for anonymous (0 = unlimited)
+	clientMessageQueueSize int // Size of per-client message queue (0 = default)
 }
 
 // SetMetrics sets the metrics instance for recording realtime metrics
@@ -75,9 +76,10 @@ func (m *Manager) updateMetrics() {
 
 // ManagerConfig holds configuration for the connection manager
 type ManagerConfig struct {
-	MaxConnections        int // Maximum total connections (0 = unlimited)
-	MaxConnectionsPerUser int // Maximum connections per user (0 = unlimited)
-	MaxConnectionsPerIP   int // Maximum connections per IP for anonymous (0 = unlimited)
+	MaxConnections         int // Maximum total connections (0 = unlimited)
+	MaxConnectionsPerUser  int // Maximum connections per user (0 = unlimited)
+	MaxConnectionsPerIP    int // Maximum connections per IP for anonymous (0 = unlimited)
+	ClientMessageQueueSize int // Size of per-client message queue for async sending (0 = default)
 }
 
 // NewManager creates a new connection manager
@@ -95,16 +97,17 @@ func NewManagerWithLimit(ctx context.Context, maxConnections int) *Manager {
 func NewManagerWithConfig(ctx context.Context, config ManagerConfig) *Manager {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		connections:           make(map[string]*Connection),
-		userConnections:       make(map[string]int),
-		ipConnections:         make(map[string]int),
-		connectionUserMap:     make(map[string]string),
-		connectionIPMap:       make(map[string]string),
-		ctx:                   ctx,
-		cancel:                cancel,
-		maxConnections:        config.MaxConnections,
-		maxConnectionsPerUser: config.MaxConnectionsPerUser,
-		maxConnectionsPerIP:   config.MaxConnectionsPerIP,
+		connections:            make(map[string]*Connection),
+		userConnections:        make(map[string]int),
+		ipConnections:          make(map[string]int),
+		connectionUserMap:      make(map[string]string),
+		connectionIPMap:        make(map[string]string),
+		ctx:                    ctx,
+		cancel:                 cancel,
+		maxConnections:         config.MaxConnections,
+		maxConnectionsPerUser:  config.MaxConnectionsPerUser,
+		maxConnectionsPerIP:    config.MaxConnectionsPerIP,
+		clientMessageQueueSize: config.ClientMessageQueueSize,
 	}
 }
 
@@ -265,8 +268,13 @@ func (m *Manager) AddConnectionWithIP(id string, conn *websocket.Conn, userID *s
 		}
 	}
 
-	// Create and track the connection
-	connection := NewConnection(id, conn, userID, role, claims)
+	// Create and track the connection with configured queue size
+	var connection *Connection
+	if m.clientMessageQueueSize > 0 {
+		connection = NewConnectionWithQueueSize(id, conn, userID, role, claims, m.clientMessageQueueSize)
+	} else {
+		connection = NewConnection(id, conn, userID, role, claims)
+	}
 	m.connections[id] = connection
 
 	// Track per-user connections

@@ -306,9 +306,10 @@ type RealtimeConfig struct {
 	ChannelBufferSize     int           `mapstructure:"channel_buffer_size"`
 	RLSCacheSize          int           `mapstructure:"rls_cache_size"`          // Maximum entries in RLS cache (default: 100000)
 	RLSCacheTTL           time.Duration `mapstructure:"rls_cache_ttl"`           // TTL for RLS cache entries (default: 30s)
-	ListenerPoolSize      int           `mapstructure:"listener_pool_size"`      // Number of LISTEN connections for redundancy (default: 2)
-	NotificationWorkers   int           `mapstructure:"notification_workers"`    // Number of workers for parallel notification processing (default: 4)
-	NotificationQueueSize int           `mapstructure:"notification_queue_size"` // Size of notification queue per worker (default: 1000)
+	ListenerPoolSize       int           `mapstructure:"listener_pool_size"`       // Number of LISTEN connections for redundancy (default: 2)
+	NotificationWorkers    int           `mapstructure:"notification_workers"`     // Number of workers for parallel notification processing (default: 4)
+	NotificationQueueSize  int           `mapstructure:"notification_queue_size"`  // Size of notification queue per worker (default: 1000)
+	ClientMessageQueueSize int           `mapstructure:"client_message_queue_size"` // Size of per-client message queue for async sending (default: 256)
 }
 
 // EmailConfig contains email/SMTP settings
@@ -685,6 +686,7 @@ func setDefaults() {
 	viper.SetDefault("realtime.listener_pool_size", 2)  // 2 LISTEN connections for redundancy/failover
 	viper.SetDefault("realtime.notification_workers", 4)
 	viper.SetDefault("realtime.notification_queue_size", 1000)
+	viper.SetDefault("realtime.client_message_queue_size", 256) // Per-client message queue for async sending
 
 	// Email defaults
 	viper.SetDefault("email.enabled", true)

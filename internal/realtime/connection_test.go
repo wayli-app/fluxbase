@@ -219,6 +219,7 @@ func TestConnection_ConcurrentIsSubscribed(t *testing.T) {
 func TestConnection_MixedConcurrentOperations(t *testing.T) {
 	conn := &websocket.Conn{}
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
+	defer connection.Close()
 
 	var wg sync.WaitGroup
 	numGoroutines := 50
@@ -254,4 +255,171 @@ func TestConnection_MixedConcurrentOperations(t *testing.T) {
 	// Should not panic - exact count may vary due to race conditions,
 	// but that's expected behavior
 	assert.True(t, len(connection.Subscriptions) >= 0)
+}
+
+// =============================================================================
+// Async Message Queue Tests
+// =============================================================================
+
+func TestNewConnectionWithQueueSize(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 128)
+	defer connection.Close()
+
+	assert.NotNil(t, connection)
+	assert.Equal(t, 128, cap(connection.sendCh))
+}
+
+func TestNewConnectionWithQueueSize_DefaultOnZero(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 0)
+	defer connection.Close()
+
+	assert.Equal(t, DefaultMessageQueueSize, cap(connection.sendCh))
+}
+
+func TestNewConnectionWithQueueSize_DefaultOnNegative(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, -10)
+	defer connection.Close()
+
+	assert.Equal(t, DefaultMessageQueueSize, cap(connection.sendCh))
+}
+
+func TestNewConnectionSync(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
+
+	assert.NotNil(t, connection)
+	assert.True(t, connection.useSync)
+	assert.Nil(t, connection.sendCh) // No queue for sync connections
+}
+
+func TestConnection_SendMessage_ToClosedConnection(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
+
+	// Close the connection first
+	connection.Close()
+
+	// Sending should return error
+	err := connection.SendMessage(ServerMessage{Type: "test"})
+	assert.Equal(t, ErrConnectionClosed, err)
+}
+
+func TestConnection_GetQueueStats(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 100)
+	defer connection.Close()
+
+	stats := connection.GetQueueStats()
+
+	assert.Equal(t, 0, stats.QueueLength)
+	assert.Equal(t, 100, stats.QueueCapacity)
+	assert.Equal(t, int32(0), stats.QueueHighWater)
+	assert.Equal(t, uint64(0), stats.MessagesSent)
+	assert.Equal(t, uint64(0), stats.MessagesDropped)
+	assert.Equal(t, int32(0), stats.SlowClientCount)
+}
+
+func TestConnection_Close_MultipleTimes(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
+
+	// First close should succeed
+	err := connection.Close()
+	assert.NoError(t, err)
+
+	// Second close should return nil without error
+	err = connection.Close()
+	assert.NoError(t, err)
+}
+
+func TestConnection_IsSlowClient_Initial(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
+	defer connection.Close()
+
+	assert.False(t, connection.IsSlowClient())
+}
+
+func TestConnection_IsSlowClient_AfterWarnings(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
+	defer connection.Close()
+
+	// Manually increment slow client count
+	for i := 0; i < MaxSlowClientWarnings; i++ {
+		connection.slowClientCount.Add(1)
+	}
+
+	assert.True(t, connection.IsSlowClient())
+}
+
+func TestConnectionQueueStats_Struct(t *testing.T) {
+	stats := ConnectionQueueStats{
+		QueueLength:     50,
+		QueueCapacity:   256,
+		QueueHighWater:  128,
+		MessagesSent:    1000,
+		MessagesDropped: 5,
+		SlowClientCount: 2,
+	}
+
+	assert.Equal(t, 50, stats.QueueLength)
+	assert.Equal(t, 256, stats.QueueCapacity)
+	assert.Equal(t, int32(128), stats.QueueHighWater)
+	assert.Equal(t, uint64(1000), stats.MessagesSent)
+	assert.Equal(t, uint64(5), stats.MessagesDropped)
+	assert.Equal(t, int32(2), stats.SlowClientCount)
+}
+
+func TestConnection_SendMessage_WithSlowClientMarked(t *testing.T) {
+	conn := &websocket.Conn{}
+	connection := NewConnection("conn1", conn, nil, "anon", nil)
+	defer connection.Close()
+
+	// Mark as slow client
+	for i := 0; i < MaxSlowClientWarnings; i++ {
+		connection.slowClientCount.Add(1)
+	}
+
+	// Sending should return ErrSlowClient immediately
+	err := connection.SendMessage(ServerMessage{Type: "test"})
+	assert.Equal(t, ErrSlowClient, err)
+}
+
+// Benchmarks
+
+func BenchmarkConnection_Subscribe(b *testing.B) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		connection.Subscribe("table:public.test")
+		connection.Unsubscribe("table:public.test")
+	}
+}
+
+func BenchmarkConnection_IsSubscribed(b *testing.B) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
+	connection.Subscribe("table:public.products")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = connection.IsSubscribed("table:public.products")
+	}
+}
+
+func BenchmarkConnection_GetQueueStats(b *testing.B) {
+	conn := &websocket.Conn{}
+	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 256)
+	defer connection.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = connection.GetQueueStats()
+	}
 }
