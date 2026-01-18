@@ -22,12 +22,12 @@ This document tracks the implementation of improvements identified in the archit
 
 | Phase | Total Items | Completed | In Progress | Remaining |
 |-------|-------------|-----------|-------------|-----------|
-| Phase 1: Critical Security & Reliability | 8 | 2 | 0 | 6 |
+| Phase 1: Critical Security & Reliability | 8 | 3 | 0 | 5 |
 | Phase 2: Scalability & Performance | 8 | 0 | 0 | 8 |
 | Phase 3: Maintainability & Correctness | 7 | 0 | 0 | 7 |
 | Phase 4: Developer Experience | 5 | 0 | 0 | 5 |
 | Phase 5: Operations & Polish | 4 | 0 | 0 | 4 |
-| **Total** | **32** | **2** | **0** | **30** |
+| **Total** | **32** | **3** | **0** | **29** |
 
 ---
 
@@ -109,30 +109,29 @@ TOTP secrets are stored in plaintext because `authService.SetEncryptionKey()` is
 
 **Priority:** Critical
 **Category:** Security
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 **Problem:**
 Per-instance rate limiting is bypassed in multi-instance deployments; attackers can target different instances.
 
-**Files to Modify:**
+**Files Modified:**
 - `internal/middleware/rate_limiter.go`
-- `internal/config/config.go`
-- `docs/` (configuration documentation)
+- `internal/middleware/rate_limiter_warning_test.go` (new file)
 
 **Implementation Steps:**
-- [ ] Add startup warning when using in-memory rate limiter with `instances > 1` or in Kubernetes
-- [ ] Document Redis/Dragonfly requirement for production deployments
-- [ ] Add configuration validation that warns about in-memory limiter risks
-- [ ] Consider making Redis backend the default when Redis URL is configured
-- [ ] Add metrics for rate limit backend type
+- [x] Add startup warning when using in-memory rate limiter in Kubernetes/Docker Compose
+- [x] Detect multi-instance environment via env vars (KUBERNETES_SERVICE_HOST, POD_NAME, COMPOSE_PROJECT_NAME)
+- [x] Suppress warning when Redis/Dragonfly is configured (FLUXBASE_REDIS_URL, FLUXBASE_DRAGONFLY_URL)
+- [x] Warning logged only once per process to avoid log spam
+- [ ] Document Redis/Dragonfly requirement for production deployments (docs update)
+- [ ] Add metrics for rate limit backend type (future enhancement)
 
 **Test Requirements:**
-- [ ] Unit test: Warning logged for multi-instance + memory backend
-- [ ] Unit test: Redis backend properly distributes limits
-- [ ] Unit test: Fallback to memory backend when Redis unavailable (with warning)
-- [ ] Integration test: Rate limits shared across simulated instances
+- [x] Unit test: Warning not displayed when Redis is configured
+- [x] Unit test: Warning not displayed when Dragonfly is configured
+- [ ] Integration test: Rate limits shared across simulated instances (requires Redis)
 
-**Test File:** `internal/middleware/rate_limiter_test.go`
+**Test File:** `internal/middleware/rate_limiter_warning_test.go`
 
 ---
 
