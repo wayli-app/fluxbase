@@ -35,34 +35,38 @@ This document tracks the implementation of improvements identified in the archit
 
 These items address security vulnerabilities and reliability issues that could cause data loss or security breaches.
 
-### 1.1 Make TOTP Encryption Mandatory
+### 1.1 Wire Up TOTP Encryption Using Global Encryption Key
 
 **Priority:** Critical
 **Category:** Security
 **Status:** [ ] Not Started
 
 **Problem:**
-TOTP secrets can be stored in plaintext if encryption key is not configured, exposing MFA secrets on database breach.
+TOTP secrets are stored in plaintext because `authService.SetEncryptionKey()` is never called. The global `cfg.EncryptionKey` (already required at startup) should be used.
+
+**Root Cause:**
+- `cfg.EncryptionKey` exists and is already validated (32 bytes, required)
+- It's used for secrets storage, OAuth config, custom settings
+- But `authService.SetEncryptionKey()` is never called in `server.go`
+- Result: TOTP secrets stored unencrypted
 
 **Files to Modify:**
-- `internal/auth/totp.go`
-- `internal/config/config.go`
-- `cmd/fluxbase/main.go`
+- `internal/api/server.go` (add one line after auth service creation)
+- `internal/auth/service.go` (remove fallback to plaintext, make encryption required)
 
 **Implementation Steps:**
-- [ ] Add validation in `config.go` to require `auth.totp.encryption_key` when TOTP is enabled
-- [ ] Add startup check in `main.go` that fails fast if TOTP enabled without encryption key
-- [ ] Update `totp.go` to remove fallback to plaintext storage
-- [ ] Add clear error message guiding users to generate a key
-- [ ] Update configuration documentation
+- [ ] In `server.go`, add `authService.SetEncryptionKey(cfg.EncryptionKey)` after line 192
+- [ ] In `service.go`, remove the `if s.encryptionKey != ""` conditional - always require encryption
+- [ ] Add migration to re-encrypt any existing plaintext TOTP secrets
+- [ ] Log warning during migration for secrets that couldn't be decrypted (already plaintext)
 
 **Test Requirements:**
-- [ ] Unit test: Config validation rejects missing encryption key
-- [ ] Unit test: Startup fails with descriptive error
-- [ ] Unit test: TOTP operations fail gracefully if misconfigured
-- [ ] Integration test: Full TOTP flow with encryption enabled
+- [ ] Unit test: TOTP enrollment encrypts secret with provided key
+- [ ] Unit test: TOTP verification decrypts secret correctly
+- [ ] Unit test: Missing encryption key returns error (not plaintext fallback)
+- [ ] Integration test: Full TOTP flow with encryption
 
-**Test File:** `internal/auth/totp_test.go`, `internal/config/config_test.go`
+**Test File:** `internal/auth/service_test.go`
 
 ---
 
