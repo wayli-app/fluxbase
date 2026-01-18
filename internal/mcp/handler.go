@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -9,19 +11,98 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// rateLimiter tracks request counts per client key using a sliding window
+type rateLimiter struct {
+	mu       sync.Mutex
+	requests map[string][]time.Time // client key -> list of request timestamps
+	limit    int                    // requests per minute
+}
+
+// newRateLimiter creates a new rate limiter
+func newRateLimiter(limitPerMin int) *rateLimiter {
+	rl := &rateLimiter{
+		requests: make(map[string][]time.Time),
+		limit:    limitPerMin,
+	}
+	// Start cleanup goroutine
+	go rl.cleanup()
+	return rl
+}
+
+// allow checks if a request from the given client key should be allowed
+func (rl *rateLimiter) allow(clientKey string) bool {
+	if rl.limit <= 0 {
+		return true // Rate limiting disabled
+	}
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	windowStart := now.Add(-time.Minute)
+
+	// Get existing requests and filter to sliding window
+	existing := rl.requests[clientKey]
+	var valid []time.Time
+	for _, t := range existing {
+		if t.After(windowStart) {
+			valid = append(valid, t)
+		}
+	}
+
+	// Check if we're at limit
+	if len(valid) >= rl.limit {
+		rl.requests[clientKey] = valid // Update with filtered list
+		return false
+	}
+
+	// Allow and record
+	rl.requests[clientKey] = append(valid, now)
+	return true
+}
+
+// cleanup periodically removes old entries to prevent memory growth
+func (rl *rateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		windowStart := now.Add(-time.Minute)
+
+		for key, times := range rl.requests {
+			var valid []time.Time
+			for _, t := range times {
+				if t.After(windowStart) {
+					valid = append(valid, t)
+				}
+			}
+			if len(valid) == 0 {
+				delete(rl.requests, key)
+			} else {
+				rl.requests[key] = valid
+			}
+		}
+		rl.mu.Unlock()
+	}
+}
+
 // Handler handles HTTP requests for the MCP server
 type Handler struct {
-	server *Server
-	config *config.MCPConfig
-	db     *database.Connection
+	server      *Server
+	config      *config.MCPConfig
+	db          *database.Connection
+	rateLimiter *rateLimiter
 }
 
 // NewHandler creates a new MCP HTTP handler
 func NewHandler(cfg *config.MCPConfig, db *database.Connection) *Handler {
 	return &Handler{
-		server: NewServer(cfg),
-		config: cfg,
-		db:     db,
+		server:      NewServer(cfg),
+		config:      cfg,
+		db:          db,
+		rateLimiter: newRateLimiter(cfg.RateLimitPerMin),
 	}
 }
 
@@ -71,6 +152,24 @@ func (h *Handler) handlePost(c *fiber.Ctx) error {
 
 	// Extract auth context from Fiber locals (set by auth middleware)
 	authCtx := ExtractAuthContext(c)
+
+	// Check rate limit using client key or user ID as the key
+	rateLimitKey := authCtx.ClientKeyID
+	if rateLimitKey == "" && authCtx.UserID != "" {
+		rateLimitKey = authCtx.UserID
+	}
+	if rateLimitKey == "" {
+		rateLimitKey = c.IP() // Fallback to IP for anonymous requests
+	}
+	if !h.rateLimiter.allow(rateLimitKey) {
+		log.Warn().
+			Str("client_key", rateLimitKey).
+			Int("limit", h.config.RateLimitPerMin).
+			Msg("MCP: Rate limit exceeded")
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"error": "Rate limit exceeded. Please try again later.",
+		})
+	}
 
 	// Log the request
 	log.Debug().

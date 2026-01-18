@@ -1068,3 +1068,113 @@ func (ls *LocalStorage) UpdateChunkedUploadSession(session *ChunkedUploadSession
 
 	return nil
 }
+
+// CleanupExpiredChunkedUploads removes expired chunked upload sessions and their files
+// This should be called periodically to prevent storage leaks
+func (ls *LocalStorage) CleanupExpiredChunkedUploads(ctx context.Context) (int, error) {
+	chunkedDir := filepath.Join(ls.basePath, ".chunked")
+
+	// Check if chunked directory exists
+	if _, err := os.Stat(chunkedDir); os.IsNotExist(err) {
+		return 0, nil // No chunked uploads to clean
+	}
+
+	entries, err := os.ReadDir(chunkedDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read chunked upload directory: %w", err)
+	}
+
+	cleaned := 0
+	now := time.Now()
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return cleaned, ctx.Err()
+		default:
+		}
+
+		uploadID := entry.Name()
+		sessionPath := filepath.Join(chunkedDir, uploadID, "session.json")
+
+		sessionData, err := os.ReadFile(sessionPath)
+		if err != nil {
+			// If we can't read the session, check directory age
+			// Remove directories older than 48 hours with no valid session
+			info, statErr := entry.Info()
+			if statErr == nil && now.Sub(info.ModTime()) > 48*time.Hour {
+				if rmErr := os.RemoveAll(filepath.Join(chunkedDir, uploadID)); rmErr == nil {
+					cleaned++
+					log.Debug().Str("upload_id", uploadID).Msg("Removed orphaned chunked upload directory")
+				}
+			}
+			continue
+		}
+
+		var session ChunkedUploadSession
+		if err := json.Unmarshal(sessionData, &session); err != nil {
+			// Invalid session, remove if old
+			info, statErr := entry.Info()
+			if statErr == nil && now.Sub(info.ModTime()) > 48*time.Hour {
+				if rmErr := os.RemoveAll(filepath.Join(chunkedDir, uploadID)); rmErr == nil {
+					cleaned++
+					log.Debug().Str("upload_id", uploadID).Msg("Removed chunked upload with invalid session")
+				}
+			}
+			continue
+		}
+
+		// Check if session is expired
+		if now.After(session.ExpiresAt) {
+			if err := os.RemoveAll(filepath.Join(chunkedDir, uploadID)); err == nil {
+				cleaned++
+				log.Debug().
+					Str("upload_id", uploadID).
+					Str("bucket", session.Bucket).
+					Str("key", session.Key).
+					Time("expired_at", session.ExpiresAt).
+					Msg("Removed expired chunked upload session")
+			} else {
+				log.Warn().Err(err).Str("upload_id", uploadID).Msg("Failed to remove expired chunked upload")
+			}
+		}
+	}
+
+	if cleaned > 0 {
+		log.Info().Int("cleaned", cleaned).Msg("Cleaned up expired chunked upload sessions")
+	}
+
+	return cleaned, nil
+}
+
+// StartChunkedUploadCleanup starts a background goroutine to periodically clean up
+// expired chunked upload sessions. Call this once when initializing the storage.
+func (ls *LocalStorage) StartChunkedUploadCleanup(ctx context.Context) {
+	go func() {
+		// Run cleanup every hour
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		// Also run once on startup after a short delay
+		time.Sleep(30 * time.Second)
+		if _, err := ls.CleanupExpiredChunkedUploads(ctx); err != nil {
+			log.Error().Err(err).Msg("Failed to cleanup expired chunked uploads on startup")
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := ls.CleanupExpiredChunkedUploads(ctx); err != nil {
+					log.Error().Err(err).Msg("Failed to cleanup expired chunked uploads")
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}

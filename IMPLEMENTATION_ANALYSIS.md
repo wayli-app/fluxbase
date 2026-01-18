@@ -37,6 +37,16 @@ The following critical and high-priority issues have been fixed in this branch:
 | OAuth Encryption Warning | ✅ Fixed | Elevated to ERROR level with detailed security message |
 | Edge Functions Path Traversal | ✅ Fixed | Added `sanitizeAndValidatePath()` for shared module validation |
 
+### Phase 3 Fixes (Remaining High Priority Issues)
+
+| Issue | Status | Fix Description |
+|-------|--------|-----------------|
+| Jobs Worker Timeout Timing | ✅ Fixed | Cleanup now runs at half the timeout interval (faster detection) |
+| Jobs Context Propagation | ✅ Fixed | Progress updates now use timeout context (5s) |
+| MCP Rate Limiting | ✅ Fixed | Added sliding window rate limiter per client key |
+| Storage Chunked Upload Cleanup | ✅ Fixed | Added `CleanupExpiredChunkedUploads()` for local and S3 |
+| Realtime Backpressure | ✅ Fixed | Added write timeout and slow client detection |
+
 **Documentation Updates:**
 - Added `max_branches_per_user` to branching docs
 - Clarified signed URL transforms are not yet implemented
@@ -50,14 +60,14 @@ The following critical and high-priority issues have been fixed in this branch:
 | Feature | Critical | High | Medium | Low |
 |---------|----------|------|--------|-----|
 | Authentication | 0 | 1 | 3 | 2 |
-| Edge Functions | 0 | 1 | 5 | 3 |
-| Background Jobs | 0 | 2 | 2 | 3 |
-| Realtime | 1 | 4 | 5 | 3 |
-| MCP Server | 1 | 2 | 4 | 2 |
-| Email Services | 1 | 1 | 3 | 4 |
-| Storage Core | 0 | 1 | 3 | 2 |
+| Edge Functions | 0 | 0 | 5 | 3 |
+| Background Jobs | 0 | 0 | 2 | 3 |
+| Realtime | 0 | 2 | 5 | 3 |
+| MCP Server | 0 | 1 | 4 | 2 |
+| Email Services | 0 | 1 | 3 | 4 |
+| Storage Core | 0 | 0 | 3 | 2 |
 | REST API/CRUD | 0 | 1 | 3 | 3 |
-| **Total** | **3** | **13** | **28** | **22** |
+| **Total** | **0** | **6** | **28** | **22** |
 
 ### Key Findings by Feature
 
@@ -67,32 +77,32 @@ The following critical and high-priority issues have been fixed in this branch:
 - **MEDIUM**: TOTP secrets stored in plaintext
 
 #### Edge Functions
-- **HIGH**: Path traversal in shared module bundling (fixed)
+- **HIGH**: Path traversal in shared module bundling (✅ fixed)
 - **MEDIUM**: Cron schedule DoS risk (no frequency validation)
 - **MEDIUM**: Import validation can be bypassed
 
 #### Background Jobs
-- **HIGH**: Worker timeout timing issue
-- **HIGH**: Context not propagated to background operations
+- **HIGH**: Worker timeout timing issue (✅ fixed)
+- **HIGH**: Context not propagated to background operations (✅ fixed)
 - **MEDIUM**: No job deduplication
 
 #### Realtime
-- **CRITICAL**: Connection limit not enforced (fixed)
-- **HIGH**: No backpressure handling on send failures
+- **CRITICAL**: Connection limit not enforced (✅ fixed)
+- **HIGH**: No backpressure handling on send failures (✅ fixed)
 - **HIGH**: RLS checks per event cause DB load
 
 #### MCP Server
-- **CRITICAL**: SQL injection via "returning" parameter (fixed)
-- **HIGH**: Rate limiting config not enforced
+- **CRITICAL**: SQL injection via "returning" parameter (✅ fixed)
+- **HIGH**: Rate limiting config not enforced (✅ fixed)
 - **HIGH**: Information disclosure via error messages
 
 #### Email Services
-- **CRITICAL**: SMTP header injection vulnerability (fixed)
+- **CRITICAL**: SMTP header injection vulnerability (✅ fixed)
 - **HIGH**: SendGrid error logging exposes sensitive data
 - **MEDIUM**: Missing {{.Expiry}} template variable
 
 #### Storage Core
-- **HIGH**: Orphaned chunked upload sessions (storage leak)
+- **HIGH**: Orphaned chunked upload sessions (✅ fixed)
 - **MEDIUM**: Content-type validation by extension only
 
 #### REST API/CRUD
