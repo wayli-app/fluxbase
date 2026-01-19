@@ -481,7 +481,7 @@ func (h *ServiceKeyHandler) RevokeServiceKey(c *fiber.Ctx) error {
 	if err != nil {
 		return SendOperationFailed(c, "start transaction")
 	}
-	defer tx.Rollback(c.Context())
+	defer func() { _ = tx.Rollback(c.Context()) }()
 
 	// Revoke the key
 	result, err := tx.Exec(c.Context(), `
@@ -662,7 +662,7 @@ func (h *ServiceKeyHandler) RotateServiceKey(c *fiber.Ctx) error {
 		newName = *req.NewKeyName
 	}
 	scopes := oldKey.Scopes
-	if req.NewScopes != nil && len(req.NewScopes) > 0 {
+	if len(req.NewScopes) > 0 {
 		if err := auth.ValidateScopes(req.NewScopes); err != nil {
 			return SendBadRequest(c, fmt.Sprintf("Invalid scopes: %v", err), ErrCodeValidationFailed)
 		}
@@ -676,7 +676,7 @@ func (h *ServiceKeyHandler) RotateServiceKey(c *fiber.Ctx) error {
 	if err != nil {
 		return SendOperationFailed(c, "start transaction")
 	}
-	defer tx.Rollback(c.Context())
+	defer func() { _ = tx.Rollback(c.Context()) }()
 
 	// Create new key
 	var newKey ServiceKey

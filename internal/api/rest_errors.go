@@ -20,7 +20,7 @@ const (
 	ErrCodeAuthRequired       = "AUTHENTICATION_REQUIRED"
 	ErrCodeInvalidUserID      = "INVALID_USER_ID"
 	ErrCodeAccountLocked      = "ACCOUNT_LOCKED"
-	ErrCodeInvalidCredentials = "INVALID_CREDENTIALS"
+	ErrCodeInvalidCredentials = "INVALID_CREDENTIALS" //nolint:gosec // Not a credential, just an error code constant
 
 	// Authorization errors (403)
 	ErrCodeInsufficientPermissions = "INSUFFICIENT_PERMISSIONS"

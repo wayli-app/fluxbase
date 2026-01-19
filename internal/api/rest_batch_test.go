@@ -519,7 +519,7 @@ func BenchmarkDefaultToNullClauseBuilding(b *testing.B) {
 // Prefer Header Response Format Tests
 // =============================================================================
 
-func TestPreferHeaderParsing(t *testing.T) {
+func TestPreferHeaderResponseFormat(t *testing.T) {
 	// Test that Prefer header values are correctly detected
 	tests := []struct {
 		name          string

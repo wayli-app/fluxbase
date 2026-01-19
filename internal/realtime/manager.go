@@ -644,7 +644,7 @@ func (m *Manager) disconnectSlowClient(id string) {
 	}
 
 	// Close and remove the connection
-	conn.Close()
+	_ = conn.Close()
 	m.RemoveConnection(id)
 }
 

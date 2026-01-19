@@ -598,16 +598,6 @@ func (w *Worker) cancelJob(jobID uuid.UUID) {
 	}
 }
 
-// cancelAllJobs cancels all running jobs
-func (w *Worker) cancelAllJobs() {
-	w.currentJobs.Range(func(key, value interface{}) bool {
-		if cancelSignal, ok := value.(*runtime.CancelSignal); ok {
-			cancelSignal.Cancel()
-		}
-		return true
-	})
-}
-
 // interruptAllJobs cancels all running jobs and marks them as interrupted.
 // This is called during graceful shutdown timeout, marking jobs as "interrupted"
 // rather than "failed" so they can be distinguished from actual failures.

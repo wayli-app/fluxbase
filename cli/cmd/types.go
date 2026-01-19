@@ -105,7 +105,7 @@ func runTypesGenerate(cmd *cobra.Command, args []string) error {
 	// Output
 	if typesOutput != "" {
 		// Write to file
-		if err := os.WriteFile(typesOutput, []byte(typescript), 0644); err != nil {
+		if err := os.WriteFile(typesOutput, []byte(typescript), 0600); err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
 		fmt.Printf("TypeScript types written to %s\n", typesOutput)

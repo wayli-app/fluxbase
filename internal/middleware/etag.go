@@ -156,10 +156,7 @@ func etagMatches(etag, ifNoneMatch string) bool {
 func normalizeETag(etag string) string {
 	etag = strings.TrimSpace(etag)
 	// Remove W/ prefix for weak comparison
-	if strings.HasPrefix(etag, "W/") {
-		etag = etag[2:]
-	}
-	return etag
+	return strings.TrimPrefix(etag, "W/")
 }
 
 // LastModifiedMiddleware adds Last-Modified header based on response data

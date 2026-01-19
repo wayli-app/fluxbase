@@ -50,7 +50,6 @@ type ListenerPool struct {
 
 	// Connection tracking
 	activeConnections int32
-	mu                sync.RWMutex
 	connWg            sync.WaitGroup
 
 	// Metrics

@@ -282,7 +282,7 @@ func (r *DenoRuntime) Execute(
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		// Close stdout pipe to prevent FD leak
-		stdoutPipe.Close()
+		_ = stdoutPipe.Close()
 		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
@@ -290,8 +290,8 @@ func (r *DenoRuntime) Execute(
 	if err := cmd.Start(); err != nil {
 		// Close both pipes to prevent FD leak
 		// Note: After Start() is called successfully, pipes are managed by Wait()
-		stdoutPipe.Close()
-		stderrPipe.Close()
+		_ = stdoutPipe.Close()
+		_ = stderrPipe.Close()
 		return nil, fmt.Errorf("failed to start deno: %w", err)
 	}
 

@@ -294,7 +294,7 @@ func TestChangeEvent_Struct(t *testing.T) {
 	assert.Equal(t, "123", event.Record["id"])
 }
 
-func TestChangeEvent_WithOldRecord(t *testing.T) {
+func TestChangeEvent_WithOldRecord_UpdateEmail(t *testing.T) {
 	event := ChangeEvent{
 		Type:   "UPDATE",
 		Table:  "users",

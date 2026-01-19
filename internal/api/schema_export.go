@@ -476,21 +476,6 @@ func pgTypeToTS(pgType string) string {
 	return tsType
 }
 
-// toPascalCase converts a snake_case or kebab-case string to PascalCase
-func toPascalCase(s string) string {
-	// Replace underscores and hyphens with spaces for splitting
-	s = strings.ReplaceAll(s, "_", " ")
-	s = strings.ReplaceAll(s, "-", " ")
-
-	words := strings.Fields(s)
-	for i, word := range words {
-		if len(word) > 0 {
-			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
-		}
-	}
-	return strings.Join(words, "")
-}
-
 // filterBySchema filters tables to only include those in the specified schemas
 func filterBySchema(tables []database.TableInfo, schemas []string) []database.TableInfo {
 	schemaSet := make(map[string]bool)
