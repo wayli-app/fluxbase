@@ -101,6 +101,21 @@ func NewConnection(cfg config.DatabaseConfig) (*Connection, error) {
 	poolConfig.MaxConnIdleTime = cfg.MaxConnIdleTime
 	poolConfig.HealthCheckPeriod = cfg.HealthCheck
 
+	// BeforeAcquire is called before a connection is acquired from the pool.
+	// Return false to discard the connection and try another one.
+	// This prevents returning stale/closed connections that would cause "conn closed" errors.
+	poolConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		// Check if connection is still alive with a simple ping
+		// Use a short timeout to avoid blocking on dead connections
+		pingCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		if err := conn.Ping(pingCtx); err != nil {
+			log.Debug().Err(err).Msg("Discarding unhealthy connection from pool")
+			return false // Discard this connection
+		}
+		return true // Connection is healthy, use it
+	}
+
 	// Use QueryExecModeDescribeExec to avoid prepared statement caching issues.
 	// This prevents nil pointer dereferences in pgx when statements are invalidated
 	// (e.g., after schema changes or extension creation like pgvector).
