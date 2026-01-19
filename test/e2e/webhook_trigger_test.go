@@ -21,11 +21,9 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 
 	// Clean only test-specific data to avoid affecting other parallel tests
 	// Delete webhook-related test data
-	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%'")
-	// Clean up webhook monitored tables (triggers are now automatically managed)
-	tc.ExecuteSQL("DELETE FROM auth.webhook_monitored_tables")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%'")
 	// Delete only test users (those with test email patterns)
 	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
@@ -902,7 +900,8 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 	// Verify trigger was created (entry in monitored tables)
 	results = tc.QuerySQL("SELECT webhook_count::bigint FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
 	require.Greater(t, len(results), 0, "Monitored table entry should exist")
-	require.Greater(t, results[0]["webhook_count"].(int64), initialCount, "Webhook count should have increased")
+	countAfterCreate := results[0]["webhook_count"].(int64)
+	require.Greater(t, countAfterCreate, initialCount, "Webhook count should have increased")
 
 	// Delete the webhook
 	tc.NewRequest("DELETE", "/api/v1/webhooks/"+webhookID).
@@ -910,11 +909,12 @@ func TestWebhookAutoTriggerCreation(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusOK)
 
-	// Verify trigger count decreased
+	// Verify trigger count decreased by 1
 	results = tc.QuerySQL("SELECT webhook_count::bigint FROM auth.webhook_monitored_tables WHERE schema_name = 'auth' AND table_name = 'users'")
 	if len(results) > 0 {
-		// If entry still exists, count should be back to initial
-		require.Equal(t, initialCount, results[0]["webhook_count"].(int64), "Webhook count should be back to initial after delete")
+		// If entry still exists, count should have decreased by 1
+		countAfterDelete := results[0]["webhook_count"].(int64)
+		require.Equal(t, countAfterCreate-1, countAfterDelete, "Webhook count should have decreased by 1 after delete")
 	}
 	// If entry doesn't exist, that's also correct (count went to 0, entry was deleted)
 }
