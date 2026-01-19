@@ -2335,6 +2335,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.idempotencyMiddleware.Stop()
 	}
 
+	// Stop OAuth handler cleanup goroutines
+	if s.oauthHandler != nil {
+		s.oauthHandler.Stop()
+	}
+
 	// Stop branch cleanup scheduler
 	if s.branchScheduler != nil {
 		s.branchScheduler.Stop()

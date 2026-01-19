@@ -28,6 +28,7 @@ type OAuthHandler struct {
 	baseURL         string
 	encryptionKey   string                       // SECURITY: Used for AES-256-GCM encryption of OAuth tokens at rest
 	configProviders []config.OAuthProviderConfig // OAuth providers from config file
+	stopCleanup     chan struct{}                // Signal to stop cleanup goroutines
 }
 
 // NewOAuthHandler creates a new OAuth handler
@@ -48,25 +49,38 @@ func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.J
 		encryptionKey = "" // Clear invalid key
 	}
 
+	// Create logout service
+	logoutService := auth.NewOAuthLogoutService(db, encryptionKey)
+
+	// Create stop channel for cleanup goroutines
+	stopCleanup := make(chan struct{})
+
 	// Start cleanup goroutine for expired states
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			stateStore.Cleanup()
+		for {
+			select {
+			case <-ticker.C:
+				stateStore.Cleanup()
+			case <-stopCleanup:
+				return
+			}
 		}
 	}()
-
-	// Create logout service
-	logoutService := auth.NewOAuthLogoutService(db, encryptionKey)
 
 	// Start cleanup goroutine for expired logout states
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			if err := logoutService.CleanupExpiredLogoutStates(context.Background()); err != nil {
-				log.Warn().Err(err).Msg("Failed to cleanup expired OAuth logout states")
+		for {
+			select {
+			case <-ticker.C:
+				if err := logoutService.CleanupExpiredLogoutStates(context.Background()); err != nil {
+					log.Warn().Err(err).Msg("Failed to cleanup expired OAuth logout states")
+				}
+			case <-stopCleanup:
+				return
 			}
 		}
 	}()
@@ -80,6 +94,14 @@ func NewOAuthHandler(db *pgxpool.Pool, authSvc *auth.Service, jwtManager *auth.J
 		baseURL:         baseURL,
 		encryptionKey:   encryptionKey,
 		configProviders: configProviders,
+		stopCleanup:     stopCleanup,
+	}
+}
+
+// Stop stops the cleanup goroutines
+func (h *OAuthHandler) Stop() {
+	if h.stopCleanup != nil {
+		close(h.stopCleanup)
 	}
 }
 

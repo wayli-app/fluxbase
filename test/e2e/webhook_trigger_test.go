@@ -20,10 +20,10 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 	tc.EnsureAuthSchema()
 
 	// Clean only test-specific data to avoid affecting other parallel tests
-	// Delete webhook-related test data
-	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%')")
-	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%'")
+	// Delete webhook-related test data (all test webhook names)
+	tc.ExecuteSQL("DELETE FROM auth.webhook_events WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%' OR name LIKE '%Auto%' OR name LIKE '%Global%' OR name LIKE '%User%' OR name LIKE '%Update%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhook_deliveries WHERE webhook_id IN (SELECT id FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%' OR name LIKE '%Auto%' OR name LIKE '%Global%' OR name LIKE '%User%' OR name LIKE '%Update%')")
+	tc.ExecuteSQL("DELETE FROM auth.webhooks WHERE name LIKE '%Test%' OR name LIKE '%test%' OR name LIKE '%Webhook%' OR name LIKE '%Debug%' OR name LIKE '%Auto%' OR name LIKE '%Global%' OR name LIKE '%User%' OR name LIKE '%Update%'")
 	// Delete only test users (those with test email patterns)
 	tc.ExecuteSQL("DELETE FROM auth.users WHERE email LIKE '%@example.com' OR email LIKE '%@test.com'")
 
@@ -32,6 +32,11 @@ func setupWebhookTriggerTest(t *testing.T) *test.TestContext {
 
 	// Enable signup for tests
 	tc.Config.Auth.SignupEnabled = true
+
+	// Wait for webhook trigger service to establish LISTEN subscription
+	// This ensures the service is ready to receive PostgreSQL notifications
+	ready := tc.WaitForWebhookServiceReady(5 * time.Second)
+	require.True(t, ready, "Webhook trigger service should be ready within 5 seconds")
 
 	return tc
 }
@@ -99,6 +104,9 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 	createWebhookResp.JSON(&webhook)
 	_ = webhook["id"].(string) // webhookID not needed for this test
 
+	// Small delay to ensure trigger is fully registered
+	time.Sleep(50 * time.Millisecond)
+
 	// Create a new user to trigger the webhook
 	newUserEmail := test.E2ETestEmailWithSuffix("newuser")
 	tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -110,7 +118,7 @@ func TestWebhookTriggerOnUserInsert(t *testing.T) {
 		AssertStatus(fiber.StatusCreated)
 
 	// Wait for webhook to be triggered and delivered (check actual delivery, not just event creation)
-	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	success := tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return receivedPayload != nil
@@ -180,6 +188,9 @@ func TestWebhookTriggerOnUserUpdate(t *testing.T) {
 	var webhook map[string]interface{}
 	createWebhookResp.JSON(&webhook)
 
+	// Small delay to ensure trigger is fully registered
+	time.Sleep(100 * time.Millisecond)
+
 	// Update the user's user_metadata
 	tc.NewRequest("PATCH", "/api/v1/auth/user").
 		WithAuth(token).
@@ -192,7 +203,7 @@ func TestWebhookTriggerOnUserUpdate(t *testing.T) {
 		AssertStatus(fiber.StatusOK)
 
 	// Wait for webhook delivery
-	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	success := tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return len(receivedPayloads) > 0
@@ -406,6 +417,9 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
+	// Small delay to ensure triggers are fully registered
+	time.Sleep(100 * time.Millisecond)
+
 	// Create a new user to trigger both webhooks
 	newEmail := "trigger@example.com"
 	tc.NewRequest("POST", "/api/v1/auth/signup").
@@ -417,7 +431,7 @@ func TestWebhookTriggerMultipleWebhooks(t *testing.T) {
 		AssertStatus(fiber.StatusCreated)
 
 	// Wait for webhook deliveries
-	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	success := tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu1.Lock()
 		hasPayload1 := payload1 != nil
 		mu1.Unlock()
@@ -700,6 +714,9 @@ func TestWebhookScopingUserScope(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
+	// Small delay to ensure triggers are fully registered
+	time.Sleep(100 * time.Millisecond)
+
 	// User 1 updates their own profile
 	tc.NewRequest("PATCH", "/api/v1/auth/user").
 		WithAuth(token1).
@@ -709,14 +726,14 @@ func TestWebhookScopingUserScope(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusOK)
 
-	// Wait for webhook delivery
-	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	// Wait for webhook delivery (10 seconds for CI environments)
+	success := tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu1.Lock()
 		count := len(user1Payloads)
 		mu1.Unlock()
 		return count > 0
 	})
-	require.True(t, success, "User1's webhook should receive payload within 5 seconds")
+	require.True(t, success, "User1's webhook should receive payload within 10 seconds")
 
 	// Verify user 1's webhook received the event
 	mu1.Lock()
@@ -743,7 +760,7 @@ func TestWebhookScopingUserScope(t *testing.T) {
 		AssertStatus(fiber.StatusOK)
 
 	// Wait for user 2's webhook
-	success = tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	success = tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu2.Lock()
 		count := len(user2Payloads)
 		mu2.Unlock()
@@ -819,6 +836,9 @@ func TestWebhookScopingGlobalScope(t *testing.T) {
 		Send().
 		AssertStatus(fiber.StatusCreated)
 
+	// Small delay to ensure trigger is fully registered
+	time.Sleep(100 * time.Millisecond)
+
 	// Create a new user (should trigger the global webhook)
 	tc.NewRequest("POST", "/api/v1/auth/signup").
 		WithBody(map[string]interface{}{
@@ -829,7 +849,7 @@ func TestWebhookScopingGlobalScope(t *testing.T) {
 		AssertStatus(fiber.StatusCreated)
 
 	// Wait for webhook delivery
-	success := tc.WaitForCondition(5*time.Second, 100*time.Millisecond, func() bool {
+	success := tc.WaitForCondition(10*time.Second, 100*time.Millisecond, func() bool {
 		mu.Lock()
 		count := len(receivedPayloads)
 		mu.Unlock()

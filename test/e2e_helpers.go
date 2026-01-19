@@ -576,6 +576,9 @@ func GetTestConfig() *config.Config {
 		Admin: config.AdminConfig{
 			Enabled: true, // Enable admin dashboard for e2e tests
 		},
+		Scaling: config.ScalingConfig{
+			DisableRealtime: true, // Disable realtime listener for tests to avoid connection issues
+		},
 		EncryptionKey: "test-encryption-key-32-bytes!!!!", // Exactly 32 bytes for AES-256
 		Debug:         true,
 	}
@@ -1882,4 +1885,19 @@ func (r *APIRequest) WithJSON(data interface{}) *APIRequest {
 // RandomEmail generates a random email address for testing to avoid conflicts
 func RandomEmail() string {
 	return fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
+}
+
+// WaitForWebhookServiceReady waits for the webhook trigger service to be ready.
+// This ensures the LISTEN subscription is established before triggering events.
+// Returns true if ready within timeout, false otherwise.
+func (tc *TestContext) WaitForWebhookServiceReady(timeout time.Duration) bool {
+	triggerService := tc.Server.GetWebhookTriggerService()
+	if triggerService == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return triggerService.WaitForReady(ctx) == nil
 }

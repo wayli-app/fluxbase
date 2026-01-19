@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -122,6 +123,9 @@ type TriggerService struct {
 	cleanupTicker   *time.Ticker
 	cancel          context.CancelFunc
 	rateLimiter     *endpointRateLimiter // Rate limiter per webhook endpoint
+	readyChan       chan struct{}        // Signals when the LISTEN subscription is established or failed
+	readyOnce       sync.Once            // Ensures readyChan is only closed once
+	listenerFailed  bool                 // True if listener failed to start
 }
 
 // NewTriggerService creates a new webhook trigger service
@@ -138,6 +142,7 @@ func NewTriggerService(db *database.Connection, webhookSvc *WebhookService, work
 		eventChan:       make(chan uuid.UUID, 1000),
 		stopChan:        make(chan struct{}),
 		rateLimiter:     newEndpointRateLimiter(DefaultRateLimitPerEndpoint),
+		readyChan:       make(chan struct{}),
 	}
 }
 
@@ -150,6 +155,40 @@ func (s *TriggerService) SetBacklogInterval(interval time.Duration) {
 	if s.backlogTicker != nil {
 		s.backlogTicker.Reset(interval)
 	}
+}
+
+// WaitForReady blocks until the LISTEN subscription is established or context is cancelled.
+// This is primarily useful for testing to ensure the listener is ready before triggering events.
+// Returns an error if the listener failed to start.
+func (s *TriggerService) WaitForReady(ctx context.Context) error {
+	select {
+	case <-s.readyChan:
+		if s.listenerFailed {
+			return errors.New("webhook listener failed to start")
+		}
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// IsReady returns true if the LISTEN subscription has been established successfully.
+func (s *TriggerService) IsReady() bool {
+	select {
+	case <-s.readyChan:
+		return !s.listenerFailed
+	default:
+		return false
+	}
+}
+
+// signalReady closes the readyChan to unblock all waiters.
+// Should be called exactly once, either on success or failure.
+func (s *TriggerService) signalReady(failed bool) {
+	s.readyOnce.Do(func() {
+		s.listenerFailed = failed
+		close(s.readyChan)
+	})
 }
 
 // Start begins processing webhook events
@@ -200,52 +239,74 @@ func (s *TriggerService) Stop() {
 func (s *TriggerService) listen(ctx context.Context) {
 	// Retry logic to handle race conditions during startup
 	maxRetries := 5
-	retryDelay := 100 * time.Millisecond
+	retryDelay := 200 * time.Millisecond
 
 	var conn *pgxpool.Conn
 	var err error
 
+	// Combined retry loop for acquiring connection AND establishing LISTEN
+	// If the connection becomes invalid, we need to release it and get a new one
 	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			log.Debug().Err(ctx.Err()).Msg("Context cancelled before establishing webhook listener")
+			s.signalReady(true)
+			return
+		}
+
+		// Acquire a fresh connection each attempt
 		conn, err = s.db.Pool().Acquire(ctx)
 		if err != nil {
-			if attempt < maxRetries {
-				log.Debug().
-					Err(err).
-					Int("attempt", attempt).
-					Int("max_retries", maxRetries).
-					Dur("retry_delay", retryDelay).
-					Msg("Failed to acquire connection for webhook listener, retrying")
-				time.Sleep(retryDelay)
-				retryDelay *= 2 // Exponential backoff
-				continue
+			log.Debug().
+				Err(err).
+				Int("attempt", attempt).
+				Int("max_retries", maxRetries).
+				Dur("retry_delay", retryDelay).
+				Msg("Failed to acquire connection for webhook listener, retrying")
+			time.Sleep(retryDelay)
+			retryDelay = retryDelay * 2
+			if retryDelay > 2*time.Second {
+				retryDelay = 2 * time.Second
 			}
-			log.Error().Err(err).Msg("Failed to acquire connection for webhook listener after all retries")
-			return
+			continue
 		}
-		break
-	}
-	defer conn.Release()
 
-	// Listen on webhook_event channel with retry
-	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Try to establish LISTEN on this connection
 		_, err = conn.Exec(ctx, "LISTEN webhook_event")
 		if err != nil {
-			if attempt < maxRetries {
-				log.Debug().
-					Err(err).
-					Int("attempt", attempt).
-					Int("max_retries", maxRetries).
-					Msg("Failed to LISTEN on webhook_event channel, retrying")
-				time.Sleep(100 * time.Millisecond)
-				continue
+			// Connection might be stale or closed - release it and try again
+			conn.Release()
+			log.Debug().
+				Err(err).
+				Int("attempt", attempt).
+				Int("max_retries", maxRetries).
+				Msg("Failed to LISTEN on webhook_event channel, retrying with new connection")
+			time.Sleep(retryDelay)
+			retryDelay = retryDelay * 2
+			if retryDelay > 2*time.Second {
+				retryDelay = 2 * time.Second
 			}
-			log.Error().Err(err).Msg("Failed to LISTEN on webhook_event channel after all retries")
-			return
+			continue
 		}
+
+		// Success! Break out of retry loop
 		break
 	}
 
+	// Check if we exhausted retries
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to establish webhook listener after all retries")
+		s.signalReady(true) // Signal failure
+		return
+	}
+
+	// We have a valid connection with LISTEN established
+	defer conn.Release()
+
 	log.Info().Msg("Webhook trigger service listening for events")
+
+	// Signal that the listener is ready (close channel to unblock all waiters)
+	s.signalReady(false)
 
 	for {
 		select {
