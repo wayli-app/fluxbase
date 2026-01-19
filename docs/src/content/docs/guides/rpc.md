@@ -51,35 +51,35 @@ OFFSET COALESCE($offset, 0);
 
 ### Configuration Annotations
 
-| Annotation | Description | Default |
-|------------|-------------|---------|
-| `@fluxbase:name` | Procedure name (used in API calls) | Filename |
-| `@fluxbase:description` | Human-readable description | Empty |
-| `@fluxbase:input` | Input parameter schema (JSON or `field:type` format) | `any` |
-| `@fluxbase:output` | Output schema (JSON or `field:type` format) | `any` |
-| `@fluxbase:allowed-tables` | Comma-separated tables the procedure can access | All |
-| `@fluxbase:allowed-schemas` | Comma-separated database schemas | `public` |
-| `@fluxbase:max-execution-time` | Maximum execution time | `30s` |
-| `@fluxbase:require-role` | Required role to execute (e.g., `authenticated`, `admin`) | None |
-| `@fluxbase:public` | Show in public procedure list | `false` |
-| `@fluxbase:version` | Procedure version number | `1` |
+| Annotation                     | Description                                               | Default  |
+| ------------------------------ | --------------------------------------------------------- | -------- |
+| `@fluxbase:name`               | Procedure name (used in API calls)                        | Filename |
+| `@fluxbase:description`        | Human-readable description                                | Empty    |
+| `@fluxbase:input`              | Input parameter schema (JSON or `field:type` format)      | `any`    |
+| `@fluxbase:output`             | Output schema (JSON or `field:type` format)               | `any`    |
+| `@fluxbase:allowed-tables`     | Comma-separated tables the procedure can access           | All      |
+| `@fluxbase:allowed-schemas`    | Comma-separated database schemas                          | `public` |
+| `@fluxbase:max-execution-time` | Maximum execution time                                    | `30s`    |
+| `@fluxbase:require-role`       | Required role to execute (e.g., `authenticated`, `admin`) | None     |
+| `@fluxbase:public`             | Show in public procedure list                             | `false`  |
+| `@fluxbase:version`            | Procedure version number                                  | `1`      |
 
 ### Schema Types
 
 Available types for input/output schemas:
 
-| Type | PostgreSQL Type |
-|------|-----------------|
-| `uuid` | UUID |
-| `string`, `text` | TEXT |
-| `number`, `int`, `integer` | INTEGER |
-| `float`, `double`, `decimal` | NUMERIC |
-| `boolean`, `bool` | BOOLEAN |
-| `timestamp`, `datetime` | TIMESTAMPTZ |
-| `date` | DATE |
-| `time` | TIME |
-| `json`, `jsonb`, `object` | JSONB |
-| `array` | JSONB |
+| Type                         | PostgreSQL Type |
+| ---------------------------- | --------------- |
+| `uuid`                       | UUID            |
+| `string`, `text`             | TEXT            |
+| `number`, `int`, `integer`   | INTEGER         |
+| `float`, `double`, `decimal` | NUMERIC         |
+| `boolean`, `bool`            | BOOLEAN         |
+| `timestamp`, `datetime`      | TIMESTAMPTZ     |
+| `date`                       | DATE            |
+| `time`                       | TIME            |
+| `json`, `jsonb`, `object`    | JSONB           |
+| `array`                      | JSONB           |
 
 Optional fields are indicated with a `?` suffix: `"limit?": "integer"`
 
@@ -100,33 +100,33 @@ WHERE user_id = $user_id
 ### Listing Procedures
 
 ```typescript
-import { createClient } from '@fluxbase/sdk'
+import { createClient } from "@fluxbase/sdk";
 
-const client = createClient('http://localhost:8080', 'your-anon-key')
+const client = createClient("http://localhost:8080", "your-anon-key");
 
 // List available public procedures
-const { data: procedures, error } = await client.rpc.list()
-console.log('Available procedures:', procedures)
+const { data: procedures, error } = await client.rpc.list();
+console.log("Available procedures:", procedures);
 
 // Filter by namespace
-const { data } = await client.rpc.list('my-namespace')
+const { data } = await client.rpc.list("my-namespace");
 ```
 
 ### Invoking Procedures
 
 ```typescript
 // Synchronous invocation
-const { data, error } = await client.rpc.invoke('get-user-orders', {
-  user_id: '123e4567-e89b-12d3-a456-426614174000',
+const { data, error } = await client.rpc.invoke("get-user-orders", {
+  user_id: "123e4567-e89b-12d3-a456-426614174000",
   limit: 10,
-  offset: 0
-})
+  offset: 0,
+});
 
 if (data) {
-  console.log('Status:', data.status) // 'completed'
-  console.log('Results:', data.result)
-  console.log('Rows:', data.rows_returned)
-  console.log('Duration:', data.duration_ms, 'ms')
+  console.log("Status:", data.status); // 'completed'
+  console.log("Results:", data.result);
+  console.log("Rows:", data.rows_returned);
+  console.log("Duration:", data.duration_ms, "ms");
 }
 ```
 
@@ -136,33 +136,42 @@ For long-running procedures:
 
 ```typescript
 // Start async execution
-const { data: asyncResult } = await client.rpc.invoke('generate-report', {
-  start_date: '2024-01-01',
-  end_date: '2024-12-31'
-}, { async: true })
+const { data: asyncResult } = await client.rpc.invoke(
+  "generate-report",
+  {
+    start_date: "2024-01-01",
+    end_date: "2024-12-31",
+  },
+  { async: true },
+);
 
-console.log('Execution ID:', asyncResult.execution_id)
+console.log("Execution ID:", asyncResult.execution_id);
 
 // Poll for status
-const { data: status } = await client.rpc.getStatus(asyncResult.execution_id)
-console.log('Status:', status.status) // 'pending', 'running', 'completed', 'failed'
+const { data: status } = await client.rpc.getStatus(asyncResult.execution_id);
+console.log("Status:", status.status); // 'pending', 'running', 'completed', 'failed'
 
 // Wait for completion with automatic polling
-const { data: final } = await client.rpc.waitForCompletion(asyncResult.execution_id, {
-  maxWaitMs: 60000, // Wait up to 1 minute
-  onProgress: (exec) => console.log(`Status: ${exec.status}`)
-})
+const { data: final } = await client.rpc.waitForCompletion(
+  asyncResult.execution_id,
+  {
+    maxWaitMs: 60000, // Wait up to 1 minute
+    onProgress: (exec) => console.log(`Status: ${exec.status}`),
+  },
+);
 
-console.log('Final result:', final.result)
+console.log("Final result:", final.result);
 ```
+
+> **Note:** Even with `@fluxbase:disable-execution-logs` enabled, async executions will still create execution records so that `getStatus()` works. The flag only disables the verbose step-by-step log messages.
 
 ### Execution Logs
 
 ```typescript
-const { data: logs } = await client.rpc.getLogs('execution-uuid')
+const { data: logs } = await client.rpc.getLogs("execution-uuid");
 
 for (const log of logs) {
-  console.log(`[${log.level}] ${log.message}`)
+  console.log(`[${log.level}] ${log.message}`);
 }
 ```
 
@@ -172,9 +181,9 @@ Procedures can be organized into namespaces:
 
 ```typescript
 // Invoke procedure in a specific namespace
-const { data } = await client.rpc.invoke('my-procedure', params, {
-  namespace: 'reports'
-})
+const { data } = await client.rpc.invoke("my-procedure", params, {
+  namespace: "reports",
+});
 ```
 
 ## Admin Management
@@ -185,29 +194,31 @@ Administrators can manage procedures via the admin API.
 
 ```typescript
 // Sync from filesystem
-const { data, error } = await client.admin.rpc.sync()
+const { data, error } = await client.admin.rpc.sync();
 
 // Sync with provided procedure code
 const { data, error } = await client.admin.rpc.sync({
-  namespace: 'default',
-  procedures: [{
-    name: 'my-procedure',
-    code: `
+  namespace: "default",
+  procedures: [
+    {
+      name: "my-procedure",
+      code: `
       -- @fluxbase:description My custom procedure
       -- @fluxbase:public true
       SELECT * FROM users WHERE active = true;
     `,
-  }],
+    },
+  ],
   options: {
     delete_missing: false, // Don't remove procedures not in this sync
-    dry_run: false,        // Preview changes without applying
-  }
-})
+    dry_run: false, // Preview changes without applying
+  },
+});
 
 if (data) {
-  console.log(`Created: ${data.summary.created}`)
-  console.log(`Updated: ${data.summary.updated}`)
-  console.log(`Deleted: ${data.summary.deleted}`)
+  console.log(`Created: ${data.summary.created}`);
+  console.log(`Updated: ${data.summary.updated}`);
+  console.log(`Deleted: ${data.summary.deleted}`);
 }
 ```
 
@@ -215,74 +226,79 @@ if (data) {
 
 ```typescript
 // List all procedures (including private)
-const { data: procedures } = await client.admin.rpc.list()
+const { data: procedures } = await client.admin.rpc.list();
 
 // Get procedure details
-const { data: procedure } = await client.admin.rpc.get('default', 'get-user-orders')
-console.log('SQL:', procedure.sql_query)
+const { data: procedure } = await client.admin.rpc.get(
+  "default",
+  "get-user-orders",
+);
+console.log("SQL:", procedure.sql_query);
 
 // Update procedure settings
-const { data } = await client.admin.rpc.update('default', 'get-user-orders', {
+const { data } = await client.admin.rpc.update("default", "get-user-orders", {
   enabled: true,
   max_execution_time_seconds: 60,
   is_public: true,
-})
+});
 
 // Enable/disable procedure
-await client.admin.rpc.toggle('default', 'get-user-orders', false)
+await client.admin.rpc.toggle("default", "get-user-orders", false);
 
 // Delete procedure
-await client.admin.rpc.delete('default', 'get-user-orders')
+await client.admin.rpc.delete("default", "get-user-orders");
 ```
 
 ### Monitoring Executions
 
 ```typescript
 // List all executions
-const { data: executions } = await client.admin.rpc.listExecutions()
+const { data: executions } = await client.admin.rpc.listExecutions();
 
 // Filter executions
 const { data } = await client.admin.rpc.listExecutions({
-  namespace: 'default',
-  procedure: 'get-user-orders',
-  status: 'failed',
+  namespace: "default",
+  procedure: "get-user-orders",
+  status: "failed",
   limit: 50,
-})
+});
 
 // Get execution details
-const { data: execution } = await client.admin.rpc.getExecution('execution-uuid')
+const { data: execution } =
+  await client.admin.rpc.getExecution("execution-uuid");
 
 // Get execution logs
-const { data: logs } = await client.admin.rpc.getExecutionLogs('execution-uuid')
+const { data: logs } =
+  await client.admin.rpc.getExecutionLogs("execution-uuid");
 
 // Cancel running execution
-await client.admin.rpc.cancelExecution('execution-uuid')
+await client.admin.rpc.cancelExecution("execution-uuid");
 ```
 
 ## API Reference
 
 ### Public Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/rpc/procedures` | List public procedures |
-| `POST` | `/api/v1/rpc/:namespace/:name` | Invoke procedure |
-| `GET` | `/api/v1/rpc/executions/:id` | Get execution status |
-| `GET` | `/api/v1/rpc/executions/:id/logs` | Get execution logs |
+| Method | Endpoint                          | Description            |
+| ------ | --------------------------------- | ---------------------- |
+| `GET`  | `/api/v1/rpc/procedures`          | List public procedures |
+| `POST` | `/api/v1/rpc/:namespace/:name`    | Invoke procedure       |
+| `GET`  | `/api/v1/rpc/executions/:id`      | Get execution status   |
+| `GET`  | `/api/v1/rpc/executions/:id/logs` | Get execution logs     |
 
 ### Admin Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/admin/rpc/namespaces` | List namespaces |
-| `GET` | `/api/v1/admin/rpc/procedures` | List all procedures |
-| `GET` | `/api/v1/admin/rpc/procedures/:namespace/:name` | Get procedure |
-| `PUT` | `/api/v1/admin/rpc/procedures/:namespace/:name` | Update procedure |
-| `DELETE` | `/api/v1/admin/rpc/procedures/:namespace/:name` | Delete procedure |
-| `POST` | `/api/v1/admin/rpc/sync` | Sync procedures |
-| `GET` | `/api/v1/admin/rpc/executions` | List executions |
-| `GET` | `/api/v1/admin/rpc/executions/:id` | Get execution |
-| `GET` | `/api/v1/admin/rpc/executions/:id/logs` | Get execution logs |
+| Method   | Endpoint                                        | Description         |
+| -------- | ----------------------------------------------- | ------------------- |
+| `GET`    | `/api/v1/admin/rpc/namespaces`                  | List namespaces     |
+| `GET`    | `/api/v1/admin/rpc/procedures`                  | List all procedures |
+| `GET`    | `/api/v1/admin/rpc/procedures/:namespace/:name` | Get procedure       |
+| `PUT`    | `/api/v1/admin/rpc/procedures/:namespace/:name` | Update procedure    |
+| `DELETE` | `/api/v1/admin/rpc/procedures/:namespace/:name` | Delete procedure    |
+| `POST`   | `/api/v1/admin/rpc/sync`                        | Sync procedures     |
+| `GET`    | `/api/v1/admin/rpc/executions`                  | List executions     |
+| `GET`    | `/api/v1/admin/rpc/executions/:id`              | Get execution       |
+| `GET`    | `/api/v1/admin/rpc/executions/:id/logs`         | Get execution logs  |
 
 ### Invoke Request
 
@@ -351,14 +367,14 @@ JOIN products ON order_items.product_id = products.id;
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FLUXBASE_RPC_ENABLED` | Enable RPC functionality | `true` |
-| `FLUXBASE_RPC_PROCEDURES_DIR` | Directory for procedure files | `./rpc` |
-| `FLUXBASE_RPC_AUTO_LOAD_ON_BOOT` | Load procedures on startup | `true` |
-| `FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME` | Default timeout | `30s` |
-| `FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME` | Maximum allowed timeout | `5m` |
-| `FLUXBASE_RPC_DEFAULT_MAX_ROWS` | Default max rows returned | `1000` |
+| Variable                                  | Description                   | Default |
+| ----------------------------------------- | ----------------------------- | ------- |
+| `FLUXBASE_RPC_ENABLED`                    | Enable RPC functionality      | `true`  |
+| `FLUXBASE_RPC_PROCEDURES_DIR`             | Directory for procedure files | `./rpc` |
+| `FLUXBASE_RPC_AUTO_LOAD_ON_BOOT`          | Load procedures on startup    | `true`  |
+| `FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME` | Default timeout               | `30s`   |
+| `FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME`     | Maximum allowed timeout       | `5m`    |
+| `FLUXBASE_RPC_DEFAULT_MAX_ROWS`           | Default max rows returned     | `1000`  |
 
 ## Examples
 
@@ -427,6 +443,7 @@ OFFSET COALESCE($offset, 0);
 **Symptoms:** `404 Procedure not found` error
 
 **Solutions:**
+
 - Check procedure is enabled (`enabled: true`)
 - Verify namespace in request matches procedure namespace
 - For public endpoints, ensure `@fluxbase:public true` is set
@@ -437,6 +454,7 @@ OFFSET COALESCE($offset, 0);
 **Symptoms:** `403 Forbidden` error
 
 **Solutions:**
+
 - Check user has required role (`@fluxbase:require-role`)
 - Verify authentication token is valid
 - For public procedures, ensure `@fluxbase:public true`
@@ -446,6 +464,7 @@ OFFSET COALESCE($offset, 0);
 **Symptoms:** `timeout` status on execution
 
 **Solutions:**
+
 - Increase `@fluxbase:max-execution-time` in procedure
 - Optimize SQL query (add indexes, reduce data)
 - Consider using async execution for long-running queries
@@ -456,6 +475,7 @@ OFFSET COALESCE($offset, 0);
 **Symptoms:** Parameter validation errors
 
 **Solutions:**
+
 - Verify input matches defined `@fluxbase:input` schema
 - Check parameter types (uuid, integer, etc.)
 - Ensure required parameters are provided (non-`?` fields)

@@ -83,11 +83,10 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 		now := time.Now()
 		exec.StartedAt = &now
 
-		// Update the existing record to running status (unless logging is disabled)
-		if !execCtx.DisableExecutionLogs {
-			if err := e.storage.UpdateExecution(ctx, exec); err != nil {
-				log.Error().Err(err).Msg("Failed to update execution record to running")
-			}
+		// For async executions (ExecutionID is set), always update status to running
+		// since the record was created in ExecuteAsync and user expects to poll for status
+		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
+			log.Error().Err(err).Msg("Failed to update execution record to running")
 		}
 	} else {
 		// Create new execution record (sync case)
@@ -203,10 +202,14 @@ func (e *Executor) Execute(ctx context.Context, execCtx *ExecuteContext) (*Execu
 	exec.DurationMs = &duration
 	exec.CompletedAt = &completedAt
 
-	if !execCtx.DisableExecutionLogs {
+	// Always update execution record for async (or if logs are enabled)
+	if execCtx.IsAsync || !execCtx.DisableExecutionLogs {
 		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
 			log.Error().Err(err).Msg("Failed to update execution record")
 		}
+	}
+	// Only append verbose logs if logging is enabled
+	if !execCtx.DisableExecutionLogs {
 		e.appendLog(ctx, exec.ID, 6, "info", fmt.Sprintf("Execution completed in %dms", duration))
 	}
 
@@ -256,11 +259,10 @@ func (e *Executor) ExecuteAsync(ctx context.Context, execCtx *ExecuteContext) (*
 		exec.InputParams = paramsJSON
 	}
 
-	// Save execution record (unless logging is disabled)
-	if !execCtx.DisableExecutionLogs {
-		if err := e.storage.CreateExecution(ctx, exec); err != nil {
-			return nil, fmt.Errorf("failed to create execution record: %w", err)
-		}
+	// For async executions, ALWAYS create the execution record so getStatus() works.
+	// The DisableExecutionLogs flag only controls verbose log messages, not execution tracking.
+	if err := e.storage.CreateExecution(ctx, exec); err != nil {
+		return nil, fmt.Errorf("failed to create execution record: %w", err)
 	}
 
 	// Pass the execution ID so the background worker updates this record
@@ -516,12 +518,16 @@ func (e *Executor) failExecutionWithContext(ctx context.Context, exec *Execution
 	exec.CompletedAt = &completedAt
 
 	disableLogs := execCtx != nil && execCtx.DisableExecutionLogs
+	isAsync := execCtx != nil && execCtx.IsAsync
 
-	if !disableLogs {
+	// Always update execution record for async (or if logs are enabled)
+	if isAsync || !disableLogs {
 		if err := e.storage.UpdateExecution(ctx, exec); err != nil {
 			log.Error().Err(err).Msg("Failed to update execution record")
 		}
-		// Log error
+	}
+	// Only append verbose logs if logging is enabled
+	if !disableLogs {
 		e.appendLog(ctx, exec.ID, 99, "error", errorMsg)
 	}
 
