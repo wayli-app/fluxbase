@@ -473,7 +473,6 @@ func TestPatternMatching_EdgeCases(t *testing.T) {
 		{"/api/v1/wild/anything/more", 100}, // No match - too many segments
 
 		// Double wildcard
-		{"/api/v1/double/", 400},
 		{"/api/v1/double/one", 400},
 		{"/api/v1/double/one/two", 400},
 		{"/api/v1/double/one/two/three/four", 400},

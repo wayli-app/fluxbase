@@ -46,7 +46,7 @@ func (m *MockWebSocketConn) IsClosed() bool {
 }
 
 func TestNewConnection(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	userID := "user123"
 
 	connection := NewConnection("conn1", conn, &userID, "authenticated", nil)
@@ -60,7 +60,7 @@ func TestNewConnection(t *testing.T) {
 }
 
 func TestConnection_Subscribe(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to a channel
@@ -71,7 +71,7 @@ func TestConnection_Subscribe(t *testing.T) {
 }
 
 func TestConnection_SubscribeMultiple(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to multiple channels
@@ -86,7 +86,7 @@ func TestConnection_SubscribeMultiple(t *testing.T) {
 }
 
 func TestConnection_SubscribeDuplicate(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to same channel twice
@@ -98,7 +98,7 @@ func TestConnection_SubscribeDuplicate(t *testing.T) {
 }
 
 func TestConnection_Unsubscribe(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe then unsubscribe
@@ -111,7 +111,7 @@ func TestConnection_Unsubscribe(t *testing.T) {
 }
 
 func TestConnection_UnsubscribeNonExistent(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Unsubscribe from channel we never subscribed to
@@ -122,7 +122,7 @@ func TestConnection_UnsubscribeNonExistent(t *testing.T) {
 }
 
 func TestConnection_IsSubscribed(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Initially not subscribed
@@ -138,7 +138,7 @@ func TestConnection_IsSubscribed(t *testing.T) {
 }
 
 func TestConnection_ConcurrentSubscribe(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	var wg sync.WaitGroup
@@ -161,7 +161,7 @@ func TestConnection_ConcurrentSubscribe(t *testing.T) {
 }
 
 func TestConnection_ConcurrentUnsubscribe(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Subscribe to multiple channels first
@@ -192,7 +192,7 @@ func TestConnection_ConcurrentUnsubscribe(t *testing.T) {
 }
 
 func TestConnection_ConcurrentIsSubscribed(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	connection.Subscribe("table:public.products")
@@ -217,7 +217,7 @@ func TestConnection_ConcurrentIsSubscribed(t *testing.T) {
 }
 
 func TestConnection_MixedConcurrentOperations(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 	defer connection.Close()
 
@@ -262,7 +262,7 @@ func TestConnection_MixedConcurrentOperations(t *testing.T) {
 // =============================================================================
 
 func TestNewConnectionWithQueueSize(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 128)
 	defer connection.Close()
 
@@ -271,7 +271,7 @@ func TestNewConnectionWithQueueSize(t *testing.T) {
 }
 
 func TestNewConnectionWithQueueSize_DefaultOnZero(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 0)
 	defer connection.Close()
 
@@ -279,7 +279,7 @@ func TestNewConnectionWithQueueSize_DefaultOnZero(t *testing.T) {
 }
 
 func TestNewConnectionWithQueueSize_DefaultOnNegative(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, -10)
 	defer connection.Close()
 
@@ -287,7 +287,7 @@ func TestNewConnectionWithQueueSize_DefaultOnNegative(t *testing.T) {
 }
 
 func TestNewConnectionSync(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
 
 	assert.NotNil(t, connection)
@@ -296,7 +296,7 @@ func TestNewConnectionSync(t *testing.T) {
 }
 
 func TestConnection_SendMessage_ToClosedConnection(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 
 	// Close the connection first
@@ -308,7 +308,7 @@ func TestConnection_SendMessage_ToClosedConnection(t *testing.T) {
 }
 
 func TestConnection_GetQueueStats(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 100)
 	defer connection.Close()
 
@@ -323,8 +323,7 @@ func TestConnection_GetQueueStats(t *testing.T) {
 }
 
 func TestConnection_Close_MultipleTimes(t *testing.T) {
-	conn := &websocket.Conn{}
-	connection := NewConnection("conn1", conn, nil, "anon", nil)
+	connection := NewConnection("conn1", nil, nil, "anon", nil)
 
 	// First close should succeed
 	err := connection.Close()
@@ -336,7 +335,7 @@ func TestConnection_Close_MultipleTimes(t *testing.T) {
 }
 
 func TestConnection_IsSlowClient_Initial(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 	defer connection.Close()
 
@@ -344,7 +343,7 @@ func TestConnection_IsSlowClient_Initial(t *testing.T) {
 }
 
 func TestConnection_IsSlowClient_AfterWarnings(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 	defer connection.Close()
 
@@ -375,7 +374,7 @@ func TestConnectionQueueStats_Struct(t *testing.T) {
 }
 
 func TestConnection_SendMessage_WithSlowClientMarked(t *testing.T) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnection("conn1", conn, nil, "anon", nil)
 	defer connection.Close()
 
@@ -392,7 +391,7 @@ func TestConnection_SendMessage_WithSlowClientMarked(t *testing.T) {
 // Benchmarks
 
 func BenchmarkConnection_Subscribe(b *testing.B) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
 
 	b.ResetTimer()
@@ -403,7 +402,7 @@ func BenchmarkConnection_Subscribe(b *testing.B) {
 }
 
 func BenchmarkConnection_IsSubscribed(b *testing.B) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionSync("conn1", conn, nil, "anon", nil)
 	connection.Subscribe("table:public.products")
 
@@ -414,7 +413,7 @@ func BenchmarkConnection_IsSubscribed(b *testing.B) {
 }
 
 func BenchmarkConnection_GetQueueStats(b *testing.B) {
-	conn := &websocket.Conn{}
+	var conn *websocket.Conn // nil connection for testing
 	connection := NewConnectionWithQueueSize("conn1", conn, nil, "anon", nil, 256)
 	defer connection.Close()
 

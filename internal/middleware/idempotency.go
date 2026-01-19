@@ -178,25 +178,26 @@ func (m *IdempotencyMiddleware) cleanupExpiredKeys() {
 // Middleware returns a Fiber middleware handler
 func (m *IdempotencyMiddleware) Middleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Check if idempotency should be applied
-		if !m.shouldApply(c) {
-			return c.Next()
-		}
-
-		// Get idempotency key from header
+		// Get idempotency key from header first to validate even without DB
 		key := c.Get(m.config.HeaderName)
-		if key == "" {
-			// No key provided - process normally
-			return c.Next()
-		}
 
-		// Validate key
-		if len(key) > m.config.MaxKeyLength {
+		// Validate key length regardless of other checks - this is a client error
+		if key != "" && len(key) > m.config.MaxKeyLength {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error":   "Invalid Idempotency-Key",
 				"code":    "IDEMPOTENCY_KEY_TOO_LONG",
 				"message": fmt.Sprintf("Idempotency key exceeds maximum length of %d characters", m.config.MaxKeyLength),
 			})
+		}
+
+		// Check if idempotency should be applied
+		if !m.shouldApply(c) {
+			return c.Next()
+		}
+
+		if key == "" {
+			// No key provided - process normally
+			return c.Next()
 		}
 
 		// Get user ID from context if available

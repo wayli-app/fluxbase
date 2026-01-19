@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,9 +22,8 @@ func TestNewManager(t *testing.T) {
 func TestManager_AddConnection(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
-	conn := &websocket.Conn{}
 
-	connection, err := manager.AddConnection("conn1", conn, nil, "anon", nil)
+	connection, err := manager.AddConnection("conn1", nil, nil, "anon", nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, connection)
@@ -37,9 +35,9 @@ func TestManager_AddMultipleConnections(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
-	manager.AddConnection("conn3", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn1", nil, nil, "anon", nil)
+	manager.AddConnection("conn2", nil, nil, "anon", nil)
+	manager.AddConnection("conn3", nil, nil, "anon", nil)
 
 	assert.Equal(t, 3, manager.GetConnectionCount())
 }
@@ -49,7 +47,7 @@ func TestManager_AddConnectionWithUserID(t *testing.T) {
 	manager := NewManager(ctx)
 	userID := "user123"
 
-	connection, err := manager.AddConnection("conn1", &websocket.Conn{}, &userID, "authenticated", nil)
+	connection, err := manager.AddConnection("conn1", nil, &userID, "authenticated", nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, connection.UserID)
@@ -60,7 +58,7 @@ func TestManager_RemoveConnection(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn1", nil, nil, "anon", nil)
 	assert.Equal(t, 1, manager.GetConnectionCount())
 
 	manager.RemoveConnection("conn1")
@@ -82,10 +80,10 @@ func TestManager_GetConnectionCount(t *testing.T) {
 
 	assert.Equal(t, 0, manager.GetConnectionCount())
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn1", nil, nil, "anon", nil)
 	assert.Equal(t, 1, manager.GetConnectionCount())
 
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn2", nil, nil, "anon", nil)
 	assert.Equal(t, 2, manager.GetConnectionCount())
 
 	manager.RemoveConnection("conn1")
@@ -106,7 +104,7 @@ func TestManager_ConcurrentAddConnection(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			manager.AddConnection("conn"+string(rune(n)), &websocket.Conn{}, nil, "anon", nil)
+			manager.AddConnection("conn"+string(rune(n)), nil, nil, "anon", nil)
 		}(i)
 	}
 
@@ -122,7 +120,7 @@ func TestManager_ConcurrentRemoveConnection(t *testing.T) {
 	// Add connections first
 	numConnections := 100
 	for i := 0; i < numConnections; i++ {
-		manager.AddConnection("conn"+string(rune(i)), &websocket.Conn{}, nil, "anon", nil)
+		manager.AddConnection("conn"+string(rune(i)), nil, nil, "anon", nil)
 	}
 
 	assert.Equal(t, numConnections, manager.GetConnectionCount())
@@ -146,8 +144,8 @@ func TestManager_Shutdown(t *testing.T) {
 	ctx := context.Background()
 	manager := NewManager(ctx)
 
-	manager.AddConnection("conn1", &websocket.Conn{}, nil, "anon", nil)
-	manager.AddConnection("conn2", &websocket.Conn{}, nil, "anon", nil)
+	manager.AddConnection("conn1", nil, nil, "anon", nil)
+	manager.AddConnection("conn2", nil, nil, "anon", nil)
 
 	manager.Shutdown()
 
@@ -171,7 +169,7 @@ func TestManager_MixedConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			manager.AddConnection("conn"+string(rune(n%20)), &websocket.Conn{}, nil, "anon", nil)
+			manager.AddConnection("conn"+string(rune(n%20)), nil, nil, "anon", nil)
 		}(i)
 
 		// Remove connection
@@ -199,16 +197,16 @@ func TestManager_PerUserConnectionLimit(t *testing.T) {
 	userID := "user123"
 
 	// First two connections should succeed
-	conn1, err := manager.AddConnectionWithIP("conn1", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	conn1, err := manager.AddConnectionWithIP("conn1", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.NoError(t, err)
 	assert.NotNil(t, conn1)
 
-	conn2, err := manager.AddConnectionWithIP("conn2", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	conn2, err := manager.AddConnectionWithIP("conn2", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.NoError(t, err)
 	assert.NotNil(t, conn2)
 
 	// Third connection should fail
-	conn3, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	conn3, err := manager.AddConnectionWithIP("conn3", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.Error(t, err)
 	assert.Equal(t, ErrMaxUserConnectionsReached, err)
 	assert.Nil(t, conn3)
@@ -228,18 +226,18 @@ func TestManager_PerUserConnectionLimit_DifferentUsers(t *testing.T) {
 	user2 := "user2"
 
 	// User1 can have 2 connections
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, &user1, "authenticated", nil, "192.168.1.1")
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, &user1, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn1", nil, &user1, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn2", nil, &user1, "authenticated", nil, "192.168.1.1")
 
 	// User2 can also have 2 connections
-	manager.AddConnectionWithIP("conn3", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
-	manager.AddConnectionWithIP("conn4", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
+	manager.AddConnectionWithIP("conn3", nil, &user2, "authenticated", nil, "192.168.1.2")
+	manager.AddConnectionWithIP("conn4", nil, &user2, "authenticated", nil, "192.168.1.2")
 
 	// Both users should be at their limits
-	_, err1 := manager.AddConnectionWithIP("conn5", &websocket.Conn{}, &user1, "authenticated", nil, "192.168.1.1")
+	_, err1 := manager.AddConnectionWithIP("conn5", nil, &user1, "authenticated", nil, "192.168.1.1")
 	assert.Equal(t, ErrMaxUserConnectionsReached, err1)
 
-	_, err2 := manager.AddConnectionWithIP("conn6", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
+	_, err2 := manager.AddConnectionWithIP("conn6", nil, &user2, "authenticated", nil, "192.168.1.2")
 	assert.Equal(t, ErrMaxUserConnectionsReached, err2)
 
 	assert.Equal(t, 4, manager.GetConnectionCount())
@@ -254,20 +252,20 @@ func TestManager_PerIPConnectionLimit(t *testing.T) {
 	ip := "192.168.1.100"
 
 	// First three anonymous connections from same IP should succeed
-	conn1, err := manager.AddConnectionWithIP("conn1", &websocket.Conn{}, nil, "anon", nil, ip)
+	conn1, err := manager.AddConnectionWithIP("conn1", nil, nil, "anon", nil, ip)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn1)
 
-	conn2, err := manager.AddConnectionWithIP("conn2", &websocket.Conn{}, nil, "anon", nil, ip)
+	conn2, err := manager.AddConnectionWithIP("conn2", nil, nil, "anon", nil, ip)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn2)
 
-	conn3, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, nil, "anon", nil, ip)
+	conn3, err := manager.AddConnectionWithIP("conn3", nil, nil, "anon", nil, ip)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn3)
 
 	// Fourth connection should fail
-	conn4, err := manager.AddConnectionWithIP("conn4", &websocket.Conn{}, nil, "anon", nil, ip)
+	conn4, err := manager.AddConnectionWithIP("conn4", nil, nil, "anon", nil, ip)
 	assert.Error(t, err)
 	assert.Equal(t, ErrMaxIPConnectionsReached, err)
 	assert.Nil(t, conn4)
@@ -287,12 +285,12 @@ func TestManager_PerIPConnectionLimit_DifferentIPs(t *testing.T) {
 	ip2 := "192.168.1.2"
 
 	// IP1 can have 2 connections
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, nil, "anon", nil, ip1)
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, nil, "anon", nil, ip1)
+	manager.AddConnectionWithIP("conn1", nil, nil, "anon", nil, ip1)
+	manager.AddConnectionWithIP("conn2", nil, nil, "anon", nil, ip1)
 
 	// IP2 can also have 2 connections
-	manager.AddConnectionWithIP("conn3", &websocket.Conn{}, nil, "anon", nil, ip2)
-	manager.AddConnectionWithIP("conn4", &websocket.Conn{}, nil, "anon", nil, ip2)
+	manager.AddConnectionWithIP("conn3", nil, nil, "anon", nil, ip2)
+	manager.AddConnectionWithIP("conn4", nil, nil, "anon", nil, ip2)
 
 	assert.Equal(t, 4, manager.GetConnectionCount())
 	assert.Equal(t, 2, manager.GetIPConnectionCount(ip1))
@@ -311,7 +309,7 @@ func TestManager_PerIPLimitNotAppliedToAuthenticatedUsers(t *testing.T) {
 
 	// Authenticated users should not be limited by IP
 	for i := 0; i < 5; i++ {
-		conn, err := manager.AddConnectionWithIP("conn"+string(rune('a'+i)), &websocket.Conn{}, &userID, "authenticated", nil, ip)
+		conn, err := manager.AddConnectionWithIP("conn"+string(rune('a'+i)), nil, &userID, "authenticated", nil, ip)
 		assert.NoError(t, err)
 		assert.NotNil(t, conn)
 	}
@@ -331,18 +329,18 @@ func TestManager_RemoveConnection_DecrementsUserCount(t *testing.T) {
 	userID := "user123"
 
 	// Add two connections
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn1", nil, &userID, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn2", nil, &userID, "authenticated", nil, "192.168.1.1")
 
 	// Verify at limit
-	_, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	_, err := manager.AddConnectionWithIP("conn3", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.Equal(t, ErrMaxUserConnectionsReached, err)
 
 	// Remove one connection
 	manager.RemoveConnection("conn1")
 
 	// Should be able to add a new connection
-	conn3, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	conn3, err := manager.AddConnectionWithIP("conn3", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.NoError(t, err)
 	assert.NotNil(t, conn3)
 }
@@ -356,18 +354,18 @@ func TestManager_RemoveConnection_DecrementsIPCount(t *testing.T) {
 	ip := "192.168.1.100"
 
 	// Add two connections
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, nil, "anon", nil, ip)
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, nil, "anon", nil, ip)
+	manager.AddConnectionWithIP("conn1", nil, nil, "anon", nil, ip)
+	manager.AddConnectionWithIP("conn2", nil, nil, "anon", nil, ip)
 
 	// Verify at limit
-	_, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, nil, "anon", nil, ip)
+	_, err := manager.AddConnectionWithIP("conn3", nil, nil, "anon", nil, ip)
 	assert.Equal(t, ErrMaxIPConnectionsReached, err)
 
 	// Remove one connection
 	manager.RemoveConnection("conn1")
 
 	// Should be able to add a new connection
-	conn3, err := manager.AddConnectionWithIP("conn3", &websocket.Conn{}, nil, "anon", nil, ip)
+	conn3, err := manager.AddConnectionWithIP("conn3", nil, nil, "anon", nil, ip)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn3)
 }
@@ -383,8 +381,8 @@ func TestManager_Shutdown_ClearsTrackingMaps(t *testing.T) {
 	ip := "192.168.1.1"
 
 	// Add some connections
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, &userID, "authenticated", nil, ip)
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, nil, "anon", nil, ip)
+	manager.AddConnectionWithIP("conn1", nil, &userID, "authenticated", nil, ip)
+	manager.AddConnectionWithIP("conn2", nil, nil, "anon", nil, ip)
 
 	// Shutdown
 	manager.Shutdown()
@@ -407,14 +405,14 @@ func TestManager_SetConnectionLimits(t *testing.T) {
 
 	// Add 5 connections
 	for i := 0; i < 5; i++ {
-		manager.AddConnectionWithIP("conn"+string(rune('a'+i)), &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+		manager.AddConnectionWithIP("conn"+string(rune('a'+i)), nil, &userID, "authenticated", nil, "192.168.1.1")
 	}
 
 	// Reduce limit - existing connections remain but no new ones allowed
 	manager.SetConnectionLimits(3, 3)
 
 	// New connection should fail
-	_, err := manager.AddConnectionWithIP("conn_new", &websocket.Conn{}, &userID, "authenticated", nil, "192.168.1.1")
+	_, err := manager.AddConnectionWithIP("conn_new", nil, &userID, "authenticated", nil, "192.168.1.1")
 	assert.Equal(t, ErrMaxUserConnectionsReached, err)
 }
 
@@ -430,12 +428,12 @@ func TestManager_GlobalLimitTakesPrecedence(t *testing.T) {
 	user2 := "user2"
 
 	// Add 3 connections (global limit)
-	manager.AddConnectionWithIP("conn1", &websocket.Conn{}, &user1, "authenticated", nil, "192.168.1.1")
-	manager.AddConnectionWithIP("conn2", &websocket.Conn{}, &user1, "authenticated", nil, "192.168.1.1")
-	manager.AddConnectionWithIP("conn3", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
+	manager.AddConnectionWithIP("conn1", nil, &user1, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn2", nil, &user1, "authenticated", nil, "192.168.1.1")
+	manager.AddConnectionWithIP("conn3", nil, &user2, "authenticated", nil, "192.168.1.2")
 
 	// Fourth connection should fail due to global limit
-	_, err := manager.AddConnectionWithIP("conn4", &websocket.Conn{}, &user2, "authenticated", nil, "192.168.1.2")
+	_, err := manager.AddConnectionWithIP("conn4", nil, &user2, "authenticated", nil, "192.168.1.2")
 	assert.Equal(t, ErrMaxConnectionsReached, err)
 }
 

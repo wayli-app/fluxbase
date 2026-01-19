@@ -398,42 +398,51 @@ func NewJSONDepthLimiter(maxDepth int) *JSONDepthLimiter {
 	return &JSONDepthLimiter{maxDepth: maxDepth}
 }
 
+// CheckDepth validates JSON depth for the request body and returns an error response if exceeded
+func (l *JSONDepthLimiter) CheckDepth(c *fiber.Ctx) error {
+	// Only check JSON content
+	contentType := string(c.Request().Header.ContentType())
+	if !strings.Contains(contentType, "application/json") {
+		return nil
+	}
+
+	body := c.Body()
+	if len(body) == 0 {
+		return nil
+	}
+
+	// Check JSON depth
+	depth, err := checkJSONDepth(body, l.maxDepth)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Int("depth", depth).
+			Int("max_depth", l.maxDepth).
+			Str("path", c.Path()).
+			Msg("JSON depth validation failed")
+
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Invalid JSON",
+			"code":    "JSON_TOO_DEEP",
+			"message": fmt.Sprintf("JSON nesting exceeds maximum depth of %d", l.maxDepth),
+			"hint":    "Flatten your JSON structure or reduce nesting levels",
+		})
+	}
+
+	return nil
+}
+
 // Middleware returns a Fiber middleware that validates JSON depth
 func (l *JSONDepthLimiter) Middleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Only check JSON content
-		contentType := string(c.Request().Header.ContentType())
-		if !strings.Contains(contentType, "application/json") {
-			return c.Next()
-		}
-
 		// Skip for GET, HEAD, OPTIONS
 		method := c.Method()
 		if method == fiber.MethodGet || method == fiber.MethodHead || method == fiber.MethodOptions {
 			return c.Next()
 		}
 
-		body := c.Body()
-		if len(body) == 0 {
-			return c.Next()
-		}
-
-		// Check JSON depth
-		depth, err := checkJSONDepth(body, l.maxDepth)
-		if err != nil {
-			log.Debug().
-				Err(err).
-				Int("depth", depth).
-				Int("max_depth", l.maxDepth).
-				Str("path", c.Path()).
-				Msg("JSON depth validation failed")
-
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error":   "Invalid JSON",
-				"code":    "JSON_TOO_DEEP",
-				"message": fmt.Sprintf("JSON nesting exceeds maximum depth of %d", l.maxDepth),
-				"hint":    "Flatten your JSON structure or reduce nesting levels",
-			})
+		if err := l.CheckDepth(c); err != nil {
+			return err
 		}
 
 		return c.Next()
@@ -480,13 +489,31 @@ func BodyLimitMiddleware(config BodyLimitConfig) fiber.Handler {
 	jsonLimiter := NewJSONDepthLimiter(config.MaxJSONDepth)
 
 	return func(c *fiber.Ctx) error {
+		// Skip body limit check for GET, HEAD, OPTIONS requests
+		method := c.Method()
+		if method == fiber.MethodGet || method == fiber.MethodHead || method == fiber.MethodOptions {
+			return c.Next()
+		}
+
 		// First check body size limit
-		if err := bodyLimiter.Middleware()(c); err != nil {
-			return err
+		path := c.Path()
+		limit, description := bodyLimiter.GetLimit(path)
+
+		// Get content length if available
+		contentLength := c.Request().Header.ContentLength()
+		if contentLength > 0 && contentLength > int(limit) {
+			log.Debug().
+				Str("path", path).
+				Int64("content_length", int64(contentLength)).
+				Int64("limit", limit).
+				Str("endpoint_type", description).
+				Msg("Request body exceeds limit (Content-Length)")
+
+			return bodyLimiter.sendLimitExceeded(c, limit, description)
 		}
 
 		// Then check JSON depth (only for JSON requests)
-		if err := jsonLimiter.Middleware()(c); err != nil {
+		if err := jsonLimiter.CheckDepth(c); err != nil {
 			return err
 		}
 
