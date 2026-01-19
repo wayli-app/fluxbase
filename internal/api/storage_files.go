@@ -510,19 +510,6 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
-	// First check if file exists (with superuser context to bypass RLS)
-	var fileExists bool
-	err = h.db.Pool().QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM storage.objects WHERE bucket_id = $1 AND path = $2)
-	`, bucket, key).Scan(&fileExists)
-
-	if err != nil {
-		log.Error().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to check file existence")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "failed to delete file",
-		})
-	}
-
 	// Delete from database (RLS will check permissions)
 	result, err := tx.Exec(ctx, `
 		DELETE FROM storage.objects
@@ -544,8 +531,24 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	// Check if any rows were affected (file existed and was deleted)
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		// File exists but RLS prevented delete - return 403 instead of 404
+		// No rows affected - need to determine if it's 403 (RLS blocked) or 404 (not found)
+		// Check if file exists using superuser context to bypass RLS
+		var fileExists bool
+		err = h.db.Pool().QueryRow(ctx, `
+			SELECT EXISTS(SELECT 1 FROM storage.objects WHERE bucket_id = $1 AND path = $2)
+		`, bucket, key).Scan(&fileExists)
+
+		if err != nil {
+			// If we can't check existence, log it but still return 404
+			// This is safer than returning 500 for a delete operation
+			log.Warn().Err(err).Str("bucket", bucket).Str("key", key).Msg("Failed to check file existence after delete returned 0 rows")
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "file not found",
+			})
+		}
+
 		if fileExists {
+			// File exists but RLS prevented delete - return 403
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "insufficient permissions to delete file",
 			})
