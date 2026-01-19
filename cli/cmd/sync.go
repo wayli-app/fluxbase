@@ -559,7 +559,32 @@ func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteM
 }
 
 // syncChatbotsFromDir syncs chatbots from a directory
+// Chatbots are stored as directories with index.ts files, e.g., chatbots/my-assistant/index.ts
 func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteMissing bool) error {
+	// Check for _shared directory first
+	sharedDir := filepath.Join(dir, "_shared")
+	sharedModulesMap := make(map[string]string)
+	if info, err := os.Stat(sharedDir); err == nil && info.IsDir() {
+		_ = filepath.WalkDir(sharedDir, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			name := d.Name()
+			if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") &&
+				!strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".geojson") {
+				return nil
+			}
+			content, err := os.ReadFile(path) //nolint:gosec
+			if err != nil {
+				return nil
+			}
+			relPath, _ := filepath.Rel(dir, path)
+			relPath = filepath.ToSlash(relPath)
+			sharedModulesMap[relPath] = string(content)
+			return nil
+		})
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory: %w", err)
@@ -567,31 +592,50 @@ func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, del
 
 	var chatbots []map[string]interface{}
 
+	// Support both flat files (chatbots/my-assistant.ts) and directories (chatbots/my-assistant/index.ts)
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+
+		// Skip hidden entries and special directories
+		if strings.HasPrefix(name, ".") || name == "_shared" || name == "node_modules" {
 			continue
 		}
 
-		content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec
-		if err != nil {
-			fmt.Printf("  Warning: failed to read %s: %v\n", name, err)
-			continue
-		}
+		if entry.IsDir() {
+			// Look for index.ts in this directory
+			indexPath := filepath.Join(dir, name, "index.ts")
+			content, err := os.ReadFile(indexPath) //nolint:gosec
+			if err != nil {
+				// No index.ts, skip this directory
+				continue
+			}
 
-		cbName := strings.TrimSuffix(strings.TrimSuffix(name, ".yaml"), ".yml")
-		chatbots = append(chatbots, map[string]interface{}{
-			"name": cbName,
-			"code": string(content),
-		})
+			chatbots = append(chatbots, map[string]interface{}{
+				"name": name,
+				"code": string(content),
+			})
+		} else {
+			// Flat file structure
+			if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+				continue
+			}
+
+			content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec
+			if err != nil {
+				fmt.Printf("  Warning: failed to read %s: %v\n", name, err)
+				continue
+			}
+
+			cbName := strings.TrimSuffix(strings.TrimSuffix(name, ".ts"), ".js")
+			chatbots = append(chatbots, map[string]interface{}{
+				"name": cbName,
+				"code": string(content),
+			})
+		}
 	}
 
 	if len(chatbots) == 0 {
-		fmt.Println("  No chatbot YAML files found.")
+		fmt.Println("  No chatbot files found.")
 		return nil
 	}
 
@@ -601,6 +645,46 @@ func syncChatbotsFromDir(ctx context.Context, dir, namespace string, dryRun, del
 			fmt.Printf("    - %s\n", cb["name"])
 		}
 		return nil
+	}
+
+	// Try to bundle if needed
+	needsBundling := false
+	for _, cb := range chatbots {
+		code := cb["code"].(string)
+		if strings.Contains(code, "import ") {
+			needsBundling = true
+			break
+		}
+	}
+
+	if needsBundling {
+		b, err := bundler.NewBundler(dir)
+		if err != nil {
+			fmt.Println("  Note: Deno not available for local bundling. Server will bundle chatbots.")
+		} else {
+			for i, cb := range chatbots {
+				code := cb["code"].(string)
+				cbName := cb["name"].(string)
+
+				if !b.NeedsBundle(code) {
+					continue
+				}
+
+				if err := b.ValidateImports(code); err != nil {
+					return fmt.Errorf("chatbot %s: %w", cbName, err)
+				}
+
+				fmt.Printf("  Bundling %s...", cbName)
+				result, err := b.Bundle(ctx, code, sharedModulesMap)
+				if err != nil {
+					fmt.Println()
+					return fmt.Errorf("failed to bundle %s: %w", cbName, err)
+				}
+				fmt.Printf(" %s → %s\n", formatBytes(len(code)), formatBytes(len(result.BundledCode)))
+				chatbots[i]["code"] = result.BundledCode
+				chatbots[i]["is_bundled"] = true
+			}
+		}
 	}
 
 	body := map[string]interface{}{

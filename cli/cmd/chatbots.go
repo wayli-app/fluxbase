@@ -138,7 +138,7 @@ func init() {
 	chatbotsUpdateCmd.Flags().IntVar(&cbMaxTokens, "max-tokens", 0, "Maximum tokens in response")
 
 	// Sync flags
-	chatbotsSyncCmd.Flags().StringVar(&cbSyncDir, "dir", "./chatbots", "Directory containing chatbot YAML files")
+	chatbotsSyncCmd.Flags().StringVar(&cbSyncDir, "dir", "./chatbots", "Directory containing chatbot .ts files or folders with index.ts")
 	chatbotsSyncCmd.Flags().StringVar(&cbNamespace, "namespace", "default", "Target namespace")
 	chatbotsSyncCmd.Flags().BoolVar(&cbDryRun, "dry-run", false, "Preview changes without applying")
 	chatbotsSyncCmd.Flags().BoolVar(&cbDeleteMissing, "delete-missing", false, "Delete chatbots not in directory")
