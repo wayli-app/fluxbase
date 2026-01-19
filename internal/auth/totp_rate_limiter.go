@@ -104,7 +104,7 @@ func (r *TOTPRateLimiter) CheckRateLimit(ctx context.Context, userID string) err
 				Msg("TOTP rate limit exceeded")
 
 			// Log security event
-			LogSecurityEvent(SecurityEvent{
+			LogSecurityEvent(ctx, SecurityEvent{
 				Type:   SecurityEventRateLimitExceeded,
 				UserID: userID,
 				Details: map[string]interface{}{
