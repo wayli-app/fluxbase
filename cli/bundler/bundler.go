@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// dataFileExtensions lists file extensions that should be inlined as JSON data
+// These are data files that esbuild/deno bundle don't have built-in loaders for
+var dataFileExtensions = []string{".geojson"}
+
 // Bundler handles bundling edge functions with npm dependencies
 type Bundler struct {
 	denoPath  string
@@ -160,6 +164,21 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 		OriginalCode: code,
 	}
 
+	// Extract data files (.geojson, etc.) from shared modules before processing
+	// These need to be inlined because deno bundle/esbuild don't have loaders for them
+	dataFiles := extractDataFiles(sharedModules)
+	if len(dataFiles) > 0 {
+		// Inline data file imports in main code (main file is at root, use empty path)
+		code = inlineDataFiles(code, "", dataFiles)
+
+		// Also inline in shared modules (code files only)
+		for path, content := range sharedModules {
+			if !isDataFile(path) {
+				sharedModules[path] = inlineDataFiles(content, path, dataFiles)
+			}
+		}
+	}
+
 	// Transform bare npm imports to npm: specifiers
 	code = transformBareImports(code)
 
@@ -169,9 +188,13 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 		return nil, err
 	}
 
-	// Also validate and transform shared modules
+	// Also validate and transform shared modules (skip data files)
 	transformedSharedModules := make(map[string]string, len(sharedModules))
 	for path, content := range sharedModules {
+		if isDataFile(path) {
+			// Skip data files - they've been inlined
+			continue
+		}
 		content = transformBareImports(content)
 		if err := b.ValidateImports(content); err != nil {
 			result.Error = err.Error()
@@ -344,4 +367,119 @@ func filterEnvVars(env []string, names ...string) []string {
 		}
 	}
 	return result
+}
+
+// isDataFile checks if a file path has a data file extension
+func isDataFile(path string) bool {
+	for _, ext := range dataFileExtensions {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractDataFiles collects all data files (.geojson, etc.) from shared modules
+func extractDataFiles(sharedModules map[string]string) map[string]string {
+	dataFiles := make(map[string]string)
+	for path, content := range sharedModules {
+		if isDataFile(path) {
+			dataFiles[path] = content
+		}
+	}
+	return dataFiles
+}
+
+// lookupDataFile finds a data file by path, trying various path normalizations
+// sourceFilePath is the path of the file containing the import statement (used to resolve relative paths)
+func lookupDataFile(importPath string, sourceFilePath string, dataFiles map[string]string) string {
+	// If it's a relative path (starts with . or ..), resolve it relative to the source file
+	if strings.HasPrefix(importPath, "./") || strings.HasPrefix(importPath, "../") {
+		// Get the directory of the source file
+		sourceDir := filepath.Dir(sourceFilePath)
+		// Join and clean the path to resolve .. sequences
+		resolvedPath := filepath.Clean(filepath.Join(sourceDir, importPath))
+		// Convert back to forward slashes
+		resolvedPath = filepath.ToSlash(resolvedPath)
+
+		// Try the resolved path
+		if content, ok := dataFiles[resolvedPath]; ok {
+			return content
+		}
+		// Also try with _shared/ prefix if not already there
+		if !strings.HasPrefix(resolvedPath, "_shared/") {
+			if content, ok := dataFiles["_shared/"+resolvedPath]; ok {
+				return content
+			}
+		}
+	}
+
+	// Try exact path
+	if content, ok := dataFiles[importPath]; ok {
+		return content
+	}
+	// Try with ./ prefix stripped
+	cleanPath := strings.TrimPrefix(importPath, "./")
+	if content, ok := dataFiles[cleanPath]; ok {
+		return content
+	}
+	// Try with _shared/ prefix added
+	if !strings.HasPrefix(cleanPath, "_shared/") {
+		if content, ok := dataFiles["_shared/"+cleanPath]; ok {
+			return content
+		}
+	}
+	// Try with _shared/ prefix stripped
+	if strings.HasPrefix(cleanPath, "_shared/") {
+		stripped := strings.TrimPrefix(cleanPath, "_shared/")
+		if content, ok := dataFiles[stripped]; ok {
+			return content
+		}
+	}
+	return ""
+}
+
+// buildDataFilePattern builds a regex pattern to match imports of data file extensions
+func buildDataFilePattern() *regexp.Regexp {
+	// Build alternation for extensions: (\.geojson)
+	var extPatterns []string
+	for _, ext := range dataFileExtensions {
+		// Escape the dot for regex
+		extPatterns = append(extPatterns, regexp.QuoteMeta(ext))
+	}
+	extAlternation := strings.Join(extPatterns, "|")
+
+	// Match: import varName from './path/file.geojson' or "_shared/data/file.geojson"
+	// Captures: (1) variable name, (2) full file path
+	pattern := fmt.Sprintf(`import\s+(\w+)\s+from\s+['"]([^'"]+(?:%s))['"]`, extAlternation)
+	return regexp.MustCompile(pattern)
+}
+
+// inlineDataFiles inlines data file imports (.geojson, etc.) by replacing them with const declarations
+// This is needed because deno bundle/esbuild don't have loaders for these file types
+// sourceFilePath is the path of the file being processed (used to resolve relative imports)
+func inlineDataFiles(code string, sourceFilePath string, dataFiles map[string]string) string {
+	if len(dataFiles) == 0 {
+		return code
+	}
+
+	importRegex := buildDataFilePattern()
+
+	return importRegex.ReplaceAllStringFunc(code, func(match string) string {
+		matches := importRegex.FindStringSubmatch(match)
+		if len(matches) < 3 {
+			return match
+		}
+		varName := matches[1]
+		importPath := matches[2]
+
+		// Look up the data file content
+		content := lookupDataFile(importPath, sourceFilePath, dataFiles)
+		if content == "" {
+			// File not found - leave import as-is, will fail at bundle time with clear error
+			return match
+		}
+
+		return fmt.Sprintf("const %s = %s", varName, content)
+	})
 }
