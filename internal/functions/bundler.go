@@ -300,13 +300,37 @@ func (b *Bundler) BundleWithFiles(ctx context.Context, mainCode string, supporti
 		}
 	}
 
-	// Count actual code files (exclude deno.json from count)
+	// Inline data files (.geojson, etc.) before bundling
+	// This is needed because deno bundle/esbuild don't have loaders for these file types
+	dataFiles := extractDataFiles(supportingFiles, sharedModules)
+	if len(dataFiles) > 0 {
+		log.Debug().Int("count", len(dataFiles)).Msg("Inlining data files")
+		mainCode = inlineDataFiles(mainCode, dataFiles)
+
+		// Also inline in supporting code files
+		for path, content := range supportingFiles {
+			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".js") ||
+				strings.HasSuffix(path, ".mts") || strings.HasSuffix(path, ".mjs") {
+				supportingFiles[path] = inlineDataFiles(content, dataFiles)
+			}
+		}
+
+		// Also inline in shared modules
+		for path, content := range sharedModules {
+			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".js") ||
+				strings.HasSuffix(path, ".mts") || strings.HasSuffix(path, ".mjs") {
+				sharedModules[path] = inlineDataFiles(content, dataFiles)
+			}
+		}
+	}
+
+	// Count actual code files (exclude deno.json and data files from count)
 	codeFileCount := 0
 	hasDenoJSON := false
 	for filePath := range supportingFiles {
 		if filePath == "deno.json" || filePath == "deno.jsonc" {
 			hasDenoJSON = true
-		} else {
+		} else if !isDataFile(filePath) {
 			codeFileCount++
 		}
 	}
@@ -592,6 +616,116 @@ func inlineSharedModules(mainCode string, sharedModules map[string]string) strin
 	}
 
 	return result.String()
+}
+
+// dataFileExtensions lists file extensions that should be inlined as JSON data
+// These are data files that esbuild/deno bundle don't have built-in loaders for
+var dataFileExtensions = []string{".geojson"}
+
+// isDataFile checks if a file path has a data file extension
+func isDataFile(path string) bool {
+	for _, ext := range dataFileExtensions {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractDataFiles collects all data files (.geojson, etc.) from supporting files and shared modules
+func extractDataFiles(supportingFiles, sharedModules map[string]string) map[string]string {
+	dataFiles := make(map[string]string)
+	for path, content := range supportingFiles {
+		if isDataFile(path) {
+			dataFiles[path] = content
+		}
+	}
+	for path, content := range sharedModules {
+		if isDataFile(path) {
+			dataFiles[path] = content
+		}
+	}
+	return dataFiles
+}
+
+// lookupDataFile finds a data file by path, trying various path normalizations
+func lookupDataFile(filePath string, dataFiles map[string]string) string {
+	// Try exact path
+	if content, ok := dataFiles[filePath]; ok {
+		return content
+	}
+	// Try with ./ prefix stripped
+	cleanPath := strings.TrimPrefix(filePath, "./")
+	if content, ok := dataFiles[cleanPath]; ok {
+		return content
+	}
+	// Try with _shared/ prefix added
+	if !strings.HasPrefix(cleanPath, "_shared/") {
+		if content, ok := dataFiles["_shared/"+cleanPath]; ok {
+			return content
+		}
+	}
+	// Try with _shared/ prefix stripped
+	if strings.HasPrefix(cleanPath, "_shared/") {
+		stripped := strings.TrimPrefix(cleanPath, "_shared/")
+		if content, ok := dataFiles[stripped]; ok {
+			return content
+		}
+	}
+	return ""
+}
+
+// buildDataFilePattern builds a regex pattern to match imports of data file extensions
+func buildDataFilePattern() *regexp.Regexp {
+	// Build alternation for extensions: (\.geojson)
+	var extPatterns []string
+	for _, ext := range dataFileExtensions {
+		// Escape the dot for regex
+		extPatterns = append(extPatterns, regexp.QuoteMeta(ext))
+	}
+	extAlternation := strings.Join(extPatterns, "|")
+
+	// Match: import varName from './path/file.geojson' or "_shared/data/file.geojson"
+	// Captures: (1) variable name, (2) full file path
+	pattern := fmt.Sprintf(`import\s+(\w+)\s+from\s+['"]([^'"]+(?:%s))['"]`, extAlternation)
+	return regexp.MustCompile(pattern)
+}
+
+// inlineDataFiles inlines data file imports (.geojson, etc.) by replacing them with const declarations
+// This is needed because deno bundle/esbuild don't have loaders for these file types
+func inlineDataFiles(code string, dataFiles map[string]string) string {
+	if len(dataFiles) == 0 {
+		return code
+	}
+
+	importRegex := buildDataFilePattern()
+
+	return importRegex.ReplaceAllStringFunc(code, func(match string) string {
+		matches := importRegex.FindStringSubmatch(match)
+		if len(matches) < 3 {
+			return match
+		}
+		varName := matches[1]
+		filePath := matches[2]
+
+		// Look up the data file content
+		content := lookupDataFile(filePath, dataFiles)
+		if content == "" {
+			// File not found - leave import as-is, will fail at bundle time with clear error
+			log.Warn().
+				Str("path", filePath).
+				Msg("Data file not found for inlining, leaving import as-is")
+			return match
+		}
+
+		log.Debug().
+			Str("path", filePath).
+			Str("var", varName).
+			Int("size", len(content)).
+			Msg("Inlining data file import")
+
+		return fmt.Sprintf("const %s = %s", varName, content)
+	})
 }
 
 // cleanBundleError cleans up Deno error messages for better user experience

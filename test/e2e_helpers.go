@@ -1531,33 +1531,34 @@ func (tc *TestContext) EnsureAuthSchema() {
 }
 
 // EnsureStorageSchema ensures storage schema and tables exist
+// This schema must match internal/database/migrations/010_tables_storage.up.sql
+// Note: In most cases, migrations will have already created these tables. This function
+// only creates them if they don't exist (for isolated test environments without migrations).
 func (tc *TestContext) EnsureStorageSchema() {
 	ctx := context.Background()
 
 	queries := []string{
 		`CREATE SCHEMA IF NOT EXISTS storage`,
 		`CREATE TABLE IF NOT EXISTS storage.buckets (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id TEXT PRIMARY KEY,
 			name TEXT UNIQUE NOT NULL,
 			public BOOLEAN DEFAULT false,
-			file_size_limit BIGINT,
 			allowed_mime_types TEXT[],
+			max_file_size BIGINT,
 			created_at TIMESTAMPTZ DEFAULT NOW(),
 			updated_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
 		`CREATE TABLE IF NOT EXISTS storage.objects (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			bucket_id UUID REFERENCES storage.buckets(id) ON DELETE CASCADE,
-			name TEXT NOT NULL,
-			owner UUID,
-			bucket_name TEXT,
-			size BIGINT,
+			bucket_id TEXT REFERENCES storage.buckets(id) ON DELETE CASCADE,
+			path TEXT NOT NULL,
 			mime_type TEXT,
-			etag TEXT,
-			metadata JSONB DEFAULT '{}'::jsonb,
+			size BIGINT,
+			metadata JSONB,
+			owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ DEFAULT NOW(),
 			updated_at TIMESTAMPTZ DEFAULT NOW(),
-			UNIQUE(bucket_id, name)
+			UNIQUE(bucket_id, path)
 		)`,
 	}
 

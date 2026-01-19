@@ -613,3 +613,230 @@ export { defaultConfig, createClient };`,
 		})
 	}
 }
+
+func TestIsDataFile(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"countries.geojson", true},
+		{"_shared/data/countries.geojson", true},
+		{"./data/map.geojson", true},
+		{"config.json", false},
+		{"index.ts", false},
+		{"helper.js", false},
+		{"deno.json", false},
+		{"file.GEOJSON", false}, // case-sensitive
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			result := isDataFile(tt.path)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestExtractDataFiles(t *testing.T) {
+	supportingFiles := map[string]string{
+		"utils.ts":        "export const x = 1",
+		"data.geojson":    `{"type":"FeatureCollection"}`,
+		"config.json":     `{"key":"value"}`,
+		"helpers/db.ts":   "export const db = {}",
+		"maps/us.geojson": `{"type":"Feature"}`,
+	}
+
+	sharedModules := map[string]string{
+		"_shared/cors.ts":                "export const cors = {}",
+		"_shared/data/countries.geojson": `{"type":"FeatureCollection","features":[]}`,
+	}
+
+	result := extractDataFiles(supportingFiles, sharedModules)
+
+	assert.Len(t, result, 3)
+	assert.Contains(t, result, "data.geojson")
+	assert.Contains(t, result, "maps/us.geojson")
+	assert.Contains(t, result, "_shared/data/countries.geojson")
+
+	// Should not include .json files (they have native loader support)
+	assert.NotContains(t, result, "config.json")
+	// Should not include .ts files
+	assert.NotContains(t, result, "utils.ts")
+}
+
+func TestLookupDataFile(t *testing.T) {
+	dataFiles := map[string]string{
+		"data.geojson":                   `{"exact":true}`,
+		"_shared/data/countries.geojson": `{"shared":true}`,
+		"nested/map.geojson":             `{"nested":true}`,
+	}
+
+	tests := []struct {
+		name     string
+		filePath string
+		expected string
+	}{
+		{"exact match", "data.geojson", `{"exact":true}`},
+		{"with ./ prefix", "./data.geojson", `{"exact":true}`},
+		{"shared path", "_shared/data/countries.geojson", `{"shared":true}`},
+		{"shared with ./", "./_shared/data/countries.geojson", `{"shared":true}`},
+		{"nested path", "nested/map.geojson", `{"nested":true}`},
+		{"not found", "missing.geojson", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := lookupDataFile(tt.filePath, dataFiles)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestInlineDataFiles(t *testing.T) {
+	t.Run("geojson import inlined", func(t *testing.T) {
+		dataFiles := map[string]string{
+			"_shared/data/countries.geojson": `{"type":"FeatureCollection","features":[]}`,
+		}
+
+		code := `import countries from "_shared/data/countries.geojson"
+console.log(countries)`
+
+		result := inlineDataFiles(code, dataFiles)
+
+		assert.Contains(t, result, `const countries = {"type":"FeatureCollection","features":[]}`)
+		assert.NotContains(t, result, "import countries")
+	})
+
+	t.Run("multiple geojson imports", func(t *testing.T) {
+		dataFiles := map[string]string{
+			"data/us.geojson":     `{"type":"Feature","id":"US"}`,
+			"data/europe.geojson": `{"type":"Feature","id":"EU"}`,
+		}
+
+		code := `import us from "./data/us.geojson"
+import europe from "./data/europe.geojson"
+
+export function getRegions() {
+  return [us, europe]
+}`
+
+		result := inlineDataFiles(code, dataFiles)
+
+		assert.Contains(t, result, `const us = {"type":"Feature","id":"US"}`)
+		assert.Contains(t, result, `const europe = {"type":"Feature","id":"EU"}`)
+		assert.NotContains(t, result, "import us from")
+		assert.NotContains(t, result, "import europe from")
+		assert.Contains(t, result, "export function getRegions")
+	})
+
+	t.Run("mixed imports preserved", func(t *testing.T) {
+		dataFiles := map[string]string{
+			"data.geojson": `{"type":"FeatureCollection"}`,
+		}
+
+		code := `import { z } from "npm:zod"
+import data from "./data.geojson"
+
+export function validate() {}`
+
+		result := inlineDataFiles(code, dataFiles)
+
+		// npm import should be preserved
+		assert.Contains(t, result, `import { z } from "npm:zod"`)
+		// geojson should be inlined
+		assert.Contains(t, result, `const data = {"type":"FeatureCollection"}`)
+		assert.NotContains(t, result, `import data from`)
+	})
+
+	t.Run("missing file leaves import unchanged", func(t *testing.T) {
+		dataFiles := map[string]string{}
+
+		code := `import missing from "./missing.geojson"
+console.log(missing)`
+
+		result := inlineDataFiles(code, dataFiles)
+
+		// Import should be preserved since file wasn't found
+		assert.Contains(t, result, `import missing from "./missing.geojson"`)
+	})
+
+	t.Run("no data files returns code unchanged", func(t *testing.T) {
+		code := `import { z } from "npm:zod"
+console.log(z)`
+
+		result := inlineDataFiles(code, nil)
+
+		assert.Equal(t, code, result)
+
+		result = inlineDataFiles(code, map[string]string{})
+		assert.Equal(t, code, result)
+	})
+
+	t.Run("single quotes supported", func(t *testing.T) {
+		dataFiles := map[string]string{
+			"data.geojson": `{"single":true}`,
+		}
+
+		code := `import data from './data.geojson'`
+
+		result := inlineDataFiles(code, dataFiles)
+
+		assert.Contains(t, result, `const data = {"single":true}`)
+	})
+}
+
+func TestBuildDataFilePattern(t *testing.T) {
+	pattern := buildDataFilePattern()
+
+	tests := []struct {
+		name     string
+		input    string
+		matches  bool
+		varName  string
+		filePath string
+	}{
+		{
+			name:     "geojson double quotes",
+			input:    `import countries from "_shared/data/countries.geojson"`,
+			matches:  true,
+			varName:  "countries",
+			filePath: "_shared/data/countries.geojson",
+		},
+		{
+			name:     "geojson single quotes",
+			input:    `import data from './map.geojson'`,
+			matches:  true,
+			varName:  "data",
+			filePath: "./map.geojson",
+		},
+		{
+			name:    "json file not matched",
+			input:   `import config from "./config.json"`,
+			matches: false,
+		},
+		{
+			name:    "ts file not matched",
+			input:   `import { helper } from "./helper.ts"`,
+			matches: false,
+		},
+		{
+			name:    "npm import not matched",
+			input:   `import { z } from "npm:zod"`,
+			matches: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matches := pattern.FindStringSubmatch(tt.input)
+
+			if tt.matches {
+				require.NotNil(t, matches, "expected pattern to match")
+				assert.Equal(t, tt.varName, matches[1])
+				assert.Equal(t, tt.filePath, matches[2])
+			} else {
+				assert.Nil(t, matches, "expected pattern not to match")
+			}
+		})
+	}
+}
