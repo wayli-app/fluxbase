@@ -27,7 +27,8 @@ func NewDynamicToolHandler(tool *CustomTool, executor *Executor) *DynamicToolHan
 
 // Name returns the tool name with namespace prefix.
 // Format: "custom:{namespace}:{name}" for non-default namespaces
-//         "custom:{name}" for default namespace (backwards compatible)
+//
+//	"custom:{name}" for default namespace (backwards compatible)
 func (h *DynamicToolHandler) Name() string {
 	if h.tool.Namespace == "" || h.tool.Namespace == "default" {
 		return "custom:" + h.tool.Name
@@ -210,7 +211,7 @@ type Manager struct {
 	resourceRegistry *mcp.ResourceRegistry
 
 	mu              sync.RWMutex
-	registeredTools map[string]*DynamicToolHandler    // key: tool name
+	registeredTools map[string]*DynamicToolHandler      // key: tool name
 	registeredRes   map[string]*DynamicResourceProvider // key: resource URI
 }
 

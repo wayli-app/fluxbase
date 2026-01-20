@@ -186,12 +186,12 @@ func TestDynamicResourceProvider_URI(t *testing.T) {
 
 func TestDynamicResourceProvider_MatchURI(t *testing.T) {
 	tests := []struct {
-		name          string
-		resourceURI   string
-		isTemplate    bool
-		testURI       string
-		wantMatch     bool
-		wantParams    map[string]string
+		name        string
+		resourceURI string
+		isTemplate  bool
+		testURI     string
+		wantMatch   bool
+		wantParams  map[string]string
 	}{
 		{
 			name:        "exact match non-template",
