@@ -120,7 +120,6 @@ Each .ts file in the directory will be synced as a custom tool.
 Tool metadata is read from annotations in the file.
 
 Annotations:
-  // @fluxbase:mcp-tool
   // @fluxbase:name my_tool
   // @fluxbase:description My custom tool
   // @fluxbase:scopes read:tables,write:storage
@@ -219,8 +218,7 @@ Each .ts file in the directory will be synced as a custom resource.
 Resource metadata is read from annotations in the file.
 
 Annotations:
-  // @fluxbase:mcp-resource
-  // @fluxbase:uri fluxbase://custom/my-resource
+  // @fluxbase:uri fluxbase://custom/my-resource (required)
   // @fluxbase:name My Resource
   // @fluxbase:description My custom resource
   // @fluxbase:mime-type application/json
@@ -645,11 +643,6 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 		// Parse annotations from code
 		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
 
-		// Skip if not marked as MCP tool
-		if _, isTool := annotations["tool"]; !isTool {
-			continue
-		}
-
 		if mcpDryRun {
 			fmt.Printf("Would sync tool: %s (from %s)\n", name, filepath.Base(file))
 			continue
@@ -1008,11 +1001,6 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 		// Parse annotations from code
 		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
 
-		// Skip if not marked as MCP resource
-		if _, isResource := annotations["resource"]; !isResource {
-			continue
-		}
-
 		uri, ok := annotations["uri"]
 		if !ok {
 			fmt.Printf("Skipping %s: missing @fluxbase:uri annotation\n", file)
@@ -1164,17 +1152,6 @@ func parseMCPAnnotations(code, filename string) (name string, annotations map[st
 		}
 
 		line = strings.TrimPrefix(line, "@fluxbase:")
-
-		// Handle special mcp-tool and mcp-resource type markers
-		if line == "mcp-tool" || strings.HasPrefix(line, "mcp-tool ") {
-			annotations["tool"] = true
-			continue
-		}
-		if line == "mcp-resource" || strings.HasPrefix(line, "mcp-resource ") {
-			annotations["resource"] = true
-			continue
-		}
-
 		parts := strings.SplitN(line, " ", 2)
 
 		key := parts[0]

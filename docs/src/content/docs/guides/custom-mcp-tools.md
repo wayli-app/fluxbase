@@ -24,7 +24,6 @@ Create a TypeScript file with your tool implementation:
 
 ```typescript
 // weather_forecast.ts
-// @fluxbase:mcp-tool
 // @fluxbase:name weather_forecast
 // @fluxbase:description Get weather forecast for a location
 // @fluxbase:scopes execute:custom
@@ -92,7 +91,6 @@ Use annotations in your TypeScript files to configure tool behavior. The `@fluxb
 
 | Annotation | Description | Example |
 |------------|-------------|---------|
-| `@fluxbase:mcp-tool` | Marks file as MCP tool | `// @fluxbase:mcp-tool` |
 | `@fluxbase:name` | Tool name (alphanumeric + underscore) | `// @fluxbase:name weather_forecast` |
 | `@fluxbase:description` | Human-readable description | `// @fluxbase:description Get weather forecast` |
 | `@fluxbase:scopes` | Required MCP scopes (comma-separated) | `// @fluxbase:scopes execute:custom,read:tables` |
@@ -241,7 +239,6 @@ Resources provide read-only data to AI assistants:
 
 ```typescript
 // analytics_summary.ts
-// @fluxbase:mcp-resource
 // @fluxbase:uri fluxbase://custom/analytics/summary
 // @fluxbase:name Analytics Summary
 // @fluxbase:description Real-time analytics summary
@@ -270,7 +267,6 @@ For parameterized URIs:
 
 ```typescript
 // user_profile.ts
-// @fluxbase:mcp-resource
 // @fluxbase:uri fluxbase://custom/users/{id}/profile
 // @fluxbase:name User Profile
 // @fluxbase:template
@@ -415,7 +411,6 @@ The `custom_` prefix is automatically added to tool names to distinguish them fr
 
 ```typescript
 // order_status.ts
-// @fluxbase:mcp-tool
 // @fluxbase:name check_order_status
 // @fluxbase:description Check the status of a customer order
 // @fluxbase:scopes execute:custom,read:tables
