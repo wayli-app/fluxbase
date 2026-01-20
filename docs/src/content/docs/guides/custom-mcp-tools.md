@@ -24,9 +24,8 @@ Create a TypeScript file with your tool implementation:
 
 ```typescript
 // weather_forecast.ts
-// @fluxbase:name weather_forecast
 // @fluxbase:description Get weather forecast for a location
-// @fluxbase:scopes execute:custom
+// @fluxbase:allow-net
 
 export async function handler(
   args: { location: string; days?: number },
@@ -87,17 +86,17 @@ export default async function handler(request: Request, context: any) {
 
 ## Tool Annotations
 
-Use annotations in your TypeScript files to configure tool behavior. The `@fluxbase:` prefix is consistent with edge functions and jobs.
+All annotations are optional. The `@fluxbase:` prefix is consistent with edge functions and jobs.
 
-| Annotation | Description | Example |
+| Annotation | Description | Default |
 |------------|-------------|---------|
-| `@fluxbase:name` | Tool name (alphanumeric + underscore) | `// @fluxbase:name weather_forecast` |
-| `@fluxbase:description` | Human-readable description | `// @fluxbase:description Get weather forecast` |
-| `@fluxbase:scopes` | Required MCP scopes (comma-separated) | `// @fluxbase:scopes execute:custom,read:tables` |
-| `@fluxbase:timeout` | Execution timeout in seconds | `// @fluxbase:timeout 30` |
-| `@fluxbase:memory` | Memory limit in MB | `// @fluxbase:memory 128` |
-| `@fluxbase:allow-net` | Allow network access | `// @fluxbase:allow-net` |
-| `@fluxbase:allow-env` | Allow environment variable access | `// @fluxbase:allow-env` |
+| `@fluxbase:name` | Tool name | Filename (e.g., `weather_forecast.ts` → `weather_forecast`) |
+| `@fluxbase:description` | Human-readable description for AI | None |
+| `@fluxbase:scopes` | Additional MCP scopes | `execute:custom` |
+| `@fluxbase:timeout` | Execution timeout in seconds | 30 |
+| `@fluxbase:memory` | Memory limit in MB | 128 |
+| `@fluxbase:allow-net` | Allow network access | false |
+| `@fluxbase:allow-env` | Allow secrets/environment access | false |
 
 ## Input Schema
 
@@ -235,12 +234,10 @@ export async function handler(args: { name: string; email: string }, context: an
 
 ## Custom Resources
 
-Resources provide read-only data to AI assistants:
+Resources provide read-only data to AI assistants. The URI defaults to `fluxbase://custom/{name}` based on filename.
 
 ```typescript
 // analytics_summary.ts
-// @fluxbase:uri fluxbase://custom/analytics/summary
-// @fluxbase:name Analytics Summary
 // @fluxbase:description Real-time analytics summary
 
 export async function handler(params: {}, context: any) {
@@ -263,13 +260,11 @@ export async function handler(params: {}, context: any) {
 
 ### Template Resources
 
-For parameterized URIs:
+For parameterized URIs, specify a custom URI with `{param}` placeholders. Templates are auto-detected:
 
 ```typescript
 // user_profile.ts
 // @fluxbase:uri fluxbase://custom/users/{id}/profile
-// @fluxbase:name User Profile
-// @fluxbase:template
 
 export async function handler(params: { id: string }, context: any) {
   const user = await context.fluxbase
@@ -410,11 +405,9 @@ The `custom_` prefix is automatically added to tool names to distinguish them fr
 ## Example: Complete Integration
 
 ```typescript
-// order_status.ts
-// @fluxbase:name check_order_status
+// check_order_status.ts
 // @fluxbase:description Check the status of a customer order
-// @fluxbase:scopes execute:custom,read:tables
-// @fluxbase:timeout 10
+// @fluxbase:scopes read:tables
 
 export async function handler(
   args: { order_id: string },

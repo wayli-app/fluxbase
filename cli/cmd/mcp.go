@@ -117,16 +117,16 @@ var mcpToolsSyncCmd = &cobra.Command{
 	Long: `Sync custom MCP tools from a directory to the server.
 
 Each .ts file in the directory will be synced as a custom tool.
-Tool metadata is read from annotations in the file.
+Tool name defaults to filename. All annotations are optional.
 
-Annotations:
-  // @fluxbase:name my_tool
-  // @fluxbase:description My custom tool
-  // @fluxbase:scopes read:tables,write:storage
-  // @fluxbase:timeout 30
-  // @fluxbase:memory 128
-  // @fluxbase:allow-net
-  // @fluxbase:allow-env
+Annotations (all optional):
+  // @fluxbase:name my_tool         (defaults to filename)
+  // @fluxbase:description ...      (helpful for AI)
+  // @fluxbase:scopes read:tables   (additional scopes beyond execute:custom)
+  // @fluxbase:timeout 30           (defaults to 30s)
+  // @fluxbase:memory 128           (defaults to 128MB)
+  // @fluxbase:allow-net            (opt-in for network access)
+  // @fluxbase:allow-env            (opt-in for secrets/env access)
 
 Examples:
   fluxbase mcp tools sync --dir ./mcp-tools
@@ -217,15 +217,16 @@ var mcpResourcesSyncCmd = &cobra.Command{
 Each .ts file in the directory will be synced as a custom resource.
 Resource metadata is read from annotations in the file.
 
-Annotations:
-  // @fluxbase:uri fluxbase://custom/my-resource (required)
-  // @fluxbase:name My Resource
+If no @fluxbase:uri is specified, defaults to fluxbase://custom/{name}.
+Template resources are auto-detected if URI contains {param} placeholders.
+
+Annotations (all optional):
+  // @fluxbase:uri fluxbase://custom/users/{id}/profile (for custom/parameterized URIs)
+  // @fluxbase:name my_resource
   // @fluxbase:description My custom resource
   // @fluxbase:mime-type application/json
-  // @fluxbase:template (for parameterized URIs)
   // @fluxbase:scopes read:tables
   // @fluxbase:timeout 10
-  // @fluxbase:cache-ttl 60
 
 Examples:
   fluxbase mcp resources sync --dir ./mcp-resources
@@ -1001,23 +1002,31 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 		// Parse annotations from code
 		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
 
-		uri, ok := annotations["uri"]
-		if !ok {
-			fmt.Printf("Skipping %s: missing @fluxbase:uri annotation\n", file)
-			continue
+		// Default URI if not specified
+		uri := fmt.Sprintf("fluxbase://custom/%s", name)
+		if u, ok := annotations["uri"]; ok {
+			uri = u.(string)
 		}
 
+		// Auto-detect template if URI contains {param} placeholders
+		isTemplate := strings.Contains(uri, "{") && strings.Contains(uri, "}")
+
 		if mcpDryRun {
-			fmt.Printf("Would sync resource: %s (from %s)\n", uri, filepath.Base(file))
+			templateStr := ""
+			if isTemplate {
+				templateStr = " (template)"
+			}
+			fmt.Printf("Would sync resource: %s%s (from %s)\n", uri, templateStr, filepath.Base(file))
 			continue
 		}
 
 		payload := map[string]interface{}{
-			"uri":       uri,
-			"name":      name,
-			"namespace": mcpNamespace,
-			"code":      string(code),
-			"upsert":    true,
+			"uri":         uri,
+			"name":        name,
+			"namespace":   mcpNamespace,
+			"code":        string(code),
+			"upsert":      true,
+			"is_template": isTemplate,
 		}
 
 		// Apply annotations
@@ -1026,9 +1035,6 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 		}
 		if mimeType, ok := annotations["mime-type"]; ok {
 			payload["mime_type"] = mimeType
-		}
-		if _, ok := annotations["template"]; ok {
-			payload["is_template"] = true
 		}
 		if timeout, ok := annotations["timeout"]; ok {
 			payload["timeout_seconds"] = timeout
