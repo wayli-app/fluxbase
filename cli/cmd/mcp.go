@@ -121,6 +121,7 @@ Tool name defaults to filename. All annotations are optional.
 
 Annotations (all optional):
   // @fluxbase:name my_tool         (defaults to filename)
+  // @fluxbase:namespace production (defaults to CLI --namespace flag or "default")
   // @fluxbase:description ...      (helpful for AI)
   // @fluxbase:scopes read:tables   (additional scopes beyond execute:custom)
   // @fluxbase:timeout 30           (defaults to 30s)
@@ -223,6 +224,7 @@ Template resources are auto-detected if URI contains {param} placeholders.
 Annotations (all optional):
   // @fluxbase:uri fluxbase://custom/users/{id}/profile (for custom/parameterized URIs)
   // @fluxbase:name my_resource
+  // @fluxbase:namespace production (defaults to CLI --namespace flag or "default")
   // @fluxbase:description My custom resource
   // @fluxbase:mime-type application/json
   // @fluxbase:scopes read:tables
@@ -644,14 +646,20 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 		// Parse annotations from code
 		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
 
+		// Use namespace from annotation if specified, otherwise use CLI flag
+		namespace := mcpNamespace
+		if ns, ok := annotations["namespace"]; ok {
+			namespace = ns.(string)
+		}
+
 		if mcpDryRun {
-			fmt.Printf("Would sync tool: %s (from %s)\n", name, filepath.Base(file))
+			fmt.Printf("Would sync tool: %s (namespace: %s, from %s)\n", name, namespace, filepath.Base(file))
 			continue
 		}
 
 		payload := map[string]interface{}{
 			"name":      name,
-			"namespace": mcpNamespace,
+			"namespace": namespace,
 			"code":      string(code),
 			"upsert":    true,
 		}
@@ -1002,6 +1010,12 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 		// Parse annotations from code
 		name, annotations := parseMCPAnnotations(string(code), filepath.Base(file))
 
+		// Use namespace from annotation if specified, otherwise use CLI flag
+		namespace := mcpNamespace
+		if ns, ok := annotations["namespace"]; ok {
+			namespace = ns.(string)
+		}
+
 		// Default URI if not specified
 		uri := fmt.Sprintf("fluxbase://custom/%s", name)
 		if u, ok := annotations["uri"]; ok {
@@ -1016,14 +1030,14 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 			if isTemplate {
 				templateStr = " (template)"
 			}
-			fmt.Printf("Would sync resource: %s%s (from %s)\n", uri, templateStr, filepath.Base(file))
+			fmt.Printf("Would sync resource: %s%s (namespace: %s, from %s)\n", uri, templateStr, namespace, filepath.Base(file))
 			continue
 		}
 
 		payload := map[string]interface{}{
 			"uri":         uri,
 			"name":        name,
-			"namespace":   mcpNamespace,
+			"namespace":   namespace,
 			"code":        string(code),
 			"upsert":      true,
 			"is_template": isTemplate,

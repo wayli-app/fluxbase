@@ -25,9 +25,14 @@ func NewDynamicToolHandler(tool *CustomTool, executor *Executor) *DynamicToolHan
 	}
 }
 
-// Name returns the tool name (prefixed with "custom_" to avoid conflicts).
+// Name returns the tool name with namespace prefix.
+// Format: "custom:{namespace}:{name}" for non-default namespaces
+//         "custom:{name}" for default namespace (backwards compatible)
 func (h *DynamicToolHandler) Name() string {
-	return "custom_" + h.tool.Name
+	if h.tool.Namespace == "" || h.tool.Namespace == "default" {
+		return "custom:" + h.tool.Name
+	}
+	return "custom:" + h.tool.Namespace + ":" + h.tool.Name
 }
 
 // Description returns the tool description.

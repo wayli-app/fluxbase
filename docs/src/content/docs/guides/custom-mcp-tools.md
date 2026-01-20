@@ -61,16 +61,29 @@ fluxbase mcp tools sync --dir ./mcp-tools
 
 ### 3. Use in Chatbots
 
-Configure your chatbot to use the custom tool (note: custom tools are prefixed with `custom_`):
+Configure your chatbot to use the custom tool. Custom tools use a colon-separated naming format:
+- Default namespace: `custom:tool_name`
+- Other namespaces: `custom:namespace:tool_name`
 
 ```typescript
 // order_assistant.ts
 /**
- * @fluxbase:mcp-tools custom_get_user_orders,query_table
+ * @fluxbase:mcp-tools custom:get_user_orders,query_table
  */
 
 export default `You are an order management assistant.
 You can look up user orders and query tables.`;
+```
+
+For tools in non-default namespaces:
+
+```typescript
+// production_assistant.ts
+/**
+ * @fluxbase:mcp-tools custom:production:get_user_orders,custom:analytics:track_event
+ */
+
+export default `You are a production assistant with access to production tools.`;
 ```
 
 ## Tool Annotations
@@ -80,6 +93,7 @@ All annotations are optional. The `@fluxbase:` prefix is consistent with edge fu
 | Annotation | Description | Default |
 |------------|-------------|---------|
 | `@fluxbase:name` | Tool name | Filename (e.g., `weather_forecast.ts` → `weather_forecast`) |
+| `@fluxbase:namespace` | Tool namespace for isolation | `default` |
 | `@fluxbase:description` | Human-readable description for AI | None |
 | `@fluxbase:scopes` | Additional MCP scopes | `execute:custom` |
 | `@fluxbase:timeout` | Execution timeout in seconds | 30 |
@@ -388,12 +402,27 @@ Custom tools are automatically available to chatbots. Configure which tools a ch
 ```typescript
 // my_chatbot.ts
 /**
- * @fluxbase:mcp-tools custom_check_order_status,query_table
+ * @fluxbase:mcp-tools custom:check_order_status,query_table
  */
 export default `You are a customer service assistant.`;
 ```
 
-The `custom_` prefix is automatically added to tool names to distinguish them from built-in tools. So `check_order_status.ts` becomes `custom_check_order_status` in chatbot configuration.
+### Tool Naming Format
+
+Tools use a colon-separated naming format to distinguish custom tools from built-in tools and to include namespace information:
+
+- **Default namespace**: `custom:{name}` (e.g., `custom:check_order_status`)
+- **Named namespace**: `custom:{namespace}:{name}` (e.g., `custom:production:check_order_status`)
+
+So `check_order_status.ts` in the default namespace becomes `custom:check_order_status`, while one in the `production` namespace becomes `custom:production:check_order_status`.
+
+```typescript
+// production_chatbot.ts
+/**
+ * @fluxbase:mcp-tools custom:production:get_inventory,custom:production:update_stock
+ */
+export default `You are an inventory management assistant with production access.`;
+```
 
 ## Best Practices
 

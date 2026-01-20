@@ -11,6 +11,7 @@ import (
 
 // FunctionConfig contains parsed @fluxbase: annotations for edge functions
 type FunctionConfig struct {
+	Namespace            *string // @fluxbase:namespace production
 	AllowUnauthenticated bool
 	IsPublic             bool
 	DisableExecutionLogs bool
@@ -26,6 +27,7 @@ type FunctionConfig struct {
 
 // JobConfig contains parsed @fluxbase: annotations for background jobs
 type JobConfig struct {
+	Namespace            *string // @fluxbase:namespace production
 	Schedule             *string
 	TimeoutSeconds       *int
 	MemoryLimitMB        *int
@@ -47,6 +49,13 @@ func ParseFunctionAnnotations(code string) FunctionConfig {
 		AllowUnauthenticated: false, // Secure by default
 		IsPublic:             true,  // Public by default
 		DisableExecutionLogs: false, // Logging enabled by default
+	}
+
+	// Match @fluxbase:namespace with value
+	namespacePattern := regexp.MustCompile(`(?m)^\s*(?://|/\*|\*)\s*@fluxbase:namespace\s+(\S+)`)
+	if matches := namespacePattern.FindStringSubmatch(code); len(matches) > 1 {
+		value := strings.TrimSpace(matches[1])
+		config.Namespace = &value
 	}
 
 	// Match @fluxbase:allow-unauthenticated
@@ -132,6 +141,12 @@ func ParseFunctionAnnotations(code string) FunctionConfig {
 // Returns a JobConfig with the parsed values.
 func ParseJobAnnotations(code string) JobConfig {
 	config := JobConfig{}
+
+	// Parse namespace
+	if match := regexp.MustCompile(`@fluxbase:namespace\s+(\S+)`).FindStringSubmatch(code); match != nil {
+		namespace := strings.TrimSpace(match[1])
+		config.Namespace = &namespace
+	}
 
 	// Parse schedule (cron expression)
 	// Supports: @fluxbase:schedule 0 2 * * *
@@ -219,6 +234,11 @@ func ParseJobAnnotations(code string) JobConfig {
 // ApplyFunctionConfig applies the parsed function configuration to a map.
 // Only non-default values are added to avoid overriding server defaults.
 func ApplyFunctionConfig(fn map[string]interface{}, config FunctionConfig) {
+	// Namespace (if specified in annotation, it overrides CLI flag)
+	if config.Namespace != nil {
+		fn["namespace"] = *config.Namespace
+	}
+
 	// Only add non-default values
 	if config.AllowUnauthenticated {
 		fn["allow_unauthenticated"] = true
@@ -262,6 +282,10 @@ func ApplyFunctionConfig(fn map[string]interface{}, config FunctionConfig) {
 // ApplyJobConfig applies the parsed job configuration to a map.
 // Only non-nil values are added to avoid overriding server defaults.
 func ApplyJobConfig(job map[string]interface{}, config JobConfig) {
+	// Namespace (if specified in annotation, it overrides CLI flag)
+	if config.Namespace != nil {
+		job["namespace"] = *config.Namespace
+	}
 	if config.Schedule != nil {
 		job["schedule"] = *config.Schedule
 	}

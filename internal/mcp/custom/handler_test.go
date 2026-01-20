@@ -9,17 +9,51 @@ import (
 )
 
 func TestDynamicToolHandler_Name(t *testing.T) {
-	tool := &CustomTool{
-		ID:        uuid.New(),
-		Name:      "weather_forecast",
-		Namespace: "default",
-		Code:      "export function handler() {}",
+	tests := []struct {
+		name      string
+		toolName  string
+		namespace string
+		want      string
+	}{
+		{
+			name:      "default namespace",
+			toolName:  "weather_forecast",
+			namespace: "default",
+			want:      "custom:weather_forecast",
+		},
+		{
+			name:      "empty namespace treated as default",
+			toolName:  "weather_forecast",
+			namespace: "",
+			want:      "custom:weather_forecast",
+		},
+		{
+			name:      "production namespace",
+			toolName:  "weather_forecast",
+			namespace: "production",
+			want:      "custom:production:weather_forecast",
+		},
+		{
+			name:      "custom namespace",
+			toolName:  "get_user_orders",
+			namespace: "ecommerce",
+			want:      "custom:ecommerce:get_user_orders",
+		},
 	}
 
-	handler := NewDynamicToolHandler(tool, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := &CustomTool{
+				ID:        uuid.New(),
+				Name:      tt.toolName,
+				Namespace: tt.namespace,
+				Code:      "export function handler() {}",
+			}
 
-	// Tool names are prefixed with "custom_"
-	assert.Equal(t, "custom_weather_forecast", handler.Name())
+			handler := NewDynamicToolHandler(tool, nil)
+			assert.Equal(t, tt.want, handler.Name())
+		})
+	}
 }
 
 func TestDynamicToolHandler_Description(t *testing.T) {
