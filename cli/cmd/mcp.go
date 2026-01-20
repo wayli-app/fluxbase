@@ -120,14 +120,14 @@ Each .ts file in the directory will be synced as a custom tool.
 Tool metadata is read from annotations in the file.
 
 Annotations:
-  // @mcp:tool
-  // @mcp:name my_tool
-  // @mcp:description My custom tool
-  // @mcp:scopes read:tables,write:storage
-  // @mcp:timeout 30
-  // @mcp:memory 128
-  // @mcp:allow-net
-  // @mcp:allow-env
+  // @fluxbase:mcp-tool
+  // @fluxbase:name my_tool
+  // @fluxbase:description My custom tool
+  // @fluxbase:scopes read:tables,write:storage
+  // @fluxbase:timeout 30
+  // @fluxbase:memory 128
+  // @fluxbase:allow-net
+  // @fluxbase:allow-env
 
 Examples:
   fluxbase mcp tools sync --dir ./mcp-tools
@@ -219,15 +219,15 @@ Each .ts file in the directory will be synced as a custom resource.
 Resource metadata is read from annotations in the file.
 
 Annotations:
-  // @mcp:resource
-  // @mcp:uri fluxbase://custom/my-resource
-  // @mcp:name My Resource
-  // @mcp:description My custom resource
-  // @mcp:mime-type application/json
-  // @mcp:template (for parameterized URIs)
-  // @mcp:scopes read:tables
-  // @mcp:timeout 10
-  // @mcp:cache-ttl 60
+  // @fluxbase:mcp-resource
+  // @fluxbase:uri fluxbase://custom/my-resource
+  // @fluxbase:name My Resource
+  // @fluxbase:description My custom resource
+  // @fluxbase:mime-type application/json
+  // @fluxbase:template (for parameterized URIs)
+  // @fluxbase:scopes read:tables
+  // @fluxbase:timeout 10
+  // @fluxbase:cache-ttl 60
 
 Examples:
   fluxbase mcp resources sync --dir ./mcp-resources
@@ -1015,7 +1015,7 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 
 		uri, ok := annotations["uri"]
 		if !ok {
-			fmt.Printf("Skipping %s: missing @mcp:uri annotation\n", file)
+			fmt.Printf("Skipping %s: missing @fluxbase:uri annotation\n", file)
 			continue
 		}
 
@@ -1158,11 +1158,23 @@ func parseMCPAnnotations(code, filename string) (name string, annotations map[st
 		line = strings.TrimPrefix(line, "//")
 		line = strings.TrimSpace(line)
 
-		if !strings.HasPrefix(line, "@mcp:") {
+		// Support @fluxbase: annotations (consistent with edge functions and jobs)
+		if !strings.HasPrefix(line, "@fluxbase:") {
 			continue
 		}
 
-		line = strings.TrimPrefix(line, "@mcp:")
+		line = strings.TrimPrefix(line, "@fluxbase:")
+
+		// Handle special mcp-tool and mcp-resource type markers
+		if line == "mcp-tool" || strings.HasPrefix(line, "mcp-tool ") {
+			annotations["tool"] = true
+			continue
+		}
+		if line == "mcp-resource" || strings.HasPrefix(line, "mcp-resource ") {
+			annotations["resource"] = true
+			continue
+		}
+
 		parts := strings.SplitN(line, " ", 2)
 
 		key := parts[0]

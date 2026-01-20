@@ -24,10 +24,10 @@ Create a TypeScript file with your tool implementation:
 
 ```typescript
 // weather_forecast.ts
-// @mcp:tool
-// @mcp:name weather_forecast
-// @mcp:description Get weather forecast for a location
-// @mcp:scopes execute:custom
+// @fluxbase:mcp-tool
+// @fluxbase:name weather_forecast
+// @fluxbase:description Get weather forecast for a location
+// @fluxbase:scopes execute:custom
 
 export async function handler(
   args: { location: string; days?: number },
@@ -88,18 +88,18 @@ export default async function handler(request: Request, context: any) {
 
 ## Tool Annotations
 
-Use annotations in your TypeScript files to configure tool behavior:
+Use annotations in your TypeScript files to configure tool behavior. The `@fluxbase:` prefix is consistent with edge functions and jobs.
 
 | Annotation | Description | Example |
 |------------|-------------|---------|
-| `@mcp:tool` | Marks file as MCP tool | `// @mcp:tool` |
-| `@mcp:name` | Tool name (alphanumeric + underscore) | `// @mcp:name weather_forecast` |
-| `@mcp:description` | Human-readable description | `// @mcp:description Get weather forecast` |
-| `@mcp:scopes` | Required MCP scopes (comma-separated) | `// @mcp:scopes execute:custom,read:tables` |
-| `@mcp:timeout` | Execution timeout in seconds | `// @mcp:timeout 30` |
-| `@mcp:memory` | Memory limit in MB | `// @mcp:memory 128` |
-| `@mcp:allow-net` | Allow network access | `// @mcp:allow-net` |
-| `@mcp:allow-env` | Allow environment variable access | `// @mcp:allow-env` |
+| `@fluxbase:mcp-tool` | Marks file as MCP tool | `// @fluxbase:mcp-tool` |
+| `@fluxbase:name` | Tool name (alphanumeric + underscore) | `// @fluxbase:name weather_forecast` |
+| `@fluxbase:description` | Human-readable description | `// @fluxbase:description Get weather forecast` |
+| `@fluxbase:scopes` | Required MCP scopes (comma-separated) | `// @fluxbase:scopes execute:custom,read:tables` |
+| `@fluxbase:timeout` | Execution timeout in seconds | `// @fluxbase:timeout 30` |
+| `@fluxbase:memory` | Memory limit in MB | `// @fluxbase:memory 128` |
+| `@fluxbase:allow-net` | Allow network access | `// @fluxbase:allow-net` |
+| `@fluxbase:allow-env` | Allow environment variable access | `// @fluxbase:allow-env` |
 
 ## Input Schema
 
@@ -241,10 +241,10 @@ Resources provide read-only data to AI assistants:
 
 ```typescript
 // analytics_summary.ts
-// @mcp:resource
-// @mcp:uri fluxbase://custom/analytics/summary
-// @mcp:name Analytics Summary
-// @mcp:description Real-time analytics summary
+// @fluxbase:mcp-resource
+// @fluxbase:uri fluxbase://custom/analytics/summary
+// @fluxbase:name Analytics Summary
+// @fluxbase:description Real-time analytics summary
 
 export async function handler(params: {}, context: any) {
   const data = await context.fluxbase
@@ -270,10 +270,10 @@ For parameterized URIs:
 
 ```typescript
 // user_profile.ts
-// @mcp:resource
-// @mcp:uri fluxbase://custom/users/{id}/profile
-// @mcp:name User Profile
-// @mcp:template
+// @fluxbase:mcp-resource
+// @fluxbase:uri fluxbase://custom/users/{id}/profile
+// @fluxbase:name User Profile
+// @fluxbase:template
 
 export async function handler(params: { id: string }, context: any) {
   const user = await context.fluxbase
@@ -415,11 +415,11 @@ The `custom_` prefix is automatically added to tool names to distinguish them fr
 
 ```typescript
 // order_status.ts
-// @mcp:tool
-// @mcp:name check_order_status
-// @mcp:description Check the status of a customer order
-// @mcp:scopes execute:custom,read:tables
-// @mcp:timeout 10
+// @fluxbase:mcp-tool
+// @fluxbase:name check_order_status
+// @fluxbase:description Check the status of a customer order
+// @fluxbase:scopes execute:custom,read:tables
+// @fluxbase:timeout 10
 
 export async function handler(
   args: { order_id: string },
