@@ -618,21 +618,14 @@ const fluxbase = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_USER_TOKEN__);
 // fluxbaseService: Service-scoped client that bypasses RLS (use with caution!)
 const fluxbaseService = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_SERVICE_TOKEN__);
 
-// Create context object for the handler
-const context = {
-	args: __MCP_ARGS__,
+// Tool utilities object - metadata and helpers (same pattern as edge functions)
+const toolUtils = {
 	...__MCP_CONTEXT__,
 
 	// Secrets accessor (requires allow_env permission)
 	secrets: {
 		get: (name) => Deno.env.get("FLUXBASE_SECRET_" + name.toUpperCase()),
 	},
-
-	// User-scoped Fluxbase client (respects RLS)
-	fluxbase,
-
-	// Service-scoped Fluxbase client (bypasses RLS)
-	fluxbaseService,
 
 	// Environment info
 	env: {
@@ -654,7 +647,8 @@ const context = {
 			throw new Error("Tool must export a 'handler' or default function");
 		}
 
-		const result = await handlerFn(__MCP_ARGS__, context);
+		// Call with same signature as edge functions: handler(args, fluxbase, fluxbaseService, utils)
+		const result = await handlerFn(__MCP_ARGS__, fluxbase, fluxbaseService, toolUtils);
 
 		// Normalize result to MCP format
 		let mcpResult;
@@ -710,16 +704,9 @@ const fluxbase = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_USER_TOKEN__);
 // fluxbaseService: Service-scoped client that bypasses RLS (use with caution!)
 const fluxbaseService = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_SERVICE_TOKEN__);
 
-// Create context object for the handler
-const context = {
-	params: __MCP_PARAMS__,
+// Resource utilities object - metadata and helpers
+const resourceUtils = {
 	...__MCP_CONTEXT__,
-
-	// User-scoped Fluxbase client (respects RLS)
-	fluxbase,
-
-	// Service-scoped Fluxbase client (bypasses RLS)
-	fluxbaseService,
 };
 
 // User-defined resource handler
@@ -736,7 +723,8 @@ const context = {
 			throw new Error("Resource must export a 'handler' or default function");
 		}
 
-		const result = await handlerFn(__MCP_PARAMS__, context);
+		// Call with same signature as edge functions: handler(params, fluxbase, fluxbaseService, utils)
+		const result = await handlerFn(__MCP_PARAMS__, fluxbase, fluxbaseService, resourceUtils);
 
 		// Normalize result to MCP content array
 		let contents;

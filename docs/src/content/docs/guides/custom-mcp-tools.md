@@ -23,35 +23,28 @@ Custom resources provide read-only data that AI can access during conversations,
 Create a TypeScript file with your tool implementation:
 
 ```typescript
-// weather_forecast.ts
-// @fluxbase:description Get weather forecast for a location
-// @fluxbase:allow-net
+// get_user_orders.ts
+// @fluxbase:description Get orders for a user
 
 export async function handler(
-  args: { location: string; days?: number },
-  context: any
+  args: { user_id: string; limit?: number },
+  fluxbase: any,           // User-scoped client (respects RLS)
+  fluxbaseService: any,    // Service-scoped client (bypasses RLS)
+  utils: any               // Tool metadata and helpers
 ) {
-  const { location, days = 3 } = args;
+  const { user_id, limit = 10 } = args;
 
-  // Access secrets securely
-  const apiKey = context.secrets.get("WEATHER_API_KEY");
-
-  const response = await fetch(
-    `https://api.weather.com/forecast?location=${encodeURIComponent(location)}&days=${days}`,
-    { headers: { "X-API-Key": apiKey } }
-  );
-
-  if (!response.ok) {
-    return {
-      content: [{ type: "text", text: `Weather API error: ${response.status}` }],
-      isError: true
-    };
-  }
-
-  const data = await response.json();
+  // Same signature as edge functions: handler(args, fluxbase, fluxbaseService, utils)
+  const { data: orders } = await fluxbase
+    .from("orders")
+    .select("id, status, total, created_at")
+    .eq("user_id", user_id)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+    .execute();
 
   return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+    content: [{ type: "text", text: JSON.stringify(orders, null, 2) }]
   };
 }
 ```
@@ -60,28 +53,24 @@ export async function handler(
 
 ```bash
 # Create the tool
-fluxbase mcp tools create weather_forecast --code ./weather_forecast.ts \
-  --description "Get weather forecast for a location" \
-  --allow-net
+fluxbase mcp tools create get_user_orders --code ./get_user_orders.ts
 
-# Or sync a directory of tools
+# Or sync a directory of tools (all .ts files become tools)
 fluxbase mcp tools sync --dir ./mcp-tools
 ```
 
 ### 3. Use in Chatbots
 
-Configure your chatbot to use the custom tool:
+Configure your chatbot to use the custom tool (note: custom tools are prefixed with `custom_`):
 
 ```typescript
-// chatbot.ts
-// @fluxbase:mcp-tools custom_weather_forecast,query_table
-// @fluxbase:use-mcp-schema
+// order_assistant.ts
+/**
+ * @fluxbase:mcp-tools custom_get_user_orders,query_table
+ */
 
-export default async function handler(request: Request, context: any) {
-  return context.chat({
-    systemPrompt: "You are a helpful assistant that can check weather forecasts."
-  });
-}
+export default `You are an order management assistant.
+You can look up user orders and query tables.`;
 ```
 
 ## Tool Annotations
@@ -122,12 +111,25 @@ Define input validation using JSON Schema:
 }
 ```
 
-## Tool Context
+## Handler Signature
 
-Tools receive a context object with two Fluxbase clients and utilities:
+MCP tools use the same handler signature as edge functions and jobs:
 
 ```typescript
-interface ToolContext {
+handler(args, fluxbase, fluxbaseService, utils)
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `args` | Input arguments passed to the tool |
+| `fluxbase` | User-scoped Fluxbase client (respects RLS) |
+| `fluxbaseService` | Service-scoped Fluxbase client (bypasses RLS) |
+| `utils` | Tool metadata and helpers |
+
+### Utils Object
+
+```typescript
+interface ToolUtils {
   // Tool metadata
   tool_name: string;
   namespace: string;
@@ -142,12 +144,6 @@ interface ToolContext {
   secrets: {
     get(name: string): string | undefined;
   };
-
-  // User-scoped Fluxbase client (respects RLS policies)
-  fluxbase: FluxbaseClient;
-
-  // Service-scoped Fluxbase client (bypasses RLS - use with caution!)
-  fluxbaseService: FluxbaseClient;
 
   // Environment access (requires allow_env permission)
   env: {
@@ -184,9 +180,9 @@ interface FluxbaseClient {
 ### Accessing Fluxbase Data
 
 ```typescript
-export async function handler(args: { userId: string }, context: any) {
+export async function handler(args: { userId: string }, fluxbase, fluxbaseService, utils) {
   // Query using user context (respects RLS - user can only see their own data)
-  const { data: userData } = await context.fluxbase
+  const { data: userData } = await fluxbase
     .from("profiles")
     .select("id, name, email")
     .eq("id", args.userId)
@@ -194,7 +190,7 @@ export async function handler(args: { userId: string }, context: any) {
     .execute();
 
   // Query using service context (bypasses RLS - admin access)
-  const { data: allUsers } = await context.fluxbaseService
+  const { data: allUsers } = await fluxbaseService
     .from("profiles")
     .select("id, name")
     .limit(10)
@@ -209,21 +205,21 @@ export async function handler(args: { userId: string }, context: any) {
 ### Insert, Update, Delete
 
 ```typescript
-export async function handler(args: { name: string; email: string }, context: any) {
+export async function handler(args: { name: string; email: string }, fluxbase, fluxbaseService, utils) {
   // Insert a new record
-  const { data: created } = await context.fluxbaseService
+  const { data: created } = await fluxbaseService
     .insert("users", { name: args.name, email: args.email })
     .select("id, name, email")
     .execute();
 
   // Update a record
-  const { data: updated } = await context.fluxbaseService
+  const { data: updated } = await fluxbaseService
     .update("users", { last_login: new Date().toISOString() })
     .eq("email", args.email)
     .execute();
 
   // Delete a record
-  const { data: deleted } = await context.fluxbaseService
+  const { data: deleted } = await fluxbaseService
     .delete("users")
     .eq("id", args.userId)
     .execute();
@@ -236,12 +232,14 @@ export async function handler(args: { name: string; email: string }, context: an
 
 Resources provide read-only data to AI assistants. The URI defaults to `fluxbase://custom/{name}` based on filename.
 
+Resources use the same handler signature:
+
 ```typescript
 // analytics_summary.ts
 // @fluxbase:description Real-time analytics summary
 
-export async function handler(params: {}, context: any) {
-  const data = await context.fluxbase
+export async function handler(params: {}, fluxbase, fluxbaseService, utils) {
+  const { data } = await fluxbase
     .from("analytics_events")
     .select("*")
     .execute();
@@ -266,14 +264,15 @@ For parameterized URIs, specify a custom URI with `{param}` placeholders. Templa
 // user_profile.ts
 // @fluxbase:uri fluxbase://custom/users/{id}/profile
 
-export async function handler(params: { id: string }, context: any) {
-  const user = await context.fluxbase
+export async function handler(params: { id: string }, fluxbase, fluxbaseService, utils) {
+  const { data: user } = await fluxbase
     .from("users")
     .select("*")
     .eq("id", params.id)
+    .single()
     .execute();
 
-  return [{ type: "text", text: JSON.stringify(user[0]) }];
+  return [{ type: "text", text: JSON.stringify(user) }];
 }
 ```
 
@@ -387,10 +386,14 @@ Access secrets securely via `context.secrets.get("SECRET_NAME")`. Secrets are:
 Custom tools are automatically available to chatbots. Configure which tools a chatbot can use:
 
 ```typescript
-// @fluxbase:mcp-tools custom_weather_forecast,custom_send_notification,query_table
+// my_chatbot.ts
+/**
+ * @fluxbase:mcp-tools custom_check_order_status,query_table
+ */
+export default `You are a customer service assistant.`;
 ```
 
-The `custom_` prefix is automatically added to tool names to distinguish them from built-in tools.
+The `custom_` prefix is automatically added to tool names to distinguish them from built-in tools. So `check_order_status.ts` becomes `custom_check_order_status` in chatbot configuration.
 
 ## Best Practices
 
@@ -407,12 +410,8 @@ The `custom_` prefix is automatically added to tool names to distinguish them fr
 ```typescript
 // check_order_status.ts
 // @fluxbase:description Check the status of a customer order
-// @fluxbase:scopes read:tables
 
-export async function handler(
-  args: { order_id: string },
-  context: any
-) {
+export async function handler(args: { order_id: string }, fluxbase, fluxbaseService, utils) {
   const { order_id } = args;
 
   // Validate input
@@ -424,7 +423,7 @@ export async function handler(
   }
 
   // Query Fluxbase
-  const orders = await context.fluxbase
+  const { data: orders } = await fluxbase
     .from("orders")
     .select("id, status, created_at, total, items")
     .eq("id", order_id)
@@ -455,6 +454,6 @@ export async function handler(
 Deploy and test:
 
 ```bash
-fluxbase mcp tools create check_order_status --code ./order_status.ts
+fluxbase mcp tools create check_order_status --code ./check_order_status.ts
 fluxbase mcp tools test check_order_status --args '{"order_id": "ORD-12345"}'
 ```
