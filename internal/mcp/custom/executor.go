@@ -80,11 +80,17 @@ func (e *Executor) ExecuteTool(
 	// Wrap the user code with MCP tool runtime bridge
 	wrappedCode := e.wrapToolCode(tool.Code, args, execCtx)
 
-	// Create execution request
+	// Create execution request with user context for token generation
 	req := runtime.ExecutionRequest{
 		ID:        uuid.New(),
 		Name:      "mcp_tool_" + tool.Name,
 		Namespace: tool.Namespace,
+	}
+	// Pass user context to execution request for proper token generation
+	if authCtx != nil {
+		req.UserID = authCtx.UserID
+		req.UserEmail = authCtx.UserEmail
+		req.UserRole = authCtx.UserRole
 	}
 
 	// Set permissions based on tool configuration
@@ -149,11 +155,16 @@ func (e *Executor) ExecuteResource(
 	// Wrap the user code with MCP resource runtime bridge
 	wrappedCode := e.wrapResourceCode(resource.Code, params, execCtx)
 
-	// Create execution request
+	// Create execution request with user context
 	req := runtime.ExecutionRequest{
 		ID:        uuid.New(),
 		Name:      "mcp_resource_" + resource.Name,
 		Namespace: resource.Namespace,
+	}
+	if authCtx != nil {
+		req.UserID = authCtx.UserID
+		req.UserEmail = authCtx.UserEmail
+		req.UserRole = authCtx.UserRole
 	}
 
 	// Resources typically need network access for database queries
@@ -184,6 +195,407 @@ func (e *Executor) ExecuteResource(
 	return e.parseResourceResult(result)
 }
 
+// fluxbaseSDKCode returns the JavaScript code for the Fluxbase SDK clients.
+// This provides both user-scoped (fluxbase) and service-scoped (fluxbaseService) clients.
+func fluxbaseSDKCode() string {
+	return `
+// Fluxbase SDK - Query Builder
+class QueryBuilder {
+	constructor(client, table) {
+		this._client = client;
+		this._table = table;
+		this._select = "*";
+		this._filters = [];
+		this._order = [];
+		this._limit = null;
+		this._offset = null;
+		this._single = false;
+	}
+
+	select(columns) {
+		this._select = columns;
+		return this;
+	}
+
+	eq(column, value) {
+		this._filters.push(column + "=eq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	neq(column, value) {
+		this._filters.push(column + "=neq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	gt(column, value) {
+		this._filters.push(column + "=gt." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	gte(column, value) {
+		this._filters.push(column + "=gte." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	lt(column, value) {
+		this._filters.push(column + "=lt." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	lte(column, value) {
+		this._filters.push(column + "=lte." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	like(column, pattern) {
+		this._filters.push(column + "=like." + encodeURIComponent(pattern));
+		return this;
+	}
+
+	ilike(column, pattern) {
+		this._filters.push(column + "=ilike." + encodeURIComponent(pattern));
+		return this;
+	}
+
+	is(column, value) {
+		this._filters.push(column + "=is." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	in(column, values) {
+		this._filters.push(column + "=in.(" + values.map(v => encodeURIComponent(String(v))).join(",") + ")");
+		return this;
+	}
+
+	contains(column, value) {
+		this._filters.push(column + "=cs." + encodeURIComponent(JSON.stringify(value)));
+		return this;
+	}
+
+	containedBy(column, value) {
+		this._filters.push(column + "=cd." + encodeURIComponent(JSON.stringify(value)));
+		return this;
+	}
+
+	order(column, options = {}) {
+		const dir = options.ascending === false ? "desc" : "asc";
+		const nulls = options.nullsFirst ? ".nullsfirst" : "";
+		this._order.push(column + "." + dir + nulls);
+		return this;
+	}
+
+	limit(count) {
+		this._limit = count;
+		return this;
+	}
+
+	offset(count) {
+		this._offset = count;
+		return this;
+	}
+
+	single() {
+		this._single = true;
+		this._limit = 1;
+		return this;
+	}
+
+	maybeSingle() {
+		this._single = true;
+		this._limit = 1;
+		return this;
+	}
+
+	async execute() {
+		let path = "/rest/v1/" + this._table + "?select=" + encodeURIComponent(this._select);
+
+		if (this._filters.length > 0) {
+			path += "&" + this._filters.join("&");
+		}
+
+		if (this._order.length > 0) {
+			path += "&order=" + this._order.join(",");
+		}
+
+		if (this._limit !== null) {
+			path += "&limit=" + this._limit;
+		}
+
+		if (this._offset !== null) {
+			path += "&offset=" + this._offset;
+		}
+
+		const result = await this._client._fetch(path);
+
+		if (this._single) {
+			return { data: result[0] || null, error: null };
+		}
+
+		return { data: result, error: null };
+	}
+}
+
+// Fluxbase SDK - Insert Builder
+class InsertBuilder {
+	constructor(client, table, data) {
+		this._client = client;
+		this._table = table;
+		this._data = data;
+		this._select = null;
+		this._onConflict = null;
+	}
+
+	select(columns) {
+		this._select = columns;
+		return this;
+	}
+
+	onConflict(columns) {
+		this._onConflict = columns;
+		return this;
+	}
+
+	async execute() {
+		let path = "/rest/v1/" + this._table;
+		const params = [];
+
+		if (this._select) {
+			params.push("select=" + encodeURIComponent(this._select));
+		}
+
+		if (this._onConflict) {
+			params.push("on_conflict=" + encodeURIComponent(this._onConflict));
+		}
+
+		if (params.length > 0) {
+			path += "?" + params.join("&");
+		}
+
+		const result = await this._client._fetch(path, {
+			method: "POST",
+			body: JSON.stringify(this._data),
+			headers: { "Prefer": "return=representation" }
+		});
+
+		return { data: result, error: null };
+	}
+}
+
+// Fluxbase SDK - Update Builder
+class UpdateBuilder {
+	constructor(client, table, data) {
+		this._client = client;
+		this._table = table;
+		this._data = data;
+		this._filters = [];
+		this._select = null;
+	}
+
+	eq(column, value) {
+		this._filters.push(column + "=eq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	neq(column, value) {
+		this._filters.push(column + "=neq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	select(columns) {
+		this._select = columns;
+		return this;
+	}
+
+	async execute() {
+		let path = "/rest/v1/" + this._table;
+		const params = [...this._filters];
+
+		if (this._select) {
+			params.push("select=" + encodeURIComponent(this._select));
+		}
+
+		if (params.length > 0) {
+			path += "?" + params.join("&");
+		}
+
+		const result = await this._client._fetch(path, {
+			method: "PATCH",
+			body: JSON.stringify(this._data),
+			headers: { "Prefer": "return=representation" }
+		});
+
+		return { data: result, error: null };
+	}
+}
+
+// Fluxbase SDK - Delete Builder
+class DeleteBuilder {
+	constructor(client, table) {
+		this._client = client;
+		this._table = table;
+		this._filters = [];
+		this._select = null;
+	}
+
+	eq(column, value) {
+		this._filters.push(column + "=eq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	neq(column, value) {
+		this._filters.push(column + "=neq." + encodeURIComponent(String(value)));
+		return this;
+	}
+
+	select(columns) {
+		this._select = columns;
+		return this;
+	}
+
+	async execute() {
+		let path = "/rest/v1/" + this._table;
+		const params = [...this._filters];
+
+		if (this._select) {
+			params.push("select=" + encodeURIComponent(this._select));
+		}
+
+		if (params.length > 0) {
+			path += "?" + params.join("&");
+		}
+
+		const result = await this._client._fetch(path, {
+			method: "DELETE",
+			headers: { "Prefer": "return=representation" }
+		});
+
+		return { data: result, error: null };
+	}
+}
+
+// Fluxbase SDK - Client
+class FluxbaseClient {
+	constructor(url, token) {
+		this.url = url;
+		this.token = token;
+	}
+
+	async _fetch(path, options = {}) {
+		const url = this.url + path;
+		const headers = {
+			"Content-Type": "application/json",
+			...(this.token ? { "Authorization": "Bearer " + this.token } : {}),
+			...(options.headers || {}),
+		};
+
+		const response = await fetch(url, { ...options, headers });
+
+		if (!response.ok) {
+			const errorBody = await response.text();
+			throw new Error("Fluxbase API error: " + response.status + " " + response.statusText + " - " + errorBody);
+		}
+
+		const text = await response.text();
+		return text ? JSON.parse(text) : null;
+	}
+
+	from(table) {
+		return new QueryBuilder(this, table);
+	}
+
+	insert(table, data) {
+		return new InsertBuilder(this, table, data);
+	}
+
+	update(table, data) {
+		return new UpdateBuilder(this, table, data);
+	}
+
+	delete(table) {
+		return new DeleteBuilder(this, table);
+	}
+
+	async rpc(functionName, params = {}) {
+		const path = "/rest/v1/rpc/" + functionName;
+		const result = await this._fetch(path, {
+			method: "POST",
+			body: JSON.stringify(params),
+		});
+		return { data: result, error: null };
+	}
+
+	// Storage operations
+	storage = {
+		_client: this,
+
+		async list(bucket, options = {}) {
+			const params = new URLSearchParams();
+			if (options.prefix) params.set("prefix", options.prefix);
+			if (options.limit) params.set("limit", String(options.limit));
+			if (options.offset) params.set("offset", String(options.offset));
+
+			const path = "/storage/v1/object/list/" + bucket + (params.toString() ? "?" + params : "");
+			return this._client._fetch(path);
+		},
+
+		async download(bucket, path) {
+			const url = this._client.url + "/storage/v1/object/" + bucket + "/" + path;
+			const response = await fetch(url, {
+				headers: this._client.token ? { "Authorization": "Bearer " + this._client.token } : {}
+			});
+			if (!response.ok) throw new Error("Storage download error: " + response.status);
+			return response;
+		},
+
+		async upload(bucket, path, file, options = {}) {
+			const url = this._client.url + "/storage/v1/object/" + bucket + "/" + path;
+			const headers = {
+				...(this._client.token ? { "Authorization": "Bearer " + this._client.token } : {}),
+				...(options.contentType ? { "Content-Type": options.contentType } : {}),
+			};
+
+			const response = await fetch(url, {
+				method: "POST",
+				headers,
+				body: file,
+			});
+
+			if (!response.ok) throw new Error("Storage upload error: " + response.status);
+			return response.json();
+		},
+
+		async remove(bucket, paths) {
+			const pathList = Array.isArray(paths) ? paths : [paths];
+			const url = this._client.url + "/storage/v1/object/" + bucket;
+			return this._client._fetch(url, {
+				method: "DELETE",
+				body: JSON.stringify({ prefixes: pathList }),
+			});
+		},
+
+		getPublicUrl(bucket, path) {
+			return this._client.url + "/storage/v1/object/public/" + bucket + "/" + path;
+		}
+	};
+
+	// Functions invocation
+	functions = {
+		_client: this,
+
+		async invoke(functionName, options = {}) {
+			const path = "/functions/v1/" + functionName;
+			const result = await this._client._fetch(path, {
+				method: "POST",
+				body: options.body ? JSON.stringify(options.body) : undefined,
+				headers: options.headers || {},
+			});
+			return { data: result, error: null };
+		}
+	};
+}
+`
+}
+
 // wrapToolCode wraps user tool code with the MCP runtime bridge.
 func (e *Executor) wrapToolCode(code string, args map[string]any, execCtx map[string]any) string {
 	argsJSON, _ := json.Marshal(args)
@@ -191,61 +603,41 @@ func (e *Executor) wrapToolCode(code string, args map[string]any, execCtx map[st
 
 	return fmt.Sprintf(`
 // MCP Tool Runtime Bridge
+%s
+
 const __MCP_ARGS__ = %s;
 const __MCP_CONTEXT__ = %s;
 const __FLUXBASE_URL__ = Deno.env.get("FLUXBASE_PUBLIC_URL") || "";
-const __FLUXBASE_TOKEN__ = Deno.env.get("FLUXBASE_USER_TOKEN") || "";
+const __FLUXBASE_USER_TOKEN__ = Deno.env.get("FLUXBASE_USER_TOKEN") || "";
+const __FLUXBASE_SERVICE_TOKEN__ = Deno.env.get("FLUXBASE_SERVICE_TOKEN") || "";
 
-// Create Fluxbase SDK context for tools
+// Create Fluxbase SDK clients
+// fluxbase: User-scoped client that respects RLS policies
+const fluxbase = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_USER_TOKEN__);
+
+// fluxbaseService: Service-scoped client that bypasses RLS (use with caution!)
+const fluxbaseService = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_SERVICE_TOKEN__);
+
+// Create context object for the handler
 const context = {
 	args: __MCP_ARGS__,
 	...__MCP_CONTEXT__,
 
-	// Secrets accessor
+	// Secrets accessor (requires allow_env permission)
 	secrets: {
 		get: (name) => Deno.env.get("FLUXBASE_SECRET_" + name.toUpperCase()),
 	},
 
-	// Simple fetch wrapper for Fluxbase API
-	fluxbase: {
-		url: __FLUXBASE_URL__,
-		token: __FLUXBASE_TOKEN__,
-		async fetch(path, options = {}) {
-			const url = this.url + path;
-			const headers = {
-				"Content-Type": "application/json",
-				...(this.token ? { "Authorization": "Bearer " + this.token } : {}),
-				...(options.headers || {}),
-			};
-			const response = await fetch(url, { ...options, headers });
-			if (!response.ok) {
-				throw new Error("Fluxbase API error: " + response.status + " " + response.statusText);
-			}
-			return response.json();
-		},
-		async from(table) {
-			return {
-				_table: table,
-				_select: "*",
-				_filters: [],
-				select(columns) {
-					this._select = columns;
-					return this;
-				},
-				eq(column, value) {
-					this._filters.push(column + "=eq." + encodeURIComponent(value));
-					return this;
-				},
-				async execute() {
-					let path = "/rest/v1/" + this._table + "?select=" + encodeURIComponent(this._select);
-					if (this._filters.length > 0) {
-						path += "&" + this._filters.join("&");
-					}
-					return context.fluxbase.fetch(path);
-				}
-			};
-		}
-	}
+	// User-scoped Fluxbase client (respects RLS)
+	fluxbase,
+
+	// Service-scoped Fluxbase client (bypasses RLS)
+	fluxbaseService,
+
+	// Environment info
+	env: {
+		get: (name) => Deno.env.get(name),
+	},
 };
 
 // User-defined tool handler
@@ -293,7 +685,7 @@ const context = {
 		}));
 	}
 })();
-`, string(argsJSON), string(ctxJSON), code)
+`, fluxbaseSDKCode(), string(argsJSON), string(ctxJSON), code)
 }
 
 // wrapResourceCode wraps user resource code with the MCP runtime bridge.
@@ -303,56 +695,31 @@ func (e *Executor) wrapResourceCode(code string, params map[string]string, execC
 
 	return fmt.Sprintf(`
 // MCP Resource Runtime Bridge
+%s
+
 const __MCP_PARAMS__ = %s;
 const __MCP_CONTEXT__ = %s;
 const __FLUXBASE_URL__ = Deno.env.get("FLUXBASE_PUBLIC_URL") || "";
-const __FLUXBASE_TOKEN__ = Deno.env.get("FLUXBASE_USER_TOKEN") || "";
+const __FLUXBASE_USER_TOKEN__ = Deno.env.get("FLUXBASE_USER_TOKEN") || "";
+const __FLUXBASE_SERVICE_TOKEN__ = Deno.env.get("FLUXBASE_SERVICE_TOKEN") || "";
 
-// Create Fluxbase SDK context for resources
+// Create Fluxbase SDK clients
+// fluxbase: User-scoped client that respects RLS policies
+const fluxbase = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_USER_TOKEN__);
+
+// fluxbaseService: Service-scoped client that bypasses RLS (use with caution!)
+const fluxbaseService = new FluxbaseClient(__FLUXBASE_URL__, __FLUXBASE_SERVICE_TOKEN__);
+
+// Create context object for the handler
 const context = {
 	params: __MCP_PARAMS__,
 	...__MCP_CONTEXT__,
 
-	// Simple fetch wrapper for Fluxbase API
-	fluxbase: {
-		url: __FLUXBASE_URL__,
-		token: __FLUXBASE_TOKEN__,
-		async fetch(path, options = {}) {
-			const url = this.url + path;
-			const headers = {
-				"Content-Type": "application/json",
-				...(this.token ? { "Authorization": "Bearer " + this.token } : {}),
-				...(options.headers || {}),
-			};
-			const response = await fetch(url, { ...options, headers });
-			if (!response.ok) {
-				throw new Error("Fluxbase API error: " + response.status + " " + response.statusText);
-			}
-			return response.json();
-		},
-		async from(table) {
-			return {
-				_table: table,
-				_select: "*",
-				_filters: [],
-				select(columns) {
-					this._select = columns;
-					return this;
-				},
-				eq(column, value) {
-					this._filters.push(column + "=eq." + encodeURIComponent(value));
-					return this;
-				},
-				async execute() {
-					let path = "/rest/v1/" + this._table + "?select=" + encodeURIComponent(this._select);
-					if (this._filters.length > 0) {
-						path += "&" + this._filters.join("&");
-					}
-					return context.fluxbase.fetch(path);
-				}
-			};
-		}
-	}
+	// User-scoped Fluxbase client (respects RLS)
+	fluxbase,
+
+	// Service-scoped Fluxbase client (bypasses RLS)
+	fluxbaseService,
 };
 
 // User-defined resource handler
@@ -396,7 +763,7 @@ const context = {
 		}));
 	}
 })();
-`, string(paramsJSON), string(ctxJSON), code)
+`, fluxbaseSDKCode(), string(paramsJSON), string(ctxJSON), code)
 }
 
 // parseToolResult parses the Deno execution result into an MCP ToolResult.

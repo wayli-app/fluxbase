@@ -127,7 +127,7 @@ Define input validation using JSON Schema:
 
 ## Tool Context
 
-Tools receive a context object with useful utilities:
+Tools receive a context object with two Fluxbase clients and utilities:
 
 ```typescript
 interface ToolContext {
@@ -141,17 +141,45 @@ interface ToolContext {
   user_role: string;
   scopes: string[];
 
-  // Secrets accessor
+  // Secrets accessor (requires allow_env permission)
   secrets: {
     get(name: string): string | undefined;
   };
 
-  // Fluxbase API client
-  fluxbase: {
-    url: string;
-    token: string;
-    fetch(path: string, options?: RequestInit): Promise<any>;
-    from(table: string): QueryBuilder;
+  // User-scoped Fluxbase client (respects RLS policies)
+  fluxbase: FluxbaseClient;
+
+  // Service-scoped Fluxbase client (bypasses RLS - use with caution!)
+  fluxbaseService: FluxbaseClient;
+
+  // Environment access (requires allow_env permission)
+  env: {
+    get(name: string): string | undefined;
+  };
+}
+
+interface FluxbaseClient {
+  // Query builder
+  from(table: string): QueryBuilder;
+  insert(table: string, data: any): InsertBuilder;
+  update(table: string, data: any): UpdateBuilder;
+  delete(table: string): DeleteBuilder;
+
+  // RPC calls
+  rpc(functionName: string, params?: object): Promise<{ data: any; error: null }>;
+
+  // Storage operations
+  storage: {
+    list(bucket: string, options?: { prefix?: string; limit?: number }): Promise<any>;
+    download(bucket: string, path: string): Promise<Response>;
+    upload(bucket: string, path: string, file: any, options?: { contentType?: string }): Promise<any>;
+    remove(bucket: string, paths: string | string[]): Promise<any>;
+    getPublicUrl(bucket: string, path: string): string;
+  };
+
+  // Edge functions
+  functions: {
+    invoke(name: string, options?: { body?: any; headers?: object }): Promise<{ data: any; error: null }>;
   };
 }
 ```
@@ -160,16 +188,50 @@ interface ToolContext {
 
 ```typescript
 export async function handler(args: { userId: string }, context: any) {
-  // Query Fluxbase tables
-  const users = await context.fluxbase
-    .from("users")
+  // Query using user context (respects RLS - user can only see their own data)
+  const { data: userData } = await context.fluxbase
+    .from("profiles")
     .select("id, name, email")
     .eq("id", args.userId)
+    .single()
+    .execute();
+
+  // Query using service context (bypasses RLS - admin access)
+  const { data: allUsers } = await context.fluxbaseService
+    .from("profiles")
+    .select("id, name")
+    .limit(10)
     .execute();
 
   return {
-    content: [{ type: "text", text: JSON.stringify(users) }]
+    content: [{ type: "text", text: JSON.stringify({ user: userData, recentUsers: allUsers }) }]
   };
+}
+```
+
+### Insert, Update, Delete
+
+```typescript
+export async function handler(args: { name: string; email: string }, context: any) {
+  // Insert a new record
+  const { data: created } = await context.fluxbaseService
+    .insert("users", { name: args.name, email: args.email })
+    .select("id, name, email")
+    .execute();
+
+  // Update a record
+  const { data: updated } = await context.fluxbaseService
+    .update("users", { last_login: new Date().toISOString() })
+    .eq("email", args.email)
+    .execute();
+
+  // Delete a record
+  const { data: deleted } = await context.fluxbaseService
+    .delete("users")
+    .eq("id", args.userId)
+    .execute();
+
+  return created;
 }
 ```
 
