@@ -164,22 +164,50 @@ function JobsPage() {
     },
   })
 
-  // Fetch namespaces on mount
+  // Fetch namespaces on mount and select best default
   useEffect(() => {
     const fetchNamespaces = async () => {
       try {
         const data = await jobsApi.listNamespaces()
-        setNamespaces(data.length > 0 ? data : ['default'])
-        // If current namespace not in list, reset to first available
-        if (!data.includes(selectedNamespace)) {
-          setSelectedNamespace(data[0] || 'default')
+        const validNamespaces = data.length > 0 ? data : ['default']
+        setNamespaces(validNamespaces)
+
+        // Smart namespace selection: if 'default' is empty but other namespaces have items,
+        // select a non-empty namespace instead
+        let bestNamespace = validNamespaces[0] || 'default'
+
+        if (validNamespaces.includes('default') && validNamespaces.length > 1) {
+          // Check if 'default' namespace has any jobs
+          try {
+            const defaultJobs = await jobsApi.listFunctions('default')
+            if (!defaultJobs || defaultJobs.length === 0) {
+              // Default is empty, find first non-empty namespace
+              for (const ns of validNamespaces) {
+                if (ns !== 'default') {
+                  const nsJobs = await jobsApi.listFunctions(ns)
+                  if (nsJobs && nsJobs.length > 0) {
+                    bestNamespace = ns
+                    break
+                  }
+                }
+              }
+            }
+          } catch {
+            // If checking fails, stick with default
+          }
+        }
+
+        // If current namespace not in list, reset to best available
+        if (!validNamespaces.includes(selectedNamespace)) {
+          setSelectedNamespace(bestNamespace)
         }
       } catch {
         setNamespaces(['default'])
       }
     }
     fetchNamespaces()
-  }, [selectedNamespace])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // Only run on mount
 
   const fetchJobFunctions = useCallback(async () => {
     try {

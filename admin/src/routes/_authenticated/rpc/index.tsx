@@ -318,14 +318,42 @@ function RPCContent() {
     }
   }
 
-  // Fetch namespaces
+  // Fetch namespaces on mount and select best default
   useEffect(() => {
     const fetchNamespaces = async () => {
       try {
         const data = await rpcApi.listNamespaces()
-        setNamespaces(data.length > 0 ? data : ['default'])
-        if (!data.includes(selectedNamespace)) {
-          setSelectedNamespace(data[0] || 'default')
+        const validNamespaces = data.length > 0 ? data : ['default']
+        setNamespaces(validNamespaces)
+
+        // Smart namespace selection: if 'default' is empty but other namespaces have items,
+        // select a non-empty namespace instead
+        let bestNamespace = validNamespaces[0] || 'default'
+
+        if (validNamespaces.includes('default') && validNamespaces.length > 1) {
+          // Check if 'default' namespace has any procedures
+          try {
+            const defaultProcs = await rpcApi.listProcedures('default')
+            if (!defaultProcs || defaultProcs.length === 0) {
+              // Default is empty, find first non-empty namespace
+              for (const ns of validNamespaces) {
+                if (ns !== 'default') {
+                  const nsProcs = await rpcApi.listProcedures(ns)
+                  if (nsProcs && nsProcs.length > 0) {
+                    bestNamespace = ns
+                    break
+                  }
+                }
+              }
+            }
+          } catch {
+            // If checking fails, stick with default
+          }
+        }
+
+        // If current namespace not in list, reset to best available
+        if (!validNamespaces.includes(selectedNamespace)) {
+          setSelectedNamespace(bestNamespace)
         }
       } catch {
         setNamespaces(['default'])
@@ -334,7 +362,8 @@ function RPCContent() {
       }
     }
     fetchNamespaces()
-  }, [selectedNamespace])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // Only run on mount
 
   // Fetch data on mount and namespace change
   useEffect(() => {
