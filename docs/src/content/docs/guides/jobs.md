@@ -520,6 +520,7 @@ export async function handler(
 
 Control job behavior with JSDoc-style annotations:
 
+- `@fluxbase:namespace <name>` - Specify namespace (overrides CLI `--namespace` flag)
 - `@fluxbase:require-role <role>` - Require specific user role (admin, authenticated, custom)
 - `@fluxbase:timeout <seconds>` - Maximum execution time (default: 300)
 - `@fluxbase:max-retries <count>` - Number of retry attempts (default: 3)

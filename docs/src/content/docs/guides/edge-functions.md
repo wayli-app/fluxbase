@@ -885,6 +885,24 @@ async function handler(req) {
 
 Fluxbase supports special `@fluxbase:` directives in function code comments to configure function behavior. These annotations provide a convenient way to set function-level configuration without API calls.
 
+### Namespace Annotation
+
+**`@fluxbase:namespace`** - Specify which namespace the function belongs to (overrides CLI `--namespace` flag):
+
+```typescript
+/**
+ * Production-only function
+ *
+ * @fluxbase:namespace production
+ */
+async function handler(req) {
+  // This function will be deployed to the 'production' namespace
+  return { status: 200, body: "OK" };
+}
+```
+
+This is useful when you want to keep functions for different environments in the same directory but deploy them to different namespaces based on the annotation.
+
 ### Authentication Annotations
 
 **`@fluxbase:allow-unauthenticated`** - Allow function invocation without authentication:
