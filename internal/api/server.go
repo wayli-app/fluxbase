@@ -18,6 +18,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/jobs"
 	"github.com/fluxbase-eu/fluxbase/internal/logging"
 	"github.com/fluxbase-eu/fluxbase/internal/mcp"
+	"github.com/fluxbase-eu/fluxbase/internal/mcp/custom"
 	mcpresources "github.com/fluxbase-eu/fluxbase/internal/mcp/resources"
 	mcptools "github.com/fluxbase-eu/fluxbase/internal/mcp/tools"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
@@ -104,6 +105,8 @@ type Server struct {
 	serviceKeyHandler      *ServiceKeyHandler
 	schemaExportHandler    *SchemaExportHandler
 	mcpHandler             *mcp.Handler
+	customMCPManager       *custom.Manager
+	customMCPHandler       *CustomMCPHandler
 
 	// Database branching components
 	branchManager   *branching.Manager
@@ -1081,6 +1084,19 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 		log.Debug().Msg("MCP registries wired to AI chat handler")
 	}
 
+	// Initialize custom MCP tools and resources
+	customStorage := custom.NewStorage(s.db.Pool())
+	customExecutor := custom.NewExecutor(s.config.Auth.JWTSecret, s.config.Server.PublicURL, nil)
+	s.customMCPManager = custom.NewManager(customStorage, customExecutor, toolRegistry, resourceRegistry)
+	s.customMCPHandler = NewCustomMCPHandler(customStorage, s.customMCPManager)
+
+	// Load custom tools and resources from database
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := s.customMCPManager.LoadAndRegisterAll(ctx); err != nil {
+		log.Warn().Err(err).Msg("Failed to load some custom MCP tools/resources")
+	}
+
 	log.Debug().
 		Int("tools", len(toolRegistry.ListTools(&mcp.AuthContext{IsServiceRole: true}))).
 		Int("resources", len(resourceRegistry.ListResources(&mcp.AuthContext{IsServiceRole: true}))).
@@ -1338,6 +1354,11 @@ func (s *Server) setupRoutes() {
 
 	// Secrets routes - require authentication
 	s.secretsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+
+	// Custom MCP tools/resources routes - require admin authentication
+	if s.customMCPHandler != nil && s.config.MCP.Enabled {
+		s.customMCPHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	}
 
 	// Webhook routes - require authentication
 	s.webhookHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
