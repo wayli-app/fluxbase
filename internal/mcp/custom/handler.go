@@ -396,8 +396,9 @@ func (m *Manager) GetRegisteredResourceURIs() []string {
 // ExecuteToolForTest executes a custom tool for testing purposes.
 func (m *Manager) ExecuteToolForTest(ctx context.Context, tool *CustomTool, args map[string]any) (*mcp.ToolResult, error) {
 	// Create a test auth context with admin permissions
+	testUserID := "test-user"
 	authCtx := &mcp.AuthContext{
-		UserID:    "test-user",
+		UserID:    &testUserID,
 		UserEmail: "test@example.com",
 		UserRole:  "admin",
 		Scopes:    []string{"*"},
@@ -409,8 +410,9 @@ func (m *Manager) ExecuteToolForTest(ctx context.Context, tool *CustomTool, args
 // ExecuteResourceForTest executes a custom resource for testing purposes.
 func (m *Manager) ExecuteResourceForTest(ctx context.Context, resource *CustomResource, params map[string]string) ([]mcp.Content, error) {
 	// Create a test auth context with admin permissions
+	testUserID := "test-user"
 	authCtx := &mcp.AuthContext{
-		UserID:    "test-user",
+		UserID:    &testUserID,
 		UserEmail: "test@example.com",
 		UserRole:  "admin",
 		Scopes:    []string{"*"},

@@ -17,13 +17,13 @@ import (
 // Executor handles execution of custom MCP tools and resources using the Deno runtime.
 type Executor struct {
 	runtime        *runtime.DenoRuntime
-	secretsService secrets.Service
+	secretsService *secrets.Storage
 	publicURL      string
 	jwtSecret      string
 }
 
 // NewExecutor creates a new Executor instance.
-func NewExecutor(jwtSecret, publicURL string, secretsService secrets.Service) *Executor {
+func NewExecutor(jwtSecret, publicURL string, secretsService *secrets.Storage) *Executor {
 	// Create a dedicated Deno runtime for MCP tools
 	r := runtime.NewRuntime(
 		runtime.RuntimeTypeFunction,
@@ -55,7 +55,7 @@ func (e *Executor) ExecuteTool(
 	var secretsMap map[string]string
 	if tool.AllowEnv && e.secretsService != nil {
 		var err error
-		secretsMap, err = e.secretsService.GetAllDecrypted(ctx, tool.Namespace)
+		secretsMap, err = e.secretsService.GetSecretsForNamespace(ctx, tool.Namespace)
 		if err != nil {
 			log.Warn().Err(err).Str("tool", tool.Name).Msg("Failed to get secrets for custom tool")
 		}
@@ -71,7 +71,9 @@ func (e *Executor) ExecuteTool(
 		"scopes":     []string{},
 	}
 	if authCtx != nil {
-		execCtx["user_id"] = authCtx.UserID
+		if authCtx.UserID != nil {
+			execCtx["user_id"] = *authCtx.UserID
+		}
 		execCtx["user_email"] = authCtx.UserEmail
 		execCtx["user_role"] = authCtx.UserRole
 		execCtx["scopes"] = authCtx.Scopes
@@ -88,7 +90,9 @@ func (e *Executor) ExecuteTool(
 	}
 	// Pass user context to execution request for proper token generation
 	if authCtx != nil {
-		req.UserID = authCtx.UserID
+		if authCtx.UserID != nil {
+			req.UserID = *authCtx.UserID
+		}
 		req.UserEmail = authCtx.UserEmail
 		req.UserRole = authCtx.UserRole
 	}
@@ -146,7 +150,9 @@ func (e *Executor) ExecuteResource(
 		"scopes":        []string{},
 	}
 	if authCtx != nil {
-		execCtx["user_id"] = authCtx.UserID
+		if authCtx.UserID != nil {
+			execCtx["user_id"] = *authCtx.UserID
+		}
 		execCtx["user_email"] = authCtx.UserEmail
 		execCtx["user_role"] = authCtx.UserRole
 		execCtx["scopes"] = authCtx.Scopes
@@ -162,7 +168,9 @@ func (e *Executor) ExecuteResource(
 		Namespace: resource.Namespace,
 	}
 	if authCtx != nil {
-		req.UserID = authCtx.UserID
+		if authCtx.UserID != nil {
+			req.UserID = *authCtx.UserID
+		}
 		req.UserEmail = authCtx.UserEmail
 		req.UserRole = authCtx.UserRole
 	}

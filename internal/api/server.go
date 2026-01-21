@@ -1103,7 +1103,12 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 
 	// Initialize custom MCP tools and resources
 	customStorage := custom.NewStorage(s.db.Pool())
-	customExecutor := custom.NewExecutor(s.config.Auth.JWTSecret, s.config.Server.PublicURL, nil)
+	// Use BaseURL for internal communication, falling back to localhost with server address
+	mcpInternalURL := s.config.BaseURL
+	if mcpInternalURL == "" {
+		mcpInternalURL = "http://localhost" + s.config.Server.Address
+	}
+	customExecutor := custom.NewExecutor(s.config.Auth.JWTSecret, mcpInternalURL, nil)
 	s.customMCPManager = custom.NewManager(customStorage, customExecutor, toolRegistry, resourceRegistry)
 	s.customMCPHandler = NewCustomMCPHandler(customStorage, s.customMCPManager)
 

@@ -660,6 +660,39 @@ func (s *Storage) GetProvider(ctx context.Context, id string) (*ProviderRecord, 
 	return provider, nil
 }
 
+// GetProviderByName retrieves a provider by name
+func (s *Storage) GetProviderByName(ctx context.Context, name string) (*ProviderRecord, error) {
+	// First check if it's a config-based provider
+	if s.config != nil && s.config.ProviderType != "" {
+		configProvider := s.buildConfigBasedProvider()
+		if configProvider != nil && configProvider.Name == name {
+			return configProvider, nil
+		}
+	}
+
+	query := `
+		SELECT id, name, display_name, provider_type, is_default, use_for_embeddings, embedding_model, config, enabled, created_by, created_at, updated_at
+		FROM ai.providers
+		WHERE name = $1 AND enabled = true
+	`
+
+	provider := &ProviderRecord{}
+	err := s.db.QueryRow(ctx, query, name).Scan(
+		&provider.ID, &provider.Name, &provider.DisplayName, &provider.ProviderType,
+		&provider.IsDefault, &provider.UseForEmbeddings, &provider.EmbeddingModel, &provider.Config, &provider.Enabled, &provider.CreatedBy,
+		&provider.CreatedAt, &provider.UpdatedAt,
+	)
+
+	if err == pgx.ErrNoRows {
+		return nil, fmt.Errorf("provider not found: %s", name)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get provider by name: %w", err)
+	}
+
+	return provider, nil
+}
+
 // GetDefaultProvider retrieves the default provider
 func (s *Storage) GetDefaultProvider(ctx context.Context) (*ProviderRecord, error) {
 	query := `

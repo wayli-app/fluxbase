@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -333,36 +336,20 @@ func init() {
 // Tool command implementations
 
 func runMCPToolsList(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	endpoint := "/api/v1/mcp/tools"
+	query := url.Values{}
 	if mcpNamespace != "" {
-		endpoint += "?namespace=" + mcpNamespace
-	}
-
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to list tools: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleErrorResponse(resp)
+		query.Set("namespace", mcpNamespace)
 	}
 
 	var result struct {
 		Tools []map[string]interface{} `json:"tools"`
 		Count int                      `json:"count"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if outputFormat == "json" {
-		return output.JSON(result)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/tools", query, &result); err != nil {
+		return err
 	}
 
 	if len(result.Tools) == 0 {
@@ -370,63 +357,64 @@ func runMCPToolsList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	headers := []string{"NAME", "NAMESPACE", "ENABLED", "VERSION", "DESCRIPTION"}
-	rows := make([][]string, len(result.Tools))
-	for i, tool := range result.Tools {
-		enabled := "true"
-		if e, ok := tool["enabled"].(bool); ok && !e {
-			enabled = "false"
+	formatter := GetFormatter()
+
+	if formatter.Format == output.FormatTable {
+		data := output.TableData{
+			Headers: []string{"NAME", "NAMESPACE", "ENABLED", "VERSION", "DESCRIPTION"},
+			Rows:    make([][]string, len(result.Tools)),
 		}
-		version := "1"
-		if v, ok := tool["version"].(float64); ok {
-			version = fmt.Sprintf("%d", int(v))
+
+		for i, tool := range result.Tools {
+			enabled := "true"
+			if e, ok := tool["enabled"].(bool); ok && !e {
+				enabled = "false"
+			}
+			version := "1"
+			if v, ok := tool["version"].(float64); ok {
+				version = fmt.Sprintf("%d", int(v))
+			}
+			desc := ""
+			if d, ok := tool["description"].(string); ok {
+				desc = truncate(d, 40)
+			}
+			data.Rows[i] = []string{
+				getStringValue(tool, "name"),
+				getStringValue(tool, "namespace"),
+				enabled,
+				version,
+				desc,
+			}
 		}
-		desc := ""
-		if d, ok := tool["description"].(string); ok {
-			desc = truncate(d, 40)
-		}
-		rows[i] = []string{
-			tool["name"].(string),
-			tool["namespace"].(string),
-			enabled,
-			version,
-			desc,
+
+		formatter.PrintTable(data)
+	} else {
+		if err := formatter.Print(result); err != nil {
+			return err
 		}
 	}
 
-	output.Table(headers, rows)
 	return nil
 }
 
 func runMCPToolsGet(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// First list to find by name
-	endpoint := "/api/v1/mcp/tools?namespace=" + mcpNamespace
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to get tool: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleErrorResponse(resp)
-	}
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var result struct {
 		Tools []map[string]interface{} `json:"tools"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/tools", query, &result); err != nil {
+		return err
 	}
 
 	// Find tool by name
 	var tool map[string]interface{}
 	for _, t := range result.Tools {
-		if t["name"].(string) == args[0] {
+		if getStringValue(t, "name") == args[0] {
 			tool = t
 			break
 		}
@@ -436,39 +424,39 @@ func runMCPToolsGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool not found: %s", args[0])
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(tool)
-	}
+	formatter := GetFormatter()
 
-	// Pretty print tool details
-	fmt.Printf("Name:        %s\n", tool["name"])
-	fmt.Printf("Namespace:   %s\n", tool["namespace"])
-	fmt.Printf("Enabled:     %v\n", tool["enabled"])
-	fmt.Printf("Version:     %v\n", tool["version"])
-	if desc, ok := tool["description"].(string); ok && desc != "" {
-		fmt.Printf("Description: %s\n", desc)
-	}
-	fmt.Printf("Timeout:     %vs\n", tool["timeout_seconds"])
-	fmt.Printf("Memory:      %vMB\n", tool["memory_limit_mb"])
-	fmt.Printf("Allow Net:   %v\n", tool["allow_net"])
-	fmt.Printf("Allow Env:   %v\n", tool["allow_env"])
-	if code, ok := tool["code"].(string); ok {
-		fmt.Printf("\nCode:\n%s\n", code)
+	if formatter.Format == output.FormatTable {
+		// Pretty print tool details
+		fmt.Printf("Name:        %s\n", tool["name"])
+		fmt.Printf("Namespace:   %s\n", tool["namespace"])
+		fmt.Printf("Enabled:     %v\n", tool["enabled"])
+		fmt.Printf("Version:     %v\n", tool["version"])
+		if desc, ok := tool["description"].(string); ok && desc != "" {
+			fmt.Printf("Description: %s\n", desc)
+		}
+		fmt.Printf("Timeout:     %vs\n", tool["timeout_seconds"])
+		fmt.Printf("Memory:      %vMB\n", tool["memory_limit_mb"])
+		fmt.Printf("Allow Net:   %v\n", tool["allow_net"])
+		fmt.Printf("Allow Env:   %v\n", tool["allow_env"])
+		if code, ok := tool["code"].(string); ok {
+			fmt.Printf("\nCode:\n%s\n", code)
+		}
+	} else {
+		return formatter.Print(tool)
 	}
 
 	return nil
 }
 
 func runMCPToolsCreate(cmd *cobra.Command, args []string) error {
-	code, err := os.ReadFile(mcpCodeFile)
+	code, err := os.ReadFile(mcpCodeFile) //nolint:gosec // CLI tool reads user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to read code file: %w", err)
 	}
 
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	payload := map[string]interface{}{
 		"name":            args[0],
@@ -483,23 +471,14 @@ func runMCPToolsCreate(cmd *cobra.Command, args []string) error {
 		"allow_write":     mcpAllowWrite,
 	}
 
-	resp, err := client.Post("/api/v1/mcp/tools", payload)
-	if err != nil {
-		return fmt.Errorf("failed to create tool: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 201 {
-		return handleErrorResponse(resp)
-	}
-
 	var tool map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&tool); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoPost(ctx, "/api/v1/mcp/tools", payload, &tool); err != nil {
+		return err
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(tool)
+	formatter := GetFormatter()
+	if formatter.Format != output.FormatTable {
+		return formatter.Print(tool)
 	}
 
 	fmt.Printf("Created custom MCP tool: %s\n", args[0])
@@ -507,29 +486,24 @@ func runMCPToolsCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPToolsUpdate(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// First, find the tool by name to get its ID
-	listResp, err := client.Get("/api/v1/mcp/tools?namespace=" + mcpNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to find tool: %w", err)
-	}
-	defer listResp.Body.Close()
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var listResult struct {
 		Tools []map[string]interface{} `json:"tools"`
 	}
-	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/tools", query, &listResult); err != nil {
+		return err
 	}
 
 	var toolID string
 	for _, t := range listResult.Tools {
-		if t["name"].(string) == args[0] {
-			toolID = t["id"].(string)
+		if getStringValue(t, "name") == args[0] {
+			toolID = getStringValue(t, "id")
 			break
 		}
 	}
@@ -540,7 +514,7 @@ func runMCPToolsUpdate(cmd *cobra.Command, args []string) error {
 
 	payload := make(map[string]interface{})
 	if mcpCodeFile != "" {
-		code, err := os.ReadFile(mcpCodeFile)
+		code, err := os.ReadFile(mcpCodeFile) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			return fmt.Errorf("failed to read code file: %w", err)
 		}
@@ -560,14 +534,8 @@ func runMCPToolsUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no updates specified")
 	}
 
-	resp, err := client.Put("/api/v1/mcp/tools/"+toolID, payload)
-	if err != nil {
-		return fmt.Errorf("failed to update tool: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleErrorResponse(resp)
+	if err := apiClient.DoPut(ctx, "/api/v1/mcp/tools/"+toolID, payload, nil); err != nil {
+		return err
 	}
 
 	fmt.Printf("Updated custom MCP tool: %s\n", args[0])
@@ -575,29 +543,24 @@ func runMCPToolsUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPToolsDelete(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// First, find the tool by name to get its ID
-	listResp, err := client.Get("/api/v1/mcp/tools?namespace=" + mcpNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to find tool: %w", err)
-	}
-	defer listResp.Body.Close()
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var listResult struct {
 		Tools []map[string]interface{} `json:"tools"`
 	}
-	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/tools", query, &listResult); err != nil {
+		return err
 	}
 
 	var toolID string
 	for _, t := range listResult.Tools {
-		if t["name"].(string) == args[0] {
-			toolID = t["id"].(string)
+		if getStringValue(t, "name") == args[0] {
+			toolID = getStringValue(t, "id")
 			break
 		}
 	}
@@ -606,14 +569,8 @@ func runMCPToolsDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool not found: %s", args[0])
 	}
 
-	resp, err := client.Delete("/api/v1/mcp/tools/" + toolID)
-	if err != nil {
-		return fmt.Errorf("failed to delete tool: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 204 {
-		return handleErrorResponse(resp)
+	if err := apiClient.DoDelete(ctx, "/api/v1/mcp/tools/"+toolID); err != nil {
+		return err
 	}
 
 	fmt.Printf("Deleted custom MCP tool: %s\n", args[0])
@@ -631,13 +588,11 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
 
 	for _, file := range files {
-		code, err := os.ReadFile(file)
+		code, err := os.ReadFile(file) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Error reading %s: %v\n", file, err)
 			continue
@@ -681,47 +636,38 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 			payload["allow_env"] = true
 		}
 
-		resp, err := client.Post("/api/v1/mcp/tools/sync", payload)
+		var result map[string]interface{}
+		err = apiClient.DoPost(ctx, "/api/v1/mcp/tools/sync", payload, &result)
 		if err != nil {
 			fmt.Printf("Error syncing %s: %v\n", name, err)
 			continue
 		}
-		resp.Body.Close()
 
-		if resp.StatusCode == 200 || resp.StatusCode == 201 {
-			fmt.Printf("Synced tool: %s\n", name)
-		} else {
-			fmt.Printf("Failed to sync %s: %d\n", name, resp.StatusCode)
-		}
+		fmt.Printf("Synced tool: %s\n", name)
 	}
 
 	return nil
 }
 
 func runMCPToolsTest(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// First, find the tool by name to get its ID
-	listResp, err := client.Get("/api/v1/mcp/tools?namespace=" + mcpNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to find tool: %w", err)
-	}
-	defer listResp.Body.Close()
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var listResult struct {
 		Tools []map[string]interface{} `json:"tools"`
 	}
-	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/tools", query, &listResult); err != nil {
+		return err
 	}
 
 	var toolID string
 	for _, t := range listResult.Tools {
-		if t["name"].(string) == args[0] {
-			toolID = t["id"].(string)
+		if getStringValue(t, "name") == args[0] {
+			toolID = getStringValue(t, "id")
 			break
 		}
 	}
@@ -739,19 +685,14 @@ func runMCPToolsTest(cmd *cobra.Command, args []string) error {
 		"args": testArgs,
 	}
 
-	resp, err := client.Post("/api/v1/mcp/tools/"+toolID+"/test", payload)
-	if err != nil {
-		return fmt.Errorf("failed to test tool: %w", err)
-	}
-	defer resp.Body.Close()
-
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoPost(ctx, "/api/v1/mcp/tools/"+toolID+"/test", payload, &result); err != nil {
+		return err
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(result)
+	formatter := GetFormatter()
+	if formatter.Format != output.FormatTable {
+		return formatter.Print(result)
 	}
 
 	if success, ok := result["success"].(bool); ok && success {
@@ -779,36 +720,20 @@ func runMCPToolsTest(cmd *cobra.Command, args []string) error {
 // Resource command implementations
 
 func runMCPResourcesList(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	endpoint := "/api/v1/mcp/resources"
+	query := url.Values{}
 	if mcpNamespace != "" {
-		endpoint += "?namespace=" + mcpNamespace
-	}
-
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to list resources: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleErrorResponse(resp)
+		query.Set("namespace", mcpNamespace)
 	}
 
 	var result struct {
 		Resources []map[string]interface{} `json:"resources"`
 		Count     int                      `json:"count"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if outputFormat == "json" {
-		return output.JSON(result)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/resources", query, &result); err != nil {
+		return err
 	}
 
 	if len(result.Resources) == 0 {
@@ -816,57 +741,58 @@ func runMCPResourcesList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	headers := []string{"URI", "NAME", "TEMPLATE", "ENABLED"}
-	rows := make([][]string, len(result.Resources))
-	for i, res := range result.Resources {
-		isTemplate := "no"
-		if t, ok := res["is_template"].(bool); ok && t {
-			isTemplate = "yes"
+	formatter := GetFormatter()
+
+	if formatter.Format == output.FormatTable {
+		data := output.TableData{
+			Headers: []string{"URI", "NAME", "TEMPLATE", "ENABLED"},
+			Rows:    make([][]string, len(result.Resources)),
 		}
-		enabled := "true"
-		if e, ok := res["enabled"].(bool); ok && !e {
-			enabled = "false"
+
+		for i, res := range result.Resources {
+			isTemplate := "no"
+			if t, ok := res["is_template"].(bool); ok && t {
+				isTemplate = "yes"
+			}
+			enabled := "true"
+			if e, ok := res["enabled"].(bool); ok && !e {
+				enabled = "false"
+			}
+			data.Rows[i] = []string{
+				getStringValue(res, "uri"),
+				getStringValue(res, "name"),
+				isTemplate,
+				enabled,
+			}
 		}
-		rows[i] = []string{
-			res["uri"].(string),
-			res["name"].(string),
-			isTemplate,
-			enabled,
+
+		formatter.PrintTable(data)
+	} else {
+		if err := formatter.Print(result); err != nil {
+			return err
 		}
 	}
 
-	output.Table(headers, rows)
 	return nil
 }
 
 func runMCPResourcesGet(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	// List to find by URI
-	endpoint := "/api/v1/mcp/resources?namespace=" + mcpNamespace
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		return fmt.Errorf("failed to get resource: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return handleErrorResponse(resp)
-	}
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var result struct {
 		Resources []map[string]interface{} `json:"resources"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/resources", query, &result); err != nil {
+		return err
 	}
 
 	var resource map[string]interface{}
 	for _, r := range result.Resources {
-		if r["uri"].(string) == args[0] {
+		if getStringValue(r, "uri") == args[0] {
 			resource = r
 			break
 		}
@@ -876,33 +802,33 @@ func runMCPResourcesGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resource not found: %s", args[0])
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(resource)
-	}
+	formatter := GetFormatter()
 
-	fmt.Printf("URI:         %s\n", resource["uri"])
-	fmt.Printf("Name:        %s\n", resource["name"])
-	fmt.Printf("Namespace:   %s\n", resource["namespace"])
-	fmt.Printf("MIME Type:   %s\n", resource["mime_type"])
-	fmt.Printf("Template:    %v\n", resource["is_template"])
-	fmt.Printf("Enabled:     %v\n", resource["enabled"])
-	if code, ok := resource["code"].(string); ok {
-		fmt.Printf("\nCode:\n%s\n", code)
+	if formatter.Format == output.FormatTable {
+		fmt.Printf("URI:         %s\n", resource["uri"])
+		fmt.Printf("Name:        %s\n", resource["name"])
+		fmt.Printf("Namespace:   %s\n", resource["namespace"])
+		fmt.Printf("MIME Type:   %s\n", resource["mime_type"])
+		fmt.Printf("Template:    %v\n", resource["is_template"])
+		fmt.Printf("Enabled:     %v\n", resource["enabled"])
+		if code, ok := resource["code"].(string); ok {
+			fmt.Printf("\nCode:\n%s\n", code)
+		}
+	} else {
+		return formatter.Print(resource)
 	}
 
 	return nil
 }
 
 func runMCPResourcesCreate(cmd *cobra.Command, args []string) error {
-	code, err := os.ReadFile(mcpCodeFile)
+	code, err := os.ReadFile(mcpCodeFile) //nolint:gosec // CLI tool reads user-provided file path
 	if err != nil {
 		return fmt.Errorf("failed to read code file: %w", err)
 	}
 
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	payload := map[string]interface{}{
 		"uri":             mcpURI,
@@ -915,23 +841,14 @@ func runMCPResourcesCreate(cmd *cobra.Command, args []string) error {
 		"timeout_seconds": mcpTimeout,
 	}
 
-	resp, err := client.Post("/api/v1/mcp/resources", payload)
-	if err != nil {
-		return fmt.Errorf("failed to create resource: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 201 {
-		return handleErrorResponse(resp)
-	}
-
 	var resource map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&resource); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoPost(ctx, "/api/v1/mcp/resources", payload, &resource); err != nil {
+		return err
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(resource)
+	formatter := GetFormatter()
+	if formatter.Format != output.FormatTable {
+		return formatter.Print(resource)
 	}
 
 	fmt.Printf("Created custom MCP resource: %s\n", mcpURI)
@@ -939,29 +856,24 @@ func runMCPResourcesCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPResourcesDelete(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// First, find the resource by URI to get its ID
-	listResp, err := client.Get("/api/v1/mcp/resources?namespace=" + mcpNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to find resource: %w", err)
-	}
-	defer listResp.Body.Close()
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var listResult struct {
 		Resources []map[string]interface{} `json:"resources"`
 	}
-	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/resources", query, &listResult); err != nil {
+		return err
 	}
 
 	var resourceID string
 	for _, r := range listResult.Resources {
-		if r["uri"].(string) == args[0] {
-			resourceID = r["id"].(string)
+		if getStringValue(r, "uri") == args[0] {
+			resourceID = getStringValue(r, "id")
 			break
 		}
 	}
@@ -970,14 +882,8 @@ func runMCPResourcesDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resource not found: %s", args[0])
 	}
 
-	resp, err := client.Delete("/api/v1/mcp/resources/" + resourceID)
-	if err != nil {
-		return fmt.Errorf("failed to delete resource: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 204 {
-		return handleErrorResponse(resp)
+	if err := apiClient.DoDelete(ctx, "/api/v1/mcp/resources/"+resourceID); err != nil {
+		return err
 	}
 
 	fmt.Printf("Deleted custom MCP resource: %s\n", args[0])
@@ -995,13 +901,11 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
 
 	for _, file := range files {
-		code, err := os.ReadFile(file)
+		code, err := os.ReadFile(file) //nolint:gosec // CLI tool reads user-provided file path
 		if err != nil {
 			fmt.Printf("Error reading %s: %v\n", file, err)
 			continue
@@ -1054,47 +958,38 @@ func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
 			payload["timeout_seconds"] = timeout
 		}
 
-		resp, err := client.Post("/api/v1/mcp/resources/sync", payload)
+		var result map[string]interface{}
+		err = apiClient.DoPost(ctx, "/api/v1/mcp/resources/sync", payload, &result)
 		if err != nil {
 			fmt.Printf("Error syncing %s: %v\n", uri, err)
 			continue
 		}
-		resp.Body.Close()
 
-		if resp.StatusCode == 200 || resp.StatusCode == 201 {
-			fmt.Printf("Synced resource: %s\n", uri)
-		} else {
-			fmt.Printf("Failed to sync %s: %d\n", uri, resp.StatusCode)
-		}
+		fmt.Printf("Synced resource: %s\n", uri)
 	}
 
 	return nil
 }
 
 func runMCPResourcesTest(cmd *cobra.Command, args []string) error {
-	client, err := createAPIClient()
-	if err != nil {
-		return err
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// First, find the resource by URI to get its ID
-	listResp, err := client.Get("/api/v1/mcp/resources?namespace=" + mcpNamespace)
-	if err != nil {
-		return fmt.Errorf("failed to find resource: %w", err)
-	}
-	defer listResp.Body.Close()
+	query := url.Values{}
+	query.Set("namespace", mcpNamespace)
 
 	var listResult struct {
 		Resources []map[string]interface{} `json:"resources"`
 	}
-	if err := json.NewDecoder(listResp.Body).Decode(&listResult); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoGet(ctx, "/api/v1/mcp/resources", query, &listResult); err != nil {
+		return err
 	}
 
 	var resourceID string
 	for _, r := range listResult.Resources {
-		if r["uri"].(string) == args[0] {
-			resourceID = r["id"].(string)
+		if getStringValue(r, "uri") == args[0] {
+			resourceID = getStringValue(r, "id")
 			break
 		}
 	}
@@ -1112,19 +1007,14 @@ func runMCPResourcesTest(cmd *cobra.Command, args []string) error {
 		"params": testParams,
 	}
 
-	resp, err := client.Post("/api/v1/mcp/resources/"+resourceID+"/test", payload)
-	if err != nil {
-		return fmt.Errorf("failed to test resource: %w", err)
-	}
-	defer resp.Body.Close()
-
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+	if err := apiClient.DoPost(ctx, "/api/v1/mcp/resources/"+resourceID+"/test", payload, &result); err != nil {
+		return err
 	}
 
-	if outputFormat == "json" {
-		return output.JSON(result)
+	formatter := GetFormatter()
+	if formatter.Format != output.FormatTable {
+		return formatter.Print(result)
 	}
 
 	if success, ok := result["success"].(bool); ok && success {

@@ -108,17 +108,20 @@ func (h *InternalAIHandler) HandleChat(c *fiber.Ctx) error {
 	}
 
 	// Build provider config
+	// Get model from config map or use provided model
+	model := req.Model
+	if model == "" {
+		if m, ok := provider.Config["model"]; ok && m != "" {
+			model = m
+		}
+	}
+
 	providerConfig := ai.ProviderConfig{
 		Name:        provider.Name,
 		DisplayName: provider.DisplayName,
-		Type:        ai.ProviderType(provider.Type),
-		Model:       provider.Model,
+		Type:        ai.ProviderType(provider.ProviderType),
+		Model:       model,
 		Config:      provider.Config,
-	}
-
-	// Override model if specified
-	if req.Model != "" {
-		providerConfig.Model = req.Model
 	}
 
 	// Create the provider instance
@@ -226,12 +229,12 @@ func (h *InternalAIHandler) HandleEmbed(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get model info
-	modelInfo := h.embeddingService.GetModelInfo()
+	// Get default model name
+	modelName := h.embeddingService.DefaultModel()
 
 	return c.JSON(InternalEmbedResponse{
 		Embedding: embedding,
-		Model:     modelInfo,
+		Model:     modelName,
 	})
 }
 
@@ -244,7 +247,7 @@ func (h *InternalAIHandler) HandleListProviders(c *fiber.Ctx) error {
 		})
 	}
 
-	providers, err := h.aiStorage.ListProviders(c.Context())
+	providers, err := h.aiStorage.ListProviders(c.Context(), true) // Only enabled providers
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to list providers: %v", err),
@@ -254,11 +257,16 @@ func (h *InternalAIHandler) HandleListProviders(c *fiber.Ctx) error {
 	// Return simplified provider info (hide config/API keys)
 	result := make([]map[string]any, len(providers))
 	for i, p := range providers {
+		// Get model from config if available
+		model := ""
+		if m, ok := p.Config["model"]; ok {
+			model = m
+		}
 		result[i] = map[string]any{
 			"name":         p.Name,
 			"display_name": p.DisplayName,
-			"type":         p.Type,
-			"model":        p.Model,
+			"type":         p.ProviderType,
+			"model":        model,
 			"enabled":      p.Enabled,
 		}
 	}
