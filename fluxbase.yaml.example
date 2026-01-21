@@ -501,6 +501,8 @@ mcp:
   allowed_tools: []                     # FLUXBASE_MCP_ALLOWED_TOOLS - Allowed tool names (empty = all enabled)
   allowed_resources: []                 # FLUXBASE_MCP_ALLOWED_RESOURCES - Allowed resource URIs (empty = all enabled)
   rate_limit_per_min: 100               # FLUXBASE_MCP_RATE_LIMIT_PER_MIN - Rate limit per minute per client key
+  tools_dir: "/app/mcp-tools"           # FLUXBASE_MCP_TOOLS_DIR - Directory for custom MCP tool files
+  auto_load_on_boot: true               # FLUXBASE_MCP_AUTO_LOAD_ON_BOOT - Auto-load custom tools on startup
 
 # Database Branching Configuration
 # Create isolated database branches for development/testing

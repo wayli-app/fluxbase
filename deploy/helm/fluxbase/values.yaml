@@ -649,6 +649,8 @@ config:
   ## @param config.mcp.allowed_tools Allowed tool names (empty = all enabled)
   ## @param config.mcp.allowed_resources Allowed resource URIs (empty = all enabled)
   ## @param config.mcp.rate_limit_per_min Rate limit per minute per client key
+  ## @param config.mcp.tools_dir Directory for custom MCP tool files
+  ## @param config.mcp.auto_load_on_boot Auto-load custom tools from tools_dir on startup
   ##
   mcp:
     enabled: true
@@ -658,6 +660,8 @@ config:
     allowed_tools: []
     allowed_resources: []
     rate_limit_per_min: 100
+    tools_dir: "/app/mcp-tools"
+    auto_load_on_boot: true
 
   ## Database Branching configuration
   ## @param config.branching.enabled Enable database branching feature

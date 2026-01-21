@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
+	"github.com/fluxbase-eu/fluxbase/internal/config"
 	"github.com/fluxbase-eu/fluxbase/internal/mcp/custom"
 	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/gofiber/fiber/v2"
@@ -14,15 +15,17 @@ import (
 
 // CustomMCPHandler handles custom MCP tool and resource management requests.
 type CustomMCPHandler struct {
-	storage *custom.Storage
-	manager *custom.Manager
+	storage   *custom.Storage
+	manager   *custom.Manager
+	mcpConfig *config.MCPConfig
 }
 
 // NewCustomMCPHandler creates a new custom MCP handler.
-func NewCustomMCPHandler(storage *custom.Storage, manager *custom.Manager) *CustomMCPHandler {
+func NewCustomMCPHandler(storage *custom.Storage, manager *custom.Manager, mcpConfig *config.MCPConfig) *CustomMCPHandler {
 	return &CustomMCPHandler{
-		storage: storage,
-		manager: manager,
+		storage:   storage,
+		manager:   manager,
+		mcpConfig: mcpConfig,
 	}
 }
 
@@ -39,6 +42,9 @@ func (h *CustomMCPHandler) RegisterRoutes(
 		middleware.RequireAuthOrServiceKey(authService, clientKeyService, db, jwtManager),
 		middleware.RequireAdmin(),
 	)
+
+	// MCP Configuration
+	mcpAdmin.Get("/config", h.GetConfig)
 
 	// Custom Tools CRUD
 	mcpAdmin.Get("/tools", h.ListTools)
@@ -57,6 +63,19 @@ func (h *CustomMCPHandler) RegisterRoutes(
 	mcpAdmin.Delete("/resources/:id", h.DeleteResource)
 	mcpAdmin.Post("/resources/sync", h.SyncResource)
 	mcpAdmin.Post("/resources/:id/test", h.TestResource)
+}
+
+// Configuration Handlers
+
+// GetConfig returns the current MCP configuration.
+func (h *CustomMCPHandler) GetConfig(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"enabled":            h.mcpConfig.Enabled,
+		"base_path":          h.mcpConfig.BasePath,
+		"tools_dir":          h.mcpConfig.ToolsDir,
+		"auto_load_on_boot":  h.mcpConfig.AutoLoadOnBoot,
+		"rate_limit_per_min": h.mcpConfig.RateLimitPerMin,
+	})
 }
 
 // Tool Handlers

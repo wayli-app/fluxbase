@@ -14,6 +14,10 @@ type MCPConfig struct {
 	AllowedTools     []string      `mapstructure:"allowed_tools"`      // Allowed tool names (empty = all enabled)
 	AllowedResources []string      `mapstructure:"allowed_resources"`  // Allowed resource URIs (empty = all enabled)
 	RateLimitPerMin  int           `mapstructure:"rate_limit_per_min"` // Rate limit per minute per client key
+
+	// Custom MCP tools configuration
+	ToolsDir       string `mapstructure:"tools_dir"`         // Directory for custom MCP tool files (default: "/app/mcp-tools")
+	AutoLoadOnBoot bool   `mapstructure:"auto_load_on_boot"` // Auto-load custom tools from ToolsDir on startup
 }
 
 // Validate validates MCP configuration

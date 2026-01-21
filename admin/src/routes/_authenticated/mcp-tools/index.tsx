@@ -12,6 +12,9 @@ import {
   Loader2,
   Wrench,
   FileText,
+  Settings,
+  FolderOpen,
+  Power,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -49,8 +52,10 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   mcpToolsApi,
   mcpResourcesApi,
+  mcpConfigApi,
   type MCPTool,
   type MCPResource,
+  type MCPConfig,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/mcp-tools/')({
@@ -58,6 +63,14 @@ export const Route = createFileRoute('/_authenticated/mcp-tools/')({
 })
 
 function MCPToolsPage() {
+  const [config, setConfig] = useState<MCPConfig | null>(null)
+
+  useEffect(() => {
+    mcpConfigApi.get().then(setConfig).catch(() => {
+      // Config fetch is optional - silently ignore errors
+    })
+  }, [])
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -68,6 +81,35 @@ function MCPToolsPage() {
           </p>
         </div>
       </div>
+
+      {config && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Configuration</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Tools Directory:</span>
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                  {config.tools_dir}
+                </code>
+              </div>
+              <div className="flex items-center gap-2">
+                <Power className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Auto-load on Boot:</span>
+                <Badge variant={config.auto_load_on_boot ? 'default' : 'secondary'}>
+                  {config.auto_load_on_boot ? 'Enabled' : 'Disabled'}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="tools" className="flex-1">
         <TabsList>

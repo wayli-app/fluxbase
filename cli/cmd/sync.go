@@ -106,6 +106,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{"Functions", "functions", syncFunctionsFromDir},
 		{"Jobs", "jobs", syncJobsFromDir},
 		{"Chatbots", "chatbots", syncChatbotsFromDir},
+		{"MCP Tools", "mcp-tools", syncMCPToolsFromDir},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -130,7 +131,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	if !foundAny {
-		return fmt.Errorf("no resource directories found in %s (expected: rpc/, migrations/, functions/, jobs/, chatbots/)", rootDir)
+		return fmt.Errorf("no resource directories found in %s (expected: rpc/, migrations/, functions/, jobs/, chatbots/, mcp-tools/)", rootDir)
 	}
 
 	fmt.Println("Sync completed successfully.")
@@ -762,6 +763,111 @@ func printSyncSummary(result map[string]interface{}, resourceType string) {
 			}
 		}
 	}
+}
+
+// syncMCPToolsFromDir syncs custom MCP tools from a directory
+func syncMCPToolsFromDir(ctx context.Context, dir, namespace string, dryRun, _ bool) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var tools []map[string]interface{}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".ts") && !strings.HasSuffix(name, ".js") {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec
+		if err != nil {
+			fmt.Printf("  Warning: failed to read %s: %v\n", name, err)
+			continue
+		}
+
+		// Parse annotations from code
+		toolName, annotations := parseMCPAnnotations(string(content), name)
+
+		// Use namespace from annotation if specified, otherwise use parameter
+		ns := namespace
+		if nsAnnotation, ok := annotations["namespace"]; ok {
+			ns = nsAnnotation.(string)
+		}
+
+		tool := map[string]interface{}{
+			"name":      toolName,
+			"namespace": ns,
+			"code":      string(content),
+			"upsert":    true,
+		}
+
+		// Apply annotations
+		if desc, ok := annotations["description"]; ok {
+			tool["description"] = desc
+		}
+		if timeout, ok := annotations["timeout"]; ok {
+			tool["timeout_seconds"] = timeout
+		}
+		if memory, ok := annotations["memory"]; ok {
+			tool["memory_limit_mb"] = memory
+		}
+		if _, ok := annotations["allow-net"]; ok {
+			tool["allow_net"] = true
+		}
+		if _, ok := annotations["allow-env"]; ok {
+			tool["allow_env"] = true
+		}
+
+		tools = append(tools, tool)
+	}
+
+	if len(tools) == 0 {
+		fmt.Println("  No MCP tool files found.")
+		return nil
+	}
+
+	if dryRun {
+		fmt.Println("  Dry run - would sync:")
+		for _, tool := range tools {
+			fmt.Printf("    - %s\n", tool["name"])
+		}
+		return nil
+	}
+
+	// Sync each tool
+	var created, updated, errors int
+	for _, tool := range tools {
+		var result map[string]interface{}
+		err := apiClient.DoPost(ctx, "/api/v1/mcp/tools/sync", tool, &result)
+		if err != nil {
+			fmt.Printf("  Error syncing %s: %v\n", tool["name"], err)
+			errors++
+			continue
+		}
+
+		if action, ok := result["action"].(string); ok {
+			if action == "created" {
+				created++
+			} else {
+				updated++
+			}
+		} else {
+			updated++ // Default to updated if action not specified
+		}
+	}
+
+	fmt.Printf("  %d created, %d updated", created, updated)
+	if errors > 0 {
+		fmt.Printf(", %d errors", errors)
+	}
+	fmt.Println()
+
+	return nil
 }
 
 // Ensure url package is used (for compatibility with other sync commands)

@@ -953,6 +953,15 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		}
 	}
 
+	// Auto-load custom MCP tools if enabled
+	if cfg.MCP.Enabled && cfg.MCP.AutoLoadOnBoot && server.customMCPManager != nil {
+		if err := server.customMCPManager.AutoLoadFromDir(context.Background(), cfg.MCP.ToolsDir); err != nil {
+			log.Error().Err(err).Msg("Failed to auto-load custom MCP tools")
+		} else {
+			log.Info().Msg("Custom MCP tools auto-loaded successfully")
+		}
+	}
+
 	// Setup middlewares
 	log.Debug().Msg("Setting up middlewares")
 	server.setupMiddlewares()
@@ -1110,7 +1119,7 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	}
 	customExecutor := custom.NewExecutor(s.config.Auth.JWTSecret, mcpInternalURL, nil)
 	s.customMCPManager = custom.NewManager(customStorage, customExecutor, toolRegistry, resourceRegistry)
-	s.customMCPHandler = NewCustomMCPHandler(customStorage, s.customMCPManager)
+	s.customMCPHandler = NewCustomMCPHandler(customStorage, s.customMCPManager, &s.config.MCP)
 
 	// Load custom tools and resources from database
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

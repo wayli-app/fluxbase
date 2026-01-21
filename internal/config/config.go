@@ -896,6 +896,8 @@ func setDefaults() {
 	viper.SetDefault("mcp.allowed_tools", []string{})      // Empty = all tools enabled
 	viper.SetDefault("mcp.allowed_resources", []string{})  // Empty = all resources enabled
 	viper.SetDefault("mcp.rate_limit_per_min", 100)        // 100 requests per minute per client
+	viper.SetDefault("mcp.tools_dir", "/app/mcp-tools")    // Default custom MCP tools directory
+	viper.SetDefault("mcp.auto_load_on_boot", true)        // Auto-load custom tools on startup
 
 	// Branching defaults (database branching for isolated environments)
 	viper.SetDefault("branching.enabled", false)                         // Disabled by default

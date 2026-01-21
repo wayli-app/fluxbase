@@ -420,3 +420,97 @@ func (m *Manager) ExecuteResourceForTest(ctx context.Context, resource *CustomRe
 
 	return m.executor.ExecuteResource(ctx, resource, params, authCtx)
 }
+
+// AutoLoadFromDir loads custom MCP tools from the filesystem and upserts them to the database.
+// This enables the same auto-load pattern used by functions, jobs, and chatbots.
+func (m *Manager) AutoLoadFromDir(ctx context.Context, toolsDir string) error {
+	loader := NewLoader(toolsDir)
+
+	tools, err := loader.LoadAll()
+	if err != nil {
+		return fmt.Errorf("failed to load tools from directory: %w", err)
+	}
+
+	if len(tools) == 0 {
+		log.Info().Str("dir", toolsDir).Msg("No MCP tools found in directory")
+		return nil
+	}
+
+	created, updated := 0, 0
+	for _, loadedTool := range tools {
+		// Check if tool already exists
+		existing, err := m.storage.GetToolByName(ctx, loadedTool.Name, loadedTool.Namespace)
+		if err != nil && err != ErrToolNotFound {
+			log.Error().Err(err).Str("name", loadedTool.Name).Msg("Failed to check existing MCP tool")
+			continue
+		}
+
+		// Prepare request
+		allowNet := loadedTool.AllowNet
+		allowEnv := loadedTool.AllowEnv
+		allowRead := loadedTool.AllowRead
+		allowWrite := loadedTool.AllowWrite
+		enabled := true
+
+		if existing != nil {
+			// Update existing tool
+			updateReq := &UpdateToolRequest{
+				Description:    &loadedTool.Description,
+				Code:           &loadedTool.Code,
+				RequiredScopes: loadedTool.RequiredScopes,
+				TimeoutSeconds: &loadedTool.TimeoutSeconds,
+				MemoryLimitMB:  &loadedTool.MemoryLimitMB,
+				AllowNet:       &allowNet,
+				AllowEnv:       &allowEnv,
+				AllowRead:      &allowRead,
+				AllowWrite:     &allowWrite,
+				Enabled:        &enabled,
+			}
+			tool, err := m.storage.UpdateTool(ctx, existing.ID, updateReq)
+			if err != nil {
+				log.Error().Err(err).Str("name", loadedTool.Name).Msg("Failed to update MCP tool")
+				continue
+			}
+			// Re-register with MCP registry
+			if err := m.RegisterTool(tool); err != nil {
+				log.Error().Err(err).Str("name", loadedTool.Name).Msg("Failed to register updated MCP tool")
+			}
+			updated++
+		} else {
+			// Create new tool
+			createReq := &CreateToolRequest{
+				Name:           loadedTool.Name,
+				Namespace:      loadedTool.Namespace,
+				Description:    loadedTool.Description,
+				Code:           loadedTool.Code,
+				RequiredScopes: loadedTool.RequiredScopes,
+				TimeoutSeconds: loadedTool.TimeoutSeconds,
+				MemoryLimitMB:  loadedTool.MemoryLimitMB,
+				AllowNet:       &allowNet,
+				AllowEnv:       &allowEnv,
+				AllowRead:      &allowRead,
+				AllowWrite:     &allowWrite,
+				Enabled:        &enabled,
+			}
+			tool, err := m.storage.CreateTool(ctx, createReq, nil)
+			if err != nil {
+				log.Error().Err(err).Str("name", loadedTool.Name).Msg("Failed to create MCP tool")
+				continue
+			}
+			// Register with MCP registry
+			if err := m.RegisterTool(tool); err != nil {
+				log.Error().Err(err).Str("name", loadedTool.Name).Msg("Failed to register new MCP tool")
+			}
+			created++
+		}
+	}
+
+	log.Info().
+		Int("created", created).
+		Int("updated", updated).
+		Int("total", len(tools)).
+		Str("dir", toolsDir).
+		Msg("Auto-loaded MCP tools from filesystem")
+
+	return nil
+}

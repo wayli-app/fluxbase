@@ -3512,6 +3512,24 @@ export interface MCPResourceTestResult {
   blob?: string
 }
 
+// MCP Configuration
+export interface MCPConfig {
+  enabled: boolean
+  base_path: string
+  tools_dir: string
+  auto_load_on_boot: boolean
+  rate_limit_per_min: number
+}
+
+// Custom MCP Config API
+export const mcpConfigApi = {
+  // Get current MCP configuration
+  get: async (): Promise<MCPConfig> => {
+    const response = await api.get<MCPConfig>('/api/v1/mcp/config')
+    return response.data
+  },
+}
+
 // Custom MCP Tools API
 export const mcpToolsApi = {
   // List all custom MCP tools

@@ -863,6 +863,10 @@ spec:
               value: {{ .Values.config.mcp.max_message_size | int | quote }}
             - name: FLUXBASE_MCP_RATE_LIMIT_PER_MIN
               value: {{ .Values.config.mcp.rate_limit_per_min | quote }}
+            - name: FLUXBASE_MCP_TOOLS_DIR
+              value: {{ .Values.config.mcp.tools_dir | quote }}
+            - name: FLUXBASE_MCP_AUTO_LOAD_ON_BOOT
+              value: {{ .Values.config.mcp.auto_load_on_boot | quote }}
             {{- end }}
 
             # ===========================================
