@@ -132,7 +132,7 @@ func (h *InternalAIHandler) HandleChat(c *fiber.Ctx) error {
 			"error": fmt.Sprintf("Failed to initialize AI provider: %v", err),
 		})
 	}
-	defer aiProvider.Close()
+	defer func() { _ = aiProvider.Close() }()
 
 	// Convert messages
 	messages := make([]ai.Message, len(req.Messages))
