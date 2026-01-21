@@ -10,7 +10,6 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Copy,
   Wrench,
   FileText,
 } from 'lucide-react'
@@ -110,8 +109,7 @@ function ToolsTab() {
       setLoading(true)
       const data = await mcpToolsApi.list()
       setTools(data)
-    } catch (error) {
-      console.error('Failed to fetch tools:', error)
+    } catch {
       toast.error('Failed to load MCP tools')
     } finally {
       setLoading(false)
@@ -127,8 +125,7 @@ function ToolsTab() {
       await mcpToolsApi.delete(id)
       toast.success('Tool deleted')
       fetchTools()
-    } catch (error) {
-      console.error('Failed to delete tool:', error)
+    } catch {
       toast.error('Failed to delete tool')
     }
     setDeleteConfirm(null)
@@ -139,8 +136,7 @@ function ToolsTab() {
       await mcpToolsApi.update(tool.id, { enabled: !tool.enabled })
       toast.success(tool.enabled ? 'Tool disabled' : 'Tool enabled')
       fetchTools()
-    } catch (error) {
-      console.error('Failed to toggle tool:', error)
+    } catch {
       toast.error('Failed to update tool')
     }
   }
@@ -439,8 +435,7 @@ export async function handler(
         allow_env: allowEnv,
         enabled,
       })
-    } catch (error) {
-      console.error('Failed to save tool:', error)
+    } catch {
       toast.error('Failed to save tool')
     } finally {
       setSaving(false)
@@ -594,7 +589,6 @@ function TestToolDialog({ open, onOpenChange, tool }: TestToolDialogProps) {
       const testResult = await mcpToolsApi.test(tool.id, parsedArgs)
       setResult(testResult)
     } catch (error) {
-      console.error('Test failed:', error)
       if (error instanceof SyntaxError) {
         toast.error('Invalid JSON arguments')
       } else {
@@ -677,8 +671,7 @@ function ResourcesTab() {
       setLoading(true)
       const data = await mcpResourcesApi.list()
       setResources(data)
-    } catch (error) {
-      console.error('Failed to fetch resources:', error)
+    } catch {
       toast.error('Failed to load MCP resources')
     } finally {
       setLoading(false)
@@ -694,8 +687,7 @@ function ResourcesTab() {
       await mcpResourcesApi.delete(id)
       toast.success('Resource deleted')
       fetchResources()
-    } catch (error) {
-      console.error('Failed to delete resource:', error)
+    } catch {
       toast.error('Failed to delete resource')
     }
     setDeleteConfirm(null)
@@ -706,8 +698,7 @@ function ResourcesTab() {
       await mcpResourcesApi.update(resource.id, { enabled: !resource.enabled })
       toast.success(resource.enabled ? 'Resource disabled' : 'Resource enabled')
       fetchResources()
-    } catch (error) {
-      console.error('Failed to toggle resource:', error)
+    } catch {
       toast.error('Failed to update resource')
     }
   }
@@ -999,8 +990,7 @@ export async function handler(
         allow_env: allowEnv,
         enabled,
       })
-    } catch (error) {
-      console.error('Failed to save resource:', error)
+    } catch {
       toast.error('Failed to save resource')
     } finally {
       setSaving(false)
