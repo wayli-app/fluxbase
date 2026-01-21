@@ -25,6 +25,7 @@ import {
   BookOpen,
   ScrollText,
   Lock,
+  Wrench,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -119,6 +120,11 @@ export const sidebarData: SidebarData = {
           title: 'Knowledge Bases',
           url: '/knowledge-bases',
           icon: BookOpen,
+        },
+        {
+          title: 'MCP Tools',
+          url: '/mcp-tools',
+          icon: Wrench,
         },
       ],
     },
