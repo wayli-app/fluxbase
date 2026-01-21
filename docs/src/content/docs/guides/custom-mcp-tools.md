@@ -163,6 +163,38 @@ interface ToolUtils {
   env: {
     get(name: string): string | undefined;
   };
+
+  // AI capabilities - access AI completions and embeddings
+  ai: {
+    // Chat completion
+    chat(options: {
+      messages: Array<{ role: string; content: string }>;
+      provider?: string;  // AI provider name (uses default if not specified)
+      model?: string;     // Model override
+      maxTokens?: number; // Max response tokens (default: 1024)
+      temperature?: number; // 0-1, default: 0.7
+    }): Promise<{
+      content: string;
+      model: string;
+      finish_reason?: string;
+      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    }>;
+
+    // Generate embeddings
+    embed(options: {
+      text: string;
+      provider?: string; // Embedding provider
+    }): Promise<{
+      embedding: number[];
+      model: string;
+    }>;
+
+    // List available providers
+    listProviders(): Promise<{
+      providers: Array<{ name: string; type: string; model: string; enabled: boolean }>;
+      default: string;
+    }>;
+  };
 }
 
 interface FluxbaseClient {
@@ -424,6 +456,153 @@ So `check_order_status.ts` in the default namespace becomes `custom:check_order_
 export default `You are an inventory management assistant with production access.`;
 ```
 
+## AI-Powered Tools
+
+Custom MCP tools can leverage AI capabilities via `utils.ai` to create intelligent, context-aware functionality.
+
+### AI Chat Completions
+
+```typescript
+// smart_support.ts
+// @fluxbase:description Analyze customer support ticket and suggest response
+// @fluxbase:allow-net
+
+export async function handler(
+  args: { ticket_id: string },
+  fluxbase,
+  fluxbaseService,
+  utils
+) {
+  // Get the support ticket
+  const { data: ticket } = await fluxbase
+    .from("support_tickets")
+    .select("subject, description, customer_email")
+    .eq("id", args.ticket_id)
+    .single()
+    .execute();
+
+  if (!ticket) {
+    return {
+      content: [{ type: "text", text: "Ticket not found" }],
+      isError: true
+    };
+  }
+
+  // Use AI to analyze and generate response
+  const response = await utils.ai.chat({
+    messages: [
+      {
+        role: "system",
+        content: "You are a helpful customer support assistant. Analyze the ticket and suggest a professional response."
+      },
+      {
+        role: "user",
+        content: `Subject: ${ticket.subject}\n\nDescription: ${ticket.description}`
+      }
+    ],
+    maxTokens: 500,
+    temperature: 0.7
+  });
+
+  return {
+    content: [{
+      type: "text",
+      text: `Suggested response for ticket ${args.ticket_id}:\n\n${response.content}`
+    }]
+  };
+}
+```
+
+### AI Embeddings for Semantic Search
+
+```typescript
+// semantic_search.ts
+// @fluxbase:description Search knowledge base using semantic similarity
+// @fluxbase:allow-net
+
+export async function handler(
+  args: { query: string; limit?: number },
+  fluxbase,
+  fluxbaseService,
+  utils
+) {
+  // Generate embedding for the search query
+  const { embedding } = await utils.ai.embed({ text: args.query });
+
+  // Use pgvector to find similar documents
+  const { data: results } = await fluxbaseService.rpc("match_documents", {
+    query_embedding: embedding,
+    match_threshold: 0.7,
+    match_count: args.limit || 5
+  });
+
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(results, null, 2)
+    }]
+  };
+}
+```
+
+### Combining AI with Business Logic
+
+```typescript
+// analyze_orders.ts
+// @fluxbase:description Analyze recent orders and provide insights
+// @fluxbase:allow-net
+
+export async function handler(
+  args: { days?: number },
+  fluxbase,
+  fluxbaseService,
+  utils
+) {
+  const days = args.days || 7;
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  // Get recent orders
+  const { data: orders } = await fluxbaseService
+    .from("orders")
+    .select("id, total, status, created_at")
+    .gte("created_at", since.toISOString())
+    .execute();
+
+  // Calculate stats
+  const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+  const statusCounts = orders.reduce((acc, o) => {
+    acc[o.status] = (acc[o.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Use AI to generate insights
+  const response = await utils.ai.chat({
+    messages: [
+      {
+        role: "system",
+        content: "You are a business analyst. Provide brief, actionable insights."
+      },
+      {
+        role: "user",
+        content: `Analyze these ${days}-day order stats:
+- Total orders: ${orders.length}
+- Total revenue: $${totalRevenue.toFixed(2)}
+- Status breakdown: ${JSON.stringify(statusCounts)}`
+      }
+    ],
+    maxTokens: 300
+  });
+
+  return {
+    content: [{
+      type: "text",
+      text: `Order Analysis (${days} days):\n\n${response.content}`
+    }]
+  };
+}
+```
+
 ## Best Practices
 
 1. **Validate inputs** - Use JSON Schema for input validation
@@ -433,6 +612,7 @@ export default `You are an inventory management assistant with production access
 5. **Secure secrets** - Never hardcode API keys; use the secrets system
 6. **Test thoroughly** - Use the test endpoint before deploying to production
 7. **Document tools** - Clear descriptions help AI use tools correctly
+8. **Use AI judiciously** - AI calls add latency; use for complex reasoning, not simple lookups
 
 ## Example: Complete Integration
 

@@ -107,6 +107,7 @@ type Server struct {
 	mcpHandler             *mcp.Handler
 	customMCPManager       *custom.Manager
 	customMCPHandler       *CustomMCPHandler
+	internalAIHandler      *InternalAIHandler
 
 	// Database branching components
 	branchManager   *branching.Manager
@@ -546,6 +547,21 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 			Msg("Knowledge base handler initialized")
 	}
 
+	// Create internal AI handler for custom MCP tools, edge functions, and jobs
+	// This allows runtime code to access AI capabilities via utils.ai.chat() and utils.ai.embed()
+	var internalAIHandler *InternalAIHandler
+	if cfg.AI.Enabled {
+		var embeddingSvc *ai.EmbeddingService
+		if vectorHandler != nil {
+			embeddingSvc = vectorHandler.GetEmbeddingService()
+		}
+		internalAIHandler = NewInternalAIHandler(aiStorage, embeddingSvc, cfg.AI.ProviderName)
+		log.Info().
+			Str("default_provider", cfg.AI.ProviderName).
+			Bool("embedding_enabled", embeddingSvc != nil).
+			Msg("Internal AI handler initialized for MCP tools/functions/jobs")
+	}
+
 	// Create RPC components (only if RPC is enabled)
 	var rpcHandler *rpc.Handler
 	var rpcScheduler *rpc.Scheduler
@@ -670,6 +686,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		serviceKeyHandler:      serviceKeyHandler,
 		schemaExportHandler:    schemaExportHandler,
 		mcpHandler:             mcp.NewHandler(&cfg.MCP, db),
+		internalAIHandler:      internalAIHandler,
 		metrics:                observability.NewMetrics(),
 		startTime:              time.Now(),
 	}
@@ -1375,6 +1392,19 @@ func (s *Server) setupRoutes() {
 	// Note: Admin routes are registered in setupAdminRoutes with proper auth middleware
 	if s.jobsHandler != nil {
 		s.jobsHandler.RegisterRoutes(s.app, s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager)
+	}
+
+	// Internal AI routes - for custom MCP tools, edge functions, and jobs
+	// These endpoints allow runtime code to access AI capabilities via utils.ai.chat() and utils.ai.embed()
+	// Requires service token authentication (used internally by runtime environments)
+	if s.internalAIHandler != nil && s.config.AI.Enabled {
+		internalAI := v1.Group("/internal/ai",
+			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+		)
+		internalAI.Post("/chat", s.internalAIHandler.HandleChat)
+		internalAI.Post("/embed", s.internalAIHandler.HandleEmbed)
+		internalAI.Get("/providers", s.internalAIHandler.HandleListProviders)
+		log.Debug().Msg("Internal AI routes registered for MCP tools/functions/jobs")
 	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)

@@ -631,6 +631,75 @@ const toolUtils = {
 	env: {
 		get: (name) => Deno.env.get(name),
 	},
+
+	// AI capabilities - allows tools to use AI completions and embeddings
+	ai: {
+		// Chat completion with an AI provider
+		// Usage: const response = await utils.ai.chat({ messages: [...], provider: "openai", model: "gpt-4" });
+		async chat(options) {
+			const url = __FLUXBASE_URL__ + "/api/v1/internal/ai/chat";
+			const body = {
+				messages: options.messages || [],
+				provider: options.provider,
+				model: options.model,
+				max_tokens: options.maxTokens || options.max_tokens,
+				temperature: options.temperature,
+			};
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Authorization": "Bearer " + __FLUXBASE_SERVICE_TOKEN__,
+				},
+				body: JSON.stringify(body),
+			});
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error("AI chat failed: " + response.status + " " + errorText);
+			}
+			return response.json();
+		},
+
+		// Generate embeddings for text
+		// Usage: const { embedding } = await utils.ai.embed({ text: "Hello world" });
+		async embed(options) {
+			const url = __FLUXBASE_URL__ + "/api/v1/internal/ai/embed";
+			const body = {
+				text: options.text,
+				provider: options.provider,
+			};
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Authorization": "Bearer " + __FLUXBASE_SERVICE_TOKEN__,
+				},
+				body: JSON.stringify(body),
+			});
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error("AI embed failed: " + response.status + " " + errorText);
+			}
+			return response.json();
+		},
+
+		// List available AI providers
+		// Usage: const { providers, default: defaultProvider } = await utils.ai.listProviders();
+		async listProviders() {
+			const url = __FLUXBASE_URL__ + "/api/v1/internal/ai/providers";
+			const response = await fetch(url, {
+				method: "GET",
+				headers: {
+					"Authorization": "Bearer " + __FLUXBASE_SERVICE_TOKEN__,
+				},
+			});
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error("AI listProviders failed: " + response.status + " " + errorText);
+			}
+			return response.json();
+		},
+	},
 };
 
 // User-defined tool handler
