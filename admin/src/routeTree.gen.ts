@@ -35,6 +35,7 @@ import { Route as AuthenticatedSecretsIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedRpcIndexRouteImport } from './routes/_authenticated/rpc/index'
 import { Route as AuthenticatedRealtimeIndexRouteImport } from './routes/_authenticated/realtime/index'
 import { Route as AuthenticatedMonitoringIndexRouteImport } from './routes/_authenticated/monitoring/index'
+import { Route as AuthenticatedMcpToolsIndexRouteImport } from './routes/_authenticated/mcp-tools/index'
 import { Route as AuthenticatedLogsIndexRouteImport } from './routes/_authenticated/logs/index'
 import { Route as AuthenticatedKnowledgeBasesIndexRouteImport } from './routes/_authenticated/knowledge-bases/index'
 import { Route as AuthenticatedJobsIndexRouteImport } from './routes/_authenticated/jobs/index'
@@ -194,6 +195,12 @@ const AuthenticatedMonitoringIndexRoute =
     path: '/monitoring/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMcpToolsIndexRoute =
+  AuthenticatedMcpToolsIndexRouteImport.update({
+    id: '/mcp-tools/',
+    path: '/mcp-tools/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedLogsIndexRoute = AuthenticatedLogsIndexRouteImport.update({
   id: '/logs/',
   path: '/logs/',
@@ -328,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/knowledge-bases': typeof AuthenticatedKnowledgeBasesIndexRoute
   '/logs': typeof AuthenticatedLogsIndexRoute
+  '/mcp-tools': typeof AuthenticatedMcpToolsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
@@ -373,6 +381,7 @@ export interface FileRoutesByTo {
   '/jobs': typeof AuthenticatedJobsIndexRoute
   '/knowledge-bases': typeof AuthenticatedKnowledgeBasesIndexRoute
   '/logs': typeof AuthenticatedLogsIndexRoute
+  '/mcp-tools': typeof AuthenticatedMcpToolsIndexRoute
   '/monitoring': typeof AuthenticatedMonitoringIndexRoute
   '/realtime': typeof AuthenticatedRealtimeIndexRoute
   '/rpc': typeof AuthenticatedRpcIndexRoute
@@ -420,6 +429,7 @@ export interface FileRoutesById {
   '/_authenticated/jobs/': typeof AuthenticatedJobsIndexRoute
   '/_authenticated/knowledge-bases/': typeof AuthenticatedKnowledgeBasesIndexRoute
   '/_authenticated/logs/': typeof AuthenticatedLogsIndexRoute
+  '/_authenticated/mcp-tools/': typeof AuthenticatedMcpToolsIndexRoute
   '/_authenticated/monitoring/': typeof AuthenticatedMonitoringIndexRoute
   '/_authenticated/realtime/': typeof AuthenticatedRealtimeIndexRoute
   '/_authenticated/rpc/': typeof AuthenticatedRpcIndexRoute
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/knowledge-bases'
     | '/logs'
+    | '/mcp-tools'
     | '/monitoring'
     | '/realtime'
     | '/rpc'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/knowledge-bases'
     | '/logs'
+    | '/mcp-tools'
     | '/monitoring'
     | '/realtime'
     | '/rpc'
@@ -558,6 +570,7 @@ export interface FileRouteTypes {
     | '/_authenticated/jobs/'
     | '/_authenticated/knowledge-bases/'
     | '/_authenticated/logs/'
+    | '/_authenticated/mcp-tools/'
     | '/_authenticated/monitoring/'
     | '/_authenticated/realtime/'
     | '/_authenticated/rpc/'
@@ -775,6 +788,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMonitoringIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/mcp-tools/': {
+      id: '/_authenticated/mcp-tools/'
+      path: '/mcp-tools'
+      fullPath: '/mcp-tools'
+      preLoaderRoute: typeof AuthenticatedMcpToolsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/logs/': {
       id: '/_authenticated/logs/'
       path: '/logs'
@@ -921,6 +941,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedJobsIndexRoute: typeof AuthenticatedJobsIndexRoute
   AuthenticatedKnowledgeBasesIndexRoute: typeof AuthenticatedKnowledgeBasesIndexRoute
   AuthenticatedLogsIndexRoute: typeof AuthenticatedLogsIndexRoute
+  AuthenticatedMcpToolsIndexRoute: typeof AuthenticatedMcpToolsIndexRoute
   AuthenticatedMonitoringIndexRoute: typeof AuthenticatedMonitoringIndexRoute
   AuthenticatedRealtimeIndexRoute: typeof AuthenticatedRealtimeIndexRoute
   AuthenticatedRpcIndexRoute: typeof AuthenticatedRpcIndexRoute
@@ -956,6 +977,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedJobsIndexRoute: AuthenticatedJobsIndexRoute,
   AuthenticatedKnowledgeBasesIndexRoute: AuthenticatedKnowledgeBasesIndexRoute,
   AuthenticatedLogsIndexRoute: AuthenticatedLogsIndexRoute,
+  AuthenticatedMcpToolsIndexRoute: AuthenticatedMcpToolsIndexRoute,
   AuthenticatedMonitoringIndexRoute: AuthenticatedMonitoringIndexRoute,
   AuthenticatedRealtimeIndexRoute: AuthenticatedRealtimeIndexRoute,
   AuthenticatedRpcIndexRoute: AuthenticatedRpcIndexRoute,
