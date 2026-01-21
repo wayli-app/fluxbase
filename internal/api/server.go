@@ -1401,15 +1401,17 @@ func (s *Server) setupRoutes() {
 
 	// Internal AI routes - for custom MCP tools, edge functions, and jobs
 	// These endpoints allow runtime code to access AI capabilities via utils.ai.chat() and utils.ai.embed()
-	// Requires service token authentication (used internally by runtime environments)
+	// SECURITY: Restricted to localhost only + service token authentication
+	// Only server-side runtimes (MCP tools, edge functions, jobs) can access these endpoints
 	if s.internalAIHandler != nil && s.config.AI.Enabled {
 		internalAI := v1.Group("/internal/ai",
+			middleware.RequireInternal(), // Localhost only - prevents external access
 			middleware.RequireAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
 		)
 		internalAI.Post("/chat", s.internalAIHandler.HandleChat)
 		internalAI.Post("/embed", s.internalAIHandler.HandleEmbed)
 		internalAI.Get("/providers", s.internalAIHandler.HandleListProviders)
-		log.Debug().Msg("Internal AI routes registered for MCP tools/functions/jobs")
+		log.Debug().Msg("Internal AI routes registered for MCP tools/functions/jobs (localhost only)")
 	}
 
 	// Storage routes - optional authentication (allows unauthenticated access to public buckets)
