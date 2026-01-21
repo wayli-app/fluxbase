@@ -116,7 +116,76 @@ const _functionUtils = {
     } catch {
       return {};
     }
-  }
+  },
+
+  // AI capabilities - allows functions to use AI completions and embeddings
+  ai: {
+    // Chat completion with an AI provider
+    // Usage: const response = await utils.ai.chat({ messages: [...], provider: "openai", model: "gpt-4" });
+    async chat(options) {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/chat';
+      const body = {
+        messages: options.messages || [],
+        provider: options.provider,
+        model: options.model,
+        max_tokens: options.maxTokens || options.max_tokens,
+        temperature: options.temperature,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI chat failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+
+    // Generate embeddings for text
+    // Usage: const { embedding } = await utils.ai.embed({ text: "Hello world" });
+    async embed(options) {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/embed';
+      const body = {
+        text: options.text,
+        provider: options.provider,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI embed failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+
+    // List available AI providers
+    // Usage: const { providers, default: defaultProvider } = await utils.ai.listProviders();
+    async listProviders() {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/providers';
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI listProviders failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+  },
 };
 
 // Expose Fluxbase as a global object for user code (documented API)
@@ -305,7 +374,76 @@ const _jobUtils = {
   getJobPayload: () => {
     const jobContext = %s;
     return jobContext.payload || {};
-  }
+  },
+
+  // AI capabilities - allows jobs to use AI completions and embeddings
+  ai: {
+    // Chat completion with an AI provider
+    // Usage: const response = await utils.ai.chat({ messages: [...], provider: "openai", model: "gpt-4" });
+    async chat(options) {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/chat';
+      const body = {
+        messages: options.messages || [],
+        provider: options.provider,
+        model: options.model,
+        max_tokens: options.maxTokens || options.max_tokens,
+        temperature: options.temperature,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI chat failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+
+    // Generate embeddings for text
+    // Usage: const { embedding } = await utils.ai.embed({ text: "Hello world" });
+    async embed(options) {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/embed';
+      const body = {
+        text: options.text,
+        provider: options.provider,
+      };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI embed failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+
+    // List available AI providers
+    // Usage: const { providers, default: defaultProvider } = await utils.ai.listProviders();
+    async listProviders() {
+      const url = _fluxbaseUrl + '/api/v1/internal/ai/providers';
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + _serviceToken,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error('AI listProviders failed: ' + response.status + ' ' + errorText);
+      }
+      return response.json();
+    },
+  },
 };
 
 // Expose Fluxbase as a global object for user code (documented API)

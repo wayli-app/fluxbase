@@ -44,6 +44,13 @@ func (r *ToolRegistry) Register(tool ToolHandler) {
 	r.tools[tool.Name()] = tool
 }
 
+// Unregister removes a tool from the registry by name
+func (r *ToolRegistry) Unregister(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.tools, name)
+}
+
 // GetTool returns a tool by name, or nil if not found
 func (r *ToolRegistry) GetTool(name string) ToolHandler {
 	r.mu.RLock()
@@ -126,6 +133,18 @@ func (r *ResourceRegistry) Register(provider ResourceProvider) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.providers = append(r.providers, provider)
+}
+
+// Unregister removes a resource provider from the registry by URI
+func (r *ResourceRegistry) Unregister(uri string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, provider := range r.providers {
+		if provider.URI() == uri {
+			r.providers = append(r.providers[:i], r.providers[i+1:]...)
+			return
+		}
+	}
 }
 
 // GetProvider returns the provider that handles the given URI, or nil if not found

@@ -885,6 +885,24 @@ async function handler(req) {
 
 Fluxbase supports special `@fluxbase:` directives in function code comments to configure function behavior. These annotations provide a convenient way to set function-level configuration without API calls.
 
+### Namespace Annotation
+
+**`@fluxbase:namespace`** - Specify which namespace the function belongs to (overrides CLI `--namespace` flag):
+
+```typescript
+/**
+ * Production-only function
+ *
+ * @fluxbase:namespace production
+ */
+async function handler(req) {
+  // This function will be deployed to the 'production' namespace
+  return { status: 200, body: "OK" };
+}
+```
+
+This is useful when you want to keep functions for different environments in the same directory but deploy them to different namespaces based on the annotation.
+
 ### Authentication Annotations
 
 **`@fluxbase:allow-unauthenticated`** - Allow function invocation without authentication:
@@ -1343,6 +1361,142 @@ For direct HTTP access without the SDK, see the [SDK Documentation](/docs/api/sd
 - Increase memory allocation
 - Optimize data processing (stream large datasets)
 - Reduce in-memory caching
+
+## AI Capabilities
+
+Edge functions can leverage AI capabilities via the `utils.ai` object for chat completions and embeddings.
+
+### Unified Handler Signature
+
+Functions support a unified handler signature with SDK clients and utilities:
+
+```typescript
+async function handler(
+  request: Request,        // Web Request object
+  fluxbase: FluxbaseClient,       // User-scoped client (respects RLS)
+  fluxbaseService: FluxbaseClient, // Service client (bypasses RLS)
+  utils: FunctionUtils            // Utilities including AI
+) {
+  // Use AI for intelligent processing
+  const response = await utils.ai.chat({
+    messages: [
+      { role: "system", content: "You are a helpful assistant." },
+      { role: "user", content: "Summarize this data..." }
+    ]
+  });
+
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ summary: response.content }),
+  };
+}
+```
+
+### AI Chat Completions
+
+```typescript
+async function handler(req, fluxbase, fluxbaseService, utils) {
+  const { text } = JSON.parse(req.body || "{}");
+
+  // Use AI to analyze text
+  const response = await utils.ai.chat({
+    messages: [
+      { role: "system", content: "Analyze the sentiment of the following text." },
+      { role: "user", content: text }
+    ],
+    maxTokens: 200,
+    temperature: 0.3
+  });
+
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      analysis: response.content,
+      model: response.model
+    }),
+  };
+}
+```
+
+### AI Embeddings
+
+```typescript
+async function handler(req, fluxbase, fluxbaseService, utils) {
+  const { query } = JSON.parse(req.body || "{}");
+
+  // Generate embedding for semantic search
+  const { embedding } = await utils.ai.embed({ text: query });
+
+  // Use pgvector to find similar documents
+  const { data: results } = await fluxbaseService.rpc("match_documents", {
+    query_embedding: embedding,
+    match_threshold: 0.7,
+    match_count: 5
+  });
+
+  return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ results }),
+  };
+}
+```
+
+### Utils AI Interface
+
+```typescript
+interface FunctionUtils {
+  // Report progress (0-100)
+  reportProgress(percent: number, message?: string, data?: any): void;
+
+  // Check if function was cancelled
+  isCancelled(): Promise<boolean>;
+
+  // Get execution context
+  getExecutionContext(): {
+    execution_id: string;
+    function_name: string;
+    namespace: string;
+    user: { id: string; email: string; role: string } | null;
+  };
+
+  // AI capabilities (requires network access)
+  ai: {
+    // Chat completion
+    chat(options: {
+      messages: Array<{ role: string; content: string }>;
+      provider?: string;  // AI provider name
+      model?: string;     // Model override
+      maxTokens?: number; // Default: 1024
+      temperature?: number; // 0-1, default: 0.7
+    }): Promise<{
+      content: string;
+      model: string;
+      finish_reason?: string;
+      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    }>;
+
+    // Generate embeddings
+    embed(options: {
+      text: string;
+      provider?: string;
+    }): Promise<{
+      embedding: number[];
+      model: string;
+    }>;
+
+    // List available providers
+    listProviders(): Promise<{
+      providers: Array<{ name: string; type: string; model: string; enabled: boolean }>;
+      default: string;
+    }>;
+  };
+}
+```
+
+**Note:** AI capabilities require network access. Ensure your function has `allow_net: true` configured.
 
 ## Migration from Supabase
 

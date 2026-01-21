@@ -399,7 +399,7 @@ async function handler(req: Request) {
     toast.success(`${label} copied to clipboard`)
   }
 
-  // Fetch namespaces on mount
+  // Fetch namespaces on mount and select best default
   useEffect(() => {
     const fetchNamespaces = async () => {
       try {
@@ -407,10 +407,34 @@ async function handler(req: Request) {
         // Filter out empty strings to prevent Select component errors
         const validNamespaces = data.filter((ns: string) => ns !== '')
         setNamespaces(validNamespaces.length > 0 ? validNamespaces : ['default'])
-        // If current namespace not in list, reset to first available
-        // Use functional update to avoid dependency on selectedNamespace
+
+        // Smart namespace selection: if 'default' is empty but other namespaces have items,
+        // select a non-empty namespace instead
+        let bestNamespace = validNamespaces[0] || 'default'
+
+        if (validNamespaces.includes('default') && validNamespaces.length > 1) {
+          // Check if 'default' namespace has any functions
+          try {
+            const defaultFunctions = await functionsApi.list('default')
+            if (!defaultFunctions || defaultFunctions.length === 0) {
+              // Default is empty, find first non-empty namespace
+              for (const ns of validNamespaces) {
+                if (ns !== 'default') {
+                  const nsFunctions = await functionsApi.list(ns)
+                  if (nsFunctions && nsFunctions.length > 0) {
+                    bestNamespace = ns
+                    break
+                  }
+                }
+              }
+            }
+          } catch {
+            // If checking fails, stick with default
+          }
+        }
+
         setSelectedNamespace((current) =>
-          validNamespaces.includes(current) ? current : (validNamespaces[0] || 'default')
+          validNamespaces.includes(current) ? current : bestNamespace
         )
       } catch {
         setNamespaces(['default'])

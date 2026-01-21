@@ -4,6 +4,200 @@ import (
 	"testing"
 )
 
+func TestParseFunctionAnnotations_Namespace(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected *string
+	}{
+		{
+			name:     "no namespace annotation",
+			code:     `export function handler() {}`,
+			expected: nil,
+		},
+		{
+			name: "single line comment namespace",
+			code: `// @fluxbase:namespace production
+export function handler() {}`,
+			expected: stringPtr("production"),
+		},
+		{
+			name: "JSDoc style namespace",
+			code: `/**
+ * My function
+ * @fluxbase:namespace staging
+ */
+export function handler() {}`,
+			expected: stringPtr("staging"),
+		},
+		{
+			name: "block comment namespace",
+			code: `/* @fluxbase:namespace development */
+export function handler() {}`,
+			expected: stringPtr("development"),
+		},
+		{
+			name: "namespace with multiple annotations",
+			code: `// @fluxbase:namespace myapp
+// @fluxbase:allow-unauthenticated
+// @fluxbase:rate-limit 100/min
+export function handler() {}`,
+			expected: stringPtr("myapp"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ParseFunctionAnnotations(tt.code)
+			if tt.expected == nil {
+				if config.Namespace != nil {
+					t.Errorf("Namespace = %v, want nil", *config.Namespace)
+				}
+			} else {
+				if config.Namespace == nil {
+					t.Errorf("Namespace = nil, want %v", *tt.expected)
+				} else if *config.Namespace != *tt.expected {
+					t.Errorf("Namespace = %v, want %v", *config.Namespace, *tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestParseJobAnnotations_Namespace(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		expected *string
+	}{
+		{
+			name:     "no namespace annotation",
+			code:     `export function handler() {}`,
+			expected: nil,
+		},
+		{
+			name: "with namespace",
+			code: `// @fluxbase:namespace production
+// @fluxbase:schedule 0 2 * * *
+export function handler() {}`,
+			expected: stringPtr("production"),
+		},
+		{
+			name: "namespace in middle of annotations",
+			code: `// @fluxbase:schedule 0 2 * * *
+// @fluxbase:namespace analytics
+// @fluxbase:timeout 600
+export function handler() {}`,
+			expected: stringPtr("analytics"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ParseJobAnnotations(tt.code)
+			if tt.expected == nil {
+				if config.Namespace != nil {
+					t.Errorf("Namespace = %v, want nil", *config.Namespace)
+				}
+			} else {
+				if config.Namespace == nil {
+					t.Errorf("Namespace = nil, want %v", *tt.expected)
+				} else if *config.Namespace != *tt.expected {
+					t.Errorf("Namespace = %v, want %v", *config.Namespace, *tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyFunctionConfig_Namespace(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace *string
+		wantSet   bool
+	}{
+		{
+			name:      "with namespace",
+			namespace: stringPtr("production"),
+			wantSet:   true,
+		},
+		{
+			name:      "without namespace",
+			namespace: nil,
+			wantSet:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fn := map[string]interface{}{
+				"name": "test-fn",
+				"code": "export function handler() {}",
+			}
+
+			config := FunctionConfig{
+				Namespace: tt.namespace,
+			}
+
+			ApplyFunctionConfig(fn, config)
+
+			if tt.wantSet {
+				if fn["namespace"] != *tt.namespace {
+					t.Errorf("namespace = %v, want %v", fn["namespace"], *tt.namespace)
+				}
+			} else {
+				if _, exists := fn["namespace"]; exists {
+					t.Errorf("namespace should not be set, got %v", fn["namespace"])
+				}
+			}
+		})
+	}
+}
+
+func TestApplyJobConfig_Namespace(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace *string
+		wantSet   bool
+	}{
+		{
+			name:      "with namespace",
+			namespace: stringPtr("production"),
+			wantSet:   true,
+		},
+		{
+			name:      "without namespace",
+			namespace: nil,
+			wantSet:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := map[string]interface{}{
+				"name": "test-job",
+				"code": "export function handler() {}",
+			}
+
+			config := JobConfig{
+				Namespace: tt.namespace,
+			}
+
+			ApplyJobConfig(job, config)
+
+			if tt.wantSet {
+				if job["namespace"] != *tt.namespace {
+					t.Errorf("namespace = %v, want %v", job["namespace"], *tt.namespace)
+				}
+			} else {
+				if _, exists := job["namespace"]; exists {
+					t.Errorf("namespace should not be set, got %v", job["namespace"])
+				}
+			}
+		})
+	}
+}
+
 func TestParseFunctionAnnotations_AllowUnauthenticated(t *testing.T) {
 	tests := []struct {
 		name     string

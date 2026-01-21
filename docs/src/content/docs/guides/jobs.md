@@ -520,6 +520,7 @@ export async function handler(
 
 Control job behavior with JSDoc-style annotations:
 
+- `@fluxbase:namespace <name>` - Specify namespace (overrides CLI `--namespace` flag)
 - `@fluxbase:require-role <role>` - Require specific user role (admin, authenticated, custom)
 - `@fluxbase:timeout <seconds>` - Maximum execution time (default: 300)
 - `@fluxbase:max-retries <count>` - Number of retry attempts (default: 3)
@@ -1218,6 +1219,164 @@ export async function handler(
 - Verify subscription to correct channel
 - Review RLS policies - users only see their own jobs
 - Check browser console for connection errors
+
+## AI Capabilities
+
+Jobs can leverage AI capabilities via the `job.ai` object (same as `utils.ai` in edge functions) for chat completions and embeddings.
+
+### AI Chat Completions
+
+```typescript
+/**
+ * AI-powered data analysis job
+ * @fluxbase:allow-net
+ * @fluxbase:timeout 300
+ */
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  job.reportProgress(10, "Fetching data...");
+
+  const { data: records } = await fluxbaseService
+    .from("sales_data")
+    .select("*")
+    .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    .execute();
+
+  job.reportProgress(40, "Analyzing with AI...");
+
+  // Use AI to generate insights
+  const response = await job.ai.chat({
+    messages: [
+      {
+        role: "system",
+        content: "You are a business analyst. Provide concise, actionable insights."
+      },
+      {
+        role: "user",
+        content: `Analyze this week's sales data and provide key insights:\n${JSON.stringify(records, null, 2)}`
+      }
+    ],
+    maxTokens: 500
+  });
+
+  job.reportProgress(80, "Saving report...");
+
+  // Store the AI-generated report
+  await fluxbaseService
+    .from("reports")
+    .insert({
+      type: "weekly_analysis",
+      content: response.content,
+      generated_at: new Date().toISOString()
+    })
+    .execute();
+
+  job.reportProgress(100, "Complete");
+
+  return { analysis: response.content };
+}
+```
+
+### AI Embeddings for Batch Processing
+
+```typescript
+/**
+ * Generate embeddings for documents
+ * @fluxbase:allow-net
+ * @fluxbase:timeout 600
+ */
+export async function handler(
+  req: Request,
+  fluxbase: FluxbaseClient,
+  fluxbaseService: FluxbaseClient,
+  job: JobUtils
+) {
+  const { document_ids } = job.getJobPayload();
+
+  job.reportProgress(0, "Starting embedding generation...");
+
+  for (let i = 0; i < document_ids.length; i++) {
+    // Get document content
+    const { data: doc } = await fluxbaseService
+      .from("documents")
+      .select("id, content")
+      .eq("id", document_ids[i])
+      .single()
+      .execute();
+
+    if (doc) {
+      // Generate embedding
+      const { embedding } = await job.ai.embed({ text: doc.content });
+
+      // Store embedding
+      await fluxbaseService
+        .from("document_embeddings")
+        .upsert({
+          document_id: doc.id,
+          embedding: embedding,
+          updated_at: new Date().toISOString()
+        })
+        .execute();
+    }
+
+    job.reportProgress(
+      Math.round(((i + 1) / document_ids.length) * 100),
+      `Processed ${i + 1}/${document_ids.length} documents`
+    );
+  }
+
+  return { processed: document_ids.length };
+}
+```
+
+### JobUtils AI Interface
+
+The `job` parameter includes AI capabilities:
+
+```typescript
+interface JobUtils {
+  // Progress and context
+  reportProgress(percent: number, message?: string, data?: any): void;
+  isCancelled(): Promise<boolean>;
+  getJobContext(): JobContext;
+  getJobPayload(): any;
+
+  // AI capabilities (requires allow-net permission)
+  ai: {
+    chat(options: {
+      messages: Array<{ role: string; content: string }>;
+      provider?: string;
+      model?: string;
+      maxTokens?: number;
+      temperature?: number;
+    }): Promise<{
+      content: string;
+      model: string;
+      finish_reason?: string;
+      usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+    }>;
+
+    embed(options: {
+      text: string;
+      provider?: string;
+    }): Promise<{
+      embedding: number[];
+      model: string;
+    }>;
+
+    listProviders(): Promise<{
+      providers: Array<{ name: string; type: string; model: string; enabled: boolean }>;
+      default: string;
+    }>;
+  };
+}
+```
+
+**Note:** AI capabilities require `@fluxbase:allow-net` to be set in the job annotations.
 
 ## Next Steps
 

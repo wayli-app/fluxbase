@@ -3396,3 +3396,236 @@ export const captchaSettingsApi = {
     return response.data
   },
 }
+
+// Custom MCP Tools API Types
+export interface MCPTool {
+  id: string
+  name: string
+  namespace: string
+  description?: string
+  code: string
+  input_schema?: Record<string, unknown>
+  required_scopes: string[]
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  allow_read: boolean
+  allow_write: boolean
+  enabled: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+}
+
+export interface MCPResource {
+  id: string
+  uri: string
+  name: string
+  namespace: string
+  description?: string
+  mime_type: string
+  code: string
+  required_scopes: string[]
+  timeout_seconds: number
+  memory_limit_mb: number
+  allow_net: boolean
+  allow_env: boolean
+  enabled: boolean
+  is_template: boolean
+  created_at: string
+  updated_at: string
+  created_by?: string
+}
+
+export interface CreateMCPToolRequest {
+  name: string
+  namespace?: string
+  description?: string
+  code: string
+  input_schema?: Record<string, unknown>
+  required_scopes?: string[]
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  enabled?: boolean
+}
+
+export interface UpdateMCPToolRequest {
+  name?: string
+  namespace?: string
+  description?: string
+  code?: string
+  input_schema?: Record<string, unknown>
+  required_scopes?: string[]
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  allow_read?: boolean
+  allow_write?: boolean
+  enabled?: boolean
+}
+
+export interface CreateMCPResourceRequest {
+  uri: string
+  name: string
+  namespace?: string
+  description?: string
+  mime_type?: string
+  code: string
+  required_scopes?: string[]
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  enabled?: boolean
+}
+
+export interface UpdateMCPResourceRequest {
+  uri?: string
+  name?: string
+  namespace?: string
+  description?: string
+  mime_type?: string
+  code?: string
+  required_scopes?: string[]
+  timeout_seconds?: number
+  memory_limit_mb?: number
+  allow_net?: boolean
+  allow_env?: boolean
+  enabled?: boolean
+}
+
+export interface MCPToolTestResult {
+  content: Array<{ type: string; text: string }>
+  isError?: boolean
+}
+
+export interface MCPResourceTestResult {
+  uri: string
+  mimeType?: string
+  text?: string
+  blob?: string
+}
+
+// Custom MCP Tools API
+export const mcpToolsApi = {
+  // List all custom MCP tools
+  list: async (namespace?: string): Promise<MCPTool[]> => {
+    const params = namespace ? `?namespace=${namespace}` : ''
+    const response = await api.get<{ tools: MCPTool[]; count: number }>(
+      `/api/v1/mcp/tools${params}`
+    )
+    return response.data.tools || []
+  },
+
+  // Get a single tool by ID
+  get: async (id: string): Promise<MCPTool> => {
+    const response = await api.get<MCPTool>(`/api/v1/mcp/tools/${id}`)
+    return response.data
+  },
+
+  // Create a new tool
+  create: async (data: CreateMCPToolRequest): Promise<MCPTool> => {
+    const response = await api.post<MCPTool>('/api/v1/mcp/tools', data)
+    return response.data
+  },
+
+  // Update an existing tool
+  update: async (id: string, data: UpdateMCPToolRequest): Promise<MCPTool> => {
+    const response = await api.put<MCPTool>(`/api/v1/mcp/tools/${id}`, data)
+    return response.data
+  },
+
+  // Delete a tool
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/mcp/tools/${id}`)
+  },
+
+  // Sync (upsert) a tool
+  sync: async (data: CreateMCPToolRequest): Promise<MCPTool> => {
+    const response = await api.post<MCPTool>('/api/v1/mcp/tools/sync', {
+      ...data,
+      upsert: true,
+    })
+    return response.data
+  },
+
+  // Test a tool
+  test: async (
+    id: string,
+    args: Record<string, unknown>
+  ): Promise<{ success: boolean; result: MCPToolTestResult }> => {
+    const response = await api.post<{
+      success: boolean
+      result: MCPToolTestResult
+    }>(`/api/v1/mcp/tools/${id}/test`, { args })
+    return response.data
+  },
+}
+
+// Custom MCP Resources API
+export const mcpResourcesApi = {
+  // List all custom MCP resources
+  list: async (namespace?: string): Promise<MCPResource[]> => {
+    const params = namespace ? `?namespace=${namespace}` : ''
+    const response = await api.get<{ resources: MCPResource[]; count: number }>(
+      `/api/v1/mcp/resources${params}`
+    )
+    return response.data.resources || []
+  },
+
+  // Get a single resource by ID
+  get: async (id: string): Promise<MCPResource> => {
+    const response = await api.get<MCPResource>(`/api/v1/mcp/resources/${id}`)
+    return response.data
+  },
+
+  // Create a new resource
+  create: async (data: CreateMCPResourceRequest): Promise<MCPResource> => {
+    const response = await api.post<MCPResource>('/api/v1/mcp/resources', data)
+    return response.data
+  },
+
+  // Update an existing resource
+  update: async (
+    id: string,
+    data: UpdateMCPResourceRequest
+  ): Promise<MCPResource> => {
+    const response = await api.put<MCPResource>(
+      `/api/v1/mcp/resources/${id}`,
+      data
+    )
+    return response.data
+  },
+
+  // Delete a resource
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/api/v1/mcp/resources/${id}`)
+  },
+
+  // Sync (upsert) a resource
+  sync: async (data: CreateMCPResourceRequest): Promise<MCPResource> => {
+    const response = await api.post<MCPResource>('/api/v1/mcp/resources/sync', {
+      ...data,
+      upsert: true,
+    })
+    return response.data
+  },
+
+  // Test a resource
+  test: async (
+    id: string,
+    params: Record<string, string>
+  ): Promise<{ success: boolean; contents: MCPResourceTestResult[] }> => {
+    const response = await api.post<{
+      success: boolean
+      contents: MCPResourceTestResult[]
+    }>(`/api/v1/mcp/resources/${id}/test`, { params })
+    return response.data
+  },
+}
