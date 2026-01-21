@@ -8,6 +8,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// IPExtractor is a function that extracts the client IP from a Fiber context.
+// This allows for custom IP extraction strategies and easier testing.
+type IPExtractor func(c *fiber.Ctx) net.IP
+
 // RequireInternal restricts access to requests originating from localhost only.
 // This is used for internal service endpoints that should not be exposed externally,
 // such as the AI endpoints used by MCP tools, edge functions, and jobs.
@@ -15,15 +19,23 @@ import (
 // The middleware checks the actual connection IP, ignoring X-Forwarded-For and
 // X-Real-IP headers to prevent header spoofing attacks.
 func RequireInternal() fiber.Handler {
+	return RequireInternalWithExtractor(getDirectIP)
+}
+
+// RequireInternalWithExtractor is like RequireInternal but allows specifying
+// a custom IP extractor function. This is primarily useful for testing.
+func RequireInternalWithExtractor(extractor IPExtractor) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Get the actual connection IP (ignore proxy headers for security)
-		// We use c.IP() with Fiber's trusted proxy config, but for internal
-		// endpoints we want the direct connection IP
-		clientIP := getDirectIP(c)
+		clientIP := extractor(c)
 
 		if !isLoopback(clientIP) {
+			ipStr := ""
+			if clientIP != nil {
+				ipStr = clientIP.String()
+			}
 			log.Warn().
-				Str("ip", clientIP.String()).
+				Str("ip", ipStr).
 				Str("path", c.Path()).
 				Msg("Internal endpoint access denied - not from localhost")
 
