@@ -100,6 +100,67 @@ func (v *IntentValidator) ValidateIntent(userMessage, sql string, tablesAccessed
 	return result
 }
 
+// ValidateToolCall validates that the tool being called matches the user's intent based on keywords
+func (v *IntentValidator) ValidateToolCall(userMessage string, toolName string) *IntentValidationResult {
+	result := &IntentValidationResult{
+		Valid:           true,
+		MatchedKeywords: []string{},
+	}
+
+	if len(v.intentRules) == 0 {
+		return result // No rules configured
+	}
+
+	lowerMessage := strings.ToLower(userMessage)
+
+	for _, rule := range v.intentRules {
+		// Skip rules that don't have tool constraints
+		if rule.RequiredTool == "" && rule.ForbiddenTool == "" {
+			continue
+		}
+
+		// Check if any keywords match
+		keywordMatched := false
+		for _, keyword := range rule.Keywords {
+			if strings.Contains(lowerMessage, strings.ToLower(keyword)) {
+				keywordMatched = true
+				result.MatchedKeywords = append(result.MatchedKeywords, keyword)
+			}
+		}
+
+		if !keywordMatched {
+			continue
+		}
+
+		// Check forbidden tool first (more specific error)
+		if rule.ForbiddenTool != "" && toolName == rule.ForbiddenTool {
+			result.Valid = false
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("Query about '%s' should NOT use tool '%s'",
+					strings.Join(rule.Keywords, "/"), rule.ForbiddenTool))
+			if rule.RequiredTool != "" {
+				result.Suggestions = append(result.Suggestions,
+					fmt.Sprintf("Use the '%s' tool instead", rule.RequiredTool))
+			} else {
+				result.Suggestions = append(result.Suggestions,
+					"Use a different tool for this query")
+			}
+		}
+
+		// Check required tool
+		if rule.RequiredTool != "" && toolName != rule.RequiredTool {
+			result.Valid = false
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("Query about '%s' should use tool '%s', not '%s'",
+					strings.Join(rule.Keywords, "/"), rule.RequiredTool, toolName))
+			result.Suggestions = append(result.Suggestions,
+				fmt.Sprintf("Use the '%s' tool instead", rule.RequiredTool))
+		}
+	}
+
+	return result
+}
+
 // ValidateRequiredColumns checks that required columns are included in SELECT queries
 func (v *IntentValidator) ValidateRequiredColumns(sql string, tablesAccessed []string) *IntentValidationResult {
 	result := &IntentValidationResult{

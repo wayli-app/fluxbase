@@ -557,6 +557,27 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 		// Execute each tool call and add results
 		for _, tc := range pendingToolCalls {
+			toolName := tc.Function.Name
+
+			// Validate tool call against intent rules (requiredTool/forbiddenTool)
+			if len(chatbot.IntentRules) > 0 {
+				intentValidator := NewIntentValidator(chatbot.IntentRules, chatbot.RequiredColumns, chatbot.DefaultTable)
+				toolValidation := intentValidator.ValidateToolCall(msg.Content, toolName)
+				if !toolValidation.Valid {
+					errMsg := fmt.Sprintf("Tool validation failed: %s. %s",
+						strings.Join(toolValidation.Errors, "; "),
+						strings.Join(toolValidation.Suggestions, " "))
+					toolMsg := Message{
+						Role:       RoleTool,
+						Content:    errMsg,
+						ToolCallID: tc.ID,
+						Name:       toolName,
+					}
+					messages = append(messages, toolMsg)
+					continue // Skip execution, let AI retry with correct tool
+				}
+			}
+
 			toolResult, queryResult := h.executeToolCall(ctx, chatCtx, msg.ConversationID, chatbot, &tc, userID, msg.Content)
 
 			// Accumulate successful query results for persistence

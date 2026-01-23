@@ -388,16 +388,47 @@ func (s *SchemaBuilder) BuildSystemPromptWithAuth(ctx context.Context, chatbot *
 
 	// Add intent rules hints if configured
 	if len(chatbot.IntentRules) > 0 {
-		sb.WriteString("\n## Table Selection Guidelines\n\n")
-		sb.WriteString("Use the correct table based on what the user is asking about:\n")
+		// Check if any rules have table constraints
+		hasTableRules := false
+		hasToolRules := false
 		for _, rule := range chatbot.IntentRules {
-			if rule.RequiredTable != "" {
-				sb.WriteString(fmt.Sprintf("- For questions about %s → use **%s**\n",
-					strings.Join(rule.Keywords, ", "), rule.RequiredTable))
+			if rule.RequiredTable != "" || rule.ForbiddenTable != "" {
+				hasTableRules = true
 			}
-			if rule.ForbiddenTable != "" {
-				sb.WriteString(fmt.Sprintf("- Do NOT use '%s' for queries about %s\n",
-					rule.ForbiddenTable, strings.Join(rule.Keywords, ", ")))
+			if rule.RequiredTool != "" || rule.ForbiddenTool != "" {
+				hasToolRules = true
+			}
+		}
+
+		// Add table selection guidelines
+		if hasTableRules {
+			sb.WriteString("\n## Table Selection Guidelines\n\n")
+			sb.WriteString("Use the correct table based on what the user is asking about:\n")
+			for _, rule := range chatbot.IntentRules {
+				if rule.RequiredTable != "" {
+					sb.WriteString(fmt.Sprintf("- For questions about %s → use **%s**\n",
+						strings.Join(rule.Keywords, ", "), rule.RequiredTable))
+				}
+				if rule.ForbiddenTable != "" {
+					sb.WriteString(fmt.Sprintf("- Do NOT use '%s' for queries about %s\n",
+						rule.ForbiddenTable, strings.Join(rule.Keywords, ", ")))
+				}
+			}
+		}
+
+		// Add tool selection guidelines
+		if hasToolRules {
+			sb.WriteString("\n## Tool Selection Guidelines\n\n")
+			sb.WriteString("Use the correct tool based on what the user is asking about:\n")
+			for _, rule := range chatbot.IntentRules {
+				if rule.RequiredTool != "" {
+					sb.WriteString(fmt.Sprintf("- For questions about %s → use the **%s** tool\n",
+						strings.Join(rule.Keywords, ", "), rule.RequiredTool))
+				}
+				if rule.ForbiddenTool != "" {
+					sb.WriteString(fmt.Sprintf("- Do NOT use the '%s' tool for queries about %s\n",
+						rule.ForbiddenTool, strings.Join(rule.Keywords, ", ")))
+				}
 			}
 		}
 	}

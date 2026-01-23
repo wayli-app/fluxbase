@@ -8,11 +8,13 @@ import (
 	"time"
 )
 
-// IntentRule defines a mapping between user keywords and required/forbidden tables
+// IntentRule defines a mapping between user keywords and required/forbidden tables/tools
 type IntentRule struct {
 	Keywords       []string `json:"keywords"`
 	RequiredTable  string   `json:"requiredTable,omitempty"`
 	ForbiddenTable string   `json:"forbiddenTable,omitempty"`
+	RequiredTool   string   `json:"requiredTool,omitempty"`
+	ForbiddenTool  string   `json:"forbiddenTool,omitempty"`
 }
 
 // RequiredColumnsMap maps table names to required column lists
