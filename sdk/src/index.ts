@@ -445,6 +445,7 @@ export type {
   UpdateAIProviderRequest,
   AIChatbotSummary,
   AIChatbot,
+  AIChatbotLookupResponse,
   ChatbotSpec,
   SyncChatbotsOptions,
   SyncChatbotsResult,

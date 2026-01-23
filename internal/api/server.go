@@ -1506,6 +1506,14 @@ func (s *Server) setupRoutes() {
 			s.aiHandler.ListPublicChatbots,
 		)
 
+		// Chatbot lookup by name (smart namespace resolution)
+		// Must be registered BEFORE /:id to avoid routing conflicts
+		s.app.Get("/api/v1/ai/chatbots/by-name/:name",
+			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
+			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),
+			s.aiHandler.LookupChatbotByName,
+		)
+
 		s.app.Get("/api/v1/ai/chatbots/:id",
 			middleware.RequireAIEnabled(s.authHandler.authService.GetSettingsCache()),
 			middleware.OptionalAuthOrServiceKey(s.authHandler.authService, s.clientKeyService, s.db.Pool(), s.dashboardAuthHandler.jwtManager),

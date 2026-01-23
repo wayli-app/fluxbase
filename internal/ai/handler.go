@@ -1104,6 +1104,92 @@ func (h *Handler) GetPublicChatbot(c *fiber.Ctx) error {
 	return c.JSON(chatbot.ToSummary())
 }
 
+// LookupChatbotByNameResponse represents the response for chatbot lookup by name
+type LookupChatbotByNameResponse struct {
+	Chatbot    *ChatbotSummary `json:"chatbot,omitempty"`
+	Ambiguous  bool            `json:"ambiguous"`
+	Namespaces []string        `json:"namespaces,omitempty"`
+	Error      string          `json:"error,omitempty"`
+}
+
+// LookupChatbotByName finds a chatbot by name with smart namespace resolution
+// GET /api/v1/ai/chatbots/by-name/:name
+//
+// Resolution logic:
+// 1. Find all enabled, public chatbots with the given name
+// 2. If exactly one match -> return it
+// 3. If multiple matches -> try "default" namespace first
+// 4. If multiple matches and none in "default" -> return 409 Conflict with namespace list
+func (h *Handler) LookupChatbotByName(c *fiber.Ctx) error {
+	ctx := c.Context()
+	name := c.Params("name")
+
+	if name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(LookupChatbotByNameResponse{
+			Ambiguous: false,
+			Error:     "Chatbot name is required",
+		})
+	}
+
+	// Find all chatbots with this name (enabled only)
+	chatbots, err := h.storage.FindChatbotsByName(ctx, name, true)
+	if err != nil {
+		log.Error().Err(err).Str("name", name).Msg("Failed to lookup chatbot by name")
+		return c.Status(fiber.StatusInternalServerError).JSON(LookupChatbotByNameResponse{
+			Ambiguous: false,
+			Error:     "Failed to lookup chatbot",
+		})
+	}
+
+	// Filter to only public chatbots
+	var publicChatbots []*Chatbot
+	for _, cb := range chatbots {
+		if cb.IsPublic {
+			publicChatbots = append(publicChatbots, cb)
+		}
+	}
+
+	// No matches
+	if len(publicChatbots) == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(LookupChatbotByNameResponse{
+			Ambiguous: false,
+			Error:     "Chatbot not found",
+		})
+	}
+
+	// Exactly one match - return it
+	if len(publicChatbots) == 1 {
+		summary := publicChatbots[0].ToSummary()
+		return c.JSON(LookupChatbotByNameResponse{
+			Chatbot:   &summary,
+			Ambiguous: false,
+		})
+	}
+
+	// Multiple matches - check if one is in "default" namespace
+	for _, cb := range publicChatbots {
+		if cb.Namespace == "default" {
+			summary := cb.ToSummary()
+			return c.JSON(LookupChatbotByNameResponse{
+				Chatbot:   &summary,
+				Ambiguous: false,
+			})
+		}
+	}
+
+	// Multiple matches, none in default - return ambiguous
+	namespaces := make([]string, len(publicChatbots))
+	for i, cb := range publicChatbots {
+		namespaces[i] = cb.Namespace
+	}
+
+	return c.Status(fiber.StatusConflict).JSON(LookupChatbotByNameResponse{
+		Ambiguous:  true,
+		Namespaces: namespaces,
+		Error:      fmt.Sprintf("Chatbot '%s' exists in multiple namespaces: %v. Please specify the namespace explicitly.", name, namespaces),
+	})
+}
+
 // ============================================================================
 // METRICS ENDPOINT
 // ============================================================================

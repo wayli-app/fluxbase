@@ -2934,6 +2934,20 @@ export interface SyncChatbotsResult {
 }
 
 /**
+ * Response from chatbot lookup by name (smart namespace resolution)
+ */
+export interface AIChatbotLookupResponse {
+  /** The chatbot if found (unique or resolved from default namespace) */
+  chatbot?: AIChatbotSummary;
+  /** True if multiple chatbots with this name exist in different namespaces */
+  ambiguous: boolean;
+  /** List of namespaces where the chatbot exists (when ambiguous) */
+  namespaces?: string[];
+  /** Error message if lookup failed */
+  error?: string;
+}
+
+/**
  * AI chat message role
  */
 export type AIChatMessageRole = "user" | "assistant" | "system" | "tool";

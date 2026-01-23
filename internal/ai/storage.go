@@ -498,6 +498,81 @@ func (s *Storage) ListChatbotsByNamespace(ctx context.Context, namespace string)
 	return chatbots, nil
 }
 
+// FindChatbotsByName finds all chatbots with the given name across all namespaces
+// Returns multiple chatbots if the name exists in multiple namespaces
+// Used for smart chatbot lookup when namespace is not specified
+func (s *Storage) FindChatbotsByName(ctx context.Context, name string, enabledOnly bool) ([]*Chatbot, error) {
+	query := `
+		SELECT
+			id, name, namespace, description, code, original_code, is_bundled, bundle_error,
+			allowed_tables, allowed_operations, allowed_schemas, http_allowed_domains,
+			intent_rules, required_columns, default_table,
+			enabled, max_tokens, temperature, provider_id,
+			persist_conversations, conversation_ttl_hours, max_conversation_turns,
+			rate_limit_per_minute, daily_request_limit, daily_token_budget,
+			allow_unauthenticated, is_public, require_roles, response_language, disable_execution_logs,
+			mcp_tools, use_mcp_schema,
+			version, source, created_by, created_at, updated_at
+		FROM ai.chatbots
+		WHERE name = $1
+	`
+
+	if enabledOnly {
+		query += " AND enabled = true"
+	}
+
+	query += " ORDER BY namespace"
+
+	rows, err := s.db.Query(ctx, query, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find chatbots by name: %w", err)
+	}
+	defer rows.Close()
+
+	var chatbots []*Chatbot
+	for rows.Next() {
+		chatbot := &Chatbot{}
+		var intentRulesJSON, requiredColumnsJSON []byte
+		var defaultTable *string
+		var responseLanguage *string
+		err := rows.Scan(
+			&chatbot.ID, &chatbot.Name, &chatbot.Namespace, &chatbot.Description,
+			&chatbot.Code, &chatbot.OriginalCode, &chatbot.IsBundled, &chatbot.BundleError,
+			&chatbot.AllowedTables, &chatbot.AllowedOperations, &chatbot.AllowedSchemas, &chatbot.HTTPAllowedDomains,
+			&intentRulesJSON, &requiredColumnsJSON, &defaultTable,
+			&chatbot.Enabled, &chatbot.MaxTokens, &chatbot.Temperature, &chatbot.ProviderID,
+			&chatbot.PersistConversations, &chatbot.ConversationTTLHours, &chatbot.MaxConversationTurns,
+			&chatbot.RateLimitPerMinute, &chatbot.DailyRequestLimit, &chatbot.DailyTokenBudget,
+			&chatbot.AllowUnauthenticated, &chatbot.IsPublic, &chatbot.RequireRoles, &responseLanguage, &chatbot.DisableExecutionLogs,
+			&chatbot.MCPTools, &chatbot.UseMCPSchema,
+			&chatbot.Version, &chatbot.Source,
+			&chatbot.CreatedBy, &chatbot.CreatedAt, &chatbot.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan chatbot row: %w", err)
+		}
+
+		// Deserialize JSON fields
+		if len(intentRulesJSON) > 0 {
+			_ = json.Unmarshal(intentRulesJSON, &chatbot.IntentRules)
+		}
+		if len(requiredColumnsJSON) > 0 {
+			_ = json.Unmarshal(requiredColumnsJSON, &chatbot.RequiredColumns)
+		}
+		if defaultTable != nil {
+			chatbot.DefaultTable = *defaultTable
+		}
+		if responseLanguage != nil {
+			chatbot.ResponseLanguage = *responseLanguage
+		}
+
+		chatbot.PopulateDerivedFields()
+		chatbots = append(chatbots, chatbot)
+	}
+
+	return chatbots, nil
+}
+
 // DeleteChatbot deletes a chatbot by ID
 func (s *Storage) DeleteChatbot(ctx context.Context, id string) error {
 	query := `DELETE FROM ai.chatbots WHERE id = $1`

@@ -1,10 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { formatDistanceToNow } from 'date-fns'
 import { createFileRoute } from '@tanstack/react-router'
-import { Bot, RefreshCw, HardDrive, Trash2, Settings, MessageSquare } from 'lucide-react'
+import {
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+  flexRender,
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import {
+  Bot,
+  RefreshCw,
+  HardDrive,
+  Trash2,
+  Settings,
+  MessageSquare,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { chatbotsApi, type AIChatbotSummary } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,16 +35,30 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Switch } from '@/components/ui/switch'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { chatbotsApi, type AIChatbotSummary } from '@/lib/api'
 import { ChatbotSettingsDialog } from '@/components/chatbots/chatbot-settings-dialog'
 import { ChatbotTestDialog } from '@/components/chatbots/chatbot-test-dialog'
+import {
+  DataTablePagination,
+  DataTableToolbar,
+  DataTableColumnHeader,
+} from '@/components/data-table'
 
 export const Route = createFileRoute('/_authenticated/chatbots/')({
   component: ChatbotsPage,
@@ -35,8 +69,13 @@ function ChatbotsPage() {
   const [loading, setLoading] = useState(true)
   const [reloading, setReloading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [settingsChatbot, setSettingsChatbot] = useState<AIChatbotSummary | null>(null)
+  const [settingsChatbot, setSettingsChatbot] =
+    useState<AIChatbotSummary | null>(null)
   const [testChatbot, setTestChatbot] = useState<AIChatbotSummary | null>(null)
+
+  // Table state
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const fetchChatbots = async () => {
     setLoading(true)
@@ -101,6 +140,165 @@ function ChatbotsPage() {
     }
   }
 
+  // Get unique namespaces for filter options
+  const namespaceOptions = useMemo(() => {
+    const namespaces = [...new Set(chatbots.map((cb) => cb.namespace))]
+    return namespaces.map((ns) => ({ label: ns, value: ns }))
+  }, [chatbots])
+
+  // Define columns
+  const columns: ColumnDef<AIChatbotSummary>[] = useMemo(
+    () => [
+      {
+        accessorKey: 'name',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Name' />
+        ),
+        cell: ({ row }) => (
+          <div className='flex items-center gap-2'>
+            <Bot className='text-muted-foreground h-4 w-4 shrink-0' />
+            <span className='font-medium'>{row.getValue('name')}</span>
+          </div>
+        ),
+        enableHiding: false,
+      },
+      {
+        accessorKey: 'namespace',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Namespace' />
+        ),
+        cell: ({ row }) => (
+          <Badge variant='outline'>{row.getValue('namespace')}</Badge>
+        ),
+        filterFn: (row, id, value) => {
+          return value.includes(row.getValue(id))
+        },
+      },
+      {
+        accessorKey: 'version',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Version' />
+        ),
+        cell: ({ row }) => {
+          const version = row.getValue('version') as number
+          return version > 0 ? (
+            <Badge variant='outline' className='text-xs'>
+              v{version}
+            </Badge>
+          ) : (
+            <span className='text-muted-foreground'>-</span>
+          )
+        },
+      },
+      {
+        accessorKey: 'source',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Source' />
+        ),
+        cell: ({ row }) => (
+          <Badge variant='secondary' className='text-xs'>
+            {row.getValue('source')}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: 'enabled',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Status' />
+        ),
+        cell: ({ row }) => (
+          <Switch
+            checked={row.getValue('enabled')}
+            onCheckedChange={() => toggleChatbot(row.original)}
+            className='scale-90'
+          />
+        ),
+        enableSorting: false,
+      },
+      {
+        accessorKey: 'updated_at',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title='Updated' />
+        ),
+        cell: ({ row }) => {
+          const updatedAt = row.getValue('updated_at') as string
+          return (
+            <span className='text-muted-foreground text-sm text-nowrap'>
+              {formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'actions',
+        cell: ({ row }) => (
+          <div className='flex items-center justify-end gap-1'>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setTestChatbot(row.original)}
+                  size='sm'
+                  variant='ghost'
+                  className='h-7 w-7 p-0'
+                >
+                  <MessageSquare className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Test chatbot</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setSettingsChatbot(row.original)}
+                  size='sm'
+                  variant='ghost'
+                  className='h-7 w-7 p-0'
+                >
+                  <Settings className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setDeleteConfirm(row.original.id)}
+                  size='sm'
+                  variant='ghost'
+                  className='text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0'
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Delete chatbot</TooltipContent>
+            </Tooltip>
+          </div>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  const table = useReactTable({
+    data: chatbots,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+  })
+
   useEffect(() => {
     fetchChatbots()
   }, [])
@@ -134,7 +332,10 @@ function ChatbotsPage() {
           </div>
           <div className='flex items-center gap-1.5'>
             <span className='text-muted-foreground'>Active:</span>
-            <Badge variant='secondary' className='h-5 px-2 bg-green-500/10 text-green-600 dark:text-green-400'>
+            <Badge
+              variant='secondary'
+              className='h-5 bg-green-500/10 px-2 text-green-600 dark:text-green-400'
+            >
               {chatbots.filter((c) => c.enabled).length}
             </Badge>
           </div>
@@ -158,132 +359,117 @@ function ChatbotsPage() {
               </>
             )}
           </Button>
-          <Button
-            onClick={() => fetchChatbots()}
-            variant='outline'
-            size='sm'
-          >
+          <Button onClick={() => fetchChatbots()} variant='outline' size='sm'>
             <RefreshCw className='mr-2 h-4 w-4' />
             Refresh
           </Button>
         </div>
       </div>
 
-      <ScrollArea className='h-[calc(100vh-16rem)]'>
-        <div className='grid gap-1'>
-          {chatbots.length === 0 ? (
-            <Card>
-              <CardContent className='p-12 text-center'>
-                <Bot className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
-                <p className='mb-2 text-lg font-medium'>
-                  No chatbots yet
-                </p>
-                <p className='text-muted-foreground mb-4 text-sm'>
-                  Create chatbot files in the ./chatbots directory and sync them to get started
-                </p>
-                <Button onClick={handleReloadClick}>
-                  <HardDrive className='mr-2 h-4 w-4' />
-                  Sync from Filesystem
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            chatbots.map((chatbot) => (
-              <div
-                key={chatbot.id}
-                className='flex items-center justify-between gap-2 px-3 py-1.5 rounded-md border hover:border-primary/50 transition-colors bg-card'
-              >
-                <div className='flex items-center gap-2 min-w-0 flex-1'>
-                  <Bot className='h-4 w-4 shrink-0' />
-                  <span className='text-sm font-medium truncate'>{chatbot.name}</span>
-                  {chatbot.namespace !== 'default' && (
-                    <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>
-                      {chatbot.namespace}
-                    </Badge>
-                  )}
-                  {chatbot.version > 0 && (
-                    <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>
-                      v{chatbot.version}
-                    </Badge>
-                  )}
-                  {chatbot.source && (
-                    <Badge variant='outline' className='shrink-0 text-[10px] px-1 py-0 h-4'>
-                      {chatbot.source}
-                    </Badge>
-                  )}
-                  {chatbot.model && (
-                    <Badge variant='secondary' className='shrink-0 text-[10px] px-1 py-0 h-4'>
-                      {chatbot.model}
-                    </Badge>
-                  )}
-                  <Switch
-                    checked={chatbot.enabled}
-                    onCheckedChange={() => toggleChatbot(chatbot)}
-                    className='scale-75'
-                  />
-                </div>
-                <div className='flex items-center gap-0.5 shrink-0'>
-                  {chatbot.source === 'filesystem' && chatbot.updated_at && (
-                    <span
-                      className='text-muted-foreground text-[10px] mr-2'
-                      title={`Last synced: ${new Date(chatbot.updated_at).toLocaleString()}`}
+      {chatbots.length === 0 ? (
+        <Card>
+          <CardContent className='p-12 text-center'>
+            <Bot className='text-muted-foreground mx-auto mb-4 h-12 w-12' />
+            <p className='mb-2 text-lg font-medium'>No chatbots yet</p>
+            <p className='text-muted-foreground mb-4 text-sm'>
+              Create chatbot files in the ./chatbots directory and sync them to
+              get started
+            </p>
+            <Button onClick={handleReloadClick}>
+              <HardDrive className='mr-2 h-4 w-4' />
+              Sync from Filesystem
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className='flex flex-1 flex-col gap-4'>
+          <DataTableToolbar
+            table={table}
+            searchPlaceholder='Filter by name...'
+            searchKey='name'
+            filters={[
+              {
+                columnId: 'namespace',
+                title: 'Namespace',
+                options: namespaceOptions,
+              },
+            ]}
+          />
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id} className='group/row'>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className={cn(
+                          'bg-background group-hover/row:bg-muted group-data-[state=selected]/row:bg-muted'
+                        )}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      className='group/row'
                     >
-                      synced {new Date(chatbot.updated_at).toLocaleDateString()}
-                    </span>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setTestChatbot(chatbot)}
-                        size='sm'
-                        variant='ghost'
-                        className='h-6 w-6 p-0'
-                      >
-                        <MessageSquare className='h-3 w-3' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Test chatbot</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setSettingsChatbot(chatbot)}
-                        size='sm'
-                        variant='ghost'
-                        className='h-6 w-6 p-0'
-                      >
-                        <Settings className='h-3 w-3' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Settings</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setDeleteConfirm(chatbot.id)}
-                        size='sm'
-                        variant='ghost'
-                        className='h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10'
-                      >
-                        <Trash2 className='h-3 w-3' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete chatbot</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            ))
-          )}
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            'bg-background group-hover/row:bg-muted group-data-[state=selected]/row:bg-muted'
+                          )}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className='h-24 text-center'
+                    >
+                      No results.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <DataTablePagination table={table} className='mt-auto' />
         </div>
-      </ScrollArea>
+      )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+      <AlertDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Chatbot</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this chatbot? This action cannot be undone.
+              Are you sure you want to delete this chatbot? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

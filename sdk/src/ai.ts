@@ -5,6 +5,7 @@
 
 import type {
   AIChatbotSummary,
+  AIChatbotLookupResponse,
   AIChatClientMessage,
   AIChatServerMessage,
   AIUsageStats,
@@ -72,11 +73,19 @@ export interface AIChatOptions {
   /** Callback when message is complete */
   onDone?: (usage: AIUsageStats | undefined, conversationId: string) => void;
   /** Callback for errors */
-  onError?: (error: string, code: string | undefined, conversationId: string | undefined) => void;
+  onError?: (
+    error: string,
+    code: string | undefined,
+    conversationId: string | undefined,
+  ) => void;
   /** Reconnect attempts (0 = no reconnect) */
   reconnectAttempts?: number;
   /** Reconnect delay in ms */
   reconnectDelay?: number;
+  /** @internal Lookup function for smart namespace resolution */
+  _lookupChatbot?: (
+    name: string,
+  ) => Promise<{ data: AIChatbotLookupResponse | null; error: Error | null }>;
 }
 
 /**
@@ -183,7 +192,12 @@ export class FluxbaseAIChat {
    * Start a new chat session with a chatbot
    *
    * @param chatbot - Chatbot name
-   * @param namespace - Optional namespace (defaults to 'default')
+   * @param namespace - Optional namespace. If not provided and a lookup function is available,
+   *                    performs smart resolution:
+   *                    - If exactly one chatbot with this name exists, uses it
+   *                    - If multiple exist, tries "default" namespace
+   *                    - If ambiguous and not in default, throws error with available namespaces
+   *                    If no lookup function, falls back to "default" namespace.
    * @param conversationId - Optional conversation ID to resume
    * @param impersonateUserId - Optional user ID to impersonate (admin only)
    * @returns Promise resolving to conversation ID
@@ -194,19 +208,46 @@ export class FluxbaseAIChat {
     conversationId?: string,
     impersonateUserId?: string,
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      if (!this.isConnected()) {
-        reject(new Error("Not connected to AI chat"));
-        return;
-      }
+    if (!this.isConnected()) {
+      throw new Error("Not connected to AI chat");
+    }
 
+    // If namespace is not provided, try smart lookup
+    let resolvedNamespace = namespace;
+    if (!resolvedNamespace && this.options._lookupChatbot) {
+      const { data, error } = await this.options._lookupChatbot(chatbot);
+      if (error) {
+        throw new Error(`Failed to lookup chatbot: ${error.message}`);
+      }
+      if (!data) {
+        throw new Error(`Chatbot '${chatbot}' not found`);
+      }
+      if (data.ambiguous) {
+        throw new Error(
+          `Chatbot '${chatbot}' exists in multiple namespaces: ${data.namespaces?.join(", ")}. ` +
+            `Please specify the namespace explicitly.`,
+        );
+      }
+      if (data.chatbot) {
+        resolvedNamespace = data.chatbot.namespace;
+      } else if (data.error) {
+        throw new Error(data.error);
+      }
+    }
+
+    // Fall back to "default" if still not resolved
+    if (!resolvedNamespace) {
+      resolvedNamespace = "default";
+    }
+
+    return new Promise((resolve, reject) => {
       this.pendingStartResolve = resolve;
       this.pendingStartReject = reject;
 
       const message: AIChatClientMessage = {
         type: "start_chat",
         chatbot,
-        namespace: namespace || "default",
+        namespace: resolvedNamespace,
         conversation_id: conversationId,
         impersonate_user_id: impersonateUserId,
       };
@@ -295,15 +336,23 @@ export class FluxbaseAIChat {
 
         case "content":
           if (message.conversation_id && message.delta) {
-            const current = this.accumulatedContent.get(message.conversation_id) || "";
-            this.accumulatedContent.set(message.conversation_id, current + message.delta);
+            const current =
+              this.accumulatedContent.get(message.conversation_id) || "";
+            this.accumulatedContent.set(
+              message.conversation_id,
+              current + message.delta,
+            );
             this.options.onContent?.(message.delta, message.conversation_id);
           }
           break;
 
         case "progress":
           if (message.step && message.message && message.conversation_id) {
-            this.options.onProgress?.(message.step, message.message, message.conversation_id);
+            this.options.onProgress?.(
+              message.step,
+              message.message,
+              message.conversation_id,
+            );
           }
           break;
 
@@ -327,11 +376,17 @@ export class FluxbaseAIChat {
 
         case "error":
           if (this.pendingStartReject) {
-            this.pendingStartReject(new Error(message.error || "Unknown error"));
+            this.pendingStartReject(
+              new Error(message.error || "Unknown error"),
+            );
             this.pendingStartResolve = null;
             this.pendingStartReject = null;
           }
-          this.options.onError?.(message.error || "Unknown error", message.code, message.conversation_id);
+          this.options.onError?.(
+            message.error || "Unknown error",
+            message.code,
+            message.conversation_id,
+          );
           break;
       }
 
@@ -431,9 +486,10 @@ export class FluxbaseAI {
     error: Error | null;
   }> {
     try {
-      const response = await this.fetch.get<{ chatbots: AIChatbotSummary[]; count: number }>(
-        "/api/v1/ai/chatbots",
-      );
+      const response = await this.fetch.get<{
+        chatbots: AIChatbotSummary[];
+        count: number;
+      }>("/api/v1/ai/chatbots");
       return { data: response.chatbots || [], error: null };
     } catch (error) {
       return { data: null, error: error as Error };
@@ -450,7 +506,44 @@ export class FluxbaseAI {
     id: string,
   ): Promise<{ data: AIChatbotSummary | null; error: Error | null }> {
     try {
-      const data = await this.fetch.get<AIChatbotSummary>(`/api/v1/ai/chatbots/${id}`);
+      const data = await this.fetch.get<AIChatbotSummary>(
+        `/api/v1/ai/chatbots/${id}`,
+      );
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  /**
+   * Lookup a chatbot by name with smart namespace resolution
+   *
+   * Resolution logic:
+   * 1. If exactly one chatbot with this name exists -> returns it
+   * 2. If multiple exist -> tries "default" namespace first
+   * 3. If multiple exist and none in "default" -> returns ambiguous=true with namespaces list
+   *
+   * @param name - Chatbot name
+   * @returns Promise resolving to { data, error } tuple with lookup result
+   *
+   * @example
+   * ```typescript
+   * // Lookup chatbot by name
+   * const { data, error } = await ai.lookupChatbot('sql-assistant')
+   * if (data?.chatbot) {
+   *   console.log(`Found in namespace: ${data.chatbot.namespace}`)
+   * } else if (data?.ambiguous) {
+   *   console.log(`Chatbot exists in: ${data.namespaces?.join(', ')}`)
+   * }
+   * ```
+   */
+  async lookupChatbot(
+    name: string,
+  ): Promise<{ data: AIChatbotLookupResponse | null; error: Error | null }> {
+    try {
+      const data = await this.fetch.get<AIChatbotLookupResponse>(
+        `/api/v1/ai/chatbots/by-name/${encodeURIComponent(name)}`,
+      );
       return { data, error: null };
     } catch (error) {
       return { data: null, error: error as Error };
@@ -463,10 +556,13 @@ export class FluxbaseAI {
    * @param options - Chat connection options
    * @returns FluxbaseAIChat instance
    */
-  createChat(options: Omit<AIChatOptions, "wsUrl">): FluxbaseAIChat {
+  createChat(
+    options: Omit<AIChatOptions, "wsUrl" | "_lookupChatbot">,
+  ): FluxbaseAIChat {
     return new FluxbaseAIChat({
       ...options,
       wsUrl: `${this.wsBaseUrl}/ai/ws`,
+      _lookupChatbot: (name: string) => this.lookupChatbot(name),
     });
   }
 
@@ -495,8 +591,10 @@ export class FluxbaseAI {
       const params = new URLSearchParams();
       if (options?.chatbot) params.set("chatbot", options.chatbot);
       if (options?.namespace) params.set("namespace", options.namespace);
-      if (options?.limit !== undefined) params.set("limit", String(options.limit));
-      if (options?.offset !== undefined) params.set("offset", String(options.offset));
+      if (options?.limit !== undefined)
+        params.set("limit", String(options.limit));
+      if (options?.offset !== undefined)
+        params.set("offset", String(options.offset));
 
       const queryString = params.toString();
       const path = `/api/v1/ai/conversations${queryString ? `?${queryString}` : ""}`;
