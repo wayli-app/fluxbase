@@ -5,7 +5,7 @@ type: application
 # Chart version - should be bumped on chart changes
 version: 2026.01.1
 # App version - matches Fluxbase version (automatically updated by release workflow)
-appVersion: "2026.1.14-rc.4"
+appVersion: "2026.1.14-rc.5"
 keywords:
   - backend
   - baas
