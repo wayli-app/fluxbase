@@ -122,6 +122,10 @@ var mcpToolsSyncCmd = &cobra.Command{
 Each .ts file in the directory will be synced as a custom tool.
 Tool name defaults to filename. All annotations are optional.
 
+Directory auto-detection (when --dir is not specified):
+  1. ./fluxbase/mcp-tools/
+  2. ./mcp-tools/
+
 Annotations (all optional):
   // @fluxbase:name my_tool         (defaults to filename)
   // @fluxbase:namespace production (defaults to CLI --namespace flag or "default")
@@ -133,9 +137,10 @@ Annotations (all optional):
   // @fluxbase:allow-env            (opt-in for secrets/env access)
 
 Examples:
+  fluxbase mcp tools sync                                # Auto-detect directory
   fluxbase mcp tools sync --dir ./mcp-tools
   fluxbase mcp tools sync --dir ./mcp-tools --namespace production
-  fluxbase mcp tools sync --dir ./mcp-tools --dry-run`,
+  fluxbase mcp tools sync --dry-run`,
 	PreRunE: requireAuth,
 	RunE:    runMCPToolsSync,
 }
@@ -221,6 +226,10 @@ var mcpResourcesSyncCmd = &cobra.Command{
 Each .ts file in the directory will be synced as a custom resource.
 Resource metadata is read from annotations in the file.
 
+Directory auto-detection (when --dir is not specified):
+  1. ./fluxbase/mcp-resources/
+  2. ./mcp-resources/
+
 If no @fluxbase:uri is specified, defaults to fluxbase://custom/{name}.
 Template resources are auto-detected if URI contains {param} placeholders.
 
@@ -234,9 +243,10 @@ Annotations (all optional):
   // @fluxbase:timeout 10
 
 Examples:
+  fluxbase mcp resources sync                                  # Auto-detect directory
   fluxbase mcp resources sync --dir ./mcp-resources
   fluxbase mcp resources sync --dir ./mcp-resources --namespace production
-  fluxbase mcp resources sync --dir ./mcp-resources --dry-run`,
+  fluxbase mcp resources sync --dry-run`,
 	PreRunE: requireAuth,
 	RunE:    runMCPResourcesSync,
 }
@@ -299,10 +309,9 @@ func init() {
 	mcpToolsUpdateCmd.Flags().IntVar(&mcpMemory, "memory", 0, "Memory limit in MB")
 
 	// Tools sync flags
-	mcpToolsSyncCmd.Flags().StringVar(&mcpSyncDir, "dir", "", "Directory containing tool files (required)")
+	mcpToolsSyncCmd.Flags().StringVar(&mcpSyncDir, "dir", "", "Directory containing tool files (auto-detects ./fluxbase/mcp-tools/ or ./mcp-tools/)")
 	mcpToolsSyncCmd.Flags().StringVar(&mcpNamespace, "namespace", "default", "Namespace")
 	mcpToolsSyncCmd.Flags().BoolVar(&mcpDryRun, "dry-run", false, "Show what would be synced without making changes")
-	_ = mcpToolsSyncCmd.MarkFlagRequired("dir")
 
 	// Tools test flags
 	mcpToolsTestCmd.Flags().StringVar(&mcpTestArgs, "args", "{}", "JSON arguments to pass to the tool")
@@ -323,10 +332,9 @@ func init() {
 	_ = mcpResourcesCreateCmd.MarkFlagRequired("code")
 
 	// Resources sync flags
-	mcpResourcesSyncCmd.Flags().StringVar(&mcpSyncDir, "dir", "", "Directory containing resource files (required)")
+	mcpResourcesSyncCmd.Flags().StringVar(&mcpSyncDir, "dir", "", "Directory containing resource files (auto-detects ./fluxbase/mcp-resources/ or ./mcp-resources/)")
 	mcpResourcesSyncCmd.Flags().StringVar(&mcpNamespace, "namespace", "default", "Namespace")
 	mcpResourcesSyncCmd.Flags().BoolVar(&mcpDryRun, "dry-run", false, "Show what would be synced without making changes")
-	_ = mcpResourcesSyncCmd.MarkFlagRequired("dir")
 
 	// Resources test flags
 	mcpResourcesTestCmd.Flags().StringVar(&mcpTestParams, "params", "{}", "JSON parameters for template URIs")
@@ -578,7 +586,18 @@ func runMCPToolsDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPToolsSync(cmd *cobra.Command, args []string) error {
-	files, err := filepath.Glob(filepath.Join(mcpSyncDir, "*.ts"))
+	// Auto-detect directory if not specified
+	dir := mcpSyncDir
+	if dir == "" {
+		var err error
+		dir, err = detectResourceDir("mcp-tools", "", "")
+		if err != nil {
+			return fmt.Errorf("no MCP tools directory found (looked for ./fluxbase/mcp-tools/ and ./mcp-tools/). Use --dir to specify")
+		}
+		fmt.Printf("Auto-detected MCP tools directory: %s\n", dir)
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "*.ts"))
 	if err != nil {
 		return fmt.Errorf("failed to list files: %w", err)
 	}
@@ -891,7 +910,18 @@ func runMCPResourcesDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPResourcesSync(cmd *cobra.Command, args []string) error {
-	files, err := filepath.Glob(filepath.Join(mcpSyncDir, "*.ts"))
+	// Auto-detect directory if not specified
+	dir := mcpSyncDir
+	if dir == "" {
+		var err error
+		dir, err = detectResourceDir("mcp-resources", "", "")
+		if err != nil {
+			return fmt.Errorf("no MCP resources directory found (looked for ./fluxbase/mcp-resources/ and ./mcp-resources/). Use --dir to specify")
+		}
+		fmt.Printf("Auto-detected MCP resources directory: %s\n", dir)
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "*.ts"))
 	if err != nil {
 		return fmt.Errorf("failed to list files: %w", err)
 	}
