@@ -37,6 +37,8 @@ var (
 	syncNamespace string
 	syncDryRun    bool
 	syncKeep      bool
+	syncAnalyze   bool
+	syncVerbose   bool
 )
 
 func init() {
@@ -44,6 +46,8 @@ func init() {
 	syncCmd.Flags().StringVar(&syncNamespace, "namespace", "default", "Target namespace for all resources")
 	syncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "Preview changes without applying")
 	syncCmd.Flags().BoolVar(&syncKeep, "keep", false, "Keep items not present in directory")
+	syncCmd.Flags().BoolVar(&syncAnalyze, "analyze", false, "Analyze bundle sizes (shows breakdown of what's in each bundle)")
+	syncCmd.Flags().BoolVar(&syncVerbose, "verbose", false, "Show detailed analysis (with --analyze)")
 }
 
 // detectResourceDir finds the directory for a resource type
@@ -362,12 +366,50 @@ func syncFunctionsFromDir(ctx context.Context, dir, namespace string, dryRun, de
 		return nil
 	}
 
-	if dryRun {
+	if dryRun && !syncAnalyze {
 		fmt.Println("  Dry run - would sync:")
 		for _, fn := range functions {
 			fmt.Printf("    - %s\n", fn["name"])
 		}
 		return nil
+	}
+
+	// Run bundle analysis if requested
+	if syncAnalyze {
+		var analyses []*bundler.AnalysisResult
+		analyzer := bundler.NewAnalyzer(dir)
+
+		for _, fn := range functions {
+			code := fn["code"].(string)
+			fnName := fn["name"].(string)
+
+			// Only analyze functions that have imports
+			if !strings.Contains(code, "import ") {
+				continue
+			}
+
+			fmt.Printf("  Analyzing %s...\n", fnName)
+			analysis, err := analyzer.AnalyzeBundle(ctx, code, fnName, sharedModulesMap)
+			if err != nil {
+				fmt.Printf("    Warning: analysis failed: %v\n", err)
+				continue
+			}
+
+			analyses = append(analyses, analysis)
+
+			if syncVerbose {
+				bundler.DisplayAnalysis(os.Stdout, analysis, true)
+			}
+		}
+
+		if !syncVerbose && len(analyses) > 0 {
+			bundler.DisplaySummary(os.Stdout, analyses)
+		}
+
+		// If only analyzing (dry-run), return early
+		if dryRun {
+			return nil
+		}
 	}
 
 	// Try to bundle if needed
@@ -494,12 +536,50 @@ func syncJobsFromDir(ctx context.Context, dir, namespace string, dryRun, deleteM
 		return nil
 	}
 
-	if dryRun {
+	if dryRun && !syncAnalyze {
 		fmt.Println("  Dry run - would sync:")
 		for _, job := range jobs {
 			fmt.Printf("    - %s\n", job["name"])
 		}
 		return nil
+	}
+
+	// Run bundle analysis if requested
+	if syncAnalyze {
+		var analyses []*bundler.AnalysisResult
+		analyzer := bundler.NewAnalyzer(dir)
+
+		for _, job := range jobs {
+			code := job["code"].(string)
+			jobName := job["name"].(string)
+
+			// Only analyze jobs that have imports
+			if !strings.Contains(code, "import ") {
+				continue
+			}
+
+			fmt.Printf("  Analyzing %s...\n", jobName)
+			analysis, err := analyzer.AnalyzeBundle(ctx, code, jobName, sharedModulesMap)
+			if err != nil {
+				fmt.Printf("    Warning: analysis failed: %v\n", err)
+				continue
+			}
+
+			analyses = append(analyses, analysis)
+
+			if syncVerbose {
+				bundler.DisplayAnalysis(os.Stdout, analysis, true)
+			}
+		}
+
+		if !syncVerbose && len(analyses) > 0 {
+			bundler.DisplaySummary(os.Stdout, analyses)
+		}
+
+		// If only analyzing (dry-run), return early
+		if dryRun {
+			return nil
+		}
 	}
 
 	// Try to bundle if needed
