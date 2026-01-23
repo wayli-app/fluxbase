@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -891,10 +892,18 @@ func syncMCPToolsFromDir(ctx context.Context, dir, namespace string, dryRun, _ b
 			tool["description"] = desc
 		}
 		if timeout, ok := annotations["timeout"]; ok {
-			tool["timeout_seconds"] = timeout
+			if ts, ok := timeout.(string); ok {
+				if tv, err := strconv.Atoi(ts); err == nil {
+					tool["timeout_seconds"] = tv
+				}
+			}
 		}
 		if memory, ok := annotations["memory"]; ok {
-			tool["memory_limit_mb"] = memory
+			if ms, ok := memory.(string); ok {
+				if mv, err := strconv.Atoi(ms); err == nil {
+					tool["memory_limit_mb"] = mv
+				}
+			}
 		}
 		if _, ok := annotations["allow-net"]; ok {
 			tool["allow_net"] = true

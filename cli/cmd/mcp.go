@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -500,10 +501,18 @@ func runMCPToolsSync(cmd *cobra.Command, args []string) error {
 			payload["description"] = desc
 		}
 		if timeout, ok := annotations["timeout"]; ok {
-			payload["timeout_seconds"] = timeout
+			if ts, ok := timeout.(string); ok {
+				if tv, err := strconv.Atoi(ts); err == nil {
+					payload["timeout_seconds"] = tv
+				}
+			}
 		}
 		if memory, ok := annotations["memory"]; ok {
-			payload["memory_limit_mb"] = memory
+			if ms, ok := memory.(string); ok {
+				if mv, err := strconv.Atoi(ms); err == nil {
+					payload["memory_limit_mb"] = mv
+				}
+			}
 		}
 		if _, ok := annotations["allow-net"]; ok {
 			payload["allow_net"] = true
