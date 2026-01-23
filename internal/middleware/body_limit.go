@@ -80,7 +80,14 @@ func DefaultBodyLimitPatterns() []BodyLimitPattern {
 		{Pattern: "/api/v1/storage/*/chunked/**", Limit: StorageUploadLimit, Description: "chunked upload"},
 		{Pattern: "/api/v1/storage/**", Limit: StorageUploadLimit, Description: "storage"},
 
-		// Admin endpoints
+		// Admin sync endpoints - need larger limits for bundled code
+		{Pattern: "/api/v1/admin/functions/sync", Limit: LargePayloadLimit, Description: "functions sync"},
+		{Pattern: "/api/v1/admin/jobs/sync", Limit: LargePayloadLimit, Description: "jobs sync"},
+		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: LargePayloadLimit, Description: "chatbots sync"},
+		{Pattern: "/api/v1/admin/rpc/sync", Limit: LargePayloadLimit, Description: "RPC sync"},
+		{Pattern: "/api/v1/admin/migrations/sync", Limit: LargePayloadLimit, Description: "migrations sync"},
+
+		// Admin endpoints (general)
 		{Pattern: "/api/v1/admin/**", Limit: AdminLimit, Description: "admin"},
 		{Pattern: "/api/v1/ai/**", Limit: AdminLimit, Description: "AI/vectors"},
 
@@ -154,7 +161,14 @@ func BodyLimitsFromConfig(defaultLimit, restLimit, authLimit, storageLimit, bulk
 		{Pattern: "/api/v1/storage/*/chunked/**", Limit: storageLimit, Description: "chunked upload"},
 		{Pattern: "/api/v1/storage/**", Limit: storageLimit, Description: "storage"},
 
-		// Admin endpoints
+		// Admin sync endpoints - need larger limits for bundled code
+		{Pattern: "/api/v1/admin/functions/sync", Limit: bulkLimit, Description: "functions sync"},
+		{Pattern: "/api/v1/admin/jobs/sync", Limit: bulkLimit, Description: "jobs sync"},
+		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: bulkLimit, Description: "chatbots sync"},
+		{Pattern: "/api/v1/admin/rpc/sync", Limit: bulkLimit, Description: "RPC sync"},
+		{Pattern: "/api/v1/admin/migrations/sync", Limit: bulkLimit, Description: "migrations sync"},
+
+		// Admin endpoints (general)
 		{Pattern: "/api/v1/admin/**", Limit: adminLimit, Description: "admin"},
 		{Pattern: "/api/v1/ai/**", Limit: adminLimit, Description: "AI/vectors"},
 
