@@ -80,12 +80,12 @@ func DefaultBodyLimitPatterns() []BodyLimitPattern {
 		{Pattern: "/api/v1/storage/*/chunked/**", Limit: StorageUploadLimit, Description: "chunked upload"},
 		{Pattern: "/api/v1/storage/**", Limit: StorageUploadLimit, Description: "storage"},
 
-		// Admin sync endpoints - need larger limits for bundled code
-		{Pattern: "/api/v1/admin/functions/sync", Limit: LargePayloadLimit, Description: "functions sync"},
-		{Pattern: "/api/v1/admin/jobs/sync", Limit: LargePayloadLimit, Description: "jobs sync"},
-		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: LargePayloadLimit, Description: "chatbots sync"},
-		{Pattern: "/api/v1/admin/rpc/sync", Limit: LargePayloadLimit, Description: "RPC sync"},
-		{Pattern: "/api/v1/admin/migrations/sync", Limit: LargePayloadLimit, Description: "migrations sync"},
+		// Admin sync endpoints - need larger limits for bundled code (can be 100+ MB)
+		{Pattern: "/api/v1/admin/functions/sync", Limit: StorageUploadLimit, Description: "functions sync"},
+		{Pattern: "/api/v1/admin/jobs/sync", Limit: StorageUploadLimit, Description: "jobs sync"},
+		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: StorageUploadLimit, Description: "chatbots sync"},
+		{Pattern: "/api/v1/admin/rpc/sync", Limit: StorageUploadLimit, Description: "RPC sync"},
+		{Pattern: "/api/v1/admin/migrations/sync", Limit: StorageUploadLimit, Description: "migrations sync"},
 
 		// Admin endpoints (general)
 		{Pattern: "/api/v1/admin/**", Limit: AdminLimit, Description: "admin"},
@@ -161,12 +161,12 @@ func BodyLimitsFromConfig(defaultLimit, restLimit, authLimit, storageLimit, bulk
 		{Pattern: "/api/v1/storage/*/chunked/**", Limit: storageLimit, Description: "chunked upload"},
 		{Pattern: "/api/v1/storage/**", Limit: storageLimit, Description: "storage"},
 
-		// Admin sync endpoints - need larger limits for bundled code
-		{Pattern: "/api/v1/admin/functions/sync", Limit: bulkLimit, Description: "functions sync"},
-		{Pattern: "/api/v1/admin/jobs/sync", Limit: bulkLimit, Description: "jobs sync"},
-		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: bulkLimit, Description: "chatbots sync"},
-		{Pattern: "/api/v1/admin/rpc/sync", Limit: bulkLimit, Description: "RPC sync"},
-		{Pattern: "/api/v1/admin/migrations/sync", Limit: bulkLimit, Description: "migrations sync"},
+		// Admin sync endpoints - need larger limits for bundled code (can be 100+ MB)
+		{Pattern: "/api/v1/admin/functions/sync", Limit: storageLimit, Description: "functions sync"},
+		{Pattern: "/api/v1/admin/jobs/sync", Limit: storageLimit, Description: "jobs sync"},
+		{Pattern: "/api/v1/admin/ai/chatbots/sync", Limit: storageLimit, Description: "chatbots sync"},
+		{Pattern: "/api/v1/admin/rpc/sync", Limit: storageLimit, Description: "RPC sync"},
+		{Pattern: "/api/v1/admin/migrations/sync", Limit: storageLimit, Description: "migrations sync"},
 
 		// Admin endpoints (general)
 		{Pattern: "/api/v1/admin/**", Limit: adminLimit, Description: "admin"},

@@ -9,18 +9,18 @@ import (
 
 // DisplayAnalysis prints the bundle analysis in a formatted way
 func DisplayAnalysis(w io.Writer, result *AnalysisResult, showDetails bool) {
-	fmt.Fprintf(w, "\n=== Bundle Analysis: %s ===\n", result.FunctionName)
-	fmt.Fprintf(w, "Total bundle size: %s\n", formatBytesHuman(result.TotalBytes))
+	_, _ = fmt.Fprintf(w, "\n=== Bundle Analysis: %s ===\n", result.FunctionName)
+	_, _ = fmt.Fprintf(w, "Total bundle size: %s\n", formatBytesHuman(result.TotalBytes))
 
 	if len(result.ExternalImports) > 0 {
-		fmt.Fprintln(w, "\nExternal imports (resolved at runtime):")
+		_, _ = fmt.Fprintln(w, "\nExternal imports (resolved at runtime):")
 		for _, imp := range result.ExternalImports {
-			fmt.Fprintf(w, "  - %s\n", imp)
+			_, _ = fmt.Fprintf(w, "  - %s\n", imp)
 		}
 	}
 
 	if len(result.InputFiles) > 0 {
-		fmt.Fprintln(w, "\nBundle breakdown:")
+		_, _ = fmt.Fprintln(w, "\nBundle breakdown:")
 
 		// Determine how many files to show
 		maxFiles := 10
@@ -44,13 +44,13 @@ func DisplayAnalysis(w io.Writer, result *AnalysisResult, showDetails bool) {
 		for i, file := range result.InputFiles {
 			if i >= maxFiles {
 				remaining := len(result.InputFiles) - maxFiles
-				fmt.Fprintf(w, "  ... and %d more files\n", remaining)
+				_, _ = fmt.Fprintf(w, "  ... and %d more files\n", remaining)
 				break
 			}
 
 			displayPath := truncatePath(file.Path, 50)
 			padding := strings.Repeat(" ", maxPathLen-len(displayPath))
-			fmt.Fprintf(w, "  %s%s  %8s  %5.1f%%\n",
+			_, _ = fmt.Fprintf(w, "  %s%s  %8s  %5.1f%%\n",
 				displayPath,
 				padding,
 				formatBytesHuman(file.BytesInOutput),
@@ -60,13 +60,13 @@ func DisplayAnalysis(w io.Writer, result *AnalysisResult, showDetails bool) {
 	}
 
 	if len(result.Warnings) > 0 {
-		fmt.Fprintln(w, "\nWarnings:")
+		_, _ = fmt.Fprintln(w, "\nWarnings:")
 		for _, warn := range result.Warnings {
-			fmt.Fprintf(w, "  - %s\n", warn)
+			_, _ = fmt.Fprintf(w, "  - %s\n", warn)
 		}
 	}
 
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // DisplaySummary prints a compact summary of multiple analyses
@@ -75,7 +75,7 @@ func DisplaySummary(w io.Writer, results []*AnalysisResult) {
 		return
 	}
 
-	fmt.Fprintln(w, "\n=== Bundle Size Summary ===")
+	_, _ = fmt.Fprintln(w, "\n=== Bundle Size Summary ===")
 
 	// Sort by size (largest first)
 	sort.Slice(results, func(i, j int) bool {
@@ -92,14 +92,14 @@ func DisplaySummary(w io.Writer, results []*AnalysisResult) {
 
 	// Print header
 	namePadding := strings.Repeat(" ", maxNameLen-8)
-	fmt.Fprintf(w, "FUNCTION%s  BUNDLE SIZE  FILES  EXTERNALS\n", namePadding)
-	fmt.Fprintf(w, "%s  -----------  -----  ---------\n", strings.Repeat("-", maxNameLen))
+	_, _ = fmt.Fprintf(w, "FUNCTION%s  BUNDLE SIZE  FILES  EXTERNALS\n", namePadding)
+	_, _ = fmt.Fprintf(w, "%s  -----------  -----  ---------\n", strings.Repeat("-", maxNameLen))
 
 	var totalSize int
 	for _, r := range results {
 		totalSize += r.TotalBytes
 		padding := strings.Repeat(" ", maxNameLen-len(r.FunctionName))
-		fmt.Fprintf(w, "%s%s  %11s  %5d  %9d\n",
+		_, _ = fmt.Fprintf(w, "%s%s  %11s  %5d  %9d\n",
 			r.FunctionName,
 			padding,
 			formatBytesHuman(r.TotalBytes),
@@ -109,10 +109,10 @@ func DisplaySummary(w io.Writer, results []*AnalysisResult) {
 	}
 
 	// Print total
-	fmt.Fprintf(w, "%s  -----------  -----  ---------\n", strings.Repeat("-", maxNameLen))
+	_, _ = fmt.Fprintf(w, "%s  -----------  -----  ---------\n", strings.Repeat("-", maxNameLen))
 	totalPadding := strings.Repeat(" ", maxNameLen-5)
-	fmt.Fprintf(w, "TOTAL%s  %11s\n", totalPadding, formatBytesHuman(totalSize))
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "TOTAL%s  %11s\n", totalPadding, formatBytesHuman(totalSize))
+	_, _ = fmt.Fprintln(w)
 }
 
 // formatBytesHuman formats bytes in human-readable format
