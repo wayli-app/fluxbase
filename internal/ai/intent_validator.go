@@ -298,3 +298,25 @@ func (v *IntentValidator) HasIntentRules() bool {
 func (v *IntentValidator) HasRequiredColumns() bool {
 	return len(v.requiredColumns) > 0
 }
+
+// GetForbiddenTools returns tools that should be excluded based on keyword matches in the user message
+func (v *IntentValidator) GetForbiddenTools(userMessage string) []string {
+	var forbidden []string
+	lowerMessage := strings.ToLower(userMessage)
+
+	for _, rule := range v.intentRules {
+		if rule.ForbiddenTool == "" {
+			continue
+		}
+
+		// Check if any keywords match
+		for _, keyword := range rule.Keywords {
+			if strings.Contains(lowerMessage, strings.ToLower(keyword)) {
+				forbidden = append(forbidden, rule.ForbiddenTool)
+				break // Only add once per rule
+			}
+		}
+	}
+
+	return forbidden
+}

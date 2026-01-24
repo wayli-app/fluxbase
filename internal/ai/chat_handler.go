@@ -441,7 +441,35 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	var accumulatedQueryResults []QueryResult // Accumulate query results for persistence
 	maxIterations := 5                        // Prevent infinite loops
 
+	// Track consecutive tool validation failures to detect stubborn LLM behavior
+	var lastFailedTool string
+	var consecutiveFailures int
+	const maxConsecutiveFailures = 2
+
 	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Determine forbidden tools based on user message and intent rules
+		var forbiddenTools []string
+		if len(chatbot.IntentRules) > 0 {
+			intentValidator := NewIntentValidator(chatbot.IntentRules, chatbot.RequiredColumns, chatbot.DefaultTable)
+			forbiddenTools = intentValidator.GetForbiddenTools(msg.Content)
+			if len(forbiddenTools) > 0 {
+				log.Debug().
+					Strs("forbidden_tools", forbiddenTools).
+					Str("user_message", msg.Content).
+					Msg("Filtering out forbidden tools based on intent rules")
+			}
+		}
+
+		// Helper to check if a tool is forbidden
+		isToolForbidden := func(toolName string) bool {
+			for _, ft := range forbiddenTools {
+				if ft == toolName {
+					return true
+				}
+			}
+			return false
+		}
+
 		// Build tools list based on chatbot configuration
 		var tools []Tool
 
@@ -450,6 +478,10 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			// Use MCP tools - get tool definitions from MCP executor
 			mcpToolDefs := h.mcpExecutor.GetAvailableTools(chatbot)
 			for _, def := range mcpToolDefs {
+				// Skip forbidden tools
+				if isToolForbidden(def.Name) {
+					continue
+				}
 				tools = append(tools, Tool{
 					Type:     "function",
 					Function: ToolFunction(def),
@@ -457,19 +489,21 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			}
 			log.Debug().
 				Str("chatbot", chatbot.Name).
-				Int("mcp_tools", len(mcpToolDefs)).
+				Int("mcp_tools", len(tools)).
 				Msg("Using MCP tools for chatbot")
 		} else {
 			// Use legacy tools
-			tools = []Tool{ExecuteSQLTool}
+			if !isToolForbidden("execute_sql") {
+				tools = []Tool{ExecuteSQLTool}
+			}
 		}
 
 		// Add HTTP tool if domains are configured (works with both MCP and legacy)
-		if len(chatbot.HTTPAllowedDomains) > 0 {
+		if len(chatbot.HTTPAllowedDomains) > 0 && !isToolForbidden("http_request") {
 			tools = append(tools, HttpRequestTool)
 		}
 		// Add vector_search if chatbot has linked knowledge bases (legacy RAG)
-		if h.ragService != nil && h.ragService.IsRAGEnabled(ctx, chatbot.ID) {
+		if h.ragService != nil && h.ragService.IsRAGEnabled(ctx, chatbot.ID) && !isToolForbidden("vector_search") {
 			tools = append(tools, VectorSearchTool)
 		}
 
@@ -563,10 +597,56 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			if len(chatbot.IntentRules) > 0 {
 				intentValidator := NewIntentValidator(chatbot.IntentRules, chatbot.RequiredColumns, chatbot.DefaultTable)
 				toolValidation := intentValidator.ValidateToolCall(msg.Content, toolName)
+
+				log.Debug().
+					Int("intent_rules_count", len(chatbot.IntentRules)).
+					Str("tool", toolName).
+					Str("user_message", msg.Content).
+					Bool("valid", toolValidation.Valid).
+					Strs("matched_keywords", toolValidation.MatchedKeywords).
+					Msg("Tool validation check")
+
 				if !toolValidation.Valid {
-					errMsg := fmt.Sprintf("Tool validation failed: %s. %s",
+					// Track consecutive failures for the same tool
+					if toolName == lastFailedTool {
+						consecutiveFailures++
+					} else {
+						lastFailedTool = toolName
+						consecutiveFailures = 1
+					}
+
+					// If the same tool fails too many times, break the loop
+					if consecutiveFailures >= maxConsecutiveFailures {
+						log.Warn().
+							Str("tool", toolName).
+							Int("failures", consecutiveFailures).
+							Msg("Breaking loop due to repeated tool validation failures")
+
+						h.send(chatCtx, ServerMessage{
+							Type:  "error",
+							Error: "Unable to process this request - the AI kept trying to use a tool that isn't allowed for this type of query. Please rephrase your question.",
+						})
+						return
+					}
+
+					// Build list of alternative tools (exclude the forbidden one)
+					var alternativeTools []string
+					for _, t := range chatbot.MCPTools {
+						if t != toolName {
+							alternativeTools = append(alternativeTools, t)
+						}
+					}
+
+					errMsg := fmt.Sprintf("TOOL NOT ALLOWED: %s. %s Available tools: %s. Please use one of these tools instead.",
 						strings.Join(toolValidation.Errors, "; "),
-						strings.Join(toolValidation.Suggestions, " "))
+						strings.Join(toolValidation.Suggestions, " "),
+						strings.Join(alternativeTools, ", "))
+
+					log.Debug().
+						Strs("errors", toolValidation.Errors).
+						Strs("alternative_tools", alternativeTools).
+						Str("error_message", errMsg).
+						Msg("Tool validation failed, returning error to LLM")
 					toolMsg := Message{
 						Role:       RoleTool,
 						Content:    errMsg,
