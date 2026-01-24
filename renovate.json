@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "description": "Group Go dependencies",
+      "matchManagers": ["gomod"],
+      "groupName": "go dependencies"
+    },
+    {
+      "description": "Group admin UI dependencies",
+      "matchPaths": ["admin/**"],
+      "groupName": "admin ui dependencies"
+    },
+    {
+      "description": "Group TypeScript SDK dependencies",
+      "matchPaths": ["sdk/**"],
+      "groupName": "typescript sdk dependencies"
+    },
+    {
+      "description": "Group React SDK dependencies",
+      "matchPaths": ["sdk-react/**"],
+      "groupName": "react sdk dependencies"
+    },
+    {
+      "description": "Group Helm chart dependencies",
+      "matchManagers": ["helmv3"],
+      "groupName": "helm dependencies"
+    },
+    {
+      "description": "Automerge minor and patch updates for dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}
