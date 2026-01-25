@@ -213,10 +213,10 @@ func TestAuthMagicLink(t *testing.T) {
 	_ = tc.ClearMailHogEmails()
 
 	// Enable magic link via database settings
+	tc.ExecuteSQL(`DELETE FROM app.settings WHERE key = 'app.auth.magic_link_enabled'`)
 	tc.ExecuteSQL(`
 		INSERT INTO app.settings (key, value, category)
 		VALUES ('app.auth.magic_link_enabled', '{"value": true}'::jsonb, 'system')
-		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb
 	`)
 
 	email := test.E2ETestEmail()
@@ -286,10 +286,10 @@ func TestAuthSignupToggle(t *testing.T) {
 
 		// Disable signup via database settings (this is what the service checks)
 		// Note: is_public must be true so anon role can read this setting during signup check
+		tc.ExecuteSQL(`DELETE FROM app.settings WHERE key = 'app.auth.signup_enabled'`)
 		tc.ExecuteSQL(`
 			INSERT INTO app.settings (key, value, category, is_public)
 			VALUES ('app.auth.signup_enabled', '{"value": false}'::jsonb, 'system', true)
-			ON CONFLICT (key) DO UPDATE SET value = '{"value": false}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database
@@ -320,10 +320,10 @@ func TestAuthSignupToggle(t *testing.T) {
 
 		// Ensure signup is enabled via database settings
 		// Note: is_public must be true so anon role can read this setting during signup check
+		tc.ExecuteSQL(`DELETE FROM app.settings WHERE key = 'app.auth.signup_enabled'`)
 		tc.ExecuteSQL(`
 			INSERT INTO app.settings (key, value, category, is_public)
 			VALUES ('app.auth.signup_enabled', '{"value": true}'::jsonb, 'system', true)
-			ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 		`)
 
 		// Invalidate the settings cache so it re-reads from database

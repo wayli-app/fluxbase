@@ -338,10 +338,13 @@ func setupTestTables() bool {
 
 	// Enable signup for all tests (settings are checked from database first, then config)
 	// Note: is_public must be true so anon role can read this setting during signup
+	_, err = db.Exec(ctx, `DELETE FROM app.settings WHERE key = 'app.auth.signup_enabled'`)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to delete existing signup setting")
+	}
 	_, err = db.Exec(ctx, `
 		INSERT INTO app.settings (key, value, category, is_public)
 		VALUES ('app.auth.signup_enabled', '{"value": true}'::jsonb, 'system', true)
-		ON CONFLICT (key) DO UPDATE SET value = '{"value": true}'::jsonb, is_public = true
 	`)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to enable signup in database settings")
