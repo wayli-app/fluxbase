@@ -613,7 +613,7 @@ func setDefaults() {
 	viper.SetDefault("server.body_limits.default_limit", 1*1024*1024)   // 1MB default
 	viper.SetDefault("server.body_limits.rest_limit", 1*1024*1024)      // 1MB for REST CRUD
 	viper.SetDefault("server.body_limits.auth_limit", 64*1024)          // 64KB for auth
-	viper.SetDefault("server.body_limits.storage_limit", 100*1024*1024) // 100MB for uploads
+	viper.SetDefault("server.body_limits.storage_limit", 500*1024*1024) // 500MB for uploads
 	viper.SetDefault("server.body_limits.bulk_limit", 10*1024*1024)     // 10MB for bulk/RPC
 	viper.SetDefault("server.body_limits.admin_limit", 5*1024*1024)     // 5MB for admin
 	viper.SetDefault("server.body_limits.max_json_depth", 64)           // Max JSON nesting
