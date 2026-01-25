@@ -895,9 +895,10 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 
 	// Parse query results for data-returning tools
 	var queryResult *QueryResult
-	if toolName == "query_table" {
+	switch toolName {
+	case "query_table":
 		queryResult = h.parseMCPQueryResult(toolName, args, result.Content)
-	} else if toolName == "execute_sql" {
+	case "execute_sql":
 		queryResult = h.parseMCPExecuteSQLResult(args, result.Content)
 	}
 
@@ -979,15 +980,6 @@ func (h *ChatHandler) parseMCPExecuteSQLResult(args map[string]any, resultConten
 		RowCount: execResult.RowCount,
 		Data:     execResult.Rows,
 	}
-}
-
-// parseURLForLogging extracts domain and path from URL for safe logging (no query params)
-func parseURLForLogging(rawURL string) (string, error) {
-	// Simple extraction of scheme + host + path without query params
-	if idx := strings.Index(rawURL, "?"); idx != -1 {
-		return rawURL[:idx], nil
-	}
-	return rawURL, nil
 }
 
 // handleCancel handles cancellation of a generation

@@ -28,6 +28,10 @@ export default defineConfig({
       editLink: {
         baseUrl: "https://github.com/fluxbase-eu/fluxbase/edit/main/docs/",
       },
+      credits: true,
+      components: {
+        Footer: "./src/components/Footer.astro",
+      },
       head: [
         {
           tag: "script",
@@ -261,6 +265,11 @@ export default defineConfig({
             },
             { label: "HTTP API", link: "/api/http/" },
           ],
+        },
+        {
+          label: "Legal",
+          collapsed: true,
+          items: [{ label: "Privacy Policy", link: "/legal/privacy-policy/" }],
         },
       ],
     }),

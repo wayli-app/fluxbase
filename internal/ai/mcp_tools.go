@@ -14,6 +14,7 @@ var MCPToolMapping = map[string][]string{
 	"insert_record": {mcp.ScopeWriteTables},
 	"update_record": {mcp.ScopeWriteTables},
 	"delete_record": {mcp.ScopeWriteTables},
+	"execute_sql":   {mcp.ScopeExecuteSQL},
 
 	// Execution tools
 	"invoke_function": {mcp.ScopeExecuteFunctions},
@@ -225,7 +226,7 @@ var MCPToolInfoMap = map[string]MCPToolInfo{
 		ReadOnly:    true,
 	},
 	"vector_search": {
-		Name:        "search_vectors", // Alias - maps to MCP tool name
+		Name:        "vector_search", // Alias for search_vectors (legacy chatbot configs)
 		Description: "Semantic search over vector embeddings",
 		Category:    MCPToolCategoryVectors,
 		Scopes:      []string{mcp.ScopeReadVectors},

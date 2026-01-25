@@ -98,10 +98,10 @@ func TestAllMCPTools(t *testing.T) {
 
 	// Check that all expected tools are present
 	expectedTools := []string{
-		"query_table", "insert_record", "update_record", "delete_record",
+		"query_table", "insert_record", "update_record", "delete_record", "execute_sql",
 		"invoke_function", "invoke_rpc", "submit_job", "get_job_status",
 		"list_objects", "upload_object", "download_object", "delete_object",
-		"search_vectors", "http_request",
+		"search_vectors", "vector_search", "http_request",
 	}
 
 	assert.Len(t, tools, len(expectedTools))
@@ -136,7 +136,7 @@ func TestMCPToolInfoMap(t *testing.T) {
 func TestGetToolsByCategory(t *testing.T) {
 	t.Run("data tools", func(t *testing.T) {
 		tools := GetToolsByCategory(MCPToolCategoryData)
-		assert.Len(t, tools, 4) // query, insert, update, delete
+		assert.Len(t, tools, 5) // query, insert, update, delete, execute_sql
 	})
 
 	t.Run("execution tools", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestGetToolsByCategory(t *testing.T) {
 
 	t.Run("vector tools", func(t *testing.T) {
 		tools := GetToolsByCategory(MCPToolCategoryVectors)
-		assert.Len(t, tools, 1) // search_vectors
+		assert.Len(t, tools, 2) // search_vectors, vector_search (alias)
 	})
 }
 
