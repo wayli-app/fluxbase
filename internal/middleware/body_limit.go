@@ -51,9 +51,9 @@ const (
 	// AuthBodyLimit is for authentication endpoints (64KB)
 	AuthBodyLimit int64 = 64 * 1024
 
-	// StorageUploadLimit is for file uploads (100MB per request body)
+	// StorageUploadLimit is for file uploads (500MB per request body)
 	// Note: Streaming uploads bypass this since body isn't buffered
-	StorageUploadLimit int64 = 100 * 1024 * 1024
+	StorageUploadLimit int64 = 500 * 1024 * 1024
 
 	// MultipartUploadLimit is for multipart form uploads (100MB)
 	MultipartUploadLimit int64 = 100 * 1024 * 1024

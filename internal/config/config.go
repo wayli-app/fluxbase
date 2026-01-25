@@ -122,7 +122,7 @@ type BodyLimitsConfig struct {
 	RESTLimit int64 `mapstructure:"rest_limit"`
 	// AuthLimit for authentication endpoints (default: 64KB)
 	AuthLimit int64 `mapstructure:"auth_limit"`
-	// StorageLimit for file uploads (default: 100MB)
+	// StorageLimit for file uploads (default: 500MB)
 	StorageLimit int64 `mapstructure:"storage_limit"`
 	// BulkLimit for bulk operations and RPC (default: 10MB)
 	BulkLimit int64 `mapstructure:"bulk_limit"`
