@@ -325,7 +325,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	systemSettingsHandler := NewSystemSettingsHandler(systemSettingsService, authService.GetSettingsCache())
 	customSettingsService := settings.NewCustomSettingsService(db, cfg.EncryptionKey)
 	customSettingsHandler := NewCustomSettingsHandler(customSettingsService)
-	userSettingsHandler := NewUserSettingsHandler(customSettingsService)
+	userSettingsHandler := NewUserSettingsHandler(db, customSettingsService)
 	secretsService := settings.NewSecretsService(db, cfg.EncryptionKey)
 	userSettingsHandler.SetSecretsService(secretsService)
 	appSettingsHandler := NewAppSettingsHandler(systemSettingsService, authService.GetSettingsCache(), cfg)

@@ -11,6 +11,7 @@ import (
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -938,6 +939,468 @@ func (s *CustomSettingsService) DeleteUserSetting(ctx context.Context, userID uu
 // ListUserOwnSettings retrieves all non-encrypted settings for a user
 func (s *CustomSettingsService) ListUserOwnSettings(ctx context.Context, userID uuid.UUID) ([]UserSetting, error) {
 	rows, err := s.db.Query(ctx, `
+		SELECT id, key, value, description, user_id, created_at, updated_at
+		FROM app.settings
+		WHERE user_id = $1 AND is_secret = false
+		ORDER BY key
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var settings []UserSetting
+	for rows.Next() {
+		var setting UserSetting
+		var valueJSON []byte
+
+		err := rows.Scan(
+			&setting.ID,
+			&setting.Key,
+			&valueJSON,
+			&setting.Description,
+			&setting.UserID,
+			&setting.CreatedAt,
+			&setting.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
+			return nil, err
+		}
+
+		settings = append(settings, setting)
+	}
+
+	return settings, rows.Err()
+}
+
+// ============================================================================
+// Transaction-accepting method variants (*WithTx)
+// These methods accept a pgx.Tx for RLS context support
+// ============================================================================
+
+// Querier is an interface that both *database.Connection and pgx.Tx implement
+type Querier interface {
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+}
+
+// CreateSecretSettingWithTx creates a new encrypted secret setting using a transaction
+func (s *CustomSettingsService) CreateSecretSettingWithTx(ctx context.Context, tx Querier, req CreateSecretSettingRequest, userID *uuid.UUID, createdBy uuid.UUID) (*SecretSettingMetadata, error) {
+	if err := ValidateKey(req.Key); err != nil {
+		return nil, err
+	}
+
+	// Determine encryption key (user-specific or system)
+	encKey := s.encryptionKey
+	if userID != nil {
+		derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive user key: %w", err)
+		}
+		encKey = derivedKey
+	}
+
+	// Encrypt the value
+	encryptedValue, err := crypto.Encrypt(req.Value, encKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt secret: %w", err)
+	}
+
+	// Store placeholder in value column (never expose real value)
+	placeholderValue := map[string]interface{}{"value": "[ENCRYPTED]"}
+	valueJSON, _ := json.Marshal(placeholderValue)
+
+	var metadata SecretSettingMetadata
+	err = tx.QueryRow(ctx, `
+		INSERT INTO app.settings
+		(key, value, value_type, description, is_secret, encrypted_value, user_id, editable_by, category, created_by, updated_by)
+		VALUES ($1, $2, 'string', $3, true, $4, $5, ARRAY['dashboard_admin']::TEXT[], 'custom', $6, $6)
+		RETURNING id, key, description, user_id, created_by, updated_by, created_at, updated_at
+	`, req.Key, valueJSON, req.Description, encryptedValue, userID, createdBy).Scan(
+		&metadata.ID,
+		&metadata.Key,
+		&metadata.Description,
+		&metadata.UserID,
+		&metadata.CreatedBy,
+		&metadata.UpdatedBy,
+		&metadata.CreatedAt,
+		&metadata.UpdatedAt,
+	)
+
+	if err != nil {
+		if database.IsUniqueViolation(err) {
+			return nil, ErrCustomSettingDuplicate
+		}
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+// GetSecretSettingMetadataWithTx retrieves metadata for a secret setting using a transaction
+func (s *CustomSettingsService) GetSecretSettingMetadataWithTx(ctx context.Context, tx Querier, key string, userID *uuid.UUID) (*SecretSettingMetadata, error) {
+	var metadata SecretSettingMetadata
+
+	query := `
+		SELECT id, key, description, user_id, created_by, updated_by, created_at, updated_at
+		FROM app.settings
+		WHERE key = $1 AND is_secret = true
+	`
+	args := []interface{}{key}
+
+	// Filter by user_id if provided (user-specific) or NULL (system)
+	if userID != nil {
+		query += " AND user_id = $2"
+		args = append(args, *userID)
+	} else {
+		query += " AND user_id IS NULL"
+	}
+
+	err := tx.QueryRow(ctx, query, args...).Scan(
+		&metadata.ID,
+		&metadata.Key,
+		&metadata.Description,
+		&metadata.UserID,
+		&metadata.CreatedBy,
+		&metadata.UpdatedBy,
+		&metadata.CreatedAt,
+		&metadata.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrCustomSettingNotFound
+		}
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+// UpdateSecretSettingWithTx updates an existing secret setting using a transaction
+func (s *CustomSettingsService) UpdateSecretSettingWithTx(ctx context.Context, tx Querier, key string, req UpdateSecretSettingRequest, userID *uuid.UUID, updatedBy uuid.UUID) (*SecretSettingMetadata, error) {
+	// First check if the setting exists
+	existing, err := s.GetSecretSettingMetadataWithTx(ctx, tx, key, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build update query dynamically
+	description := existing.Description
+	if req.Description != nil {
+		description = *req.Description
+	}
+
+	var encryptedValue *string
+	if req.Value != nil {
+		// Determine encryption key
+		encKey := s.encryptionKey
+		if userID != nil {
+			derivedKey, err := crypto.DeriveUserKey(s.encryptionKey, *userID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to derive user key: %w", err)
+			}
+			encKey = derivedKey
+		}
+
+		encrypted, err := crypto.Encrypt(*req.Value, encKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt secret: %w", err)
+		}
+		encryptedValue = &encrypted
+	}
+
+	var metadata SecretSettingMetadata
+	var query string
+	var args []interface{}
+
+	if encryptedValue != nil {
+		query = `
+			UPDATE app.settings
+			SET description = $1, encrypted_value = $2, updated_by = $3, updated_at = NOW()
+			WHERE id = $4
+			RETURNING id, key, description, user_id, created_by, updated_by, created_at, updated_at
+		`
+		args = []interface{}{description, *encryptedValue, updatedBy, existing.ID}
+	} else {
+		query = `
+			UPDATE app.settings
+			SET description = $1, updated_by = $2, updated_at = NOW()
+			WHERE id = $3
+			RETURNING id, key, description, user_id, created_by, updated_by, created_at, updated_at
+		`
+		args = []interface{}{description, updatedBy, existing.ID}
+	}
+
+	err = tx.QueryRow(ctx, query, args...).Scan(
+		&metadata.ID,
+		&metadata.Key,
+		&metadata.Description,
+		&metadata.UserID,
+		&metadata.CreatedBy,
+		&metadata.UpdatedBy,
+		&metadata.CreatedAt,
+		&metadata.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &metadata, nil
+}
+
+// DeleteSecretSettingWithTx removes a secret setting using a transaction
+func (s *CustomSettingsService) DeleteSecretSettingWithTx(ctx context.Context, tx Querier, key string, userID *uuid.UUID) error {
+	query := `DELETE FROM app.settings WHERE key = $1 AND is_secret = true`
+	args := []interface{}{key}
+
+	if userID != nil {
+		query += " AND user_id = $2"
+		args = append(args, *userID)
+	} else {
+		query += " AND user_id IS NULL"
+	}
+
+	result, err := tx.Exec(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return ErrCustomSettingNotFound
+	}
+
+	return nil
+}
+
+// ListSecretSettingsWithTx retrieves metadata for all secret settings using a transaction
+func (s *CustomSettingsService) ListSecretSettingsWithTx(ctx context.Context, tx Querier, userID *uuid.UUID) ([]SecretSettingMetadata, error) {
+	query := `
+		SELECT id, key, description, user_id, created_by, updated_by, created_at, updated_at
+		FROM app.settings
+		WHERE is_secret = true
+	`
+	args := []interface{}{}
+
+	if userID != nil {
+		query += " AND user_id = $1"
+		args = append(args, *userID)
+	} else {
+		query += " AND user_id IS NULL"
+	}
+
+	query += " ORDER BY key"
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var secrets []SecretSettingMetadata
+	for rows.Next() {
+		var metadata SecretSettingMetadata
+		err := rows.Scan(
+			&metadata.ID,
+			&metadata.Key,
+			&metadata.Description,
+			&metadata.UserID,
+			&metadata.CreatedBy,
+			&metadata.UpdatedBy,
+			&metadata.CreatedAt,
+			&metadata.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		secrets = append(secrets, metadata)
+	}
+
+	return secrets, rows.Err()
+}
+
+// ============================================================================
+// User Settings Transaction-accepting method variants
+// ============================================================================
+
+// GetUserOwnSettingWithTx retrieves a user's own setting using a transaction
+func (s *CustomSettingsService) GetUserOwnSettingWithTx(ctx context.Context, tx Querier, userID uuid.UUID, key string) (*UserSetting, error) {
+	var setting UserSetting
+	var valueJSON []byte
+
+	err := tx.QueryRow(ctx, `
+		SELECT id, key, value, description, user_id, created_at, updated_at
+		FROM app.settings
+		WHERE key = $1 AND user_id = $2 AND is_secret = false
+	`, key, userID).Scan(
+		&setting.ID,
+		&setting.Key,
+		&valueJSON,
+		&setting.Description,
+		&setting.UserID,
+		&setting.CreatedAt,
+		&setting.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrCustomSettingNotFound
+		}
+		return nil, err
+	}
+
+	if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
+		return nil, err
+	}
+
+	return &setting, nil
+}
+
+// GetSystemSettingWithTx retrieves a system-level setting using a transaction
+func (s *CustomSettingsService) GetSystemSettingWithTx(ctx context.Context, tx Querier, key string) (*CustomSetting, error) {
+	var setting CustomSetting
+	var valueJSON, metadataJSON []byte
+	var editableBy []string
+
+	err := tx.QueryRow(ctx, `
+		SELECT id, key, value, value_type, description, editable_by, metadata, created_by, updated_by, created_at, updated_at
+		FROM app.settings
+		WHERE key = $1 AND user_id IS NULL AND is_secret = false
+	`, key).Scan(
+		&setting.ID,
+		&setting.Key,
+		&valueJSON,
+		&setting.ValueType,
+		&setting.Description,
+		&editableBy,
+		&metadataJSON,
+		&setting.CreatedBy,
+		&setting.UpdatedBy,
+		&setting.CreatedAt,
+		&setting.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrCustomSettingNotFound
+		}
+		return nil, err
+	}
+
+	if err := json.Unmarshal(valueJSON, &setting.Value); err != nil {
+		return nil, err
+	}
+	if metadataJSON != nil {
+		if err := json.Unmarshal(metadataJSON, &setting.Metadata); err != nil {
+			return nil, err
+		}
+	}
+	setting.EditableBy = editableBy
+
+	return &setting, nil
+}
+
+// GetUserSettingWithFallbackWithTx retrieves a setting with user -> system fallback using a transaction
+func (s *CustomSettingsService) GetUserSettingWithFallbackWithTx(ctx context.Context, tx Querier, userID uuid.UUID, key string) (*UserSettingWithSource, error) {
+	// Try user's own setting first
+	userSetting, err := s.GetUserOwnSettingWithTx(ctx, tx, userID, key)
+	if err == nil {
+		return &UserSettingWithSource{
+			Key:    userSetting.Key,
+			Value:  userSetting.Value,
+			Source: "user",
+		}, nil
+	}
+
+	// If not found, fall back to system setting
+	if errors.Is(err, ErrCustomSettingNotFound) {
+		systemSetting, err := s.GetSystemSettingWithTx(ctx, tx, key)
+		if err != nil {
+			return nil, err
+		}
+		return &UserSettingWithSource{
+			Key:    systemSetting.Key,
+			Value:  systemSetting.Value,
+			Source: "system",
+		}, nil
+	}
+
+	return nil, err
+}
+
+// UpsertUserSettingWithTx creates or updates a user setting using a transaction
+func (s *CustomSettingsService) UpsertUserSettingWithTx(ctx context.Context, tx Querier, userID uuid.UUID, req CreateUserSettingRequest) (*UserSetting, error) {
+	if err := ValidateKey(req.Key); err != nil {
+		return nil, err
+	}
+
+	valueJSON, err := json.Marshal(req.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	var setting UserSetting
+	var valueJSONResult []byte
+
+	err = tx.QueryRow(ctx, `
+		INSERT INTO app.settings
+		(key, value, value_type, description, is_secret, user_id, editable_by, category, created_by, updated_by)
+		VALUES ($1, $2, 'json', $3, false, $4, ARRAY['authenticated']::TEXT[], 'custom', $4, $4)
+		ON CONFLICT (key, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::UUID))
+		DO UPDATE SET
+			value = EXCLUDED.value,
+			description = COALESCE(EXCLUDED.description, app.settings.description),
+			updated_by = EXCLUDED.updated_by,
+			updated_at = NOW()
+		RETURNING id, key, value, description, user_id, created_at, updated_at
+	`, req.Key, valueJSON, req.Description, userID).Scan(
+		&setting.ID,
+		&setting.Key,
+		&valueJSONResult,
+		&setting.Description,
+		&setting.UserID,
+		&setting.CreatedAt,
+		&setting.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(valueJSONResult, &setting.Value); err != nil {
+		return nil, err
+	}
+
+	return &setting, nil
+}
+
+// DeleteUserSettingWithTx removes a user's setting using a transaction
+func (s *CustomSettingsService) DeleteUserSettingWithTx(ctx context.Context, tx Querier, userID uuid.UUID, key string) error {
+	result, err := tx.Exec(ctx, `
+		DELETE FROM app.settings
+		WHERE key = $1 AND user_id = $2 AND is_secret = false
+	`, key, userID)
+
+	if err != nil {
+		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return ErrCustomSettingNotFound
+	}
+
+	return nil
+}
+
+// ListUserOwnSettingsWithTx retrieves all non-encrypted settings for a user using a transaction
+func (s *CustomSettingsService) ListUserOwnSettingsWithTx(ctx context.Context, tx Querier, userID uuid.UUID) ([]UserSetting, error) {
+	rows, err := tx.Query(ctx, `
 		SELECT id, key, value, description, user_id, created_at, updated_at
 		FROM app.settings
 		WHERE user_id = $1 AND is_secret = false

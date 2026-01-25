@@ -1,24 +1,28 @@
 package api
 
 import (
-	"context"
 	"errors"
 
+	"github.com/fluxbase-eu/fluxbase/internal/database"
+	"github.com/fluxbase-eu/fluxbase/internal/middleware"
 	"github.com/fluxbase-eu/fluxbase/internal/settings"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
 
 // UserSettingsHandler handles user-specific secret settings operations
 type UserSettingsHandler struct {
+	db              *database.Connection
 	settingsService *settings.CustomSettingsService
 	secretsService  *settings.SecretsService
 }
 
 // NewUserSettingsHandler creates a new user settings handler
-func NewUserSettingsHandler(settingsService *settings.CustomSettingsService) *UserSettingsHandler {
+func NewUserSettingsHandler(db *database.Connection, settingsService *settings.CustomSettingsService) *UserSettingsHandler {
 	return &UserSettingsHandler{
+		db:              db,
 		settingsService: settingsService,
 	}
 }
@@ -31,7 +35,7 @@ func (h *UserSettingsHandler) SetSecretsService(secretsService *settings.Secrets
 // CreateSecret creates a new encrypted user-specific secret setting
 // POST /api/v1/settings/secret
 func (h *UserSettingsHandler) CreateSecret(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 
 	// Get user ID from context
 	userIDStr := c.Locals("user_id")
@@ -70,8 +74,13 @@ func (h *UserSettingsHandler) CreateSecret(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create user-specific secret
-	metadata, err := h.settingsService.CreateSecretSetting(ctx, req, &userID, userID)
+	// Create user-specific secret with RLS context
+	var metadata *settings.SecretSettingMetadata
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		metadata, txErr = h.settingsService.CreateSecretSettingWithTx(ctx, tx, req, &userID, userID)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingDuplicate) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
@@ -102,7 +111,7 @@ func (h *UserSettingsHandler) CreateSecret(c *fiber.Ctx) error {
 // GetSecret returns metadata for a user's secret setting (never returns the value)
 // GET /api/v1/settings/secret/*
 func (h *UserSettingsHandler) GetSecret(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("*")
 
 	if key == "" {
@@ -127,8 +136,13 @@ func (h *UserSettingsHandler) GetSecret(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user's secret
-	metadata, err := h.settingsService.GetSecretSettingMetadata(ctx, key, &userID)
+	// Get user's secret with RLS context
+	var metadata *settings.SecretSettingMetadata
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		metadata, txErr = h.settingsService.GetSecretSettingMetadataWithTx(ctx, tx, key, &userID)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -147,7 +161,7 @@ func (h *UserSettingsHandler) GetSecret(c *fiber.Ctx) error {
 // UpdateSecret updates a user's secret setting
 // PUT /api/v1/settings/secret/*
 func (h *UserSettingsHandler) UpdateSecret(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("*")
 
 	if key == "" {
@@ -180,8 +194,13 @@ func (h *UserSettingsHandler) UpdateSecret(c *fiber.Ctx) error {
 		})
 	}
 
-	// Update user's secret
-	metadata, err := h.settingsService.UpdateSecretSetting(ctx, key, req, &userID, userID)
+	// Update user's secret with RLS context
+	var metadata *settings.SecretSettingMetadata
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		metadata, txErr = h.settingsService.UpdateSecretSettingWithTx(ctx, tx, key, req, &userID, userID)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -205,7 +224,7 @@ func (h *UserSettingsHandler) UpdateSecret(c *fiber.Ctx) error {
 // DeleteSecret deletes a user's secret setting
 // DELETE /api/v1/settings/secret/*
 func (h *UserSettingsHandler) DeleteSecret(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("*")
 
 	if key == "" {
@@ -230,8 +249,10 @@ func (h *UserSettingsHandler) DeleteSecret(c *fiber.Ctx) error {
 		})
 	}
 
-	// Delete user's secret
-	err = h.settingsService.DeleteSecretSetting(ctx, key, &userID)
+	// Delete user's secret with RLS context
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		return h.settingsService.DeleteSecretSettingWithTx(ctx, tx, key, &userID)
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -255,7 +276,7 @@ func (h *UserSettingsHandler) DeleteSecret(c *fiber.Ctx) error {
 // ListSecrets returns metadata for all user's secret settings
 // GET /api/v1/settings/secrets
 func (h *UserSettingsHandler) ListSecrets(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 
 	// Get user ID from context
 	userIDStr := c.Locals("user_id")
@@ -273,8 +294,13 @@ func (h *UserSettingsHandler) ListSecrets(c *fiber.Ctx) error {
 		})
 	}
 
-	// List user's secrets
-	secrets, err := h.settingsService.ListSecretSettings(ctx, &userID)
+	// List user's secrets with RLS context
+	var secrets []settings.SecretSettingMetadata
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		secrets, txErr = h.settingsService.ListSecretSettingsWithTx(ctx, tx, &userID)
+		return txErr
+	})
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to list user secrets")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -289,7 +315,7 @@ func (h *UserSettingsHandler) ListSecrets(c *fiber.Ctx) error {
 // This is a privileged operation that requires service_role
 // GET /api/v1/admin/settings/user/:user_id/secret/:key/decrypt
 func (h *UserSettingsHandler) GetUserSecretValue(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 
 	// Require service_role for this privileged operation
 	role := c.Locals("user_role")
@@ -324,7 +350,7 @@ func (h *UserSettingsHandler) GetUserSecretValue(c *fiber.Ctx) error {
 		})
 	}
 
-	// Retrieve and decrypt the secret
+	// Retrieve and decrypt the secret (service_role bypasses RLS)
 	value, err := h.secretsService.GetUserSecret(ctx, targetUserID, key)
 	if err != nil {
 		if errors.Is(err, settings.ErrSecretNotFound) {
@@ -362,7 +388,7 @@ func (h *UserSettingsHandler) GetUserSecretValue(c *fiber.Ctx) error {
 // GetSetting retrieves a setting with user -> system fallback
 // GET /api/v1/settings/user/:key
 func (h *UserSettingsHandler) GetSetting(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("key")
 
 	if key == "" {
@@ -387,8 +413,13 @@ func (h *UserSettingsHandler) GetSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get setting with fallback
-	result, err := h.settingsService.GetUserSettingWithFallback(ctx, userID, key)
+	// Get setting with fallback using RLS context
+	var result *settings.UserSettingWithSource
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		result, txErr = h.settingsService.GetUserSettingWithFallbackWithTx(ctx, tx, userID, key)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -407,7 +438,7 @@ func (h *UserSettingsHandler) GetSetting(c *fiber.Ctx) error {
 // GetUserOwnSetting retrieves only the user's own setting (no fallback)
 // GET /api/v1/settings/user/own/:key
 func (h *UserSettingsHandler) GetUserOwnSetting(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("key")
 
 	if key == "" {
@@ -432,8 +463,13 @@ func (h *UserSettingsHandler) GetUserOwnSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get user's own setting
-	setting, err := h.settingsService.GetUserOwnSetting(ctx, userID, key)
+	// Get user's own setting with RLS context
+	var setting *settings.UserSetting
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		setting, txErr = h.settingsService.GetUserOwnSettingWithTx(ctx, tx, userID, key)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -452,7 +488,7 @@ func (h *UserSettingsHandler) GetUserOwnSetting(c *fiber.Ctx) error {
 // GetSystemSettingPublic retrieves a system-level setting (user_id IS NULL)
 // GET /api/v1/settings/user/system/:key
 func (h *UserSettingsHandler) GetSystemSettingPublic(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("key")
 
 	if key == "" {
@@ -461,8 +497,13 @@ func (h *UserSettingsHandler) GetSystemSettingPublic(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get system setting
-	setting, err := h.settingsService.GetSystemSetting(ctx, key)
+	// Get system setting with RLS context
+	var setting *settings.CustomSetting
+	err := middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		setting, txErr = h.settingsService.GetSystemSettingWithTx(ctx, tx, key)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -485,7 +526,7 @@ func (h *UserSettingsHandler) GetSystemSettingPublic(c *fiber.Ctx) error {
 // SetSetting creates or updates a user setting
 // PUT /api/v1/settings/user/:key
 func (h *UserSettingsHandler) SetSetting(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("key")
 
 	if key == "" {
@@ -528,8 +569,13 @@ func (h *UserSettingsHandler) SetSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Upsert the setting
-	setting, err := h.settingsService.UpsertUserSetting(ctx, userID, req)
+	// Upsert the setting with RLS context
+	var setting *settings.UserSetting
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		setting, txErr = h.settingsService.UpsertUserSettingWithTx(ctx, tx, userID, req)
+		return txErr
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingInvalidKey) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -554,7 +600,7 @@ func (h *UserSettingsHandler) SetSetting(c *fiber.Ctx) error {
 // DeleteSetting removes a user's setting
 // DELETE /api/v1/settings/user/:key
 func (h *UserSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 	key := c.Params("key")
 
 	if key == "" {
@@ -579,8 +625,10 @@ func (h *UserSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 		})
 	}
 
-	// Delete user's setting
-	err = h.settingsService.DeleteUserSetting(ctx, userID, key)
+	// Delete user's setting with RLS context
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		return h.settingsService.DeleteUserSettingWithTx(ctx, tx, userID, key)
+	})
 	if err != nil {
 		if errors.Is(err, settings.ErrCustomSettingNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -604,7 +652,7 @@ func (h *UserSettingsHandler) DeleteSetting(c *fiber.Ctx) error {
 // ListSettings returns all user's own settings
 // GET /api/v1/settings/user/list
 func (h *UserSettingsHandler) ListSettings(c *fiber.Ctx) error {
-	ctx := context.Background()
+	ctx := c.Context()
 
 	// Get user ID from context
 	userIDStr := c.Locals("user_id")
@@ -622,8 +670,13 @@ func (h *UserSettingsHandler) ListSettings(c *fiber.Ctx) error {
 		})
 	}
 
-	// List user's settings
-	userSettings, err := h.settingsService.ListUserOwnSettings(ctx, userID)
+	// List user's settings with RLS context
+	var userSettings []settings.UserSetting
+	err = middleware.WrapWithRLS(ctx, h.db, c, func(tx pgx.Tx) error {
+		var txErr error
+		userSettings, txErr = h.settingsService.ListUserOwnSettingsWithTx(ctx, tx, userID)
+		return txErr
+	})
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to list user settings")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
