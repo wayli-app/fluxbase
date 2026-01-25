@@ -241,8 +241,8 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 		}
 	}
 
-	// Set timeout for bundling (30 seconds)
-	bundleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// Set timeout for bundling (300 seconds to allow for npm package resolution)
+	bundleCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	// Build deno bundle command (native bundler using esbuild internally)
@@ -284,7 +284,7 @@ func (b *Bundler) Bundle(ctx context.Context, code string, sharedModules map[str
 
 	// Check for timeout
 	if bundleCtx.Err() == context.DeadlineExceeded {
-		result.Error = "bundling timeout after 30s - package may be too large or network issue"
+		result.Error = "bundling timeout after 300s - package may be too large or network issue"
 		return nil, fmt.Errorf("bundling timeout: %s", result.Error)
 	}
 
