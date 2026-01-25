@@ -61,7 +61,12 @@ func (e *MCPToolExecutor) ExecuteTool(
 	}
 
 	// Get the tool from registry
-	tool := e.toolRegistry.GetTool(toolName)
+	// Handle tool name aliases (e.g., vector_search -> search_vectors)
+	registryToolName := toolName
+	if info, exists := MCPToolInfoMap[toolName]; exists && info.Name != toolName {
+		registryToolName = info.Name
+	}
+	tool := e.toolRegistry.GetTool(registryToolName)
 	if tool == nil {
 		return &ExecuteToolResult{
 			Content: fmt.Sprintf("Tool '%s' not found", toolName),
@@ -208,8 +213,12 @@ func (e *MCPToolExecutor) GetAvailableTools(chatbot *Chatbot) []ToolDefinition {
 
 	var tools []ToolDefinition
 	for _, toolName := range chatbot.MCPTools {
+		// Check standard MCP tools first
 		if info, exists := MCPToolInfoMap[toolName]; exists {
-			tool := e.toolRegistry.GetTool(toolName)
+			// Use info.Name for registry lookup to handle aliases
+			// e.g., vector_search -> search_vectors
+			registryToolName := info.Name
+			tool := e.toolRegistry.GetTool(registryToolName)
 			if tool == nil {
 				continue
 			}
@@ -233,6 +242,16 @@ func (e *MCPToolExecutor) GetAvailableTools(chatbot *Chatbot) []ToolDefinition {
 				Description: info.Description,
 				Parameters:  schema,
 			})
+		} else if strings.HasPrefix(toolName, "custom:") {
+			// Handle custom tools by looking up directly in registry
+			tool := e.toolRegistry.GetTool(toolName)
+			if tool != nil {
+				tools = append(tools, ToolDefinition{
+					Name:        toolName,
+					Description: tool.Description(),
+					Parameters:  tool.InputSchema(),
+				})
+			}
 		}
 	}
 

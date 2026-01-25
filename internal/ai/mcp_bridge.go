@@ -17,8 +17,35 @@ func ChatbotAuthContext(chatCtx *ChatContext, chatbot *Chatbot) *mcp.AuthContext
 
 	// Build metadata with chatbot-specific configuration
 	metadata := make(map[string]any)
+
+	// Chatbot ID for tools that need it (e.g., search_vectors)
+	metadata[mcp.MetadataKeyChatbotID] = chatbot.ID
+
+	// HTTP config
 	if len(chatbot.HTTPAllowedDomains) > 0 {
 		metadata[mcp.MetadataKeyHTTPAllowedDomains] = chatbot.HTTPAllowedDomains
+	}
+
+	// SQL config for execute_sql tool
+	if len(chatbot.AllowedSchemas) > 0 {
+		metadata[mcp.MetadataKeyAllowedSchemas] = chatbot.AllowedSchemas
+	}
+	if len(chatbot.AllowedTables) > 0 {
+		metadata[mcp.MetadataKeyAllowedTables] = chatbot.AllowedTables
+	}
+	if len(chatbot.AllowedOperations) > 0 {
+		metadata[mcp.MetadataKeyAllowedOperations] = chatbot.AllowedOperations
+	}
+
+	// Intent rules for validation (stored as interface for flexibility)
+	if len(chatbot.IntentRules) > 0 {
+		metadata[mcp.MetadataKeyIntentRules] = chatbot.IntentRules
+	}
+	if len(chatbot.RequiredColumns) > 0 {
+		metadata[mcp.MetadataKeyRequiredColumns] = chatbot.RequiredColumns
+	}
+	if chatbot.DefaultTable != "" {
+		metadata[mcp.MetadataKeyDefaultTable] = chatbot.DefaultTable
 	}
 
 	return &mcp.AuthContext{

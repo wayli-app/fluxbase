@@ -40,7 +40,7 @@ func (t *SearchVectorsTool) InputSchema() map[string]any {
 			},
 			"chatbot_id": map[string]any{
 				"type":        "string",
-				"description": "The chatbot ID that has access to knowledge bases",
+				"description": "The chatbot ID (optional when called via chatbot context)",
 			},
 			"knowledge_bases": map[string]any{
 				"type":        "array",
@@ -68,7 +68,7 @@ func (t *SearchVectorsTool) InputSchema() map[string]any {
 				},
 			},
 		},
-		"required": []string{"query", "chatbot_id"},
+		"required": []string{"query"}, // chatbot_id is optional - will be read from context metadata if not provided
 	}
 }
 
@@ -90,9 +90,14 @@ func (t *SearchVectorsTool) Execute(ctx context.Context, args map[string]any, au
 		return nil, fmt.Errorf("query is required")
 	}
 
-	chatbotID, ok := args["chatbot_id"].(string)
-	if !ok || chatbotID == "" {
-		return nil, fmt.Errorf("chatbot_id is required")
+	// Try to get chatbot_id from args first, then fall back to metadata
+	chatbotID, _ := args["chatbot_id"].(string)
+	if chatbotID == "" {
+		// Fall back to metadata (set by ChatbotAuthContext)
+		chatbotID = authCtx.GetMetadataString(mcp.MetadataKeyChatbotID)
+	}
+	if chatbotID == "" {
+		return nil, fmt.Errorf("chatbot_id is required (provide in args or context)")
 	}
 
 	limit := 5

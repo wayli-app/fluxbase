@@ -49,6 +49,7 @@ export class QueryBuilder<T = unknown>
   private isCountAggregation: boolean = false;
   private insertData?: Partial<T> | Array<Partial<T>>;
   private updateData?: Partial<T>;
+  private truncateValue?: number;
 
   constructor(fetch: FluxbaseFetch, table: string, schema?: string) {
     this.fetch = fetch;
@@ -581,6 +582,16 @@ export class QueryBuilder<T = unknown>
    */
   offset(count: number): this {
     this.offsetValue = count;
+    return this;
+  }
+
+  /**
+   * Truncate text columns to specified length
+   * Useful for browsing tables with large text fields
+   * @example truncate(500) // Truncate text columns to 500 characters
+   */
+  truncate(length: number): this {
+    this.truncateValue = length;
     return this;
   }
 
@@ -1245,6 +1256,11 @@ export class QueryBuilder<T = unknown>
     // Count - request server to return total count in Content-Range header
     if (this.countType) {
       params.append("count", this.countType);
+    }
+
+    // Truncate - truncate text columns to specified length
+    if (this.truncateValue !== undefined) {
+      params.append("truncate", String(this.truncateValue));
     }
 
     const queryString = params.toString();

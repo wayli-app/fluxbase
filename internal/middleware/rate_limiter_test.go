@@ -427,7 +427,7 @@ func TestMigrationAPILimiter_ServiceRoleBypass(t *testing.T) {
 
 	// Simulate service_role JWT authentication
 	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("role", "service_role")
+		c.Locals("user_role", "service_role")
 		return c.Next()
 	})
 
@@ -450,7 +450,7 @@ func TestMigrationAPILimiter_NonServiceRole(t *testing.T) {
 
 	// Simulate non-service_role authentication
 	app.Use(func(c *fiber.Ctx) error {
-		c.Locals("role", "authenticated")
+		c.Locals("user_role", "authenticated")
 		return c.Next()
 	})
 

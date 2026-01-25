@@ -296,6 +296,20 @@ type Subscription struct {
 	ConnID string  // Connection ID this subscription belongs to
 }
 
+// copyClaims creates a shallow copy of claims map to prevent concurrent map access during logging.
+// This is necessary because zerolog's Interface() iterates over the map, which can race with
+// concurrent modifications to the claims map from other goroutines.
+func copyClaims(claims map[string]interface{}) map[string]interface{} {
+	if claims == nil {
+		return nil
+	}
+	copied := make(map[string]interface{}, len(claims))
+	for k, v := range claims {
+		copied[k] = v
+	}
+	return copied
+}
+
 // SubscriptionFilter represents filters for a subscription
 type SubscriptionFilter struct {
 	Column   string      `json:"column"`
@@ -591,7 +605,7 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 		Str("role", sub.Role).
 		Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 		Interface("record_id", recordID).
-		Interface("claims", sub.Claims).
+		Interface("claims", copyClaims(sub.Claims)).
 		Msg("Starting RLS access check")
 
 	visible, err := sm.db.CheckRLSAccess(ctx, sub.Schema, sub.Table, sub.Role, sub.Claims, recordID)
@@ -600,7 +614,7 @@ func (sm *SubscriptionManager) checkRLSAccess(ctx context.Context, sub *Subscrip
 			Err(err).
 			Str("table", fmt.Sprintf("%s.%s", sub.Schema, sub.Table)).
 			Interface("record_id", recordID).
-			Interface("claims", sub.Claims).
+			Interface("claims", copyClaims(sub.Claims)).
 			Msg("RLS check failed")
 		return false
 	}

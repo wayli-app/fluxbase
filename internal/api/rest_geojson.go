@@ -54,8 +54,28 @@ func isGeometryColumn(dataType string) bool {
 	return strings.Contains(dt, "geometry") || strings.Contains(dt, "geography")
 }
 
+// isTextColumn checks if a column type is a text/string type that can be truncated
+func isTextColumn(dataType string) bool {
+	dt := strings.ToLower(dataType)
+	return dt == "text" ||
+		dt == "varchar" ||
+		dt == "character varying" ||
+		strings.HasPrefix(dt, "varchar(") ||
+		strings.HasPrefix(dt, "character varying(") ||
+		dt == "char" ||
+		dt == "character" ||
+		strings.HasPrefix(dt, "char(") ||
+		strings.HasPrefix(dt, "character(")
+}
+
 // buildSelectColumns builds a column list that converts geometry columns to GeoJSON
 func buildSelectColumns(table database.TableInfo) string {
+	return buildSelectColumnsWithTruncation(table, nil)
+}
+
+// buildSelectColumnsWithTruncation builds a column list with optional text truncation
+// If truncateLength is non-nil and > 0, text columns will be truncated to that length
+func buildSelectColumnsWithTruncation(table database.TableInfo, truncateLength *int) string {
 	columns := make([]string, 0, len(table.Columns))
 	for _, col := range table.Columns {
 		quotedName := quoteIdentifier(col.Name)
@@ -65,6 +85,11 @@ func buildSelectColumns(table database.TableInfo) string {
 		if isGeometryColumn(col.DataType) {
 			// Convert geometry to GeoJSON
 			columns = append(columns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", quotedName, quotedName))
+		} else if truncateLength != nil && *truncateLength > 0 && isTextColumn(col.DataType) {
+			// Truncate text columns: show first N chars + length indicator if truncated
+			columns = append(columns, fmt.Sprintf(
+				"CASE WHEN %s IS NULL THEN NULL WHEN LENGTH(%s) > %d THEN LEFT(%s, %d) || '... (' || LENGTH(%s) || ' chars)' ELSE %s END AS %s",
+				quotedName, quotedName, *truncateLength, quotedName, *truncateLength, quotedName, quotedName, quotedName))
 		} else {
 			columns = append(columns, quotedName)
 		}

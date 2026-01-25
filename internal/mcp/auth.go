@@ -121,6 +121,18 @@ func (ctx *AuthContext) GetMetadataStringSlice(key string) []string {
 	return nil
 }
 
+// GetMetadataString returns a metadata value as a string, or empty string if not found or wrong type
+func (ctx *AuthContext) GetMetadataString(key string) string {
+	val := ctx.GetMetadata(key)
+	if val == nil {
+		return ""
+	}
+	if str, ok := val.(string); ok {
+		return str
+	}
+	return ""
+}
+
 // HasNamespaceAccess checks if the auth context can access a specific namespace.
 // Returns true if:
 //   - AllowedNamespaces is nil (no restrictions, all namespaces allowed)
@@ -313,6 +325,19 @@ func inferScopesFromRole(role string) []string {
 const (
 	// MetadataKeyHTTPAllowedDomains is the key for allowed domains in AuthContext.Metadata
 	MetadataKeyHTTPAllowedDomains = "http_allowed_domains"
+
+	// SQL execution config keys
+	MetadataKeyAllowedSchemas    = "allowed_schemas"
+	MetadataKeyAllowedTables     = "allowed_tables"
+	MetadataKeyAllowedOperations = "allowed_operations"
+
+	// Intent validation config keys (for chatbots)
+	MetadataKeyIntentRules     = "intent_rules"
+	MetadataKeyRequiredColumns = "required_columns"
+	MetadataKeyDefaultTable    = "default_table"
+
+	// Chatbot context keys
+	MetadataKeyChatbotID = "chatbot_id"
 )
 
 // MCP Scopes
@@ -343,6 +368,9 @@ const (
 
 	// HTTP scopes
 	ScopeExecuteHTTP = "execute:http" // Make HTTP requests to allowed domains
+
+	// SQL scopes
+	ScopeExecuteSQL = "execute:sql" // Execute raw SQL queries (with validation)
 
 	// Schema scopes (for resources)
 	ScopeReadSchema = "read:schema"

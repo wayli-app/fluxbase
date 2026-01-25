@@ -38,17 +38,23 @@ var rpcListCmd = &cobra.Command{
 
 Examples:
   fluxbase rpc list
+  fluxbase rpc list -n default
   fluxbase rpc list --namespace default`,
 	PreRunE: requireAuth,
 	RunE:    runRPCList,
 }
 
 var rpcGetCmd = &cobra.Command{
-	Use:   "get [namespace/name]",
+	Use:   "get [name]",
 	Short: "Get procedure details",
 	Long: `Get details of a specific procedure.
 
+The procedure can be specified as:
+  - name (requires --namespace flag)
+  - namespace/name (inline format)
+
 Examples:
+  fluxbase rpc get calculate_totals -n default
   fluxbase rpc get default/calculate_totals`,
 	Args:    cobra.ExactArgs(1),
 	PreRunE: requireAuth,
@@ -56,13 +62,18 @@ Examples:
 }
 
 var rpcInvokeCmd = &cobra.Command{
-	Use:   "invoke [namespace/name]",
+	Use:   "invoke [name]",
 	Short: "Invoke a procedure",
 	Long: `Invoke an RPC procedure.
 
+The procedure can be specified as:
+  - name (requires --namespace flag)
+  - namespace/name (inline format)
+
 Examples:
+  fluxbase rpc invoke calculate_totals -n default
   fluxbase rpc invoke default/calculate_totals
-  fluxbase rpc invoke default/process_order --params '{"order_id": 123}'
+  fluxbase rpc invoke process_order -n default --params '{"order_id": 123}'
   fluxbase rpc invoke default/batch_update --file ./params.json --async`,
 	Args:    cobra.ExactArgs(1),
 	PreRunE: requireAuth,
@@ -83,9 +94,13 @@ Examples:
 
 func init() {
 	// List flags
-	rpcListCmd.Flags().StringVar(&rpcNamespace, "namespace", "", "Filter by namespace")
+	rpcListCmd.Flags().StringVarP(&rpcNamespace, "namespace", "n", "", "Filter by namespace")
+
+	// Get flags
+	rpcGetCmd.Flags().StringVarP(&rpcNamespace, "namespace", "n", "", "Procedure namespace")
 
 	// Invoke flags
+	rpcInvokeCmd.Flags().StringVarP(&rpcNamespace, "namespace", "n", "", "Procedure namespace")
 	rpcInvokeCmd.Flags().StringVar(&rpcParams, "params", "", "JSON parameters")
 	rpcInvokeCmd.Flags().StringVar(&rpcFile, "file", "", "File containing JSON parameters")
 	rpcInvokeCmd.Flags().BoolVar(&rpcAsync, "async", false, "Execute asynchronously")
@@ -157,8 +172,8 @@ func runRPCList(cmd *cobra.Command, args []string) error {
 }
 
 func runRPCGet(cmd *cobra.Command, args []string) error {
-	// Parse namespace/name
-	namespace, name, err := parseNamespacedName(args[0])
+	// Parse namespace and name - supports both "namespace/name" and "name" with --namespace flag
+	namespace, name, err := resolveNamespacedName(args[0], rpcNamespace)
 	if err != nil {
 		return err
 	}
@@ -178,8 +193,8 @@ func runRPCGet(cmd *cobra.Command, args []string) error {
 }
 
 func runRPCInvoke(cmd *cobra.Command, args []string) error {
-	// Parse namespace/name
-	namespace, name, err := parseNamespacedName(args[0])
+	// Parse namespace and name - supports both "namespace/name" and "name" with --namespace flag
+	namespace, name, err := resolveNamespacedName(args[0], rpcNamespace)
 	if err != nil {
 		return err
 	}
@@ -330,13 +345,19 @@ func runRPCSync(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseNamespacedName parses "namespace/name" format
-func parseNamespacedName(s string) (namespace, name string, err error) {
-	parts := splitNamespace(s)
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid format: expected 'namespace/name', got '%s'", s)
+// resolveNamespacedName resolves namespace and name from argument and flag.
+// Supports both "namespace/name" format and "name" with --namespace flag.
+func resolveNamespacedName(arg, namespaceFlag string) (namespace, name string, err error) {
+	parts := splitNamespace(arg)
+	if len(parts) == 2 {
+		// Format: namespace/name - use inline namespace
+		return parts[0], parts[1], nil
 	}
-	return parts[0], parts[1], nil
+	// Format: name only - require --namespace flag
+	if namespaceFlag == "" {
+		return "", "", fmt.Errorf("namespace required: use 'namespace/name' format or --namespace flag")
+	}
+	return namespaceFlag, arg, nil
 }
 
 func splitNamespace(s string) []string {

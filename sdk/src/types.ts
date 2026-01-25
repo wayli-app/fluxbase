@@ -2973,6 +2973,7 @@ export interface AIChatServerMessage {
     | "progress"
     | "content"
     | "query_result"
+    | "tool_result"
     | "done"
     | "error"
     | "cancelled";

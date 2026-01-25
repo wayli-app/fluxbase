@@ -705,10 +705,7 @@ func (h *Handler) Invoke(c *fiber.Ctx) error {
 		userID = uid
 		isAuthenticated = true
 	}
-	// Check both "role" and "user_role" for compatibility with different auth middlewares
 	if role, ok := c.Locals("user_role").(string); ok && role != "" {
-		userRole = role
-	} else if role, ok := c.Locals("role").(string); ok && role != "" {
 		userRole = role
 	}
 	// Check both "email" and "user_email" for compatibility
@@ -820,7 +817,7 @@ func (h *Handler) GetPublicExecution(c *fiber.Ctx) error {
 	}
 
 	// Check ownership (unless service role)
-	role, _ := c.Locals("role").(string)
+	role, _ := c.Locals("user_role").(string)
 	if role != "service_role" && role != "dashboard_admin" {
 		if execution.UserID == nil || *execution.UserID != userID {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -860,7 +857,7 @@ func (h *Handler) GetPublicExecutionLogs(c *fiber.Ctx) error {
 	}
 
 	// Check ownership (unless service_role or dashboard_admin)
-	role, _ := c.Locals("role").(string)
+	role, _ := c.Locals("user_role").(string)
 	if role != "service_role" && role != "dashboard_admin" {
 		if execution.UserID == nil || *execution.UserID != userID {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{

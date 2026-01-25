@@ -26,7 +26,6 @@ type ChatHandler struct {
 	conversations  *ConversationManager
 	schemaBuilder  *SchemaBuilder
 	executor       *Executor
-	httpHandler    *HttpRequestHandler
 	auditLogger    *AuditLogger
 	ragService     *RAGService
 	loggingService *logging.Service
@@ -60,7 +59,6 @@ func NewChatHandler(
 		conversations:  conversations,
 		schemaBuilder:  NewSchemaBuilder(db),
 		executor:       NewExecutor(db, metrics, cfg.MaxRowsPerQuery, cfg.QueryTimeout),
-		httpHandler:    NewHttpRequestHandler(),
 		auditLogger:    NewAuditLogger(db),
 		ragService:     ragService,
 		loggingService: loggingService,
@@ -85,6 +83,11 @@ func (h *ChatHandler) SetMCPToolRegistry(registry *mcp.ToolRegistry) {
 // SetMCPResources sets the MCP resource registry for schema fetching
 func (h *ChatHandler) SetMCPResources(resources MCPResourceReader) {
 	h.schemaBuilder.SetMCPResources(resources)
+}
+
+// GetRAGService returns the RAG service (may be nil if not initialized)
+func (h *ChatHandler) GetRAGService() *RAGService {
+	return h.ragService
 }
 
 // ResolveChatbotTemplates resolves template variables in chatbot annotation values.
@@ -473,9 +476,8 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		// Build tools list based on chatbot configuration
 		var tools []Tool
 
-		// Check if chatbot uses MCP tools
+		// Add MCP tools if configured (includes execute_sql as MCP tool now)
 		if chatbot.HasMCPTools() && h.mcpExecutor != nil {
-			// Use MCP tools - get tool definitions from MCP executor
 			mcpToolDefs := h.mcpExecutor.GetAvailableTools(chatbot)
 			for _, def := range mcpToolDefs {
 				// Skip forbidden tools
@@ -487,25 +489,17 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 					Function: ToolFunction(def),
 				})
 			}
-			log.Debug().
-				Str("chatbot", chatbot.Name).
-				Int("mcp_tools", len(tools)).
-				Msg("Using MCP tools for chatbot")
 		} else {
-			// Use legacy tools
+			// Fallback: add legacy execute_sql if no MCP tools configured
 			if !isToolForbidden("execute_sql") {
-				tools = []Tool{ExecuteSQLTool}
+				tools = append(tools, ExecuteSQLTool)
 			}
 		}
 
-		// Add HTTP tool if domains are configured (works with both MCP and legacy)
-		if len(chatbot.HTTPAllowedDomains) > 0 && !isToolForbidden("http_request") {
-			tools = append(tools, HttpRequestTool)
-		}
-		// Add vector_search if chatbot has linked knowledge bases (legacy RAG)
-		if h.ragService != nil && h.ragService.IsRAGEnabled(ctx, chatbot.ID) && !isToolForbidden("vector_search") {
-			tools = append(tools, VectorSearchTool)
-		}
+		log.Debug().
+			Str("chatbot", chatbot.Name).
+			Int("total_tools", len(tools)).
+			Msg("Tools available for chatbot")
 
 		// Create chat request
 		chatReq := &ChatRequest{
@@ -717,10 +711,6 @@ func (h *ChatHandler) executeToolCall(ctx context.Context, chatCtx *ChatContext,
 	switch toolName {
 	case "execute_sql":
 		return h.executeSQLTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID, userMessage)
-	case "http_request":
-		return h.executeHttpTool(ctx, chatCtx, conversationID, chatbot, toolCall)
-	case "vector_search":
-		return h.executeVectorSearchTool(ctx, chatCtx, conversationID, chatbot, toolCall, userID)
 	default:
 		return fmt.Sprintf("Error: Unknown tool '%s'", toolName), nil
 	}
@@ -866,187 +856,6 @@ func (h *ChatHandler) executeSQLTool(ctx context.Context, chatCtx *ChatContext, 
 	return resultStr, queryResult
 }
 
-// executeHttpTool handles the http_request tool call
-func (h *ChatHandler) executeHttpTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall) (string, *QueryResult) {
-	// Parse arguments
-	var args struct {
-		URL    string `json:"url"`
-		Method string `json:"method"`
-	}
-
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse HTTP tool call arguments")
-		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
-	}
-
-	// Send progress
-	h.sendProgress(chatCtx, conversationID, "http_request", fmt.Sprintf("Making HTTP request to %s", args.URL))
-
-	// Execute HTTP request
-	result := h.httpHandler.Execute(ctx, args.URL, args.Method, chatbot.HTTPAllowedDomains)
-
-	// Log to audit (domain + path only, no query params for privacy) (unless execution logs are disabled)
-	if !chatbot.DisableExecutionLogs {
-		logPath := args.URL
-		if parsedURL, err := parseURLForLogging(args.URL); err == nil {
-			logPath = parsedURL
-		}
-
-		log.Info().
-			Str("chatbot_id", chatbot.ID).
-			Str("conversation_id", conversationID).
-			Str("request_path", logPath).
-			Bool("success", result.Success).
-			Int("status", result.Status).
-			Str("error", result.Error).
-			Msg("HTTP request tool executed")
-
-		// Log to central logging service
-		if h.loggingService != nil {
-			h.loggingService.LogAI(ctx, map[string]any{
-				"tool":            "http_request",
-				"chatbot_id":      chatbot.ID,
-				"conversation_id": conversationID,
-				"method":          args.Method,
-				"url":             logPath,
-				"success":         result.Success,
-				"status":          result.Status,
-			}, "", "")
-		}
-	}
-
-	// Return result as JSON string for AI
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Sprintf("Error: Failed to serialize result: %v", err), nil
-	}
-
-	return string(resultJSON), nil
-}
-
-// executeVectorSearchTool handles the vector_search tool call
-func (h *ChatHandler) executeVectorSearchTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall, userID string) (string, *QueryResult) {
-	// Parse arguments
-	var args struct {
-		Query          string            `json:"query"`
-		KnowledgeBases []string          `json:"knowledge_bases,omitempty"`
-		Limit          int               `json:"limit,omitempty"`
-		Threshold      float64           `json:"threshold,omitempty"`
-		Tags           []string          `json:"tags,omitempty"`
-		Metadata       map[string]string `json:"metadata,omitempty"`
-	}
-
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		log.Error().Err(err).Str("args", toolCall.Function.Arguments).Msg("Failed to parse vector_search arguments")
-		return fmt.Sprintf("Error: Failed to parse tool arguments: %v", err), nil
-	}
-
-	// Validate required parameter
-	if args.Query == "" {
-		return "Error: 'query' parameter is required", nil
-	}
-
-	// Check if RAG service is available
-	if h.ragService == nil {
-		return "Error: Knowledge base search is not available", nil
-	}
-
-	// Send progress to client
-	h.sendProgress(chatCtx, conversationID, "searching", fmt.Sprintf("Searching knowledge base for: %s", args.Query))
-
-	// Build search options with user isolation
-	var userIDPtr *string
-	if userID != "" {
-		userIDPtr = &userID
-	}
-
-	opts := VectorSearchOptions{
-		ChatbotID:      chatbot.ID,
-		Query:          args.Query,
-		KnowledgeBases: args.KnowledgeBases,
-		Limit:          args.Limit,
-		Threshold:      args.Threshold,
-		Tags:           args.Tags,
-		Metadata:       args.Metadata,
-		UserID:         userIDPtr,
-		IsAdmin:        chatCtx.Role == "dashboard_admin",
-	}
-
-	// Execute search
-	results, err := h.ragService.VectorSearch(ctx, opts)
-	if err != nil {
-		log.Error().Err(err).Str("chatbot_id", chatbot.ID).Str("query", args.Query).Msg("Vector search error")
-		return fmt.Sprintf("Error searching knowledge base: %v", err), nil
-	}
-
-	// Send results to client for display
-	h.send(chatCtx, ServerMessage{
-		Type:           "vector_search_result",
-		ConversationID: conversationID,
-		Message:        args.Query,
-		Data:           vectorSearchResultsToMapSlice(results),
-		RowCount:       len(results),
-	})
-
-	// Log the search (unless execution logs are disabled)
-	if !chatbot.DisableExecutionLogs {
-		log.Info().
-			Str("chatbot_id", chatbot.ID).
-			Str("conversation_id", conversationID).
-			Str("query", args.Query).
-			Int("results", len(results)).
-			Msg("Vector search tool executed")
-
-		// Log to central logging service
-		if h.loggingService != nil {
-			h.loggingService.LogAI(ctx, map[string]any{
-				"tool":            "vector_search",
-				"chatbot_id":      chatbot.ID,
-				"conversation_id": conversationID,
-				"query":           args.Query,
-				"results_count":   len(results),
-			}, "", userID)
-		}
-	}
-
-	// Format result for LLM
-	if len(results) == 0 {
-		return "No relevant results found in the knowledge base for the given query.", nil
-	}
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d relevant result(s):\n\n", len(results)))
-
-	for i, r := range results {
-		sb.WriteString(fmt.Sprintf("### Result %d", i+1))
-		if r.DocumentTitle != "" {
-			sb.WriteString(fmt.Sprintf(": %s", r.DocumentTitle))
-		}
-		sb.WriteString(fmt.Sprintf(" (from %s, similarity: %.2f)\n", r.KnowledgeBaseName, r.Similarity))
-		sb.WriteString(r.Content)
-		sb.WriteString("\n\n---\n\n")
-	}
-
-	return sb.String(), nil
-}
-
-// vectorSearchResultsToMapSlice converts VectorSearchResult slice to generic map slice for JSON
-func vectorSearchResultsToMapSlice(results []VectorSearchResult) []map[string]any {
-	data := make([]map[string]any, len(results))
-	for i, r := range results {
-		data[i] = map[string]any{
-			"chunk_id":            r.ChunkID,
-			"document_id":         r.DocumentID,
-			"document_title":      r.DocumentTitle,
-			"knowledge_base_name": r.KnowledgeBaseName,
-			"content":             r.Content,
-			"similarity":          r.Similarity,
-			"tags":                r.Tags,
-		}
-	}
-	return data
-}
-
 // executeMCPTool handles MCP tool execution for chatbots with MCP tools configured
 func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, conversationID string, chatbot *Chatbot, toolCall *ToolCall) (string, *QueryResult) {
 	toolName := toolCall.Function.Name
@@ -1084,19 +893,32 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 		Int("result_length", len(result.Content)).
 		Msg("MCP tool executed successfully")
 
-	// For query_table results, try to parse and create a QueryResult for persistence
+	// Parse query results for data-returning tools
 	var queryResult *QueryResult
 	if toolName == "query_table" {
 		queryResult = h.parseMCPQueryResult(toolName, args, result.Content)
+	} else if toolName == "execute_sql" {
+		queryResult = h.parseMCPExecuteSQLResult(args, result.Content)
 	}
 
-	// Send result to client
-	h.send(chatCtx, ServerMessage{
+	// Build server message
+	serverMsg := ServerMessage{
 		Type:           "tool_result",
 		ConversationID: conversationID,
 		Message:        toolName,
-		Data:           []map[string]any{{"tool": toolName, "result": result.Content}},
-	})
+	}
+
+	// Add structured fields for execute_sql
+	if toolName == "execute_sql" && queryResult != nil {
+		serverMsg.Query = queryResult.Query
+		serverMsg.Summary = queryResult.Summary
+		serverMsg.RowCount = queryResult.RowCount
+		serverMsg.Data = queryResult.Data
+	} else {
+		serverMsg.Data = []map[string]any{{"tool": toolName, "result": result.Content}}
+	}
+
+	h.send(chatCtx, serverMsg)
 
 	return result.Content, queryResult
 }
@@ -1121,6 +943,41 @@ func (h *ChatHandler) parseMCPQueryResult(toolName string, args map[string]any, 
 		Summary:  fmt.Sprintf("Query returned %d row(s)", len(rows)),
 		RowCount: len(rows),
 		Data:     rows,
+	}
+}
+
+// parseMCPExecuteSQLResult parses execute_sql MCP tool results for persistence
+func (h *ChatHandler) parseMCPExecuteSQLResult(args map[string]any, resultContent string) *QueryResult {
+	// Parse the result JSON from the MCP tool
+	var execResult struct {
+		Success    bool             `json:"success"`
+		RowCount   int              `json:"row_count"`
+		Columns    []string         `json:"columns"`
+		Rows       []map[string]any `json:"rows"`
+		Summary    string           `json:"summary"`
+		DurationMs int64            `json:"duration_ms"`
+		Tables     []string         `json:"tables"`
+	}
+
+	if err := json.Unmarshal([]byte(resultContent), &execResult); err != nil {
+		return nil
+	}
+
+	if !execResult.Success {
+		return nil
+	}
+
+	// Extract SQL query from tool arguments
+	sqlQuery := ""
+	if sql, ok := args["sql"].(string); ok {
+		sqlQuery = sql
+	}
+
+	return &QueryResult{
+		Query:    sqlQuery,
+		Summary:  execResult.Summary,
+		RowCount: execResult.RowCount,
+		Data:     execResult.Rows,
 	}
 }
 

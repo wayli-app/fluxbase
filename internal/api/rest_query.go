@@ -260,22 +260,28 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 		for _, col := range params.Select {
 			// Use O(1) lookup to get column info directly
 			if tableCol := table.GetColumn(col); tableCol != nil {
+				quotedCol := quoteIdentifier(col)
 				// Check if this column needs geometry conversion
 				if isGeometryColumn(tableCol.DataType) {
-					validColumns = append(validColumns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", col, col))
+					validColumns = append(validColumns, fmt.Sprintf("ST_AsGeoJSON(%s)::jsonb AS %s", quotedCol, quotedCol))
+				} else if params.TruncateLength != nil && *params.TruncateLength > 0 && isTextColumn(tableCol.DataType) {
+					// Truncate text columns if requested
+					validColumns = append(validColumns, fmt.Sprintf(
+						"CASE WHEN %s IS NULL THEN NULL WHEN LENGTH(%s) > %d THEN LEFT(%s, %d) || '... (' || LENGTH(%s) || ' chars)' ELSE %s END AS %s",
+						quotedCol, quotedCol, *params.TruncateLength, quotedCol, *params.TruncateLength, quotedCol, quotedCol, quotedCol))
 				} else {
-					validColumns = append(validColumns, col)
+					validColumns = append(validColumns, quotedCol)
 				}
 			}
 		}
 		if len(validColumns) > 0 {
 			selectClause = strings.Join(validColumns, ", ")
 		} else {
-			selectClause = buildSelectColumns(table)
+			selectClause = buildSelectColumnsWithTruncation(table, params.TruncateLength)
 		}
 	} else {
-		// Use buildSelectColumns to handle geometry columns
-		selectClause = buildSelectColumns(table)
+		// Use buildSelectColumnsWithTruncation to handle geometry columns and truncation
+		selectClause = buildSelectColumnsWithTruncation(table, params.TruncateLength)
 	}
 
 	// Start building query

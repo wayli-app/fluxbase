@@ -991,6 +991,7 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	toolRegistry.Register(mcptools.NewInsertRecordTool(s.db, schemaCache))
 	toolRegistry.Register(mcptools.NewUpdateRecordTool(s.db, schemaCache))
 	toolRegistry.Register(mcptools.NewDeleteRecordTool(s.db, schemaCache))
+	toolRegistry.Register(mcptools.NewExecuteSQLTool(s.db))
 
 	// Storage tools
 	if storageService != nil {
@@ -1027,9 +1028,13 @@ func (s *Server) setupMCPServer(schemaCache *database.SchemaCache, storageServic
 	}
 
 	// Vector search tools
-	if s.config.AI.Enabled && s.aiHandler != nil {
-		// SearchVectorsTool requires RAGService - skip if not available
-		log.Debug().Msg("MCP: Vector search tool registration deferred - requires RAG service")
+	if s.aiChatHandler != nil {
+		if ragService := s.aiChatHandler.GetRAGService(); ragService != nil {
+			toolRegistry.Register(mcptools.NewSearchVectorsTool(ragService))
+			log.Debug().Msg("MCP: Registered search_vectors tool")
+		} else {
+			log.Debug().Msg("MCP: Vector search tool not registered - RAG service not available")
+		}
 	}
 
 	// DDL tools (schema/table management)

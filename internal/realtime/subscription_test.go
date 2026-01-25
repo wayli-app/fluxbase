@@ -390,3 +390,52 @@ func TestSubscriptionManager_DefaultRLSCache(t *testing.T) {
 	assert.Equal(t, DefaultRLSCacheMaxSize, sm.rlsCache.maxSize)
 	assert.Equal(t, DefaultRLSCacheTTL, sm.rlsCache.ttl)
 }
+
+func TestCopyClaims(t *testing.T) {
+	t.Run("nil map returns nil", func(t *testing.T) {
+		result := copyClaims(nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("empty map returns empty map", func(t *testing.T) {
+		original := make(map[string]interface{})
+		result := copyClaims(original)
+
+		assert.NotNil(t, result)
+		assert.Equal(t, 0, len(result))
+	})
+
+	t.Run("copies all values", func(t *testing.T) {
+		original := map[string]interface{}{
+			"user_id":    "123",
+			"role":       "admin",
+			"meeting_id": 456,
+			"nested":     map[string]string{"key": "value"},
+		}
+
+		result := copyClaims(original)
+
+		assert.Equal(t, len(original), len(result))
+		assert.Equal(t, original["user_id"], result["user_id"])
+		assert.Equal(t, original["role"], result["role"])
+		assert.Equal(t, original["meeting_id"], result["meeting_id"])
+		assert.Equal(t, original["nested"], result["nested"])
+	})
+
+	t.Run("modifying copy does not affect original", func(t *testing.T) {
+		original := map[string]interface{}{
+			"user_id": "123",
+			"role":    "admin",
+		}
+
+		result := copyClaims(original)
+
+		// Modify the copy
+		result["user_id"] = "456"
+		result["new_key"] = "new_value"
+
+		// Original should be unchanged
+		assert.Equal(t, "123", original["user_id"])
+		assert.Nil(t, original["new_key"])
+	})
+}

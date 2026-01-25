@@ -419,9 +419,9 @@ func MigrationAPILimiter() fiber.Handler {
 	var limiterMu sync.RWMutex
 
 	return func(c *fiber.Ctx) error {
-		// service_role JWT tokens bypass rate limiting entirely
-		// These are trusted pre-generated keys (anon_key/service_role_key)
-		role := c.Locals("role")
+		// service_role tokens bypass rate limiting entirely
+		// This applies to both JWT tokens and service keys with service_role
+		role := c.Locals("user_role")
 		if role == "service_role" {
 			return c.Next()
 		}

@@ -370,7 +370,7 @@ func TestRequireMigrationScope(t *testing.T) {
 
 		app.Use(func(c *fiber.Ctx) error {
 			c.Locals("auth_type", "jwt")
-			c.Locals("role", "service_role")
+			c.Locals("user_role", "service_role")
 			return c.Next()
 		})
 
@@ -392,7 +392,7 @@ func TestRequireMigrationScope(t *testing.T) {
 
 		app.Use(func(c *fiber.Ctx) error {
 			c.Locals("auth_type", "jwt")
-			c.Locals("role", "authenticated")
+			c.Locals("user_role", "authenticated")
 			return c.Next()
 		})
 
@@ -807,7 +807,7 @@ func BenchmarkRequireMigrationScope_JWT(b *testing.B) {
 
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals("auth_type", "jwt")
-		c.Locals("role", "service_role")
+		c.Locals("user_role", "service_role")
 		return c.Next()
 	})
 

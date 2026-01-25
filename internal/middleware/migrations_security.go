@@ -114,7 +114,7 @@ func RequireServiceKeyOnly(db *pgxpool.Pool, authService *auth.Service) fiber.Ha
 
 					// Set context locals
 					c.Locals("auth_type", "jwt")
-					c.Locals("role", claims.Role)
+					c.Locals("user_role", claims.Role)
 					c.Locals("user_id", claims.UserID)
 
 					return c.Next()
@@ -199,7 +199,7 @@ func RequireMigrationScope() fiber.Handler {
 
 		// JWT with service_role has full access (no scope check needed)
 		if authType == "jwt" {
-			role := c.Locals("role")
+			role := c.Locals("user_role")
 			if role == "service_role" {
 				log.Debug().
 					Str("auth_type", "jwt").

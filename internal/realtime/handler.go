@@ -134,7 +134,7 @@ func (h *RealtimeHandler) HandleWebSocket(c *fiber.Ctx) error {
 
 	// Store user ID, role and claims in Fiber locals so handleConnection can access them
 	c.Locals("user_id", userID)
-	c.Locals("role", role)
+	c.Locals("user_role", role)
 	c.Locals("claims", rawClaims)
 
 	// Upgrade to WebSocket
@@ -156,7 +156,7 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 
 	// Get role from Fiber locals (set in HandleWebSocket)
 	role := "anon" // Default to anonymous
-	if r := c.Locals("role"); r != nil {
+	if r := c.Locals("user_role"); r != nil {
 		if roleStr, ok := r.(string); ok {
 			role = roleStr
 		}

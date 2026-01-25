@@ -24,6 +24,7 @@ export type AIChatEventType =
   | "progress"
   | "content"
   | "query_result"
+  | "tool_result"
   | "done"
   | "error"
   | "cancelled"
@@ -363,6 +364,23 @@ export class FluxbaseAIChat {
               message.summary || "",
               message.row_count || 0,
               message.data || [],
+              message.conversation_id,
+            );
+          }
+          break;
+
+        case "tool_result":
+          // If this tool_result contains query data, treat it as a query_result
+          if (
+            message.query !== undefined &&
+            message.data !== undefined &&
+            message.conversation_id
+          ) {
+            this.options.onQueryResult?.(
+              message.query,
+              message.summary || "",
+              message.row_count || 0,
+              message.data,
               message.conversation_id,
             );
           }

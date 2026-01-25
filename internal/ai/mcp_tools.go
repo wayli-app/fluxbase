@@ -29,6 +29,7 @@ var MCPToolMapping = map[string][]string{
 
 	// Vector search
 	"search_vectors": {mcp.ScopeReadVectors},
+	"vector_search":  {mcp.ScopeReadVectors}, // Alias for search_vectors (legacy chatbot configs)
 
 	// HTTP requests
 	"http_request": {mcp.ScopeExecuteHTTP},
@@ -147,6 +148,13 @@ var MCPToolInfoMap = map[string]MCPToolInfo{
 		Scopes:      []string{mcp.ScopeWriteTables},
 		ReadOnly:    false,
 	},
+	"execute_sql": {
+		Name:        "execute_sql",
+		Description: "Execute a read-only SQL query against the database",
+		Category:    MCPToolCategoryData,
+		Scopes:      []string{mcp.ScopeExecuteSQL},
+		ReadOnly:    true,
+	},
 
 	// Execution tools
 	"invoke_function": {
@@ -211,6 +219,13 @@ var MCPToolInfoMap = map[string]MCPToolInfo{
 	// Vector search
 	"search_vectors": {
 		Name:        "search_vectors",
+		Description: "Semantic search over vector embeddings",
+		Category:    MCPToolCategoryVectors,
+		Scopes:      []string{mcp.ScopeReadVectors},
+		ReadOnly:    true,
+	},
+	"vector_search": {
+		Name:        "search_vectors", // Alias - maps to MCP tool name
 		Description: "Semantic search over vector embeddings",
 		Category:    MCPToolCategoryVectors,
 		Scopes:      []string{mcp.ScopeReadVectors},

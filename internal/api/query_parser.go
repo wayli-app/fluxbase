@@ -44,6 +44,7 @@ type QueryParams struct {
 	Count          CountType          // Count preference
 	Aggregations   []Aggregation      // Aggregation functions
 	GroupBy        []string           // GROUP BY columns
+	TruncateLength *int               // Truncate text columns to this length (for table browsing)
 	orGroupCounter int                // Counter for assigning OR group IDs
 }
 
@@ -224,6 +225,17 @@ func (qp *QueryParser) ParseWithOptions(values url.Values, opts ParseOptions) (*
 
 		case "count":
 			params.Count = CountType(vals[0])
+
+		case "truncate":
+			// Truncate text columns to specified length (for table browsing)
+			truncateLen, err := strconv.Atoi(vals[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid truncate parameter: %w", err)
+			}
+			if truncateLen < 0 {
+				return nil, fmt.Errorf("truncate must be a non-negative integer")
+			}
+			params.TruncateLength = &truncateLen
 
 		case "group_by":
 			// Parse GROUP BY columns: group_by=category,status

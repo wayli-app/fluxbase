@@ -21,8 +21,6 @@ import { Plus, Trash2, ShieldAlert, Rows3, Rows4 } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api'
 import { syncAuthToken } from '@/lib/fluxbase-client'
-import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
-import { useImpersonation } from '@/features/impersonation/hooks/use-impersonation'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Button } from '@/components/ui/button'
@@ -37,14 +35,16 @@ import {
   TableRow,
   type TableDensity,
 } from '@/components/ui/table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   DataTablePagination,
   DataTableColumnHeader,
 } from '@/components/data-table'
+import { ImpersonationPopover } from '@/features/impersonation/components/impersonation-popover'
+import { useImpersonation } from '@/features/impersonation/hooks/use-impersonation'
 import { EditableCell } from './editable-cell'
 import { RecordEditDialog } from './record-edit-dialog'
 import { TableRowActions } from './table-row-actions'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const route = getRouteApi('/_authenticated/tables/')
 
@@ -67,13 +67,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
 
   // Impersonation state for access denied message
-  const {
-    isImpersonating,
-    impersonationType,
-    stopImpersonation,
-  } = useImpersonation({
-    defaultReason: 'Testing RLS policies in Tables view',
-  })
+  const { isImpersonating, impersonationType, stopImpersonation } =
+    useImpersonation({
+      defaultReason: 'Testing RLS policies in Tables view',
+    })
 
   // Get table metadata from React Query cache (already fetched by TableSelector)
   // Fetch specific table schema to ensure columns are available even when table is empty
@@ -123,11 +120,16 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
   })
 
   // Fetch table data using Fluxbase SDK
-  const { data, isLoading, error: tableError } = useFluxbaseTable(
+  const {
+    data,
+    isLoading,
+    error: tableError,
+  } = useFluxbaseTable(
     tableApiPath,
     (query) => {
       let q = query
         .select('*')
+        .truncate(500) // Truncate text columns to 500 chars for table browsing
         .limit(pagination.pageSize)
         .offset(pagination.pageIndex * pagination.pageSize)
 
@@ -178,7 +180,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
     // Check error message field (e.g., {"error": "Failed to fetch records"})
     if (typeof tableError === 'object' && 'error' in tableError) {
       const errorMsg = (tableError as { error?: string }).error
-      if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('failed to fetch')) {
+      if (
+        typeof errorMsg === 'string' &&
+        errorMsg.toLowerCase().includes('failed to fetch')
+      ) {
         return true
       }
     }
@@ -188,7 +193,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       const msg = (tableError as { message?: string }).message
       if (typeof msg === 'string') {
         const lowerMsg = msg.toLowerCase()
-        if (lowerMsg.includes('permission denied') || lowerMsg.includes('failed to fetch')) {
+        if (
+          lowerMsg.includes('permission denied') ||
+          lowerMsg.includes('failed to fetch')
+        ) {
           return true
         }
       }
@@ -437,13 +445,13 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
 
           {/* Impersonation selector */}
           <ImpersonationPopover
-            contextLabel="Viewing as"
-            defaultReason="Testing RLS policies in Tables view"
+            contextLabel='Viewing as'
+            defaultReason='Testing RLS policies in Tables view'
             onImpersonationStart={() => syncAuthToken()}
             onImpersonationStop={() => syncAuthToken()}
           />
 
-          <div className='flex gap-2 shrink-0'>
+          <div className='flex shrink-0 gap-2'>
             {selectedCount > 0 && (
               <Button
                 variant='destructive'
@@ -458,10 +466,20 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
             <Button
               variant='outline'
               size='icon'
-              onClick={() => setDensity(d => d === 'compact' ? 'normal' : 'compact')}
-              title={density === 'compact' ? 'Switch to normal density' : 'Switch to compact density'}
+              onClick={() =>
+                setDensity((d) => (d === 'compact' ? 'normal' : 'compact'))
+              }
+              title={
+                density === 'compact'
+                  ? 'Switch to normal density'
+                  : 'Switch to compact density'
+              }
             >
-              {density === 'compact' ? <Rows4 className='size-4' /> : <Rows3 className='size-4' />}
+              {density === 'compact' ? (
+                <Rows4 className='size-4' />
+              ) : (
+                <Rows3 className='size-4' />
+              )}
             </Button>
             <Button onClick={() => setIsCreating(true)}>
               <Plus className='mr-2 size-4' />
@@ -500,8 +518,10 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
                     <div className='flex flex-col items-center justify-center gap-3'>
                       <ShieldAlert className='h-12 w-12 text-amber-500' />
                       <div>
-                        <p className='font-medium text-foreground'>Access Denied</p>
-                        <p className='text-muted-foreground text-sm mt-1'>
+                        <p className='text-foreground font-medium'>
+                          Access Denied
+                        </p>
+                        <p className='text-muted-foreground mt-1 text-sm'>
                           {isImpersonating
                             ? `The ${impersonationType === 'anon' ? 'anonymous user' : impersonationType === 'service' ? 'service role' : 'impersonated user'} does not have permission to view this table.`
                             : 'You do not have permission to view this table.'}
@@ -572,9 +592,9 @@ export function TableViewer({ tableName, schema }: TableViewerProps) {
       <ConfirmDialog
         open={showBulkDeleteConfirm}
         onOpenChange={setShowBulkDeleteConfirm}
-        title="Delete Records"
+        title='Delete Records'
         desc={`Are you sure you want to delete ${selectedCount} record${selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
-        confirmText="Delete"
+        confirmText='Delete'
         destructive
         isLoading={bulkDeleteMutation.isPending}
         handleConfirm={confirmBulkDelete}
