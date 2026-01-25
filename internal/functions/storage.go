@@ -667,12 +667,17 @@ func (s *Storage) ListAllExecutions(ctx context.Context, filters AdminExecutionF
 	return executions, total, nil
 }
 
-// CreateSharedModule creates a new shared module
+// CreateSharedModule creates a new shared module or updates it if it already exists (upsert)
 func (s *Storage) CreateSharedModule(ctx context.Context, module *SharedModule) error {
 	query := `
 		INSERT INTO functions.shared_modules (
 			module_path, content, description, created_by
 		) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (module_path) DO UPDATE SET
+			content = EXCLUDED.content,
+			description = EXCLUDED.description,
+			version = functions.shared_modules.version + 1,
+			updated_at = NOW()
 		RETURNING id, version, created_at, updated_at
 	`
 

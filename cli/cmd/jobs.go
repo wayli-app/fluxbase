@@ -388,20 +388,16 @@ func runJobsSync(cmd *cobra.Command, args []string) error {
 
 				modulePath := "_shared/" + name
 
-				// Create or update the shared module via API
+				// Sync the shared module via API (upsert)
 				moduleBody := map[string]interface{}{
 					"module_path": modulePath,
 					"content":     string(content),
 				}
 
-				// Try PUT first (update), fall back to POST (create)
-				err = apiClient.DoPut(ctx, "/api/v1/functions/shared/"+url.PathEscape(modulePath), moduleBody, nil)
+				err = apiClient.DoPost(ctx, "/api/v1/functions/shared/", moduleBody, nil)
 				if err != nil {
-					err = apiClient.DoPost(ctx, "/api/v1/functions/shared/", moduleBody, nil)
-					if err != nil {
-						fmt.Printf("Warning: failed to sync shared module %s: %v\n", modulePath, err)
-						continue
-					}
+					fmt.Printf("Warning: failed to sync shared module %s: %v\n", modulePath, err)
+					continue
 				}
 				sharedCount++
 			}
