@@ -210,9 +210,9 @@ function RPCContent() {
           setLoadingMoreExecutions(false)
         }
       }
-      // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // Note: executionsOffset intentionally excluded from deps to prevent stale closure issues
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedNamespace, searchQuery, statusFilter]
   )
 
