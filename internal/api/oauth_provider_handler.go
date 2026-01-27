@@ -799,7 +799,7 @@ func (h *OAuthProviderHandler) UpdateAuthSettings(c *fiber.Ctx) error {
 	upsertQuery := `
 		INSERT INTO app.settings (key, value, category, updated_at)
 		VALUES ($1, $2, 'auth', NOW())
-		ON CONFLICT (key) DO UPDATE
+		ON CONFLICT (key) WHERE user_id IS NULL DO UPDATE
 		SET value = EXCLUDED.value, updated_at = NOW()
 	`
 

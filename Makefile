@@ -307,7 +307,7 @@ db-reset: ## Reset database (preserves public, auth.users, dashboard.users, setu
 	@echo "${YELLOW}Restoring user data from backups...${NC}"
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "INSERT INTO auth.users SELECT * FROM _fluxbase_auth_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_auth_users_backup;" 2>/dev/null || true
 	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "INSERT INTO dashboard.users SELECT * FROM _fluxbase_dashboard_users_backup ON CONFLICT (id) DO NOTHING; DROP TABLE IF EXISTS _fluxbase_dashboard_users_backup;" 2>/dev/null || true
-	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "INSERT INTO app.settings SELECT * FROM _fluxbase_setup_backup ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); DROP TABLE IF EXISTS _fluxbase_setup_backup;" 2>/dev/null || true
+	@PGPASSWORD=postgres psql -h postgres -U postgres -d fluxbase_dev -c "INSERT INTO app.settings SELECT * FROM _fluxbase_setup_backup ON CONFLICT (key) WHERE user_id IS NULL DO UPDATE SET value = EXCLUDED.value, updated_at = NOW(); DROP TABLE IF EXISTS _fluxbase_setup_backup;" 2>/dev/null || true
 	@echo "${GREEN}Database reset complete!${NC}"
 	@echo "${BLUE}Note: Migrations granted all permissions to the user running them (postgres).${NC}"
 	@echo "${BLUE}Additional permissions granted to fluxbase_app and fluxbase_rls_test for testing.${NC}"

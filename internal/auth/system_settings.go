@@ -225,7 +225,7 @@ func (s *SystemSettingsService) SetSetting(ctx context.Context, key string, valu
 	_, err = s.db.Exec(ctx, `
 		INSERT INTO app.settings (key, value, description, category)
 		VALUES ($1, $2, $3, 'system')
-		ON CONFLICT (key) DO UPDATE
+		ON CONFLICT (key) WHERE user_id IS NULL DO UPDATE
 		SET value = EXCLUDED.value,
 		    description = EXCLUDED.description,
 		    updated_at = NOW()
