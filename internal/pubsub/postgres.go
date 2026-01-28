@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -85,7 +84,9 @@ func (p *PostgresPubSub) listenLoop() {
 		for _, ch := range channels {
 			// PostgreSQL channel names can't contain colons, replace with underscore
 			pgChannel := sanitizeChannelName(ch)
-			if _, err := conn.Exec(p.ctx, fmt.Sprintf("LISTEN %s", pgChannel)); err != nil {
+			// Use quoteIdentifier to prevent SQL injection in LISTEN statement
+			// LISTEN doesn't support parameterized queries, so we must quote the identifier
+			if _, err := conn.Exec(p.ctx, fmt.Sprintf("LISTEN %s", quoteIdentifier(pgChannel))); err != nil {
 				log.Error().Err(err).Str("channel", ch).Msg("Failed to LISTEN on channel")
 			}
 		}
@@ -156,13 +157,9 @@ func (p *PostgresPubSub) Publish(ctx context.Context, channel string, payload []
 	// Sanitize channel name for PostgreSQL
 	pgChannel := sanitizeChannelName(channel)
 
-	// Escape the payload for SQL
-	payloadJSON, err := json.Marshal(string(payload))
-	if err != nil {
-		return fmt.Errorf("failed to escape payload: %w", err)
-	}
-
-	_, err = p.pool.Exec(ctx, fmt.Sprintf("SELECT pg_notify('%s', %s)", pgChannel, payloadJSON))
+	// Use parameterized query to prevent SQL injection
+	// pg_notify takes the channel name and payload as text arguments
+	_, err := p.pool.Exec(ctx, "SELECT pg_notify($1, $2)", pgChannel, string(payload))
 	if err != nil {
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
@@ -253,4 +250,20 @@ func unsanitizeChannelName(pgChannel string) string {
 		}
 	}
 	return result
+}
+
+// quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
+// This is necessary for statements like LISTEN that don't support parameterized queries.
+// It wraps the identifier in double quotes and escapes any embedded double quotes.
+func quoteIdentifier(identifier string) string {
+	// Escape double quotes by doubling them, then wrap in double quotes
+	escaped := ""
+	for _, c := range identifier {
+		if c == '"' {
+			escaped += `""`
+		} else {
+			escaped += string(c)
+		}
+	}
+	return `"` + escaped + `"`
 }
