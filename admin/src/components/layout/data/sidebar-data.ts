@@ -26,6 +26,8 @@ import {
   ScrollText,
   Lock,
   Wrench,
+  GitFork,
+  ShieldAlert,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -55,6 +57,11 @@ export const sidebarData: SidebarData = {
           title: 'Tables',
           url: '/tables',
           icon: Database,
+        },
+        {
+          title: 'Schema Viewer',
+          url: '/schema',
+          icon: GitFork,
         },
         {
           title: 'SQL Editor',
@@ -170,6 +177,11 @@ export const sidebarData: SidebarData = {
           title: 'Authentication',
           url: '/authentication',
           icon: Shield,
+        },
+        {
+          title: 'RLS Policies',
+          url: '/policies',
+          icon: ShieldAlert,
         },
         {
           title: 'Security Settings',

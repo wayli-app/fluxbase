@@ -3647,3 +3647,249 @@ export const mcpResourcesApi = {
     return response.data
   },
 }
+
+// ============================================
+// Schema Viewer API Types
+// ============================================
+
+export interface SchemaNodeColumn {
+  name: string
+  data_type: string
+  nullable: boolean
+  is_primary_key: boolean
+  is_foreign_key: boolean
+  fk_target?: string // "schema.table.column" format
+  default_value?: string
+}
+
+export interface SchemaNode {
+  schema: string
+  name: string
+  columns: SchemaNodeColumn[]
+  primary_key: string[]
+  rls_enabled: boolean
+  row_estimate?: number
+}
+
+export interface SchemaRelationship {
+  id: string
+  source_schema: string
+  source_table: string
+  source_column: string
+  target_schema: string
+  target_table: string
+  target_column: string
+  constraint_name: string
+  on_delete: string
+  on_update: string
+}
+
+export interface SchemaGraphResponse {
+  nodes: SchemaNode[]
+  edges: SchemaRelationship[]
+  schemas: string[]
+}
+
+export interface TableRelationshipsResponse {
+  schema: string
+  table: string
+  outgoing: Array<{
+    direction: string
+    constraint_name: string
+    local_column: string
+    foreign_schema: string
+    foreign_table: string
+    foreign_column: string
+    delete_rule: string
+    update_rule: string
+  }>
+  incoming: Array<{
+    direction: string
+    constraint_name: string
+    local_column: string
+    foreign_schema: string
+    foreign_table: string
+    foreign_column: string
+    delete_rule: string
+    update_rule: string
+  }>
+}
+
+// Schema Viewer API
+export const schemaApi = {
+  // Get schema graph for ERD visualization
+  getGraph: async (schemas?: string[]): Promise<SchemaGraphResponse> => {
+    const params = schemas?.length ? `?schemas=${schemas.join(',')}` : ''
+    const response = await api.get<SchemaGraphResponse>(
+      `/api/v1/admin/schema/graph${params}`
+    )
+    return response.data
+  },
+
+  // Get relationships for a specific table
+  getTableRelationships: async (
+    schema: string,
+    table: string
+  ): Promise<TableRelationshipsResponse> => {
+    const response = await api.get<TableRelationshipsResponse>(
+      `/api/v1/admin/tables/${schema}/${table}/relationships`
+    )
+    return response.data
+  },
+}
+
+// ============================================
+// RLS Policy API Types
+// ============================================
+
+export interface RLSPolicy {
+  schema: string
+  table: string
+  policy_name: string
+  permissive: string // "PERMISSIVE" or "RESTRICTIVE"
+  roles: string[]
+  command: string // ALL, SELECT, INSERT, UPDATE, DELETE
+  using?: string | null
+  with_check?: string | null
+}
+
+export interface TableRLSStatus {
+  schema: string
+  table: string
+  rls_enabled: boolean
+  rls_forced: boolean
+  policy_count: number
+  policies: RLSPolicy[]
+  has_warnings: boolean
+}
+
+export interface CreatePolicyRequest {
+  schema: string
+  table: string
+  name: string
+  command: string
+  roles?: string[]
+  using?: string
+  with_check?: string
+  permissive?: boolean
+}
+
+export interface SecurityWarning {
+  id: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  category: string
+  schema: string
+  table: string
+  policy_name?: string
+  message: string
+  suggestion: string
+  fix_sql?: string
+}
+
+export interface SecurityWarningsResponse {
+  warnings: SecurityWarning[]
+  summary: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+    total: number
+  }
+}
+
+export interface PolicyTemplate {
+  id: string
+  name: string
+  description: string
+  command: string
+  using: string
+  with_check: string
+}
+
+// RLS Policy API
+export const policyApi = {
+  // List all RLS policies
+  list: async (schema?: string, table?: string): Promise<RLSPolicy[]> => {
+    const params = new URLSearchParams()
+    if (schema) params.set('schema', schema)
+    if (table) params.set('table', table)
+    const queryString = params.toString()
+    const response = await api.get<RLSPolicy[]>(
+      `/api/v1/admin/policies${queryString ? `?${queryString}` : ''}`
+    )
+    return response.data || []
+  },
+
+  // Get tables with RLS status
+  getTablesWithRLS: async (schema?: string): Promise<TableRLSStatus[]> => {
+    const params = schema ? `?schema=${schema}` : ''
+    const response = await api.get<TableRLSStatus[]>(
+      `/api/v1/admin/tables/rls${params}`
+    )
+    return response.data || []
+  },
+
+  // Get RLS status for a specific table
+  getTableRLSStatus: async (
+    schema: string,
+    table: string
+  ): Promise<TableRLSStatus> => {
+    const response = await api.get<TableRLSStatus>(
+      `/api/v1/admin/tables/${schema}/${table}/rls`
+    )
+    return response.data
+  },
+
+  // Toggle RLS on a table
+  toggleTableRLS: async (
+    schema: string,
+    table: string,
+    enable: boolean,
+    forceRLS?: boolean
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/api/v1/admin/tables/${schema}/${table}/rls/toggle`,
+      { enable, force_rls: forceRLS }
+    )
+    return response.data
+  },
+
+  // Create a new policy
+  create: async (
+    data: CreatePolicyRequest
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(
+      '/api/v1/admin/policies',
+      data
+    )
+    return response.data
+  },
+
+  // Delete a policy
+  delete: async (
+    schema: string,
+    table: string,
+    policyName: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete<{ success: boolean; message: string }>(
+      `/api/v1/admin/policies/${schema}/${table}/${policyName}`
+    )
+    return response.data
+  },
+
+  // Get security warnings
+  getSecurityWarnings: async (): Promise<SecurityWarningsResponse> => {
+    const response = await api.get<SecurityWarningsResponse>(
+      '/api/v1/admin/security/warnings'
+    )
+    return response.data
+  },
+
+  // Get policy templates
+  getTemplates: async (): Promise<PolicyTemplate[]> => {
+    const response = await api.get<PolicyTemplate[]>(
+      '/api/v1/admin/policies/templates'
+    )
+    return response.data || []
+  },
+}

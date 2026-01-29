@@ -2135,6 +2135,24 @@ func (s *Server) setupAdminRoutes(router fiber.Router) {
 	router.Post("/extensions/:name/disable", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.DisableExtension)
 	router.Post("/extensions/sync", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.extensionsHandler.SyncExtensions)
 
+	// Schema graph routes (for ERD/schema visualization)
+	router.Get("/schema/graph", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetSchemaGraph)
+	router.Get("/tables/:schema/:table/relationships", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetTableRelationships)
+
+	// RLS Policy management routes
+	router.Get("/policies", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.ListPolicies)
+	router.Post("/policies", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.CreatePolicy)
+	router.Delete("/policies/:schema/:table/:policy", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.DeletePolicy)
+	router.Get("/policies/templates", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetPolicyTemplates)
+
+	// Table RLS status routes
+	router.Get("/tables/rls", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetTablesWithRLS)
+	router.Get("/tables/:schema/:table/rls", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetTableRLSStatus)
+	router.Post("/tables/:schema/:table/rls/toggle", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.ToggleTableRLS)
+
+	// Security warnings/advisor
+	router.Get("/security/warnings", unifiedAuth, RequireRole("admin", "dashboard_admin", "service_role"), s.GetSecurityWarnings)
+
 	// Migrations routes (require service key authentication with enhanced security)
 	// Only registered if migrations API is enabled in config
 	if s.config.Migrations.Enabled {
