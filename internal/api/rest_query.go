@@ -284,8 +284,8 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 		selectClause = buildSelectColumnsWithTruncation(table, params.TruncateLength)
 	}
 
-	// Start building query
-	query := fmt.Sprintf("SELECT %s FROM %s.%s", selectClause, table.Schema, table.Name)
+	// Start building query - use quoteIdentifier for defense in depth
+	query := fmt.Sprintf("SELECT %s FROM %s.%s", selectClause, quoteIdentifier(table.Schema), quoteIdentifier(table.Name))
 
 	// Add WHERE, ORDER BY, LIMIT, OFFSET
 	whereAndMore, args := params.ToSQL(table.Name)
@@ -309,8 +309,8 @@ func (h *RESTHandler) columnExists(table database.TableInfo, columnName string) 
 
 // getCount gets the row count for a query
 func (h *RESTHandler) getCount(ctx context.Context, c *fiber.Ctx, table database.TableInfo, params *QueryParams) (int, error) {
-	// Build count query
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", table.Schema, table.Name)
+	// Build count query - use quoteIdentifier for defense in depth
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", quoteIdentifier(table.Schema), quoteIdentifier(table.Name))
 
 	// Build WHERE clause
 	var args []interface{}

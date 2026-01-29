@@ -28,6 +28,12 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
+// It wraps the identifier in double quotes and escapes any embedded double quotes.
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
+
 // Connection represents a database connection pool
 type Connection struct {
 	pool      *pgxpool.Pool
@@ -767,7 +773,9 @@ func (c *Connection) grantRolesToRuntimeUser() error {
 		}
 
 		if exists {
-			query := fmt.Sprintf("GRANT %s TO %s", role, c.config.User)
+			// Use quoteIdentifier to prevent SQL injection (defense in depth)
+			// Both role and user are quoted as PostgreSQL identifiers
+			query := fmt.Sprintf("GRANT %s TO %s", quoteIdentifier(role), quoteIdentifier(c.config.User))
 			_, err = adminConn.Exec(ctx, query)
 			if err != nil {
 				log.Warn().Err(err).Str("role", role).Str("user", c.config.User).Msg("Failed to grant role")

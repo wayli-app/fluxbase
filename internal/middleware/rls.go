@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/auth"
 	"github.com/fluxbase-eu/fluxbase/internal/database"
@@ -11,6 +12,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
+
+// quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
+// It wraps the identifier in double quotes and escapes any embedded double quotes.
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
 
 // RLSConfig holds configuration for RLS middleware
 type RLSConfig struct {
@@ -134,8 +141,8 @@ func SetRLSContext(ctx context.Context, tx pgx.Tx, userID string, role string, c
 
 	// SET LOCAL ROLE for database-level security
 	// This provides defense-in-depth: connection runs with minimal privileges
-	// IMPORTANT: Use identifier to prevent SQL injection (role names are identifiers, not strings)
-	setRoleQuery := fmt.Sprintf("SET LOCAL ROLE %s", dbRole)
+	// Using quoteIdentifier for proper PostgreSQL identifier escaping (defense in depth)
+	setRoleQuery := fmt.Sprintf("SET LOCAL ROLE %s", quoteIdentifier(dbRole))
 	_, err := tx.Exec(ctx, setRoleQuery)
 	if err != nil {
 		log.Error().Err(err).Str("db_role", dbRole).Msg("Failed to SET LOCAL ROLE")
@@ -209,7 +216,8 @@ func WrapWithServiceRole(ctx context.Context, conn *database.Connection, fn func
 
 	// SET LOCAL ROLE service_role - bypasses RLS for privileged operations
 	// This provides the same security model as Supabase's separate admin connections
-	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")
+	// Using quoteIdentifier for consistent security practices
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", quoteIdentifier("service_role")))
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to SET LOCAL ROLE service_role")
 		return fmt.Errorf("failed to SET LOCAL ROLE service_role: %w", err)
