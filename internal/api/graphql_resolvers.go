@@ -163,8 +163,8 @@ func setGraphQLRLSContext(ctx context.Context, tx pgx.Tx, rlsCtx *RLSContext) er
 	// Map application role to database role
 	dbRole := mapAppRoleToDatabaseRole(rlsCtx.Role)
 
-	// SET LOCAL ROLE for database-level security
-	setRoleQuery := fmt.Sprintf("SET LOCAL ROLE %s", dbRole)
+	// SET LOCAL ROLE for database-level security (quoteIdentifier for safety)
+	setRoleQuery := fmt.Sprintf("SET LOCAL ROLE %s", quoteIdentifier(dbRole))
 	if _, err := tx.Exec(ctx, setRoleQuery); err != nil {
 		log.Error().Err(err).Str("db_role", dbRole).Msg("GraphQL: Failed to SET LOCAL ROLE")
 		return fmt.Errorf("failed to SET LOCAL ROLE %s: %w", dbRole, err)

@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +16,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
+
+// validIdentifierRegex ensures identifier names are safe PostgreSQL identifiers
+var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
+
+// isValidIdentifier checks if a string is a valid PostgreSQL identifier
+func isValidIdentifier(s string) bool {
+	return validIdentifierRegex.MatchString(s)
+}
 
 // Default RLS cache settings (used when no config provided)
 const (
@@ -178,6 +193,14 @@ func (db *pgxSubscriptionDB) IsTableRealtimeEnabled(ctx context.Context, schema,
 }
 
 func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, role string, claims map[string]interface{}, recordID interface{}) (bool, error) {
+	// Validate schema and table names to prevent SQL injection
+	if !isValidIdentifier(schema) {
+		return false, fmt.Errorf("invalid schema name: %s", schema)
+	}
+	if !isValidIdentifier(table) {
+		return false, fmt.Errorf("invalid table name: %s", table)
+	}
+
 	conn, err := db.pool.Acquire(ctx)
 	if err != nil {
 		return false, err
@@ -204,7 +227,8 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 		return false, err
 	}
 
-	// Map application role to database role
+	// Map application role to database role (hardcoded values - safe)
+	// Using quoteIdentifier for defense in depth
 	dbRole := "authenticated"
 	switch role {
 	case "service_role":
@@ -213,7 +237,7 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 		dbRole = "anon"
 	}
 
-	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", dbRole))
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL ROLE %s", quoteIdentifier(dbRole)))
 	if err != nil {
 		return false, err
 	}
@@ -224,7 +248,8 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 	}
 
 	var count int
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", schema, table)
+	// Use quoteIdentifier to prevent SQL injection even though we validated above
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", quoteIdentifier(schema), quoteIdentifier(table))
 	err = tx.QueryRow(ctx, query, recordID).Scan(&count)
 	if err != nil {
 		return false, err

@@ -3,11 +3,28 @@ package extensions
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/fluxbase-eu/fluxbase/internal/database"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 )
+
+// validIdentifierRegex ensures identifier names are safe PostgreSQL identifiers
+// Only allows: letters, digits, underscores, starting with letter or underscore
+var validIdentifierRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// quoteIdentifier safely quotes a PostgreSQL identifier to prevent SQL injection.
+// It wraps the identifier in double quotes and escapes any embedded double quotes.
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
+
+// isValidIdentifier checks if a string is a valid PostgreSQL identifier
+func isValidIdentifier(s string) bool {
+	return validIdentifierRegex.MatchString(s)
+}
 
 // Service handles extension management operations
 type Service struct {
@@ -189,12 +206,31 @@ func (s *Service) EnableExtension(ctx context.Context, name string, userID *stri
 		}, nil
 	}
 
+	// Validate extension name is a safe identifier (defense in depth)
+	if !isValidIdentifier(name) {
+		return &EnableExtensionResponse{
+			Name:    name,
+			Success: false,
+			Message: "Invalid extension name: must contain only letters, digits, and underscores",
+		}, nil
+	}
+
+	// Validate schema if provided
+	if schema != "" && schema != "public" && !isValidIdentifier(schema) {
+		return &EnableExtensionResponse{
+			Name:    name,
+			Success: false,
+			Message: "Invalid schema name: must contain only letters, digits, and underscores",
+		}, nil
+	}
+
 	// Use admin connection to create extension (requires superuser)
 	err = s.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
-		// Build CREATE EXTENSION statement
-		sql := fmt.Sprintf("CREATE EXTENSION IF NOT EXISTS %q", name)
+		// Build CREATE EXTENSION statement with proper identifier quoting
+		// Using quoteIdentifier to prevent SQL injection even though we validated above
+		sql := fmt.Sprintf("CREATE EXTENSION IF NOT EXISTS %s", quoteIdentifier(name))
 		if schema != "" && schema != "public" {
-			sql += fmt.Sprintf(" SCHEMA %q", schema)
+			sql += fmt.Sprintf(" SCHEMA %s", quoteIdentifier(schema))
 		}
 
 		_, err := conn.Exec(ctx, sql)
@@ -275,9 +311,19 @@ func (s *Service) DisableExtension(ctx context.Context, name string, userID *str
 		}, nil
 	}
 
+	// Validate extension name is a safe identifier (defense in depth)
+	if !isValidIdentifier(name) {
+		return &DisableExtensionResponse{
+			Name:    name,
+			Success: false,
+			Message: "Invalid extension name: must contain only letters, digits, and underscores",
+		}, nil
+	}
+
 	// Use admin connection to drop extension
 	err = s.db.ExecuteWithAdminRole(ctx, func(conn *pgx.Conn) error {
-		sql := fmt.Sprintf("DROP EXTENSION IF EXISTS %q CASCADE", name)
+		// Use proper identifier quoting to prevent SQL injection
+		sql := fmt.Sprintf("DROP EXTENSION IF EXISTS %s CASCADE", quoteIdentifier(name))
 		_, err := conn.Exec(ctx, sql)
 		return err
 	})
