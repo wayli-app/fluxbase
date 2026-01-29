@@ -3660,6 +3660,9 @@ export interface SchemaNodeColumn {
   is_foreign_key: boolean
   fk_target?: string // "schema.table.column" format
   default_value?: string
+  is_unique: boolean
+  is_indexed: boolean
+  comment?: string
 }
 
 export interface SchemaNode {
@@ -3668,7 +3671,11 @@ export interface SchemaNode {
   columns: SchemaNodeColumn[]
   primary_key: string[]
   rls_enabled: boolean
+  force_rls: boolean
   row_estimate?: number
+  comment?: string
+  incoming_rel_count: number
+  outgoing_rel_count: number
 }
 
 export interface SchemaRelationship {
@@ -3682,6 +3689,7 @@ export interface SchemaRelationship {
   constraint_name: string
   on_delete: string
   on_update: string
+  cardinality: 'one-to-one' | 'many-to-one' | 'one-to-many'
 }
 
 export interface SchemaGraphResponse {

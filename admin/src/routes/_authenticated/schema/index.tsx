@@ -51,6 +51,10 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Hash,
+  Fingerprint,
+  Info,
+  Lock,
 } from 'lucide-react'
 import {
   schemaApi,
@@ -286,25 +290,54 @@ function SchemaViewerPage() {
                   </h4>
                   <div className="space-y-1 max-h-48 overflow-auto">
                     {selectedTableData.columns.map((col) => (
-                      <div
-                        key={col.name}
-                        className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-muted"
-                      >
-                        <div className="flex items-center gap-2">
-                          {col.is_primary_key && (
-                            <Key className="h-3 w-3 text-yellow-500" />
-                          )}
-                          {col.is_foreign_key && (
-                            <LinkIcon className="h-3 w-3 text-blue-500" />
-                          )}
-                          <span className={cn(col.is_primary_key && 'font-medium')}>
-                            {col.name}
-                          </span>
-                        </div>
-                        <span className="text-muted-foreground text-xs">
-                          {col.data_type}
-                        </span>
-                      </div>
+                      <TooltipProvider key={col.name}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-muted cursor-default">
+                              <div className="flex items-center gap-1.5">
+                                {col.is_primary_key && (
+                                  <Key className="h-3 w-3 text-yellow-500" />
+                                )}
+                                {col.is_foreign_key && (
+                                  <LinkIcon className="h-3 w-3 text-blue-500" />
+                                )}
+                                {col.is_unique && !col.is_primary_key && (
+                                  <Fingerprint className="h-3 w-3 text-purple-500" />
+                                )}
+                                {col.is_indexed && !col.is_primary_key && !col.is_unique && (
+                                  <Hash className="h-3 w-3 text-gray-500" />
+                                )}
+                                <span className={cn(col.is_primary_key && 'font-medium')}>
+                                  {col.name}
+                                </span>
+                                {!col.nullable && (
+                                  <span className="text-red-500 text-xs">*</span>
+                                )}
+                              </div>
+                              <span className="text-muted-foreground text-xs">
+                                {col.data_type}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <div className="space-y-1 text-xs">
+                              <div className="font-medium">{col.name}</div>
+                              <div>Type: {col.data_type}</div>
+                              <div>Nullable: {col.nullable ? 'Yes' : 'No'}</div>
+                              {col.default_value && (
+                                <div>Default: {col.default_value}</div>
+                              )}
+                              {col.is_primary_key && <div className="text-yellow-500">Primary Key</div>}
+                              {col.is_foreign_key && col.fk_target && (
+                                <div className="text-blue-500">FK → {col.fk_target}</div>
+                              )}
+                              {col.is_unique && <div className="text-purple-500">Unique</div>}
+                              {col.is_indexed && <div className="text-gray-500">Indexed</div>}
+                              {col.comment && <div className="mt-1 italic">{col.comment}</div>}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                   </div>
                 </div>
@@ -315,54 +348,82 @@ function SchemaViewerPage() {
                   <div>
                     <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                       <GitFork className="h-4 w-4" />
-                      Relationships
+                      Relationships ({selectedTableRelationships.outgoing.length + selectedTableRelationships.incoming.length})
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-48 overflow-auto">
                       {selectedTableRelationships.outgoing.map((rel) => (
-                        <div
-                          key={rel.id}
-                          className="flex items-center gap-2 text-sm p-2 rounded bg-muted/50 cursor-pointer hover:bg-muted"
-                          onClick={() =>
-                            setSelectedTable(
-                              `${rel.target_schema}.${rel.target_table}`
-                            )
-                          }
-                        >
-                          <ArrowRight className="h-4 w-4 text-blue-500" />
-                          <span className="text-muted-foreground">
-                            {rel.source_column}
-                          </span>
-                          <ArrowRight className="h-3 w-3" />
-                          <span className="font-medium">
-                            {rel.target_schema}.{rel.target_table}
-                          </span>
-                          <span className="text-muted-foreground">
-                            ({rel.target_column})
-                          </span>
-                        </div>
+                        <TooltipProvider key={rel.id}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div
+                                className="flex items-center gap-2 text-sm p-2 rounded bg-muted/50 cursor-pointer hover:bg-muted"
+                                onClick={() =>
+                                  setSelectedTable(
+                                    `${rel.target_schema}.${rel.target_table}`
+                                  )
+                                }
+                              >
+                                <ArrowRight className="h-4 w-4 text-blue-500 shrink-0" />
+                                <span className="text-muted-foreground truncate">
+                                  {rel.source_column}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] px-1 shrink-0">
+                                  {rel.cardinality === 'one-to-one' ? '1:1' : 'N:1'}
+                                </Badge>
+                                <span className="font-medium truncate">
+                                  {rel.target_table}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <div className="space-y-1 text-xs">
+                                <div className="font-medium">Outgoing FK</div>
+                                <div>{rel.source_column} → {rel.target_schema}.{rel.target_table}.{rel.target_column}</div>
+                                <div>Cardinality: {rel.cardinality}</div>
+                                <div>ON DELETE: {rel.on_delete}</div>
+                                <div>ON UPDATE: {rel.on_update}</div>
+                                <div className="text-muted-foreground">{rel.constraint_name}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ))}
                       {selectedTableRelationships.incoming.map((rel) => (
-                        <div
-                          key={rel.id}
-                          className="flex items-center gap-2 text-sm p-2 rounded bg-muted/50 cursor-pointer hover:bg-muted"
-                          onClick={() =>
-                            setSelectedTable(
-                              `${rel.source_schema}.${rel.source_table}`
-                            )
-                          }
-                        >
-                          <ArrowLeft className="h-4 w-4 text-green-500" />
-                          <span className="font-medium">
-                            {rel.source_schema}.{rel.source_table}
-                          </span>
-                          <span className="text-muted-foreground">
-                            ({rel.source_column})
-                          </span>
-                          <ArrowRight className="h-3 w-3" />
-                          <span className="text-muted-foreground">
-                            {rel.target_column}
-                          </span>
-                        </div>
+                        <TooltipProvider key={rel.id}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div
+                                className="flex items-center gap-2 text-sm p-2 rounded bg-muted/50 cursor-pointer hover:bg-muted"
+                                onClick={() =>
+                                  setSelectedTable(
+                                    `${rel.source_schema}.${rel.source_table}`
+                                  )
+                                }
+                              >
+                                <ArrowLeft className="h-4 w-4 text-green-500 shrink-0" />
+                                <span className="font-medium truncate">
+                                  {rel.source_table}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] px-1 shrink-0">
+                                  {rel.cardinality === 'one-to-one' ? '1:1' : '1:N'}
+                                </Badge>
+                                <span className="text-muted-foreground truncate">
+                                  {rel.target_column}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <div className="space-y-1 text-xs">
+                                <div className="font-medium">Incoming FK</div>
+                                <div>{rel.source_schema}.{rel.source_table}.{rel.source_column} → {rel.target_column}</div>
+                                <div>Cardinality: {rel.cardinality === 'many-to-one' ? 'one-to-many' : rel.cardinality}</div>
+                                <div>ON DELETE: {rel.on_delete}</div>
+                                <div>ON UPDATE: {rel.on_update}</div>
+                                <div className="text-muted-foreground">{rel.constraint_name}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ))}
                     </div>
                   </div>

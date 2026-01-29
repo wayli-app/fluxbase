@@ -546,6 +546,157 @@ func (s *Server) GetSecurityWarnings(c *fiber.Ctx) error {
 		}
 	}
 
+	// Check 6: Tables with sensitive columns but no RLS
+	rows6, err := s.db.Query(ctx, `
+		SELECT DISTINCT t.table_schema, t.table_name, c.column_name
+		FROM information_schema.columns c
+		JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+		JOIN pg_class pc ON pc.relname = t.table_name
+		JOIN pg_namespace pn ON pn.oid = pc.relnamespace AND pn.nspname = t.table_schema
+		WHERE t.table_schema = 'public'
+		AND t.table_type = 'BASE TABLE'
+		AND NOT pc.relrowsecurity
+		AND c.column_name ~* '(password|secret|token|api_key|apikey|private_key|credit_card|ssn|social_security)'
+	`)
+	if err == nil {
+		defer rows6.Close()
+		for rows6.Next() {
+			var schemaName, tableName, columnName string
+			rows6.Scan(&schemaName, &tableName, &columnName)
+			warnings = append(warnings, SecurityWarning{
+				ID:         fmt.Sprintf("sensitive-no-rls-%s-%s-%s", schemaName, tableName, columnName),
+				Severity:   "critical",
+				Category:   "sensitive-data",
+				Schema:     schemaName,
+				Table:      tableName,
+				Message:    fmt.Sprintf("Table '%s.%s' contains sensitive column '%s' but RLS is not enabled", schemaName, tableName, columnName),
+				Suggestion: "Enable RLS immediately to protect sensitive data",
+				FixSQL:     fmt.Sprintf("ALTER TABLE %s.%s ENABLE ROW LEVEL SECURITY;", quoteIdentifier(schemaName), quoteIdentifier(tableName)),
+			})
+		}
+	}
+
+	// Check 7: RLS enabled but not forced (table owner can bypass)
+	rows7, err := s.db.Query(ctx, `
+		SELECT n.nspname, c.relname
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relrowsecurity = true
+		AND c.relforcerowsecurity = false
+		AND c.relkind = 'r'
+		AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'auth', 'storage')
+	`)
+	if err == nil {
+		defer rows7.Close()
+		for rows7.Next() {
+			var schemaName, tableName string
+			rows7.Scan(&schemaName, &tableName)
+			warnings = append(warnings, SecurityWarning{
+				ID:         fmt.Sprintf("no-force-rls-%s-%s", schemaName, tableName),
+				Severity:   "medium",
+				Category:   "rls",
+				Schema:     schemaName,
+				Table:      tableName,
+				Message:    fmt.Sprintf("Table '%s.%s' has RLS enabled but not forced - table owner can bypass policies", schemaName, tableName),
+				Suggestion: "Consider enabling FORCE ROW LEVEL SECURITY for complete protection",
+				FixSQL:     fmt.Sprintf("ALTER TABLE %s.%s FORCE ROW LEVEL SECURITY;", quoteIdentifier(schemaName), quoteIdentifier(tableName)),
+			})
+		}
+	}
+
+	// Check 8: Policies that grant access to PUBLIC role
+	rows8, err := s.db.Query(ctx, `
+		SELECT schemaname, tablename, policyname, cmd
+		FROM pg_policies
+		WHERE 'public' = ANY(roles)
+		AND schemaname NOT IN ('pg_catalog', 'information_schema')
+	`)
+	if err == nil {
+		defer rows8.Close()
+		for rows8.Next() {
+			var schemaName, tableName, policyName, cmd string
+			rows8.Scan(&schemaName, &tableName, &policyName, &cmd)
+			warnings = append(warnings, SecurityWarning{
+				ID:         fmt.Sprintf("public-access-%s-%s-%s", schemaName, tableName, policyName),
+				Severity:   "high",
+				Category:   "policy",
+				Schema:     schemaName,
+				Table:      tableName,
+				PolicyName: policyName,
+				Message:    fmt.Sprintf("Policy '%s' grants %s access to PUBLIC role (all database users)", policyName, cmd),
+				Suggestion: "Restrict access to specific roles like 'authenticated' or 'anon'",
+			})
+		}
+	}
+
+	// Check 9: Tables with CASCADE delete rules that could expose data
+	rows9, err := s.db.Query(ctx, `
+		SELECT DISTINCT
+			tc.table_schema,
+			tc.table_name,
+			ccu.table_schema as ref_schema,
+			ccu.table_name as ref_table,
+			rc.delete_rule
+		FROM information_schema.table_constraints tc
+		JOIN information_schema.referential_constraints rc
+			ON tc.constraint_name = rc.constraint_name
+		JOIN information_schema.constraint_column_usage ccu
+			ON ccu.constraint_name = tc.constraint_name
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+		AND rc.delete_rule = 'CASCADE'
+		AND tc.table_schema = 'public'
+	`)
+	if err == nil {
+		defer rows9.Close()
+		for rows9.Next() {
+			var schemaName, tableName, refSchema, refTable, deleteRule string
+			rows9.Scan(&schemaName, &tableName, &refSchema, &refTable, &deleteRule)
+			warnings = append(warnings, SecurityWarning{
+				ID:         fmt.Sprintf("cascade-delete-%s-%s-%s-%s", schemaName, tableName, refSchema, refTable),
+				Severity:   "low",
+				Category:   "data-integrity",
+				Schema:     schemaName,
+				Table:      tableName,
+				Message:    fmt.Sprintf("Table '%s.%s' has CASCADE DELETE to '%s.%s' - deleting parent rows will delete child data", schemaName, tableName, refSchema, refTable),
+				Suggestion: "Review if CASCADE DELETE is appropriate; consider RESTRICT or SET NULL for better data protection",
+			})
+		}
+	}
+
+	// Check 10: Tables without user ownership pattern (no user_id/owner_id column)
+	rows10, err := s.db.Query(ctx, `
+		SELECT t.table_schema, t.table_name
+		FROM information_schema.tables t
+		JOIN pg_class c ON c.relname = t.table_name
+		JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+		WHERE t.table_schema = 'public'
+		AND t.table_type = 'BASE TABLE'
+		AND c.relrowsecurity = true
+		AND NOT EXISTS (
+			SELECT 1 FROM information_schema.columns col
+			WHERE col.table_schema = t.table_schema
+			AND col.table_name = t.table_name
+			AND col.column_name ~* '(user_id|owner_id|created_by|author_id)'
+		)
+		AND t.table_name NOT IN ('_migrations', 'schema_migrations')
+	`)
+	if err == nil {
+		defer rows10.Close()
+		for rows10.Next() {
+			var schemaName, tableName string
+			rows10.Scan(&schemaName, &tableName)
+			warnings = append(warnings, SecurityWarning{
+				ID:         fmt.Sprintf("no-owner-column-%s-%s", schemaName, tableName),
+				Severity:   "medium",
+				Category:   "design",
+				Schema:     schemaName,
+				Table:      tableName,
+				Message:    fmt.Sprintf("Table '%s.%s' has RLS but no user_id/owner_id column - row-level ownership may be difficult", schemaName, tableName),
+				Suggestion: "Consider adding a user_id or owner_id column to enable user-based access control",
+			})
+		}
+	}
+
 	// Calculate summary
 	summary := struct {
 		Total    int `json:"total"`

@@ -23,6 +23,18 @@ var (
 	ErrAccountLocked = errors.New("account locked due to too many failed login attempts")
 )
 
+// quoteIdentifier properly quotes a SQL identifier using double quotes
+// This prevents SQL injection when identifier names contain special characters
+func quoteIdentifier(identifier string) string {
+	escaped := strings.ReplaceAll(identifier, `"`, `""`)
+	return `"` + escaped + `"`
+}
+
+// quoteTableName quotes a schema.table reference
+func quoteTableName(schema, table string) string {
+	return quoteIdentifier(schema) + "." + quoteIdentifier(table)
+}
+
 // User represents a user in the system
 type User struct {
 	ID                  string     `json:"id" db:"id"`
@@ -469,17 +481,19 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 		}
 	}
 
-	// Determine which table to use
-	tableName := "auth.users"
+	// Determine which table to use (hardcoded for security)
+	schema := "auth"
+	table := "users"
 	if userType == "dashboard" {
-		tableName = "dashboard.users"
+		schema = "dashboard"
 	}
+	quotedTable := quoteTableName(schema, table)
 
 	query := fmt.Sprintf(`
 		INSERT INTO %s (id, email, password_hash, email_verified, role, user_metadata, app_metadata, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
-	`, tableName)
+	`, quotedTable)
 
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(
@@ -515,11 +529,13 @@ func (r *UserRepository) CreateInTable(ctx context.Context, req CreateUserReques
 
 // UpdateInTable updates a user in the specified table
 func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req UpdateUserRequest, userType string) (*User, error) {
-	// Determine which table to use
-	tableName := "auth.users"
+	// Determine which table to use (hardcoded for security)
+	schema := "auth"
+	table := "users"
 	if userType == "dashboard" {
-		tableName = "dashboard.users"
+		schema = "dashboard"
 	}
+	quotedTable := quoteTableName(schema, table)
 
 	// Build dynamic update query
 	updates := []string{}
@@ -569,7 +585,7 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 		SET %s
 		WHERE id = $1
 		RETURNING id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
-	`, tableName, joinStrings(updates, ", "))
+	`, quotedTable, joinStrings(updates, ", "))
 
 	user := &User{}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
@@ -597,17 +613,19 @@ func (r *UserRepository) UpdateInTable(ctx context.Context, id string, req Updat
 
 // UpdatePasswordInTable updates a user's password in the specified table
 func (r *UserRepository) UpdatePasswordInTable(ctx context.Context, id string, newPasswordHash string, userType string) error {
-	// Determine which table to use
-	tableName := "auth.users"
+	// Determine which table to use (hardcoded for security)
+	schema := "auth"
+	table := "users"
 	if userType == "dashboard" {
-		tableName = "dashboard.users"
+		schema = "dashboard"
 	}
+	quotedTable := quoteTableName(schema, table)
 
 	query := fmt.Sprintf(`
 		UPDATE %s
 		SET password_hash = $2, updated_at = NOW()
 		WHERE id = $1
-	`, tableName)
+	`, quotedTable)
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		result, err := tx.Exec(ctx, query, id, newPasswordHash)
@@ -625,13 +643,15 @@ func (r *UserRepository) UpdatePasswordInTable(ctx context.Context, id string, n
 
 // DeleteFromTable deletes a user from the specified table
 func (r *UserRepository) DeleteFromTable(ctx context.Context, id string, userType string) error {
-	// Determine which table to use
-	tableName := "auth.users"
+	// Determine which table to use (hardcoded for security)
+	schema := "auth"
+	table := "users"
 	if userType == "dashboard" {
-		tableName = "dashboard.users"
+		schema = "dashboard"
 	}
+	quotedTable := quoteTableName(schema, table)
 
-	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, tableName)
+	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, quotedTable)
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
 		result, err := tx.Exec(ctx, query, id)
@@ -649,17 +669,19 @@ func (r *UserRepository) DeleteFromTable(ctx context.Context, id string, userTyp
 
 // GetByIDFromTable retrieves a user by ID from the specified table
 func (r *UserRepository) GetByIDFromTable(ctx context.Context, id string, userType string) (*User, error) {
-	// Determine which table to use
-	tableName := "auth.users"
+	// Determine which table to use (hardcoded for security)
+	schema := "auth"
+	table := "users"
 	if userType == "dashboard" {
-		tableName = "dashboard.users"
+		schema = "dashboard"
 	}
+	quotedTable := quoteTableName(schema, table)
 
 	query := fmt.Sprintf(`
 		SELECT id, email, email_verified, role, user_metadata, app_metadata, created_at, updated_at
 		FROM %s
 		WHERE id = $1
-	`, tableName)
+	`, quotedTable)
 
 	user := &User{}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
