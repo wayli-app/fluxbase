@@ -18,8 +18,8 @@ type Policy struct {
 	PolicyName string   `json:"policy_name"`
 	Permissive string   `json:"permissive"` // "PERMISSIVE" or "RESTRICTIVE"
 	Roles      []string `json:"roles"`
-	Command    string   `json:"command"` // ALL, SELECT, INSERT, UPDATE, DELETE
-	Using      *string  `json:"using"`   // USING expression
+	Command    string   `json:"command"`    // ALL, SELECT, INSERT, UPDATE, DELETE
+	Using      *string  `json:"using"`      // USING expression
 	WithCheck  *string  `json:"with_check"` // WITH CHECK expression
 }
 
@@ -36,15 +36,15 @@ type TableRLSStatus struct {
 
 // SecurityWarning represents a security issue detected
 type SecurityWarning struct {
-	ID          string `json:"id"`
-	Severity    string `json:"severity"` // critical, high, medium, low
-	Category    string `json:"category"`
-	Schema      string `json:"schema"`
-	Table       string `json:"table"`
-	PolicyName  string `json:"policy_name,omitempty"`
-	Message     string `json:"message"`
-	Suggestion  string `json:"suggestion"`
-	FixSQL      string `json:"fix_sql,omitempty"`
+	ID         string `json:"id"`
+	Severity   string `json:"severity"` // critical, high, medium, low
+	Category   string `json:"category"`
+	Schema     string `json:"schema"`
+	Table      string `json:"table"`
+	PolicyName string `json:"policy_name,omitempty"`
+	Message    string `json:"message"`
+	Suggestion string `json:"suggestion"`
+	FixSQL     string `json:"fix_sql,omitempty"`
 }
 
 // CreatePolicyRequest is the request body for creating a policy

@@ -9,16 +9,16 @@ import (
 
 // SchemaRelationship represents a foreign key relationship for ERD visualization
 type SchemaRelationship struct {
-	ID               string `json:"id"`
-	SourceSchema     string `json:"source_schema"`
-	SourceTable      string `json:"source_table"`
-	SourceColumn     string `json:"source_column"`
-	TargetSchema     string `json:"target_schema"`
-	TargetTable      string `json:"target_table"`
-	TargetColumn     string `json:"target_column"`
-	ConstraintName   string `json:"constraint_name"`
-	OnDelete         string `json:"on_delete"`
-	OnUpdate         string `json:"on_update"`
+	ID             string `json:"id"`
+	SourceSchema   string `json:"source_schema"`
+	SourceTable    string `json:"source_table"`
+	SourceColumn   string `json:"source_column"`
+	TargetSchema   string `json:"target_schema"`
+	TargetTable    string `json:"target_table"`
+	TargetColumn   string `json:"target_column"`
+	ConstraintName string `json:"constraint_name"`
+	OnDelete       string `json:"on_delete"`
+	OnUpdate       string `json:"on_update"`
 	// Cardinality info: "one-to-one", "one-to-many", "many-to-one"
 	Cardinality string `json:"cardinality"`
 }
