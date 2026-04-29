@@ -43,8 +43,9 @@ func (h *UserManagementHandler) ListUsers(c fiber.Ctx) error {
 	tenantID := middleware.GetTenantID(c)
 	tenantSource, _ := c.Locals("tenant_source").(string)
 	isInstanceAdmin, _ := c.Locals("is_instance_admin").(bool)
+	isDefaultTenant, _ := c.Locals("is_default_tenant").(bool)
 
-	if isInstanceAdmin && tenantSource == "default" {
+	if isInstanceAdmin && (tenantSource == "default" || isDefaultTenant) {
 		tenantID = ""
 	}
 
