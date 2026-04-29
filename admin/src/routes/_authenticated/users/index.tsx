@@ -2,12 +2,11 @@ import { useState } from "react";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Users, UserPlus, UserCheck, Clock, Shield } from "lucide-react";
+import { Users, UserPlus, UserCheck, Clock } from "lucide-react";
 import { userManagementApi } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersDialogs } from "@/features/users/components/users-dialogs";
 import { UsersInviteDialog } from "@/features/users/components/users-invite-dialog";
 import { UsersProvider } from "@/features/users/components/users-provider";
@@ -19,7 +18,6 @@ const usersSearchSchema = z.object({
   email: z.string().optional(),
   provider: z.array(z.string()).optional(),
   role: z.array(z.string()).optional(),
-  tab: z.enum(["app", "dashboard"]).optional(),
 });
 
 export const Route = createFileRoute("/_authenticated/users/")({
@@ -28,23 +26,16 @@ export const Route = createFileRoute("/_authenticated/users/")({
 });
 
 function UsersPage() {
-  const navigate = Route.useNavigate();
-  const search = Route.useSearch();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const activeTab = search.tab || "app";
   const { currentTenant } = useTenantStore();
 
-  // Fetch users from API based on active tab
-  // Include tenant ID in query key to trigger refetch when tenant changes
   const { data: usersResponse, isLoading } = useQuery({
-    queryKey: ["users", activeTab, currentTenant?.id],
-    queryFn: () => userManagementApi.listUsers(activeTab),
+    queryKey: ["users", "app", currentTenant?.id],
+    queryFn: () => userManagementApi.listUsers("app"),
   });
 
-  // Extract users array from response (backend returns {users: [], total: number})
   const rawUsers = usersResponse?.users || [];
 
-  // Convert API response to match frontend schema (date strings to Date objects)
   const users = rawUsers.map((user) => ({
     ...user,
     last_sign_in: user.last_sign_in ? new Date(user.last_sign_in) : null,
@@ -52,7 +43,6 @@ function UsersPage() {
     updated_at: new Date(user.updated_at),
   }));
 
-  // Calculate stats
   const totalUsers = users.length;
   const verifiedUsers = users.filter((u) => u.email_verified).length;
   const activeToday = users.filter((u) => {
@@ -78,7 +68,7 @@ function UsersPage() {
   }
 
   return (
-    <UsersProvider userType={activeTab}>
+    <UsersProvider userType="app">
       <div className="flex h-full flex-col">
         {/* Header */}
         <div className="bg-background flex items-center justify-between border-b px-6 py-4">
@@ -89,9 +79,7 @@ function UsersPage() {
             <div>
               <h1 className="text-xl font-semibold">Users</h1>
               <p className="text-muted-foreground text-sm">
-                {activeTab === "app"
-                  ? "Manage application users who access your app through the REST API"
-                  : "Manage Fluxbase dashboard administrators and operators"}
+                Manage application users
               </p>
             </div>
           </div>
@@ -101,99 +89,75 @@ function UsersPage() {
           </Button>
         </div>
 
-        {/* Tabs for User Types */}
         <div className="flex-1 overflow-auto p-6">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => {
-              navigate({
-                search: { ...search, tab: value as "app" | "dashboard" },
-              });
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="app" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Application Users
-              </TabsTrigger>
-              <TabsTrigger
-                value="dashboard"
-                className="flex items-center gap-2"
-              >
-                <Shield className="h-4 w-4" />
-                Fluxbase Users
-              </TabsTrigger>
-            </TabsList>
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Total Users
+                  </CardTitle>
+                  <Users className="text-muted-foreground h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalUsers}</div>
+                  <p className="text-muted-foreground text-xs">
+                    {verifiedUsers} verified
+                  </p>
+                </CardContent>
+              </Card>
 
-            <TabsContent value={activeTab} className="mt-6 space-y-4">
-              {/* Stats Cards */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Total Users
-                    </CardTitle>
-                    <Users className="text-muted-foreground h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{totalUsers}</div>
-                    <p className="text-muted-foreground text-xs">
-                      {verifiedUsers} verified
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Active Today
+                  </CardTitle>
+                  <Clock className="text-muted-foreground h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activeToday}</div>
+                  <p className="text-muted-foreground text-xs">
+                    Users signed in today
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Active Today
-                    </CardTitle>
-                    <Clock className="text-muted-foreground h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{activeToday}</div>
-                    <p className="text-muted-foreground text-xs">
-                      Users signed in today
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Pending Invites
+                  </CardTitle>
+                  <UserPlus className="text-muted-foreground h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{pendingInvites}</div>
+                  <p className="text-muted-foreground text-xs">
+                    Awaiting first sign in
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Pending Invites
-                    </CardTitle>
-                    <UserPlus className="text-muted-foreground h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{pendingInvites}</div>
-                    <p className="text-muted-foreground text-xs">
-                      Awaiting first sign in
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Verified Users
+                  </CardTitle>
+                  <UserCheck className="text-muted-foreground h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{verifiedUsers}</div>
+                  <p className="text-muted-foreground text-xs">
+                    {Math.round((verifiedUsers / totalUsers) * 100) || 0}% of
+                    total
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Verified Users
-                    </CardTitle>
-                    <UserCheck className="text-muted-foreground h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{verifiedUsers}</div>
-                    <p className="text-muted-foreground text-xs">
-                      {Math.round((verifiedUsers / totalUsers) * 100) || 0}% of
-                      total
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Users Table */}
-              <UsersTable data={users} />
-            </TabsContent>
-          </Tabs>
+            {/* Users Table */}
+            <UsersTable data={users} />
+          </div>
         </div>
 
         {/* Invite Dialog */}
