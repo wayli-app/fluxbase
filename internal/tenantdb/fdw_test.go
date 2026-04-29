@@ -1,8 +1,10 @@
 package tenantdb
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,4 +132,54 @@ func TestTeardownFDW_NilPool(t *testing.T) {
 	err := TeardownFDW(nil, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant pool is nil")
+}
+
+func TestIsFDWConnectionError(t *testing.T) {
+	t.Run("detects SQLSTATE 08001", func(t *testing.T) {
+		err := &pgconn.PgError{Code: "08001", Message: "could not connect to server"}
+		assert.True(t, isFDWConnectionError(err))
+	})
+
+	t.Run("detects wrapped SQLSTATE 08001", func(t *testing.T) {
+		pgErr := &pgconn.PgError{Code: "08001", Message: "could not connect to server"}
+		wrapped := fmt.Errorf("import failed: %w", pgErr)
+		assert.True(t, isFDWConnectionError(wrapped))
+	})
+
+	t.Run("non-connection error code", func(t *testing.T) {
+		err := &pgconn.PgError{Code: "42P01", Message: "relation not found"}
+		assert.False(t, isFDWConnectionError(err))
+	})
+
+	t.Run("non-PgError", func(t *testing.T) {
+		err := fmt.Errorf("some other error")
+		assert.False(t, isFDWConnectionError(err))
+	})
+}
+
+func TestFilterSlice(t *testing.T) {
+	t.Run("filters excluded elements", func(t *testing.T) {
+		all := []string{"a", "b", "c", "d"}
+		exclude := []string{"b", "d"}
+		result := filterSlice(all, exclude)
+		assert.Equal(t, []string{"a", "c"}, result)
+	})
+
+	t.Run("no exclusions", func(t *testing.T) {
+		all := []string{"a", "b", "c"}
+		result := filterSlice(all, nil)
+		assert.Equal(t, []string{"a", "b", "c"}, result)
+	})
+
+	t.Run("exclude all", func(t *testing.T) {
+		all := []string{"a", "b"}
+		exclude := []string{"a", "b"}
+		result := filterSlice(all, exclude)
+		assert.Empty(t, result)
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		result := filterSlice(nil, []string{"a"})
+		assert.Empty(t, result)
+	})
 }
