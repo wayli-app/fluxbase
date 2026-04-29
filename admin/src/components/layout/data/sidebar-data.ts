@@ -191,6 +191,7 @@ export const sidebarData: SidebarDataWithVisibility = {
           url: "/users",
           icon: Users,
           visibility: "all",
+          requiresTenant: false,
         },
         {
           title: "Authentication",
