@@ -272,15 +272,27 @@ func setupFDWAllSchemas(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWCo
 		return fmt.Errorf("failed to create postgres_fdw extension: %w", err)
 	}
 
-	// 2. Create foreign server pointing at main database
+	// 2. Create or update foreign server pointing at main database.
+	// Tenant databases always live on the same PostgreSQL instance as the
+	// main database, so the FDW connection is a loopback. Use "localhost"
+	// instead of the external hostname (which may be a Docker service name
+	// that doesn't resolve from within the PostgreSQL process).
+	fdwHost := "localhost"
 	_, err = tenantPool.Exec(ctx, fmt.Sprintf(
 		`CREATE SERVER IF NOT EXISTS %s FOREIGN DATA WRAPPER postgres_fdw
 		  OPTIONS (host '%s', port '%s', dbname '%s')`,
-		quoteIdent(fdwServerName), cfg.Host, cfg.Port, cfg.DBName,
+		quoteIdent(fdwServerName), fdwHost, cfg.Port, cfg.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to create foreign server: %w", err)
 	}
+
+	// Ensure options are current (CREATE SERVER IF NOT EXISTS skips if server
+	// already exists, leaving stale options from previous runs).
+	_, _ = tenantPool.Exec(ctx, fmt.Sprintf(
+		`ALTER SERVER %s OPTIONS (SET host '%s', SET port '%s', SET dbname '%s')`,
+		quoteIdent(fdwServerName), fdwHost, cfg.Port, cfg.DBName,
+	))
 
 	// 3. Create user mapping using admin credentials
 	// This will be replaced by the per-tenant role mapping in CreateTenantDatabase
@@ -497,8 +509,8 @@ func setupFDWLegacy(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWConfig
 	// 1. Create foreign server
 	_, err := tenantPool.Exec(ctx, fmt.Sprintf(
 		`CREATE SERVER IF NOT EXISTS %s FOREIGN DATA WRAPPER postgres_fdw
-		  OPTIONS (host '%s', port '%s', dbname '%s')`,
-		quoteIdent(fdwServerName), cfg.Host, cfg.Port, cfg.DBName,
+		  OPTIONS (host 'localhost', port '%s', dbname '%s')`,
+		quoteIdent(fdwServerName), cfg.Port, cfg.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to create foreign server: %w", err)
