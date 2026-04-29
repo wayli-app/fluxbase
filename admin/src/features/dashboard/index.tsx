@@ -2,7 +2,6 @@ import { LayoutDashboard } from 'lucide-react'
 import { Main } from '@/components/layout/main'
 import { HealthIndicators } from './components/health-indicators'
 import { MetricsCards } from './components/metrics-cards'
-import { ActivityFeed } from './components/activity-feed'
 import { FluxbaseStats } from './components/fluxbase-stats'
 import { SecuritySummary } from './components/security-summary'
 
@@ -35,9 +34,6 @@ export function Dashboard() {
 
         {/* Security Summary */}
         <SecuritySummary />
-
-        {/* Activity Feed - moved to bottom */}
-        <ActivityFeed />
       </div>
     </Main>
   )
