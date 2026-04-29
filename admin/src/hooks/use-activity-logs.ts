@@ -138,8 +138,8 @@ export function useActivityLogs({
         hide_static_assets: true,
       });
 
-      // Filter to only show relevant activity categories
-      setLogs(data.entries.filter(isActivityLog));
+      const filtered = (data.entries ?? []).filter(isActivityLog);
+      setLogs(filtered);
     } catch (err) {
       setError(err as Error);
     } finally {
