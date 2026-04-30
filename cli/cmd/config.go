@@ -174,6 +174,16 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		cfg.Defaults.NoHeaders = value == "true" || value == "1"
 	case "defaults.quiet":
 		cfg.Defaults.Quiet = value == "true" || value == "1"
+	case "default_tenant":
+		profileName := cfg.CurrentProfile
+		if profileName == "" {
+			return fmt.Errorf("no current profile set")
+		}
+		profile, err := cfg.GetProfile(profileName)
+		if err != nil {
+			return err
+		}
+		profile.DefaultTenant = value
 	case "current_profile":
 		if _, err := cfg.GetProfile(value); err != nil {
 			return err
@@ -215,6 +225,16 @@ func runConfigGet(cmd *cobra.Command, args []string) error {
 		value = fmt.Sprintf("%v", cfg.Defaults.NoHeaders)
 	case "defaults.quiet":
 		value = fmt.Sprintf("%v", cfg.Defaults.Quiet)
+	case "default_tenant":
+		profileName := cfg.CurrentProfile
+		if profileName == "" {
+			return fmt.Errorf("no current profile set")
+		}
+		profile, err := cfg.GetProfile(profileName)
+		if err != nil {
+			return err
+		}
+		value = profile.DefaultTenant
 	default:
 		return fmt.Errorf("unknown configuration key: %s", key)
 	}

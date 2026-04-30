@@ -130,6 +130,11 @@ func (c *Client) RequestWithQuery(ctx context.Context, method, path string, body
 		req.Header.Set("X-Fluxbase-Branch", c.Profile.DefaultBranch)
 	}
 
+	// Add tenant header if configured (for multi-tenancy)
+	if c.Profile != nil && c.Profile.DefaultTenant != "" {
+		req.Header.Set("X-FB-Tenant", c.Profile.DefaultTenant)
+	}
+
 	// Add authentication
 	if err := c.addAuth(req); err != nil {
 		return nil, err

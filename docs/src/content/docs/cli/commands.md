@@ -23,6 +23,7 @@ These flags work with all commands:
 | `--no-headers` |       | Hide table headers                                    |
 | `--quiet`      | `-q`  | Minimal output                                        |
 | `--debug`      |       | Enable debug output                                   |
+| `--tenant`     | `-t`  | Tenant slug (overrides profile default)               |
 
 ---
 

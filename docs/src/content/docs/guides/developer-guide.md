@@ -12,16 +12,15 @@ graph TD
     REQ["① HTTP Request"] --> ROUTER["② Fiber Router<br/>api/server.go"]
     ROUTER --> CORS["③ CORS Middleware"]
     CORS --> RATE["③ Rate Limiter"]
-    RATE --> AUTH["④ Auth Middleware<br/>JWT validation, role extraction"]
-    AUTH --> TENANT["⑤ Tenant Middleware<br/>Resolve tenant context"]
-    TENANT --> TENANTDB["⑥ Tenant DB Middleware<br/>Resolve database pool"]
-    TENANTDB --> BRANCH["⑥ Branch Middleware<br/>Resolve branch context"]
-    BRANCH --> HANDLER["⑦ Handler<br/>internal/api/*.go"]
-    HANDLER --> SERVICE["⑧ Service Layer<br/>internal/{module}/service.go"]
-    SERVICE --> DB["⑨ PostgreSQL<br/>pgx/v5 pool"]
+    RATE --> TENANT["④ Tenant Middleware<br/>Resolve tenant context"]
+    TENANT --> TENANTDB["④ Tenant DB Middleware<br/>Resolve database pool"]
+    TENANTDB --> AUTH["⑤ Auth Middleware<br/>JWT validation, role extraction"]
+    AUTH --> HANDLER["⑥ Handler<br/>internal/api/*.go"]
+    HANDLER --> SERVICE["⑦ Service Layer<br/>internal/{module}/service.go"]
+    SERVICE --> DB["⑧ PostgreSQL<br/>pgx/v5 pool"]
     DB --> SERVICE
     SERVICE --> HANDLER
-    HANDLER --> RESP["⑩ JSON Response"]
+    HANDLER --> RESP["⑨ JSON Response"]
 
     style REQ fill:#e1f5fe
     style RESP fill:#e8f5e9
@@ -36,26 +35,34 @@ Open [`cmd/fluxbase/main.go`](https://github.com/nimbleflux/fluxbase/blob/main/c
 
 ### ② Routing — Where requests land
 
-Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go) and find `SetupRoutes()`. This is where all route groups are defined — admin routes, auth routes, storage routes, table CRUD routes, and which middleware each group uses. You'll see the full URL surface of Fluxbase here.
+Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server.go) for the server setup. The actual route registration happens in two stages:
 
-### ③ ④ Middleware — The gates every request passes through
+1. [`internal/api/server_init.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_init.go) — `setupRoutes()` calls `registerRoutesViaRegistry()` which delegates to `routes.RegisterAllRoutes()`
+2. [`internal/api/routes/registry.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/registry.go) — The centralized route registry. Every route is registered with explicit auth requirements (`AuthRequirement`), and middleware is auto-injected based on those declarations. The registry also validates consistency (e.g., no route with `Auth: AuthNone` and `Public: false`)
 
-The middleware chain runs before any handler sees the request. Open these files in order:
+### ③ Middleware — CORS and rate limiting
+
+The global middleware chain runs before any route-specific middleware:
 
 1. [`internal/middleware/cors.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/cors.go) — CORS header handling
 2. [`internal/middleware/ratelimit.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/ratelimit.go) — Rate limiting per route
-3. [`internal/middleware/auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/auth.go) — JWT validation, role extraction, `RequireAuth` / `RequireServiceKey`. This is where the `Authorization` header is parsed and claims land in fiber locals
-4. [`internal/auth/jwt.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/auth/jwt.go) — How tokens are created, what claims they carry (`TokenClaims` struct), and how roles map to PostgreSQL roles
 
-### ⑤ ⑥ Tenant & Branch Context — Which database to talk to
+### ④ Tenant & Branch Context — Which database to talk to
 
-This is where multi-tenancy kicks in. Open these in order:
+Tenant middleware runs before auth so that tenant context is available for authentication (e.g., per-tenant JWT secrets). Open these in order:
 
 1. [`internal/middleware/tenant.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/tenant.go) — Tenant resolution: `X-FB-Tenant` header → JWT claims → default tenant. Sets `tenant_id`, `tenant_slug`, and the merged `tenant_config` in fiber locals
 2. [`internal/middleware/tenant_db.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/tenant_db.go) — Database pool resolution. `GetPoolForSchema()` implements the branch > tenant > main priority chain
 3. [`internal/middleware/branch.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/branch.go) — Branch context from `X-Fluxbase-Branch` header
 
-### ⑦ ⑧ ⑨ Handler → Service → Database — The actual work
+### ⑤ Auth Middleware — Who is making the request
+
+With tenant context established, authentication validates the user:
+
+1. [`internal/middleware/auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/auth.go) — JWT validation, role extraction, `RequireAuth` / `RequireServiceKey`. This is where the `Authorization` header is parsed and claims land in fiber locals
+2. [`internal/auth/jwt.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/auth/jwt.go) — How tokens are created, what claims they carry (`TokenClaims` struct), and how roles map to PostgreSQL roles
+
+### ⑥ ⑦ ⑧ Handler → Service → Database — The actual work
 
 This is the three-layer architecture every feature follows. Trace it with the REST CRUD (the most-used feature):
 
@@ -78,11 +85,13 @@ For the full multi-tenancy architecture (database-per-tenant, FDW, connection ro
 
 ### Database schemas — The foundation
 
-The SQL files in [`internal/database/schema/schemas/`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/) define every internal table. Start with:
+Internal schemas are managed **declaratively** — the SQL files show the current state, not a migration history. When the server starts, [`internal/migrations/declarative.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/migrations/declarative.go) diffs the current database state against the desired schema files using `pgschema` and applies only the changes needed. This means you can read any schema file and see exactly what the tables, RLS policies, and grants look like right now — no git archaeology required. This is especially valuable for security reviews.
+
+The SQL files live in [`internal/database/schema/schemas/`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/). Start with:
 
 - [`platform.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/platform.sql) — Tenants, service keys, users, memberships, settings
 - [`auth.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/auth.sql) — Users, sessions, identities, OTP codes, client keys
-- [`bootstrap.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/bootstrap/bootstrap.sql) — The SQL that runs on every startup (schemas, extensions, roles, privileges)
+- [`bootstrap.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/bootstrap.sql) — The SQL that runs on every startup (schemas, extensions, roles, privileges)
 
 ### Tracing a complete feature — Edge Functions
 
