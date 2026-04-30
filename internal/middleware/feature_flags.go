@@ -20,9 +20,8 @@ func RequireFeatureEnabled(settingsCache *auth.SettingsCache, featureKey string)
 			})
 		}
 
-		// Check if feature is enabled (checks env vars first, then cache, then database)
 		ctx := c.RequestCtx()
-		isEnabled := settingsCache.GetBool(ctx, featureKey, false)
+		isEnabled := settingsCache.GetBool(ctx, featureKey, true)
 
 		if !isEnabled {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{

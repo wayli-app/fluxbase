@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -552,4 +554,127 @@ func BenchmarkSettingsCache_CacheWrite(b *testing.B) {
 		}
 		cache.mu.Unlock()
 	}
+}
+
+// =============================================================================
+// Viper Config Fallback Tests
+// =============================================================================
+
+func TestSettingsCache_GetBool_ViperFallback(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+	ctx := context.Background()
+
+	originalEnv := os.Getenv("FLUXBASE_FUNCTIONS_ENABLED")
+	os.Unsetenv("FLUXBASE_FUNCTIONS_ENABLED")
+	defer func() {
+		if originalEnv != "" {
+			_ = os.Setenv("FLUXBASE_FUNCTIONS_ENABLED", originalEnv)
+		}
+	}()
+
+	t.Run("returns viper default when no env var and no database", func(t *testing.T) {
+		viper.Set("functions.enabled", true)
+		defer viper.Reset()
+
+		result := cache.GetBool(ctx, "app.functions.enabled", false)
+		assert.True(t, result, "should fall back to viper default (true)")
+	})
+
+	t.Run("returns viper default false for disabled features", func(t *testing.T) {
+		viper.Set("functions.enabled", false)
+		defer viper.Reset()
+
+		result := cache.GetBool(ctx, "app.functions.enabled", true)
+		assert.False(t, result, "should fall back to viper value (false)")
+	})
+
+	t.Run("returns hardcoded default when viper key not set", func(t *testing.T) {
+		defer viper.Reset()
+
+		result := cache.GetBool(ctx, "app.nonexistent.feature", true)
+		assert.True(t, result, "should return hardcoded default when viper has no key")
+	})
+
+	t.Run("env var overrides viper", func(t *testing.T) {
+		viper.Set("functions.enabled", true)
+		defer viper.Reset()
+
+		_ = os.Setenv("FLUXBASE_FUNCTIONS_ENABLED", "false")
+		defer os.Unsetenv("FLUXBASE_FUNCTIONS_ENABLED")
+
+		result := cache.GetBool(ctx, "app.functions.enabled", true)
+		assert.False(t, result, "env var should take precedence over viper")
+	})
+
+	t.Run("cache overrides viper", func(t *testing.T) {
+		viper.Set("functions.enabled", true)
+		defer viper.Reset()
+
+		cache.mu.Lock()
+		cache.cache["app.functions.enabled"] = cacheEntry{
+			value:      false,
+			expiration: time.Now().Add(time.Minute),
+		}
+		cache.mu.Unlock()
+		defer cache.Invalidate("app.functions.enabled")
+
+		result := cache.GetBool(ctx, "app.functions.enabled", true)
+		assert.False(t, result, "cached value should take precedence over viper")
+	})
+}
+
+func TestSettingsCache_GetInt_ViperFallback(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+	ctx := context.Background()
+
+	originalEnv := os.Getenv("FLUXBASE_AUTH_PASSWORD_MIN_LENGTH")
+	os.Unsetenv("FLUXBASE_AUTH_PASSWORD_MIN_LENGTH")
+	defer func() {
+		if originalEnv != "" {
+			_ = os.Setenv("FLUXBASE_AUTH_PASSWORD_MIN_LENGTH", originalEnv)
+		}
+	}()
+
+	t.Run("returns viper default when no env var and no database", func(t *testing.T) {
+		viper.Set("auth.password_min_length", 12)
+		defer viper.Reset()
+
+		result := cache.GetInt(ctx, "app.auth.password_min_length", 0)
+		assert.Equal(t, 12, result, "should fall back to viper default")
+	})
+
+	t.Run("returns hardcoded default when viper key not set", func(t *testing.T) {
+		defer viper.Reset()
+
+		result := cache.GetInt(ctx, "app.nonexistent.setting", 42)
+		assert.Equal(t, 42, result, "should return hardcoded default when viper has no key")
+	})
+}
+
+func TestSettingsCache_GetString_ViperFallback(t *testing.T) {
+	cache := NewSettingsCache(nil, time.Minute)
+	ctx := context.Background()
+
+	originalEnv := os.Getenv("FLUXBASE_EMAIL_PROVIDER")
+	os.Unsetenv("FLUXBASE_EMAIL_PROVIDER")
+	defer func() {
+		if originalEnv != "" {
+			_ = os.Setenv("FLUXBASE_EMAIL_PROVIDER", originalEnv)
+		}
+	}()
+
+	t.Run("returns viper default when no env var and no database", func(t *testing.T) {
+		viper.Set("email.provider", "smtp")
+		defer viper.Reset()
+
+		result := cache.GetString(ctx, "app.email.provider", "")
+		assert.Equal(t, "smtp", result, "should fall back to viper default")
+	})
+
+	t.Run("returns hardcoded default when viper key not set", func(t *testing.T) {
+		defer viper.Reset()
+
+		result := cache.GetString(ctx, "app.nonexistent.setting", "fallback")
+		assert.Equal(t, "fallback", result, "should return hardcoded default when viper has no key")
+	})
 }
