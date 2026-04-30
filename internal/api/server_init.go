@@ -333,6 +333,7 @@ func (s *Server) initTenancy() {
 				log.Info().Msg("FDW enabled for tenant databases")
 
 				go func() {
+					time.Sleep(5 * time.Second)
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 					defer cancel()
 					tenantManager.UpgradeAllTenantsFDW(ctx)

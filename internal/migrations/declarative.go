@@ -690,6 +690,17 @@ func (s *DeclarativeService) applyPlanDirectly(ctx context.Context, schema strin
 			}
 		}
 
+		// Skip ALTER TABLE ... DROP CONSTRAINT on partition tables.
+		// Partition tables inherit constraints from their parent and PostgreSQL
+		// rejects direct drops with "cannot drop inherited constraint" (SQLSTATE 42P16).
+		if strings.HasPrefix(sqlUpper, "ALTER TABLE") && strings.Contains(sqlUpper, "DROP CONSTRAINT") {
+			constraintTable := extractAlterTableName(change.SQL)
+			if partitions[constraintTable] {
+				log.Debug().Str("schema", schema).Str("table", constraintTable).Msg("Skipping DROP CONSTRAINT on partition table (inherited from parent)")
+				continue
+			}
+		}
+
 		// Substitute {{APP_USER}} placeholder with the runtime user
 		sql, subErr := bootstrap.SubstituteAppUser(change.SQL, s.appUser)
 		if subErr != nil {

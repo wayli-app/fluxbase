@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -51,6 +54,20 @@ var fdwExcludeTables = map[string][]string{
 		"webhook_monitored_tables", "saml_assertion_ids",
 		"nonces", "oauth_states",
 	},
+}
+
+// fdwImportRetryDelays defines the backoff delays for retrying transient FDW
+// connection errors (SQLSTATE 08001) during schema import.
+var fdwImportRetryDelays = []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second}
+
+// isFDWConnectionError returns true if the error is a transient FDW connection
+// failure (SQLSTATE 08001 — sqlclient_unable_to_establish_sqlconnection).
+func isFDWConnectionError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "08001"
+	}
+	return false
 }
 
 // ParseFDWConfig extracts FDW connection details from a database URL.
@@ -255,15 +272,27 @@ func setupFDWAllSchemas(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWCo
 		return fmt.Errorf("failed to create postgres_fdw extension: %w", err)
 	}
 
-	// 2. Create foreign server pointing at main database
+	// 2. Create or update foreign server pointing at main database.
+	// Tenant databases always live on the same PostgreSQL instance as the
+	// main database, so the FDW connection is a loopback. Use "localhost"
+	// instead of the external hostname (which may be a Docker service name
+	// that doesn't resolve from within the PostgreSQL process).
+	fdwHost := "localhost"
 	_, err = tenantPool.Exec(ctx, fmt.Sprintf(
 		`CREATE SERVER IF NOT EXISTS %s FOREIGN DATA WRAPPER postgres_fdw
 		  OPTIONS (host '%s', port '%s', dbname '%s')`,
-		quoteIdent(fdwServerName), cfg.Host, cfg.Port, cfg.DBName,
+		quoteIdent(fdwServerName), fdwHost, cfg.Port, cfg.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to create foreign server: %w", err)
 	}
+
+	// Ensure options are current (CREATE SERVER IF NOT EXISTS skips if server
+	// already exists, leaving stale options from previous runs).
+	_, _ = tenantPool.Exec(ctx, fmt.Sprintf(
+		`ALTER SERVER %s OPTIONS (SET host '%s', SET port '%s', SET dbname '%s')`,
+		quoteIdent(fdwServerName), fdwHost, cfg.Port, cfg.DBName,
+	))
 
 	// 3. Create user mapping using admin credentials
 	// This will be replaced by the per-tenant role mapping in CreateTenantDatabase
@@ -282,26 +311,40 @@ func setupFDWAllSchemas(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWCo
 	}
 
 	// 4. Import tables from each FDW schema
+	var failedSchemas []string
 	for _, schema := range fdwSchemas {
 		if err := importSchemaFDW(ctx, tenantPool, schema); err != nil {
 			log.Warn().Err(err).Str("schema", schema).Msg("Failed to import schema via FDW")
-			// Continue with other schemas — not all schemas may have tables
+			failedSchemas = append(failedSchemas, schema)
 		}
 	}
 
-	log.Info().
-		Strs("schemas", fdwSchemas).
-		Str("main_db", cfg.DBName).
-		Msg("Set up FDW for tenant database (all schemas)")
+	if len(failedSchemas) == 0 {
+		log.Info().
+			Strs("schemas", fdwSchemas).
+			Str("main_db", cfg.DBName).
+			Msg("Set up FDW for tenant database (all schemas)")
+	} else {
+		log.Warn().
+			Strs("succeeded", filterSlice(fdwSchemas, failedSchemas)).
+			Strs("failed", failedSchemas).
+			Str("main_db", cfg.DBName).
+			Msg("Set up FDW for tenant database with partial failures")
+	}
 
 	return nil
 }
 
-// importSchemaFDW drops local tables and imports foreign tables for a single schema.
+// importSchemaFDW drops local and foreign tables and imports foreign tables
+// for a single schema. Transient FDW connection errors are retried with backoff.
 func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema string) error {
 	excluded := fdwExcludeTables[schema]
 
-	// Get list of local tables in this schema to drop
+	excludeSet := make(map[string]bool, len(excluded))
+	for _, ex := range excluded {
+		excludeSet[ex] = true
+	}
+
 	rows, err := tenantPool.Query(ctx, `
 		SELECT tablename FROM pg_tables WHERE schemaname = $1
 	`, schema)
@@ -309,29 +352,20 @@ func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema strin
 		return fmt.Errorf("failed to list tables in schema %s: %w", schema, err)
 	}
 
-	var localTables []string
+	var tablesToDrop []string
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
 			rows.Close()
 			return fmt.Errorf("failed to scan table name: %w", err)
 		}
-		// Skip excluded tables
-		skip := false
-		for _, ex := range excluded {
-			if name == ex {
-				skip = true
-				break
-			}
-		}
-		if !skip {
-			localTables = append(localTables, name)
+		if !excludeSet[name] {
+			tablesToDrop = append(tablesToDrop, name)
 		}
 	}
 	rows.Close()
 
-	// Drop local tables that will be replaced by foreign tables
-	for _, table := range localTables {
+	for _, table := range tablesToDrop {
 		_, err := tenantPool.Exec(ctx, fmt.Sprintf(
 			`DROP TABLE IF EXISTS %s.%s CASCADE`,
 			quoteIdent(schema), quoteIdent(table),
@@ -340,17 +374,38 @@ func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema strin
 			log.Warn().Err(err).Str("schema", schema).Str("table", table).
 				Msg("Failed to drop local table before FDW import")
 		}
-		// Also drop existing foreign tables for idempotency
+	}
+
+	foreignRows, err := tenantPool.Query(ctx, `
+		SELECT ft.relname FROM pg_foreign_table f
+		JOIN pg_class ft ON f.ftrelid = ft.oid
+		JOIN pg_namespace n ON ft.relnamespace = n.oid
+		WHERE n.nspname = $1
+	`, schema)
+	if err != nil {
+		return fmt.Errorf("failed to list foreign tables in schema %s: %w", schema, err)
+	}
+
+	var foreignTables []string
+	for foreignRows.Next() {
+		var name string
+		if err := foreignRows.Scan(&name); err != nil {
+			foreignRows.Close()
+			return fmt.Errorf("failed to scan foreign table name: %w", err)
+		}
+		if !excludeSet[name] {
+			foreignTables = append(foreignTables, name)
+		}
+	}
+	foreignRows.Close()
+
+	for _, table := range foreignTables {
 		_, _ = tenantPool.Exec(ctx, fmt.Sprintf(
 			`DROP FOREIGN TABLE IF EXISTS %s.%s CASCADE`,
 			quoteIdent(schema), quoteIdent(table),
 		))
 	}
 
-	// Drop stale foreign tables for excluded names. These may exist from earlier
-	// versions that imported them before they were added to fdwExcludeTables.
-	// Without this, CREATE TABLE IF NOT EXISTS in bootstrap finds the foreign
-	// table and skips, leaving associated sequences uncreated.
 	for _, ex := range excluded {
 		_, _ = tenantPool.Exec(ctx, fmt.Sprintf(
 			`DROP FOREIGN TABLE IF EXISTS %s.%s CASCADE`,
@@ -358,13 +413,11 @@ func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema strin
 		))
 	}
 
-	// Build IMPORT FOREIGN SCHEMA statement
 	importSQL := fmt.Sprintf(
 		`IMPORT FOREIGN SCHEMA %s FROM SERVER %s INTO %s`,
 		quoteIdent(schema), quoteIdent(fdwServerName), quoteIdent(schema),
 	)
 
-	// Add EXCEPT clause for excluded tables
 	if len(excluded) > 0 {
 		excludedList := make([]string, len(excluded))
 		for i, t := range excluded {
@@ -377,14 +430,32 @@ func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema strin
 		)
 	}
 
-	_, err = tenantPool.Exec(ctx, importSQL)
-	if err != nil {
-		return fmt.Errorf("failed to import foreign schema %s: %w", schema, err)
+	var lastErr error
+	attempts := 1 + len(fdwImportRetryDelays)
+	for attempt := range attempts {
+		_, err = tenantPool.Exec(ctx, importSQL)
+		if err == nil {
+			break
+		}
+		lastErr = err
+		if isFDWConnectionError(err) && attempt < len(fdwImportRetryDelays) {
+			delay := fdwImportRetryDelays[attempt]
+			log.Warn().Err(err).Str("schema", schema).
+				Dur("retry_after", delay).Int("attempt", attempt+1).
+				Msg("FDW connection error, retrying schema import")
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			continue
+		}
+		break
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed to import foreign schema %s: %w", schema, lastErr)
 	}
 
-	// Grant permissions on imported foreign tables to tenant_service and service_role.
-	// The IMPORT FOREIGN SCHEMA creates new table objects that don't inherit GRANTs
-	// from the local tables that were dropped during FDW setup.
 	for _, role := range []string{"tenant_service", "service_role"} {
 		_, err = tenantPool.Exec(ctx, fmt.Sprintf(
 			`GRANT ALL ON ALL TABLES IN SCHEMA %s TO %s`,
@@ -396,8 +467,9 @@ func importSchemaFDW(ctx context.Context, tenantPool *pgxpool.Pool, schema strin
 		}
 	}
 
-	if len(localTables) > 0 {
-		log.Debug().Str("schema", schema).Int("tables", len(localTables)).
+	importedCount := len(tablesToDrop) + len(foreignTables)
+	if importedCount > 0 {
+		log.Debug().Str("schema", schema).Int("tables", importedCount).
 			Msg("Imported schema tables via FDW")
 	}
 
@@ -437,8 +509,8 @@ func setupFDWLegacy(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWConfig
 	// 1. Create foreign server
 	_, err := tenantPool.Exec(ctx, fmt.Sprintf(
 		`CREATE SERVER IF NOT EXISTS %s FOREIGN DATA WRAPPER postgres_fdw
-		  OPTIONS (host '%s', port '%s', dbname '%s')`,
-		quoteIdent(fdwServerName), cfg.Host, cfg.Port, cfg.DBName,
+		  OPTIONS (host 'localhost', port '%s', dbname '%s')`,
+		quoteIdent(fdwServerName), cfg.Port, cfg.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to create foreign server: %w", err)
@@ -545,4 +617,19 @@ func quoteIdent(name string) string {
 // escapeSQLString escapes a string for use in SQL single-quoted literals.
 func escapeSQLString(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
+}
+
+// filterSlice returns elements from slice that are not in exclude.
+func filterSlice(slice, exclude []string) []string {
+	excludeSet := make(map[string]bool, len(exclude))
+	for _, s := range exclude {
+		excludeSet[s] = true
+	}
+	var result []string
+	for _, s := range slice {
+		if !excludeSet[s] {
+			result = append(result, s)
+		}
+	}
+	return result
 }
