@@ -2533,14 +2533,15 @@ func (tc *TestContext) EnsureSystemSettings() {
 	require.NoError(tc.T, err, "Database health check failed in EnsureSystemSettings")
 
 	settings := map[string]bool{
-		"app.functions.enabled":   true,
-		"app.storage.enabled":     true,
-		"app.realtime.enabled":    true,
-		"app.ai.enabled":          true,
-		"app.rpc.enabled":         true,
-		"app.jobs.enabled":        true,
-		"app.auth.signup_enabled": true,
-		"app.migrations.enabled":  true,
+		"app.functions.enabled":               true,
+		"app.storage.enabled":                 true,
+		"app.realtime.enabled":                true,
+		"app.ai.enabled":                      true,
+		"app.rpc.enabled":                     true,
+		"app.jobs.enabled":                    true,
+		"app.auth.signup_enabled":             true,
+		"app.migrations.enabled":              true,
+		"app.security.enable_global_rate_limit": false,
 	}
 
 	for key, value := range settings {
