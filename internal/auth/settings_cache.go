@@ -61,25 +61,27 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err == nil {
-		// Extract boolean value from the setting
-		var boolValue bool
-		if val, ok := setting.Value["value"].(bool); ok {
-			boolValue = val
-		} else {
-			boolValue = defaultValue
-		}
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract boolean value from the setting
+			var boolValue bool
+			if val, ok := setting.Value["value"].(bool); ok {
+				boolValue = val
+			} else {
+				boolValue = defaultValue
+			}
 
-		// Store in cache
-		c.mu.Lock()
-		c.cache[key] = cacheEntry{
-			value:      boolValue,
-			expiration: time.Now().Add(c.ttl),
-		}
-		c.mu.Unlock()
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      boolValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
 
-		return boolValue
+			return boolValue
+		}
 	}
 
 	// Database miss - fall back to viper config
@@ -116,28 +118,30 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err == nil {
-		// Extract integer value from the setting
-		var intValue int
-		switch v := setting.Value["value"].(type) {
-		case int:
-			intValue = v
-		case float64:
-			intValue = int(v)
-		default:
-			intValue = defaultValue
-		}
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract integer value from the setting
+			var intValue int
+			switch v := setting.Value["value"].(type) {
+			case int:
+				intValue = v
+			case float64:
+				intValue = int(v)
+			default:
+				intValue = defaultValue
+			}
 
-		// Store in cache
-		c.mu.Lock()
-		c.cache[key] = cacheEntry{
-			value:      intValue,
-			expiration: time.Now().Add(c.ttl),
-		}
-		c.mu.Unlock()
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      intValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
 
-		return intValue
+			return intValue
+		}
 	}
 
 	// Database miss - fall back to viper config
@@ -171,25 +175,27 @@ func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue 
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err == nil {
-		// Extract string value from the setting
-		var strValue string
-		if val, ok := setting.Value["value"].(string); ok {
-			strValue = val
-		} else {
-			strValue = defaultValue
-		}
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract string value from the setting
+			var strValue string
+			if val, ok := setting.Value["value"].(string); ok {
+				strValue = val
+			} else {
+				strValue = defaultValue
+			}
 
-		// Store in cache
-		c.mu.Lock()
-		c.cache[key] = cacheEntry{
-			value:      strValue,
-			expiration: time.Now().Add(c.ttl),
-		}
-		c.mu.Unlock()
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      strValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
 
-		return strValue
+			return strValue
+		}
 	}
 
 	// Database miss - fall back to viper config
