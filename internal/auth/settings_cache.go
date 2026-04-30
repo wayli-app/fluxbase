@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 // SettingsCache provides a simple in-memory cache for settings with TTL
@@ -37,7 +38,7 @@ func NewSettingsCache(service *SystemSettingsService, ttl time.Duration) *Settin
 }
 
 // GetBool retrieves a boolean setting with caching
-// Priority: Environment variables > Cache > Database > Default value
+// Priority: Environment variables > Cache > Database > Viper config > Default value
 func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bool) bool {
 	envKey := c.GetEnvVarName(key)
 
@@ -60,32 +61,42 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err != nil {
-		return defaultValue
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract boolean value from the setting
+			var boolValue bool
+			if val, ok := setting.Value["value"].(bool); ok {
+				boolValue = val
+			} else {
+				boolValue = defaultValue
+			}
+
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      boolValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
+
+			return boolValue
+		}
 	}
 
-	// Extract boolean value from the setting
-	var boolValue bool
-	if val, ok := setting.Value["value"].(bool); ok {
-		boolValue = val
-	} else {
-		boolValue = defaultValue
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetBool(viperKey)
+		}
 	}
 
-	// Store in cache
-	c.mu.Lock()
-	c.cache[key] = cacheEntry{
-		value:      boolValue,
-		expiration: time.Now().Add(c.ttl),
-	}
-	c.mu.Unlock()
-
-	return boolValue
+	return defaultValue
 }
 
 // GetInt retrieves an integer setting with caching
-// Priority: Environment variables > Cache > Database > Default value
+// Priority: Environment variables > Cache > Database > Viper config > Default value
 func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int) int {
 	envKey := c.GetEnvVarName(key)
 
@@ -109,35 +120,45 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err != nil {
-		return defaultValue
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract integer value from the setting
+			var intValue int
+			switch v := setting.Value["value"].(type) {
+			case int:
+				intValue = v
+			case float64:
+				intValue = int(v)
+			default:
+				intValue = defaultValue
+			}
+
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      intValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
+
+			return intValue
+		}
 	}
 
-	// Extract integer value from the setting
-	var intValue int
-	switch v := setting.Value["value"].(type) {
-	case int:
-		intValue = v
-	case float64:
-		intValue = int(v)
-	default:
-		intValue = defaultValue
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetInt(viperKey)
+		}
 	}
 
-	// Store in cache
-	c.mu.Lock()
-	c.cache[key] = cacheEntry{
-		value:      intValue,
-		expiration: time.Now().Add(c.ttl),
-	}
-	c.mu.Unlock()
-
-	return intValue
+	return defaultValue
 }
 
 // GetString retrieves a string setting with caching
-// Priority: Environment variables > Cache > Database > Default value
+// Priority: Environment variables > Cache > Database > Viper config > Default value
 func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue string) string {
 	envKey := c.GetEnvVarName(key)
 
@@ -158,28 +179,38 @@ func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue 
 	c.mu.RUnlock()
 
 	// Cache miss or expired - fetch from database
-	setting, err := c.service.GetSetting(ctx, key)
-	if err != nil {
-		return defaultValue
+	if c.service != nil {
+		setting, err := c.service.GetSetting(ctx, key)
+		if err == nil {
+			// Extract string value from the setting
+			var strValue string
+			if val, ok := setting.Value["value"].(string); ok {
+				strValue = val
+			} else {
+				strValue = defaultValue
+			}
+
+			// Store in cache
+			c.mu.Lock()
+			c.cache[key] = cacheEntry{
+				value:      strValue,
+				expiration: time.Now().Add(c.ttl),
+			}
+			c.mu.Unlock()
+
+			return strValue
+		}
 	}
 
-	// Extract string value from the setting
-	var strValue string
-	if val, ok := setting.Value["value"].(string); ok {
-		strValue = val
-	} else {
-		strValue = defaultValue
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetString(viperKey)
+		}
 	}
 
-	// Store in cache
-	c.mu.Lock()
-	c.cache[key] = cacheEntry{
-		value:      strValue,
-		expiration: time.Now().Add(c.ttl),
-	}
-	c.mu.Unlock()
-
-	return strValue
+	return defaultValue
 }
 
 // GetDuration retrieves a duration setting with caching
@@ -277,6 +308,15 @@ func (c *SettingsCache) GetMany(ctx context.Context, keys []string) (map[string]
 	}
 
 	return result, nil
+}
+
+// isFeatureFlagKey returns true if the key is a feature flag that should
+// fall back to viper config when no database row exists.
+// Only keys matching "app.*.enabled" are considered feature flags.
+// Security, rate-limit, and other operational settings should NOT
+// fall back to viper defaults — they must be explicitly set in the DB.
+func (c *SettingsCache) isFeatureFlagKey(key string) bool {
+	return strings.HasSuffix(key, ".enabled")
 }
 
 // toViperKey converts app.* key format to viper config format
