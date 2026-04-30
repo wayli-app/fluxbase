@@ -84,10 +84,12 @@ func (c *SettingsCache) GetBool(ctx context.Context, key string, defaultValue bo
 		}
 	}
 
-	// Database miss - fall back to viper config
-	viperKey := c.toViperKey(key)
-	if viper.IsSet(viperKey) {
-		return viper.GetBool(viperKey)
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetBool(viperKey)
+		}
 	}
 
 	return defaultValue
@@ -144,10 +146,12 @@ func (c *SettingsCache) GetInt(ctx context.Context, key string, defaultValue int
 		}
 	}
 
-	// Database miss - fall back to viper config
-	viperKey := c.toViperKey(key)
-	if viper.IsSet(viperKey) {
-		return viper.GetInt(viperKey)
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetInt(viperKey)
+		}
 	}
 
 	return defaultValue
@@ -198,10 +202,12 @@ func (c *SettingsCache) GetString(ctx context.Context, key string, defaultValue 
 		}
 	}
 
-	// Database miss - fall back to viper config
-	viperKey := c.toViperKey(key)
-	if viper.IsSet(viperKey) {
-		return viper.GetString(viperKey)
+	// Database miss - fall back to viper config (feature flags only)
+	if c.isFeatureFlagKey(key) {
+		viperKey := c.toViperKey(key)
+		if viper.IsSet(viperKey) {
+			return viper.GetString(viperKey)
+		}
 	}
 
 	return defaultValue
@@ -302,6 +308,15 @@ func (c *SettingsCache) GetMany(ctx context.Context, keys []string) (map[string]
 	}
 
 	return result, nil
+}
+
+// isFeatureFlagKey returns true if the key is a feature flag that should
+// fall back to viper config when no database row exists.
+// Only keys matching "app.*.enabled" are considered feature flags.
+// Security, rate-limit, and other operational settings should NOT
+// fall back to viper defaults — they must be explicitly set in the DB.
+func (c *SettingsCache) isFeatureFlagKey(key string) bool {
+	return strings.HasSuffix(key, ".enabled")
 }
 
 // toViperKey converts app.* key format to viper config format

@@ -640,7 +640,7 @@ func TestSettingsCache_GetInt_ViperFallback(t *testing.T) {
 		defer viper.Reset()
 
 		result := cache.GetInt(ctx, "app.auth.password_min_length", 0)
-		assert.Equal(t, 12, result, "should fall back to viper default")
+		assert.Equal(t, 0, result, "should NOT fall back to viper for non-enabled key")
 	})
 
 	t.Run("returns hardcoded default when viper key not set", func(t *testing.T) {
@@ -668,7 +668,7 @@ func TestSettingsCache_GetString_ViperFallback(t *testing.T) {
 		defer viper.Reset()
 
 		result := cache.GetString(ctx, "app.email.provider", "")
-		assert.Equal(t, "smtp", result, "should fall back to viper default")
+		assert.Equal(t, "", result, "should NOT fall back to viper for non-enabled key")
 	})
 
 	t.Run("returns hardcoded default when viper key not set", func(t *testing.T) {
