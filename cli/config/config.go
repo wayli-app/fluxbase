@@ -52,6 +52,9 @@ type Profile struct {
 
 	// DefaultBranch for database branching (auto-sends X-Fluxbase-Branch header)
 	DefaultBranch string `yaml:"default_branch,omitempty"`
+
+	// DefaultTenant for multi-tenancy (auto-sends X-FB-Tenant header)
+	DefaultTenant string `yaml:"default_tenant,omitempty"`
 }
 
 // Credentials stores authentication tokens

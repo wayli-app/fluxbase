@@ -7,7 +7,7 @@ description: Learn about Fluxbase, a lightweight single-binary Backend-as-a-Serv
 Fluxbase is currently in beta. While we're working hard to stabilize the API and features, you may encounter breaking changes between versions. We welcome feedback and contributions!
 :::
 
-Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. It provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, and edge functions - all in a single Go binary with PostgreSQL as the only dependency.
+Fluxbase is a lightweight, single-binary Backend-as-a-Service (BaaS) alternative to Supabase. It provides essential backend services including auto-generated REST APIs, authentication, realtime subscriptions, file storage, edge functions, and multi-tenancy - all in a single Go binary with PostgreSQL as the only dependency.
 
 ## Why Fluxbase?
 

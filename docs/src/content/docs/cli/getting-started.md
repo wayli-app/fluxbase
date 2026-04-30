@@ -148,6 +148,7 @@ These flags work with all commands:
 | `--no-headers` | | Hide table headers |
 | `--quiet` | `-q` | Minimal output |
 | `--debug` | | Enable debug output |
+| `--tenant` | `-t` | Tenant slug (overrides profile default) |
 
 ## What's Next?
 
@@ -192,6 +193,22 @@ See [Workflows](/cli/workflows/) for GitHub Actions and GitLab CI examples.
 Set up profiles for dev, staging, and production servers.
 
 See [Configuration](/cli/configuration/) for profile management.
+
+### Multi-Tenancy
+
+When running a multi-tenant Fluxbase instance, specify which tenant to target:
+
+```bash
+# Set default tenant for current profile
+fluxbase config set default_tenant acme-corp
+
+# Override per-command
+fluxbase --tenant acme-corp functions list
+
+# Or via environment variable
+export FLUXBASE_TENANT=acme-corp
+fluxbase functions list
+```
 
 ## Further Reading
 

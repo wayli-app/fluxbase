@@ -405,13 +405,6 @@ export default defineConfig({
             { label: "GraphQL API", link: "/api/http/graphql/" },
           ],
         },
-        {
-          label: "Legal",
-          collapsed: true,
-          items: [
-            { label: "Privacy Policy", link: "/legal/privacy-policy/" },
-          ],
-        },
         { label: "Pricing", link: "/pricing/" },
         { label: "AI & Development Transparency", link: "/about/ai-transparency/" },
       ],

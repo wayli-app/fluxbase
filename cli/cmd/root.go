@@ -23,6 +23,7 @@ var (
 	noHeaders   bool
 	quiet       bool
 	debug       bool
+	tenantFlag  string
 
 	// Shared across commands
 	cfg       *cliconfig.Config
@@ -76,6 +77,8 @@ func init() {
 		"minimal output")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false,
 		"enable debug output")
+	rootCmd.PersistentFlags().StringVarP(&tenantFlag, "tenant", "t", "",
+		"tenant slug (overrides profile default)")
 
 	// Bind environment variables
 	viper.SetEnvPrefix("FLUXBASE")
@@ -83,6 +86,7 @@ func init() {
 	_ = viper.BindEnv("token")   // FLUXBASE_TOKEN
 	_ = viper.BindEnv("profile") // FLUXBASE_PROFILE
 	_ = viper.BindEnv("debug")   // FLUXBASE_DEBUG
+	_ = viper.BindEnv("tenant")  // FLUXBASE_TENANT
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)
@@ -189,6 +193,13 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 	// Override debug from environment if set
 	if viper.GetBool("debug") {
 		debug = true
+	}
+
+	// Apply tenant override from flag or env var (overrides profile default)
+	if tenantFlag != "" {
+		profile.DefaultTenant = tenantFlag
+	} else if envTenant := viper.GetString("tenant"); envTenant != "" {
+		profile.DefaultTenant = envTenant
 	}
 
 	// Create API client

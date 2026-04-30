@@ -3,7 +3,7 @@ title: AI & Development Transparency
 description: How Fluxbase is built with AI assistance while maintaining security-first principles and human oversight.
 ---
 
-We believe in being transparent about how Fluxbase is built. This page explains our development philosophy, the role AI plays, and why this approach produces a better product.
+I believe in being transparent about how Fluxbase is built. This page explains my development philosophy, the role AI plays, and why this approach produces a better product.
 
 ## The Origin Story
 
@@ -11,7 +11,7 @@ Fluxbase was born from a real problem: building [Wayli](https://wayli.io), a sel
 
 Solo developer, ambitious scope, so I embraced AI assistance for velocity. The core principle: **AI writes code, humans own security.**
 
-## How We Use AI
+## How I Use AI
 
 - **Human-led architecture** — System design, security patterns, and data models are human-designed
 - **AI-assisted implementation** — AI writes boilerplate, handlers, tests, and documentation
@@ -80,7 +80,7 @@ graph TB
     style Service fill:#fce4ec
 ```
 
-*(Selection of public endpoints shown — see [API Reference](/api/) for complete list)*
+*(Selection of public endpoints shown — see [API Reference](/api/http/) for complete list)*
 
 All routes without explicit `Auth: AuthNone` require authentication. Public routes are the exception, not the rule.
 
@@ -90,7 +90,7 @@ All routes without explicit `Auth: AuthNone` require authentication. Public rout
 
 **What might happen:** Occasional edge cases or bugs, some features that need refinement on first release.
 
-**How we handle it:** Transparent issue tracking on GitHub, rapid response to security vulnerabilities, active acceptance of community fixes.
+**How I handle it:** Transparent issue tracking on GitHub, rapid response to security vulnerabilities, active acceptance of community fixes.
 
 **Why it's still safe:** Security isn't implemented feature-by-feature—it's baked in. RLS, parameterized queries, and scope validation are default patterns.
 
@@ -98,13 +98,13 @@ All routes without explicit `Auth: AuthNone` require authentication. Public rout
 
 Every change passes `go fmt`, `golangci-lint`, TypeScript type-checking, and tests (25%+ coverage). Security patterns—parameterized queries, RLS on all user data, scope validation, no secrets in code—are enforced by pre-commit hooks and CI.
 
-## Our Commitment
+## My Commitment
 
-1. **Transparency** — We'll always be upfront about how Fluxbase is built
+1. **Transparency** — I'll always be upfront about how Fluxbase is built
 2. **Security-first** — Security decisions are made by humans, not delegated to AI
-3. **Simplicity** — We'll keep the codebase understandable and auditable
+3. **Simplicity** — I'll keep the codebase understandable and auditable
 4. **Responsiveness** — Security issues get immediate attention
-5. **Community** — We welcome contributions, security audits, and scrutiny
+5. **Community** — I welcome contributions, security audits, and scrutiny
 
 Released under AGPLv3. If you're evaluating Fluxbase, [read the code](https://github.com/nimbleflux/fluxbase)—the best verification is seeing for yourself.
 
@@ -114,6 +114,6 @@ Released under AGPLv3. If you're evaluating Fluxbase, [read the code](https://gi
 
 - [Security Overview](/security/overview/) — Our security architecture in detail
 - [Row-Level Security Guide](/guides/row-level-security/) — How RLS protects your data
-- [API Reference](/api/) — HTTP API documentation
+- [API Reference](/api/http/) — HTTP API documentation
 - [GitHub Repository](https://github.com/nimbleflux/fluxbase) — Source code
 - [Discord Community](https://discord.gg/BXPRHkQzkA) — Join the conversation

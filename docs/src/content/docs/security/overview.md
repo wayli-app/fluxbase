@@ -9,29 +9,13 @@ Fluxbase is built with security as a top priority. This page provides an overvie
 
 Fluxbase implements multiple layers of security to protect your data and applications:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Application Layer                         │
-│  • Authentication (JWT, OAuth, 2FA)                         │
-│  • Authorization (RLS, RBAC)                                │
-│  • Input Validation                                         │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                     Network Layer                            │
-│  • HTTPS/TLS Encryption                                     │
-│  • CSRF Protection                                          │
-│  • Security Headers                                         │
-│  • Rate Limiting                                            │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│                     Database Layer                           │
-│  • Row Level Security (RLS)                                 │
-│  • Encrypted Connections                                    │
-│  • Parameterized Queries                                    │
-│  • Audit Logging                                            │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    APP["**Application Layer**<br/>Authentication (JWT, OAuth, 2FA)<br/>Authorization (RLS, RBAC)<br/>Input Validation"]
+    NET["**Network Layer**<br/>HTTPS/TLS Encryption<br/>CSRF Protection<br/>Security Headers<br/>Rate Limiting"]
+    DB["**Database Layer**<br/>Row Level Security (RLS)<br/>Encrypted Connections<br/>Parameterized Queries<br/>Audit Logging"]
+
+    APP --> NET --> DB
 ```
 
 ---

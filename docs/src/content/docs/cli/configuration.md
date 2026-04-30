@@ -34,6 +34,7 @@ profiles:
       email: "user@example.com"
       role: "admin"
     default_namespace: "default"
+    default_tenant: "acme-corp"
     output_format: "table"
 
   prod:
@@ -41,6 +42,7 @@ profiles:
     server: "https://api.example.com"
     credential_store: "keychain"
     default_namespace: "production"
+    default_tenant: "acme-corp"
 
 defaults:
   output: "table"
@@ -63,6 +65,7 @@ Each profile contains:
 | `credentials` | Authentication tokens (when using file storage) |
 | `user` | Cached user information |
 | `default_namespace` | Default namespace for functions/jobs |
+| `default_tenant` | Default tenant slug (auto-sends `X-FB-Tenant` header) |
 | `output_format` | Default output format for this profile |
 
 ### Defaults
@@ -87,14 +90,16 @@ Environment variables override configuration file settings:
 | `FLUXBASE_PROFILE` | Profile to use (overrides `current_profile`) |
 | `FLUXBASE_CONFIG` | Path to config file (overrides default location) |
 | `FLUXBASE_DEBUG` | Set to `true` to enable debug output |
+| `FLUXBASE_TENANT` | Tenant slug (overrides profile `default_tenant`) |
 
 ### CI/CD Example
 
 ```bash
 export FLUXBASE_SERVER="https://api.example.com"
 export FLUXBASE_TOKEN="your-api-token"
+export FLUXBASE_TENANT="acme-corp"
 
-# Commands will use these credentials
+# Commands will use these credentials and tenant
 fluxbase sync --namespace production
 ```
 
@@ -148,6 +153,9 @@ fluxbase config set defaults.namespace production
 
 # Switch current profile
 fluxbase config set current_profile prod
+
+# Set default tenant for current profile
+fluxbase config set default_tenant acme-corp
 ```
 
 ### Get Configuration Values
