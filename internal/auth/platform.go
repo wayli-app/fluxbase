@@ -104,11 +104,11 @@ func (s *DashboardAuthService) CreateUser(ctx context.Context, email, password, 
 		return tx.QueryRow(ctx, `
 			INSERT INTO platform.users (email, password_hash, full_name, email_verified)
 			VALUES ($1, $2, $3, false)
-			RETURNING id, email, email_verified, full_name, avatar_url, totp_enabled,
+			RETURNING id, email, email_verified, full_name, avatar_url, role, totp_enabled,
 			          is_active, is_locked, last_login_at, created_at, updated_at
 		`, email, hashedPassword, fullName).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.Role, &user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
 			&user.CreatedAt, &user.UpdatedAt,
 		)
 	})
@@ -823,14 +823,14 @@ func (s *DashboardAuthService) GetUserBySSOIdentity(ctx context.Context, provide
 	user := &DashboardUser{}
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT u.id, u.email, u.email_verified, u.full_name, u.avatar_url, u.totp_enabled,
+			SELECT u.id, u.email, u.email_verified, u.full_name, u.avatar_url, u.role, u.totp_enabled,
 			       u.is_active, u.is_locked, u.last_login_at, u.created_at, u.updated_at
 			FROM platform.users u
 			INNER JOIN platform.sso_identities si ON si.user_id = u.id
 			WHERE si.provider_type = $1 AND si.provider_name = $2 AND si.provider_user_id = $3 AND u.deleted_at IS NULL
 		`, providerType, providerName, providerUserID).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.Role, &user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
 			&user.CreatedAt, &user.UpdatedAt,
 		)
 	})
@@ -848,13 +848,13 @@ func (s *DashboardAuthService) GetUserByEmail(ctx context.Context, email string)
 	user := &DashboardUser{}
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			SELECT id, email, email_verified, full_name, avatar_url, totp_enabled,
+			SELECT id, email, email_verified, full_name, avatar_url, role, totp_enabled,
 			       is_active, is_locked, last_login_at, created_at, updated_at
 			FROM platform.users
 			WHERE email = $1 AND deleted_at IS NULL
 		`, email).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.Role, &user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
 			&user.CreatedAt, &user.UpdatedAt,
 		)
 	})
@@ -923,11 +923,11 @@ func (s *DashboardAuthService) FindOrCreateUserBySSO(ctx context.Context, email,
 		err := tx.QueryRow(ctx, `
 			INSERT INTO platform.users (email, full_name, email_verified, is_active)
 			VALUES ($1, $2, true, true)
-			RETURNING id, email, email_verified, full_name, avatar_url, totp_enabled,
+			RETURNING id, email, email_verified, full_name, avatar_url, role, totp_enabled,
 			          is_active, is_locked, last_login_at, created_at, updated_at
 		`, email, name).Scan(
 			&user.ID, &user.Email, &user.EmailVerified, &user.FullName, &user.AvatarURL,
-			&user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
+			&user.Role, &user.TOTPEnabled, &user.IsActive, &user.IsLocked, &user.LastLoginAt,
 			&user.CreatedAt, &user.UpdatedAt,
 		)
 		if err != nil {
