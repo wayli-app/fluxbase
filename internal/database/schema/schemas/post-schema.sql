@@ -812,6 +812,49 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ============================================================================
+-- AUTH SCHEMA FUNCTION FIX — ensure set_tenant_id_from_user_or_context uses
+-- schema-qualified table references. Older databases may have unqualified
+-- "FROM users" which fails when invoked by service_role (search_path=public).
+-- CREATE OR REPLACE is idempotent and safe to run on every startup.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION auth.set_tenant_id_from_user_or_context()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    ctx_tenant TEXT;
+BEGIN
+    BEGIN
+        ctx_tenant := current_setting('app.current_tenant_id', true);
+        IF ctx_tenant IS NOT NULL AND ctx_tenant <> '' THEN
+            NEW.tenant_id := ctx_tenant::UUID;
+            RETURN NEW;
+        END IF;
+    EXCEPTION WHEN others THEN NULL;
+    END;
+
+    IF NEW.tenant_id IS NULL AND NEW.user_id IS NOT NULL THEN
+        SELECT tenant_id INTO NEW.tenant_id FROM auth.users WHERE id = NEW.user_id;
+    END IF;
+
+    IF NEW.tenant_id IS NULL THEN
+        BEGIN
+            IF NEW.registered_by IS NOT NULL THEN
+                SELECT tenant_id INTO NEW.tenant_id FROM auth.users WHERE id = NEW.registered_by;
+            END IF;
+        EXCEPTION WHEN undefined_column THEN NULL;
+        END;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- ============================================================================
 -- AUTH SCHEMA TRIGGERS — user-derived tenant_id (set_tenant_id_from_user_or_context)
 -- ============================================================================
 
