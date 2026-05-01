@@ -1216,8 +1216,10 @@ func (h *DashboardAuthHandler) OAuthCallback(c fiber.Ctx) error {
 	}
 
 	// Redirect with tokens in URL fragment (for SPA to capture)
-	// Always redirect to /admin after dashboard OAuth login
-	redirectURL := "/admin"
+	redirectURL := dashState.RedirectTo
+	if redirectURL == "" || redirectURL == "/" {
+		redirectURL = "/admin"
+	}
 	return c.Redirect().To(fmt.Sprintf("/admin/login/callback#access_token=%s&refresh_token=%s&redirect_to=%s",
 		url.QueryEscape(loginResp.AccessToken),
 		url.QueryEscape(loginResp.RefreshToken),

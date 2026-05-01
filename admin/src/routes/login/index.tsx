@@ -90,17 +90,13 @@ function LoginPage() {
 
     if (provider.type === "oauth") {
       try {
-        // Use app OAuth endpoint with custom redirect_uri for dashboard callback
-        // Build absolute URL with protocol and hostname
-        const redirectUri = `${baseURL}/dashboard/auth/sso/oauth/${provider.id}/callback`;
         const response = await fetch(
-          `${baseURL}/api/v1/auth/oauth/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&redirect_to=${encodeURIComponent(redirectTo)}`,
+          `${baseURL}/dashboard/auth/sso/oauth/${provider.id}?redirect_to=${encodeURIComponent(redirectTo)}`,
         );
         if (!response.ok) {
           throw new Error("Failed to get OAuth URL");
         }
         const data = await response.json();
-        // Navigate to OAuth provider
         window.location.href = data.url;
       } catch (error) {
         toast.error("Authentication Error", {
