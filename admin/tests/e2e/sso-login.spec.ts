@@ -12,7 +12,8 @@ const TEST_PROVIDER = {
   display_name: "Test SSO Provider",
   client_id: "test-client-id",
   client_secret: "test-client-secret",
-  redirect_url: "http://localhost:8080/api/v1/auth/oauth/test_sso/callback",
+  redirect_url:
+    "http://localhost:8080/dashboard/auth/sso/oauth/test_sso/callback",
   scopes: ["openid", "email", "profile"],
   is_custom: true,
   authorization_url: "http://localhost:5556/dex/auth",
@@ -96,7 +97,7 @@ test.describe("SSO Login", () => {
       // Intercept the authorize request to prevent actual navigation to Dex
       let capturedUrl = "";
       await page.route(
-        "**/api/v1/auth/oauth/test_sso/authorize**",
+        "**/dashboard/auth/sso/oauth/test_sso**",
         async (route) => {
           capturedUrl = route.request().url();
           await route.fulfill({
@@ -134,7 +135,7 @@ test.describe("SSO Login", () => {
       // Verify authorize request was made with correct parameters
       await page.waitForTimeout(2000);
       expect(capturedUrl).toContain("test_sso");
-      expect(capturedUrl).toContain("redirect_uri=");
+      expect(capturedUrl).toContain("redirect_to=");
       expect(navigatedToDex).toBe(true);
     } finally {
       await rawDeleteOAuthProvider(providerId, token);
