@@ -104,7 +104,7 @@ func setDefaults() {
 	viper.SetDefault("security.captcha.adaptive_trust.always_require_endpoints", []string{"password_reset"})
 
 	// Admin defaults
-	viper.SetDefault("admin.enabled", false) // Admin dashboard disabled by default
+	viper.SetDefault("admin.enabled", true) // Admin dashboard enabled by default (protected by setup_token gate)
 
 	// Tenants defaults
 	viper.SetDefault("tenants.enabled", true)
