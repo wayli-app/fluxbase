@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 
@@ -623,123 +624,118 @@ func (h *OAuthHandler) createOrLinkOAuthUser(
 	userInfo map[string]interface{},
 	token *oauth2.Token,
 ) (*auth.User, bool, error) {
-	tx, err := h.db.Pool().Begin(ctx)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-
-	// Check if OAuth link already exists
-	var userID uuid.UUID
-	query := "SELECT user_id FROM auth.oauth_links WHERE provider = $1 AND provider_user_id = $2"
-	err = tx.QueryRow(ctx, query, providerName, providerUserID).Scan(&userID)
-
 	var user *auth.User
-	isNewUser := false
+	var isNewUser bool
 
-	// pgx returns error for no rows, not sql.ErrNoRows
-	if err != nil && err.Error() == "no rows in result set" || errors.Is(err, sql.ErrNoRows) {
-		// Check if user exists with this email
-		var existingUserID uuid.UUID
-		query = "SELECT id FROM auth.users WHERE email = $1"
-		err = tx.QueryRow(ctx, query, email).Scan(&existingUserID)
+	err := database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
+		// Check if OAuth link already exists
+		var userID uuid.UUID
+		query := "SELECT user_id FROM auth.oauth_links WHERE provider = $1 AND provider_user_id = $2"
+		err := tx.QueryRow(ctx, query, providerName, providerUserID).Scan(&userID)
 
-		if err != nil && (err.Error() == "no rows in result set" || errors.Is(err, sql.ErrNoRows)) {
-			// Create new user
-			userID = uuid.New()
+		// pgx returns error for no rows, not sql.ErrNoRows
+		if err != nil && err.Error() == "no rows in result set" || errors.Is(err, sql.ErrNoRows) {
+			// Check if user exists with this email
+			var existingUserID uuid.UUID
+			query = "SELECT id FROM auth.users WHERE email = $1"
+			err = tx.QueryRow(ctx, query, email).Scan(&existingUserID)
+
+			if err != nil && (err.Error() == "no rows in result set" || errors.Is(err, sql.ErrNoRows)) {
+				// Create new user
+				userID = uuid.New()
+				query = `
+					INSERT INTO auth.users (id, email, email_verified, role, user_metadata)
+					VALUES ($1, $2, TRUE, 'authenticated', $3)
+				`
+				_, err = tx.Exec(ctx, query, userID, email, userInfo)
+				if err != nil {
+					return fmt.Errorf("failed to create user: %w", err)
+				}
+				isNewUser = true
+			} else {
+				switch {
+				case err != nil:
+					return fmt.Errorf("failed to check existing user: %w", err)
+				default:
+					// Link to existing user
+					userID = existingUserID
+				}
+			}
+
+			// Create OAuth link
 			query = `
-				INSERT INTO auth.users (id, email, email_verified, role, user_metadata)
-				VALUES ($1, $2, TRUE, 'authenticated', $3)
+				INSERT INTO auth.oauth_links (user_id, provider, provider_user_id, email, metadata)
+				VALUES ($1, $2, $3, $4, $5)
 			`
-			_, err = tx.Exec(ctx, query, userID, email, userInfo)
+			_, err = tx.Exec(ctx, query, userID, providerName, providerUserID, email, userInfo)
 			if err != nil {
-				return nil, false, fmt.Errorf("failed to create user: %w", err)
+				return fmt.Errorf("failed to create OAuth link: %w", err)
 			}
-			isNewUser = true
-		} else {
-			switch {
-			case err != nil:
-				return nil, false, fmt.Errorf("failed to check existing user: %w", err)
-			default:
-				// Link to existing user
-				userID = existingUserID
+		} else if err != nil {
+			return fmt.Errorf("failed to check OAuth link: %w", err)
+		}
+
+		// SECURITY: Encrypt OAuth tokens before storing (if encryption key is configured)
+		accessTokenToStore := token.AccessToken
+		refreshTokenToStore := token.RefreshToken
+		// Extract ID token for OIDC logout support
+		var idTokenToStore string
+		if idTokenRaw, ok := token.Extra("id_token").(string); ok {
+			idTokenToStore = idTokenRaw
+		}
+
+		if h.encryptionKey != "" {
+			var encErr error
+			accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
+			if encErr != nil {
+				return fmt.Errorf("failed to encrypt access token: %w", encErr)
+			}
+			refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.RefreshToken, h.encryptionKey)
+			if encErr != nil {
+				return fmt.Errorf("failed to encrypt refresh token: %w", encErr)
+			}
+			idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
+			if encErr != nil {
+				return fmt.Errorf("failed to encrypt id token: %w", encErr)
 			}
 		}
 
-		// Create OAuth link
+		// Store OAuth token (including id_token for OIDC logout)
 		query = `
-			INSERT INTO auth.oauth_links (user_id, provider, provider_user_id, email, metadata)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO auth.oauth_tokens (user_id, provider, access_token, refresh_token, id_token, token_expiry)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (user_id, provider)
+			DO UPDATE SET
+				access_token = EXCLUDED.access_token,
+				refresh_token = EXCLUDED.refresh_token,
+				id_token = EXCLUDED.id_token,
+				token_expiry = EXCLUDED.token_expiry,
+				updated_at = CURRENT_TIMESTAMP
 		`
-		_, err = tx.Exec(ctx, query, userID, providerName, providerUserID, email, userInfo)
+		_, err = tx.Exec(ctx, query, userID, providerName, accessTokenToStore, refreshTokenToStore, idTokenToStore, token.Expiry)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to create OAuth link: %w", err)
+			return fmt.Errorf("failed to store OAuth token: %w", err)
 		}
-	} else if err != nil {
-		return nil, false, fmt.Errorf("failed to check OAuth link: %w", err)
-	}
 
-	// SECURITY: Encrypt OAuth tokens before storing (if encryption key is configured)
-	accessTokenToStore := token.AccessToken
-	refreshTokenToStore := token.RefreshToken
-	// Extract ID token for OIDC logout support
-	var idTokenToStore string
-	if idTokenRaw, ok := token.Extra("id_token").(string); ok {
-		idTokenToStore = idTokenRaw
-	}
+		// Fetch user details
+		query = `
+			SELECT id, email, email_verified, role, created_at, updated_at
+			FROM auth.users
+			WHERE id = $1
+		`
+		user = &auth.User{}
+		err = tx.QueryRow(ctx, query, userID).Scan(
+			&user.ID, &user.Email, &user.EmailVerified, &user.Role,
+			&user.CreatedAt, &user.UpdatedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to fetch user: %w", err)
+		}
 
-	if h.encryptionKey != "" {
-		var encErr error
-		accessTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.AccessToken, h.encryptionKey)
-		if encErr != nil {
-			return nil, false, fmt.Errorf("failed to encrypt access token: %w", encErr)
-		}
-		refreshTokenToStore, encErr = crypto.EncryptIfNotEmpty(token.RefreshToken, h.encryptionKey)
-		if encErr != nil {
-			return nil, false, fmt.Errorf("failed to encrypt refresh token: %w", encErr)
-		}
-		idTokenToStore, encErr = crypto.EncryptIfNotEmpty(idTokenToStore, h.encryptionKey)
-		if encErr != nil {
-			return nil, false, fmt.Errorf("failed to encrypt id token: %w", encErr)
-		}
-	}
-
-	// Store OAuth token (including id_token for OIDC logout)
-	query = `
-		INSERT INTO auth.oauth_tokens (user_id, provider, access_token, refresh_token, id_token, token_expiry)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (user_id, provider)
-		DO UPDATE SET
-			access_token = EXCLUDED.access_token,
-			refresh_token = EXCLUDED.refresh_token,
-			id_token = EXCLUDED.id_token,
-			token_expiry = EXCLUDED.token_expiry,
-			updated_at = CURRENT_TIMESTAMP
-	`
-	_, err = tx.Exec(ctx, query, userID, providerName, accessTokenToStore, refreshTokenToStore, idTokenToStore, token.Expiry)
+		return nil
+	})
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to store OAuth token: %w", err)
-	}
-
-	// Fetch user details
-	query = `
-		SELECT id, email, email_verified, role, created_at, updated_at
-		FROM auth.users
-		WHERE id = $1
-	`
-	user = &auth.User{}
-	err = tx.QueryRow(ctx, query, userID).Scan(
-		&user.ID, &user.Email, &user.EmailVerified, &user.Role,
-		&user.CreatedAt, &user.UpdatedAt,
-	)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to fetch user: %w", err)
-	}
-
-	if err = tx.Commit(ctx); err != nil {
-		return nil, false, fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, false, err
 	}
 
 	return user, isNewUser, nil
