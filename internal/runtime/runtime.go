@@ -750,12 +750,16 @@ func classifyStderrLine(line string) string {
 // then removes blocked domains. Returns an empty slice to indicate unrestricted net access
 // (Deno default with --allow-net without domains), or a specific domain list for --allow-net=domain1,domain2,...
 func buildNetworkAllowList(permissions Permissions, selfURL string) []string {
-	var domains []string
-
-	// If explicit allowlist is provided, use only those domains
-	if len(permissions.AllowedDomains) > 0 {
-		domains = append(domains, permissions.AllowedDomains...)
+	// If no explicit allowlist is provided, return nil for unrestricted --allow-net.
+	// Deno doesn't support per-domain blocking, only per-domain allowing,
+	// so an empty AllowedDomains means "allow all".
+	if len(permissions.AllowedDomains) == 0 {
+		return nil
 	}
+
+	// Build domain list from explicit allowlist
+	domains := make([]string, 0, len(permissions.AllowedDomains)+1)
+	domains = append(domains, permissions.AllowedDomains...)
 
 	// Add self-host for SDK calls (essential for internal communication)
 	if selfURL != "" {
@@ -764,8 +768,7 @@ func buildNetworkAllowList(permissions Permissions, selfURL string) []string {
 		}
 	}
 
-	// If no explicit allowlist and no blocked domains, return empty for unrestricted access
-	// Deno handles this via plain --allow-net flag
+	// If no blocked domains, return the allowlist as-is
 	if len(permissions.BlockedDomains) == 0 {
 		return domains
 	}

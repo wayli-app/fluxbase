@@ -627,12 +627,11 @@ func TestBuildNetworkAllowList(t *testing.T) {
 		assert.Empty(t, result, "no domains should be allowed without explicit configuration")
 	})
 
-	t.Run("with self URL only returns self host", func(t *testing.T) {
+	t.Run("with self URL only returns nil for unrestricted access", func(t *testing.T) {
 		perms := Permissions{}
 		result := buildNetworkAllowList(perms, "https://api.example.com")
 
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "api.example.com")
+		assert.Nil(t, result, "no explicit AllowedDomains means unrestricted --allow-net")
 	})
 
 	t.Run("with allowed domains includes them", func(t *testing.T) {
@@ -679,36 +678,30 @@ func TestBuildNetworkAllowList(t *testing.T) {
 		assert.Empty(t, result, "blocked self URL should not be in allow list")
 	})
 
-	t.Run("default permissions include blocked metadata domains", func(t *testing.T) {
+	t.Run("default permissions with no allowed domains returns nil for unrestricted access", func(t *testing.T) {
 		perms := DefaultFunctionPermissions()
 		result := buildNetworkAllowList(perms, "https://api.example.com")
 
-		// Self URL should be present
-		assert.Contains(t, result, "api.example.com")
-
-		// Check that blocked domains are not in the result
-		for _, blocked := range perms.BlockedDomains {
-			assert.NotContains(t, result, blocked, "blocked domain %s should not be in allow list", blocked)
-		}
+		// No explicit AllowedDomains → unrestricted access
+		assert.Nil(t, result, "DefaultFunctionPermissions has no AllowedDomains, should return nil for unrestricted access")
 	})
 
-	t.Run("when allowed domains is empty but blocked exists, returns self host only if not blocked", func(t *testing.T) {
+	t.Run("when allowed domains is empty but blocked exists, returns nil for unrestricted access", func(t *testing.T) {
 		perms := Permissions{
 			BlockedDomains: []string{"169.254.169.254"},
 		}
 		result := buildNetworkAllowList(perms, "https://api.example.com")
 
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "api.example.com")
+		assert.Nil(t, result, "no explicit AllowedDomains means unrestricted --allow-net regardless of BlockedDomains")
 	})
 
-	t.Run("when self URL is blocked, returns empty list", func(t *testing.T) {
+	t.Run("when self URL is blocked and no allowed domains, returns nil for unrestricted access", func(t *testing.T) {
 		perms := Permissions{
 			BlockedDomains: []string{"api.example.com"},
 		}
 		result := buildNetworkAllowList(perms, "https://api.example.com")
 
-		assert.Empty(t, result, "blocked self URL should result in empty allow list")
+		assert.Nil(t, result, "no explicit AllowedDomains means unrestricted --allow-net")
 	})
 
 	t.Run("complex scenario with mixed allowed and blocked domains", func(t *testing.T) {

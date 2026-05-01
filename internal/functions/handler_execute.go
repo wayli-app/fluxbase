@@ -399,7 +399,7 @@ func (h *Handler) ListAllExecutions(c fiber.Ctx) error {
 
 // GetExecutionLogs returns logs for a specific function execution
 func (h *Handler) GetExecutionLogs(c fiber.Ctx) error {
-	executionIDStr := c.Params("executionId")
+	executionIDStr := c.Params("id")
 
 	_, err := uuid.Parse(executionIDStr)
 	if err != nil {

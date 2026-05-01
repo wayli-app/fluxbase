@@ -142,13 +142,13 @@ func (h *LoggingHandler) QueryLogs(c fiber.Ctx) error {
 	})
 }
 
-// GetExecutionLogs handles GET /admin/logs/executions/:execution_id
+// GetExecutionLogs handles GET /admin/logs/executions/:id
 // @Summary Get execution logs
 // @Description Get logs for a specific execution
 // @Tags Admin/Logging
 // @Accept json
 // @Produce json
-// @Param execution_id path string true "Execution ID"
+// @Param id path string true "Execution ID"
 // @Param after_line query int false "Return logs after this line number"
 // @Success 200 {object} ExecutionLogsResponse
 // @Failure 400 {object} ErrorResponse
@@ -162,7 +162,7 @@ func (h *LoggingHandler) GetExecutionLogs(c fiber.Ctx) error {
 		})
 	}
 
-	executionID := c.Params("execution_id")
+	executionID := c.Params("id")
 	if executionID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "execution_id is required",

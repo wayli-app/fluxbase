@@ -72,7 +72,7 @@ func TestLoggingHandler_GetExecutionLogs(t *testing.T) {
 		handler := &LoggingHandler{loggingService: nil}
 
 		app := fiber.New()
-		app.Get("/admin/logs/executions/:execution_id", handler.GetExecutionLogs)
+		app.Get("/admin/logs/executions/:id", handler.GetExecutionLogs)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/logs/executions/exec-123", nil)
 		resp, err := app.Test(req)
