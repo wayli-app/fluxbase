@@ -253,18 +253,26 @@ spec:
               value: {{ .Values.config.auth.magic_link_expiry | quote }}
             - name: FLUXBASE_AUTH_PASSWORD_RESET_EXPIRY
               value: {{ .Values.config.auth.password_reset_expiry | quote }}
+            {{- if .Values.config.auth.password_min_length }}
             - name: FLUXBASE_AUTH_PASSWORD_MIN_LENGTH
               value: {{ .Values.config.auth.password_min_length | quote }}
+            {{- end }}
             - name: FLUXBASE_AUTH_BCRYPT_COST
               value: {{ .Values.config.auth.bcrypt_cost | quote }}
+            {{- if kindIs "bool" .Values.config.auth.signup_enabled }}
             - name: FLUXBASE_AUTH_SIGNUP_ENABLED
               value: {{ .Values.config.auth.signup_enabled | quote }}
+            {{- end }}
+            {{- if kindIs "bool" .Values.config.auth.magic_link_enabled }}
             - name: FLUXBASE_AUTH_MAGIC_LINK_ENABLED
               value: {{ .Values.config.auth.magic_link_enabled | quote }}
+            {{- end }}
             - name: FLUXBASE_AUTH_TOTP_ISSUER
               value: {{ .Values.config.auth.totp_issuer | quote }}
+            {{- if kindIs "bool" .Values.config.auth.allow_user_client_keys }}
             - name: FLUXBASE_AUTH_ALLOW_USER_CLIENT_KEYS
               value: {{ .Values.config.auth.allow_user_client_keys | quote }}
+            {{- end }}
 
             # ===========================================
             # OAuth/OIDC Configuration
@@ -380,25 +388,39 @@ spec:
             # ===========================================
             # Security Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.security.enable_global_rate_limit }}
             - name: FLUXBASE_SECURITY_ENABLE_GLOBAL_RATE_LIMIT
               value: {{ .Values.config.security.enable_global_rate_limit | quote }}
+            {{- end }}
             - name: FLUXBASE_SECURITY_SETUP_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "fluxbase.secretName" . }}
                   key: {{ include "fluxbase.secretKeyRef.setupToken" . }}
+            {{- if .Values.config.security.admin_setup_rate_limit }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_LIMIT
               value: {{ .Values.config.security.admin_setup_rate_limit | quote }}
+            {{- end }}
+            {{- if .Values.config.security.admin_setup_rate_window }}
             - name: FLUXBASE_SECURITY_ADMIN_SETUP_RATE_WINDOW
               value: {{ .Values.config.security.admin_setup_rate_window | quote }}
+            {{- end }}
+            {{- if .Values.config.security.auth_login_rate_limit }}
             - name: FLUXBASE_SECURITY_AUTH_LOGIN_RATE_LIMIT
               value: {{ .Values.config.security.auth_login_rate_limit | quote }}
+            {{- end }}
+            {{- if .Values.config.security.auth_login_rate_window }}
             - name: FLUXBASE_SECURITY_AUTH_LOGIN_RATE_WINDOW
               value: {{ .Values.config.security.auth_login_rate_window | quote }}
+            {{- end }}
+            {{- if .Values.config.security.admin_login_rate_limit }}
             - name: FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_LIMIT
               value: {{ .Values.config.security.admin_login_rate_limit | quote }}
+            {{- end }}
+            {{- if .Values.config.security.admin_login_rate_window }}
             - name: FLUXBASE_SECURITY_ADMIN_LOGIN_RATE_WINDOW
               value: {{ .Values.config.security.admin_login_rate_window | quote }}
+            {{- end }}
             {{- if .Values.config.security.captcha }}
             # CAPTCHA Configuration
             - name: FLUXBASE_SECURITY_CAPTCHA_ENABLED
@@ -455,8 +477,10 @@ spec:
             # ===========================================
             # Storage Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.storage.enabled }}
             - name: FLUXBASE_STORAGE_ENABLED
               value: {{ .Values.config.storage.enabled | quote }}
+            {{- end }}
             - name: FLUXBASE_STORAGE_PROVIDER
               value: {{ .Values.config.storage.provider | quote }}
             - name: FLUXBASE_STORAGE_LOCAL_PATH
@@ -489,10 +513,14 @@ spec:
             {{- end }}
 
             # Image Transformation Configuration
+            {{- if kindIs "bool" .Values.config.storage.transforms.enabled }}
             - name: FLUXBASE_STORAGE_TRANSFORMS_ENABLED
               value: {{ .Values.config.storage.transforms.enabled | quote }}
+            {{- end }}
+            {{- if .Values.config.storage.transforms.default_quality }}
             - name: FLUXBASE_STORAGE_TRANSFORMS_DEFAULT_QUALITY
               value: {{ .Values.config.storage.transforms.default_quality | quote }}
+            {{- end }}
             - name: FLUXBASE_STORAGE_TRANSFORMS_MAX_WIDTH
               value: {{ .Values.config.storage.transforms.max_width | quote }}
             - name: FLUXBASE_STORAGE_TRANSFORMS_MAX_HEIGHT
@@ -501,22 +529,38 @@ spec:
             # ===========================================
             # Realtime Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.realtime.enabled }}
             - name: FLUXBASE_REALTIME_ENABLED
               value: {{ .Values.config.realtime.enabled | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.max_connections }}
             - name: FLUXBASE_REALTIME_MAX_CONNECTIONS
               value: {{ .Values.config.realtime.max_connections | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.ping_interval }}
             - name: FLUXBASE_REALTIME_PING_INTERVAL
               value: {{ .Values.config.realtime.ping_interval | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.pong_timeout }}
             - name: FLUXBASE_REALTIME_PONG_TIMEOUT
               value: {{ .Values.config.realtime.pong_timeout | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.write_buffer_size }}
             - name: FLUXBASE_REALTIME_WRITE_BUFFER_SIZE
               value: {{ .Values.config.realtime.write_buffer_size | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.read_buffer_size }}
             - name: FLUXBASE_REALTIME_READ_BUFFER_SIZE
               value: {{ .Values.config.realtime.read_buffer_size | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.message_size_limit }}
             - name: FLUXBASE_REALTIME_MESSAGE_SIZE_LIMIT
               value: {{ .Values.config.realtime.message_size_limit | int | quote }}
+            {{- end }}
+            {{- if .Values.config.realtime.channel_buffer_size }}
             - name: FLUXBASE_REALTIME_CHANNEL_BUFFER_SIZE
               value: {{ .Values.config.realtime.channel_buffer_size | quote }}
+            {{- end }}
 
             # ===========================================
             # Email Configuration
@@ -592,20 +636,30 @@ spec:
             # ===========================================
             # Functions Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.functions.enabled }}
             - name: FLUXBASE_FUNCTIONS_ENABLED
               value: {{ .Values.config.functions.enabled | quote }}
+            {{- end }}
             - name: FLUXBASE_FUNCTIONS_FUNCTIONS_DIR
               value: {{ .Values.config.functions.functions_dir | quote }}
             - name: FLUXBASE_FUNCTIONS_AUTO_LOAD_ON_BOOT
               value: {{ .Values.config.functions.auto_load_on_boot | quote }}
+            {{- if .Values.config.functions.default_timeout }}
             - name: FLUXBASE_FUNCTIONS_DEFAULT_TIMEOUT
               value: {{ .Values.config.functions.default_timeout | quote }}
+            {{- end }}
+            {{- if .Values.config.functions.max_timeout }}
             - name: FLUXBASE_FUNCTIONS_MAX_TIMEOUT
               value: {{ .Values.config.functions.max_timeout | quote }}
+            {{- end }}
+            {{- if .Values.config.functions.default_memory_limit }}
             - name: FLUXBASE_FUNCTIONS_DEFAULT_MEMORY_LIMIT
               value: {{ .Values.config.functions.default_memory_limit | quote }}
+            {{- end }}
+            {{- if .Values.config.functions.max_memory_limit }}
             - name: FLUXBASE_FUNCTIONS_MAX_MEMORY_LIMIT
               value: {{ .Values.config.functions.max_memory_limit | quote }}
+            {{- end }}
 
             # ===========================================
             # Deno Runtime Configuration
@@ -622,103 +676,161 @@ spec:
             # ===========================================
             # Jobs Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.jobs.enabled }}
             - name: FLUXBASE_JOBS_ENABLED
               value: {{ .Values.config.jobs.enabled | quote }}
+            {{- end }}
             - name: FLUXBASE_JOBS_JOBS_DIR
               value: {{ .Values.config.jobs.jobs_dir | quote }}
             - name: FLUXBASE_JOBS_AUTO_LOAD_ON_BOOT
               value: {{ .Values.config.jobs.auto_load_on_boot | quote }}
             - name: FLUXBASE_JOBS_WORKER_MODE
               value: {{ .Values.config.jobs.worker_mode | quote }}
+            {{- if .Values.config.jobs.embedded_worker_count }}
             - name: FLUXBASE_JOBS_EMBEDDED_WORKER_COUNT
               value: {{ .Values.config.jobs.embedded_worker_count | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.max_concurrent_per_worker }}
             - name: FLUXBASE_JOBS_MAX_CONCURRENT_PER_WORKER
               value: {{ .Values.config.jobs.max_concurrent_per_worker | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.max_concurrent_per_namespace }}
             - name: FLUXBASE_JOBS_MAX_CONCURRENT_PER_NAMESPACE
               value: {{ .Values.config.jobs.max_concurrent_per_namespace | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.default_max_duration }}
             - name: FLUXBASE_JOBS_DEFAULT_MAX_DURATION
               value: {{ .Values.config.jobs.default_max_duration | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.max_max_duration }}
             - name: FLUXBASE_JOBS_MAX_MAX_DURATION
               value: {{ .Values.config.jobs.max_max_duration | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.default_progress_timeout }}
             - name: FLUXBASE_JOBS_DEFAULT_PROGRESS_TIMEOUT
               value: {{ .Values.config.jobs.default_progress_timeout | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.poll_interval }}
             - name: FLUXBASE_JOBS_POLL_INTERVAL
               value: {{ .Values.config.jobs.poll_interval | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.worker_heartbeat_interval }}
             - name: FLUXBASE_JOBS_WORKER_HEARTBEAT_INTERVAL
               value: {{ .Values.config.jobs.worker_heartbeat_interval | quote }}
+            {{- end }}
+            {{- if .Values.config.jobs.worker_timeout }}
             - name: FLUXBASE_JOBS_WORKER_TIMEOUT
               value: {{ .Values.config.jobs.worker_timeout | quote }}
+            {{- end }}
 
             # ===========================================
             # API Configuration
             # ===========================================
+            {{- if .Values.config.api.max_page_size }}
             - name: FLUXBASE_API_MAX_PAGE_SIZE
               value: {{ .Values.config.api.max_page_size | quote }}
+            {{- end }}
+            {{- if .Values.config.api.max_total_results }}
             - name: FLUXBASE_API_MAX_TOTAL_RESULTS
               value: {{ .Values.config.api.max_total_results | quote }}
+            {{- end }}
+            {{- if .Values.config.api.default_page_size }}
             - name: FLUXBASE_API_DEFAULT_PAGE_SIZE
               value: {{ .Values.config.api.default_page_size | quote }}
+            {{- end }}
 
             # ===========================================
             # GraphQL Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.graphql.enabled }}
             - name: FLUXBASE_GRAPHQL_ENABLED
               value: {{ .Values.config.graphql.enabled | quote }}
+            {{- end }}
+            {{- if .Values.config.graphql.max_depth }}
             - name: FLUXBASE_GRAPHQL_MAX_DEPTH
               value: {{ .Values.config.graphql.max_depth | quote }}
+            {{- end }}
+            {{- if .Values.config.graphql.max_complexity }}
             - name: FLUXBASE_GRAPHQL_MAX_COMPLEXITY
               value: {{ .Values.config.graphql.max_complexity | quote }}
+            {{- end }}
+            {{- if kindIs "bool" .Values.config.graphql.introspection }}
             - name: FLUXBASE_GRAPHQL_INTROSPECTION
               value: {{ .Values.config.graphql.introspection | quote }}
+            {{- end }}
 
             # ===========================================
             # Migrations Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.migrations.enabled }}
             - name: FLUXBASE_MIGRATIONS_ENABLED
               value: {{ .Values.config.migrations.enabled | quote }}
+            {{- end }}
+            {{- if kindIs "bool" .Values.config.migrations.require_service_key }}
             - name: FLUXBASE_MIGRATIONS_REQUIRE_SERVICE_KEY
               value: {{ .Values.config.migrations.require_service_key | quote }}
+            {{- end }}
 
             # ===========================================
             # RPC Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.rpc.enabled }}
             - name: FLUXBASE_RPC_ENABLED
               value: {{ .Values.config.rpc.enabled | quote }}
+            {{- end }}
             - name: FLUXBASE_RPC_PROCEDURES_DIR
               value: {{ .Values.config.rpc.procedures_dir | quote }}
             - name: FLUXBASE_RPC_AUTO_LOAD_ON_BOOT
               value: {{ .Values.config.rpc.auto_load_on_boot | quote }}
+            {{- if .Values.config.rpc.default_max_execution_time }}
             - name: FLUXBASE_RPC_DEFAULT_MAX_EXECUTION_TIME
               value: {{ .Values.config.rpc.default_max_execution_time | quote }}
+            {{- end }}
+            {{- if .Values.config.rpc.max_max_execution_time }}
             - name: FLUXBASE_RPC_MAX_MAX_EXECUTION_TIME
               value: {{ .Values.config.rpc.max_max_execution_time | quote }}
+            {{- end }}
+            {{- if .Values.config.rpc.default_max_rows }}
             - name: FLUXBASE_RPC_DEFAULT_MAX_ROWS
               value: {{ .Values.config.rpc.default_max_rows | quote }}
+            {{- end }}
 
             # ===========================================
             # AI Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.ai.enabled }}
             - name: FLUXBASE_AI_ENABLED
               value: {{ .Values.config.ai.enabled | quote }}
+            {{- end }}
             {{- if .Values.config.ai.enabled }}
             - name: FLUXBASE_AI_CHATBOTS_DIR
               value: {{ .Values.config.ai.chatbots_dir | quote }}
             - name: FLUXBASE_AI_AUTO_LOAD_ON_BOOT
               value: {{ .Values.config.ai.auto_load_on_boot | quote }}
+            {{- if .Values.config.ai.default_max_tokens }}
             - name: FLUXBASE_AI_DEFAULT_MAX_TOKENS
               value: {{ .Values.config.ai.default_max_tokens | quote }}
+            {{- end }}
             {{- if .Values.config.ai.default_model }}
             - name: FLUXBASE_AI_DEFAULT_MODEL
               value: {{ .Values.config.ai.default_model | quote }}
             {{- end }}
+            {{- if .Values.config.ai.query_timeout }}
             - name: FLUXBASE_AI_QUERY_TIMEOUT
               value: {{ .Values.config.ai.query_timeout | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.max_rows_per_query }}
             - name: FLUXBASE_AI_MAX_ROWS_PER_QUERY
               value: {{ .Values.config.ai.max_rows_per_query | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.conversation_cache_ttl }}
             - name: FLUXBASE_AI_CONVERSATION_CACHE_TTL
               value: {{ .Values.config.ai.conversation_cache_ttl | quote }}
+            {{- end }}
+            {{- if .Values.config.ai.max_conversation_turns }}
             - name: FLUXBASE_AI_MAX_CONVERSATION_TURNS
               value: {{ .Values.config.ai.max_conversation_turns | quote }}
+            {{- end }}
             {{- if .Values.config.ai.provider_type }}
             - name: FLUXBASE_AI_PROVIDER_TYPE
               value: {{ .Values.config.ai.provider_type | quote }}
@@ -780,8 +892,10 @@ spec:
               value: {{ .Values.config.ai.ollama_model | quote }}
             {{- end }}
             # Embedding Configuration
+            {{- if kindIs "bool" .Values.config.ai.embedding_enabled }}
             - name: FLUXBASE_AI_EMBEDDING_ENABLED
               value: {{ .Values.config.ai.embedding_enabled | quote }}
+            {{- end }}
             {{- if .Values.config.ai.embedding_provider }}
             - name: FLUXBASE_AI_EMBEDDING_PROVIDER
               value: {{ .Values.config.ai.embedding_provider | quote }}
@@ -791,8 +905,10 @@ spec:
               value: {{ .Values.config.ai.embedding_model | quote }}
             {{- end }}
             # OCR Configuration
+            {{- if kindIs "bool" .Values.config.ai.ocr_enabled }}
             - name: FLUXBASE_AI_OCR_ENABLED
               value: {{ .Values.config.ai.ocr_enabled | quote }}
+            {{- end }}
             {{- if .Values.config.ai.ocr_provider }}
             - name: FLUXBASE_AI_OCR_PROVIDER
               value: {{ .Values.config.ai.ocr_provider | quote }}
@@ -858,8 +974,10 @@ spec:
             # ===========================================
             # Admin Dashboard Configuration
             # ===========================================
+            {{- if kindIs "bool" .Values.config.admin.enabled }}
             - name: FLUXBASE_ADMIN_ENABLED
               value: {{ .Values.config.admin.enabled | quote }}
+            {{- end }}
 
             # ===========================================
             # MCP Configuration (Model Context Protocol)
@@ -1206,8 +1324,10 @@ spec:
             - name: FLUXBASE_PUBLIC_BASE_URL
               value: {{ .Values.config.public_base_url | quote }}
             {{- end }}
+            {{- if kindIs "bool" .Values.config.debug }}
             - name: FLUXBASE_DEBUG
               value: {{ .Values.config.debug | quote }}
+            {{- end }}
             {{- if or .Values.config.encryption_key .Values.existingSecret }}
             - name: FLUXBASE_ENCRYPTION_KEY
               valueFrom:

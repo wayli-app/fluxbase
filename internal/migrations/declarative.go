@@ -701,6 +701,17 @@ func (s *DeclarativeService) applyPlanDirectly(ctx context.Context, schema strin
 			}
 		}
 
+		// Skip ALTER TABLE ... ADD CONSTRAINT ... PRIMARY KEY on partition tables.
+		// The primary key is inherited from the partition parent after ATTACH PARTITION,
+		// so adding one on the child fails with "multiple primary keys" (SQLSTATE 42P16).
+		if strings.HasPrefix(sqlUpper, "ALTER TABLE") && strings.Contains(sqlUpper, "ADD CONSTRAINT") && strings.Contains(sqlUpper, "PRIMARY KEY") {
+			constraintTable := extractAlterTableName(change.SQL)
+			if partitions[constraintTable] {
+				log.Debug().Str("schema", schema).Str("table", constraintTable).Msg("Skipping ADD CONSTRAINT PRIMARY KEY on partition table (inherited from parent)")
+				continue
+			}
+		}
+
 		// Substitute {{APP_USER}} placeholder with the runtime user
 		sql, subErr := bootstrap.SubstituteAppUser(change.SQL, s.appUser)
 		if subErr != nil {

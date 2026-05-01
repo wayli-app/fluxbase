@@ -143,12 +143,12 @@ config:
     refresh_expiry: "168h"
     magic_link_expiry: "15m"
     password_reset_expiry: "1h"
-    password_min_length: 8
+    password_min_length: null
     bcrypt_cost: 10
-    signup_enabled: true
-    magic_link_enabled: true
+    signup_enabled: null
+    magic_link_enabled: null
     totp_issuer: "Fluxbase"
-    allow_user_client_keys: true  # Allow users to create their own client keys
+    allow_user_client_keys: null
 
     ## OAuth/OIDC Configuration
     ## Configure OAuth 2.0 and OIDC providers for social login and enterprise SSO
@@ -201,20 +201,20 @@ config:
   ## @param config.security.captcha.cap_api_key Cap API key (for cap provider only)
   ##
   security:
-    enable_global_rate_limit: true
-    enable_per_user_rate_limit: true  # Enable per-user rate limiting for authenticated users
+    enable_global_rate_limit: null
+    enable_per_user_rate_limit: null
     setup_token: "" # Use existingSecret in production. Generate with: openssl rand -base64 32
-    admin_setup_rate_limit: 5
-    admin_setup_rate_window: "15m"
-    auth_login_rate_limit: 10
-    auth_login_rate_window: "1m"
-    admin_login_rate_limit: 10
-    admin_login_rate_window: "1m"
+    admin_setup_rate_limit: null
+    admin_setup_rate_window: null
+    auth_login_rate_limit: null
+    auth_login_rate_window: null
+    admin_login_rate_limit: null
+    admin_login_rate_window: null
     ## service_role rate limiting (disabled by default - set to 0 for unlimited)
     ## @param config.security.service_role_rate_limit Max requests for service_role tokens (0 = unlimited)
     ## @param config.security.service_role_rate_window Time window for service_role rate limit
-    service_role_rate_limit: 0  # 0 = unlimited (service_role bypasses rate limiting by default)
-    service_role_rate_window: "1m"
+    service_role_rate_limit: null
+    service_role_rate_window: null
     ## CAPTCHA configuration for bot protection on auth endpoints
     ## Supported providers: hcaptcha, recaptcha_v3, turnstile, cap
     ## Cap is a self-hosted proof-of-work CAPTCHA (https://capjs.js.org/)
@@ -316,7 +316,7 @@ config:
   ## @param config.storage.s3_force_path_style Force S3 path-style URLs (for MinIO)
   ##
   storage:
-    enabled: true
+    enabled: null
     provider: "local"
     local_path: "/data/storage"
     max_upload_size: "2147483648" # 2GB
@@ -335,8 +335,8 @@ config:
     ## @param config.storage.transforms.max_height Maximum output image height in pixels
     ##
     transforms:
-      enabled: true
-      default_quality: 80
+      enabled: null
+      default_quality: null
       max_width: 4096
       max_height: 4096
       allowed_formats:
@@ -364,14 +364,14 @@ config:
   ## @param config.realtime.channel_buffer_size Channel buffer size
   ##
   realtime:
-    enabled: true
-    max_connections: 1000
-    ping_interval: "30s"
-    pong_timeout: "60s"
-    write_buffer_size: 1024
-    read_buffer_size: 1024
-    message_size_limit: 524288
-    channel_buffer_size: 100
+    enabled: null
+    max_connections: null
+    ping_interval: null
+    pong_timeout: null
+    write_buffer_size: null
+    read_buffer_size: null
+    message_size_limit: null
+    channel_buffer_size: null
 
   ## Email configuration
   ## @param config.email.enabled Enable email sending
@@ -420,13 +420,13 @@ config:
   ## @param config.functions.sync_allowed_ip_ranges IP ranges allowed for function sync
   ##
   functions:
-    enabled: true
+    enabled: null
     functions_dir: "/app/functions"
     auto_load_on_boot: true
-    default_timeout: 30
-    max_timeout: 300
-    default_memory_limit: 128
-    max_memory_limit: 1024
+    default_timeout: null
+    max_timeout: null
+    default_memory_limit: null
+    max_memory_limit: null
     sync_allowed_ip_ranges: []
 
   ## Deno Runtime configuration (for edge functions and background jobs)
@@ -457,19 +457,19 @@ config:
   ## @param config.jobs.jobs_logs_retention_days Job logs retention (days)
   ##
   jobs:
-    enabled: true
+    enabled: null
     jobs_dir: "/app/jobs"
     auto_load_on_boot: true
     worker_mode: "embedded"
-    embedded_worker_count: 4
-    max_concurrent_per_worker: 10
-    max_concurrent_per_namespace: 50
-    default_max_duration: "30m"
-    max_max_duration: "24h"
-    default_progress_timeout: "5m"
-    poll_interval: "1s"
-    worker_heartbeat_interval: "10s"
-    worker_timeout: "30s"
+    embedded_worker_count: null
+    max_concurrent_per_worker: null
+    max_concurrent_per_namespace: null
+    default_max_duration: null
+    max_max_duration: null
+    default_progress_timeout: null
+    poll_interval: null
+    worker_heartbeat_interval: null
+    worker_timeout: null
     sync_allowed_ip_ranges: []
     functions_logs_retention_days: 30
     rpc_logs_retention_days: 30
@@ -481,9 +481,9 @@ config:
   ## @param config.api.default_page_size Default page size when not specified (-1 for no default)
   ##
   api:
-    max_page_size: 1000
-    max_total_results: 10000
-    default_page_size: 1000
+    max_page_size: null
+    max_total_results: null
+    default_page_size: null
     max_batch_size: 1000
 
   ## GraphQL configuration
@@ -495,10 +495,10 @@ config:
   ## @param config.graphql.max_fields_per_lvl Maximum unique fields per query level (default: 50)
   ##
   graphql:
-    enabled: true
-    max_depth: 10
-    max_complexity: 1000
-    introspection: false
+    enabled: null
+    max_depth: null
+    max_complexity: null
+    introspection: null
     allow_fragments: false
     max_fields_per_lvl: 50
 
@@ -508,9 +508,9 @@ config:
   ## @param config.migrations.require_service_key Require service key for migrations
   ##
   migrations:
-    enabled: true
+    enabled: null
     allowed_ip_ranges: []
-    require_service_key: false
+    require_service_key: null
 
   ## RPC configuration
   ## @param config.rpc.enabled Enable RPC procedures
@@ -522,12 +522,12 @@ config:
   ## @param config.rpc.sync_allowed_ip_ranges IP ranges allowed for RPC sync
   ##
   rpc:
-    enabled: true
+    enabled: null
     procedures_dir: "/app/procedures"
     auto_load_on_boot: true
-    default_max_execution_time: "30s"
-    max_max_execution_time: "300s"
-    default_max_rows: 1000
+    default_max_execution_time: null
+    max_max_execution_time: null
+    default_max_rows: null
     sync_allowed_ip_ranges: []
 
   ## AI/Chatbot configuration
@@ -562,15 +562,15 @@ config:
   ## @param config.ai.ocr_languages OCR languages
   ##
   ai:
-    enabled: true
+    enabled: null
     chatbots_dir: "/app/chatbots"
     auto_load_on_boot: true
-    default_max_tokens: 4096
+    default_max_tokens: null
     default_model: ""
-    query_timeout: "30s"
-    max_rows_per_query: 1000
-    conversation_cache_ttl: "1h"
-    max_conversation_turns: 50
+    query_timeout: null
+    max_rows_per_query: null
+    conversation_cache_ttl: null
+    max_conversation_turns: null
     sync_allowed_ip_ranges: []
     # Provider configuration (if provider_type is set, a read-only config-based provider is added)
     provider_type: ""
@@ -587,11 +587,11 @@ config:
     ollama_endpoint: ""
     ollama_model: ""
     # Embeddings
-    embedding_enabled: true
+    embedding_enabled: null
     embedding_provider: ""
     embedding_model: ""
     # OCR
-    ocr_enabled: false
+    ocr_enabled: null
     ocr_provider: ""
     ocr_languages: []
 
@@ -714,7 +714,7 @@ config:
   ## Note: Also requires fluxbase.security.setup_token to be set
   ##
   admin:
-    enabled: true
+    enabled: null
 
   ## Prometheus Metrics configuration
   ## @param config.metrics.enabled Enable Prometheus metrics endpoint
@@ -855,7 +855,7 @@ config:
   ##
   base_url: ""
   public_base_url: ""
-  debug: false
+  debug: null
 
 ## @param existingSecret Name of existing secret containing sensitive configuration
 ## @descriptionStart
