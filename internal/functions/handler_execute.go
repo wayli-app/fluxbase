@@ -401,6 +401,12 @@ func (h *Handler) ListAllExecutions(c fiber.Ctx) error {
 
 // GetExecutionLogs returns logs for a specific function execution
 func (h *Handler) GetExecutionLogs(c fiber.Ctx) error {
+	if h.loggingService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Logging service not available",
+		})
+	}
+
 	executionIDStr := c.Params("id")
 
 	_, err := uuid.Parse(executionIDStr)

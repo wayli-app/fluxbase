@@ -80,7 +80,7 @@ func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, messag
 
 func (s *Scheduler) Start() error {
 	return s.inner.Start(func(ctx context.Context) ([]scheduler.Schedulable, error) {
-		functions, err := s.storage.ListFunctions(ctx)
+		functions, err := s.storage.ListAllFunctionsAllTenants(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -112,9 +112,13 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 
 	funcName := fn.Name
 	funcNamespace := fn.Namespace
+	var funcTenantID string
+	if fn.TenantID != nil {
+		funcTenantID = *fn.TenantID
+	}
 
 	entryID, err := s.inner.AddFunc(fn.Name, *fn.CronSchedule, func() {
-		s.executeScheduledFunction(funcName, funcNamespace)
+		s.executeScheduledFunction(funcName, funcNamespace, funcTenantID)
 	})
 	if err != nil {
 		log.Error().
@@ -149,13 +153,16 @@ func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
 	return nil
 }
 
-func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
+func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID string) {
 	if !s.inner.Guard.Acquire(funcName) {
 		return
 	}
 	defer s.inner.Guard.Release()
 
 	ctx := s.inner.Context()
+	if tenantID != "" {
+		ctx = database.ContextWithTenant(ctx, tenantID)
+	}
 
 	fn, err := s.storage.GetFunctionByNamespace(ctx, funcName, funcNamespace)
 	if err != nil {
@@ -198,7 +205,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		}
 	}
 
-	s.logCounters.Store(executionID, &executionLogContext{})
+	s.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer s.logCounters.Delete(executionID)
 
 	perms := runtime.Permissions{
@@ -271,7 +278,11 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 						Msg("Panic in scheduled function execution record completion - recovered")
 				}
 			}()
-			if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
+			completeCtx := context.Background()
+			if tenantID != "" {
+				completeCtx = database.ContextWithTenant(completeCtx, tenantID)
+			}
+			if updateErr := s.storage.CompleteExecution(completeCtx, executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().
 					Err(updateErr).
 					Str("function", fn.Name).

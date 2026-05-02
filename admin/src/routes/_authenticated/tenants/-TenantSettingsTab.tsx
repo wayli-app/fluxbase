@@ -284,7 +284,7 @@ export function TenantSettingsTab({ tenantId }: TenantSettingsTabProps) {
                                   setEditingPath(path);
                                   setEditValue(typedSetting.value);
                                 }}
-                              readOnly={typedSetting.is_secret}
+                              disabled={typedSetting.is_secret}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>

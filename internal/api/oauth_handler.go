@@ -1080,6 +1080,9 @@ func (h *OAuthHandler) GetProviderToken(c fiber.Ctx) error {
 
 			go func() {
 				refreshCtx := context.Background()
+				if tid := middleware.GetTenantIDFromContext(c); tid != "" {
+					refreshCtx = database.ContextWithTenant(refreshCtx, tid)
+				}
 				accessTokenToStore := newToken.AccessToken
 				refreshTokenToStore := newToken.RefreshToken
 				idTokenToStore := idToken
