@@ -56,21 +56,26 @@ func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, messag
 		return
 	}
 
-	counterPtr, ok := counterVal.(*int)
+	ctx, ok := counterVal.(*executionLogContext)
 	if !ok {
 		log.Warn().Str("execution_id", executionID.String()).Msg("Invalid log counter type")
 		return
 	}
 
-	lineNumber := *counterPtr
-	*counterPtr = lineNumber + 1
+	lineNumber := ctx.lineCounter
+	ctx.lineCounter = lineNumber + 1
 
-	log.Debug().
+	event := log.Debug().
 		Str("execution_id", executionID.String()).
 		Str("level", level).
 		Int("line_number", lineNumber).
-		Str("message", message).
-		Msg("Scheduled function execution log")
+		Str("message", message)
+
+	if ctx.tenantID != "" {
+		event = event.Str("tenant_id", ctx.tenantID)
+	}
+
+	event.Msg("Scheduled function execution log")
 }
 
 func (s *Scheduler) Start() error {
@@ -193,8 +198,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		}
 	}
 
-	lineCounter := 0
-	s.logCounters.Store(executionID, &lineCounter)
+	s.logCounters.Store(executionID, &executionLogContext{})
 	defer s.logCounters.Delete(executionID)
 
 	perms := runtime.Permissions{

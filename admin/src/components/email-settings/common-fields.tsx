@@ -40,7 +40,7 @@ export function CommonFields({
           placeholder="noreply@example.com"
           value={formState.from_address}
           onChange={(e) => onFormChange("from_address", e.target.value)}
-          disabled={isOverridden("from_address")}
+          readOnly={isOverridden("from_address")}
           autoComplete="off"
         />
       </div>
@@ -58,7 +58,7 @@ export function CommonFields({
           placeholder="My App"
           value={formState.from_name}
           onChange={(e) => onFormChange("from_name", e.target.value)}
-          disabled={isOverridden("from_name")}
+          readOnly={isOverridden("from_name")}
           autoComplete="off"
         />
       </div>

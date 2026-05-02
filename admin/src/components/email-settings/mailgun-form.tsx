@@ -44,7 +44,7 @@ export function MailgunForm({
             }
             value={formState.mailgun_api_key}
             onChange={(e) => onFormChange("mailgun_api_key", e.target.value)}
-            disabled={isOverridden("mailgun_api_key")}
+            readOnly={isOverridden("mailgun_api_key")}
             autoComplete="off"
           />
           <Button
@@ -76,7 +76,7 @@ export function MailgunForm({
           placeholder="mg.example.com"
           value={formState.mailgun_domain}
           onChange={(e) => onFormChange("mailgun_domain", e.target.value)}
-          disabled={isOverridden("mailgun_domain")}
+          readOnly={isOverridden("mailgun_domain")}
           autoComplete="off"
         />
       </div>

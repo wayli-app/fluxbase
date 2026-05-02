@@ -224,7 +224,7 @@ export function TenantSettingsTab({ tenantId }: TenantSettingsTabProps) {
                               value={(editValue as string) ?? ""}
                               onChange={(e) => setEditValue(e.target.value)}
                               className="w-[200px]"
-                              disabled={typedSetting.is_secret}
+                              readOnly={typedSetting.is_secret}
                               type={
                                 typedSetting.is_secret ? "password" : "text"
                               }
@@ -284,7 +284,7 @@ export function TenantSettingsTab({ tenantId }: TenantSettingsTabProps) {
                                   setEditingPath(path);
                                   setEditValue(typedSetting.value);
                                 }}
-                                disabled={typedSetting.is_secret}
+                              readOnly={typedSetting.is_secret}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>

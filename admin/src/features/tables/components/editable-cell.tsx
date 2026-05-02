@@ -144,8 +144,7 @@ export function EditableCell({
 
   return (
     <button
-      onClick={handleStartEdit}
-      disabled={isReadOnly}
+      onClick={isReadOnly ? undefined : handleStartEdit}
       className={cn(
         'hover:bg-accent hover:text-accent-foreground -mx-2 -my-1 w-full rounded px-2 py-1 text-left transition-colors',
         value === null && 'text-muted-foreground italic',

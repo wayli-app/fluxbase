@@ -267,7 +267,7 @@ function SecuritySettingsPage() {
                         onChange={(e) =>
                           updateFormField("site_key", e.target.value)
                         }
-                        disabled={isOverridden("site_key")}
+                          readOnly={isOverridden("site_key")}
                         placeholder="Enter your CAPTCHA site key"
                       />
                       {isOverridden("site_key") && (
@@ -293,7 +293,7 @@ function SecuritySettingsPage() {
                           onChange={(e) =>
                             updateFormField("secret_key", e.target.value)
                           }
-                          disabled={isOverridden("secret_key")}
+                          readOnly={isOverridden("secret_key")}
                           placeholder="Leave empty to keep current secret"
                         />
                         {isOverridden("secret_key") && (
@@ -335,7 +335,7 @@ function SecuritySettingsPage() {
                               parseFloat(e.target.value),
                             )
                           }
-                          disabled={isOverridden("score_threshold")}
+                          readOnly={isOverridden("score_threshold")}
                         />
                         {isOverridden("score_threshold") && (
                           <Badge
@@ -364,7 +364,7 @@ function SecuritySettingsPage() {
                             onChange={(e) =>
                               updateFormField("cap_server_url", e.target.value)
                             }
-                            disabled={isOverridden("cap_server_url")}
+                            readOnly={isOverridden("cap_server_url")}
                             placeholder="https://cap.example.com"
                           />
                           {isOverridden("cap_server_url") && (
@@ -389,7 +389,7 @@ function SecuritySettingsPage() {
                               onChange={(e) =>
                                 updateFormField("cap_api_key", e.target.value)
                               }
-                              disabled={isOverridden("cap_api_key")}
+                              readOnly={isOverridden("cap_api_key")}
                               placeholder="Leave empty to keep current API key"
                             />
                             {isOverridden("cap_api_key") && (

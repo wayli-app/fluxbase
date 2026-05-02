@@ -41,7 +41,7 @@ export function SendgridForm({
           placeholder={settings?.sendgrid_api_key_set ? "••••••••" : "SG.xxxxx"}
           value={formState.sendgrid_api_key}
           onChange={(e) => onFormChange("sendgrid_api_key", e.target.value)}
-          disabled={isOverridden("sendgrid_api_key")}
+          readOnly={isOverridden("sendgrid_api_key")}
           autoComplete="off"
         />
         <Button

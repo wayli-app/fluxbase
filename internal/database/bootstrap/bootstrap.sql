@@ -179,11 +179,11 @@ GRANT USAGE ON SCHEMA rpc TO authenticated, service_role;
 -- MCP schema - all roles
 GRANT USAGE ON SCHEMA mcp TO anon, authenticated, service_role;
 
--- Branching schema - service role only
-GRANT USAGE ON SCHEMA branching TO service_role;
+-- Branching schema - service role and authenticated (SQL editor tenant admin access, RLS enforced)
+GRANT USAGE ON SCHEMA branching TO authenticated, service_role;
 
--- Logging schema - service role and {{APP_USER}} (app needs access for direct pool queries)
-GRANT USAGE ON SCHEMA logging TO service_role, {{APP_USER}};
+-- Logging schema - service role, {{APP_USER}}, and authenticated (SQL editor tenant admin access, RLS enforced)
+GRANT USAGE ON SCHEMA logging TO authenticated, service_role, {{APP_USER}};
 
 -- Platform schema - authenticated and service
 GRANT USAGE ON SCHEMA platform TO authenticated, service_role;
@@ -343,12 +343,12 @@ BEGIN
 END
 $$;
 
--- Grant permissions on all existing logging tables to service_role and tenant_service.
+-- Grant permissions on all existing logging tables to service_role, tenant_service, and authenticated.
 -- pgschema skips PRIVILEGE entries during plan/apply, so the per-table
 -- GRANTs in logging.sql may never be applied. This DO block ensures both
 -- service_role and tenant_service can query logging.entries (used by the admin
--- stats API and the logs dashboard). tenant_service is subject to RLS policies
--- (auth.has_tenant_access) so tenants only see their own logs.
+-- stats API and the logs dashboard). tenant_service and authenticated are subject
+-- to RLS policies (auth.has_tenant_access) so tenants only see their own logs.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'logging') THEN
@@ -380,6 +380,32 @@ BEGIN
             EXECUTE 'GRANT ALL ON ALL SEQUENCES IN SCHEMA logging TO tenant_service';
         EXCEPTION WHEN others THEN
             RAISE NOTICE 'Could not grant on logging sequences to tenant_service: %', SQLERRM;
+        END;
+
+        BEGIN
+            EXECUTE 'GRANT USAGE ON SCHEMA logging TO authenticated';
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant usage on logging schema to authenticated: %', SQLERRM;
+        END;
+
+        BEGIN
+            EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA logging TO authenticated';
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant on logging tables to authenticated: %', SQLERRM;
+        END;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'branching') THEN
+        BEGIN
+            EXECUTE 'GRANT USAGE ON SCHEMA branching TO authenticated';
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant usage on branching schema to authenticated: %', SQLERRM;
+        END;
+
+        BEGIN
+            EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA branching TO authenticated';
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant on branching tables to authenticated: %', SQLERRM;
         END;
     END IF;
 END

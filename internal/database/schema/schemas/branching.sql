@@ -539,7 +539,8 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 -- Name: branching; Type: PRIVILEGE; Schema: privileges; Owner: -
 --
 
-GRANT USAGE ON SCHEMA branching TO tenant_service;
+GRANT USAGE ON SCHEMA branching TO authenticated, tenant_service;
+GRANT SELECT ON ALL TABLES IN SCHEMA branching TO authenticated;
 
 --
 -- Name: branches; Type: PRIVILEGE; Schema: privileges; Owner: -

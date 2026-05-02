@@ -840,6 +840,8 @@ GRANT DELETE, INSERT, SELECT, TRUNCATE, UPDATE ON TABLE entries TO {{APP_USER}};
 --
 
 GRANT USAGE ON SCHEMA logging TO tenant_service;
+GRANT USAGE ON SCHEMA logging TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA logging TO authenticated;
 
 --
 -- Name: entries; Type: PRIVILEGE; Schema: privileges; Owner: -

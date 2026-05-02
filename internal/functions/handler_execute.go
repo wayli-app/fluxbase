@@ -14,6 +14,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 	"github.com/nimbleflux/fluxbase/internal/runtime"
 
+	"github.com/nimbleflux/fluxbase/internal/database"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/util"
 )
@@ -211,8 +212,8 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	}
 
 	// Initialize log counter for this execution
-	lineCounter := 0
-	h.logCounters.Store(executionID, &lineCounter)
+	tenantID := middleware.GetTenantIDFromContext(c)
+	h.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer h.logCounters.Delete(executionID)
 
 	// Build timeout override from function settings
@@ -272,9 +273,10 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	// Update execution record asynchronously (don't block response)
 	// Skip if execution logs are disabled for this function
 	if !fn.DisableExecutionLogs {
+		tenantID := middleware.GetTenantIDFromContext(c)
+		completeCtx := database.ContextWithTenant(context.Background(), tenantID)
 		go func() {
-			ctx := context.Background()
-			if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
+			if updateErr := h.storage.CompleteExecution(completeCtx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
 			}
 		}()

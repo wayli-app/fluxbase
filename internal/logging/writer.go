@@ -141,6 +141,10 @@ func (w *Writer) parseZerologJSON(p []byte) (*storage.LogEntry, error) {
 		entry.ExecutionType = executionType
 		delete(raw, "execution_type")
 	}
+	if tenantID, ok := raw["tenant_id"].(string); ok {
+		entry.TenantID = tenantID
+		delete(raw, "tenant_id")
+	}
 
 	// Detect security logs (from SecurityLogger)
 	if _, ok := raw["security_event"]; ok {

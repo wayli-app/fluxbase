@@ -43,7 +43,7 @@ export function SesForm({
             }
             value={formState.ses_access_key}
             onChange={(e) => onFormChange("ses_access_key", e.target.value)}
-            disabled={isOverridden("ses_access_key")}
+            readOnly={isOverridden("ses_access_key")}
             autoComplete="off"
           />
           <Button
@@ -85,7 +85,7 @@ export function SesForm({
             }
             value={formState.ses_secret_key}
             onChange={(e) => onFormChange("ses_secret_key", e.target.value)}
-            disabled={isOverridden("ses_secret_key")}
+            readOnly={isOverridden("ses_secret_key")}
             autoComplete="off"
           />
           <Button
@@ -117,7 +117,7 @@ export function SesForm({
           placeholder="us-east-1"
           value={formState.ses_region}
           onChange={(e) => onFormChange("ses_region", e.target.value)}
-          disabled={isOverridden("ses_region")}
+          readOnly={isOverridden("ses_region")}
           autoComplete="off"
         />
       </div>
