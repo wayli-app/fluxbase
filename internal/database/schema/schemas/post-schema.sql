@@ -1094,3 +1094,23 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Invitation token hash migration skipped: %', SQLERRM;
 END $$;
+
+-- ============================================================================
+-- REALTIME SCHEMA REGISTRY — register tables for postgres_changes subscriptions
+-- ============================================================================
+-- These entries enable the realtime listener to accept subscriptions for these
+-- tables. Without them, subscribe requests are rejected with
+-- "table X.Y not enabled for realtime".
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'realtime') THEN
+        INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
+        VALUES
+            ('jobs', 'queue', true, '*'),
+            ('rpc', 'executions', true, '*'),
+            ('functions', 'edge_executions', true, '*')
+        ON CONFLICT (schema_name, table_name) DO NOTHING;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Realtime schema registry seed skipped: %', SQLERRM;
+END $$;

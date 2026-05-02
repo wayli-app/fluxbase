@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import z from "zod";
 import {
   useQuery,
@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { rpcApi, type RPCProcedure, type RPCExecution } from "@/lib/api";
 import { useTenantStore } from "@/stores/tenant-store";
 import { useExecutionLogs } from "@/hooks/use-execution-logs";
+import { fluxbaseClient } from "@/lib/fluxbase-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -119,6 +120,47 @@ function RPCContent() {
     executionType: "rpc",
     enabled: isExecutionDetailsOpen,
   });
+
+  // Realtime subscription: update selected execution when it changes
+  useEffect(() => {
+    if (!isExecutionDetailsOpen || !selectedExecution) return;
+
+    const isActive =
+      selectedExecution.status === "running" ||
+      selectedExecution.status === "pending";
+    if (!isActive) return;
+
+    const channel = fluxbaseClient
+      .channel(`rpc-exec-detail-${selectedExecution.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "rpc",
+          table: "executions",
+          filter: `id=eq.${selectedExecution.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as RPCExecution;
+          setSelectedExecution((prev) =>
+            prev ? { ...prev, ...updated } : prev,
+          );
+
+          if (
+            updated.status !== "running" &&
+            updated.status !== "pending"
+          ) {
+            refetchExecutions();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExecutionDetailsOpen, selectedExecution?.id, selectedExecution?.status]);
 
   const [cancellingExecutionId, setCancellingExecutionId] = useState<
     string | null

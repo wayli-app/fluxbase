@@ -321,10 +321,10 @@ DECLARE
 BEGIN
   -- Build record without large fields for notification efficiency
   IF TG_OP != 'DELETE' THEN
-    notification_record := to_jsonb(NEW) - 'result' - 'payload';
+    notification_record := to_jsonb(NEW) - 'payload';
   END IF;
   IF TG_OP != 'INSERT' THEN
-    old_notification_record := to_jsonb(OLD) - 'result' - 'payload';
+    old_notification_record := to_jsonb(OLD) - 'payload';
   END IF;
 
   PERFORM pg_notify(

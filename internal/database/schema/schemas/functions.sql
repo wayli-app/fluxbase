@@ -794,10 +794,10 @@ DECLARE
   old_notification_record JSONB;
 BEGIN
   IF TG_OP != 'DELETE' THEN
-    notification_record := to_jsonb(NEW) - 'result' - 'logs' - 'error_message';
+    notification_record := to_jsonb(NEW) - 'logs';
   END IF;
   IF TG_OP != 'INSERT' THEN
-    old_notification_record := to_jsonb(OLD) - 'result' - 'logs' - 'error_message';
+    old_notification_record := to_jsonb(OLD) - 'logs';
   END IF;
 
   PERFORM pg_notify(
