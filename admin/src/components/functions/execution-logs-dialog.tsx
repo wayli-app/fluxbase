@@ -67,7 +67,11 @@ export function ExecutionLogsDialog({
                           variant={
                             exec.status === "success"
                               ? "default"
-                              : "destructive"
+                              : exec.status === "error" ||
+                                  exec.status === "timeout" ||
+                                  exec.status === "cancelled"
+                                ? "destructive"
+                                : "outline"
                           }
                         >
                           {exec.status}
