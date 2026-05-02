@@ -1106,9 +1106,9 @@ DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'realtime') THEN
         INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
         VALUES
-            ('jobs', 'queue', true, '*'),
-            ('rpc', 'executions', true, '*'),
-            ('functions', 'edge_executions', true, '*')
+            ('jobs', 'queue', true, '{INSERT,UPDATE,DELETE}'),
+            ('rpc', 'executions', true, '{INSERT,UPDATE,DELETE}'),
+            ('functions', 'edge_executions', true, '{INSERT,UPDATE,DELETE}')
         ON CONFLICT (schema_name, table_name) DO NOTHING;
     END IF;
 EXCEPTION WHEN OTHERS THEN
