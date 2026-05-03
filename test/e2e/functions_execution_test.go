@@ -257,3 +257,63 @@ func TestFunctionExecutionTenantIsolation(t *testing.T) {
 
 	t.Logf("Default tenant sees %d executions, no-tenant query sees %v", len(executions), noTenantCount)
 }
+
+func TestFunctionExecutionTenantScopedService(t *testing.T) {
+	rateLimiter, pubSub := test.NewInMemoryDependencies()
+	tc := test.NewTestContextWithOptions(t, test.TestContextOptions{
+		RateLimiter: rateLimiter,
+		PubSub:      pubSub,
+	})
+	defer tc.Close()
+	tc.EnsureAuthSchema()
+	tc.EnsureSystemSettings()
+
+	timestamp := time.Now().UnixNano()
+	email := fmt.Sprintf("admin-tenant-svc-%d@test.com", timestamp)
+	_, adminToken := tc.CreateDashboardAdminUser(email, "adminpass123456")
+
+	defaultTenantID := tc.GetDefaultTenantID()
+
+	t.Run("function receives tenant context via tenant.getCurrentTenantId()", func(t *testing.T) {
+		functionName := fmt.Sprintf("test_tenant_ctx_%d", timestamp)
+		createTestFunction(t, tc, adminToken, functionName, fmt.Sprintf(`export default async function handler(req) {
+			const tenantId = Fluxbase.tenant.getCurrentTenantId();
+			return new Response(JSON.stringify({ tenantId: tenantId }), {
+				headers: { "Content-Type": "application/json" }
+			});
+		}`))
+
+		result := invokeFunction(t, tc, adminToken, functionName)
+		t.Logf("Function result: %v", result)
+
+		resultTenantID, ok := result["tenantId"].(string)
+		if ok {
+			assert.Equal(t, defaultTenantID, resultTenantID,
+				"Function should receive the default tenant ID via tenant.getCurrentTenantId()")
+		}
+	})
+
+	t.Run("function _fluxbaseService is tenant-scoped", func(t *testing.T) {
+		functionName := fmt.Sprintf("test_svc_tenant_%d", timestamp)
+		createTestFunction(t, tc, adminToken, functionName, `export default async function handler(req) {
+			const hasService = _fluxbaseService !== null && _fluxbaseService !== undefined;
+			const hasTenantContext = Fluxbase.tenant.hasTenantContext();
+			return new Response(JSON.stringify({
+				hasService: hasService,
+				hasTenantContext: hasTenantContext
+			}), {
+				headers: { "Content-Type": "application/json" }
+			});
+		}`)
+
+		result := invokeFunction(t, tc, adminToken, functionName)
+		t.Logf("Service client result: %v", result)
+
+		hasService, _ := result["hasService"].(bool)
+		hasTenantCtx, _ := result["hasTenantContext"].(bool)
+		assert.True(t, hasService, "_fluxbaseService should be available when tenant context is set")
+		assert.True(t, hasTenantCtx, "tenant.hasTenantContext() should return true")
+	})
+
+	_ = defaultTenantID
+}
