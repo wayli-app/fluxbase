@@ -317,3 +317,63 @@ func TestFunctionExecutionTenantScopedService(t *testing.T) {
 
 	_ = defaultTenantID
 }
+
+func TestFunctionExecution_ServiceClientQueriesUserTable(t *testing.T) {
+	rateLimiter, pubSub := test.NewInMemoryDependencies()
+	tc := test.NewTestContextWithOptions(t, test.TestContextOptions{
+		RateLimiter: rateLimiter,
+		PubSub:      pubSub,
+	})
+	defer tc.Close()
+	tc.EnsureAuthSchema()
+	tc.EnsureSystemSettings()
+
+	timestamp := time.Now().UnixNano()
+	email := fmt.Sprintf("admin-svc-query-%d@test.com", timestamp)
+	_, adminToken := tc.CreateDashboardAdminUser(email, "adminpass123456")
+
+	tableName := fmt.Sprintf("test_svc_query_%d", timestamp)
+
+	tc.ExecuteSQL(fmt.Sprintf(`
+		CREATE TABLE public.%s (
+			id serial PRIMARY KEY,
+			name text NOT NULL
+		);
+		GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%s TO tenant_service;
+		GRANT USAGE, SELECT ON SEQUENCE public.%s_id_seq TO tenant_service;
+	`, tableName, tableName, tableName))
+
+	tc.ExecuteSQL(fmt.Sprintf(`INSERT INTO public.%s (name) VALUES ('hello'), ('world');`, tableName))
+
+	functionName := fmt.Sprintf("test_svc_from_%d", timestamp)
+	createTestFunction(t, tc, adminToken, functionName, fmt.Sprintf(`export default async function handler(req) {
+		try {
+			const { data, error } = await _fluxbaseService.from('%s').select('*').limit(10);
+			if (error) {
+				return new Response(JSON.stringify({ error: error.message }), {
+					status: 500,
+					headers: { "Content-Type": "application/json" }
+				});
+			}
+			return new Response(JSON.stringify({ rows: data }), {
+				headers: { "Content-Type": "application/json" }
+			});
+		} catch (e) {
+			return new Response(JSON.stringify({ error: e.message }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" }
+			});
+		}
+	}`, tableName))
+
+	result := invokeFunction(t, tc, adminToken, functionName)
+	t.Logf("Service client query result: %v", result)
+
+	if errMsg, ok := result["error"].(string); ok {
+		t.Fatalf("_fluxbaseService.from().select() failed: %s (tenant_service may lack table permissions)", errMsg)
+	}
+
+	rows, ok := result["rows"].([]interface{})
+	require.True(t, ok, "Expected 'rows' array in response, got: %v", result)
+	assert.Len(t, rows, 2, "Expected 2 rows from user table")
+}

@@ -80,17 +80,17 @@ func BuildSettingsAdminRoutes(deps *SettingsAdminDeps) *RouteGroup {
 			{Method: "DELETE", Path: "/system/settings/*", Handler: deps.DeleteSystemSetting, Summary: "Delete system setting"},
 
 			// Custom Settings - tenant accessible (override roles)
-			{Method: "POST", Path: "/settings/custom", Handler: deps.CreateCustomSetting, Summary: "Create custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "GET", Path: "/settings/custom", Handler: deps.ListCustomSettings, Summary: "List custom settings", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "POST", Path: "/settings/custom/secret", Handler: deps.CreateSecretSetting, Summary: "Create secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "GET", Path: "/settings/custom/secrets", Handler: deps.ListSecretSettings, Summary: "List secret settings", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "GET", Path: "/settings/custom/secret/*", Handler: deps.GetSecretSetting, Summary: "Get secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "PUT", Path: "/settings/custom/secret/*", Handler: deps.UpdateSecretSetting, Summary: "Update secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "DELETE", Path: "/settings/custom/secret/*", Handler: deps.DeleteSecretSetting, Summary: "Delete secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "GET", Path: "/settings/user/:user_id/secret/:key/decrypt", Handler: deps.GetUserSecretValue, Summary: "Decrypt user secret (service_role only)", Roles: []string{"service_role"}},
-			{Method: "GET", Path: "/settings/custom/*", Handler: deps.GetCustomSetting, Summary: "Get custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "PUT", Path: "/settings/custom/*", Handler: deps.UpdateCustomSetting, Summary: "Update custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
-			{Method: "DELETE", Path: "/settings/custom/*", Handler: deps.DeleteCustomSetting, Summary: "Delete custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role"}},
+			{Method: "POST", Path: "/settings/custom", Handler: deps.CreateCustomSetting, Summary: "Create custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "GET", Path: "/settings/custom", Handler: deps.ListCustomSettings, Summary: "List custom settings", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "POST", Path: "/settings/custom/secret", Handler: deps.CreateSecretSetting, Summary: "Create secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "GET", Path: "/settings/custom/secrets", Handler: deps.ListSecretSettings, Summary: "List secret settings", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "GET", Path: "/settings/custom/secret/*", Handler: deps.GetSecretSetting, Summary: "Get secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "PUT", Path: "/settings/custom/secret/*", Handler: deps.UpdateSecretSetting, Summary: "Update secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "DELETE", Path: "/settings/custom/secret/*", Handler: deps.DeleteSecretSetting, Summary: "Delete secret setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "GET", Path: "/settings/user/:user_id/secret/:key/decrypt", Handler: deps.GetUserSecretValue, Summary: "Decrypt user secret", Roles: []string{"service_role", "tenant_service"}},
+			{Method: "GET", Path: "/settings/custom/*", Handler: deps.GetCustomSetting, Summary: "Get custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "PUT", Path: "/settings/custom/*", Handler: deps.UpdateCustomSetting, Summary: "Update custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
+			{Method: "DELETE", Path: "/settings/custom/*", Handler: deps.DeleteCustomSetting, Summary: "Delete custom setting", Roles: []string{"admin", "instance_admin", "tenant_admin", "service_role", "tenant_service"}},
 
 			// App Settings - tenant accessible (override roles)
 			{Method: "GET", Path: "/app/settings", Handler: deps.GetAppSettings, Summary: "Get app settings", Roles: []string{"admin", "instance_admin", "tenant_admin"}},

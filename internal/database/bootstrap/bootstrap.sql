@@ -160,33 +160,33 @@ GRANT tenant_migration_role TO CURRENT_USER;
 -- ============================================================================
 
 -- Core schemas accessible to all RLS roles
-GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA functions TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role, tenant_service;
+GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role, tenant_service;
+GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role, tenant_service;
+GRANT USAGE ON SCHEMA functions TO anon, authenticated, service_role, tenant_service;
+GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role, tenant_service;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, tenant_service;
 
 -- AI schema accessible to all
-GRANT USAGE ON SCHEMA ai TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA ai TO anon, authenticated, service_role, tenant_service;
 
 -- Jobs schema - authenticated and service only
-GRANT USAGE ON SCHEMA jobs TO authenticated, service_role;
+GRANT USAGE ON SCHEMA jobs TO authenticated, service_role, tenant_service;
 
 -- RPC schema - authenticated and service only
-GRANT USAGE ON SCHEMA rpc TO authenticated, service_role;
+GRANT USAGE ON SCHEMA rpc TO authenticated, service_role, tenant_service;
 
 -- MCP schema - all roles
-GRANT USAGE ON SCHEMA mcp TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA mcp TO anon, authenticated, service_role, tenant_service;
 
 -- Branching schema - service role and authenticated (SQL editor tenant admin access, RLS enforced)
-GRANT USAGE ON SCHEMA branching TO authenticated, service_role;
+GRANT USAGE ON SCHEMA branching TO authenticated, service_role, tenant_service;
 
 -- Logging schema - service role, {{APP_USER}}, and authenticated (SQL editor tenant admin access, RLS enforced)
-GRANT USAGE ON SCHEMA logging TO authenticated, service_role, {{APP_USER}};
+GRANT USAGE ON SCHEMA logging TO authenticated, service_role, tenant_service, {{APP_USER}};
 
 -- Platform schema - authenticated and service
-GRANT USAGE ON SCHEMA platform TO authenticated, service_role;
+GRANT USAGE ON SCHEMA platform TO authenticated, service_role, tenant_service;
 
 -- Tenant migration role - public schema only
 GRANT USAGE, CREATE ON SCHEMA public TO tenant_migration_role;
@@ -310,13 +310,27 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
     GRANT EXECUTE ON FUNCTIONS TO service_role;
 
+-- tenant_service gets CRUD on public tables (RLS enforces tenant isolation)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tenant_service;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO tenant_service;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT EXECUTE ON FUNCTIONS TO tenant_service;
+
 -- Also set defaults for the bootstrap role explicitly (covers tables created during bootstrap)
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
     GRANT ALL ON TABLES TO service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
     GRANT EXECUTE ON FUNCTIONS TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tenant_service;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO tenant_service;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA public
+    GRANT EXECUTE ON FUNCTIONS TO tenant_service;
 
--- Grant permissions on all existing public schema tables to service_role
+-- Grant permissions on all existing public schema tables to service_role and tenant_service
 -- This covers tables created by any role before these defaults were in place.
 DO $$
 BEGIN
@@ -330,6 +344,13 @@ BEGIN
             RAISE NOTICE 'Could not grant on public tables: %', SQLERRM;
         END;
 
+        -- Grant CRUD on all existing tables for tenant_service (RLS enforced)
+        BEGIN
+            EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO tenant_service');
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant on public tables for tenant_service: %', SQLERRM;
+        END;
+
         -- Grant ALL on all existing sequences in public schema
         BEGIN
             EXECUTE format('GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role');
@@ -337,11 +358,23 @@ BEGIN
             RAISE NOTICE 'Could not grant on public sequences: %', SQLERRM;
         END;
 
+        BEGIN
+            EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO tenant_service');
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant on public sequences for tenant_service: %', SQLERRM;
+        END;
+
         -- Grant ALL on all existing functions in public schema
         BEGIN
             EXECUTE format('GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role');
         EXCEPTION WHEN others THEN
             RAISE NOTICE 'Could not grant on public functions: %', SQLERRM;
+        END;
+
+        BEGIN
+            EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO tenant_service');
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Could not grant on public functions for tenant_service: %', SQLERRM;
         END;
     END IF;
 END
