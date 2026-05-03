@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -251,6 +252,10 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID s
 		if result.Error != "" {
 			status = "error"
 			errorMessage = &result.Error
+		} else if result.Status >= 400 {
+			status = "error"
+			errMsg := fmt.Sprintf("Function returned HTTP %d", result.Status)
+			errorMessage = &errMsg
 		}
 		log.Info().
 			Str("function", fn.Name).

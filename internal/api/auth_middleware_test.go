@@ -481,6 +481,18 @@ func TestRequireRole_JWTAuth(t *testing.T) {
 			allowedRoles:   []string{"admin", "instance_admin", "tenant_admin"},
 			expectedStatus: fiber.StatusOK,
 		},
+		{
+			name:           "tenant_service JWT allowed on service_role+tenant_service route (no tenant_admin)",
+			userRole:       "tenant_service",
+			allowedRoles:   []string{"service_role", "tenant_service"},
+			expectedStatus: fiber.StatusOK,
+		},
+		{
+			name:           "tenant_service JWT rejected on service_role-only route",
+			userRole:       "tenant_service",
+			allowedRoles:   []string{"service_role"},
+			expectedStatus: fiber.StatusForbidden,
+		},
 	}
 
 	for _, tt := range tests {

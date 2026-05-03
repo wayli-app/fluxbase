@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -268,6 +269,10 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	if err != nil {
 		status = "error"
 		errorMessage = &result.Error
+	} else if result.Status >= 400 {
+		status = "error"
+		errMsg := fmt.Sprintf("Function returned HTTP %d", result.Status)
+		errorMessage = &errMsg
 	}
 
 	var resultBody *string

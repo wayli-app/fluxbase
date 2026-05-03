@@ -198,6 +198,44 @@ func TestFunctionExecutionFailure(t *testing.T) {
 	t.Logf("Failed execution: status=%v, error_message=%v", exec["status"], exec["error_message"])
 }
 
+func TestFunctionExecution_Non2xxStatusIsError(t *testing.T) {
+	rateLimiter, pubSub := test.NewInMemoryDependencies()
+	tc := test.NewTestContextWithOptions(t, test.TestContextOptions{
+		RateLimiter: rateLimiter,
+		PubSub:      pubSub,
+	})
+	defer tc.Close()
+	tc.EnsureAuthSchema()
+
+	timestamp := time.Now().UnixNano()
+	email := fmt.Sprintf("admin-non2xx-%d@test.com", timestamp)
+	_, adminToken := tc.CreateDashboardAdminUser(email, "adminpass123456")
+
+	functionName := fmt.Sprintf("test_non2xx_%d", timestamp)
+	createTestFunction(t, tc, adminToken, functionName, `export default async function handler(req) {
+		return new Response(JSON.stringify({ error: "not found" }), {
+			status: 404,
+			headers: { "Content-Type": "application/json" }
+		});
+	}`)
+
+	resp := tc.NewRequest("POST", fmt.Sprintf("/api/v1/functions/%s/invoke", functionName)).
+		WithAuth(adminToken).
+		WithJSON(map[string]interface{}{}).
+		Send()
+	require.Equal(t, fiber.StatusNotFound, resp.Status())
+
+	time.Sleep(500 * time.Millisecond)
+
+	executions := getExecutions(t, tc, adminToken, functionName)
+	require.NotEmpty(t, executions, "Expected at least one execution record")
+
+	exec := executions[0].(map[string]interface{})
+	assert.Equal(t, "error", exec["status"], "Non-2xx response should mark execution as 'error'")
+	assert.NotNil(t, exec["error_message"], "Non-2xx execution should have error_message")
+	t.Logf("Non-2xx execution: status=%v, error_message=%v", exec["status"], exec["error_message"])
+}
+
 func TestFunctionExecutionTenantIsolation(t *testing.T) {
 	rateLimiter, pubSub := test.NewInMemoryDependencies()
 	tc := test.NewTestContextWithOptions(t, test.TestContextOptions{

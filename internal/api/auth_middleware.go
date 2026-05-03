@@ -197,13 +197,12 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 			return c.Next()
 		}
 
-		// tenant_service JWT: allow on tenant-scoped routes, same logic as
-		// tenant_service service keys above.
+		// tenant_service JWT: same logic as tenant_service service keys —
+		// only bypass on tenant-scoped routes.
 		if role == "tenant_service" {
 			if tenantAdminAllowed {
 				return c.Next()
 			}
-			return SendInsufficientPermissions(c)
 		}
 
 		for _, allowedRole := range allowedRoles {
