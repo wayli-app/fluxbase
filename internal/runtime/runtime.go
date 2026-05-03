@@ -185,7 +185,8 @@ func (r *DenoRuntime) Execute(
 		}
 		serviceToken, tokenErr = generateServiceToken(r.jwtSecret, req, r.runtimeType, timeout)
 		if tokenErr != nil {
-			log.Warn().Err(tokenErr).Str("id", req.ID.String()).Msg("Failed to generate service token, SDK will not be available")
+			log.Error().Err(tokenErr).Str("id", req.ID.String()).Msg("Failed to generate service token — tenant context is required")
+			return nil, fmt.Errorf("cannot execute without tenant context: %w", tokenErr)
 		}
 		log.Debug().
 			Str("id", req.ID.String()).

@@ -118,6 +118,11 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 		}
 	}
 
+	// Set tenant context for token generation and runtime bridge
+	req.TenantID = middleware.GetTenantIDFromContext(c)
+	req.TenantRole = middleware.GetTenantRoleFromContext(c)
+	req.IsInstanceAdmin = middleware.IsInstanceAdminFromContext(c)
+
 	// Check for impersonation token - allows admin to invoke functions as another user
 	impersonationToken := c.Get("X-Impersonation-Token")
 	if impersonationToken != "" && h.authService != nil {

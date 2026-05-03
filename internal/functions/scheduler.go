@@ -197,6 +197,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID s
 		URL:       "/scheduled",
 		Headers:   make(map[string]string),
 		Body:      "{}",
+		TenantID:  tenantID,
 	}
 
 	if !fn.DisableExecutionLogs {

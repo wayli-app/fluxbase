@@ -331,6 +331,80 @@ func TestWrapCode_CancellationCheck(t *testing.T) {
 	})
 }
 
+func TestWrapCode_TenantScopedServiceClient(t *testing.T) {
+	tenantID := uuid.New().String()
+
+	t.Run("function service client includes X-FB-Tenant header when TenantID set", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost:8080")
+		req := ExecutionRequest{
+			ID:        uuid.New(),
+			Name:      "test-function",
+			Namespace: "default",
+			TenantID:  tenantID,
+		}
+		result := r.wrapFunctionCode("const x = 1;", req)
+
+		assert.Contains(t, result, "X-FB-Tenant")
+		assert.Contains(t, result, tenantID)
+	})
+
+	t.Run("job service client includes X-FB-Tenant header when TenantID set", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeJob, "secret", "http://localhost:8080")
+		req := ExecutionRequest{
+			ID:        uuid.New(),
+			Name:      "test-job",
+			Namespace: "default",
+			TenantID:  tenantID,
+		}
+		result := r.wrapJobCode("const x = 1;", req)
+
+		assert.Contains(t, result, "X-FB-Tenant")
+		assert.Contains(t, result, tenantID)
+	})
+
+	t.Run("function _fluxbaseService is null when no TenantID", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost:8080")
+		req := ExecutionRequest{
+			ID:        uuid.New(),
+			Name:      "test-function",
+			Namespace: "default",
+		}
+		result := r.wrapFunctionCode("const x = 1;", req)
+
+		assert.Contains(t, result, "_fluxbaseService = _tenantId")
+		assert.Contains(t, result, "? _createFluxbaseClient")
+		assert.Contains(t, result, ": null")
+	})
+
+	t.Run("forTenant and forCurrentTenant removed from _tenantUtils", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost:8080")
+		req := ExecutionRequest{
+			ID:        uuid.New(),
+			Name:      "test-function",
+			Namespace: "default",
+			TenantID:  tenantID,
+		}
+		result := r.wrapFunctionCode("const x = 1;", req)
+
+		assert.NotContains(t, result, "forCurrentTenant()")
+		assert.NotContains(t, result, "const _tenantUtils = {\n  // Current tenant from execution context")
+	})
+
+	t.Run("tenant utilities still expose getCurrentTenantId and hasTenantContext", func(t *testing.T) {
+		r := NewRuntime(RuntimeTypeFunction, "secret", "http://localhost:8080")
+		req := ExecutionRequest{
+			ID:        uuid.New(),
+			Name:      "test-function",
+			Namespace: "default",
+			TenantID:  tenantID,
+		}
+		result := r.wrapFunctionCode("const x = 1;", req)
+
+		assert.Contains(t, result, "getCurrentTenantId()")
+		assert.Contains(t, result, "hasTenantContext()")
+	})
+}
+
 // stringPtr is a helper function for creating string pointers.
 // Note: Currently unused but kept for potential future use.
 /*
