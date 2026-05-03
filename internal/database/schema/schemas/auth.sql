@@ -2886,7 +2886,7 @@ CREATE POLICY saml_providers_tenant ON saml_providers TO PUBLIC USING (has_tenan
 -- Name: auth_client_keys_policy; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY auth_client_keys_policy ON client_keys TO PUBLIC USING (is_admin() OR (current_user_role() = 'instance_admin') OR (current_user_role() IN ('service_role', 'tenant_service')) OR (current_user_id()::text = (user_id)::text)) WITH CHECK (is_admin() OR (current_user_role() = 'instance_admin') OR (current_user_role() IN ('service_role', 'tenant_service')) OR (current_user_id()::text = (user_id)::text));
+CREATE POLICY auth_client_keys_policy ON client_keys TO PUBLIC USING (is_admin() OR (current_user_role() = 'instance_admin') OR (CURRENT_USER = 'service_role'::name) OR (current_user_role() = 'tenant_service' AND has_tenant_access(tenant_id)) OR (current_user_id()::text = (user_id)::text)) WITH CHECK (is_admin() OR (current_user_role() = 'instance_admin') OR (CURRENT_USER = 'service_role'::name) OR (current_user_role() = 'tenant_service' AND has_tenant_access(tenant_id)) OR (current_user_id()::text = (user_id)::text));
 
 --
 -- Name: auth_service_keys_delete; Type: POLICY; Schema: -; Owner: -

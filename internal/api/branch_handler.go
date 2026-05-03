@@ -209,7 +209,7 @@ func (h *BranchHandler) ListBranches(c fiber.Ctx) error {
 
 	// Auto-filter by tenant for non-instance-admins
 	userRole, _ := c.Locals("user_role").(string)
-	if userRole != "instance_admin" && userRole != "admin" && userRole != "tenant_service" {
+	if userRole != "instance_admin" && userRole != "admin" {
 		if tid := middleware.GetTenantID(c); tid != "" {
 			if id, err := uuid.Parse(tid); err == nil {
 				filter.TenantID = &id
@@ -591,9 +591,7 @@ func (h *BranchHandler) ListGitHubConfigs(c fiber.Ctx) error {
 
 	// Auto-filter by tenant for non-instance-admins
 	userRole, _ := c.Locals("user_role").(string)
-	if userRole != "instance_admin" && userRole != "admin" && userRole != "tenant_service" {
-		// Non-admins can only see their tenant's configs
-	} else {
+	if userRole == "instance_admin" || userRole == "admin" {
 		// Instance admins can see all configs (pass nil)
 		tenantID = nil
 	}
