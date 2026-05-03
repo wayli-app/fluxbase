@@ -1071,10 +1071,10 @@ func GetTestConfig() *config.Config {
 			MaxMemoryLimit:     1024,
 		},
 		Jobs: config.JobsConfig{
-			Enabled:                 false, // Disabled for tests by default
+			Enabled:                 true,
 			JobsDir:                 "",
 			AutoLoadOnBoot:          false,
-			EmbeddedWorkerCount:     0, // No workers in tests
+			EmbeddedWorkerCount:     0,
 			DefaultMaxDuration:      5 * time.Minute,
 			MaxMaxDuration:          1 * time.Hour,
 			DefaultProgressTimeout:  5 * time.Minute,
