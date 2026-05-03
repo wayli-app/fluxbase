@@ -1,6 +1,6 @@
 {
   "name": "@nimbleflux/fluxbase-sdk-react",
-  "version": "2026.5.4-rc.12",
+  "version": "2026.5.4-rc.13",
   "description": "React hooks for Fluxbase SDK",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -39,7 +39,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@nimbleflux/fluxbase-sdk": "^2026.5.4-rc.12",
+    "@nimbleflux/fluxbase-sdk": "^2026.5.4-rc.13",
     "@tanstack/react-query": "^5.96.2",
     "react": "^18.0.0 || ^19.0.0"
   },
