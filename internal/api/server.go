@@ -250,7 +250,7 @@ func (s *Server) handleHealth(c fiber.Ctx) error {
 	}
 
 	role, hasRole := GetUserRole(c)
-	if hasRole && (role == "admin" || role == "instance_admin" || role == "service_role" || role == "tenant_admin") {
+	if hasRole && (role == "admin" || role == "instance_admin" || role == "service_role" || role == "tenant_admin" || role == "tenant_service") {
 		services := fiber.Map{
 			"database": dbHealthy,
 			"realtime": true,
@@ -275,7 +275,7 @@ func (s *Server) handleGetTables(c fiber.Ctx) error {
 
 	if userID := middleware.GetUserID(c); userID != "" {
 		if userRole, ok := GetUserRole(c); ok {
-			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role")
+			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role" || userRole == "tenant_service")
 		}
 	}
 
@@ -381,7 +381,7 @@ func (s *Server) handleGetSchemas(c fiber.Ctx) error {
 
 	if userID := middleware.GetUserID(c); userID != "" {
 		if userRole, ok := GetUserRole(c); ok {
-			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role")
+			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role" || userRole == "tenant_service")
 		}
 	}
 
@@ -404,7 +404,7 @@ func (s *Server) handleGetSchemas(c fiber.Ctx) error {
 	}
 
 	if userRole, ok := GetUserRole(c); ok {
-		isInstanceAdmin := userRole == "admin" || userRole == "instance_admin" || userRole == "service_role"
+		isInstanceAdmin := userRole == "admin" || userRole == "instance_admin" || userRole == "service_role" || userRole == "tenant_service"
 		if !isInstanceAdmin {
 			tenantVisible := map[string]bool{
 				"public": true, "auth": true, "storage": true, "functions": true,
@@ -716,7 +716,7 @@ func customErrorHandler(c fiber.Ctx, err error) error {
 // handleRealtimeStats returns realtime statistics
 func (s *Server) handleRealtimeStats(c fiber.Ctx) error {
 	role, _ := c.Locals("user_role").(string)
-	if role != "admin" && role != "instance_admin" && role != "tenant_admin" && role != "service_role" {
+	if role != "admin" && role != "instance_admin" && role != "tenant_admin" && role != "service_role" && role != "tenant_service" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Admin access required to view realtime stats",
 		})

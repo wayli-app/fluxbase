@@ -359,7 +359,7 @@ func (h *AdminAuthHandler) GetCurrentAdmin(c fiber.Ctx) error {
 	userRole, _ := c.Locals("user_role").(string)
 
 	// Verify admin role
-	if userRole != "admin" {
+	if userRole != "admin" && userRole != "tenant_service" {
 		return SendAdminRequired(c)
 	}
 

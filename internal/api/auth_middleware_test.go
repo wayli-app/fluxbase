@@ -386,6 +386,18 @@ func TestRequireRole_ServiceKeyTypes(t *testing.T) {
 			allowedRoles:   []string{"admin"},
 			expectedStatus: fiber.StatusOK,
 		},
+		{
+			name:           "tenant_service key allowed on service_role+tenant_service route (no tenant_admin)",
+			serviceKeyType: "tenant_service",
+			allowedRoles:   []string{"service_role", "tenant_service"},
+			expectedStatus: fiber.StatusOK,
+		},
+		{
+			name:           "tenant_service key rejected on service_role-only route",
+			serviceKeyType: "tenant_service",
+			allowedRoles:   []string{"service_role"},
+			expectedStatus: fiber.StatusForbidden,
+		},
 	}
 
 	for _, tt := range tests {
@@ -397,6 +409,9 @@ func TestRequireRole_ServiceKeyTypes(t *testing.T) {
 				c.Locals("auth_type", "service_key")
 				if tt.serviceKeyType != "" {
 					c.Locals("service_key_type", tt.serviceKeyType)
+				}
+				if tt.serviceKeyType == "tenant_service" {
+					c.Locals("user_role", "tenant_service")
 				}
 				return c.Next()
 			})

@@ -319,7 +319,7 @@ func (h *BranchHandler) DeleteBranch(c fiber.Ctx) error {
 	// Check authorization - service keys and dashboard admins bypass this check
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		// Check if user has admin access to the branch
@@ -395,7 +395,7 @@ func (h *BranchHandler) ResetBranch(c fiber.Ctx) error {
 	// Check authorization - service keys and dashboard admins bypass this check
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		// Check if user has admin access to the branch (reset is a destructive operation)
@@ -721,7 +721,7 @@ func (h *BranchHandler) ListBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *userID, branching.BranchAccessAdmin)
@@ -807,7 +807,7 @@ func (h *BranchHandler) GrantBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && grantedBy != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *grantedBy, branching.BranchAccessAdmin)
@@ -892,7 +892,7 @@ func (h *BranchHandler) RevokeBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && currentUserID != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *currentUserID, branching.BranchAccessAdmin)

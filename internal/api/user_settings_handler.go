@@ -262,7 +262,7 @@ func (h *UserSettingsHandler) GetUserSecretValue(c fiber.Ctx) error {
 
 	// Require service_role for this privileged operation
 	role := c.Locals("user_role")
-	if role != "service_role" {
+	if role != "service_role" && role != "tenant_service" {
 		return SendForbidden(c, "This operation requires service_role", ErrCodeAdminRequired)
 	}
 

@@ -878,7 +878,7 @@ func (h *DDLHandler) ListSchemas(c fiber.Ctx) error {
 
 	// Filter schemas for tenant admins: only show schemas with tenant-visible tables
 	if userRole, ok := GetUserRole(c); ok {
-		isInstanceAdmin := userRole == "admin" || userRole == "instance_admin" || userRole == "service_role"
+		isInstanceAdmin := userRole == "admin" || userRole == "instance_admin" || userRole == "service_role" || userRole == "tenant_service"
 		if !isInstanceAdmin {
 			tenantVisible := map[string]bool{
 				"public": true, "auth": true, "storage": true, "functions": true,
