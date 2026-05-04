@@ -326,6 +326,29 @@ func (s *Server) ToggleTableRLS(c fiber.Ctx) error {
 		return SendError(c, fiber.StatusInternalServerError, err.Error())
 	}
 
+	// When enabling RLS on a table with a tenant_id column, auto-create a
+	// tenant_service policy so functions/jobs can access tenant-scoped data.
+	if req.Enabled && schema == "public" {
+		var hasTenantCol bool
+		err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = $1 AND table_name = $2 AND column_name = 'tenant_id'
+			)
+		`, schema, table).Scan(&hasTenantCol)
+		if err == nil && hasTenantCol {
+			policyName := fmt.Sprintf("%s_tenant_service_auto", table)
+			_, _ = pool.Exec(ctx, fmt.Sprintf(
+				`CREATE POLICY IF NOT EXISTS %s ON %s.%s TO tenant_service
+				 USING (auth.has_tenant_access(tenant_id))
+				 WITH CHECK (auth.has_tenant_access(tenant_id))`,
+				quoteIdentifier(policyName),
+				quoteIdentifier(schema),
+				quoteIdentifier(table),
+			))
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"success":     true,
 		"rls_enabled": req.Enabled,

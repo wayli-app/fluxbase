@@ -216,8 +216,9 @@ func (h *DDLHandler) CreateTable(c fiber.Ctx) error {
 	// inherit default privileges from migration 027 (which only applies to CURRENT_USER)
 	if err := h.grantTablePermissions(ctx, c, req.Schema, req.Name); err != nil {
 		log.Error().Err(err).Str("table", req.Schema+"."+req.Name).Msg("Failed to grant permissions to service_role")
-		// Don't fail the request - table was created successfully, just log the error
 	}
+
+	h.autoCreateTenantServicePolicy(ctx, c, req.Schema, req.Name)
 
 	h.invalidateCache(ctx)
 	log.Info().Str("table", req.Schema+"."+req.Name).Msg("Table created successfully")
@@ -800,6 +801,41 @@ func (h *DDLHandler) grantTablePermissions(ctx context.Context, c fiber.Ctx, sch
 		Msg("Granted permissions to service_role for table")
 
 	return nil
+}
+
+// autoCreateTenantServicePolicy creates a tenant_service RLS policy on a table
+// that has a tenant_id column. This ensures functions/jobs using tenant_service
+// can access tenant-scoped data when RLS is enabled on the table.
+func (h *DDLHandler) autoCreateTenantServicePolicy(ctx context.Context, c fiber.Ctx, schema, table string) {
+	if schema != "public" {
+		return
+	}
+
+	var hasTenantCol bool
+	err := h.queryPool(c).QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = $1 AND table_name = $2 AND column_name = 'tenant_id'
+		)
+	`, schema, table).Scan(&hasTenantCol)
+	if err != nil || !hasTenantCol {
+		return
+	}
+
+	policyName := fmt.Sprintf("%s_tenant_service_auto", table)
+	policySQL := fmt.Sprintf(
+		`CREATE POLICY IF NOT EXISTS %s ON %s.%s TO tenant_service
+		 USING (auth.has_tenant_access(tenant_id))
+		 WITH CHECK (auth.has_tenant_access(tenant_id))`,
+		quoteIdentifier(policyName),
+		quoteIdentifier(schema),
+		quoteIdentifier(table),
+	)
+
+	_ = h.executeWithAdminRole(ctx, c, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, policySQL)
+		return err
+	})
 }
 
 // setupSchemaDefaultPrivileges sets up default privileges for a schema

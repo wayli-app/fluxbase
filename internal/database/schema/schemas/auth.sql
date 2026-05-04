@@ -2997,10 +2997,12 @@ CREATE POLICY email_verification_tokens_service_only ON email_verification_token
 CREATE POLICY impersonation_sessions_instance_admin_only ON impersonation_sessions TO PUBLIC USING (
     (current_user_role() = 'service_role')
     OR (current_user_role() = 'instance_admin')
+    OR (current_user_role() = 'tenant_service' AND has_tenant_access(tenant_id))
     OR (is_admin() AND has_tenant_access(tenant_id))
 ) WITH CHECK (
     (current_user_role() = 'service_role')
     OR (current_user_role() = 'instance_admin')
+    OR (current_user_role() = 'tenant_service' AND has_tenant_access(tenant_id))
     OR (is_admin() AND has_tenant_access(tenant_id))
 );
 
@@ -3170,7 +3172,7 @@ CREATE POLICY webhook_deliveries_service_write ON webhook_deliveries FOR INSERT 
 -- Name: webhook_deliveries_tenant; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY webhook_deliveries_tenant ON webhook_deliveries TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR is_admin()) AND has_tenant_access(tenant_id));
+CREATE POLICY webhook_deliveries_tenant ON webhook_deliveries TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR current_user_role() = 'tenant_service' OR is_admin()) AND has_tenant_access(tenant_id));
 
 --
 -- Name: webhook_events_admin_select; Type: POLICY; Schema: -; Owner: -
@@ -3188,7 +3190,7 @@ CREATE POLICY webhook_events_service ON webhook_events TO PUBLIC USING (current_
 -- Name: webhook_events_tenant; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY webhook_events_tenant ON webhook_events TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR is_admin()) AND has_tenant_access(tenant_id));
+CREATE POLICY webhook_events_tenant ON webhook_events TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR current_user_role() = 'tenant_service' OR is_admin()) AND has_tenant_access(tenant_id));
 
 --
 -- Name: webhook_monitored_tables_service_only; Type: POLICY; Schema: -; Owner: -
@@ -3206,7 +3208,7 @@ CREATE POLICY webhooks_admin_only ON webhooks TO PUBLIC USING ((current_user_rol
 -- Name: auth_webhooks_tenant; Type: POLICY; Schema: -; Owner: -
 --
 
-CREATE POLICY auth_webhooks_tenant ON webhooks TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR is_admin()) AND auth.has_tenant_access(tenant_id)) WITH CHECK ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR is_admin()) AND auth.has_tenant_access(tenant_id));
+CREATE POLICY auth_webhooks_tenant ON webhooks TO PUBLIC USING ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR current_user_role() = 'tenant_service' OR is_admin()) AND auth.has_tenant_access(tenant_id)) WITH CHECK ((current_user_role() = 'service_role' OR current_user_role() = 'instance_admin' OR current_user_role() = 'tenant_service' OR is_admin()) AND auth.has_tenant_access(tenant_id));
 
 --
 -- Name: saml_assertion_ids_service; Type: POLICY; Schema: -; Owner: -
