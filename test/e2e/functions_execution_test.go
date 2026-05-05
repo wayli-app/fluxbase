@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -365,6 +366,22 @@ func TestFunctionExecution_ServiceClientQueriesUserTable(t *testing.T) {
 	defer tc.Close()
 	tc.EnsureAuthSchema()
 	tc.EnsureSystemSettings()
+
+	// Start a real HTTP server so the Deno runtime can call back via _fluxbaseService.
+	// App.Test() only does in-process dispatch, but the Deno subprocess needs a real
+	// TCP listener to connect to.
+	go func() {
+		if err := tc.Server.Start(); err != nil {
+			t.Logf("Server stopped: %v", err)
+		}
+	}()
+	// Give the server a moment to bind the port
+	time.Sleep(500 * time.Millisecond)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tc.Server.Shutdown(ctx)
+	}()
 
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-svc-query-%d@test.com", timestamp)
