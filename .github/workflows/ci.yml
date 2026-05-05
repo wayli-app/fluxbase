@@ -155,11 +155,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
-
       - name: Get dependencies
         run: |
           go mod download
@@ -360,11 +355,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Get dependencies
         run: |
@@ -711,11 +701,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
-
       - name: Get dependencies
         run: |
           go mod download
@@ -1000,11 +985,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Build server binary
         env:
