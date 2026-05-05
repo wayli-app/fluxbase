@@ -37,6 +37,7 @@ type Connection struct {
 	UserID          *string                // Authenticated user ID (nil if anonymous)
 	Role            string                 // User role (e.g., "authenticated", "anon", "instance_admin")
 	Claims          map[string]interface{} // Full JWT claims for RLS (includes custom claims like meeting_id, player_id)
+	TenantID        string                 // Tenant ID for multi-tenancy (empty = default tenant)
 	ConnectedAt     time.Time              // Connection timestamp
 	mu              sync.RWMutex
 	slowClientCount atomic.Int32 // Count of slow client warnings
@@ -59,16 +60,16 @@ type Connection struct {
 
 // NewConnection creates a new WebSocket connection with async message queue.
 // If parentCtx is nil, context.Background() is used.
-func NewConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, parentCtx context.Context) *Connection {
+func NewConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, tenantID string, parentCtx context.Context) *Connection {
 	if parentCtx == nil {
 		parentCtx = context.Background()
 	}
-	return NewConnectionWithQueueSize(id, conn, userID, role, claims, DefaultMessageQueueSize, parentCtx)
+	return NewConnectionWithQueueSize(id, conn, userID, role, claims, tenantID, DefaultMessageQueueSize, parentCtx)
 }
 
 // NewConnectionWithQueueSize creates a new WebSocket connection with custom queue size.
 // If parentCtx is nil, context.Background() is used.
-func NewConnectionWithQueueSize(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, queueSize int, parentCtx context.Context) *Connection {
+func NewConnectionWithQueueSize(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, tenantID string, queueSize int, parentCtx context.Context) *Connection {
 	if queueSize <= 0 {
 		queueSize = DefaultMessageQueueSize
 	}
@@ -85,6 +86,7 @@ func NewConnectionWithQueueSize(id string, conn *websocket.Conn, userID *string,
 		UserID:        userID,
 		Role:          role,
 		Claims:        claims,
+		TenantID:      tenantID,
 		ConnectedAt:   time.Now(),
 		sendCh:        make(chan interface{}, queueSize),
 		ctx:           ctx,

@@ -107,9 +107,13 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 
 	funcName := fn.Name
 	funcNamespace := fn.Namespace
+	var funcTenantID *string
+	if fn.TenantID != nil {
+		funcTenantID = fn.TenantID
+	}
 
 	entryID, err := s.inner.AddFunc(fn.Name, *fn.CronSchedule, func() {
-		s.executeScheduledFunction(funcName, funcNamespace)
+		s.executeScheduledFunction(funcName, funcNamespace, funcTenantID)
 	})
 	if err != nil {
 		log.Error().
@@ -144,13 +148,16 @@ func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
 	return nil
 }
 
-func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
+func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string, tenantID *string) {
 	if !s.inner.Guard.Acquire(funcName) {
 		return
 	}
 	defer s.inner.Guard.Release()
 
 	ctx := s.inner.Context()
+	if tenantID != nil && *tenantID != "" {
+		ctx = database.ContextWithTenant(ctx, *tenantID)
+	}
 
 	fn, err := s.storage.GetFunctionByNamespace(ctx, funcName, funcNamespace)
 	if err != nil {
@@ -257,6 +264,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 	}
 
 	if !fn.DisableExecutionLogs {
+		asyncCtx := database.ContextWithTenant(context.Background(), database.TenantFromContext(ctx))
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
@@ -267,7 +275,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 						Msg("Panic in scheduled function execution record completion - recovered")
 				}
 			}()
-			if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
+			if updateErr := s.storage.CompleteExecution(asyncCtx, executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().
 					Err(updateErr).
 					Str("function", fn.Name).

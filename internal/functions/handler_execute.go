@@ -10,11 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/nimbleflux/fluxbase/internal/database"
+	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 	"github.com/nimbleflux/fluxbase/internal/runtime"
-
-	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/util"
 )
 
@@ -272,9 +272,9 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	// Update execution record asynchronously (don't block response)
 	// Skip if execution logs are disabled for this function
 	if !fn.DisableExecutionLogs {
+		asyncTenantCtx := database.ContextWithTenant(context.Background(), database.TenantFromContext(middleware.CtxWithTenant(c)))
 		go func() {
-			ctx := context.Background()
-			if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
+			if updateErr := h.storage.CompleteExecution(asyncTenantCtx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
 			}
 		}()

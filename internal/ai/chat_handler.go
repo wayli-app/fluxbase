@@ -192,6 +192,10 @@ func (h *ChatHandler) handleConnection(c *websocket.Conn) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if tenantID := extractStringDefault(c.Locals("tenant_id"), ""); tenantID != "" {
+		ctx = database.ContextWithTenant(ctx, tenantID)
+	}
+
 	// Extract auth context from locals (set by auth middleware)
 	userID := extractString(c.Locals("user_id"))
 	role := extractStringDefault(c.Locals("rls_role"), "anon")

@@ -94,7 +94,8 @@ type EdgeFunctionSummary struct {
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 	CreatedBy            *uuid.UUID `json:"created_by"`
-	Source               string     `json:"source"` // "filesystem" or "api"
+	Source               string     `json:"source"`    // "filesystem" or "api"
+	TenantID             *string    `json:"tenant_id"` // Tenant owner (nil = default tenant)
 }
 
 // EdgeFunctionExecution represents a function execution log
@@ -255,7 +256,7 @@ func (s *Storage) ListFunctionsForSync(ctx context.Context, tenantID string) ([]
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
-		       created_at, updated_at, created_by, source
+		       created_at, updated_at, created_by, source, tenant_id
 		FROM functions.edge_functions
 		WHERE is_public = true
 		  AND (tenant_id = $1 OR tenant_id IS NULL)
@@ -278,7 +279,7 @@ func (s *Storage) ListFunctionsForSync(ctx context.Context, tenantID string) ([]
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
 			)
 			if err != nil {
 				return err
@@ -336,7 +337,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
-		       created_at, updated_at, created_by, source
+		       created_at, updated_at, created_by, source, tenant_id
 		FROM functions.edge_functions
 		WHERE is_public = true
 		  AND (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
@@ -359,7 +360,7 @@ func (s *Storage) ListFunctions(ctx context.Context) ([]EdgeFunctionSummary, err
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
 			)
 			if err != nil {
 				return err
@@ -384,7 +385,7 @@ func (s *Storage) ListFunctionsByNamespaceForSync(ctx context.Context, namespace
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
-		       created_at, updated_at, created_by, source
+		       created_at, updated_at, created_by, source, tenant_id
 		FROM functions.edge_functions
 		WHERE namespace = $1
 		  AND (tenant_id = $2 OR tenant_id IS NULL)
@@ -407,7 +408,7 @@ func (s *Storage) ListFunctionsByNamespaceForSync(ctx context.Context, namespace
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
 			)
 			if err != nil {
 				return err
@@ -432,7 +433,7 @@ func (s *Storage) ListAllFunctions(ctx context.Context) ([]EdgeFunctionSummary, 
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
-		       created_at, updated_at, created_by, source
+		       created_at, updated_at, created_by, source, tenant_id
 		FROM functions.edge_functions
 		WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
 		ORDER BY namespace, name
@@ -454,7 +455,7 @@ func (s *Storage) ListAllFunctions(ctx context.Context) ([]EdgeFunctionSummary, 
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
 			)
 			if err != nil {
 				return err
@@ -509,7 +510,7 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 		       timeout_seconds, memory_limit_mb, allow_net, allow_env, allow_read, allow_write, allow_unauthenticated, is_public, disable_execution_logs,
 		       cors_origins, cors_methods, cors_headers, cors_credentials, cors_max_age,
 		       rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
-		       created_at, updated_at, created_by, source
+		       created_at, updated_at, created_by, source, tenant_id
 		FROM functions.edge_functions
 		WHERE namespace = $1
 		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
@@ -532,7 +533,7 @@ func (s *Storage) ListFunctionsByNamespace(ctx context.Context, namespace string
 				&fn.TimeoutSeconds, &fn.MemoryLimitMB, &fn.AllowNet, &fn.AllowEnv, &fn.AllowRead, &fn.AllowWrite, &fn.AllowUnauthenticated, &fn.IsPublic, &fn.DisableExecutionLogs,
 				&fn.CorsOrigins, &fn.CorsMethods, &fn.CorsHeaders, &fn.CorsCredentials, &fn.CorsMaxAge,
 				&fn.RateLimitPerMinute, &fn.RateLimitPerHour, &fn.RateLimitPerDay,
-				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source,
+				&fn.CreatedAt, &fn.UpdatedAt, &fn.CreatedBy, &fn.Source, &fn.TenantID,
 			)
 			if err != nil {
 				return err
