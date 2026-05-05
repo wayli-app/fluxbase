@@ -50,7 +50,8 @@ func DisplayAnalysis(w io.Writer, result *AnalysisResult, showDetails bool) {
 
 			displayPath := truncatePath(file.Path, 50)
 			padding := strings.Repeat(" ", maxPathLen-len(displayPath))
-			_, _ = fmt.Fprintf(w, "  %s%s  %8s  %5.1f%%\n",
+			_, _ = fmt.Fprintf(
+				w, "  %s%s  %8s  %5.1f%%\n",
 				displayPath,
 				padding,
 				formatBytesHuman(file.BytesInOutput),
@@ -99,7 +100,8 @@ func DisplaySummary(w io.Writer, results []*AnalysisResult) {
 	for _, r := range results {
 		totalSize += r.TotalBytes
 		padding := strings.Repeat(" ", maxNameLen-len(r.FunctionName))
-		_, _ = fmt.Fprintf(w, "%s%s  %11s  %5d  %9d\n",
+		_, _ = fmt.Fprintf(
+			w, "%s%s  %11s  %5d  %9d\n",
 			r.FunctionName,
 			padding,
 			formatBytesHuman(r.TotalBytes),

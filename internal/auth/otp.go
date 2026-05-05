@@ -103,7 +103,8 @@ func (r *OTPRepository) Create(ctx context.Context, email *string, phone *string
 
 	tenantID := database.TenantFromContext(ctx)
 	err = database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			otpCode.ID,
 			otpCode.Email,
 			otpCode.Phone,

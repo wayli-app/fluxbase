@@ -101,7 +101,8 @@ func TestStorageRLS_UserIsolation(t *testing.T) {
 	results := tc.QuerySQLAsRLSUser(
 		"SELECT COUNT(*) as count FROM storage.objects WHERE bucket_id = $1",
 		user2ID, // Set RLS context as user2
-		bucketName)
+		bucketName,
+	)
 
 	require.Len(t, results, 1, "Query should return result")
 	count, ok := results[0]["count"].(int64)
@@ -113,7 +114,8 @@ func TestStorageRLS_UserIsolation(t *testing.T) {
 	results = tc.QuerySQLAsRLSUser(
 		"SELECT COUNT(*) as count FROM storage.objects WHERE bucket_id = $1",
 		user1ID, // Set RLS context as user1
-		bucketName)
+		bucketName,
+	)
 
 	require.Len(t, results, 1, "Query should return result")
 	count, ok = results[0]["count"].(int64)
@@ -124,7 +126,8 @@ func TestStorageRLS_UserIsolation(t *testing.T) {
 	// Verify superuser can see all files (bypasses RLS)
 	results = tc.QuerySQLAsSuperuser(
 		"SELECT COUNT(*) as count FROM storage.objects WHERE bucket_id = $1",
-		bucketName)
+		bucketName,
+	)
 
 	require.Len(t, results, 1, "Query should return result")
 	count, ok = results[0]["count"].(int64)

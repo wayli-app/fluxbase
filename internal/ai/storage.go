@@ -111,7 +111,8 @@ func (s *Storage) CreateChatbotWithTenant(ctx context.Context, tenantID string, 
 	}
 
 	err = database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			chatbot.ID, chatbot.Name, chatbot.Namespace, chatbot.Description,
 			chatbot.Code, chatbot.OriginalCode, chatbot.IsBundled, chatbot.BundleError,
 			chatbot.AllowedTables, chatbot.AllowedOperations, chatbot.AllowedSchemas, chatbot.HTTPAllowedDomains,
@@ -206,7 +207,8 @@ func (s *Storage) UpdateChatbotWithTenant(ctx context.Context, tenantID string, 
 	var result pgconn.CommandTag
 	err = database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query,
+		result, execErr = tx.Exec(
+			ctx, query,
 			chatbot.ID,
 			chatbot.Description,
 			chatbot.Code,

@@ -201,8 +201,17 @@ func (w *Worker) setDraining(draining bool) {
 // Stop stops the worker gracefully
 func (w *Worker) Stop() {
 	log.Info().Str("worker_id", w.ID.String()).Msg("Stopping worker")
-	close(w.shutdownChan)
-	<-w.shutdownComplete
+	select {
+	case <-w.shutdownChan:
+		// Already stopped
+	default:
+		close(w.shutdownChan)
+	}
+	select {
+	case <-w.shutdownComplete:
+	case <-time.After(10 * time.Second):
+		log.Warn().Str("worker_id", w.ID.String()).Msg("Worker did not shut down within timeout, proceeding")
+	}
 }
 
 // pollLoop continuously polls for and executes jobs

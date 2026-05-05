@@ -203,7 +203,8 @@ func AddSpanEvent(ctx context.Context, name string, attrs ...attribute.KeyValue)
 // StartDBSpan starts a span for a database operation
 func StartDBSpan(ctx context.Context, operation, table string) (context.Context, trace.Span) {
 	tracer := otel.Tracer("fluxbase-db")
-	return tracer.Start(ctx, fmt.Sprintf("db.%s", operation),
+	return tracer.Start(
+		ctx, fmt.Sprintf("db.%s", operation),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemPostgreSQL,
@@ -227,7 +228,8 @@ func EndDBSpan(span trace.Span, err error) {
 // StartStorageSpan starts a span for a storage operation
 func StartStorageSpan(ctx context.Context, operation, bucket, key string) (context.Context, trace.Span) {
 	tracer := otel.Tracer("fluxbase-storage")
-	return tracer.Start(ctx, fmt.Sprintf("storage.%s", operation),
+	return tracer.Start(
+		ctx, fmt.Sprintf("storage.%s", operation),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			attribute.String("storage.operation", operation),
@@ -242,7 +244,8 @@ func StartStorageSpan(ctx context.Context, operation, bucket, key string) (conte
 // StartAuthSpan starts a span for an authentication operation
 func StartAuthSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
 	tracer := otel.Tracer("fluxbase-auth")
-	return tracer.Start(ctx, fmt.Sprintf("auth.%s", operation),
+	return tracer.Start(
+		ctx, fmt.Sprintf("auth.%s", operation),
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("auth.operation", operation),
@@ -303,7 +306,8 @@ func StartFunctionSpan(ctx context.Context, cfg FunctionSpanConfig) (context.Con
 		attrs = append(attrs, attribute.String("user.id", cfg.UserID))
 	}
 
-	return tracer.Start(ctx, spanName,
+	return tracer.Start(
+		ctx, spanName,
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(attrs...),
 	)
@@ -377,7 +381,8 @@ func StartJobSpan(ctx context.Context, cfg JobSpanConfig) (context.Context, trac
 		attrs = append(attrs, attribute.String("user.id", cfg.UserID))
 	}
 
-	return tracer.Start(ctx, spanName,
+	return tracer.Start(
+		ctx, spanName,
 		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(attrs...),
 	)
@@ -438,7 +443,8 @@ func GetTraceContextEnv(ctx context.Context) map[string]string {
 
 	// W3C Trace Context format
 	if sc.HasTraceID() {
-		env["TRACEPARENT"] = fmt.Sprintf("00-%s-%s-%s",
+		env["TRACEPARENT"] = fmt.Sprintf(
+			"00-%s-%s-%s",
 			sc.TraceID().String(),
 			sc.SpanID().String(),
 			sc.TraceFlags().String(),

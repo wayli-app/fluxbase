@@ -547,7 +547,8 @@ func convertValue(v any) any {
 }
 
 func formatUUID(b []byte) string {
-	return fmt.Sprintf("%s-%s-%s-%s-%s",
+	return fmt.Sprintf(
+		"%s-%s-%s-%s-%s",
 		hex.EncodeToString(b[0:4]),
 		hex.EncodeToString(b[4:6]),
 		hex.EncodeToString(b[6:8]),

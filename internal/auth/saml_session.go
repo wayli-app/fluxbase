@@ -19,7 +19,8 @@ func NewSAMLSessionStore(db *database.Connection) *SAMLSessionStore {
 func (ss *SAMLSessionStore) CreateSAMLSession(ctx context.Context, session *SAMLSession) error {
 	tenantID := database.TenantFromContext(ctx)
 	return database.WrapWithServiceRoleAndTenant(ctx, ss.db, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		_, err := tx.Exec(
+			ctx, `
 			INSERT INTO auth.saml_sessions (id, user_id, provider_id, provider_name, name_id, name_id_format, session_index, attributes, expires_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		`,

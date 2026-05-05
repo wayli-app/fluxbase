@@ -37,9 +37,11 @@ func TestTenantMigrations_SchemaIsolation(t *testing.T) {
 
 	// Enable RLS on the table
 	tc.ExecuteSQLAsSuperuser(
-		`ALTER TABLE public.schema_isolation_test ENABLE ROW LEVEL SECURITY`)
+		`ALTER TABLE public.schema_isolation_test ENABLE ROW LEVEL SECURITY`,
+	)
 	tc.ExecuteSQLAsSuperuser(
-		`ALTER TABLE public.schema_isolation_test FORCE ROW LEVEL SECURITY`)
+		`ALTER TABLE public.schema_isolation_test FORCE ROW LEVEL SECURITY`,
+	)
 
 	// Create tenant isolation policy
 	tc.ExecuteSQLAsSuperuser(`

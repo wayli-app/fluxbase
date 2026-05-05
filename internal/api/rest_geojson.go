@@ -90,7 +90,8 @@ func buildSelectColumnsWithTruncation(table database.TableInfo, truncateLength *
 			// Truncate text columns: show first N chars + length indicator if truncated
 			columns = append(columns, fmt.Sprintf(
 				"CASE WHEN %s IS NULL THEN NULL WHEN LENGTH(%s) > %d THEN LEFT(%s, %d) || '... (' || LENGTH(%s) || ' chars)' ELSE %s END AS %s",
-				quotedName, quotedName, *truncateLength, quotedName, *truncateLength, quotedName, quotedName, quotedName))
+				quotedName, quotedName, *truncateLength, quotedName, *truncateLength, quotedName, quotedName, quotedName,
+			))
 		} else {
 			columns = append(columns, quotedName)
 		}

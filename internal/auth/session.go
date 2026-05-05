@@ -75,7 +75,8 @@ func (r *SessionRepository) Create(ctx context.Context, userID, accessToken, ref
 
 	tenantID := database.TenantFromContext(ctx)
 	err := database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			session.ID,
 			session.UserID,
 			accessTokenHash,

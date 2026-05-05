@@ -203,7 +203,8 @@ func initializeClient(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create API client
-	apiClient = client.NewClient(cfg, profile,
+	apiClient = client.NewClient(
+		cfg, profile,
 		client.WithDebug(debug),
 		client.WithConfigPath(configPath),
 	)

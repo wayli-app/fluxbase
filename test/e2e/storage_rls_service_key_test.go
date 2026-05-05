@@ -112,7 +112,8 @@ func TestStorageRLS_ServiceKeyBypass(t *testing.T) {
 	// Verify file is deleted
 	results := tc.QuerySQLAsSuperuser(
 		"SELECT COUNT(*) as count FROM storage.objects WHERE bucket_id = $1 AND path = $2",
-		bucketName, fileName)
+		bucketName, fileName,
+	)
 
 	require.Len(t, results, 1, "Query should return result")
 	count, ok := results[0]["count"].(int64)

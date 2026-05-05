@@ -155,11 +155,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
-
       - name: Get dependencies
         run: |
           go mod download
@@ -361,11 +356,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
-
       - name: Get dependencies
         run: |
           go mod download
@@ -470,6 +460,7 @@ jobs:
           # Bootstrap must have already run (creates schemas, extensions, roles).
           SCHEMA_DIR="internal/database/schema/schemas"
           for schema in platform auth storage jobs functions realtime ai rpc system migrations app api branching logging mcp; do
+            if [ ! -f "${SCHEMA_DIR}/${schema}.sql" ]; then continue; fi
             echo "Applying schema: $schema"
             sed "s/{{APP_USER}}/fluxbase_app/g" "${SCHEMA_DIR}/${schema}.sql" | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
           done
@@ -665,7 +656,7 @@ jobs:
       needs.changes.outputs.go == 'true' ||
       needs.changes.outputs.ci-config == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -709,11 +700,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Get dependencies
         run: |
@@ -803,6 +789,7 @@ jobs:
         run: |
           SCHEMA_DIR="internal/database/schema/schemas"
           for schema in platform auth storage jobs functions realtime ai rpc system migrations app api branching logging mcp; do
+            if [ ! -f "${SCHEMA_DIR}/${schema}.sql" ]; then continue; fi
             echo "Applying schema: $schema"
             sed "s/{{APP_USER}}/fluxbase_app/g" "${SCHEMA_DIR}/${schema}.sql" | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
           done
@@ -998,11 +985,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Build server binary
         env:

@@ -456,7 +456,8 @@ func (h *OAuthProviderHandler) CreateOAuthProvider(c fiber.Ctx) error {
 
 	if isInstanceLevel {
 		err = database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, query,
+			return tx.QueryRow(
+				ctx, query,
 				req.ProviderName, req.DisplayName, req.Enabled, req.ClientID, encryptedSecret,
 				req.RedirectURL, req.Scopes, req.IsCustom, req.AuthorizationURL, req.TokenURL,
 				req.UserInfoURL, req.RevocationEndpoint, req.EndSessionEndpoint,

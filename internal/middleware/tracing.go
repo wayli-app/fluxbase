@@ -80,7 +80,8 @@ func TracingMiddleware(cfg TracingConfig) fiber.Handler {
 		spanName = fmt.Sprintf("%s %s", c.Method(), spanName)
 
 		// Start span
-		ctx, span := tracer.Start(ctx, spanName,
+		ctx, span := tracer.Start(
+			ctx, spanName,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(
 				attribute.String("http.request.method", c.Method()),

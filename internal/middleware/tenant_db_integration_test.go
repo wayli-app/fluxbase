@@ -55,7 +55,8 @@ func setupMiddlewareIntegration(t *testing.T) *middlewareTestEnv {
 
 	// Create an admin pool (same DB, admin user for CREATE DATABASE)
 	cfg := dbhelpers.GetTestConfig()
-	adminDBURL := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable",
+	adminDBURL := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.Database.AdminUser,
 		cfg.Database.AdminPassword,
 		cfg.Database.Host,

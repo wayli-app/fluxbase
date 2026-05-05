@@ -70,7 +70,8 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 
 // buildConnectionURL constructs a PostgreSQL connection URL from config.
 func buildConnectionURL(cfg config.DatabaseConfig) string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable",
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.User,
 		cfg.Password,
 		cfg.Host,

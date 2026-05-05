@@ -277,7 +277,8 @@ func (h *RESTHandler) buildSelectQuery(table database.TableInfo, params *QueryPa
 					// Truncate text columns if requested
 					validColumns = append(validColumns, fmt.Sprintf(
 						"CASE WHEN %s IS NULL THEN NULL WHEN LENGTH(%s) > %d THEN LEFT(%s, %d) || '... (' || LENGTH(%s) || ' chars)' ELSE %s END AS %s",
-						quotedCol, quotedCol, *params.TruncateLength, quotedCol, *params.TruncateLength, quotedCol, quotedCol, quotedCol))
+						quotedCol, quotedCol, *params.TruncateLength, quotedCol, *params.TruncateLength, quotedCol, quotedCol, quotedCol,
+					))
 				} else {
 					validColumns = append(validColumns, quotedCol)
 				}

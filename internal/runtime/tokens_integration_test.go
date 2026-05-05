@@ -26,10 +26,12 @@ const testJWTSecret = "integration-test-jwt-secret-minimum-32-chars!!"
 
 func getDefaultTenantID(t *testing.T, pool interface {
 	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
-}) string {
+},
+) string {
 	t.Helper()
 	var tenantID string
-	err := pool.QueryRow(context.Background(),
+	err := pool.QueryRow(
+		context.Background(),
 		"SELECT id FROM platform.tenants WHERE is_default = true LIMIT 1",
 	).Scan(&tenantID)
 	require.NoError(t, err, "Failed to get default tenant ID")

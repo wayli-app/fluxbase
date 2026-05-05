@@ -366,6 +366,18 @@ func TestFunctionExecution_ServiceClientQueriesUserTable(t *testing.T) {
 	tc.EnsureAuthSchema()
 	tc.EnsureSystemSettings()
 
+	// Start a real HTTP server so the Deno runtime can call back via _fluxbaseService.
+	// App.Test() only does in-process dispatch, but the Deno subprocess needs a real
+	// TCP listener to connect to.
+	// tc.Close() will shut down the server via Server.Shutdown(), so we only start it here.
+	go func() {
+		if err := tc.Server.Start(); err != nil {
+			t.Logf("Server stopped: %v", err)
+		}
+	}()
+	// Give the server a moment to bind the port
+	time.Sleep(500 * time.Millisecond)
+
 	timestamp := time.Now().UnixNano()
 	email := fmt.Sprintf("admin-svc-query-%d@test.com", timestamp)
 	_, adminToken := tc.CreateDashboardAdminUser(email, "adminpass123456")
@@ -382,6 +394,11 @@ func TestFunctionExecution_ServiceClientQueriesUserTable(t *testing.T) {
 	`, tableName, tableName, tableName))
 
 	tc.ExecuteSQL(fmt.Sprintf(`INSERT INTO public.%s (name) VALUES ('hello'), ('world');`, tableName))
+
+	// Invalidate schema cache so the REST API discovers the new table
+	if cache := tc.Server.SchemaCache(); cache != nil {
+		cache.Invalidate()
+	}
 
 	functionName := fmt.Sprintf("test_svc_from_%d", timestamp)
 	createTestFunction(t, tc, adminToken, functionName, fmt.Sprintf(`export default async function handler(req) {

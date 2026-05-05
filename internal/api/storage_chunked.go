@@ -571,7 +571,8 @@ func (h *StorageHandler) storeUploadedObject(fiberCtx interface{}, session *stor
 		ownerID = session.OwnerID
 	}
 
-	_, err = tx.Exec(ctx, query,
+	_, err = tx.Exec(
+		ctx, query,
 		object.Bucket,
 		object.Key,
 		object.Size,

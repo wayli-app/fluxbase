@@ -213,7 +213,8 @@ func TestSetSpanAttributes(t *testing.T) {
 		ctx := context.Background()
 
 		assert.NotPanics(t, func() {
-			SetSpanAttributes(ctx,
+			SetSpanAttributes(
+				ctx,
 				attribute.String("key", "value"),
 				attribute.Int("count", 42),
 			)
@@ -234,7 +235,8 @@ func TestSetSpanAttributes(t *testing.T) {
 		defer span.End()
 
 		assert.NotPanics(t, func() {
-			SetSpanAttributes(ctx,
+			SetSpanAttributes(
+				ctx,
 				attribute.String("service.name", "test-service"),
 				attribute.Bool("feature.enabled", true),
 			)
@@ -265,7 +267,8 @@ func TestAddSpanEvent(t *testing.T) {
 		defer span.End()
 
 		assert.NotPanics(t, func() {
-			AddSpanEvent(ctx, "cache.hit",
+			AddSpanEvent(
+				ctx, "cache.hit",
 				attribute.String("cache.key", "user:123"),
 				attribute.Int("cache.ttl", 3600),
 			)
@@ -530,7 +533,8 @@ func BenchmarkSetSpanAttributes(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		SetSpanAttributes(ctx,
+		SetSpanAttributes(
+			ctx,
 			attribute.String("key", "value"),
 			attribute.Int("count", i),
 		)
@@ -544,7 +548,8 @@ func BenchmarkAddSpanEvent(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		AddSpanEvent(ctx, "test.event",
+		AddSpanEvent(
+			ctx, "test.event",
 			attribute.Int("iteration", i),
 		)
 	}
@@ -722,7 +727,8 @@ func TestAddFunctionEvent(t *testing.T) {
 		defer span.End()
 
 		assert.NotPanics(t, func() {
-			AddFunctionEvent(ctx, "function.timeout",
+			AddFunctionEvent(
+				ctx, "function.timeout",
 				attribute.Int("timeout_ms", 30000),
 			)
 		})
@@ -882,7 +888,8 @@ func TestAddJobEvent(t *testing.T) {
 		defer span.End()
 
 		assert.NotPanics(t, func() {
-			AddJobEvent(ctx, "job.checkpoint",
+			AddJobEvent(
+				ctx, "job.checkpoint",
 				attribute.String("checkpoint", "data-loaded"),
 			)
 		})

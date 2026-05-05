@@ -59,7 +59,8 @@ func (s *Service) getAdminPool(ctx context.Context) (*pgxpool.Pool, error) {
 
 	// If we have config, create an admin pool
 	if s.config.AdminUser != "" && s.config.AdminPassword != "" {
-		connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		connStr := fmt.Sprintf(
+			"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 			s.config.AdminUser,
 			s.config.AdminPassword,
 			s.config.Host,

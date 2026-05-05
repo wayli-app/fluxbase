@@ -61,7 +61,8 @@ func (s *Storage) CreateProcedureWithTenant(ctx context.Context, tenantID string
 	proc.UpdatedAt = time.Now()
 
 	err := database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			proc.ID, proc.Name, proc.Namespace, proc.Description, proc.SQLQuery, proc.OriginalCode,
 			proc.InputSchema, proc.OutputSchema, proc.AllowedTables, proc.AllowedSchemas,
 			proc.MaxExecutionTimeSeconds, proc.RequireRoles, proc.IsPublic, proc.DisableExecutionLogs, proc.Schedule,
@@ -113,7 +114,8 @@ func (s *Storage) UpdateProcedureForSync(ctx context.Context, tenantID string, p
 	proc.UpdatedAt = time.Now()
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			proc.ID,
 			proc.Description,
 			proc.SQLQuery,
@@ -161,7 +163,8 @@ func (s *Storage) UpdateProcedureWithTenant(ctx context.Context, tenantID string
 	var result pgconn.CommandTag
 	err := database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query,
+		result, execErr = tx.Exec(
+			ctx, query,
 			proc.ID,
 			proc.Description,
 			proc.SQLQuery,
@@ -592,7 +595,8 @@ func (s *Storage) CreateExecution(ctx context.Context, exec *Execution) error {
 	}
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, execErr := tx.Exec(ctx, query,
+		_, execErr := tx.Exec(
+			ctx, query,
 			exec.ID, exec.ProcedureID, exec.ProcedureName, exec.Namespace, exec.Status,
 			exec.InputParams, exec.Result, exec.ErrorMessage, exec.RowsReturned, exec.DurationMs,
 			exec.UserID, exec.UserRole, exec.UserEmail, exec.IsAsync,
@@ -624,7 +628,8 @@ func (s *Storage) UpdateExecution(ctx context.Context, exec *Execution) error {
 	var result pgconn.CommandTag
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query,
+		result, execErr = tx.Exec(
+			ctx, query,
 			exec.ID,
 			exec.Status,
 			exec.Result,

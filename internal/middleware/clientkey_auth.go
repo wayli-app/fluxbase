@@ -814,7 +814,8 @@ func lookupPlatformServiceKey(c fiber.Ctx, db *pgxpool.Pool, serviceKey string) 
 	var keyHash string
 
 	err := queryWithServiceRole(c.RequestCtx(), pool, func(tx pgx.Tx) error {
-		return tx.QueryRow(c.RequestCtx(),
+		return tx.QueryRow(
+			c.RequestCtx(),
 			`SELECT id, name, key_hash, key_type, scopes, allowed_namespaces,
 			        is_active, expires_at, rate_limit_per_minute, tenant_id
 			 FROM platform.service_keys
@@ -852,7 +853,8 @@ func lookupAuthServiceKey(c fiber.Ctx, db *pgxpool.Pool, serviceKey string) (*se
 	var rateLimitPerHour *int
 
 	err := queryWithServiceRole(c.RequestCtx(), pool, func(tx pgx.Tx) error {
-		return tx.QueryRow(c.RequestCtx(),
+		return tx.QueryRow(
+			c.RequestCtx(),
 			`SELECT id, name, key_hash, COALESCE(key_type, 'service'), scopes, allowed_namespaces,
 			        enabled, expires_at, rate_limit_per_minute, rate_limit_per_hour,
 			        revoked_at, tenant_id
@@ -944,7 +946,8 @@ func updateLastUsedAt(c fiber.Ctx, db *pgxpool.Pool, info *serviceKeyInfo) {
 			return
 		}
 
-		_, _ = tx.Exec(ctx,
+		_, _ = tx.Exec(
+			ctx,
 			`UPDATE `+table+` SET last_used_at = NOW() WHERE id = $1`,
 			keyID,
 		)

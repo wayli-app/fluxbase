@@ -37,7 +37,8 @@ func TestStorageRLS_BucketVisibilityToggle(t *testing.T) {
 
 	// Verify bucket is private by default
 	results := tc.QuerySQLAsSuperuser(
-		"SELECT public FROM storage.buckets WHERE id = $1", bucketName)
+		"SELECT public FROM storage.buckets WHERE id = $1", bucketName,
+	)
 	require.Len(t, results, 1, "Bucket should exist")
 	require.False(t, results[0]["public"].(bool), "Bucket should be private by default")
 	t.Logf("✅ Bucket created as private by default")
@@ -87,7 +88,8 @@ func TestStorageRLS_BucketVisibilityToggle(t *testing.T) {
 
 	// Verify bucket is now public
 	results = tc.QuerySQLAsSuperuser(
-		"SELECT public FROM storage.buckets WHERE id = $1", bucketName)
+		"SELECT public FROM storage.buckets WHERE id = $1", bucketName,
+	)
 	require.Len(t, results, 1, "Bucket should exist")
 	require.True(t, results[0]["public"].(bool), "Bucket should now be public")
 
@@ -115,7 +117,8 @@ func TestStorageRLS_BucketVisibilityToggle(t *testing.T) {
 
 	// Verify bucket is private again
 	results = tc.QuerySQLAsSuperuser(
-		"SELECT public FROM storage.buckets WHERE id = $1", bucketName)
+		"SELECT public FROM storage.buckets WHERE id = $1", bucketName,
+	)
 	require.Len(t, results, 1, "Bucket should exist")
 	require.False(t, results[0]["public"].(bool), "Bucket should be private again")
 
@@ -142,7 +145,8 @@ func TestStorageRLS_BucketVisibilityToggle(t *testing.T) {
 
 	// Verify bucket is still private (not changed by non-admin attempt)
 	results = tc.QuerySQLAsSuperuser(
-		"SELECT public FROM storage.buckets WHERE id = $1", bucketName)
+		"SELECT public FROM storage.buckets WHERE id = $1", bucketName,
+	)
 	require.Len(t, results, 1, "Bucket should exist")
 	require.False(t, results[0]["public"].(bool), "Bucket should still be private")
 

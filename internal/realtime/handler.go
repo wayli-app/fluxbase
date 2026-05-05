@@ -12,6 +12,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+
+	"github.com/nimbleflux/fluxbase/internal/database"
 )
 
 // MessageType represents the type of WebSocket message
@@ -208,8 +210,15 @@ func (h *RealtimeHandler) handleConnection(c *websocket.Conn) {
 		}
 	}
 
+	var tenantID string
+	if tid := c.Locals("tenant_id"); tid != nil {
+		if id, ok := tid.(string); ok {
+			tenantID = id
+		}
+	}
+
 	// Add connection to manager (checks connection limit)
-	connection, err := h.manager.AddConnection(connectionID, c, userID, role, claims)
+	connection, err := h.manager.AddConnection(connectionID, c, userID, role, claims, tenantID)
 	if err != nil {
 		// Connection limit reached - send error and close
 		_ = c.WriteJSON(ServerMessage{
@@ -915,8 +924,12 @@ func (h *RealtimeHandler) handleSubscribeLogs(conn *Connection, msg ClientMessag
 			return
 		}
 
+		ownCtx := context.Background()
+		if conn.TenantID != "" {
+			ownCtx = database.ContextWithTenant(ownCtx, conn.TenantID)
+		}
 		isOwner, exists, err := h.subManager.CheckExecutionOwnership(
-			context.Background(), executionID, *conn.UserID, executionType,
+			ownCtx, executionID, *conn.UserID, executionType,
 		)
 		if err != nil {
 			log.Error().Err(err).Str("execution_id", executionID).Msg("Failed to check execution ownership")

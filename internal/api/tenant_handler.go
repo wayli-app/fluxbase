@@ -471,7 +471,8 @@ func (h *TenantHandler) AssignAdmin(c fiber.Ctx) error {
 	}
 
 	var userExists bool
-	err := h.DB.Pool().QueryRow(ctx,
+	err := h.DB.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(SELECT 1 FROM platform.users WHERE id = $1::uuid AND deleted_at IS NULL)`,
 		req.UserID,
 	).Scan(&userExists)

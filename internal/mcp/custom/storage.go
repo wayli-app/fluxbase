@@ -98,7 +98,8 @@ func (s *Storage) CreateTool(ctx context.Context, req *CreateToolRequest, create
 
 	tool := &CustomTool{}
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		return tx.QueryRow(
+			ctx, `
 			INSERT INTO mcp.custom_tools (
 				name, namespace, description, code, input_schema,
 				required_scopes, timeout_seconds, memory_limit_mb,
@@ -329,7 +330,8 @@ func (s *Storage) UpdateTool(ctx context.Context, id uuid.UUID, req *UpdateToolR
 
 	tool := &CustomTool{}
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		return tx.QueryRow(
+			ctx, `
 			UPDATE mcp.custom_tools SET
 				name = $2,
 				description = $3,
@@ -481,7 +483,8 @@ func (s *Storage) CreateResource(ctx context.Context, req *CreateResourceRequest
 
 	resource := &CustomResource{}
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		return tx.QueryRow(
+			ctx, `
 			INSERT INTO mcp.custom_resources (
 				uri, name, namespace, description, mime_type,
 				code, is_template, required_scopes,
@@ -699,7 +702,8 @@ func (s *Storage) UpdateResource(ctx context.Context, id uuid.UUID, req *UpdateR
 
 	resource := &CustomResource{}
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		return tx.QueryRow(
+			ctx, `
 			UPDATE mcp.custom_resources SET
 				uri = $2,
 				name = $3,

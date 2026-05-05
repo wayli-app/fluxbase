@@ -449,7 +449,8 @@ func LogRLSViolation(ctx context.Context, db *database.Connection, c fiber.Ctx, 
 		)
 	`
 
-	_, err = db.Exec(ctx, query,
+	_, err = db.Exec(
+		ctx, query,
 		userIDStr,   // user_id
 		role,        // role
 		operation,   // operation (INSERT, UPDATE, DELETE, SELECT)

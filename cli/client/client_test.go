@@ -37,7 +37,8 @@ func TestNewClient_Options(t *testing.T) {
 		Server: "http://localhost:8080",
 	}
 
-	c := NewClient(cfg, profile,
+	c := NewClient(
+		cfg, profile,
 		WithDebug(true),
 		WithTimeout(10*time.Second),
 		WithConfigPath("/tmp/test-config"),

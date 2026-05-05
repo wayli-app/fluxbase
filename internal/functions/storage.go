@@ -163,7 +163,8 @@ func (s *Storage) CreateFunction(ctx context.Context, fn *EdgeFunction) error {
 	`
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			fn.Name, fn.Namespace, fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
 			fn.Enabled, fn.TimeoutSeconds, fn.MemoryLimitMB,
 			fn.AllowNet, fn.AllowEnv, fn.AllowRead, fn.AllowWrite, fn.AllowUnauthenticated, fn.IsPublic, fn.DisableExecutionLogs,
@@ -755,7 +756,8 @@ func (s *Storage) LogExecution(ctx context.Context, exec *EdgeFunctionExecution)
 	`
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			exec.FunctionID, exec.TriggerType, exec.Status, exec.StatusCode,
 			exec.DurationMs, exec.Result, exec.Logs, exec.ErrorMessage, exec.CompletedAt,
 		).Scan(&exec.ID, &exec.ExecutedAt)
@@ -993,7 +995,8 @@ func (s *Storage) CreateSharedModule(ctx context.Context, module *SharedModule) 
 	`
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			module.ModulePath, module.Content, module.Description, module.CreatedBy,
 		).Scan(&module.ID, &module.Version, &module.CreatedAt, &module.UpdatedAt)
 	})

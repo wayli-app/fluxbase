@@ -148,7 +148,8 @@ func TestStorageRLS_FileOwnership(t *testing.T) {
 	// Verify file still exists (using superuser query to bypass RLS)
 	results := tc.QuerySQLAsSuperuser(
 		"SELECT owner_id FROM storage.objects WHERE bucket_id = $1 AND path = $2",
-		bucketName, fileName)
+		bucketName, fileName,
+	)
 	require.Len(t, results, 1, "File should still exist after user2's failed delete")
 	require.Equal(t, user1ID, results[0]["owner_id"], "File should still be owned by user1")
 

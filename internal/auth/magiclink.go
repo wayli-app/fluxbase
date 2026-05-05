@@ -88,7 +88,8 @@ func (r *MagicLinkRepository) Create(ctx context.Context, email string, expiryDu
 
 	tenantID := database.TenantFromContext(ctx)
 	err = database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			magicLink.ID,
 			magicLink.Email,
 			magicLink.TokenHash,

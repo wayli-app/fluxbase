@@ -275,7 +275,8 @@ func migrationsGetTenantID(c fiber.Ctx, claims *auth.TokenClaims) string {
 
 func migrationsValidateTenantMembership(ctx context.Context, db *pgxpool.Pool, userID, tenantID string) bool {
 	var isMember bool
-	err := db.QueryRow(ctx,
+	err := db.QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.tenant_admin_assignments taa
 			INNER JOIN platform.tenants t ON t.id = taa.tenant_id
@@ -304,7 +305,8 @@ func migrationsValidateServiceKeyWithScope(c fiber.Ctx, db *pgxpool.Pool, servic
 	var expiresAt *time.Time
 	var keyType string
 
-	err := db.QueryRow(c.RequestCtx(),
+	err := db.QueryRow(
+		c.RequestCtx(),
 		`SELECT id, name, key_hash, COALESCE(key_type, 'service'), scopes, enabled, expires_at FROM auth.service_keys WHERE key_prefix = $1`,
 		keyPrefix,
 	).Scan(&keyID, &keyName, &keyHash, &keyType, &scopes, &enabled, &expiresAt)

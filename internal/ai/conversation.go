@@ -356,7 +356,8 @@ func (cm *ConversationManager) saveConversation(ctx context.Context, conv *Conve
 	`
 
 	return cm.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			conv.ID, conv.ChatbotID, validUserID, conv.SessionID, conv.Title, conv.Status,
 			conv.TurnCount, conv.TotalPromptTokens, conv.TotalCompletionTokens,
 			conv.CreatedAt, conv.UpdatedAt, conv.LastMessageAt, conv.ExpiresAt,
@@ -449,7 +450,8 @@ func (cm *ConversationManager) saveMessage(ctx context.Context, msg *Conversatio
 	`
 
 	return cm.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			msg.ID, msg.ConversationID, msg.Role, msg.Content, msg.ToolCallID, msg.ToolName,
 			msg.ExecutedSQL, msg.SQLResultSummary, msg.SQLRowCount, msg.SQLError, msg.SQLDurationMs,
 			msg.QueryResults, msg.PromptTokens, msg.CompletionTokens, msg.CreatedAt, msg.SequenceNumber,
@@ -470,7 +472,8 @@ func (cm *ConversationManager) updateConversationStats(ctx context.Context, conv
 	`
 
 	return cm.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			conversationID,
 			state.TurnCount,
 			state.TotalPromptTokens,

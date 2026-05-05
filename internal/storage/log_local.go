@@ -76,14 +76,16 @@ func (s *LocalLogStorage) Write(ctx context.Context, entries []*LogEntry) error 
 		var groupKey string
 		if entry.Category == LogCategoryExecution && entry.ExecutionID != "" {
 			// Group execution logs by execution ID
-			groupKey = fmt.Sprintf("%s/%s/exec_%s",
+			groupKey = fmt.Sprintf(
+				"%s/%s/exec_%s",
 				string(entry.Category),
 				entry.Timestamp.Format("2006/01/02"),
 				entry.ExecutionID,
 			)
 		} else {
 			// Group other logs by category and date with a batch UUID
-			groupKey = fmt.Sprintf("%s/%s/batch",
+			groupKey = fmt.Sprintf(
+				"%s/%s/batch",
 				string(entry.Category),
 				entry.Timestamp.Format("2006/01/02"),
 			)

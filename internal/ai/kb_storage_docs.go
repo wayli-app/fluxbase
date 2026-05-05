@@ -41,7 +41,8 @@ func (s *KnowledgeBaseStorage) CreateDocument(ctx context.Context, doc *Document
 			RETURNING created_at, updated_at
 		`
 
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			doc.ID, doc.KnowledgeBaseID, doc.Title, doc.SourceURL, doc.SourceType,
 			doc.MimeType, doc.Content, doc.ContentHash, doc.Status, metadataJSON, doc.Tags, doc.CreatedBy, doc.OwnerID,
 		).Scan(&doc.CreatedAt, &doc.UpdatedAt)
@@ -416,7 +417,8 @@ func (s *KnowledgeBaseStorage) CreateChunks(ctx context.Context, chunks []Chunk)
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, %s, $9)
 		`, embeddingExpr)
 
-		batch.Queue(query,
+		batch.Queue(
+			query,
 			chunk.ID, chunk.DocumentID, chunk.KnowledgeBaseID, chunk.Content,
 			chunk.ChunkIndex, chunk.StartOffset, chunk.EndOffset, chunk.TokenCount,
 			metadataJSON,
