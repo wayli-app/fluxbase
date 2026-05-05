@@ -339,7 +339,8 @@ func (s *WebhookService) Create(ctx context.Context, webhook *Webhook) error {
 		tenantIDVal = uuid.MustParse(tenantID)
 	}
 	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			webhook.Name,
 			webhook.Description,
 			webhook.URL,
@@ -584,7 +585,8 @@ func (s *WebhookService) Update(ctx context.Context, id uuid.UUID, webhook *Webh
 
 	tenantID := database.TenantFromContext(ctx)
 	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query,
+		result, err := tx.Exec(
+			ctx, query,
 			webhook.Name,
 			webhook.Description,
 			webhook.URL,

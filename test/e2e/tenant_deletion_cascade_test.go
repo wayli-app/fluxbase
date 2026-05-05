@@ -54,7 +54,8 @@ func TestTenantDeletion_CascadeCleanup(t *testing.T) {
 
 	// Verify data exists before deletion
 	rowsBefore := tc.QuerySQLAsSuperuser(
-		"SELECT count(*) as cnt FROM jobs.functions WHERE tenant_id = $1::uuid", tenantID)
+		"SELECT count(*) as cnt FROM jobs.functions WHERE tenant_id = $1::uuid", tenantID,
+	)
 	assert.Equal(t, int64(1), rowsBefore[0]["cnt"].(int64), "job function should exist before deletion")
 
 	// Delete the tenant via API
@@ -66,12 +67,14 @@ func TestTenantDeletion_CascadeCleanup(t *testing.T) {
 
 	// Verify data is cleaned up
 	rowsAfterJobs := tc.QuerySQLAsSuperuser(
-		"SELECT count(*) as cnt FROM jobs.functions WHERE tenant_id = $1::uuid", tenantID)
+		"SELECT count(*) as cnt FROM jobs.functions WHERE tenant_id = $1::uuid", tenantID,
+	)
 	assert.Equal(t, int64(0), rowsAfterJobs[0]["cnt"].(int64),
 		"job functions should be deleted when tenant is deleted")
 
 	rowsAfterRPC := tc.QuerySQLAsSuperuser(
-		"SELECT count(*) as cnt FROM rpc.procedures WHERE tenant_id = $1::uuid", tenantID)
+		"SELECT count(*) as cnt FROM rpc.procedures WHERE tenant_id = $1::uuid", tenantID,
+	)
 	assert.Equal(t, int64(0), rowsAfterRPC[0]["cnt"].(int64),
 		"rpc procedures should be deleted when tenant is deleted")
 }

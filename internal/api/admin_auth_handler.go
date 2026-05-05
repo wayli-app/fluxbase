@@ -238,7 +238,8 @@ func (h *AdminAuthHandler) AdminLogin(c fiber.Ctx) error {
 
 	// Query user's role from database (DashboardUser struct doesn't include role)
 	var userRole string
-	err = h.dashboardAuth.GetDB().QueryRow(ctx,
+	err = h.dashboardAuth.GetDB().QueryRow(
+		ctx,
 		"SELECT role FROM platform.users WHERE id = $1",
 		user.ID,
 	).Scan(&userRole)

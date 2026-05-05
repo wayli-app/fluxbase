@@ -51,7 +51,8 @@ func (s *Storage) CreateBranch(ctx context.Context, branch *Branch) error {
 	}
 
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			branch.ID,
 			branch.Name,
 			branch.Slug,
@@ -473,7 +474,8 @@ func (s *Storage) LogActivity(ctx context.Context, log *ActivityLog) error {
 	}
 
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			log.ID,
 			log.BranchID,
 			log.TenantID,
@@ -727,7 +729,8 @@ func (s *Storage) UpsertGitHubConfig(ctx context.Context, config *GitHubConfig) 
 	}
 
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			config.ID,
 			config.Repository,
 			config.TenantID,
@@ -835,7 +838,8 @@ func (s *Storage) GrantAccess(ctx context.Context, access *BranchAccess) error {
 	}
 
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			access.ID,
 			access.BranchID,
 			access.TenantID,
@@ -932,7 +936,8 @@ func (s *Storage) HasAccess(ctx context.Context, branchID, userID uuid.UUID, min
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		// First check if user is the creator (always has admin access)
 		var createdBy *uuid.UUID
-		err := tx.QueryRow(ctx,
+		err := tx.QueryRow(
+			ctx,
 			`SELECT created_by FROM branching.branches WHERE id = $1`,
 			branchID,
 		).Scan(&createdBy)

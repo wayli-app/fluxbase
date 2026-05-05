@@ -97,7 +97,8 @@ func (r *PasswordResetRepository) Create(ctx context.Context, userID string, exp
 
 	tenantID := database.TenantFromContext(ctx)
 	err = database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			passwordResetToken.ID,
 			passwordResetToken.UserID,
 			passwordResetToken.TokenHash,

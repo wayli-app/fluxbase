@@ -108,7 +108,8 @@ func (r *UserRepository) Create(ctx context.Context, req CreateUserRequest, pass
 
 	tenantID := database.TenantFromContext(ctx)
 	err := database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, query,
+		row := tx.QueryRow(
+			ctx, query,
 			user.ID,
 			user.Email,
 			user.PasswordHash,

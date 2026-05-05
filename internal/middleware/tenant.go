@@ -62,7 +62,8 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 				// For anonymous/unauthenticated requests, validate the tenant exists
 				if headerTenant != "" {
 					var exists bool
-					err := cfg.DB.Pool().QueryRow(c.Context(),
+					err := cfg.DB.Pool().QueryRow(
+						c.Context(),
 						`SELECT EXISTS(SELECT 1 FROM platform.tenants WHERE (id::text = $1 OR slug = $1) AND deleted_at IS NULL)`,
 						headerTenant,
 					).Scan(&exists)
@@ -112,7 +113,8 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 		if tenantID != "" {
 			var slug string
 			var isDefault bool
-			err := cfg.DB.Pool().QueryRow(c.Context(),
+			err := cfg.DB.Pool().QueryRow(
+				c.Context(),
 				"SELECT slug, is_default FROM platform.tenants WHERE id = $1::uuid",
 				tenantID,
 			).Scan(&slug, &isDefault)
@@ -172,7 +174,8 @@ func TenantMiddleware(cfg TenantConfig) fiber.Handler {
 // ValidateTenantMembership checks if user is assigned to manage the specified tenant
 func ValidateTenantMembership(ctx context.Context, db *database.Connection, userID, tenantID string) (bool, error) {
 	var isMember bool
-	err := db.Pool().QueryRow(ctx,
+	err := db.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.tenant_admin_assignments taa
 			INNER JOIN platform.tenants t ON t.id = taa.tenant_id
@@ -203,7 +206,8 @@ func GetUserTenantRole(ctx context.Context, db *database.Connection, userID, ten
 	}
 
 	var isAdmin bool
-	err := db.Pool().QueryRow(ctx,
+	err := db.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.users
 			WHERE id = $1::uuid
@@ -221,7 +225,8 @@ func GetUserTenantRole(ctx context.Context, db *database.Connection, userID, ten
 	}
 
 	var isAssigned bool
-	err = db.Pool().QueryRow(ctx,
+	err = db.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.tenant_admin_assignments taa
 			INNER JOIN platform.tenants t ON t.id = taa.tenant_id
@@ -244,7 +249,8 @@ func GetUserTenantRole(ctx context.Context, db *database.Connection, userID, ten
 // GetDefaultTenantID gets the default tenant ID
 func GetDefaultTenantID(ctx context.Context, db *database.Connection) (string, error) {
 	var id string
-	err := db.Pool().QueryRow(ctx,
+	err := db.Pool().QueryRow(
+		ctx,
 		`SELECT id::text FROM platform.tenants WHERE is_default = true AND deleted_at IS NULL LIMIT 1`,
 	).Scan(&id)
 	if err != nil {
@@ -260,7 +266,8 @@ func GetDefaultTenantID(ctx context.Context, db *database.Connection) (string, e
 // IsInstanceAdmin checks if the user is an instance-level admin
 func IsInstanceAdmin(ctx context.Context, db *database.Connection, userID string) (bool, error) {
 	var isAdmin bool
-	err := db.Pool().QueryRow(ctx,
+	err := db.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.users
 			WHERE id = $1::uuid
@@ -349,7 +356,8 @@ func RequireInstanceAdmin() fiber.Handler {
 // Instance admins get all tenants, others get only their assigned tenants
 func GetUserTenantIDs(ctx context.Context, db *database.Connection, userID string) ([]string, error) {
 	var isAdmin bool
-	err := db.Pool().QueryRow(ctx,
+	err := db.Pool().QueryRow(
+		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM platform.users
 			WHERE id = $1::uuid
@@ -364,7 +372,8 @@ func GetUserTenantIDs(ctx context.Context, db *database.Connection, userID strin
 	}
 
 	if isAdmin {
-		rows, err := db.Pool().Query(ctx,
+		rows, err := db.Pool().Query(
+			ctx,
 			`SELECT id::text FROM platform.tenants
 			WHERE deleted_at IS NULL
 			ORDER BY name`,
@@ -385,7 +394,8 @@ func GetUserTenantIDs(ctx context.Context, db *database.Connection, userID strin
 		return tenantIDs, nil
 	}
 
-	rows, err := db.Pool().Query(ctx,
+	rows, err := db.Pool().Query(
+		ctx,
 		`SELECT taa.tenant_id::text FROM platform.tenant_admin_assignments taa
 		INNER JOIN platform.tenants t ON t.id = taa.tenant_id
 		WHERE taa.user_id = $1::uuid

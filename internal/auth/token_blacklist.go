@@ -53,7 +53,8 @@ func (r *TokenBlacklistRepository) Add(ctx context.Context, jti string, revokedB
 	logEvent.Msg("Blacklisting token")
 
 	return database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			uuid.New().String(),
 			jti,
 			revokedBy,

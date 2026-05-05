@@ -106,7 +106,8 @@ func (s *PostgresLogStorage) Write(ctx context.Context, entries []*LogEntry) err
 			}
 		}
 
-		args = append(args,
+		args = append(
+			args,
 			entry.ID,
 			entry.Timestamp,
 			string(entry.Category),

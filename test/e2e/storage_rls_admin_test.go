@@ -79,7 +79,8 @@ func TestStorageRLS_AdminAccess(t *testing.T) {
 	// Verify the file has owner_id set to regular user
 	results := tc.QuerySQLAsSuperuser(
 		"SELECT owner_id FROM storage.objects WHERE bucket_id = $1 AND path = $2",
-		bucketName, fileName)
+		bucketName, fileName,
+	)
 	require.Len(t, results, 1, "File should exist in database")
 	require.Equal(t, userID, results[0]["owner_id"], "File should be owned by regular user")
 
@@ -131,7 +132,8 @@ func TestStorageRLS_AdminAccess(t *testing.T) {
 
 	// Verify bucket is now public
 	results = tc.QuerySQLAsSuperuser(
-		"SELECT public FROM storage.buckets WHERE id = $1", bucketName)
+		"SELECT public FROM storage.buckets WHERE id = $1", bucketName,
+	)
 	require.Len(t, results, 1, "Bucket should exist")
 	require.True(t, results[0]["public"].(bool), "Bucket should now be public")
 

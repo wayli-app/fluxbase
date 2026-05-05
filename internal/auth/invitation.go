@@ -110,7 +110,8 @@ func (s *InvitationService) CreateInvitationWithTenant(ctx context.Context, emai
 	}
 
 	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		return tx.QueryRow(
+			ctx, `
 			INSERT INTO platform.invitation_tokens (id, email, token, token_hash, role, tenant_id, invited_by, expires_at, accepted, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id, email, token, token_hash, role, tenant_id, invited_by, expires_at, accepted, created_at

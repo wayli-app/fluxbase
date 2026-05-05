@@ -348,7 +348,8 @@ func (h *SAMLHandler) HandleSAMLAssertion(c fiber.Ctx) error {
 				if strings.Contains(validatedURL, "#") {
 					separator = "&"
 				}
-				validatedURL = fmt.Sprintf("%s%saccess_token=%s&refresh_token=%s&token_type=bearer",
+				validatedURL = fmt.Sprintf(
+					"%s%saccess_token=%s&refresh_token=%s&token_type=bearer",
 					validatedURL, separator,
 					url.QueryEscape(accessToken),
 					url.QueryEscape(refreshToken),

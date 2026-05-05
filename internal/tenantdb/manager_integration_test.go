@@ -36,7 +36,8 @@ func setupManagerTest(t *testing.T) *managerTestEnv {
 
 	// Build admin URL for creating databases (needs superuser)
 	cfg := dbhelpers.GetTestConfig()
-	adminDBURL := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable",
+	adminDBURL := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.Database.AdminUser,
 		cfg.Database.AdminPassword,
 		cfg.Database.Host,
@@ -146,7 +147,8 @@ func TestManager_CreateTenantDatabase_FullPipeline(t *testing.T) {
 
 	// Verify the database actually exists
 	var dbExists bool
-	err = env.adminPool.QueryRow(ctx,
+	err = env.adminPool.QueryRow(
+		ctx,
 		"SELECT EXISTS(SELECT datname FROM pg_database WHERE datname = $1)",
 		*stored.DBName,
 	).Scan(&dbExists)
@@ -257,7 +259,8 @@ func TestManager_DeleteTenantDatabase_CleansUp(t *testing.T) {
 
 	// Verify database is dropped
 	var dbExists bool
-	err = env.adminPool.QueryRow(ctx,
+	err = env.adminPool.QueryRow(
+		ctx,
 		"SELECT EXISTS(SELECT datname FROM pg_database WHERE datname = $1)",
 		dbName,
 	).Scan(&dbExists)

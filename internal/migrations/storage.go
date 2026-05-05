@@ -62,7 +62,8 @@ func (s *Storage) CreateMigration(ctx context.Context, m *Migration) error {
 	`
 
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			m.Namespace, m.Name, m.Description, m.UpSQL, m.DownSQL, m.CreatedBy,
 		).Scan(&m.ID, &m.Version, &m.Status, &m.CreatedAt, &m.UpdatedAt)
 	})
@@ -255,7 +256,8 @@ func (s *Storage) LogExecution(ctx context.Context, log *ExecutionLog) error {
 	`
 
 	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			log.MigrationID, log.Action, log.Status, log.DurationMs,
 			log.ErrorMessage, log.Logs, log.ExecutedBy,
 		).Scan(&log.ID, &log.ExecutedAt)

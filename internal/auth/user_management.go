@@ -345,7 +345,8 @@ func (s *UserManagementService) InviteUser(ctx context.Context, req InviteUserRe
 
 	// Add user to tenant if tenant_id is provided (for app users only)
 	if userType == "app" && req.TenantID != "" && s.userRepo.db != nil {
-		_, err := s.userRepo.db.Pool().Exec(ctx,
+		_, err := s.userRepo.db.Pool().Exec(
+			ctx,
 			`INSERT INTO platform.tenant_memberships (tenant_id, user_id, role)
 			 VALUES ($1::uuid, $2::uuid, 'tenant_member')
 			 ON CONFLICT (tenant_id, user_id) DO NOTHING`,

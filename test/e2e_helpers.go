@@ -1319,7 +1319,8 @@ func (r *APIRequest) WithDefaultTenant() *APIRequest {
 func (tc *TestContext) GetDefaultTenantID() string {
 	tc.defaultTenantOnce.Do(func() {
 		var id string
-		err := tc.DB.Pool().QueryRow(context.Background(),
+		err := tc.DB.Pool().QueryRow(
+			context.Background(),
 			"SELECT id::text FROM platform.tenants WHERE is_default = true LIMIT 1",
 		).Scan(&id)
 		if err == nil {
@@ -1328,7 +1329,8 @@ func (tc *TestContext) GetDefaultTenantID() string {
 		}
 
 		// No default tenant exists — create one (CI doesn't seed default tenant)
-		require.NoError(tc.T, tc.DB.Pool().QueryRow(context.Background(),
+		require.NoError(tc.T, tc.DB.Pool().QueryRow(
+			context.Background(),
 			"INSERT INTO platform.tenants (slug, name, is_default) VALUES ('default', 'Default', true) RETURNING id::text",
 		).Scan(&id), "Failed to create default tenant")
 
@@ -2887,7 +2889,8 @@ func (tc *TestContext) CreateServiceKey(name string) string {
 	`
 
 	var keyID uuid.UUID
-	err = tc.DB.QueryRow(ctx, query,
+	err = tc.DB.QueryRow(
+		ctx, query,
 		name,
 		"Test service key for "+name,
 		string(keyHash),
@@ -2900,7 +2903,8 @@ func (tc *TestContext) CreateServiceKey(name string) string {
 		if poolErr != nil {
 			require.NoError(tc.T, err, "Failed to insert service key (superuser fallback also failed: %v)", poolErr)
 		}
-		err = pool.QueryRow(ctx, query,
+		err = pool.QueryRow(
+			ctx, query,
 			name,
 			"Test service key for "+name,
 			string(keyHash),

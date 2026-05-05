@@ -55,7 +55,8 @@ func (kg *KnowledgeGraph) AddEntity(ctx context.Context, entity *Entity) error {
 	`
 
 	return kg.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			entity.ID, entity.KnowledgeBaseID, entity.EntityType, entity.Name,
 			entity.CanonicalName, entity.Aliases, entity.Metadata,
 			entity.CreatedAt, entity.UpdatedAt,
@@ -213,7 +214,8 @@ func (kg *KnowledgeGraph) AddRelationship(ctx context.Context, rel *EntityRelati
 	`
 
 	return kg.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			rel.ID, rel.KnowledgeBaseID, rel.SourceEntityID, rel.TargetEntityID,
 			rel.RelationshipType, rel.Direction, rel.Confidence, rel.Metadata,
 			rel.CreatedAt,
@@ -359,7 +361,8 @@ func (kg *KnowledgeGraph) AddDocumentEntities(ctx context.Context, docEntities [
 			}
 			de.CreatedAt = time.Now()
 
-			_, err := tx.Exec(ctx, query,
+			_, err := tx.Exec(
+				ctx, query,
 				de.ID, de.DocumentID, de.EntityID, de.MentionCount,
 				de.FirstMentionOffset, de.Salience, de.Context, de.CreatedAt,
 			)
@@ -491,7 +494,8 @@ func (kg *KnowledgeGraph) BatchAddEntities(ctx context.Context, entities []Entit
 			entity.CreatedAt = time.Now()
 			entity.UpdatedAt = time.Now()
 
-			batch.Queue(query,
+			batch.Queue(
+				query,
 				entity.ID, entity.KnowledgeBaseID, entity.EntityType, entity.Name,
 				entity.CanonicalName, entity.Aliases, entity.Metadata,
 				entity.CreatedAt, entity.UpdatedAt,

@@ -128,7 +128,8 @@ func (s *TableExportSyncService) CreateSyncConfig(ctx context.Context, config *C
 	}
 
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			id, config.KnowledgeBaseID, config.SchemaName, config.TableName, columns,
 			config.SyncMode, config.SyncOnInsert, config.SyncOnUpdate, config.SyncOnDelete,
 			config.DebounceSeconds, config.IncludeForeignKeys, config.IncludeIndexes,

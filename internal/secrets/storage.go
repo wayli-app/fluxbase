@@ -89,7 +89,8 @@ func (s *Storage) CreateSecretWithTenant(ctx context.Context, tenantID string, s
 	`
 
 	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			secret.Name, secret.Scope, secret.Namespace, encryptedValue,
 			secret.Description, secret.ExpiresAt, userID,
 		).Scan(&secret.ID, &secret.Version, &secret.CreatedAt, &secret.UpdatedAt)

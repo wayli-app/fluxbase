@@ -583,7 +583,8 @@ func ensureDefaultTenantAndKeys(pool *pgxpool.Pool, cfg *config.Config) error {
 	// that can occur right after pool recreation).
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
-		err = pool.QueryRow(ctx,
+		err = pool.QueryRow(
+			ctx,
 			"SELECT id, true FROM platform.tenants WHERE slug = 'default' AND deleted_at IS NULL",
 		).Scan(&tenantID, &tenantExists)
 		if err == nil {
@@ -614,7 +615,8 @@ func ensureDefaultTenantAndKeys(pool *pgxpool.Pool, cfg *config.Config) error {
 			tenantName = "Default"
 		}
 
-		err := pool.QueryRow(ctx,
+		err := pool.QueryRow(
+			ctx,
 			"INSERT INTO platform.tenants (slug, name, is_default) VALUES ('default', $1, true) RETURNING id",
 			tenantName,
 		).Scan(&tenantID)
@@ -673,7 +675,8 @@ func ensureServiceKey(ctx context.Context, pool *pgxpool.Pool, cfg *config.Confi
 	// Check for existing key of this type in auth.service_keys
 	var existingKeyID uuid.UUID
 	var existingKeyHash string
-	err := pool.QueryRow(ctx,
+	err := pool.QueryRow(
+		ctx,
 		"SELECT id, key_hash FROM auth.service_keys WHERE key_type = $1 AND enabled = true AND revoked_at IS NULL",
 		keyType,
 	).Scan(&existingKeyID, &existingKeyHash)
@@ -693,7 +696,8 @@ func ensureServiceKey(ctx context.Context, pool *pgxpool.Pool, cfg *config.Confi
 				return nil
 			}
 			// Key changed, disable old and create new
-			_, err := pool.Exec(ctx,
+			_, err := pool.Exec(
+				ctx,
 				"UPDATE auth.service_keys SET enabled = false WHERE id = $1",
 				existingKeyID,
 			)
@@ -704,7 +708,8 @@ func ensureServiceKey(ctx context.Context, pool *pgxpool.Pool, cfg *config.Confi
 
 		// Insert new config-managed key
 		keyPrefix := keys.ExtractPrefix(configKey)
-		_, err = pool.Exec(ctx,
+		_, err = pool.Exec(
+			ctx,
 			`INSERT INTO auth.service_keys 
 			(name, key_hash, key_prefix, key_type, enabled, scopes, rate_limit_per_minute)
 			VALUES ($1, $2, $3, $4, true, $5, $6)`,
@@ -731,7 +736,8 @@ func ensureServiceKey(ctx context.Context, pool *pgxpool.Pool, cfg *config.Confi
 	}
 
 	// Insert generated key
-	_, err = pool.Exec(ctx,
+	_, err = pool.Exec(
+		ctx,
 		`INSERT INTO auth.service_keys 
 		(name, key_hash, key_prefix, key_type, enabled, scopes, rate_limit_per_minute)
 		VALUES ($1, $2, $3, $4, true, $5, $6)`,
@@ -779,7 +785,8 @@ func getDefaultTenantID(pool *pgxpool.Pool) *string {
 	defer cancel()
 
 	var tenantID string
-	err := pool.QueryRow(ctx,
+	err := pool.QueryRow(
+		ctx,
 		"SELECT id::text FROM platform.tenants WHERE slug = 'default' AND deleted_at IS NULL",
 	).Scan(&tenantID)
 	if err != nil {
@@ -808,7 +815,8 @@ func backfillTenantIDToDefault(pool *pgxpool.Pool) error {
 
 	// Get default tenant ID
 	var defaultTenantID string
-	err := pool.QueryRow(ctx,
+	err := pool.QueryRow(
+		ctx,
 		"SELECT id::text FROM platform.tenants WHERE is_default = true AND deleted_at IS NULL LIMIT 1",
 	).Scan(&defaultTenantID)
 	if err != nil {
@@ -944,7 +952,8 @@ func backfillTenantIDToDefault(pool *pgxpool.Pool) error {
 			}
 		}
 
-		result, err := pool.Exec(ctx,
+		result, err := pool.Exec(
+			ctx,
 			fmt.Sprintf("UPDATE %s SET tenant_id = $1::uuid WHERE tenant_id IS NULL", table),
 			defaultTenantID,
 		)

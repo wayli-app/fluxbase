@@ -939,7 +939,8 @@ func (s *DeclarativeService) ensureMissingColumns(ctx context.Context, schema st
 
 		// Skip tables that don't exist yet (CREATE TABLE will handle them)
 		var tableExists bool
-		if err := pool.QueryRow(ctx,
+		if err := pool.QueryRow(
+			ctx,
 			"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2)",
 			schema, tableName,
 		).Scan(&tableExists); err != nil || !tableExists {
@@ -953,7 +954,8 @@ func (s *DeclarativeService) ensureMissingColumns(ctx context.Context, schema st
 			}
 
 			var colExists bool
-			if err := pool.QueryRow(ctx,
+			if err := pool.QueryRow(
+				ctx,
 				"SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3)",
 				schema, tableName, col.Colname,
 			).Scan(&colExists); err != nil || colExists {
@@ -984,7 +986,8 @@ func (s *DeclarativeService) ensureMissingColumns(ctx context.Context, schema st
 // within the given schema. Columns added to the parent propagate automatically.
 func (s *DeclarativeService) listPartitionTables(ctx context.Context, schema string, pool *pgxpool.Pool) map[string]bool {
 	partitions := make(map[string]bool)
-	rows, err := pool.Query(ctx,
+	rows, err := pool.Query(
+		ctx,
 		`SELECT c.relname FROM pg_class c
 		 JOIN pg_namespace n ON n.oid = c.relnamespace
 		 WHERE n.nspname = $1 AND c.relispartition`,
@@ -1033,7 +1036,8 @@ func extractAlterTableName(sql string) string {
 // (relkind = 'p') within the given schema.
 func (s *DeclarativeService) listPartitionedTables(ctx context.Context, schema string, pool *pgxpool.Pool) map[string]bool {
 	tables := make(map[string]bool)
-	rows, err := pool.Query(ctx,
+	rows, err := pool.Query(
+		ctx,
 		`SELECT c.relname FROM pg_class c
 		 JOIN pg_namespace n ON n.oid = c.relnamespace
 		 WHERE n.nspname = $1 AND c.relkind = 'p'`,

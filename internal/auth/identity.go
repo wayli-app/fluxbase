@@ -165,7 +165,8 @@ func (r *IdentityRepository) Create(ctx context.Context, userID, provider, provi
 
 	tenantID := database.TenantFromContext(ctx)
 	err := database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			identity.ID,
 			identity.UserID,
 			identity.Provider,

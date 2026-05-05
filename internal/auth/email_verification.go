@@ -101,7 +101,8 @@ func (r *EmailVerificationRepository) Create(ctx context.Context, userID string,
 
 	tenantID := database.TenantFromContext(ctx)
 	err = database.WrapWithServiceRoleAndTenant(ctx, r.db, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			token.ID,
 			token.UserID,
 			token.TokenHash,

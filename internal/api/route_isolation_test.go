@@ -25,7 +25,8 @@ func TestRouteGroupIsolation(t *testing.T) {
 
 	// Register webhook route with rate limiting directly (not as a group)
 	// This is the correct way to avoid middleware leakage
-	app.Post("/api/v1/webhooks/github",
+	app.Post(
+		"/api/v1/webhooks/github",
 		middleware.GitHubWebhookLimiter(),
 		func(c fiber.Ctx) error {
 			return c.SendString("webhook ok")
@@ -51,7 +52,8 @@ func TestRouteGroupIsolation(t *testing.T) {
 		app2 := fiber.New()
 
 		// Register webhook with rate limiter
-		app2.Post("/api/v1/webhooks/github",
+		app2.Post(
+			"/api/v1/webhooks/github",
 			middleware.GitHubWebhookLimiter(),
 			func(c fiber.Ctx) error {
 				return c.SendString("webhook ok")

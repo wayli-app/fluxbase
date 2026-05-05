@@ -44,7 +44,8 @@ func setupFDWTest(t *testing.T) (mainPool, tenantPool *pgxpool.Pool, cfg FDWConf
 
 	// Build admin URL for creating databases and bootstrapping (needs superuser)
 	testCfg := dbhelpers.GetTestConfig()
-	adminDBURL := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=%s",
+	adminDBURL := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
 		testCfg.Database.AdminUser,
 		testCfg.Database.AdminPassword,
 		testCfg.Database.Host,

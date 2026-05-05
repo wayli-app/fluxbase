@@ -221,7 +221,8 @@ func (s *Storage) CreateTenant(ctx context.Context, tenant *Tenant) error {
 		RETURNING id, created_at, updated_at
 	`
 
-	err = s.db.QueryRow(ctx, query,
+	err = s.db.QueryRow(
+		ctx, query,
 		tenant.Slug,
 		tenant.Name,
 		tenant.DBName,

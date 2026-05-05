@@ -46,7 +46,8 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBase(ctx context.Context, kb *Know
 			RETURNING created_at, updated_at
 		`
 
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			kb.ID, kb.Name, kb.Namespace, kb.Description,
 			kb.EmbeddingModel, kb.EmbeddingDimensions,
 			kb.ChunkSize, kb.ChunkOverlap, kb.ChunkStrategy,
@@ -186,7 +187,8 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBase(ctx context.Context, kb *Know
 			RETURNING updated_at
 		`
 
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			kb.ID, kb.Name, kb.Description,
 			kb.EmbeddingModel, kb.EmbeddingDimensions,
 			kb.ChunkSize, kb.ChunkOverlap, kb.ChunkStrategy,
@@ -675,7 +677,8 @@ func (s *KnowledgeBaseStorage) SetUserQuota(ctx context.Context, quota *UserQuot
 			    updated_at = NOW()
 		`
 
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			quota.UserID,
 			quota.MaxDocuments,
 			quota.MaxChunks,

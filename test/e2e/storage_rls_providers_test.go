@@ -113,7 +113,8 @@ func TestStorageRLS_StorageProviders(t *testing.T) {
 			// Verify metadata is in database
 			results := tc.QuerySQLAsSuperuser(
 				"SELECT owner_id, bucket_id, path FROM storage.objects WHERE path = $1 AND bucket_id = $2",
-				fileName, bucketName)
+				fileName, bucketName,
+			)
 
 			require.Len(t, results, 1, "File metadata should exist in database")
 			require.Equal(t, user1ID, results[0]["owner_id"], "owner_id should be set to user1")
@@ -126,7 +127,8 @@ func TestStorageRLS_StorageProviders(t *testing.T) {
 			user2Results := tc.QuerySQLAsRLSUser(
 				"SELECT COUNT(*) as count FROM storage.objects WHERE bucket_id = $1",
 				user2ID, // Query as user2
-				bucketName)
+				bucketName,
+			)
 
 			require.Len(t, user2Results, 1, "Query should return result")
 			count, ok := user2Results[0]["count"].(int64)
@@ -149,7 +151,8 @@ func TestStorageRLS_StorageProviders(t *testing.T) {
 			// Verify file is deleted from database
 			results = tc.QuerySQLAsSuperuser(
 				"SELECT COUNT(*) as count FROM storage.objects WHERE path = $1 AND bucket_id = $2",
-				fileName, bucketName)
+				fileName, bucketName,
+			)
 
 			require.Len(t, results, 1, "Query should return result")
 			count, ok = results[0]["count"].(int64)

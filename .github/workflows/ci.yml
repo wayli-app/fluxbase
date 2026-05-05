@@ -470,6 +470,7 @@ jobs:
           # Bootstrap must have already run (creates schemas, extensions, roles).
           SCHEMA_DIR="internal/database/schema/schemas"
           for schema in platform auth storage jobs functions realtime ai rpc system migrations app api branching logging mcp; do
+            if [ ! -f "${SCHEMA_DIR}/${schema}.sql" ]; then continue; fi
             echo "Applying schema: $schema"
             sed "s/{{APP_USER}}/fluxbase_app/g" "${SCHEMA_DIR}/${schema}.sql" | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
           done
@@ -803,6 +804,7 @@ jobs:
         run: |
           SCHEMA_DIR="internal/database/schema/schemas"
           for schema in platform auth storage jobs functions realtime ai rpc system migrations app api branching logging mcp; do
+            if [ ! -f "${SCHEMA_DIR}/${schema}.sql" ]; then continue; fi
             echo "Applying schema: $schema"
             sed "s/{{APP_USER}}/fluxbase_app/g" "${SCHEMA_DIR}/${schema}.sql" | psql -h localhost -U postgres -d fluxbase_test -v ON_ERROR_STOP=1
           done

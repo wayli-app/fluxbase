@@ -382,7 +382,8 @@ func (h *SAMLProviderHandler) CreateSAMLProvider(c fiber.Ctx) error {
 
 	if isInstanceLevel {
 		err = database.WrapWithServiceRole(ctx, h.db, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, query,
+			return tx.QueryRow(
+				ctx, query,
 				req.Name, displayName, req.Enabled, entityID, acsURL,
 				req.IdPMetadataURL, req.IdPMetadataXML, metadataInfo.CachedXML,
 				attrMapping, autoCreateUsers, defaultRole,

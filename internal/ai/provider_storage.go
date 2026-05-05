@@ -61,7 +61,8 @@ func (s *Storage) CreateProviderWithTenant(ctx context.Context, tenantID string,
 	provider.UpdatedAt = time.Now()
 
 	err := database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			provider.ID, provider.Name, provider.DisplayName, provider.ProviderType,
 			provider.IsDefault, provider.UseForEmbeddings, provider.EmbeddingModel, provider.Config, provider.Enabled, provider.CreatedBy,
 			provider.CreatedAt, provider.UpdatedAt,
@@ -107,7 +108,8 @@ func (s *Storage) UpdateProviderWithTenant(ctx context.Context, tenantID string,
 	var result pgconn.CommandTag
 	err := database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		var execErr error
-		result, execErr = tx.Exec(ctx, query,
+		result, execErr = tx.Exec(
+			ctx, query,
 			provider.ID,
 			provider.DisplayName,
 			provider.Config,

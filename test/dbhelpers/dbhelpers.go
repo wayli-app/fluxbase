@@ -163,7 +163,8 @@ func connectPoolWithRetry(connURL string, maxAttempts int) (*pgxpool.Pool, error
 
 // buildConnectionURL builds a PostgreSQL connection URL from config.
 func buildConnectionURL(cfg config.DatabaseConfig) string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=%s",
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.User,
 		cfg.Password,
 		cfg.Host,

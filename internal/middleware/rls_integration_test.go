@@ -50,7 +50,8 @@ func setupRLSIntegrationTest(t *testing.T) *rlsTestEnv {
 	cfg := dbhelpers.GetTestConfig()
 
 	// Create admin pool for CREATE DATABASE and privileged operations.
-	adminDBURL := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable",
+	adminDBURL := fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.Database.AdminUser,
 		cfg.Database.AdminPassword,
 		cfg.Database.Host,

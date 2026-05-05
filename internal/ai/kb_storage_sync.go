@@ -55,7 +55,8 @@ func (s *KnowledgeBaseStorage) LinkChatbotKnowledgeBase(ctx context.Context, lin
 			RETURNING created_at, updated_at
 		`
 
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			link.ID, link.ChatbotID, link.KnowledgeBaseID,
 			link.AccessLevel, link.FilterExpression, link.ContextWeight, link.Priority,
 			link.IntentKeywords, link.MaxChunks, link.SimilarityThreshold,
@@ -169,7 +170,8 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBaseChatbots(ctx context.Context, kno
 // UnlinkChatbotKnowledgeBase removes a link between chatbot and knowledge base
 func (s *KnowledgeBaseStorage) UnlinkChatbotKnowledgeBase(ctx context.Context, chatbotID, knowledgeBaseID string) error {
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx,
+		_, err := tx.Exec(
+			ctx,
 			"DELETE FROM ai.chatbot_knowledge_bases WHERE chatbot_id = $1 AND knowledge_base_id = $2",
 			chatbotID, knowledgeBaseID,
 		)
@@ -197,7 +199,8 @@ func (s *KnowledgeBaseStorage) LogRetrieval(ctx context.Context, log *RetrievalL
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		`
 
-		_, err := tx.Exec(ctx, query,
+		_, err := tx.Exec(
+			ctx, query,
 			log.ID, log.ChatbotID, log.ConversationID, log.KnowledgeBaseID, log.UserID,
 			log.QueryText, log.QueryEmbeddingModel, log.ChunksRetrieved,
 			log.ChunkIDs, log.SimilarityScores, log.RetrievalDurationMs,

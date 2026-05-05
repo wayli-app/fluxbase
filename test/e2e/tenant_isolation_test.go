@@ -93,7 +93,8 @@ func TestTenantIsolation_AuthUsers(t *testing.T) {
 
 	// Verify superuser sees both
 	allUsers := tc.QuerySQLAsSuperuser(
-		`SELECT email FROM auth.users WHERE email LIKE 'tenant-test-%' ORDER BY email`)
+		`SELECT email FROM auth.users WHERE email LIKE 'tenant-test-%' ORDER BY email`,
+	)
 	require.Len(t, allUsers, 2, "Superuser should see all users")
 }
 
@@ -559,13 +560,15 @@ func TestTenantIsolation_JobsAPI(t *testing.T) {
 		`INSERT INTO jobs.functions (id, name, namespace, code, enabled, tenant_id)
 		 VALUES ($1, 'tenant1-job-api-test', 'isolation-test', 'export default function() {}', true, $2::uuid)
 		 ON CONFLICT (id) DO NOTHING`,
-		"10000000-0000-0000-0000-000000000001", tenantTestID1)
+		"10000000-0000-0000-0000-000000000001", tenantTestID1,
+	)
 
 	tc.ExecuteSQLAsSuperuser(
 		`INSERT INTO jobs.functions (id, name, namespace, code, enabled, tenant_id)
 		 VALUES ($1, 'tenant2-job-api-test', 'isolation-test', 'export default function() {}', true, $2::uuid)
 		 ON CONFLICT (id) DO NOTHING`,
-		"10000000-0000-0000-0000-000000000002", tenantTestID2)
+		"10000000-0000-0000-0000-000000000002", tenantTestID2,
+	)
 
 	// Query as tenant1 - should only see tenant1's job function
 	rows1 := tc.QuerySQLAsTenant(tenantTestID1,
@@ -591,7 +594,8 @@ func TestTenantIsolation_JobsAPI(t *testing.T) {
 
 	// Superuser should see both
 	rowsAll := tc.QuerySQLAsSuperuser(
-		"SELECT name FROM jobs.functions WHERE namespace = 'isolation-test'")
+		"SELECT name FROM jobs.functions WHERE namespace = 'isolation-test'",
+	)
 	require.Len(t, rowsAll, 2, "superuser should see both tenants' job functions")
 }
 

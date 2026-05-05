@@ -387,7 +387,8 @@ func (c *Connection) runUserMigrations() error {
 	}
 
 	// Create admin connection for migrations
-	adminConnStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+	adminConnStr := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.config.AdminUser,
 		adminPassword,
 		c.config.Host,
@@ -617,7 +618,8 @@ func (c *Connection) grantRolesToRuntimeUser() error {
 		adminPassword = c.config.Password
 	}
 
-	adminConnStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+	adminConnStr := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.config.AdminUser,
 		adminPassword,
 		c.config.Host,
@@ -637,7 +639,8 @@ func (c *Connection) grantRolesToRuntimeUser() error {
 	for _, role := range roles {
 		// Check if role exists before granting
 		var exists bool
-		err := adminConn.QueryRow(ctx,
+		err := adminConn.QueryRow(
+			ctx,
 			"SELECT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname = $1)",
 			role,
 		).Scan(&exists)

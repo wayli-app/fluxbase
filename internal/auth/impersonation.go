@@ -97,7 +97,8 @@ func (r *ImpersonationRepository) Create(ctx context.Context, session *Impersona
 
 	result := &ImpersonationSession{}
 	err := database.WrapWithServiceRole(ctx, r.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			session.ID,
 			session.AdminUserID,
 			session.TargetUserID,

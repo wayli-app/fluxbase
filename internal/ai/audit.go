@@ -98,7 +98,8 @@ func (l *AuditLogger) LogQuery(ctx context.Context, entry *AuditEntry) error {
 	`
 
 	err := l.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, execErr := tx.Exec(ctx, query,
+		_, execErr := tx.Exec(
+			ctx, query,
 			entry.ID, entry.ChatbotID, entry.ConversationID, entry.MessageID, validUserID,
 			entry.GeneratedSQL, entry.SanitizedSQL, entry.Executed,
 			entry.ValidationPassed, entry.ValidationErrors,

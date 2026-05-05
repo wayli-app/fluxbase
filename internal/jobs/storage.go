@@ -48,7 +48,8 @@ func (s *Storage) CreateJobFunctionWithTenant(ctx context.Context, tenantID stri
 	`
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			fn.ID, fn.Name, fn.Namespace, fn.Description, fn.Code, fn.OriginalCode,
 			fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 			fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
@@ -77,7 +78,8 @@ func (s *Storage) UpdateJobFunctionWithTenant(ctx context.Context, tenantID stri
 	`
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
 			fn.Enabled, fn.Schedule, fn.TimeoutSeconds, fn.MemoryLimitMB,
 			fn.MaxRetries, fn.ProgressTimeoutSeconds, fn.AllowNet, fn.AllowEnv,
@@ -98,7 +100,8 @@ func (s *Storage) UpdateJobFunctionForSync(ctx context.Context, tenantID string,
 	`
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			fn.Description, fn.Code, fn.OriginalCode, fn.IsBundled, fn.BundleError,
 			fn.Enabled, fn.Schedule, fn.TimeoutSeconds, fn.MemoryLimitMB,
 			fn.MaxRetries, fn.ProgressTimeoutSeconds, fn.AllowNet, fn.AllowEnv,
@@ -148,7 +151,8 @@ func (s *Storage) UpsertJobFunctionWithTenant(ctx context.Context, tenantID stri
 	`
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			fn.ID, fn.Name, fn.Namespace, fn.Description, fn.Code, fn.OriginalCode,
 			fn.IsBundled, fn.BundleError, fn.Enabled, fn.Schedule, fn.TimeoutSeconds,
 			fn.MemoryLimitMB, fn.MaxRetries, fn.ProgressTimeoutSeconds,
@@ -442,7 +446,8 @@ func (s *Storage) CreateJobFunctionFile(ctx context.Context, file *JobFunctionFi
 		RETURNING created_at
 	`
 
-	return s.DB.Pool().QueryRow(ctx, query,
+	return s.DB.Pool().QueryRow(
+		ctx, query,
 		file.ID, file.JobFunctionID, file.FilePath, file.Content,
 	).Scan(&file.CreatedAt)
 }
@@ -500,7 +505,8 @@ func (s *Storage) EnqueueJobWithTenant(ctx context.Context, tenantID string, job
 	`
 
 	return database.WrapWithTenantAwareRole(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			job.ID, job.Namespace, job.JobFunctionID, job.JobName, job.Status, job.Payload,
 			job.Priority, job.MaxDurationSeconds, job.ProgressTimeoutSeconds,
 			job.MaxRetries, job.CreatedBy, job.UserRole, job.UserEmail, job.ScheduledAt,
@@ -804,7 +810,8 @@ func (s *Storage) ResubmitJob(ctx context.Context, originalJobID uuid.UUID) (*Jo
 	`
 
 	err = s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			newJob.ID, newJob.Namespace, newJob.JobFunctionID, newJob.JobName, newJob.Status,
 			newJob.Payload, newJob.Priority, newJob.MaxDurationSeconds, newJob.ProgressTimeoutSeconds,
 			newJob.MaxRetries, newJob.CreatedBy, newJob.UserRole, newJob.UserEmail,
@@ -1293,7 +1300,8 @@ func (s *Storage) RegisterWorker(ctx context.Context, worker *WorkerRecord) erro
 	`
 
 	return database.WrapWithServiceRole(ctx, s.DB, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query,
+		return tx.QueryRow(
+			ctx, query,
 			worker.ID, worker.Name, worker.Hostname, worker.Status,
 			worker.MaxConcurrentJobs, worker.Metadata,
 		).Scan(&worker.StartedAt, &worker.LastHeartbeatAt)
