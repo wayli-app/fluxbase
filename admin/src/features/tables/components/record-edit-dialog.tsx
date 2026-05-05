@@ -263,7 +263,7 @@ export function RecordEditDialog({
                       id={key}
                       value={value}
                       onChange={(e) => handleChange(key, e.target.value)}
-                      disabled={
+                      readOnly={
                         colSchema?.is_primary_key &&
                         colSchema.default_value !== null
                       }
@@ -275,7 +275,7 @@ export function RecordEditDialog({
                       id={key}
                       value={value}
                       onChange={(e) => handleChange(key, e.target.value)}
-                      disabled={
+                      readOnly={
                         colSchema?.is_primary_key &&
                         colSchema.default_value !== null
                       }

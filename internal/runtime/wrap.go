@@ -72,40 +72,18 @@ const secrets = {
 // User client - respects RLS based on invoker's permissions
 const _fluxbase = _createFluxbaseClient(_fluxbaseUrl, _userToken, 'UserClient');
 
-// Service client - bypasses RLS for system-level operations
-const _fluxbaseService = _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient');
+// Service client - scoped to the execution's tenant, enforces RLS
+const _tenantId = %s.tenant_id || null;
+const _fluxbaseService = _tenantId
+  ? _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient', { 'X-FB-Tenant': _tenantId })
+  : null;
 
-// Tenant utilities for multi-tenant operations
+// Tenant utilities
 const _tenantUtils = {
-  // Current tenant from execution context
-  _currentTenantId: %s.tenant_id || null,
-  
-  // Get current tenant ID
+  _currentTenantId: _tenantId,
   getCurrentTenantId() {
     return this._currentTenantId;
   },
-  
-  // Create a tenant-scoped service client
-  // IMPORTANT: Use this for tenant-scoped operations with service client
-  // Example: const tenantClient = tenant.forTenant('tenant-uuid');
-  forTenant(tenantId) {
-    if (!tenantId) {
-      throw new Error('tenantId is required for forTenant()');
-    }
-    return _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient', {
-      'X-FB-Tenant': tenantId
-    });
-  },
-  
-  // Get client for current tenant (from execution context)
-  forCurrentTenant() {
-    if (!this._currentTenantId) {
-      throw new Error('No current tenant in execution context. Use forTenant(tenantId) explicitly.');
-    }
-    return this.forTenant(this._currentTenantId);
-  },
-  
-  // Check if tenant context is available
   hasTenantContext() {
     return this._currentTenantId !== null;
   }
@@ -378,38 +356,18 @@ const secrets = {
 // User client - respects RLS based on job submitter's permissions
 const _fluxbase = _createFluxbaseClient(_fluxbaseUrl, _jobToken, 'UserClient');
 
-// Service client - bypasses RLS for system-level operations
-const _fluxbaseService = _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient');
+// Service client - scoped to the execution's tenant, enforces RLS
+const _jobTenantId = (%s).tenant_id || null;
+const _fluxbaseService = _jobTenantId
+  ? _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient', { 'X-FB-Tenant': _jobTenantId })
+  : null;
 
-// Tenant utilities for multi-tenant operations
+// Tenant utilities
 const _tenantUtils = {
-  // Current tenant from execution context
-  _currentTenantId: (%s).tenant_id || null,
-  
-  // Get current tenant ID
+  _currentTenantId: _jobTenantId,
   getCurrentTenantId() {
     return this._currentTenantId;
   },
-  
-  // Create a tenant-scoped service client
-  forTenant(tenantId) {
-    if (!tenantId) {
-      throw new Error('tenantId is required for forTenant()');
-    }
-    return _createFluxbaseClient(_fluxbaseUrl, _serviceToken, 'ServiceClient', {
-      'X-FB-Tenant': tenantId
-    });
-  },
-  
-  // Get client for current tenant
-  forCurrentTenant() {
-    if (!this._currentTenantId) {
-      throw new Error('No current tenant in execution context. Use forTenant(tenantId) explicitly.');
-    }
-    return this.forTenant(this._currentTenantId);
-  },
-  
-  // Check if tenant context is available
   hasTenantContext() {
     return this._currentTenantId !== null;
   }

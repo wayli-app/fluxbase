@@ -173,16 +173,15 @@ func TestHandlerIntegration_LogCounters(t *testing.T) {
 		assert.False(t, ok)
 
 		// Add a counter
-		counter := 0
-		handler.logCounters.Store(executionID, &counter)
+		handler.logCounters.Store(executionID, &executionLogContext{})
 
 		// Now it exists
 		val, ok := handler.logCounters.Load(executionID)
 		assert.True(t, ok)
 
-		counterPtr, ok := val.(*int)
+		ctx, ok := val.(*executionLogContext)
 		require.True(t, ok)
-		assert.Equal(t, 0, *counterPtr)
+		assert.Equal(t, 0, ctx.lineCounter)
 
 		// Clean up
 		handler.logCounters.Delete(executionID)
@@ -197,8 +196,7 @@ func TestHandlerIntegration_LogCounters(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			go func(id int) {
 				execID := uuid.New()
-				counter := 0
-				handler.logCounters.Store(execID, &counter)
+				handler.logCounters.Store(execID, &executionLogContext{})
 
 				for j := 0; j < 100; j++ {
 					handler.handleLogMessage(execID, "info", "message")
@@ -263,20 +261,18 @@ func TestHandlerIntegration_HandleLogMessage(t *testing.T) {
 		handler := NewHandler(nil, "/tmp/functions", config.CORSConfig{}, "secret", "http://localhost", "", "", nil, nil, nil, nil)
 
 		executionID := uuid.New()
-		counter := 0
-		handler.logCounters.Store(executionID, &counter)
+		ctx := &executionLogContext{}
+		handler.logCounters.Store(executionID, ctx)
 
-		// Send log messages
 		handler.handleLogMessage(executionID, "info", "message 1")
-		assert.Equal(t, 1, counter)
+		assert.Equal(t, 1, ctx.lineCounter)
 
 		handler.handleLogMessage(executionID, "info", "message 2")
-		assert.Equal(t, 2, counter)
+		assert.Equal(t, 2, ctx.lineCounter)
 
 		handler.handleLogMessage(executionID, "error", "error message")
-		assert.Equal(t, 3, counter)
+		assert.Equal(t, 3, ctx.lineCounter)
 
-		// Clean up
 		handler.logCounters.Delete(executionID)
 	})
 
@@ -400,8 +396,7 @@ func TestHandlerIntegration_ConcurrentAccess(t *testing.T) {
 		done := make(chan bool)
 		for i := 0; i < 10; i++ {
 			executionID := uuid.New()
-			counter := 0
-			handler.logCounters.Store(executionID, &counter)
+			handler.logCounters.Store(executionID, &executionLogContext{})
 
 			go func(id uuid.UUID) {
 				for j := 0; j < 50; j++ {
@@ -433,8 +428,7 @@ func TestHandlerIntegration_MemoryManagement(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			id := uuid.New()
 			ids[i] = id
-			counter := 0
-			handler.logCounters.Store(id, &counter)
+			handler.logCounters.Store(id, &executionLogContext{})
 		}
 
 		// Verify they exist
@@ -526,8 +520,7 @@ func BenchmarkHandler_HandleLogMessage(b *testing.B) {
 	handler := NewHandler(nil, "/tmp/functions", config.CORSConfig{}, "secret", "http://localhost", "", "", nil, nil, nil, nil)
 
 	executionID := uuid.New()
-	counter := 0
-	handler.logCounters.Store(executionID, &counter)
+	handler.logCounters.Store(executionID, &executionLogContext{})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

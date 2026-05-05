@@ -5,6 +5,7 @@ import { Zap, Activity, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useImpersonationStore } from "@/stores/impersonation-store";
 import { useTenantStore } from "@/stores/tenant-store";
+import { fluxbaseClient } from "@/lib/fluxbase-client";
 import {
   functionsApi,
   type EdgeFunction,
@@ -134,6 +135,125 @@ function EdgeFunctionsTab() {
       executionType: "function",
       enabled: showExecutionDetailDialog,
     });
+
+  // Realtime subscription: update selected execution when it changes
+  useEffect(() => {
+    if (!showExecutionDetailDialog || !selectedExecution) return;
+
+    const isActive =
+      selectedExecution.status === "running" ||
+      selectedExecution.status === "pending";
+    if (!isActive) return;
+
+    const channel = fluxbaseClient
+      .channel(`exec-detail-${selectedExecution.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "functions",
+          table: "edge_executions",
+          filter: `id=eq.${selectedExecution.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as EdgeFunctionExecution;
+          setSelectedExecution((prev) =>
+            prev ? { ...prev, ...updated } : prev,
+          );
+
+          if (updated.status !== "running" && updated.status !== "pending") {
+            fetchAllExecutionsRef.current();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showExecutionDetailDialog, selectedExecution?.id, selectedExecution?.status]);
+
+  // Realtime subscription: live execution list updates
+  useEffect(() => {
+    const channel = fluxbaseClient
+      .channel("functions-executions-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "functions",
+          table: "edge_executions",
+        },
+        (payload) => {
+          const eventType = payload.eventType;
+          const newExec = payload.new as
+            | EdgeFunctionExecution
+            | undefined;
+          const oldExec = payload.old as { id: string } | undefined;
+
+          setAllExecutions((prev) => {
+            if (eventType === "INSERT" && newExec) {
+              if (
+                selectedNamespace !== "all" &&
+                newExec.namespace !== selectedNamespace
+              ) {
+                return prev;
+              }
+              if (
+                statusFilter !== "all" &&
+                newExec.status !== statusFilter
+              ) {
+                return prev;
+              }
+              if (prev.some((e) => e.id === newExec.id)) {
+                return prev;
+              }
+              return [newExec, ...prev];
+            }
+
+            if (eventType === "UPDATE" && newExec) {
+              const idx = prev.findIndex((e) => e.id === newExec.id);
+              if (idx === -1) {
+                if (
+                  selectedNamespace !== "all" &&
+                  newExec.namespace !== selectedNamespace
+                ) {
+                  return prev;
+                }
+                if (
+                  statusFilter !== "all" &&
+                  newExec.status !== statusFilter
+                ) {
+                  return prev;
+                }
+                return [newExec, ...prev];
+              }
+              if (
+                statusFilter !== "all" &&
+                newExec.status !== statusFilter
+              ) {
+                return prev.filter((e) => e.id !== newExec.id);
+              }
+              const updated = [...prev];
+              updated[idx] = { ...updated[idx], ...newExec };
+              return updated;
+            }
+
+            if (eventType === "DELETE" && oldExec) {
+              return prev.filter((e) => e.id !== oldExec.id);
+            }
+
+            return prev;
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [selectedNamespace, statusFilter]);
 
   // Ref to track initial fetch (prevents debounced search from re-fetching on mount)
   const hasInitialFetch = useRef(false);

@@ -31,6 +31,18 @@ func (h *RESTHandler) batchInsert(ctx context.Context, c fiber.Ctx, table databa
 		})
 	}
 
+	// Auto-inject tenant_id into all records if the table has the column
+	if table.GetColumn("tenant_id") != nil {
+		tenantID := middleware.GetTenantID(c)
+		if tenantID != "" {
+			for _, record := range dataArray {
+				if _, exists := record["tenant_id"]; !exists {
+					record["tenant_id"] = tenantID
+				}
+			}
+		}
+	}
+
 	// Get all unique columns from the first record
 	firstRecord := dataArray[0]
 	columns := make([]string, 0, len(firstRecord))     // Quoted column names for SQL

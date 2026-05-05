@@ -64,28 +64,32 @@ func generateUserToken(jwtSecret string, req ExecutionRequest, runtimeType Runti
 	return token.SignedString([]byte(jwtSecret))
 }
 
-// generateServiceToken generates a JWT token with service_role that bypasses RLS
-// This token allows executions to access all data regardless of ownership
-// IMPORTANT: Service tokens still include tenant_id for audit and optional scoping
+// generateServiceToken generates a JWT token scoped to the execution's tenant.
+// Uses tenant_service role which enforces RLS, ensuring tenant isolation.
+// The TenantID is required — executions without tenant context are rejected.
 func generateServiceToken(jwtSecret string, req ExecutionRequest, runtimeType RuntimeType, timeout time.Duration) (string, error) {
 	if jwtSecret == "" {
 		return "", fmt.Errorf("JWT secret not configured")
+	}
+
+	if req.TenantID == "" {
+		return "", fmt.Errorf("tenant context required for service token generation")
 	}
 
 	now := time.Now()
 
 	claims := jwt.MapClaims{
 		"iss":        "fluxbase",
-		"sub":        "service_role",
-		"role":       "service_role",
+		"sub":        "tenant_service",
+		"role":       "tenant_service",
 		"iat":        now.Unix(),
 		"exp":        now.Add(timeout).Unix(),
 		"nbf":        now.Unix(),
 		"jti":        uuid.New().String(),
 		"token_type": "access",
+		"tenant_id":  req.TenantID,
 	}
 
-	// Add execution ID for audit trail
 	switch runtimeType {
 	case RuntimeTypeFunction:
 		claims["execution_id"] = req.ID.String()
@@ -93,13 +97,6 @@ func generateServiceToken(jwtSecret string, req ExecutionRequest, runtimeType Ru
 		claims["job_id"] = req.ID.String()
 	}
 
-	// Add multi-tenancy context for audit purposes
-	// Even though service_role bypasses RLS, we include tenant_id for:
-	// 1. Audit logging
-	// 2. Optional tenant-scoped operations via forTenant()
-	if req.TenantID != "" {
-		claims["tenant_id"] = req.TenantID
-	}
 	if req.IsInstanceAdmin {
 		claims["is_instance_admin"] = true
 	}

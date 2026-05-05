@@ -85,8 +85,9 @@ type ListUserConversationsResult struct {
 func (s *Storage) ListUserConversations(ctx context.Context, opts ListUserConversationsOptions) (*ListUserConversationsResult, error) {
 	tenantID := database.TenantFromContext(ctx)
 
-	// Build the main query with CTEs for preview and message count
-	query := `
+	var result *ListUserConversationsResult
+	err := database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		query := `
 		WITH conv_preview AS (
 			SELECT DISTINCT ON (m.conversation_id)
 				m.conversation_id,
@@ -117,97 +118,102 @@ func (s *Storage) ListUserConversations(ctx context.Context, opts ListUserConver
 			AND (c.tenant_id = $2 OR ($2 IS NULL AND c.tenant_id IS NULL))
 	`
 
-	args := []interface{}{opts.UserID, database.TenantOrNil(tenantID)}
-	argIndex := 3
+		args := []interface{}{opts.UserID, database.TenantOrNil(tenantID)}
+		argIndex := 3
 
-	if opts.ChatbotName != nil {
-		query += fmt.Sprintf(" AND cb.name = $%d", argIndex)
-		args = append(args, *opts.ChatbotName)
-		argIndex++
-	}
-
-	if opts.Namespace != nil {
-		query += fmt.Sprintf(" AND cb.namespace = $%d", argIndex)
-		args = append(args, *opts.Namespace)
-		argIndex++
-	}
-
-	query += fmt.Sprintf(" ORDER BY c.updated_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
-	args = append(args, opts.Limit, opts.Offset)
-
-	rows, err := s.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list user conversations: %w", err)
-	}
-	defer rows.Close()
-
-	var conversations []UserConversationSummary
-	for rows.Next() {
-		var conv UserConversationSummary
-		err := rows.Scan(
-			&conv.ID,
-			&conv.ChatbotName,
-			&conv.Namespace,
-			&conv.Title,
-			&conv.Preview,
-			&conv.MessageCount,
-			&conv.CreatedAt,
-			&conv.UpdatedAt,
-		)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to scan conversation")
-			continue
+		if opts.ChatbotName != nil {
+			query += fmt.Sprintf(" AND cb.name = $%d", argIndex)
+			args = append(args, *opts.ChatbotName)
+			argIndex++
 		}
-		conversations = append(conversations, conv)
-	}
 
-	// Get total count
-	countQuery := `
+		if opts.Namespace != nil {
+			query += fmt.Sprintf(" AND cb.namespace = $%d", argIndex)
+			args = append(args, *opts.Namespace)
+			argIndex++
+		}
+
+		query += fmt.Sprintf(" ORDER BY c.updated_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+		args = append(args, opts.Limit, opts.Offset)
+
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("failed to list user conversations: %w", err)
+		}
+		defer rows.Close()
+
+		var conversations []UserConversationSummary
+		for rows.Next() {
+			var conv UserConversationSummary
+			err := rows.Scan(
+				&conv.ID,
+				&conv.ChatbotName,
+				&conv.Namespace,
+				&conv.Title,
+				&conv.Preview,
+				&conv.MessageCount,
+				&conv.CreatedAt,
+				&conv.UpdatedAt,
+			)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to scan conversation")
+				continue
+			}
+			conversations = append(conversations, conv)
+		}
+
+		countQuery := `
 		SELECT COUNT(*)
 		FROM ai.conversations c
 		LEFT JOIN ai.chatbots cb ON cb.id = c.chatbot_id
 		WHERE c.user_id = $1 AND c.status = 'active'
 			AND (c.tenant_id = $2 OR ($2 IS NULL AND c.tenant_id IS NULL))
 	`
-	countArgs := []interface{}{opts.UserID, database.TenantOrNil(tenantID)}
-	countArgIndex := 3
+		countArgs := []interface{}{opts.UserID, database.TenantOrNil(tenantID)}
+		countArgIndex := 3
 
-	if opts.ChatbotName != nil {
-		countQuery += fmt.Sprintf(" AND cb.name = $%d", countArgIndex)
-		countArgs = append(countArgs, *opts.ChatbotName)
-		countArgIndex++
-	}
+		if opts.ChatbotName != nil {
+			countQuery += fmt.Sprintf(" AND cb.name = $%d", countArgIndex)
+			countArgs = append(countArgs, *opts.ChatbotName)
+			countArgIndex++
+		}
 
-	if opts.Namespace != nil {
-		countQuery += fmt.Sprintf(" AND cb.namespace = $%d", countArgIndex)
-		countArgs = append(countArgs, *opts.Namespace)
-	}
+		if opts.Namespace != nil {
+			countQuery += fmt.Sprintf(" AND cb.namespace = $%d", countArgIndex)
+			countArgs = append(countArgs, *opts.Namespace)
+		}
 
-	var total int
-	err = s.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+		var total int
+		err = tx.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to get conversation count")
+			total = len(conversations)
+		}
+
+		if conversations == nil {
+			conversations = []UserConversationSummary{}
+		}
+
+		result = &ListUserConversationsResult{
+			Conversations: conversations,
+			Total:         total,
+			HasMore:       opts.Offset+len(conversations) < total,
+		}
+		return nil
+	})
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to get conversation count")
-		total = len(conversations)
+		return nil, err
 	}
-
-	// Ensure conversations is not nil
-	if conversations == nil {
-		conversations = []UserConversationSummary{}
-	}
-
-	return &ListUserConversationsResult{
-		Conversations: conversations,
-		Total:         total,
-		HasMore:       opts.Offset+len(conversations) < total,
-	}, nil
+	return result, nil
 }
 
 // GetUserConversation retrieves a single conversation with messages for a user
 func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationID string) (*UserConversationDetail, error) {
 	tenantID := database.TenantFromContext(ctx)
 
-	// Get conversation details
-	query := `
+	var result *UserConversationDetail
+	err := database.WrapWithTenantAwareRole(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		query := `
 		SELECT
 			c.id,
 			cb.name AS chatbot_name,
@@ -221,25 +227,24 @@ func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationI
 			AND (c.tenant_id = $3 OR ($3 IS NULL AND c.tenant_id IS NULL))
 	`
 
-	var conv UserConversationDetail
-	err := s.db.QueryRow(ctx, query, conversationID, userID, database.TenantOrNil(tenantID)).Scan(
-		&conv.ID,
-		&conv.ChatbotName,
-		&conv.Namespace,
-		&conv.Title,
-		&conv.CreatedAt,
-		&conv.UpdatedAt,
-	)
+		var conv UserConversationDetail
+		err := tx.QueryRow(ctx, query, conversationID, userID, database.TenantOrNil(tenantID)).Scan(
+			&conv.ID,
+			&conv.ChatbotName,
+			&conv.Namespace,
+			&conv.Title,
+			&conv.CreatedAt,
+			&conv.UpdatedAt,
+		)
 
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get conversation: %w", err)
-	}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get conversation: %w", err)
+		}
 
-	// Get messages
-	msgQuery := `
+		msgQuery := `
 		SELECT
 			id,
 			role,
@@ -256,86 +261,88 @@ func (s *Storage) GetUserConversation(ctx context.Context, userID, conversationI
 		ORDER BY sequence_number ASC
 	`
 
-	rows, err := s.db.Query(ctx, msgQuery, conversationID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []UserMessageDetail
-	for rows.Next() {
-		var msg UserMessageDetail
-		var queryResultsJSON []byte
-		var executedSQL *string
-		var sqlSummary *string
-		var sqlRowCount *int
-		var promptTokens *int
-		var completionTokens *int
-
-		err := rows.Scan(
-			&msg.ID,
-			&msg.Role,
-			&msg.Content,
-			&queryResultsJSON,
-			&executedSQL,
-			&sqlSummary,
-			&sqlRowCount,
-			&promptTokens,
-			&completionTokens,
-			&msg.Timestamp,
-		)
+		rows, err := tx.Query(ctx, msgQuery, conversationID)
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to scan message")
-			continue
+			return fmt.Errorf("failed to get messages: %w", err)
+		}
+		defer rows.Close()
+
+		var messages []UserMessageDetail
+		for rows.Next() {
+			var msg UserMessageDetail
+			var queryResultsJSON []byte
+			var executedSQL *string
+			var sqlSummary *string
+			var sqlRowCount *int
+			var promptTokens *int
+			var completionTokens *int
+
+			err := rows.Scan(
+				&msg.ID,
+				&msg.Role,
+				&msg.Content,
+				&queryResultsJSON,
+				&executedSQL,
+				&sqlSummary,
+				&sqlRowCount,
+				&promptTokens,
+				&completionTokens,
+				&msg.Timestamp,
+			)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to scan message")
+				continue
+			}
+
+			if queryResultsJSON != nil {
+				var queryResults []UserQueryResult
+				if err := json.Unmarshal(queryResultsJSON, &queryResults); err != nil {
+					log.Warn().Err(err).Msg("Failed to parse query_results JSON")
+				} else if len(queryResults) > 0 {
+					msg.QueryResults = queryResults
+				}
+			}
+
+			if msg.QueryResults == nil && (sqlSummary != nil && *sqlSummary != "") {
+				legacyResult := UserQueryResult{
+					Summary:  *sqlSummary,
+					RowCount: 0,
+				}
+				if executedSQL != nil {
+					legacyResult.Query = *executedSQL
+				}
+				if sqlRowCount != nil {
+					legacyResult.RowCount = *sqlRowCount
+				}
+				msg.QueryResults = []UserQueryResult{legacyResult}
+			}
+
+			if promptTokens != nil || completionTokens != nil {
+				msg.Usage = &UserUsageStats{}
+				if promptTokens != nil {
+					msg.Usage.PromptTokens = *promptTokens
+				}
+				if completionTokens != nil {
+					msg.Usage.CompletionTokens = *completionTokens
+				}
+				msg.Usage.TotalTokens = msg.Usage.PromptTokens + msg.Usage.CompletionTokens
+			}
+
+			messages = append(messages, msg)
 		}
 
-		// Parse query_results JSONB if present (new format with full data)
-		if len(queryResultsJSON) > 0 {
-			var queryResults []UserQueryResult
-			if err := json.Unmarshal(queryResultsJSON, &queryResults); err != nil {
-				log.Warn().Err(err).Msg("Failed to parse query_results JSON")
-			} else if len(queryResults) > 0 {
-				msg.QueryResults = queryResults
-			}
+		if messages == nil {
+			messages = []UserMessageDetail{}
 		}
 
-		// Fallback to legacy fields if no query_results (for backward compatibility)
-		if msg.QueryResults == nil && (sqlSummary != nil && *sqlSummary != "") {
-			legacyResult := UserQueryResult{
-				Summary:  *sqlSummary,
-				RowCount: 0,
-			}
-			if executedSQL != nil {
-				legacyResult.Query = *executedSQL
-			}
-			if sqlRowCount != nil {
-				legacyResult.RowCount = *sqlRowCount
-			}
-			msg.QueryResults = []UserQueryResult{legacyResult}
-		}
-
-		// Add usage stats if present
-		if promptTokens != nil || completionTokens != nil {
-			msg.Usage = &UserUsageStats{}
-			if promptTokens != nil {
-				msg.Usage.PromptTokens = *promptTokens
-			}
-			if completionTokens != nil {
-				msg.Usage.CompletionTokens = *completionTokens
-			}
-			msg.Usage.TotalTokens = msg.Usage.PromptTokens + msg.Usage.CompletionTokens
-		}
-
-		messages = append(messages, msg)
+		conv.Messages = messages
+		result = &conv
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	// Ensure messages is not nil
-	if messages == nil {
-		messages = []UserMessageDetail{}
-	}
-
-	conv.Messages = messages
-	return &conv, nil
+	return result, nil
 }
 
 // DeleteUserConversation soft-deletes a conversation owned by the user

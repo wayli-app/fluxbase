@@ -38,7 +38,7 @@ type Handler struct {
 	publicURL              string
 	npmRegistry            string   // Custom npm registry URL for Deno bundling
 	jsrRegistry            string   // Custom JSR registry URL for Deno bundling
-	logCounters            sync.Map // map[uuid.UUID]*int for tracking log line numbers per execution
+	logCounters            sync.Map // map[uuid.UUID]*executionLogContext
 	baseConfig             *config.Config
 }
 
@@ -114,13 +114,14 @@ func (h *Handler) getConfig(c fiber.Ctx) *config.FunctionsConfig {
 	return &h.baseConfig.Functions
 }
 
-// handleLogMessage is called when a function outputs a log message via console.log/console.error
-// Note: Execution logs are now stored in the central logging schema (logging.entries)
+type executionLogContext struct {
+	lineCounter int
+	tenantID    string
+}
+
 func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message string) {
-	// Get and increment the line counter for this execution
 	counterVal, ok := h.logCounters.Load(executionID)
 	if !ok {
-		// No counter means execution wasn't set up for logging (e.g., old code path)
 		log.Info().
 			Str("execution_id", executionID.String()).
 			Str("execution_type", "function").
@@ -129,22 +130,26 @@ func (h *Handler) handleLogMessage(executionID uuid.UUID, level string, message 
 		return
 	}
 
-	counterPtr, ok := counterVal.(*int)
+	ctx, ok := counterVal.(*executionLogContext)
 	if !ok {
 		log.Warn().Str("execution_id", executionID.String()).Msg("Invalid log counter type")
 		return
 	}
 
-	lineNumber := *counterPtr
-	*counterPtr = lineNumber + 1
+	lineNumber := ctx.lineCounter
+	ctx.lineCounter = lineNumber + 1
 
-	// Log to zerolog - central logging service will capture this via execution_id field
-	log.Info().
+	event := log.Info().
 		Str("execution_id", executionID.String()).
 		Str("execution_type", "function").
 		Str("level", level).
-		Int("line_number", lineNumber).
-		Msg(message)
+		Int("line_number", lineNumber)
+
+	if ctx.tenantID != "" {
+		event = event.Str("tenant_id", ctx.tenantID)
+	}
+
+	event.Msg(message)
 }
 
 // applyCorsHeaders applies CORS headers to the response with fallback to global config

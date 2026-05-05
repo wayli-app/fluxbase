@@ -209,7 +209,7 @@ func (h *BranchHandler) ListBranches(c fiber.Ctx) error {
 
 	// Auto-filter by tenant for non-instance-admins
 	userRole, _ := c.Locals("user_role").(string)
-	if userRole != "instance_admin" && userRole != "admin" && userRole != "tenant_service" {
+	if userRole != "instance_admin" && userRole != "admin" {
 		if tid := middleware.GetTenantID(c); tid != "" {
 			if id, err := uuid.Parse(tid); err == nil {
 				filter.TenantID = &id
@@ -319,7 +319,7 @@ func (h *BranchHandler) DeleteBranch(c fiber.Ctx) error {
 	// Check authorization - service keys and dashboard admins bypass this check
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		// Check if user has admin access to the branch
@@ -395,7 +395,7 @@ func (h *BranchHandler) ResetBranch(c fiber.Ctx) error {
 	// Check authorization - service keys and dashboard admins bypass this check
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		// Check if user has admin access to the branch (reset is a destructive operation)
@@ -591,9 +591,7 @@ func (h *BranchHandler) ListGitHubConfigs(c fiber.Ctx) error {
 
 	// Auto-filter by tenant for non-instance-admins
 	userRole, _ := c.Locals("user_role").(string)
-	if userRole != "instance_admin" && userRole != "admin" && userRole != "tenant_service" {
-		// Non-admins can only see their tenant's configs
-	} else {
+	if userRole == "instance_admin" || userRole == "admin" {
 		// Instance admins can see all configs (pass nil)
 		tenantID = nil
 	}
@@ -721,7 +719,7 @@ func (h *BranchHandler) ListBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && userID != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *userID, branching.BranchAccessAdmin)
@@ -807,7 +805,7 @@ func (h *BranchHandler) GrantBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && grantedBy != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *grantedBy, branching.BranchAccessAdmin)
@@ -892,7 +890,7 @@ func (h *BranchHandler) RevokeBranchAccess(c fiber.Ctx) error {
 
 	authType, _ := c.Locals("auth_type").(string)
 	userRole, _ := c.Locals("user_role").(string)
-	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin"
+	isAdmin := authType == "service_key" || userRole == "instance_admin" || userRole == "admin" || userRole == "tenant_service"
 
 	if !isAdmin && currentUserID != nil {
 		hasAccess, err := h.manager.GetStorage().HasAccess(c.RequestCtx(), branch.ID, *currentUserID, branching.BranchAccessAdmin)

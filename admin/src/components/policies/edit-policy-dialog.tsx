@@ -72,14 +72,14 @@ export function EditPolicyDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Policy Name</Label>
-              <Input value={policy.policy_name} disabled className="bg-muted" />
+              <Input value={policy.policy_name} readOnly className="bg-muted" />
               <p className="text-muted-foreground text-xs">
                 Policy name cannot be changed
               </p>
             </div>
             <div className="space-y-2">
               <Label>Command</Label>
-              <Input value={policy.command} disabled className="bg-muted" />
+              <Input value={policy.command} readOnly className="bg-muted" />
               <p className="text-muted-foreground text-xs">
                 Command type cannot be changed
               </p>
@@ -88,7 +88,7 @@ export function EditPolicyDialog({
 
           <div className="space-y-2">
             <Label>Mode</Label>
-            <Input value={policy.permissive} disabled className="bg-muted" />
+            <Input value={policy.permissive} readOnly className="bg-muted" />
             <p className="text-muted-foreground text-xs">
               Permissive/restrictive mode cannot be changed
             </p>

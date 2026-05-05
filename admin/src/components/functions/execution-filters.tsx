@@ -79,8 +79,11 @@ export function ExecutionFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Status</SelectItem>
+          <SelectItem value="running">Running</SelectItem>
           <SelectItem value="success">Success</SelectItem>
           <SelectItem value="error">Error</SelectItem>
+          <SelectItem value="timeout">Timeout</SelectItem>
+          <SelectItem value="cancelled">Cancelled</SelectItem>
         </SelectContent>
       </Select>
       <Button onClick={onRefresh} variant="outline" size="sm">

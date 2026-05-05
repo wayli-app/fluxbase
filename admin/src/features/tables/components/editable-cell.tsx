@@ -142,14 +142,26 @@ export function EditableCell({
     ? displayValue.slice(0, 50) + '...'
     : displayValue
 
+  if (isReadOnly) {
+    return (
+      <div
+        className={cn(
+          '-mx-2 -my-1 w-full select-text px-2 py-1',
+          value === null && 'text-muted-foreground italic',
+        )}
+        title={shouldTruncate ? displayValue : undefined}
+      >
+        {truncatedValue}
+      </div>
+    )
+  }
+
   return (
     <button
       onClick={handleStartEdit}
-      disabled={isReadOnly}
       className={cn(
         'hover:bg-accent hover:text-accent-foreground -mx-2 -my-1 w-full rounded px-2 py-1 text-left transition-colors',
         value === null && 'text-muted-foreground italic',
-        isReadOnly && 'cursor-default hover:bg-transparent'
       )}
       title={shouldTruncate ? displayValue : undefined}
     >

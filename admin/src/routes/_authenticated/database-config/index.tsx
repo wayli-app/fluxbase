@@ -79,15 +79,15 @@ const DatabaseConfigPage = () => {
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
               <div className='space-y-2'>
                 <Label>Host</Label>
-                <Input value={dbConfig.host} disabled />
+                <Input value={dbConfig.host} readOnly />
               </div>
               <div className='space-y-2'>
                 <Label>Port</Label>
-                <Input value={dbConfig.port} disabled />
+                <Input value={dbConfig.port} readOnly />
               </div>
               <div className='space-y-2'>
                 <Label>Database</Label>
-                <Input value={dbConfig.database} disabled />
+                <Input value={dbConfig.database} readOnly />
               </div>
             </div>
             <p className='text-muted-foreground text-xs'>
@@ -105,7 +105,7 @@ const DatabaseConfigPage = () => {
                 <Input
                   type='number'
                   value={dbConfig.max_connections}
-                  disabled
+                  readOnly
                 />
                 <p className='text-muted-foreground text-xs'>
                   Maximum number of connections in the pool
@@ -116,7 +116,7 @@ const DatabaseConfigPage = () => {
                 <Input
                   type='number'
                   value={dbConfig.min_connections}
-                  disabled
+                  readOnly
                 />
                 <p className='text-muted-foreground text-xs'>
                   Minimum number of idle connections
@@ -127,7 +127,7 @@ const DatabaseConfigPage = () => {
                 <Input
                   type='number'
                   value={dbConfig.max_lifetime_seconds}
-                  disabled
+                  readOnly
                 />
                 <p className='text-muted-foreground text-xs'>
                   Maximum lifetime in seconds
@@ -138,7 +138,7 @@ const DatabaseConfigPage = () => {
                 <Input
                   type='number'
                   value={dbConfig.max_idle_seconds}
-                  disabled
+                  readOnly
                 />
                 <p className='text-muted-foreground text-xs'>
                   Maximum idle time in seconds

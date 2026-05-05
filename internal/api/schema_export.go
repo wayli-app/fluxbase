@@ -42,7 +42,7 @@ func (h *SchemaExportHandler) HandleExportTypeScript(c fiber.Ctx) error {
 	// Add auth context for audit logging
 	if userID := middleware.GetUserID(c); userID != "" {
 		if userRole, ok := GetUserRole(c); ok {
-			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role")
+			ctx = database.ContextWithAuth(ctx, userID, userRole, userRole == "admin" || userRole == "service_role" || userRole == "tenant_service")
 		}
 	}
 

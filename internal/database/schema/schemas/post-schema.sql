@@ -220,7 +220,7 @@ END $$;
 --
 
 DO $$ BEGIN
-    CREATE POLICY platform_oauth_providers_tenant ON platform.oauth_providers TO PUBLIC USING (auth.is_admin() AND auth.has_tenant_access(tenant_id)) WITH CHECK (auth.is_admin() AND auth.has_tenant_access(tenant_id));
+    CREATE POLICY platform_oauth_providers_tenant ON platform.oauth_providers TO PUBLIC USING ((auth.is_admin() OR current_user_role() = 'tenant_service') AND auth.has_tenant_access(tenant_id)) WITH CHECK ((auth.is_admin() OR current_user_role() = 'tenant_service') AND auth.has_tenant_access(tenant_id));
     EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -1093,4 +1093,24 @@ DO $$ BEGIN
     END IF;
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Invitation token hash migration skipped: %', SQLERRM;
+END $$;
+
+-- ============================================================================
+-- REALTIME SCHEMA REGISTRY — register tables for postgres_changes subscriptions
+-- ============================================================================
+-- These entries enable the realtime listener to accept subscriptions for these
+-- tables. Without them, subscribe requests are rejected with
+-- "table X.Y not enabled for realtime".
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'realtime') THEN
+        INSERT INTO realtime.schema_registry (schema_name, table_name, realtime_enabled, events)
+        VALUES
+            ('jobs', 'queue', true, '{INSERT,UPDATE,DELETE}'),
+            ('rpc', 'executions', true, '{INSERT,UPDATE,DELETE}'),
+            ('functions', 'edge_executions', true, '{INSERT,UPDATE,DELETE}')
+        ON CONFLICT (schema_name, table_name) DO NOTHING;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Realtime schema registry seed skipped: %', SQLERRM;
 END $$;

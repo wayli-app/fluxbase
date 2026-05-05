@@ -68,7 +68,11 @@ export function ExecutionDetailDialog({
                     variant={
                       selectedExecution.status === "success"
                         ? "secondary"
-                        : "destructive"
+                        : selectedExecution.status === "error" ||
+                            selectedExecution.status === "timeout" ||
+                            selectedExecution.status === "cancelled"
+                          ? "destructive"
+                          : "outline"
                     }
                   >
                     {selectedExecution.status}

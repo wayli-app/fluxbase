@@ -52,17 +52,17 @@ func TestScheduler_handleLogMessage(t *testing.T) {
 		s := NewScheduler(nil, "secret", "http://localhost", nil, nil)
 		execID := uuid.New()
 
-		counter := 0
-		s.logCounters.Store(execID, &counter)
+		ctx := &executionLogContext{}
+		s.logCounters.Store(execID, ctx)
 
 		s.handleLogMessage(execID, "info", "message 1")
-		assert.Equal(t, 1, counter)
+		assert.Equal(t, 1, ctx.lineCounter)
 
 		s.handleLogMessage(execID, "debug", "message 2")
-		assert.Equal(t, 2, counter)
+		assert.Equal(t, 2, ctx.lineCounter)
 
 		s.handleLogMessage(execID, "error", "message 3")
-		assert.Equal(t, 3, counter)
+		assert.Equal(t, 3, ctx.lineCounter)
 	})
 
 	t.Run("handles invalid counter type gracefully", func(t *testing.T) {

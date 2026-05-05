@@ -772,16 +772,15 @@ func (h *Handler) ListPublicChatbots(c fiber.Ctx) error {
 	})
 }
 
-// GetPublicChatbot returns a single public chatbot by name
-// GET /api/v1/ai/chatbots/:namespace/:name
+// GetPublicChatbot returns a single public chatbot by ID
+// GET /api/v1/ai/chatbots/:id
 func (h *Handler) GetPublicChatbot(c fiber.Ctx) error {
 	ctx := middleware.CtxWithTenant(c)
-	namespace := c.Params("namespace")
-	name := c.Params("name")
+	id := c.Params("id")
 
-	chatbot, err := h.storage.GetChatbotByName(ctx, namespace, name)
+	chatbot, err := h.storage.GetChatbot(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Str("namespace", namespace).Str("name", name).Msg("Failed to get chatbot")
+		log.Error().Err(err).Str("id", id).Msg("Failed to get chatbot")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get chatbot",
 		})
@@ -793,7 +792,6 @@ func (h *Handler) GetPublicChatbot(c fiber.Ctx) error {
 		})
 	}
 
-	// Return only public information
 	return c.JSON(chatbot.ToSummary())
 }
 

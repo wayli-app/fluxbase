@@ -106,7 +106,7 @@ function StorageConfigPage() {
               <div className="flex items-center gap-4">
                 <div className="flex-1 space-y-2">
                   <Label>Provider</Label>
-                  <Input value={storageConfig.provider} disabled />
+                  <Input value={storageConfig.provider} readOnly />
                 </div>
                 {getStorageProviderBadge(storageConfig.provider)}
               </div>
@@ -124,7 +124,7 @@ function StorageConfigPage() {
                 </h3>
                 <div className="space-y-2">
                   <Label>Storage Path</Label>
-                  <Input value={storageConfig.local_path} disabled />
+                  <Input value={storageConfig.local_path} readOnly />
                   <p className="text-muted-foreground text-xs">
                     Directory where files are stored on the server filesystem
                   </p>
@@ -139,11 +139,11 @@ function StorageConfigPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>S3 Endpoint</Label>
-                    <Input value={storageConfig.s3_endpoint} disabled />
+                    <Input value={storageConfig.s3_endpoint} readOnly />
                   </div>
                   <div className="space-y-2">
                     <Label>Default Bucket</Label>
-                    <Input value={storageConfig.s3_bucket} disabled />
+                    <Input value={storageConfig.s3_bucket} readOnly />
                   </div>
                 </div>
                 <p className="text-muted-foreground text-xs">
@@ -161,7 +161,7 @@ function StorageConfigPage() {
                 <Input
                   type="number"
                   value={storageConfig.max_upload_size_mb}
-                  disabled
+                  readOnly
                 />
                 <p className="text-muted-foreground text-xs">
                   Maximum file size in MB (configured via MAX_UPLOAD_SIZE_MB)
@@ -238,7 +238,7 @@ function StorageConfigPage() {
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
                       <Label>Default Quality</Label>
-                      <Input value={transformConfig.default_quality} disabled />
+                      <Input value={transformConfig.default_quality} readOnly />
                       <p className="text-muted-foreground text-xs">
                         1-100, used when not specified
                       </p>
@@ -247,7 +247,7 @@ function StorageConfigPage() {
                       <Label>Max Width</Label>
                       <Input
                         value={`${transformConfig.max_width}px`}
-                        disabled
+                        readOnly
                       />
                       <p className="text-muted-foreground text-xs">
                         Maximum output width
@@ -257,7 +257,7 @@ function StorageConfigPage() {
                       <Label>Max Height</Label>
                       <Input
                         value={`${transformConfig.max_height}px`}
-                        disabled
+                        readOnly
                       />
                       <p className="text-muted-foreground text-xs">
                         Maximum output height

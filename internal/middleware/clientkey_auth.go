@@ -976,7 +976,7 @@ func RequireAdmin() fiber.Handler {
 		}
 
 		// Check for admin roles
-		if role == "service_role" || role == "instance_admin" {
+		if role == "service_role" || role == "instance_admin" || role == "tenant_service" {
 			log.Debug().
 				Str("auth_type", authType).
 				Str("role", role).

@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/valyala/fasthttp"
 
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
@@ -87,6 +88,76 @@ func TestIsAdminUser(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// =============================================================================
+// injectTenantID Tests
+// =============================================================================
+
+func TestInjectTenantID(t *testing.T) {
+	colWithTenant := &database.ColumnInfo{Name: "tenant_id"}
+	colWithoutTenant := &database.ColumnInfo{Name: "id"}
+
+	t.Run("injects tenant_id when table has column and context has tenant", func(t *testing.T) {
+		app := fiber.New()
+		c := app.AcquireCtx(&fasthttp.RequestCtx{})
+		defer app.ReleaseCtx(c)
+		c.Locals("tenant_id", "550e8400-e29b-41d4-a716-446655440000")
+
+		table := database.TableInfo{Columns: []database.ColumnInfo{*colWithTenant, *colWithoutTenant}}
+		table.BuildColumnMap()
+		data := map[string]interface{}{"name": "test"}
+
+		result := injectTenantID(data, c, table)
+		assert.True(t, result)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", data["tenant_id"])
+	})
+
+	t.Run("does not override existing tenant_id", func(t *testing.T) {
+		app := fiber.New()
+		c := app.AcquireCtx(&fasthttp.RequestCtx{})
+		defer app.ReleaseCtx(c)
+		c.Locals("tenant_id", "550e8400-e29b-41d4-a716-446655440000")
+
+		table := database.TableInfo{Columns: []database.ColumnInfo{*colWithTenant}}
+		table.BuildColumnMap()
+		data := map[string]interface{}{"tenant_id": "existing-id", "name": "test"}
+
+		result := injectTenantID(data, c, table)
+		assert.False(t, result)
+		assert.Equal(t, "existing-id", data["tenant_id"])
+	})
+
+	t.Run("skips when table has no tenant_id column", func(t *testing.T) {
+		app := fiber.New()
+		c := app.AcquireCtx(&fasthttp.RequestCtx{})
+		defer app.ReleaseCtx(c)
+		c.Locals("tenant_id", "550e8400-e29b-41d4-a716-446655440000")
+
+		table := database.TableInfo{Columns: []database.ColumnInfo{*colWithoutTenant}}
+		table.BuildColumnMap()
+		data := map[string]interface{}{"name": "test"}
+
+		result := injectTenantID(data, c, table)
+		assert.False(t, result)
+		_, exists := data["tenant_id"]
+		assert.False(t, exists)
+	})
+
+	t.Run("skips when no tenant context", func(t *testing.T) {
+		app := fiber.New()
+		c := app.AcquireCtx(&fasthttp.RequestCtx{})
+		defer app.ReleaseCtx(c)
+
+		table := database.TableInfo{Columns: []database.ColumnInfo{*colWithTenant}}
+		table.BuildColumnMap()
+		data := map[string]interface{}{"name": "test"}
+
+		result := injectTenantID(data, c, table)
+		assert.False(t, result)
+		_, exists := data["tenant_id"]
+		assert.False(t, exists)
+	})
 }
 
 // =============================================================================

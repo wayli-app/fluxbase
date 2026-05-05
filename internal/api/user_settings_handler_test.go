@@ -428,6 +428,29 @@ func TestGetUserSecretValue_Validation(t *testing.T) {
 		assert.Equal(t, "Secrets service not configured", result["error"])
 	})
 
+	t.Run("tenant_service passes role check", func(t *testing.T) {
+		app := newTestApp(t)
+		handler := NewUserSettingsHandler(nil, nil)
+
+		app.Get("/admin/settings/user/:user_id/secret/:key/decrypt", func(c fiber.Ctx) error {
+			c.Locals("user_role", "tenant_service")
+			return handler.GetUserSecretValue(c)
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/admin/settings/user/550e8400-e29b-41d4-a716-446655440000/secret/my_key/decrypt", nil)
+
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+		respBody, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		_ = json.Unmarshal(respBody, &result)
+		assert.Equal(t, "Secrets service not configured", result["error"])
+	})
+
 	t.Run("invalid user_id format returns error", func(t *testing.T) {
 		app := newTestApp(t)
 		handler := NewUserSettingsHandler(nil, nil)

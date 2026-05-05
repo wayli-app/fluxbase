@@ -784,6 +784,41 @@ CREATE OR REPLACE TRIGGER functions_edge_executions_set_tenant_id
     FOR EACH ROW
     EXECUTE FUNCTION auth.set_tenant_id_from_context();
 
+CREATE OR REPLACE FUNCTION notify_realtime_change()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+DECLARE
+  notification_record JSONB;
+  old_notification_record JSONB;
+BEGIN
+  IF TG_OP != 'DELETE' THEN
+    notification_record := to_jsonb(NEW) - 'logs';
+  END IF;
+  IF TG_OP != 'INSERT' THEN
+    old_notification_record := to_jsonb(OLD) - 'logs';
+  END IF;
+
+  PERFORM pg_notify(
+    'fluxbase_changes',
+    json_build_object(
+      'schema', TG_TABLE_SCHEMA,
+      'table', TG_TABLE_NAME,
+      'type', TG_OP,
+      'record', notification_record,
+      'old_record', old_notification_record
+    )::text
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER edge_executions_realtime_notify
+    AFTER INSERT OR UPDATE OR DELETE ON edge_executions
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_realtime_change();
+
 -- edge_files
 CREATE INDEX IF NOT EXISTS idx_functions_edge_files_tenant_id ON edge_files (tenant_id);
 

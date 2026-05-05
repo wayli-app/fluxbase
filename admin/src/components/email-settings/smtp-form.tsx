@@ -35,7 +35,7 @@ export function SmtpForm({
             placeholder="smtp.example.com"
             value={formState.smtp_host}
             onChange={(e) => onFormChange("smtp_host", e.target.value)}
-            disabled={isOverridden("smtp_host")}
+            readOnly={isOverridden("smtp_host")}
             autoComplete="off"
           />
         </div>
@@ -54,7 +54,7 @@ export function SmtpForm({
             placeholder="587"
             value={formState.smtp_port}
             onChange={(e) => onFormChange("smtp_port", e.target.value)}
-            disabled={isOverridden("smtp_port")}
+            readOnly={isOverridden("smtp_port")}
             autoComplete="off"
           />
         </div>
@@ -72,7 +72,7 @@ export function SmtpForm({
             placeholder="username"
             value={formState.smtp_username}
             onChange={(e) => onFormChange("smtp_username", e.target.value)}
-            disabled={isOverridden("smtp_username")}
+            readOnly={isOverridden("smtp_username")}
             autoComplete="off"
           />
         </div>
@@ -100,7 +100,7 @@ export function SmtpForm({
               }
               value={formState.smtp_password}
               onChange={(e) => onFormChange("smtp_password", e.target.value)}
-              disabled={isOverridden("smtp_password")}
+              readOnly={isOverridden("smtp_password")}
               autoComplete="off"
             />
             <Button

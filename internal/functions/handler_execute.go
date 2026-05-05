@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 	"github.com/nimbleflux/fluxbase/internal/runtime"
 
+	"github.com/nimbleflux/fluxbase/internal/database"
 	apperrors "github.com/nimbleflux/fluxbase/internal/errors"
 	"github.com/nimbleflux/fluxbase/internal/util"
 )
@@ -117,6 +119,11 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 		}
 	}
 
+	// Set tenant context for token generation and runtime bridge
+	req.TenantID = middleware.GetTenantIDFromContext(c)
+	req.TenantRole = middleware.GetTenantRoleFromContext(c)
+	req.IsInstanceAdmin = middleware.IsInstanceAdminFromContext(c)
+
 	// Check for impersonation token - allows admin to invoke functions as another user
 	impersonationToken := c.Get("X-Impersonation-Token")
 	if impersonationToken != "" && h.authService != nil {
@@ -211,8 +218,8 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	}
 
 	// Initialize log counter for this execution
-	lineCounter := 0
-	h.logCounters.Store(executionID, &lineCounter)
+	tenantID := middleware.GetTenantIDFromContext(c)
+	h.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer h.logCounters.Delete(executionID)
 
 	// Build timeout override from function settings
@@ -262,6 +269,10 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	if err != nil {
 		status = "error"
 		errorMessage = &result.Error
+	} else if result.Status >= 400 {
+		status = "error"
+		errMsg := fmt.Sprintf("Function returned HTTP %d", result.Status)
+		errorMessage = &errMsg
 	}
 
 	var resultBody *string
@@ -272,9 +283,10 @@ func (h *Handler) InvokeFunction(c fiber.Ctx) error {
 	// Update execution record asynchronously (don't block response)
 	// Skip if execution logs are disabled for this function
 	if !fn.DisableExecutionLogs {
+		tenantID := middleware.GetTenantIDFromContext(c)
+		completeCtx := database.ContextWithTenant(context.Background(), tenantID)
 		go func() {
-			ctx := context.Background()
-			if updateErr := h.storage.CompleteExecution(ctx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
+			if updateErr := h.storage.CompleteExecution(completeCtx, executionID, status, &result.Status, &durationMs, resultBody, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().Err(updateErr).Str("execution_id", executionID.String()).Msg("Failed to complete execution record")
 			}
 		}()
@@ -399,7 +411,13 @@ func (h *Handler) ListAllExecutions(c fiber.Ctx) error {
 
 // GetExecutionLogs returns logs for a specific function execution
 func (h *Handler) GetExecutionLogs(c fiber.Ctx) error {
-	executionIDStr := c.Params("executionId")
+	if h.loggingService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Logging service not available",
+		})
+	}
+
+	executionIDStr := c.Params("id")
 
 	_, err := uuid.Parse(executionIDStr)
 	if err != nil {

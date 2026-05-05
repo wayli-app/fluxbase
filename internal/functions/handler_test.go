@@ -116,15 +116,14 @@ func TestHandler_handleLogMessage(t *testing.T) {
 		handler := NewHandler(nil, "/tmp/functions", config.CORSConfig{}, "secret", "http://localhost", "", "", nil, nil, nil, nil)
 		execID := uuid.New()
 
-		// Set up counter
-		counter := 0
-		handler.logCounters.Store(execID, &counter)
+		ctx := &executionLogContext{}
+		handler.logCounters.Store(execID, ctx)
 
 		handler.handleLogMessage(execID, "info", "message 1")
-		assert.Equal(t, 1, counter)
+		assert.Equal(t, 1, ctx.lineCounter)
 
 		handler.handleLogMessage(execID, "info", "message 2")
-		assert.Equal(t, 2, counter)
+		assert.Equal(t, 2, ctx.lineCounter)
 	})
 
 	t.Run("handles invalid counter type", func(t *testing.T) {
@@ -1133,8 +1132,7 @@ func TestHandler_LogCounters(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			go func(id int) {
 				execID := uuid.New()
-				counter := 0
-				handler.logCounters.Store(execID, &counter)
+				handler.logCounters.Store(execID, &executionLogContext{})
 
 				for j := 0; j < 100; j++ {
 					handler.handleLogMessage(execID, "info", "message")

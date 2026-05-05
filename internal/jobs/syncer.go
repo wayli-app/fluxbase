@@ -39,22 +39,24 @@ func (i jobSyncItem) GetName() string {
 }
 
 type jobSyncer struct {
-	handler   *Handler
-	syncCtx   context.Context
-	namespace string
-	tenantID  string
-	createdBy *uuid.UUID
-	existing  map[string]*JobFunctionSummary
+	handler      *Handler
+	syncCtx      context.Context
+	namespace    string
+	tenantID     string
+	createdBy    *uuid.UUID
+	existing     map[string]*JobFunctionSummary
+	preprocessed map[string]*jobSyncItem
 }
 
 func newJobSyncer(h *Handler, syncCtx context.Context, namespace, tenantID string, createdBy *uuid.UUID) *jobSyncer {
 	return &jobSyncer{
-		handler:   h,
-		syncCtx:   syncCtx,
-		namespace: namespace,
-		tenantID:  tenantID,
-		createdBy: createdBy,
-		existing:  make(map[string]*JobFunctionSummary),
+		handler:      h,
+		syncCtx:      syncCtx,
+		namespace:    namespace,
+		tenantID:     tenantID,
+		createdBy:    createdBy,
+		existing:     make(map[string]*JobFunctionSummary),
+		preprocessed: make(map[string]*jobSyncItem),
 	}
 }
 
@@ -101,32 +103,38 @@ func (s *jobSyncer) Preprocess(ctx context.Context, item jobSyncItem) error {
 
 	annotations := s.handler.loader.ParseAnnotations(originalCode)
 
-	it := &item
-	it.bundledCode = code
-	it.parsedCode = originalCode
-	it.isBundled = isBundled
-	it.bundleError = bundleError
-	it.annotations = annotations
+	item.bundledCode = code
+	item.parsedCode = originalCode
+	item.isBundled = isBundled
+	item.bundleError = bundleError
+	item.annotations = annotations
+
+	s.preprocessed[item.Name] = &item
 
 	return nil
 }
 
 func (s *jobSyncer) Create(ctx context.Context, item jobSyncItem, opts syncframework.Options) error {
+	pp := s.preprocessed[item.Name]
+	if pp == nil {
+		pp = &item
+	}
+
 	fn := &JobFunction{
 		ID:                     uuid.New(),
 		Name:                   item.Name,
 		Namespace:              s.namespace,
 		Description:            item.Description,
-		Code:                   &item.bundledCode,
-		OriginalCode:           &item.parsedCode,
-		IsBundled:              item.isBundled,
-		BundleError:            item.bundleError,
+		Code:                   &pp.bundledCode,
+		OriginalCode:           &pp.parsedCode,
+		IsBundled:              pp.isBundled,
+		BundleError:            pp.bundleError,
 		Enabled:                util.ValueOr(item.Enabled, true),
 		Schedule:               item.Schedule,
-		TimeoutSeconds:         util.ValueOr(item.TimeoutSeconds, util.ValueOr(&item.annotations.TimeoutSeconds, 300)),
-		MemoryLimitMB:          util.ValueOr(item.MemoryLimitMB, util.ValueOr(&item.annotations.MemoryLimitMB, 256)),
-		MaxRetries:             util.ValueOr(item.MaxRetries, item.annotations.MaxRetries),
-		ProgressTimeoutSeconds: util.ValueOr(item.ProgressTimeoutSeconds, util.ValueOr(&item.annotations.ProgressTimeoutSeconds, 60)),
+		TimeoutSeconds:         util.ValueOr(item.TimeoutSeconds, util.ValueOr(&pp.annotations.TimeoutSeconds, 300)),
+		MemoryLimitMB:          util.ValueOr(item.MemoryLimitMB, util.ValueOr(&pp.annotations.MemoryLimitMB, 256)),
+		MaxRetries:             util.ValueOr(item.MaxRetries, pp.annotations.MaxRetries),
+		ProgressTimeoutSeconds: util.ValueOr(item.ProgressTimeoutSeconds, util.ValueOr(&pp.annotations.ProgressTimeoutSeconds, 60)),
 		AllowNet:               util.ValueOr(item.AllowNet, true),
 		AllowEnv:               util.ValueOr(item.AllowEnv, true),
 		AllowRead:              util.ValueOr(item.AllowRead, false),
@@ -146,14 +154,19 @@ func (s *jobSyncer) Update(ctx context.Context, item jobSyncItem, existingID str
 		return nil
 	}
 
+	pp := s.preprocessed[item.Name]
+	if pp == nil {
+		pp = &item
+	}
+
 	updatedFn := &JobFunction{
 		ID:                     existing.ID,
 		Name:                   existing.Name,
 		Namespace:              existing.Namespace,
-		Code:                   &item.bundledCode,
-		OriginalCode:           &item.parsedCode,
-		IsBundled:              item.isBundled,
-		BundleError:            item.bundleError,
+		Code:                   &pp.bundledCode,
+		OriginalCode:           &pp.parsedCode,
+		IsBundled:              pp.isBundled,
+		BundleError:            pp.bundleError,
 		Description:            existing.Description,
 		Enabled:                existing.Enabled,
 		Schedule:               existing.Schedule,
@@ -180,23 +193,23 @@ func (s *jobSyncer) Update(ctx context.Context, item jobSyncItem, existingID str
 	}
 	if item.TimeoutSeconds != nil {
 		updatedFn.TimeoutSeconds = *item.TimeoutSeconds
-	} else if item.annotations.TimeoutSeconds > 0 {
-		updatedFn.TimeoutSeconds = item.annotations.TimeoutSeconds
+	} else if pp.annotations.TimeoutSeconds > 0 {
+		updatedFn.TimeoutSeconds = pp.annotations.TimeoutSeconds
 	}
 	if item.MemoryLimitMB != nil {
 		updatedFn.MemoryLimitMB = *item.MemoryLimitMB
-	} else if item.annotations.MemoryLimitMB > 0 {
-		updatedFn.MemoryLimitMB = item.annotations.MemoryLimitMB
+	} else if pp.annotations.MemoryLimitMB > 0 {
+		updatedFn.MemoryLimitMB = pp.annotations.MemoryLimitMB
 	}
 	if item.MaxRetries != nil {
 		updatedFn.MaxRetries = *item.MaxRetries
-	} else if item.annotations.MaxRetries > 0 {
-		updatedFn.MaxRetries = item.annotations.MaxRetries
+	} else if pp.annotations.MaxRetries > 0 {
+		updatedFn.MaxRetries = pp.annotations.MaxRetries
 	}
 	if item.ProgressTimeoutSeconds != nil {
 		updatedFn.ProgressTimeoutSeconds = *item.ProgressTimeoutSeconds
-	} else if item.annotations.ProgressTimeoutSeconds > 0 {
-		updatedFn.ProgressTimeoutSeconds = item.annotations.ProgressTimeoutSeconds
+	} else if pp.annotations.ProgressTimeoutSeconds > 0 {
+		updatedFn.ProgressTimeoutSeconds = pp.annotations.ProgressTimeoutSeconds
 	}
 	if item.AllowNet != nil {
 		updatedFn.AllowNet = *item.AllowNet

@@ -213,7 +213,7 @@ function InstanceSettingsPage() {
                             setRateLimitValue(parseInt(e.target.value) || 100)
                           }
                           className="max-w-[200px]"
-                          disabled={isReadOnly}
+                          readOnly={isReadOnly}
                         />
                         {!isReadOnly && (
                           <Button

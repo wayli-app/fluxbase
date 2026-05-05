@@ -17,7 +17,26 @@ import (
 // isAdminUser checks if the request is from an admin or instance_admin user
 func isAdminUser(c fiber.Ctx) bool {
 	role, ok := c.Locals("user_role").(string)
-	return ok && (role == "admin" || role == "instance_admin")
+	return ok && (role == "admin" || role == "instance_admin" || role == "tenant_service")
+}
+
+// injectTenantID adds tenant_id from the current tenant context into the
+// request data map if the table has a tenant_id column and the caller didn't
+// provide one. This is necessary because user-created tables lack the
+// auto-populate triggers that internal Fluxbase tables have.
+func injectTenantID(data map[string]interface{}, c fiber.Ctx, table database.TableInfo) bool {
+	if table.GetColumn("tenant_id") == nil {
+		return false
+	}
+	if _, exists := data["tenant_id"]; exists {
+		return false
+	}
+	tenantID := middleware.GetTenantID(c)
+	if tenantID == "" {
+		return false
+	}
+	data["tenant_id"] = tenantID
+	return true
 }
 
 // isTenantWriteBlocked returns true when tenant context is active but the table
@@ -184,6 +203,8 @@ func (h *RESTHandler) makePostHandler(table database.TableInfo) fiber.Handler {
 		if err := ParseBody(c, &data); err != nil {
 			return err
 		}
+
+		injectTenantID(data, c, table)
 
 		// Build INSERT query
 		columns := make([]string, 0, len(data))     // Quoted column names for SQL

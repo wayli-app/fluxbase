@@ -78,7 +78,7 @@ func (h *ClientKeyHandler) CreateClientKey(c fiber.Ctx) error {
 func (h *ClientKeyHandler) ListClientKeys(c fiber.Ctx) error {
 	currentUserID := middleware.GetUserID(c)
 	role, _ := c.Locals("user_role").(string)
-	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role"
+	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role" || role == "tenant_service"
 
 	var userID *uuid.UUID
 
@@ -120,7 +120,7 @@ func (h *ClientKeyHandler) GetClientKey(c fiber.Ctx) error {
 
 	currentUserID := middleware.GetUserID(c)
 	role, _ := c.Locals("user_role").(string)
-	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role"
+	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role" || role == "tenant_service"
 
 	if err := h.requireService(c); err != nil {
 		return err

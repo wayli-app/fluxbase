@@ -92,7 +92,7 @@ func (h *OpenAPIHandler) requireDB(c fiber.Ctx) error {
 func (h *OpenAPIHandler) GetOpenAPISpec(c fiber.Ctx) error {
 	// Check if user has admin role
 	role, _ := c.Locals("user_role").(string)
-	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role"
+	isAdmin := role == "admin" || role == "instance_admin" || role == "service_role" || role == "tenant_service"
 
 	// Non-admin users get minimal spec without database tables
 	if !isAdmin {

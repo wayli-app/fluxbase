@@ -167,8 +167,8 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 
 	return func(c fiber.Ctx) error {
 		// Service key auth: bypass role check for global keys.
-		// Tenant-scoped keys (tenant_service) may only bypass if the route
-		// accepts tenant_admin — otherwise they must not access global admin routes.
+		// Tenant-scoped keys (tenant_service) bypass on tenant-scoped routes
+		// and check the explicit allowedRoles list for other routes.
 		if authType, _ := c.Locals("auth_type").(string); authType == "service_key" {
 			keyType, _ := c.Locals("service_key_type").(string)
 			if keyType != "tenant_service" {
@@ -177,7 +177,7 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 			if tenantAdminAllowed {
 				return c.Next()
 			}
-			return SendInsufficientPermissions(c)
+			// Fall through to allowedRoles check for tenant_service service keys
 		}
 
 		userRole := c.Locals("user_role")
@@ -197,13 +197,12 @@ func RequireRole(allowedRoles ...string) fiber.Handler {
 			return c.Next()
 		}
 
-		// tenant_service JWT: allow on tenant-scoped routes, same logic as
-		// tenant_service service keys above.
+		// tenant_service JWT: same logic as tenant_service service keys —
+		// only bypass on tenant-scoped routes.
 		if role == "tenant_service" {
 			if tenantAdminAllowed {
 				return c.Next()
 			}
-			return SendInsufficientPermissions(c)
 		}
 
 		for _, allowedRole := range allowedRoles {

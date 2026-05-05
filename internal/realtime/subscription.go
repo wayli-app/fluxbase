@@ -248,6 +248,13 @@ func (db *pgxSubscriptionDB) CheckRLSAccess(ctx context.Context, schema, table, 
 		return false, err
 	}
 
+	if tid, ok := claims["tenant_id"].(string); ok && tid != "" {
+		_, err = tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tid)
+		if err != nil {
+			return false, err
+		}
+	}
+
 	var count int
 	// Use quoteIdentifier to prevent SQL injection even though we validated above
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s WHERE id = $1", quoteIdentifier(schema), quoteIdentifier(table))

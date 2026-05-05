@@ -830,9 +830,11 @@ func (s *Storage) GetJob(ctx context.Context, jobID uuid.UUID) (*Job, error) {
 		WHERE q.id = $1 AND (q.tenant_id = $2 OR ($2 IS NULL AND q.tenant_id IS NULL))
 	`
 
+	tenantID := database.TenantFromContext(ctx)
+
 	var job Job
-	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, jobID, database.TenantOrNil(database.TenantFromContext(ctx))).Scan(
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, jobID, database.TenantOrNil(tenantID)).Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Payload, &job.Result, &job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,
@@ -996,10 +998,11 @@ func (s *Storage) GetJobByIDAdmin(ctx context.Context, jobID uuid.UUID) (*Job, e
 		WHERE q.id = $1 AND (q.tenant_id = $2 OR ($2 IS NULL AND q.tenant_id IS NULL))
 	`
 
-	var job Job
+	tenantID := database.TenantFromContext(ctx)
 
-	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, jobID, database.TenantOrNil(database.TenantFromContext(ctx))).Scan(
+	var job Job
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, jobID, database.TenantOrNil(tenantID)).Scan(
 			&job.ID, &job.Namespace, &job.JobFunctionID, &job.JobName, &job.Status,
 			&job.Payload, &job.Result, &job.Progress, &job.Priority,
 			&job.MaxDurationSeconds, &job.ProgressTimeoutSeconds, &job.MaxRetries,

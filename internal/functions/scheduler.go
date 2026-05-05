@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -56,26 +57,31 @@ func (s *Scheduler) handleLogMessage(executionID uuid.UUID, level string, messag
 		return
 	}
 
-	counterPtr, ok := counterVal.(*int)
+	ctx, ok := counterVal.(*executionLogContext)
 	if !ok {
 		log.Warn().Str("execution_id", executionID.String()).Msg("Invalid log counter type")
 		return
 	}
 
-	lineNumber := *counterPtr
-	*counterPtr = lineNumber + 1
+	lineNumber := ctx.lineCounter
+	ctx.lineCounter = lineNumber + 1
 
-	log.Debug().
+	event := log.Debug().
 		Str("execution_id", executionID.String()).
 		Str("level", level).
 		Int("line_number", lineNumber).
-		Str("message", message).
-		Msg("Scheduled function execution log")
+		Str("message", message)
+
+	if ctx.tenantID != "" {
+		event = event.Str("tenant_id", ctx.tenantID)
+	}
+
+	event.Msg("Scheduled function execution log")
 }
 
 func (s *Scheduler) Start() error {
 	return s.inner.Start(func(ctx context.Context) ([]scheduler.Schedulable, error) {
-		functions, err := s.storage.ListFunctions(ctx)
+		functions, err := s.storage.ListAllFunctionsAllTenants(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -107,9 +113,13 @@ func (s *Scheduler) ScheduleFunction(fn EdgeFunctionSummary) error {
 
 	funcName := fn.Name
 	funcNamespace := fn.Namespace
+	var funcTenantID string
+	if fn.TenantID != nil {
+		funcTenantID = *fn.TenantID
+	}
 
 	entryID, err := s.inner.AddFunc(fn.Name, *fn.CronSchedule, func() {
-		s.executeScheduledFunction(funcName, funcNamespace)
+		s.executeScheduledFunction(funcName, funcNamespace, funcTenantID)
 	})
 	if err != nil {
 		log.Error().
@@ -144,13 +154,16 @@ func (s *Scheduler) RescheduleFunction(fn EdgeFunctionSummary) error {
 	return nil
 }
 
-func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
+func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace, tenantID string) {
 	if !s.inner.Guard.Acquire(funcName) {
 		return
 	}
 	defer s.inner.Guard.Release()
 
 	ctx := s.inner.Context()
+	if tenantID != "" {
+		ctx = database.ContextWithTenant(ctx, tenantID)
+	}
 
 	fn, err := s.storage.GetFunctionByNamespace(ctx, funcName, funcNamespace)
 	if err != nil {
@@ -185,6 +198,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		URL:       "/scheduled",
 		Headers:   make(map[string]string),
 		Body:      "{}",
+		TenantID:  tenantID,
 	}
 
 	if !fn.DisableExecutionLogs {
@@ -193,8 +207,7 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		}
 	}
 
-	lineCounter := 0
-	s.logCounters.Store(executionID, &lineCounter)
+	s.logCounters.Store(executionID, &executionLogContext{tenantID: tenantID})
 	defer s.logCounters.Delete(executionID)
 
 	perms := runtime.Permissions{
@@ -239,6 +252,10 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 		if result.Error != "" {
 			status = "error"
 			errorMessage = &result.Error
+		} else if result.Status >= 400 {
+			status = "error"
+			errMsg := fmt.Sprintf("Function returned HTTP %d", result.Status)
+			errorMessage = &errMsg
 		}
 		log.Info().
 			Str("function", fn.Name).
@@ -267,7 +284,11 @@ func (s *Scheduler) executeScheduledFunction(funcName, funcNamespace string) {
 						Msg("Panic in scheduled function execution record completion - recovered")
 				}
 			}()
-			if updateErr := s.storage.CompleteExecution(context.Background(), executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
+			completeCtx := context.Background()
+			if tenantID != "" {
+				completeCtx = database.ContextWithTenant(completeCtx, tenantID)
+			}
+			if updateErr := s.storage.CompleteExecution(completeCtx, executionID, status, &result.Status, &durationMs, resultStr, &result.Logs, errorMessage); updateErr != nil {
 				log.Error().
 					Err(updateErr).
 					Str("function", fn.Name).
