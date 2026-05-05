@@ -241,7 +241,7 @@ func (m *Manager) BroadcastGlobal(channel string, message ServerMessage) error {
 // Returns nil and ErrMaxConnectionsReached if the connection limit is exceeded
 // Returns nil and ErrMaxUserConnectionsReached if the per-user limit is exceeded
 // Returns nil and ErrMaxIPConnectionsReached if the per-IP limit is exceeded (for anonymous)
-func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}) (*Connection, error) {
+func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, tenantID string) (*Connection, error) {
 	// Get remote IP for tracking
 	remoteIP := ""
 	if conn != nil {
@@ -252,12 +252,12 @@ func (m *Manager) AddConnection(id string, conn *websocket.Conn, userID *string,
 		}
 	}
 
-	return m.AddConnectionWithIP(id, conn, userID, role, claims, remoteIP)
+	return m.AddConnectionWithIP(id, conn, userID, role, claims, tenantID, remoteIP)
 }
 
 // AddConnectionWithIP adds a new WebSocket connection with explicit IP address
 // This is useful when the IP is already known (e.g., from X-Forwarded-For header)
-func (m *Manager) AddConnectionWithIP(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, remoteIP string) (*Connection, error) {
+func (m *Manager) AddConnectionWithIP(id string, conn *websocket.Conn, userID *string, role string, claims map[string]interface{}, tenantID string, remoteIP string) (*Connection, error) {
 	m.mu.Lock()
 
 	// Check global connection limit before adding
@@ -313,9 +313,9 @@ func (m *Manager) AddConnectionWithIP(id string, conn *websocket.Conn, userID *s
 	// Create and track the connection with configured queue size
 	var connection *Connection
 	if m.clientMessageQueueSize > 0 {
-		connection = NewConnectionWithQueueSize(id, conn, userID, role, claims, m.clientMessageQueueSize, m.ctx)
+		connection = NewConnectionWithQueueSize(id, conn, userID, role, claims, tenantID, m.clientMessageQueueSize, m.ctx)
 	} else {
-		connection = NewConnection(id, conn, userID, role, claims, m.ctx)
+		connection = NewConnection(id, conn, userID, role, claims, tenantID, m.ctx)
 	}
 	m.connections[id] = connection
 
