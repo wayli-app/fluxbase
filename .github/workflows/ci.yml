@@ -157,8 +157,8 @@ jobs:
 
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Get dependencies
         run: |
@@ -363,8 +363,8 @@ jobs:
 
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Get dependencies
         run: |
@@ -666,7 +666,7 @@ jobs:
       needs.changes.outputs.go == 'true' ||
       needs.changes.outputs.ci-config == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -713,8 +713,8 @@ jobs:
 
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Get dependencies
         run: |
@@ -1003,8 +1003,8 @@ jobs:
 
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips-dev libtesseract-dev libleptonica-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libvips-dev libtesseract-dev libleptonica-dev
 
       - name: Build server binary
         env:
