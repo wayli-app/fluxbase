@@ -10,6 +10,11 @@ import (
 // SystemUserID is used as the owner for resources created via service role authentication
 const SystemUserID = "00000000-0000-0000-0000-000000000000"
 
+// SupportedEmbeddingDimension is the vector dimension supported by the database schema.
+// The ai.chunks.embedding column is defined as vector(1536). If additional dimensions
+// are needed in the future, the schema must be altered accordingly.
+const SupportedEmbeddingDimension = 1536
+
 // KnowledgeBase represents a collection of documents for RAG retrieval
 type KnowledgeBase struct {
 	ID                  string  `json:"id"`

@@ -238,6 +238,9 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBaseFromRequest(ctx context.Contex
 		kb.EmbeddingModel = defaults.EmbeddingModel
 	}
 	if req.EmbeddingDimensions > 0 {
+		if req.EmbeddingDimensions != SupportedEmbeddingDimension {
+			return nil, fmt.Errorf("unsupported embedding_dimensions: %d (only %d is supported by the current database schema)", req.EmbeddingDimensions, SupportedEmbeddingDimension)
+		}
 		kb.EmbeddingDimensions = req.EmbeddingDimensions
 	} else {
 		kb.EmbeddingDimensions = defaults.EmbeddingDimensions
@@ -293,6 +296,9 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBaseByID(ctx context.Context, id s
 		kb.EmbeddingModel = *req.EmbeddingModel
 	}
 	if req.EmbeddingDimensions != nil {
+		if *req.EmbeddingDimensions != SupportedEmbeddingDimension {
+			return nil, fmt.Errorf("unsupported embedding_dimensions: %d (only %d is supported by the current database schema)", *req.EmbeddingDimensions, SupportedEmbeddingDimension)
+		}
 		kb.EmbeddingDimensions = *req.EmbeddingDimensions
 	}
 	if req.ChunkSize != nil {
