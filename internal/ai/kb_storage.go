@@ -58,6 +58,7 @@ func (s *KnowledgeBaseStorage) CreateKnowledgeBase(ctx context.Context, kb *Know
 
 // GetKnowledgeBase retrieves a knowledge base by ID
 func (s *KnowledgeBaseStorage) GetKnowledgeBase(ctx context.Context, id string) (*KnowledgeBase, error) {
+	tenantID := database.TenantFromContext(ctx)
 	var kb KnowledgeBase
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		query := `
@@ -69,9 +70,10 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBase(ctx context.Context, id string) 
 				visibility, owner_id
 			FROM ai.knowledge_bases
 			WHERE id = $1
+			  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
 		`
 
-		return tx.QueryRow(ctx, query, id).Scan(
+		return tx.QueryRow(ctx, query, id, database.TenantOrNil(tenantID)).Scan(
 			&kb.ID, &kb.Name, &kb.Namespace, &kb.Description,
 			&kb.EmbeddingModel, &kb.EmbeddingDimensions,
 			&kb.ChunkSize, &kb.ChunkOverlap, &kb.ChunkStrategy,
@@ -91,6 +93,7 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBase(ctx context.Context, id string) 
 
 // GetKnowledgeBaseByName retrieves a knowledge base by name and namespace
 func (s *KnowledgeBaseStorage) GetKnowledgeBaseByName(ctx context.Context, name, namespace string) (*KnowledgeBase, error) {
+	tenantID := database.TenantFromContext(ctx)
 	var kb KnowledgeBase
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		query := `
@@ -101,9 +104,10 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBaseByName(ctx context.Context, name,
 				source, created_by, created_at, updated_at, visibility
 			FROM ai.knowledge_bases
 			WHERE name = $1 AND namespace = $2
+			  AND (tenant_id = $3 OR ($3 IS NULL AND tenant_id IS NULL))
 		`
 
-		return tx.QueryRow(ctx, query, name, namespace).Scan(
+		return tx.QueryRow(ctx, query, name, namespace, database.TenantOrNil(tenantID)).Scan(
 			&kb.ID, &kb.Name, &kb.Namespace, &kb.Description,
 			&kb.EmbeddingModel, &kb.EmbeddingDimensions,
 			&kb.ChunkSize, &kb.ChunkOverlap, &kb.ChunkStrategy,
@@ -122,6 +126,7 @@ func (s *KnowledgeBaseStorage) GetKnowledgeBaseByName(ctx context.Context, name,
 
 // ListKnowledgeBases lists knowledge bases with optional filtering
 func (s *KnowledgeBaseStorage) ListKnowledgeBases(ctx context.Context, namespace string, enabledOnly bool) ([]KnowledgeBase, error) {
+	tenantID := database.TenantFromContext(ctx)
 	var kbs []KnowledgeBase
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
 		query := `
@@ -131,12 +136,13 @@ func (s *KnowledgeBaseStorage) ListKnowledgeBases(ctx context.Context, namespace
 				enabled, document_count, total_chunks,
 				source, created_by, created_at, updated_at
 			FROM ai.knowledge_bases
-			WHERE ($1 = '' OR namespace = $1)
-			  AND ($2 = false OR enabled = true)
+			WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
+			  AND ($2 = '' OR namespace = $2)
+			  AND ($3 = false OR enabled = true)
 			ORDER BY namespace, name
 		`
 
-		rows, err := tx.Query(ctx, query, namespace, enabledOnly)
+		rows, err := tx.Query(ctx, query, database.TenantOrNil(tenantID), namespace, enabledOnly)
 		if err != nil {
 			return fmt.Errorf("failed to list knowledge bases: %w", err)
 		}
@@ -199,8 +205,9 @@ func (s *KnowledgeBaseStorage) UpdateKnowledgeBase(ctx context.Context, kb *Know
 
 // DeleteKnowledgeBase deletes a knowledge base and all its documents/chunks
 func (s *KnowledgeBaseStorage) DeleteKnowledgeBase(ctx context.Context, id string) error {
+	tenantID := database.TenantFromContext(ctx)
 	return s.WithTenant(ctx, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, "DELETE FROM ai.knowledge_bases WHERE id = $1", id)
+		_, err := tx.Exec(ctx, "DELETE FROM ai.knowledge_bases WHERE id = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))", id, database.TenantOrNil(tenantID))
 		return err
 	})
 }

@@ -5,6 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/rs/zerolog/log"
+
+	"github.com/nimbleflux/fluxbase/internal/middleware"
 )
 
 // ============================================================================
@@ -23,7 +25,7 @@ type SearchKnowledgeBaseRequest struct {
 // SearchKnowledgeBase searches a specific knowledge base
 // POST /api/v1/admin/ai/knowledge-bases/:id/search
 func (h *KnowledgeBaseHandler) SearchKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -201,7 +203,7 @@ type DebugSearchResponse struct {
 // DebugSearch provides detailed debugging information for similarity search
 // POST /api/v1/admin/ai/knowledge-bases/:id/debug-search
 func (h *KnowledgeBaseHandler) DebugSearch(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {

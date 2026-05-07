@@ -109,7 +109,11 @@ func (s *InvitationService) CreateInvitationWithTenant(ctx context.Context, emai
 		CreatedAt: time.Now(),
 	}
 
-	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	var tID string
+	if tenantID != nil {
+		tID = tenantID.String()
+	}
+	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tID, func(tx pgx.Tx) error {
 		return tx.QueryRow(
 			ctx, `
 			INSERT INTO platform.invitation_tokens (id, email, token, token_hash, role, tenant_id, invited_by, expires_at, accepted, created_at)

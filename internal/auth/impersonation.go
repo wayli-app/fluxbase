@@ -285,7 +285,7 @@ func (s *ImpersonationService) verifyAdminOrTenantAdmin(ctx context.Context, adm
 
 func (s *ImpersonationService) verifyTenantAssignment(ctx context.Context, adminUserID, tenantID string) error {
 	var count int
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT COUNT(*) FROM platform.tenant_admin_assignments
 			WHERE user_id = $1 AND tenant_id = $2
@@ -302,7 +302,7 @@ func (s *ImpersonationService) verifyTenantAssignment(ctx context.Context, admin
 
 func (s *ImpersonationService) verifyTargetUserInTenant(ctx context.Context, targetUserID, tenantID string) error {
 	var count int
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
 			SELECT COUNT(*) FROM auth.users
 			WHERE id = $1 AND tenant_id = $2

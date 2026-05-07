@@ -671,7 +671,11 @@ func (s *Service) getAvailableExtension(ctx context.Context, name string) (*Avai
 
 // recordExtensionErrorForTenant records an error for a tenant's extension operation
 func (s *Service) recordExtensionErrorForTenant(ctx context.Context, name string, userID *string, errorMsg string, tenantID *string) {
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	var tID string
+	if tenantID != nil {
+		tID = *tenantID
+	}
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tID, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO platform.enabled_extensions (extension_name, tenant_id, enabled_by, is_active, error_message)
 			VALUES ($1, $2, $3, false, $4)
@@ -694,7 +698,11 @@ func (s *Service) InitializeCoreExtensions(ctx context.Context) error {
 // tenantDBName is the database name for separate-DB tenants (empty for default tenant).
 func (s *Service) InitializeCoreExtensionsForTenant(ctx context.Context, tenantID *string, tenantDBName string) error {
 	var coreExtensions []string
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	var tID string
+	if tenantID != nil {
+		tID = *tenantID
+	}
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
 			SELECT name FROM platform.available_extensions WHERE is_core = true
 		`)

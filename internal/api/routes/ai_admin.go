@@ -40,6 +40,28 @@ type AIAdminDeps struct {
 	UpdateChatbotKnowledgeBase fiber.Handler
 	UnlinkKnowledgeBase        fiber.Handler
 	DeleteKnowledgeBase        fiber.Handler
+	ListDocuments              fiber.Handler
+	GetDocument                fiber.Handler
+	AddDocument                fiber.Handler
+	UploadDocument             fiber.Handler
+	DeleteDocument             fiber.Handler
+	UpdateDocument             fiber.Handler
+	DeleteDocumentsByFilter    fiber.Handler
+	SearchKnowledgeBase        fiber.Handler
+	DebugSearch                fiber.Handler
+	ListEntities               fiber.Handler
+	SearchEntities             fiber.Handler
+	GetEntityRelationships     fiber.Handler
+	GetKnowledgeGraph          fiber.Handler
+	ListKBChatbots             fiber.Handler
+	CreateTableExportSync      fiber.Handler
+	ListTableExportSyncs       fiber.Handler
+	UpdateTableExportSync      fiber.Handler
+	DeleteTableExportSync      fiber.Handler
+	TriggerTableExportSync     fiber.Handler
+	GrantDocumentPermission    fiber.Handler
+	ListDocumentPermissions    fiber.Handler
+	RevokeDocumentPermission   fiber.Handler
 }
 
 // BuildAIAdminRoutes creates the AI admin route group.
@@ -95,6 +117,40 @@ func BuildAIAdminRoutes(deps *AIAdminDeps) *RouteGroup {
 			{Method: "POST", Path: "/ai/chatbots/:id/knowledge-bases", Handler: deps.LinkKnowledgeBase, Summary: "Link knowledge base to chatbot"},
 			{Method: "PUT", Path: "/ai/chatbots/:id/knowledge-bases/:kb_id", Handler: deps.UpdateChatbotKnowledgeBase, Summary: "Update chatbot knowledge base link"},
 			{Method: "DELETE", Path: "/ai/chatbots/:id/knowledge-bases/:kb_id", Handler: deps.UnlinkKnowledgeBase, Summary: "Unlink knowledge base from chatbot"},
+
+			// Knowledge Base Documents (uses default roles)
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/documents", Handler: deps.ListDocuments, Summary: "List KB documents"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/documents/:doc_id", Handler: deps.GetDocument, Summary: "Get KB document"},
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/documents", Handler: deps.AddDocument, Summary: "Add KB document"},
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/documents/upload", Handler: deps.UploadDocument, Summary: "Upload KB document"},
+			{Method: "DELETE", Path: "/ai/knowledge-bases/:id/documents/:doc_id", Handler: deps.DeleteDocument, Summary: "Delete KB document"},
+			{Method: "PATCH", Path: "/ai/knowledge-bases/:id/documents/:doc_id", Handler: deps.UpdateDocument, Summary: "Update KB document"},
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/documents/delete-by-filter", Handler: deps.DeleteDocumentsByFilter, Summary: "Delete KB documents by filter"},
+
+			// Knowledge Base Search (uses default roles)
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/search", Handler: deps.SearchKnowledgeBase, Summary: "Search knowledge base"},
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/debug-search", Handler: deps.DebugSearch, Summary: "Debug search"},
+
+			// Knowledge Base Knowledge Graph / Entities (uses default roles)
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/entities", Handler: deps.ListEntities, Summary: "List KB entities"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/entities/search", Handler: deps.SearchEntities, Summary: "Search KB entities"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/entities/:entity_id/relationships", Handler: deps.GetEntityRelationships, Summary: "Get entity relationships"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/graph", Handler: deps.GetKnowledgeGraph, Summary: "Get knowledge graph"},
+
+			// Knowledge Base Chatbots (reverse lookup, uses default roles)
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/chatbots", Handler: deps.ListKBChatbots, Summary: "List KB chatbots"},
+
+			// Knowledge Base Sync Configs (uses default roles)
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/sync-configs", Handler: deps.CreateTableExportSync, Summary: "Create sync config"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id/sync-configs", Handler: deps.ListTableExportSyncs, Summary: "List sync configs"},
+			{Method: "PATCH", Path: "/ai/knowledge-bases/:id/sync-configs/:syncId", Handler: deps.UpdateTableExportSync, Summary: "Update sync config"},
+			{Method: "DELETE", Path: "/ai/knowledge-bases/:id/sync-configs/:syncId", Handler: deps.DeleteTableExportSync, Summary: "Delete sync config"},
+			{Method: "POST", Path: "/ai/knowledge-bases/:id/sync-configs/:syncId/trigger", Handler: deps.TriggerTableExportSync, Summary: "Trigger sync"},
+
+			// Knowledge Base Document Permissions (uses default roles)
+			{Method: "POST", Path: "/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions", Handler: deps.GrantDocumentPermission, Summary: "Grant document permission"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions", Handler: deps.ListDocumentPermissions, Summary: "List document permissions"},
+			{Method: "DELETE", Path: "/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions/:user_id", Handler: deps.RevokeDocumentPermission, Summary: "Revoke document permission"},
 		},
 	}
 }

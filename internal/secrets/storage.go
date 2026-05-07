@@ -121,7 +121,7 @@ func (s *Storage) GetSecret(ctx context.Context, id uuid.UUID) (*Secret, error) 
 	`
 
 	secret := &Secret{}
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, id, database.TenantOrNil(tenantID)).Scan(
 			&secret.ID, &secret.Name, &secret.Scope, &secret.Namespace,
 			&secret.Description, &secret.Version, &secret.ExpiresAt,
@@ -163,7 +163,7 @@ func (s *Storage) GetSecretByName(ctx context.Context, name string, namespace *s
 	}
 
 	secret := &Secret{}
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, args...).Scan(
 			&secret.ID, &secret.Name, &secret.Scope, &secret.Namespace,
 			&secret.Description, &secret.Version, &secret.ExpiresAt,
@@ -205,7 +205,7 @@ func (s *Storage) ListSecrets(ctx context.Context, scope *string, namespace *str
 	query += " ORDER BY scope, namespace NULLS FIRST, name"
 
 	var secrets []SecretSummary
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, args...)
 		if err != nil {
 			return err
@@ -236,6 +236,8 @@ func (s *Storage) ListSecrets(ctx context.Context, scope *string, namespace *str
 
 // UpdateSecret updates a secret's value (increments version and stores history)
 func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *string, description *string, expiresAt *time.Time, userID *uuid.UUID) error {
+	tenantID := database.TenantFromContext(ctx)
+
 	// Start with base updates
 	updates := "updated_at = NOW(), updated_by = $2"
 	args := []interface{}{id, userID}
@@ -261,18 +263,23 @@ func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *st
 	if expiresAt != nil {
 		updates += fmt.Sprintf(", expires_at = $%d", argIdx)
 		args = append(args, *expiresAt)
+		argIdx++
 	}
+
+	// Add tenant_id filter for isolation
+	tenantFilter := fmt.Sprintf(" AND (tenant_id = $%d OR ($%d IS NULL AND tenant_id IS NULL))", argIdx, argIdx)
+	args = append(args, database.TenantOrNil(tenantID))
 
 	query := fmt.Sprintf(`
 		UPDATE functions.secrets
 		SET %s
-		WHERE id = $1
+		WHERE id = $1 %s
 		RETURNING version, encrypted_value
-	`, updates)
+	`, updates, tenantFilter)
 
 	var newVersion int
 	var encryptedValue string
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, args...).Scan(&newVersion, &encryptedValue)
 	})
 	if err != nil {
@@ -291,10 +298,11 @@ func (s *Storage) UpdateSecret(ctx context.Context, id uuid.UUID, plainValue *st
 
 // DeleteSecret deletes a secret by ID
 func (s *Storage) DeleteSecret(ctx context.Context, id uuid.UUID) error {
-	query := "DELETE FROM functions.secrets WHERE id = $1"
+	tenantID := database.TenantFromContext(ctx)
+	query := "DELETE FROM functions.secrets WHERE id = $1 AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))"
 
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		result, err := tx.Exec(ctx, query, id)
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, query, id, database.TenantOrNil(tenantID))
 		if err != nil {
 			return err
 		}
@@ -312,16 +320,18 @@ func (s *Storage) DeleteSecret(ctx context.Context, id uuid.UUID) error {
 
 // GetVersions returns the version history for a secret
 func (s *Storage) GetVersions(ctx context.Context, secretID uuid.UUID) ([]SecretVersion, error) {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		SELECT id, secret_id, version, created_at, created_by
 		FROM functions.secret_versions
 		WHERE secret_id = $1
+		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
 		ORDER BY version DESC
 	`
 
 	var versions []SecretVersion
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query, secretID)
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, secretID, database.TenantOrNil(tenantID))
 		if err != nil {
 			return err
 		}
@@ -349,16 +359,19 @@ func (s *Storage) GetVersions(ctx context.Context, secretID uuid.UUID) ([]Secret
 
 // RollbackToVersion restores a secret to a previous version
 func (s *Storage) RollbackToVersion(ctx context.Context, secretID uuid.UUID, version int, userID *uuid.UUID) error {
+	tenantID := database.TenantFromContext(ctx)
+
 	// Get the encrypted value from the specified version
 	getQuery := `
 		SELECT encrypted_value
 		FROM functions.secret_versions
 		WHERE secret_id = $1 AND version = $2
+		  AND (tenant_id = $3 OR ($3 IS NULL AND tenant_id IS NULL))
 	`
 
 	var encryptedValue string
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, getQuery, secretID, version).Scan(&encryptedValue)
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, getQuery, secretID, version, database.TenantOrNil(tenantID)).Scan(&encryptedValue)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get version %d: %w", version, err)
@@ -369,12 +382,13 @@ func (s *Storage) RollbackToVersion(ctx context.Context, secretID uuid.UUID, ver
 		UPDATE functions.secrets
 		SET encrypted_value = $2, version = version + 1, updated_at = NOW(), updated_by = $3
 		WHERE id = $1
+		  AND (tenant_id = $4 OR ($4 IS NULL AND tenant_id IS NULL))
 		RETURNING version
 	`
 
 	var newVersion int
-	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, updateQuery, secretID, encryptedValue, userID).Scan(&newVersion)
+	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, updateQuery, secretID, encryptedValue, userID, database.TenantOrNil(tenantID)).Scan(&newVersion)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to rollback secret: %w", err)
@@ -392,18 +406,20 @@ func (s *Storage) RollbackToVersion(ctx context.Context, secretID uuid.UUID, ver
 // This includes both global secrets and namespace-specific secrets
 // Expired secrets are excluded
 func (s *Storage) GetSecretsForNamespace(ctx context.Context, namespace string) (map[string]string, error) {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		SELECT name, encrypted_value
 		FROM functions.secrets
 		WHERE (scope = 'global' OR (scope = 'namespace' AND namespace = $1))
 		  AND (expires_at IS NULL OR expires_at > NOW())
+		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
 		ORDER BY scope ASC
 	`
 	// scope ASC ensures global secrets come first, then namespace secrets override them
 
 	secrets := make(map[string]string)
-	err := database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query, namespace)
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, namespace, database.TenantOrNil(tenantID))
 		if err != nil {
 			return err
 		}
@@ -436,12 +452,13 @@ func (s *Storage) GetSecretsForNamespace(ctx context.Context, namespace string) 
 
 // storeVersion stores a version record for audit trail
 func (s *Storage) storeVersion(ctx context.Context, secretID uuid.UUID, version int, encryptedValue string, userID *uuid.UUID) error {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		INSERT INTO functions.secret_versions (secret_id, version, encrypted_value, created_by)
 		VALUES ($1, $2, $3, $4)
 	`
 
-	return database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	return database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, secretID, version, encryptedValue, userID)
 		return err
 	})
@@ -460,7 +477,7 @@ func (s *Storage) GetStats(ctx context.Context) (total int, expiringSoon int, ex
 		WHERE (tenant_id = $1 OR ($1 IS NULL AND tenant_id IS NULL))
 	`
 
-	err = database.WrapWithServiceRole(ctx, s.db, func(tx pgx.Tx) error {
+	err = database.WrapWithServiceRoleAndTenant(ctx, s.db, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query, database.TenantOrNil(tenantID)).Scan(&total, &expiringSoon, &expired)
 	})
 	if err != nil {

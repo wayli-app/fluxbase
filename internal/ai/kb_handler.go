@@ -63,7 +63,7 @@ func (h *KnowledgeBaseHandler) SetKnowledgeGraph(kg *KnowledgeGraph) {
 // ListKnowledgeBases returns all knowledge bases
 // GET /api/v1/admin/ai/knowledge-bases
 func (h *KnowledgeBaseHandler) ListKnowledgeBases(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 
 	// Parse optional namespace filter
 	namespace := c.Query("namespace", "") // Empty = all namespaces
@@ -94,7 +94,7 @@ func (h *KnowledgeBaseHandler) ListKnowledgeBases(c fiber.Ctx) error {
 // GetKnowledgeBase returns a specific knowledge base
 // GET /api/v1/admin/ai/knowledge-bases/:id
 func (h *KnowledgeBaseHandler) GetKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	id := c.Params("id")
 
 	if id == "" {
@@ -122,7 +122,7 @@ func (h *KnowledgeBaseHandler) GetKnowledgeBase(c fiber.Ctx) error {
 // CreateKnowledgeBase creates a new knowledge base
 // POST /api/v1/admin/ai/knowledge-bases
 func (h *KnowledgeBaseHandler) CreateKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 
 	var req CreateKnowledgeBaseRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -164,7 +164,7 @@ func (h *KnowledgeBaseHandler) CreateKnowledgeBase(c fiber.Ctx) error {
 // UpdateKnowledgeBase updates an existing knowledge base
 // PUT /api/v1/admin/ai/knowledge-bases/:id
 func (h *KnowledgeBaseHandler) UpdateKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	id := c.Params("id")
 
 	if id == "" {
@@ -199,7 +199,7 @@ func (h *KnowledgeBaseHandler) UpdateKnowledgeBase(c fiber.Ctx) error {
 // DeleteKnowledgeBase deletes a knowledge base
 // DELETE /api/v1/admin/ai/knowledge-bases/:id
 func (h *KnowledgeBaseHandler) DeleteKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	id := c.Params("id")
 
 	if id == "" {
@@ -226,7 +226,7 @@ func (h *KnowledgeBaseHandler) DeleteKnowledgeBase(c fiber.Ctx) error {
 // ListChatbotKnowledgeBases returns knowledge bases linked to a chatbot
 // GET /api/v1/admin/ai/chatbots/:id/knowledge-bases
 func (h *KnowledgeBaseHandler) ListChatbotKnowledgeBases(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	chatbotID := c.Params("id")
 
 	if chatbotID == "" {
@@ -252,7 +252,7 @@ func (h *KnowledgeBaseHandler) ListChatbotKnowledgeBases(c fiber.Ctx) error {
 // LinkKnowledgeBase links a knowledge base to a chatbot
 // POST /api/v1/admin/ai/chatbots/:id/knowledge-bases
 func (h *KnowledgeBaseHandler) LinkKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	chatbotID := c.Params("id")
 
 	if chatbotID == "" {
@@ -314,7 +314,7 @@ type UpdateChatbotKnowledgeBaseRequest struct {
 // UpdateChatbotKnowledgeBase updates a chatbot-knowledge base link
 // PUT /api/v1/admin/ai/chatbots/:id/knowledge-bases/:kb_id
 func (h *KnowledgeBaseHandler) UpdateChatbotKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	chatbotID := c.Params("id")
 	kbID := c.Params("kb_id")
 
@@ -360,7 +360,7 @@ func (h *KnowledgeBaseHandler) UpdateChatbotKnowledgeBase(c fiber.Ctx) error {
 // UnlinkKnowledgeBase removes a knowledge base from a chatbot
 // DELETE /api/v1/admin/ai/chatbots/:id/knowledge-bases/:kb_id
 func (h *KnowledgeBaseHandler) UnlinkKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	chatbotID := c.Params("id")
 	kbID := c.Params("kb_id")
 
@@ -391,7 +391,7 @@ func (h *KnowledgeBaseHandler) UnlinkKnowledgeBase(c fiber.Ctx) error {
 // ExportTableToKnowledgeBase exports a database table as a knowledge base document
 // POST /api/v1/admin/ai/knowledge-bases/:id/tables/export
 func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -457,7 +457,7 @@ func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
 // ListExportableTables lists all tables that can be exported to knowledge bases
 // GET /api/v1/admin/ai/tables?schema=public&knowledge_base_id=xxx
 func (h *KnowledgeBaseHandler) ListExportableTables(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	schema := c.Query("schema", "public")
 	kbID := c.Query("knowledge_base_id", "")
 
@@ -544,7 +544,7 @@ func (h *KnowledgeBaseHandler) ListExportableTables(c fiber.Ctx) error {
 // GetTableDetails returns detailed info about a table for column selection
 // GET /api/v1/admin/ai/tables/:schema/:table
 func (h *KnowledgeBaseHandler) GetTableDetails(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	schema := c.Params("schema")
 	table := c.Params("table")
 
@@ -584,7 +584,7 @@ func (h *KnowledgeBaseHandler) GetTableDetails(c fiber.Ctx) error {
 // CreateTableExportSync creates a sync config and optionally triggers initial export
 // POST /api/v1/admin/ai/knowledge-bases/:id/sync-configs
 func (h *KnowledgeBaseHandler) CreateTableExportSync(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -622,7 +622,7 @@ func (h *KnowledgeBaseHandler) CreateTableExportSync(c fiber.Ctx) error {
 // ListTableExportSyncs lists sync configs for a knowledge base
 // GET /api/v1/admin/ai/knowledge-bases/:id/sync-configs
 func (h *KnowledgeBaseHandler) ListTableExportSyncs(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -654,7 +654,7 @@ func (h *KnowledgeBaseHandler) ListTableExportSyncs(c fiber.Ctx) error {
 // UpdateTableExportSync updates a sync config
 // PATCH /api/v1/admin/ai/knowledge-bases/:id/sync-configs/:syncId
 func (h *KnowledgeBaseHandler) UpdateTableExportSync(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	syncID := c.Params("syncId")
 
 	if syncID == "" {
@@ -690,7 +690,7 @@ func (h *KnowledgeBaseHandler) UpdateTableExportSync(c fiber.Ctx) error {
 // DeleteTableExportSync deletes a sync config
 // DELETE /api/v1/admin/ai/knowledge-bases/:id/sync-configs/:syncId
 func (h *KnowledgeBaseHandler) DeleteTableExportSync(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	syncID := c.Params("syncId")
 
 	if syncID == "" {
@@ -719,7 +719,7 @@ func (h *KnowledgeBaseHandler) DeleteTableExportSync(c fiber.Ctx) error {
 // TriggerTableExportSync manually triggers a sync
 // POST /api/v1/admin/ai/knowledge-bases/:id/sync-configs/:syncId/trigger
 func (h *KnowledgeBaseHandler) TriggerTableExportSync(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	syncID := c.Params("syncId")
 
 	if syncID == "" {
@@ -752,7 +752,7 @@ func (h *KnowledgeBaseHandler) TriggerTableExportSync(c fiber.Ctx) error {
 // ListKnowledgeBaseChatbots returns all chatbots linked to a knowledge base
 // GET /api/v1/admin/ai/knowledge-bases/:id/chatbots
 func (h *KnowledgeBaseHandler) ListKnowledgeBaseChatbots(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -782,7 +782,7 @@ func (h *KnowledgeBaseHandler) ListKnowledgeBaseChatbots(c fiber.Ctx) error {
 // ListEntities lists all entities in a knowledge base
 // GET /api/v1/admin/ai/knowledge-bases/:id/entities
 func (h *KnowledgeBaseHandler) ListEntities(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 	entityType := c.Query("type")
 
@@ -815,7 +815,7 @@ func (h *KnowledgeBaseHandler) ListEntities(c fiber.Ctx) error {
 // SearchEntities searches entities by name
 // GET /api/v1/admin/ai/knowledge-bases/:id/entities/search
 func (h *KnowledgeBaseHandler) SearchEntities(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 	query := c.Query("q")
 	entityTypes := c.Query("types")
@@ -864,7 +864,7 @@ func (h *KnowledgeBaseHandler) SearchEntities(c fiber.Ctx) error {
 // GetEntityRelationships gets relationships for an entity
 // GET /api/v1/admin/ai/knowledge-bases/:id/entities/:entity_id/relationships
 func (h *KnowledgeBaseHandler) GetEntityRelationships(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 	entityID := c.Params("entity_id")
 
@@ -897,7 +897,7 @@ func (h *KnowledgeBaseHandler) GetEntityRelationships(c fiber.Ctx) error {
 // GetKnowledgeGraph returns the full graph data for visualization
 // GET /api/v1/admin/ai/knowledge-bases/:id/graph
 func (h *KnowledgeBaseHandler) GetKnowledgeGraph(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if h.knowledgeGraph == nil {

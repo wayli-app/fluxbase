@@ -532,20 +532,20 @@ export const knowledgeBasesApi = {
     const response = await api.get<{
       knowledge_bases: KnowledgeBaseSummary[];
       count: number;
-    }>("/api/v1/ai/knowledge-bases");
+    }>("/api/v1/admin/ai/knowledge-bases");
     return response.data.knowledge_bases || [];
   },
 
   get: async (id: string): Promise<KnowledgeBase> => {
     const response = await api.get<KnowledgeBase>(
-      `/api/v1/ai/knowledge-bases/${id}`,
+      `/api/v1/admin/ai/knowledge-bases/${id}`,
     );
     return response.data;
   },
 
   create: async (data: CreateKnowledgeBaseRequest): Promise<KnowledgeBase> => {
     const response = await api.post<KnowledgeBase>(
-      "/api/v1/ai/knowledge-bases",
+      "/api/v1/admin/ai/knowledge-bases",
       data,
     );
     return response.data;
@@ -556,21 +556,21 @@ export const knowledgeBasesApi = {
     data: UpdateKnowledgeBaseRequest,
   ): Promise<KnowledgeBase> => {
     const response = await api.put<KnowledgeBase>(
-      `/api/v1/ai/knowledge-bases/${id}`,
+      `/api/v1/admin/ai/knowledge-bases/${id}`,
       data,
     );
     return response.data;
   },
 
   delete: async (id: string): Promise<void> => {
-    await api.delete(`/api/v1/ai/knowledge-bases/${id}`);
+    await api.delete(`/api/v1/admin/ai/knowledge-bases/${id}`);
   },
 
   listDocuments: async (kbId: string): Promise<KnowledgeBaseDocument[]> => {
     const response = await api.get<{
       documents: KnowledgeBaseDocument[];
       count: number;
-    }>(`/api/v1/ai/knowledge-bases/${kbId}/documents`);
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/documents`);
     return response.data.documents || [];
   },
 
@@ -579,7 +579,7 @@ export const knowledgeBasesApi = {
     docId: string,
   ): Promise<KnowledgeBaseDocument> => {
     const response = await api.get<KnowledgeBaseDocument>(
-      `/api/v1/ai/knowledge-bases/${kbId}/documents/${docId}`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`,
     );
     return response.data;
   },
@@ -589,14 +589,14 @@ export const knowledgeBasesApi = {
     data: AddDocumentRequest,
   ): Promise<AddDocumentResponse> => {
     const response = await api.post<AddDocumentResponse>(
-      `/api/v1/ai/knowledge-bases/${kbId}/documents`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents`,
       data,
     );
     return response.data;
   },
 
   deleteDocument: async (kbId: string, docId: string): Promise<void> => {
-    await api.delete(`/api/v1/ai/knowledge-bases/${kbId}/documents/${docId}`);
+    await api.delete(`/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`);
   },
 
   updateDocument: async (
@@ -609,7 +609,7 @@ export const knowledgeBasesApi = {
     },
   ): Promise<KnowledgeBaseDocument> => {
     const response = await api.patch<KnowledgeBaseDocument>(
-      `/api/v1/ai/knowledge-bases/${kbId}/documents/${docId}`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/${docId}`,
       data,
     );
     return response.data;
@@ -639,7 +639,7 @@ export const knowledgeBasesApi = {
       filename: string;
       extracted_length: number;
       mime_type: string;
-    }>(`/api/v1/ai/knowledge-bases/${kbId}/documents/upload`, formData, {
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/documents/upload`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -667,7 +667,7 @@ export const knowledgeBasesApi = {
       count: number;
       query: string;
       mode: string;
-    }>(`/api/v1/ai/knowledge-bases/${kbId}/search`, {
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/search`, {
       query,
       max_chunks: options?.max_chunks,
       threshold: options?.threshold,
@@ -682,7 +682,7 @@ export const knowledgeBasesApi = {
     query: string,
   ): Promise<DebugSearchResult> => {
     const response = await api.post<DebugSearchResult>(
-      `/api/v1/ai/knowledge-bases/${kbId}/debug-search`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/debug-search`,
       { query },
     );
     return response.data;
@@ -745,8 +745,8 @@ export const knowledgeBasesApi = {
     entityType?: string,
   ): Promise<Entity[]> => {
     const url = entityType
-      ? `/api/v1/ai/knowledge-bases/${kbId}/entities?type=${entityType}`
-      : `/api/v1/ai/knowledge-bases/${kbId}/entities`;
+      ? `/api/v1/admin/ai/knowledge-bases/${kbId}/entities?type=${entityType}`
+      : `/api/v1/admin/ai/knowledge-bases/${kbId}/entities`;
     const response = await api.get<{ entities: Entity[]; count: number }>(url);
     return response.data.entities || [];
   },
@@ -759,7 +759,7 @@ export const knowledgeBasesApi = {
     const params = new URLSearchParams({ q: query });
     if (types?.length) params.append("types", types.join(","));
     const response = await api.get<{ entities: Entity[]; count: number }>(
-      `/api/v1/ai/knowledge-bases/${kbId}/entities/search?${params}`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/entities/search?${params}`,
     );
     return response.data.entities || [];
   },
@@ -769,14 +769,14 @@ export const knowledgeBasesApi = {
     entityId: string,
   ): Promise<EntityRelationship[]> => {
     const response = await api.get<{ relationships: EntityRelationship[] }>(
-      `/api/v1/ai/knowledge-bases/${kbId}/entities/${entityId}/relationships`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/entities/${entityId}/relationships`,
     );
     return response.data.relationships || [];
   },
 
   getKnowledgeGraph: async (kbId: string): Promise<KnowledgeGraphData> => {
     const response = await api.get<KnowledgeGraphData>(
-      `/api/v1/ai/knowledge-bases/${kbId}/graph`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/graph`,
     );
     return response.data;
   },
@@ -787,7 +787,7 @@ export const knowledgeBasesApi = {
     const response = await api.get<{
       chatbots: ChatbotKnowledgeBaseLink[];
       count: number;
-    }>(`/api/v1/ai/knowledge-bases/${kbId}/chatbots`);
+    }>(`/api/v1/admin/ai/knowledge-bases/${kbId}/chatbots`);
     return response.data.chatbots || [];
   },
 
@@ -796,7 +796,7 @@ export const knowledgeBasesApi = {
     filter: { tags?: string[]; metadata?: Record<string, string> },
   ): Promise<{ deleted_count: number }> => {
     const response = await api.post<{ deleted_count: number }>(
-      `/api/v1/ai/knowledge-bases/${kbId}/documents/delete-by-filter`,
+      `/api/v1/admin/ai/knowledge-bases/${kbId}/documents/delete-by-filter`,
       filter,
     );
     return response.data;
@@ -835,7 +835,6 @@ export const knowledgeBasesApi = {
     );
     return response.data;
   },
-
 };
 
 export const userKnowledgeBasesApi = {

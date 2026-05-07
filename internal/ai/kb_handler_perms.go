@@ -13,7 +13,7 @@ import (
 // GrantDocumentPermission grants permission on a document to a user
 // POST /api/v1/admin/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions
 func (h *KnowledgeBaseHandler) GrantDocumentPermission(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	userID := middleware.GetUserID(c)
 	_ = c.Params("kb_id") // kb_id is part of the route but not used directly
 	docID := c.Params("doc_id")
@@ -38,7 +38,7 @@ func (h *KnowledgeBaseHandler) GrantDocumentPermission(c fiber.Ctx) error {
 // ListDocumentPermissions lists permissions for a document
 // GET /api/v1/admin/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions
 func (h *KnowledgeBaseHandler) ListDocumentPermissions(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	docID := c.Params("doc_id")
 
 	perms, err := h.storage.ListDocumentPermissions(ctx, docID)
@@ -54,7 +54,7 @@ func (h *KnowledgeBaseHandler) ListDocumentPermissions(c fiber.Ctx) error {
 // RevokeDocumentPermission revokes permission from a user on a document
 // DELETE /api/v1/admin/ai/knowledge-bases/:kb_id/documents/:doc_id/permissions/:user_id
 func (h *KnowledgeBaseHandler) RevokeDocumentPermission(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	docID := c.Params("doc_id")
 	targetUserID := c.Params("user_id")
 

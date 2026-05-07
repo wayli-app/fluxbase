@@ -315,7 +315,7 @@ func (s *Storage) ListJobFunctionsForSync(ctx context.Context, namespace string,
 	`
 
 	var functions []*JobFunctionSummary
-	err := database.WrapWithServiceRole(ctx, s.DB, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, namespace, database.TenantOrNil(tenantID))
 		if err != nil {
 			return err

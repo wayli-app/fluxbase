@@ -5,7 +5,6 @@ import { BookOpen, Plus, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   knowledgeBasesApi,
-  userKnowledgeBasesApi,
   userManagementApi,
   aiProvidersApi,
   type KnowledgeBaseSummary,
@@ -104,7 +103,7 @@ function KnowledgeBasesPage() {
   // Create knowledge base mutation
   const createMutation = useMutation({
     mutationFn: async (req: CreateKnowledgeBaseRequest) => {
-      await userKnowledgeBasesApi.create(req);
+      await knowledgeBasesApi.create(req);
     },
     onSuccess: () => {
       toast.success("Knowledge base created");

@@ -20,7 +20,7 @@ import (
 // ListDocuments returns all documents in a knowledge base
 // GET /api/v1/admin/ai/knowledge-bases/:id/documents
 func (h *KnowledgeBaseHandler) ListDocuments(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -46,7 +46,7 @@ func (h *KnowledgeBaseHandler) ListDocuments(c fiber.Ctx) error {
 // GetDocument returns a specific document
 // GET /api/v1/admin/ai/knowledge-bases/:id/documents/:doc_id
 func (h *KnowledgeBaseHandler) GetDocument(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	docID := c.Params("doc_id")
 
 	if docID == "" {
@@ -83,7 +83,7 @@ type AddDocumentRequest struct {
 // AddDocument adds a document to a knowledge base
 // POST /api/v1/admin/ai/knowledge-bases/:id/documents
 func (h *KnowledgeBaseHandler) AddDocument(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -162,7 +162,7 @@ func (h *KnowledgeBaseHandler) AddDocument(c fiber.Ctx) error {
 // UploadDocument uploads a file and extracts text for a knowledge base document
 // POST /api/v1/admin/ai/knowledge-bases/:id/documents/upload
 func (h *KnowledgeBaseHandler) UploadDocument(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -345,7 +345,7 @@ func (h *KnowledgeBaseHandler) UploadDocument(c fiber.Ctx) error {
 // DeleteDocument deletes a document
 // DELETE /api/v1/admin/ai/knowledge-bases/:id/documents/:doc_id
 func (h *KnowledgeBaseHandler) DeleteDocument(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	docID := c.Params("doc_id")
 
 	if docID == "" {
@@ -376,7 +376,7 @@ func (h *KnowledgeBaseHandler) DeleteDocument(c fiber.Ctx) error {
 // DeleteDocumentsByFilter deletes documents matching a metadata filter
 // POST /api/v1/admin/ai/knowledge-bases/:id/documents/delete-by-filter
 func (h *KnowledgeBaseHandler) DeleteDocumentsByFilter(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	kbID := c.Params("id")
 
 	if kbID == "" {
@@ -439,7 +439,7 @@ func (h *KnowledgeBaseHandler) DeleteDocumentsByFilter(c fiber.Ctx) error {
 // UpdateDocument updates a document's metadata and tags
 // PATCH /api/v1/admin/ai/knowledge-bases/:id/documents/:doc_id
 func (h *KnowledgeBaseHandler) UpdateDocument(c fiber.Ctx) error {
-	ctx := c.RequestCtx()
+	ctx := middleware.CtxWithTenant(c)
 	docID := c.Params("doc_id")
 
 	if docID == "" {

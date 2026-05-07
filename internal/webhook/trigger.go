@@ -577,7 +577,11 @@ func (s *TriggerService) deliverEvent(ctx context.Context, webhook *Webhook, eve
 	}
 
 	// Create delivery record for history tracking
-	deliveryID, err := s.webhookSvc.CreateDeliveryRecord(ctx, webhook.ID, event.EventType, payloadJSON, event.Attempts+1)
+	var webhookTenantID string
+	if webhook.TenantID != nil {
+		webhookTenantID = webhook.TenantID.String()
+	}
+	deliveryID, err := s.webhookSvc.CreateDeliveryRecord(ctx, webhook.ID, event.EventType, payloadJSON, event.Attempts+1, webhookTenantID)
 	if err != nil {
 		log.Error().Err(err).Str("event_id", event.ID.String()).Msg("Failed to create delivery record")
 		// Continue with delivery even if record creation fails

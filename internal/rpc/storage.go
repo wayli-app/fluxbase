@@ -156,6 +156,7 @@ func (s *Storage) UpdateProcedureWithTenant(ctx context.Context, tenantID string
 			version = version + 1,
 			updated_at = $15
 		WHERE id = $1
+		  AND (tenant_id = $16 OR ($16 IS NULL AND tenant_id IS NULL))
 	`
 
 	proc.UpdatedAt = time.Now()
@@ -180,6 +181,7 @@ func (s *Storage) UpdateProcedureWithTenant(ctx context.Context, tenantID string
 			proc.Schedule,
 			proc.Enabled,
 			proc.UpdatedAt,
+			database.TenantOrNil(tenantID),
 		)
 		return execErr
 	})
@@ -202,6 +204,7 @@ func (s *Storage) UpdateProcedureWithTenant(ctx context.Context, tenantID string
 
 // GetProcedure retrieves a procedure by ID
 func (s *Storage) GetProcedure(ctx context.Context, id string) (*Procedure, error) {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		SELECT id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
@@ -209,11 +212,12 @@ func (s *Storage) GetProcedure(ctx context.Context, id string) (*Procedure, erro
 			enabled, version, source, created_by, created_at, updated_at
 		FROM rpc.procedures
 		WHERE id = $1
+		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
 	`
 
 	proc := &Procedure{}
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, id).Scan(
+		return tx.QueryRow(ctx, query, id, database.TenantOrNil(tenantID)).Scan(
 			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 			&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
 			&proc.MaxExecutionTimeSeconds, &proc.RequireRoles, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
@@ -233,6 +237,7 @@ func (s *Storage) GetProcedure(ctx context.Context, id string) (*Procedure, erro
 
 // GetProcedureByName retrieves a procedure by namespace and name
 func (s *Storage) GetProcedureByName(ctx context.Context, namespace, name string) (*Procedure, error) {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		SELECT id, name, namespace, description, sql_query, original_code,
 			input_schema, output_schema, allowed_tables, allowed_schemas,
@@ -240,11 +245,12 @@ func (s *Storage) GetProcedureByName(ctx context.Context, namespace, name string
 			enabled, version, source, created_by, created_at, updated_at
 		FROM rpc.procedures
 		WHERE namespace = $1 AND name = $2
+		  AND (tenant_id = $3 OR ($3 IS NULL AND tenant_id IS NULL))
 	`
 
 	proc := &Procedure{}
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, namespace, name).Scan(
+		return tx.QueryRow(ctx, query, namespace, name, database.TenantOrNil(tenantID)).Scan(
 			&proc.ID, &proc.Name, &proc.Namespace, &proc.Description, &proc.SQLQuery, &proc.OriginalCode,
 			&proc.InputSchema, &proc.OutputSchema, &proc.AllowedTables, &proc.AllowedSchemas,
 			&proc.MaxExecutionTimeSeconds, &proc.RequireRoles, &proc.IsPublic, &proc.DisableExecutionLogs, &proc.Schedule,
@@ -333,7 +339,7 @@ func (s *Storage) ListProceduresForSync(ctx context.Context, namespace string, t
 		ORDER BY name ASC
 	`
 	var procedures []*Procedure
-	err := database.WrapWithServiceRole(ctx, s.DB, func(tx pgx.Tx) error {
+	err := database.WrapWithServiceRoleAndTenant(ctx, s.DB, tenantID, func(tx pgx.Tx) error {
 		rows, queryErr := tx.Query(ctx, query, namespace, database.TenantOrNil(tenantID))
 		if queryErr != nil {
 			return queryErr
@@ -680,6 +686,7 @@ func (s *Storage) CancelExecution(ctx context.Context, id string) error {
 
 // GetExecution retrieves an execution by ID
 func (s *Storage) GetExecution(ctx context.Context, id string) (*Execution, error) {
+	tenantID := database.TenantFromContext(ctx)
 	query := `
 		SELECT id, procedure_id, procedure_name, namespace, status,
 			input_params, result, error_message, rows_returned, duration_ms,
@@ -687,11 +694,12 @@ func (s *Storage) GetExecution(ctx context.Context, id string) (*Execution, erro
 			created_at, started_at, completed_at
 		FROM rpc.executions
 		WHERE id = $1
+		  AND (tenant_id = $2 OR ($2 IS NULL AND tenant_id IS NULL))
 	`
 
 	exec := &Execution{}
 	err := s.WithTenant(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, id).Scan(
+		return tx.QueryRow(ctx, query, id, database.TenantOrNil(tenantID)).Scan(
 			&exec.ID, &exec.ProcedureID, &exec.ProcedureName, &exec.Namespace, &exec.Status,
 			&exec.InputParams, &exec.Result, &exec.ErrorMessage, &exec.RowsReturned, &exec.DurationMs,
 			&exec.UserID, &exec.UserRole, &exec.UserEmail, &exec.IsAsync,
