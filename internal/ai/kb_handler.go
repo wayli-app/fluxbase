@@ -406,8 +406,6 @@ func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
 		})
 	}
 
-	kbID := req.KnowledgeBaseID
-
 	// Validate required fields
 	if req.Schema == "" || req.Table == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -416,20 +414,11 @@ func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
 	}
 
 	// Determine owner_id for the document
-	// Priority: 1) authenticated user, 2) KB's owner_id, 3) KB's created_by, 4) nil for system documents
-	if uid := middleware.GetUserID(c); uid != "" {
-		req.OwnerID = &uid
-	} else if kb, err := h.storage.GetKnowledgeBase(ctx, kbID); err == nil && kb != nil {
-		if kb.OwnerID != nil {
-			req.OwnerID = kb.OwnerID
-		} else if kb.CreatedBy != nil {
-			req.OwnerID = kb.CreatedBy
-		}
-	}
-
-	// If we still don't have an owner_id, leave it as nil (will be NULL in database)
-	// This is acceptable for system-generated documents created via service role
-	// The database migration 096 allows NULL owner_id for such cases
+	// Admin-initiated table exports are system documents with no user owner.
+	// Only set owner_id when the caller is a real auth.users user (user-facing endpoints).
+	// The admin JWT user ID comes from platform.users, not auth.users,
+	// so setting it would violate the FK constraint on documents.owner_id.
+	req.OwnerID = nil
 
 	// Set defaults
 	if req.SampleRowCount == 0 {
