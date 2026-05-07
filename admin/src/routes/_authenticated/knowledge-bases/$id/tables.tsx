@@ -8,6 +8,7 @@ import {
   Key,
   Link2,
   Settings,
+  Upload,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -95,6 +96,12 @@ function KnowledgeBaseTablesPage() {
     exporting: false,
   })
   const [exportOptions, setExportOptions] = useState<ExportOptions>(defaultExportOptions)
+  const [exportAllState, setExportAllState] = useState<{
+    exporting: boolean
+    current: number
+    total: number
+    errors: string[]
+  }>({ exporting: false, current: 0, total: 0, errors: [] })
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -207,6 +214,51 @@ function KnowledgeBaseTablesPage() {
     }
   }
 
+  const handleExportAll = async () => {
+    const tablesToExport = schemaFilter === 'all'
+      ? tables
+      : tables.filter((t) => t.schema === schemaFilter)
+
+    if (tablesToExport.length === 0) {
+      toast.error('No tables to export')
+      return
+    }
+
+    setExportAllState({ exporting: true, current: 0, total: tablesToExport.length, errors: [] })
+
+    let successCount = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < tablesToExport.length; i++) {
+      const table = tablesToExport[i]
+      setExportAllState((prev) => ({ ...prev, current: i }))
+      try {
+        await knowledgeBasesApi.exportTable(id, {
+          schema: table.schema,
+          table: table.name,
+          include_foreign_keys: true,
+          include_indexes: false,
+          include_sample_rows: false,
+        })
+        successCount++
+      } catch {
+        errors.push(`${table.schema}.${table.name}`)
+      }
+    }
+
+    setExportAllState({ exporting: false, current: tablesToExport.length, total: tablesToExport.length, errors })
+
+    if (errors.length === 0) {
+      toast.success(`Exported ${successCount} table${successCount !== 1 ? 's' : ''} successfully`)
+    } else if (successCount > 0) {
+      toast.warning(`Exported ${successCount} table${successCount !== 1 ? 's' : ''}, ${errors.length} failed`)
+    } else {
+      toast.error(`Failed to export all ${errors.length} table${errors.length !== 1 ? 's' : ''}`)
+    }
+
+    fetchData()
+  }
+
   // Get unique schemas for filter
   const schemas = ['all', ...Array.from(new Set(tables.map((t) => t.schema))).sort()]
 
@@ -245,6 +297,25 @@ function KnowledgeBaseTablesPage() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
+              {tables.length > 0 && (
+                <Button
+                  onClick={handleExportAll}
+                  size="sm"
+                  disabled={exportAllState.exporting}
+                >
+                  {exportAllState.exporting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Exporting {exportAllState.current}/{exportAllState.total}...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Export All{schemaFilter !== 'all' ? ` (${tables.filter((t) => t.schema === schemaFilter).length})` : ` (${tables.length})`}
+                    </>
+                  )}
+                </Button>
+              )}
             </>
           }
         />

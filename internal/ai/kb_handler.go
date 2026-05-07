@@ -392,13 +392,6 @@ func (h *KnowledgeBaseHandler) UnlinkKnowledgeBase(c fiber.Ctx) error {
 // POST /api/v1/admin/ai/knowledge-bases/:id/tables/export
 func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
 	ctx := middleware.CtxWithTenant(c)
-	kbID := c.Params("id")
-
-	if kbID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Knowledge base ID is required",
-		})
-	}
 
 	var req ExportTableRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -407,7 +400,13 @@ func (h *KnowledgeBaseHandler) ExportTableToKnowledgeBase(c fiber.Ctx) error {
 		})
 	}
 
-	req.KnowledgeBaseID = kbID
+	if req.KnowledgeBaseID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Knowledge base ID is required",
+		})
+	}
+
+	kbID := req.KnowledgeBaseID
 
 	// Validate required fields
 	if req.Schema == "" || req.Table == "" {
