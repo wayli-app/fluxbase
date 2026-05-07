@@ -136,6 +136,8 @@ func init() {
 	chatbotsCmd.AddCommand(chatbotsUpdateCmd)
 	chatbotsCmd.AddCommand(chatbotsDeleteCmd)
 	chatbotsCmd.AddCommand(chatbotsSyncCmd)
+	chatbotsCmd.AddCommand(chatbotsToggleCmd)
+	chatbotsCmd.AddCommand(chatbotsKBCmd)
 }
 
 func runChatbotsList(cmd *cobra.Command, args []string) error {
@@ -365,5 +367,170 @@ func runChatbotsSync(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Synced %d chatbots to namespace '%s'.\n", len(chatbots), cbNamespace)
 	}
 
+	return nil
+}
+
+var chatbotsToggleCmd = &cobra.Command{
+	Use:   "toggle [id]",
+	Short: "Toggle a chatbot enabled/disabled",
+	Long: `Toggle a chatbot's enabled state.
+
+Examples:
+  fluxbase chatbots toggle abc123`,
+	Args:    cobra.ExactArgs(1),
+	PreRunE: requireAuth,
+	RunE:    runChatbotsToggle,
+}
+
+func runChatbotsToggle(cmd *cobra.Command, args []string) error {
+	id := args[0]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var result map[string]interface{}
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(id)+"/toggle", nil, &result); err != nil {
+		return err
+	}
+
+	enabled := false
+	if e, ok := result["enabled"].(bool); ok {
+		enabled = e
+	}
+	fmt.Printf("Chatbot '%s' %s.\n", id, map[bool]string{true: "enabled", false: "disabled"}[enabled])
+	return nil
+}
+
+var chatbotsKBCmd = &cobra.Command{
+	Use:   "kb",
+	Short: "Manage chatbot knowledge base links",
+	Long:  `Link, unlink, and list knowledge bases attached to chatbots.`,
+}
+
+var chatbotsKBListCmd = &cobra.Command{
+	Use:   "list [chatbot-id]",
+	Short: "List linked knowledge bases",
+	Long: `List knowledge bases linked to a chatbot.
+
+Examples:
+  fluxbase chatbots kb list abc123`,
+	Args:    cobra.ExactArgs(1),
+	PreRunE: requireAuth,
+	RunE:    runChatbotsKBList,
+}
+
+var chatbotsKBLinkCmd = &cobra.Command{
+	Use:   "link [chatbot-id] [kb-id]",
+	Short: "Link a knowledge base to a chatbot",
+	Long: `Link a knowledge base to a chatbot for RAG retrieval.
+
+Examples:
+  fluxbase chatbots kb link abc123 kb456`,
+	Args:    cobra.ExactArgs(2),
+	PreRunE: requireAuth,
+	RunE:    runChatbotsKBLink,
+}
+
+var chatbotsKBUnlinkCmd = &cobra.Command{
+	Use:   "unlink [chatbot-id] [kb-id]",
+	Short: "Unlink a knowledge base from a chatbot",
+	Long: `Remove a knowledge base link from a chatbot.
+
+Examples:
+  fluxbase chatbots kb unlink abc123 kb456`,
+	Args:    cobra.ExactArgs(2),
+	PreRunE: requireAuth,
+	RunE:    runChatbotsKBUnlink,
+}
+
+func init() {
+	chatbotsKBCmd.AddCommand(chatbotsKBListCmd)
+	chatbotsKBCmd.AddCommand(chatbotsKBLinkCmd)
+	chatbotsKBCmd.AddCommand(chatbotsKBUnlinkCmd)
+}
+
+func runChatbotsKBList(cmd *cobra.Command, args []string) error {
+	chatbotID := args[0]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var response struct {
+		Links []map[string]interface{} `json:"links"`
+		Count int                      `json:"count"`
+	}
+	if err := apiClient.DoGet(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(chatbotID)+"/knowledge-bases", nil, &response); err != nil {
+		return err
+	}
+
+	links := response.Links
+	if len(links) == 0 {
+		fmt.Println("No knowledge bases linked to this chatbot.")
+		return nil
+	}
+
+	formatter := GetFormatter()
+	if formatter.Format == output.FormatTable {
+		data := output.TableData{
+			Headers: []string{"KB ID", "ENABLED", "MAX CHUNKS", "PRIORITY"},
+			Rows:    make([][]string, len(links)),
+		}
+		for i, l := range links {
+			maxChunks := "-"
+			if mc := getIntValue(l, "max_chunks"); mc > 0 {
+				maxChunks = fmt.Sprintf("%d", mc)
+			}
+			priority := "-"
+			if p := getIntValue(l, "priority"); p > 0 {
+				priority = fmt.Sprintf("%d", p)
+			}
+			data.Rows[i] = []string{
+				getStringValue(l, "knowledge_base_id"),
+				fmt.Sprintf("%v", l["enabled"]),
+				maxChunks,
+				priority,
+			}
+		}
+		formatter.PrintTable(data)
+	} else {
+		if err := formatter.Print(links); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func runChatbotsKBLink(cmd *cobra.Command, args []string) error {
+	chatbotID := args[0]
+	kbID := args[1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	body := map[string]interface{}{
+		"knowledge_base_id": kbID,
+	}
+
+	if err := apiClient.DoPost(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(chatbotID)+"/knowledge-bases", body, nil); err != nil {
+		return err
+	}
+
+	fmt.Printf("Knowledge base '%s' linked to chatbot '%s'.\n", kbID, chatbotID)
+	return nil
+}
+
+func runChatbotsKBUnlink(cmd *cobra.Command, args []string) error {
+	chatbotID := args[0]
+	kbID := args[1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := apiClient.DoDelete(ctx, "/api/v1/admin/ai/chatbots/"+url.PathEscape(chatbotID)+"/knowledge-bases/"+url.PathEscape(kbID)); err != nil {
+		return err
+	}
+
+	fmt.Printf("Knowledge base '%s' unlinked from chatbot '%s'.\n", kbID, chatbotID)
 	return nil
 }

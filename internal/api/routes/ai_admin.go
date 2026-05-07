@@ -31,6 +31,10 @@ type AIAdminDeps struct {
 	ListExportableTables       fiber.Handler
 	GetExportableTableDetails  fiber.Handler
 	ExportTableToKnowledgeBase fiber.Handler
+	ListKnowledgeBases         fiber.Handler
+	GetKnowledgeBase           fiber.Handler
+	CreateKnowledgeBase        fiber.Handler
+	UpdateKnowledgeBase        fiber.Handler
 	ListChatbotKnowledgeBases  fiber.Handler
 	LinkKnowledgeBase          fiber.Handler
 	UpdateChatbotKnowledgeBase fiber.Handler
@@ -79,14 +83,18 @@ func BuildAIAdminRoutes(deps *AIAdminDeps) *RouteGroup {
 			{Method: "GET", Path: "/ai/tables/:schema/:table", Handler: deps.GetExportableTableDetails, Summary: "Get exportable table details"},
 			{Method: "POST", Path: "/ai/tables/:schema/:table/export", Handler: deps.ExportTableToKnowledgeBase, Summary: "Export table to knowledge base"},
 
+			// Knowledge Bases (uses default roles)
+			{Method: "GET", Path: "/ai/knowledge-bases", Handler: deps.ListKnowledgeBases, Summary: "List knowledge bases"},
+			{Method: "GET", Path: "/ai/knowledge-bases/:id", Handler: deps.GetKnowledgeBase, Summary: "Get knowledge base"},
+			{Method: "POST", Path: "/ai/knowledge-bases", Handler: deps.CreateKnowledgeBase, Summary: "Create knowledge base"},
+			{Method: "PUT", Path: "/ai/knowledge-bases/:id", Handler: deps.UpdateKnowledgeBase, Summary: "Update knowledge base"},
+			{Method: "DELETE", Path: "/ai/knowledge-bases/:id", Handler: deps.DeleteKnowledgeBase, Summary: "Delete knowledge base"},
+
 			// Chatbot Knowledge Base linking (uses default roles)
 			{Method: "GET", Path: "/ai/chatbots/:id/knowledge-bases", Handler: deps.ListChatbotKnowledgeBases, Summary: "List chatbot knowledge bases"},
 			{Method: "POST", Path: "/ai/chatbots/:id/knowledge-bases", Handler: deps.LinkKnowledgeBase, Summary: "Link knowledge base to chatbot"},
 			{Method: "PUT", Path: "/ai/chatbots/:id/knowledge-bases/:kb_id", Handler: deps.UpdateChatbotKnowledgeBase, Summary: "Update chatbot knowledge base link"},
 			{Method: "DELETE", Path: "/ai/chatbots/:id/knowledge-bases/:kb_id", Handler: deps.UnlinkKnowledgeBase, Summary: "Unlink knowledge base from chatbot"},
-
-			// Knowledge Base management (uses default roles)
-			{Method: "DELETE", Path: "/ai/knowledge-bases/:id", Handler: deps.DeleteKnowledgeBase, Summary: "Delete knowledge base"},
 		},
 	}
 }

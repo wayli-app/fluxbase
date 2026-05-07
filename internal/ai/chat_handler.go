@@ -34,6 +34,7 @@ type ChatHandler struct {
 	config         *config.AIConfig
 	providers      map[string]Provider
 	providersMu    sync.RWMutex
+	limiter        *ChatbotLimiter
 	// MCP integration
 	mcpExecutor *MCPToolExecutor
 }
@@ -69,6 +70,7 @@ func NewChatHandler(
 		metrics:        metrics,
 		config:         cfg,
 		providers:      make(map[string]Provider),
+		limiter:        NewChatbotLimiter(),
 	}
 }
 
@@ -330,6 +332,32 @@ func (h *ChatHandler) handleStartChat(ctx context.Context, chatCtx *ChatContext,
 		return
 	}
 
+	// Check role-based access control
+	if len(chatbot.RequireRoles) > 0 && chatCtx.Claims != nil {
+		if !hasRequiredRole(chatCtx.Claims, chatbot.RequireRoles) {
+			h.sendError(chatCtx, "", "FORBIDDEN", "Insufficient role to access this chatbot")
+			return
+		}
+	}
+
+	// Determine user identifier for rate limiting
+	userIdentifier := "anonymous"
+	if chatCtx.UserID != nil {
+		userIdentifier = *chatCtx.UserID
+	}
+
+	// Check per-minute rate limit
+	if !h.limiter.CheckRateLimit(chatbot.ID, userIdentifier, chatbot.RateLimitPerMinute) {
+		h.sendError(chatCtx, "", "RATE_LIMITED", "Rate limit exceeded. Please try again later.")
+		return
+	}
+
+	// Check daily request limit
+	if !h.limiter.CheckDailyRequestLimit(chatbot.ID, userIdentifier, chatbot.DailyRequestLimit) {
+		h.sendError(chatCtx, "", "DAILY_LIMIT", "Daily request limit exceeded.")
+		return
+	}
+
 	// Resume existing conversation or create new
 	var state *ConversationState
 	if msg.ConversationID != "" {
@@ -386,6 +414,24 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 		// Continue with unresolved values - don't fail the request
 	}
 
+	// Determine user identifier for rate limiting
+	userIdentifier := "anonymous"
+	if chatCtx.UserID != nil {
+		userIdentifier = *chatCtx.UserID
+	}
+
+	// Check per-minute rate limit
+	if !h.limiter.CheckRateLimit(chatbot.ID, userIdentifier, chatbot.RateLimitPerMinute) {
+		h.sendError(chatCtx, msg.ConversationID, "RATE_LIMITED", "Rate limit exceeded. Please try again later.")
+		return
+	}
+
+	// Check daily request limit
+	if !h.limiter.CheckDailyRequestLimit(chatbot.ID, userIdentifier, chatbot.DailyRequestLimit) {
+		h.sendError(chatCtx, msg.ConversationID, "DAILY_LIMIT", "Daily request limit exceeded.")
+		return
+	}
+
 	// Check turn limit
 	if state.TurnCount >= chatbot.MaxConversationTurns {
 		h.sendError(chatCtx, msg.ConversationID, "TURN_LIMIT", "Conversation turn limit reached")
@@ -410,16 +456,27 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 
 	// Retrieve RAG context if available (with user isolation)
 	if h.ragService != nil {
-		ragSection, err := h.ragService.BuildRAGSystemPromptSectionWithUser(ctx, chatbot.ID, msg.Content, userID)
+		ragOpts := RetrieveContextOptions{
+			ChatbotID: chatbot.ID,
+			Query:     msg.Content,
+			UserID:    userID,
+		}
+		if chatbot.RAGMaxChunks > 0 {
+			ragOpts.MaxChunks = chatbot.RAGMaxChunks
+		}
+		if chatbot.RAGSimilarityThreshold > 0 {
+			ragOpts.Threshold = chatbot.RAGSimilarityThreshold
+		}
+		ragSection, err := h.ragService.RetrieveContext(ctx, ragOpts)
 		if err != nil {
 			log.Warn().Err(err).Str("chatbot_id", chatbot.ID).Msg("Failed to retrieve RAG context")
 			// Continue without RAG - don't fail the request
-		} else if ragSection != "" {
-			systemPrompt = systemPrompt + "\n\n" + ragSection
+		} else if ragSection != nil && ragSection.FormattedContext != "" {
+			systemPrompt = systemPrompt + "\n\n" + ragSection.FormattedContext
 			log.Debug().
 				Str("chatbot_id", chatbot.ID).
 				Str("conversation_id", msg.ConversationID).
-				Int("rag_section_len", len(ragSection)).
+				Int("rag_section_len", len(ragSection.FormattedContext)).
 				Msg("RAG context added to system prompt")
 		}
 	}
@@ -450,7 +507,10 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 	// Tool calling loop - continue until AI generates content without tool calls
 	var totalUsage UsageStats
 	var accumulatedQueryResults []QueryResult // Accumulate query results for persistence
-	maxIterations := 5                        // Prevent infinite loops
+	maxIterations := chatbot.MaxToolIterations
+	if maxIterations <= 0 {
+		maxIterations = 5
+	}
 
 	// Track consecutive tool validation failures to detect stubborn LLM behavior
 	var lastFailedTool string
@@ -723,6 +783,15 @@ func (h *ChatHandler) handleMessage(ctx context.Context, chatCtx *ChatContext, m
 			Msg("Processed tool calls, continuing conversation")
 	}
 
+	// Track token usage for daily budget enforcement
+	if chatbot.DailyTokenBudget > 0 {
+		userIdentifier := "anonymous"
+		if chatCtx.UserID != nil {
+			userIdentifier = *chatCtx.UserID
+		}
+		h.limiter.AddTokenUsage(chatbot.ID, userIdentifier, totalUsage.TotalTokens)
+	}
+
 	// Send completion
 	h.send(chatCtx, ServerMessage{
 		Type:           "done",
@@ -966,6 +1035,11 @@ func (h *ChatHandler) executeMCPTool(ctx context.Context, chatCtx *ChatContext, 
 		serverMsg.Data = []map[string]any{{"tool": toolName, "result": result.Content}}
 	}
 
+	// Suppress think/reasoning tool results from client when ShowReasoning is false
+	if toolName == "think" && !chatbot.ShowReasoning {
+		return result.Content, queryResult
+	}
+
 	h.send(chatCtx, serverMsg)
 
 	return result.Content, queryResult
@@ -1192,4 +1266,44 @@ func extractStringDefault(v interface{}, defaultVal string) string {
 		return s
 	}
 	return defaultVal
+}
+
+// hasRequiredRole checks if the user's JWT claims contain any of the required roles (OR semantics).
+// It checks the "role" claim directly and also looks for a "roles" key in app_metadata.
+func hasRequiredRole(claims *auth.TokenClaims, requiredRoles []string) bool {
+	if claims == nil || len(requiredRoles) == 0 {
+		return false
+	}
+
+	roleSet := make(map[string]bool, len(requiredRoles))
+	for _, r := range requiredRoles {
+		roleSet[r] = true
+	}
+
+	if claims.Role != "" && roleSet[claims.Role] {
+		return true
+	}
+
+	if claims.AppMetadata != nil {
+		if metaMap, ok := claims.AppMetadata.(map[string]interface{}); ok {
+			if rolesVal, exists := metaMap["roles"]; exists {
+				switch rv := rolesVal.(type) {
+				case []string:
+					for _, r := range rv {
+						if roleSet[r] {
+							return true
+						}
+					}
+				case []interface{}:
+					for _, r := range rv {
+						if rs, ok := r.(string); ok && roleSet[rs] {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
 }

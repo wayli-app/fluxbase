@@ -187,7 +187,7 @@ func runSettingsSet(cmd *cobra.Command, args []string) error {
 		"value": parsedValue,
 	}
 
-	if err := apiClient.DoPost(ctx, "/api/v1/admin/system/settings", body, nil); err != nil {
+	if err := apiClient.DoPut(ctx, "/api/v1/admin/system/settings", body, nil); err != nil {
 		return err
 	}
 

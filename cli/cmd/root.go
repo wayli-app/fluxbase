@@ -98,6 +98,7 @@ func init() {
 	rootCmd.AddCommand(storageCmd)
 	rootCmd.AddCommand(chatbotsCmd)
 	rootCmd.AddCommand(kbCmd)
+	rootCmd.AddCommand(aiProvidersCmd)
 	rootCmd.AddCommand(tablesCmd)
 	rootCmd.AddCommand(typesCmd)
 	rootCmd.AddCommand(graphqlCmd)
