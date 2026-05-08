@@ -193,14 +193,8 @@ func (h *TenantHandler) GetTenant(c fiber.Ctx) error {
 	var userCount, adminCount int
 
 	err = database.WrapWithServiceRole(ctx, h.DB, func(tx pgx.Tx) error {
-		if t.IsDefault {
-			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM auth.users WHERE tenant_id IS NULL`).Scan(&userCount); err != nil {
-				return err
-			}
-		} else {
-			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM auth.users WHERE tenant_id = $1`, tenantID).Scan(&userCount); err != nil {
-				return err
-			}
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM auth.users WHERE tenant_id = $1`, tenantID).Scan(&userCount); err != nil {
+			return err
 		}
 		return tx.QueryRow(ctx, `SELECT COUNT(*) FROM platform.tenant_admin_assignments WHERE tenant_id = $1`, tenantID).Scan(&adminCount)
 	})
