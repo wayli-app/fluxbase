@@ -6,6 +6,8 @@ export interface Tenant {
   name: string;
   is_default: boolean;
   metadata?: Record<string, unknown>;
+  user_count: number;
+  admin_count: number;
   created_at: string;
   updated_at?: string;
   deleted_at?: string;

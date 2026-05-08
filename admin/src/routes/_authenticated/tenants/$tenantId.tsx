@@ -8,6 +8,7 @@ import {
   Fingerprint,
   Hash,
   RefreshCw,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -28,11 +29,6 @@ function TenantDetailPage() {
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant', tenantId],
     queryFn: () => tenantsApi.get(tenantId),
-  })
-
-  const { data: members } = useQuery({
-    queryKey: ['tenant-members', tenantId],
-    queryFn: () => tenantsApi.listMembers(tenantId),
   })
 
   if (tenantLoading) {
@@ -156,8 +152,16 @@ function TenantDetailPage() {
                 <div className='flex items-center gap-3'>
                   <Users className='text-muted-foreground h-4 w-4' />
                   <div>
-                    <p className='text-muted-foreground text-xs'>Members</p>
-                    <p className='text-sm'>{members?.length ?? 0} members</p>
+                    <p className='text-muted-foreground text-xs'>Users</p>
+                    <p className='text-sm'>{tenant.user_count ?? 0} user{tenant.user_count !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+                <Separator />
+                <div className='flex items-center gap-3'>
+                  <ShieldCheck className='text-muted-foreground h-4 w-4' />
+                  <div>
+                    <p className='text-muted-foreground text-xs'>Admins</p>
+                    <p className='text-sm'>{tenant.admin_count ?? 0} admin{tenant.admin_count !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
                 <Separator />

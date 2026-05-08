@@ -33,16 +33,18 @@ type TenantHandler struct {
 }
 
 type TenantResponse struct {
-	ID        string                 `json:"id"`
-	Slug      string                 `json:"slug"`
-	Name      string                 `json:"name"`
-	DbName    *string                `json:"db_name,omitempty"`
-	Status    string                 `json:"status"`
-	IsDefault bool                   `json:"is_default"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at,omitempty"`
-	DeletedAt *time.Time             `json:"deleted_at,omitempty"`
+	ID         string                 `json:"id"`
+	Slug       string                 `json:"slug"`
+	Name       string                 `json:"name"`
+	DbName     *string                `json:"db_name,omitempty"`
+	Status     string                 `json:"status"`
+	IsDefault  bool                   `json:"is_default"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	UserCount  int                    `json:"user_count"`
+	AdminCount int                    `json:"admin_count"`
+	CreatedAt  time.Time              `json:"created_at"`
+	UpdatedAt  time.Time              `json:"updated_at,omitempty"`
+	DeletedAt  *time.Time             `json:"deleted_at,omitempty"`
 }
 
 type TenantAdminAssignment struct {
@@ -186,7 +188,30 @@ func (h *TenantHandler) GetTenant(c fiber.Ctx) error {
 		return SendInternalError(c, "Failed to get tenant")
 	}
 
-	return c.JSON(tenantToResponse(t))
+	resp := tenantToResponse(t)
+
+	var userCount, adminCount int
+
+	err = database.WrapWithServiceRole(ctx, h.DB, func(tx pgx.Tx) error {
+		if t.IsDefault {
+			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM auth.users WHERE tenant_id IS NULL`).Scan(&userCount); err != nil {
+				return err
+			}
+		} else {
+			if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM auth.users WHERE tenant_id = $1`, tenantID).Scan(&userCount); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRow(ctx, `SELECT COUNT(*) FROM platform.tenant_admin_assignments WHERE tenant_id = $1`, tenantID).Scan(&adminCount)
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to count tenant users/admins")
+	}
+
+	resp.UserCount = userCount
+	resp.AdminCount = adminCount
+
+	return c.JSON(resp)
 }
 
 func (h *TenantHandler) CreateTenant(c fiber.Ctx) error {

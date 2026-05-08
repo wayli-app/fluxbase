@@ -192,6 +192,16 @@ func (h *AdminAuthHandler) InitialSetup(c fiber.Ctx) error {
 		return SendOperationFailed(c, "set admin role and verify email")
 	}
 
+	var defaultTenantID string
+	err = h.dashboardAuth.GetDB().QueryRow(ctx, `SELECT id FROM platform.tenants WHERE is_default = true LIMIT 1`).Scan(&defaultTenantID)
+	if err == nil {
+		_, _ = h.dashboardAuth.GetDB().Exec(ctx, `
+			INSERT INTO platform.tenant_admin_assignments (user_id, tenant_id, assigned_by)
+			VALUES ($1, $2, $1)
+			ON CONFLICT (user_id, tenant_id) DO NOTHING
+		`, user.ID, defaultTenantID)
+	}
+
 	// Mark setup as complete in system settings
 	if err := h.systemSettings.MarkSetupComplete(ctx, user.ID, user.Email); err != nil {
 		return SendOperationFailed(c, "mark setup as complete")
