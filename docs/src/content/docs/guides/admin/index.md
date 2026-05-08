@@ -59,7 +59,7 @@ See: [Tenant Management](./tenants) | [Multi-Tenancy Guide](../multi-tenancy)
 | ------------------- | ------------------------------------------------- | --------------------------------------- |
 | **Knowledge Bases** | RAG-powered document stores for AI applications   | [Knowledge Bases](../knowledge-bases)   |
 | **Chatbots**        | AI assistants that query your database            | [AI Chatbots](../ai-chatbots)           |
-| **MCP Tools**       | Custom tools for AI assistant integration         | [Custom MCP Tools](../custom-mcp-tools) |
+| **MCP Tools**       | Custom tools for AI assistant integration         | [Custom MCP Tools](../mcp/custom-mcp-tools) |
 | **AI Providers**    | Configure LLM providers (OpenAI, Anthropic, etc.) |                                         |
 
 ### Integrations

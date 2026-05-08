@@ -579,8 +579,8 @@ Tracing overhead is minimal with proper configuration:
 
 ## Further Reading
 
-- [OpenTelemetry Specification](https://opentelemetry.io/docs/reference/specification/)
-- [OTLP Specification](https://opentelemetry.io/docs/reference/specification/protocol/otlp/)
+- [OpenTelemetry Specification](https://opentelemetry.io/docs/specs/otel/)
+- [OTLP Specification](https://opentelemetry.io/docs/specs/otlp/)
 - [Jaeger Documentation](https://www.jaegertracing.io/docs/)
 - [Grafana Tempo](https://grafana.com/docs/tempo/)
 - [Observability Guide](/guides/monitoring-observability/)
