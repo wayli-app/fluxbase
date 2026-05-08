@@ -1,6 +1,6 @@
 {
   "name": "@nimbleflux/fluxbase-sdk",
-  "version": "2026.5.4",
+  "version": "2026.5.5-rc.1",
   "description": "Official TypeScript SDK for Fluxbase - Backend as a Service",
   "type": "module",
   "main": "./dist/index.cjs",
