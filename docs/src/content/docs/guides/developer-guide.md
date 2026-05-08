@@ -44,8 +44,8 @@ Open [`internal/api/server.go`](https://github.com/nimbleflux/fluxbase/blob/main
 
 The global middleware chain runs before any route-specific middleware:
 
-1. [`internal/middleware/cors.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/cors.go) — CORS header handling
-2. [`internal/middleware/ratelimit.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/ratelimit.go) — Rate limiting per route
+1. [`internal/api/server_init.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/server_init.go) — CORS header handling (configured inline in server setup)
+2. [`internal/middleware/rate_limiter.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/rate_limiter.go) — Rate limiting per route
 
 ### ④ Tenant & Branch Context — Which database to talk to
 
@@ -59,7 +59,7 @@ Tenant middleware runs before auth so that tenant context is available for authe
 
 With tenant context established, authentication validates the user:
 
-1. [`internal/middleware/auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/auth.go) — JWT validation, role extraction, `RequireAuth` / `RequireServiceKey`. This is where the `Authorization` header is parsed and claims land in fiber locals
+1. [`internal/middleware/clientkey_auth.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/middleware/clientkey_auth.go) — JWT validation, role extraction, `RequireAuth` / `RequireServiceKey`. This is where the `Authorization` header is parsed and claims land in fiber locals
 2. [`internal/auth/jwt.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/auth/jwt.go) — How tokens are created, what claims they carry (`TokenClaims` struct), and how roles map to PostgreSQL roles
 
 ### ⑥ ⑦ ⑧ Handler → Service → Database — The actual work
@@ -70,7 +70,7 @@ This is the three-layer architecture every feature follows. Trace it with the RE
 2. [`internal/api/query_parser.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_parser.go) — URL query parsing: `?select=`, `?order=`, `?col.eq=` become structured filter conditions
 3. [`internal/api/query_builder.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/query_builder.go) — Filters → SQL `WHERE`, `ORDER BY`, `LIMIT`
 4. [`internal/database/connection.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/connection.go) — The connection pool, transaction helpers, and the `sync.RWMutex` safety pattern
-5. [`internal/database/schema.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema.go) — Schema introspection: how Fluxbase discovers tables, columns, types, and relationships to power the auto-generated API
+5. [`internal/database/schema_inspector.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema_inspector.go) — Schema introspection: how Fluxbase discovers tables, columns, types, and relationships to power the auto-generated API
 
 ### Digging deeper — Multi-tenancy internals
 
@@ -91,14 +91,14 @@ The SQL files live in [`internal/database/schema/schemas/`](https://github.com/n
 
 - [`platform.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/platform.sql) — Tenants, service keys, users, memberships, settings
 - [`auth.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/auth.sql) — Users, sessions, identities, OTP codes, client keys
-- [`bootstrap.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/schema/schemas/bootstrap.sql) — The SQL that runs on every startup (schemas, extensions, roles, privileges)
+- [`bootstrap.sql`](https://github.com/nimbleflux/fluxbase/blob/main/internal/database/bootstrap/bootstrap.sql) — The SQL that runs on every startup (schemas, extensions, roles, privileges)
 
 ### Tracing a complete feature — Edge Functions
 
 To see how a full feature fits together end-to-end, trace the edge functions system:
 
 1. [`internal/api/routes/functions.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/routes/functions.go) — Route definitions and middleware
-2. [`internal/api/function_handler.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/api/function_handler.go) — HTTP handlers for CRUD and invocation
+2. [`internal/functions/handler.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/handler.go) — HTTP handlers for CRUD and invocation
 3. [`internal/functions/handler.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/handler.go) — Proxying to the Deno runtime
 4. [`internal/functions/loader.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/loader.go) — Loading functions from disk at startup
 5. [`internal/functions/storage.go`](https://github.com/nimbleflux/fluxbase/blob/main/internal/functions/storage.go) — Database storage for function metadata
