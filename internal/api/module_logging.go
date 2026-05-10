@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/logging"
-	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/storage"
 )
 
@@ -14,7 +13,6 @@ type LoggingModule struct {
 	Service   *logging.Service
 	Handler   *LoggingHandler
 	Retention *logging.RetentionService
-	PubSub    pubsub.PubSub
 }
 
 func (m *LoggingModule) Name() string { return "logging" }
@@ -33,7 +31,7 @@ func (m *LoggingModule) Init(ctx context.Context, registry *ServiceRegistry) err
 		provider = storageSvc.Provider
 	}
 
-	loggingService, err := logging.New(&cfg.Logging, db, provider, m.PubSub)
+	loggingService, err := logging.New(&cfg.Logging, db, provider, registry.PubSub)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize central logging service, continuing with default logging")
 		return nil

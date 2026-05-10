@@ -142,16 +142,26 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.initCore()
 
 	s.registry = NewServiceRegistry(cfg, db)
-	if s.pubSub != nil {
-		s.registry.Register(s.pubSub)
-	}
+	s.registry.PubSub = s.pubSub
+
 	emailMod := &EmailModule{}
 	secretsMod := &SecretsModule{}
 	storageMod := &StorageModule{}
-	loggingMod := &LoggingModule{PubSub: s.pubSub}
+	loggingMod := &LoggingModule{}
 	authMod := &AuthModule{}
 	webhookMod := &WebhookModule{}
 	extensionsMod := &ExtensionsModule{}
+	tenancyMod := &TenancyModule{}
+	settingsMod := &SettingsModule{}
+	schemaMod := &SchemaModule{}
+	functionsMod := &FunctionsModule{}
+	jobsMod := &JobsModule{}
+	rpcMod := &RPCModule{}
+	aiMod := &AIModule{}
+	realtimeMod := &RealtimeModule{}
+	branchingMod := &BranchingModule{}
+	graphqlMod := &GraphQLModule{}
+
 	if err := InitModules(context.Background(), s.registry, []Module{
 		emailMod,
 		secretsMod,
@@ -160,6 +170,16 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		authMod,
 		webhookMod,
 		extensionsMod,
+		tenancyMod,
+		settingsMod,
+		schemaMod,
+		functionsMod,
+		jobsMod,
+		rpcMod,
+		aiMod,
+		realtimeMod,
+		branchingMod,
+		graphqlMod,
 	}); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize modules")
 	}
@@ -189,17 +209,74 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.Webhook.Trigger = webhookMod.Trigger
 	s.Extensions.Handler = extensionsMod.Handler
 
-	s.initTenancy()
-	s.initSettings()
-	s.initSchema()
-	s.initFunctions()
-	s.initJobs()
-	s.initRPC()
-	s.initAI()
-	s.initRealtime()
+	s.Tenancy.ServiceKey = tenancyMod.Key
+	s.Tenancy.Manager = tenancyMod.Manager
+	s.Tenancy.Storage = tenancyMod.Storage
+	s.Tenancy.Tenant = tenancyMod.Tenant
+	if tenancyMod.TenantDB != nil {
+		s.Middleware.TenantDB = tenancyMod.TenantDB
+	}
+
+	s.Settings.Unified = settingsMod.Unified
+	s.Settings.Instance = settingsMod.Instance
+	s.Settings.Tenant = settingsMod.Tenant
+	s.Settings.System = settingsMod.System
+	s.Settings.Custom = settingsMod.Custom
+	s.Settings.Service = settingsMod.Service
+	s.Settings.User = settingsMod.User
+	s.Settings.App = settingsMod.App
+	s.Settings.Handler = settingsMod.Handler
+	s.Email.Template = settingsMod.EmailTemplate
+	s.Email.Settings = settingsMod.EmailSettings
+	s.Captcha.Settings = settingsMod.CaptchaSettings
+
+	s.Schema.DDL = schemaMod.DDL
+	s.Schema.Cache = schemaMod.Cache
+	s.Schema.Migrations = schemaMod.Migrations
+	s.Schema.Export = schemaMod.Export
+	s.Schema.InternalSchema = schemaMod.Internal
+	s.rest = schemaMod.RESTHandler
+
+	s.Functions.Handler = functionsMod.Handler
+	s.Functions.Scheduler = functionsMod.Scheduler
+
+	s.Jobs.Manager = jobsMod.Manager
+	s.Jobs.Handler = jobsMod.Handler
+	s.Jobs.Scheduler = jobsMod.Scheduler
+
+	s.RPC.Handler = rpcMod.Handler
+	s.RPC.Scheduler = rpcMod.Scheduler
+
+	s.AI = &AIHandlers{
+		Handler:         aiMod.Handler,
+		Chat:            aiMod.Chat,
+		Conversations:   aiMod.Conversations,
+		Metrics:         aiMod.Metrics,
+		KnowledgeBase:   aiMod.KnowledgeBase,
+		KBStorage:       aiMod.KBStorage,
+		DocProcessor:    aiMod.DocProcessor,
+		TableExportSync: aiMod.TableExportSync,
+		VectorManager:   aiMod.VectorManager,
+		VectorHandler:   aiMod.VectorHandler,
+		Internal:        aiMod.Internal,
+	}
+	s.Quota.Handler = aiMod.QuotaHandler
+
+	s.Realtime.Admin = realtimeMod.Admin
+	s.Realtime.Manager = realtimeMod.Manager
+	s.Realtime.Handler = realtimeMod.Handler
+	s.Realtime.Listener = realtimeMod.Listener
+	s.Monitoring.Handler = realtimeMod.Monitor
+
+	s.Branching.Manager = branchingMod.Manager
+	s.Branching.Router = branchingMod.Router
+	s.Branching.Handler = branchingMod.Handler
+	s.Branching.GitHub = branchingMod.GitHub
+	s.Branching.Scheduler = branchingMod.Scheduler
+
+	s.GraphQL.Handler = graphqlMod.Handler
+
 	s.setupMCPServer()
-	s.initBranching()
-	s.initGraphQL()
 	s.initMetrics()
 	s.initBackgroundServices()
 	s.setupMiddlewares()
