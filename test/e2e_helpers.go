@@ -89,6 +89,7 @@ import (
 	"github.com/nimbleflux/fluxbase/internal/auth"
 	"github.com/nimbleflux/fluxbase/internal/config"
 	"github.com/nimbleflux/fluxbase/internal/database"
+	"github.com/nimbleflux/fluxbase/internal/middleware"
 	"github.com/nimbleflux/fluxbase/internal/pubsub"
 	"github.com/nimbleflux/fluxbase/internal/ratelimit"
 )
@@ -730,9 +731,9 @@ func BeginTestTx(t *testing.T) *TestContextTx {
 	tx, err := tc.DB.BeginTx(ctx)
 	require.NoError(t, err, "Failed to begin test transaction")
 
-	// Create a test-mode server with the transaction
-	// NewServerWithTx accepts *pgx.Tx directly (TxConnection is an alias for pgx.Tx)
-	testServer := api.NewServerWithTx(tc.Config, tc.DB, tx, "dev")
+	// Create a test server and inject the transaction via middleware
+	testServer := api.NewServer(tc.Config, tc.DB, "dev")
+	testServer.App().Use(middleware.TestTransactionMiddleware(tx))
 
 	return &TestContextTx{
 		TestContext: tc,
@@ -1945,7 +1946,7 @@ func (tc *TestContext) QuerySQLAsRLSUser(sql string, userID string, args ...inte
 	require.NoError(tc.T, err, "Failed to set role to authenticated")
 
 	// Set RLS context variables (these affect RLS policy checks)
-	// Set request.jwt.claims with user ID and role (Supabase/Fluxbase format)
+	// Set request.jwt.claims with user ID and role
 	jwtClaims := fmt.Sprintf(`{"sub":"%s","role":"authenticated"}`, userID)
 	_, err = tx.Exec(ctx, "SELECT set_config('request.jwt.claims', $1, true)", jwtClaims)
 	require.NoError(tc.T, err, "Failed to set request.jwt.claims")

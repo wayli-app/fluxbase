@@ -145,7 +145,7 @@ func TestExampleHTTPTransactionIsolation(t *testing.T) {
 	// with the test server initialization that needs further investigation.
 	// The transaction isolation for direct DB queries is confirmed to work.
 	//
-	// TODO: Debug the timeout issue in NewServerWithTx to enable HTTP API testing
+	// TODO: Debug the timeout issue with TestTransactionMiddleware to enable HTTP API testing
 
 	// Transaction automatically rolled back - user doesn't exist after test
 }

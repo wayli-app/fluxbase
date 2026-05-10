@@ -11,27 +11,26 @@ import (
 func (s *Server) buildHealthRouteDeps() *routes.HealthDeps {
 	return &routes.HealthDeps{
 		Handler:      s.handleHealth,
-		OptionalAuth: middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth: s.optionalAuth,
 	}
 }
 
 func (s *Server) buildRealtimeRouteDeps() *routes.RealtimeDeps {
 	return &routes.RealtimeDeps{
 		RequireRealtimeEnabled: middleware.RequireRealtimeEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		OptionalAuth:           middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
-		RequireAuth:            middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth:           s.optionalAuth,
+		RequireAuth:            s.requireAuth,
 		RequireScope:           middleware.RequireScope,
 		TenantMiddleware:       s.Middleware.Tenant,
 		HandleWebSocket:        s.Realtime.Handler.HandleWebSocket,
 		HandleStats:            s.handleRealtimeStats,
-		HandleBroadcast:        s.handleRealtimeBroadcast,
 	}
 }
 
 func (s *Server) buildStorageRouteDeps() *routes.StorageDeps {
 	return &routes.StorageDeps{
-		RequireAuth:            middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
-		OptionalAuth:           middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:            s.requireAuth,
+		OptionalAuth:           s.optionalAuth,
 		RequireScope:           middleware.RequireScope,
 		DownloadSignedObject:   s.Storage.Handler.DownloadSignedObject,
 		GetTransformConfig:     s.Storage.Handler.GetTransformConfig,
@@ -63,7 +62,7 @@ func (s *Server) buildStorageRouteDeps() *routes.StorageDeps {
 
 func (s *Server) buildRESTRouteDeps() *routes.RESTDeps {
 	return &routes.RESTDeps{
-		RequireAuth:        middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.DB(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:        s.requireAuth,
 		RequireScope:       middleware.RequireScope,
 		HandleTables:       s.rest.HandleDynamicTable,
 		HandleQuery:        s.rest.HandleDynamicQuery,
@@ -78,7 +77,7 @@ func (s *Server) buildGraphQLRouteDeps() *routes.GraphQLDeps {
 		return nil
 	}
 	return &routes.GraphQLDeps{
-		OptionalAuth:     middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.DB(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth:     s.optionalAuth,
 		HandleGraphQL:    s.GraphQL.Handler.HandleGraphQL,
 		HandleIntrospect: s.GraphQL.Handler.HandleIntrospection,
 
@@ -92,7 +91,7 @@ func (s *Server) buildVectorRouteDeps() *routes.VectorDeps {
 		return nil
 	}
 	return &routes.VectorDeps{
-		RequireAuth:        middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:        s.requireAuth,
 		TenantMiddleware:   s.Middleware.Tenant,
 		HandleCapabilities: s.AI.VectorHandler.HandleGetCapabilities,
 		HandleEmbed:        s.AI.VectorHandler.HandleEmbed,
@@ -106,7 +105,7 @@ func (s *Server) buildRPCRouteDeps() *routes.RPCDeps {
 	}
 	return &routes.RPCDeps{
 		RequireRPCEnabled: middleware.RequireRPCEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		OptionalAuth:      middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth:      s.optionalAuth,
 		RequireScope:      middleware.RequireScope,
 		ListProcedures:    s.RPC.Handler.ListPublicProcedures,
 		Invoke:            s.RPC.Handler.Invoke,
@@ -124,8 +123,8 @@ func (s *Server) buildAIRouteDeps() *routes.AIDeps {
 	}
 	return &routes.AIDeps{
 		RequireAIEnabled:       middleware.RequireAIEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		OptionalAuth:           middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
-		RequireAuth:            middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth:           s.optionalAuth,
+		RequireAuth:            s.requireAuth,
 		TenantMiddleware:       s.Middleware.Tenant,
 		HandleWebSocket:        s.AI.Chat.HandleWebSocket,
 		ListPublicChatbots:     s.AI.Handler.ListPublicChatbots,
@@ -140,7 +139,7 @@ func (s *Server) buildAIRouteDeps() *routes.AIDeps {
 
 func (s *Server) buildSettingsRouteDeps() *routes.SettingsDeps {
 	return &routes.SettingsDeps{
-		OptionalAuth: middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security),
+		OptionalAuth: s.optionalAuth,
 		GetSetting:   s.Settings.Handler.GetSetting,
 		GetSettings:  s.Settings.Handler.GetSettings,
 		BatchGet:     s.Settings.Handler.GetSettings,
@@ -149,7 +148,7 @@ func (s *Server) buildSettingsRouteDeps() *routes.SettingsDeps {
 
 func (s *Server) buildUserSettingsRouteDeps() *routes.UserSettingsDeps {
 	return &routes.UserSettingsDeps{
-		RequireAuth:       middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:       s.requireAuth,
 		TenantMiddleware:  s.Middleware.Tenant,
 		ListSettings:      s.Settings.User.ListSettings,
 		GetUserOwnSetting: s.Settings.User.GetUserOwnSetting,
@@ -181,7 +180,7 @@ func (s *Server) buildDashboardAuthRouteDeps() *routes.DashboardAuthDeps {
 
 func (s *Server) buildOpenAPIRouteDeps() *routes.OpenAPIDeps {
 	return &routes.OpenAPIDeps{
-		OptionalAuth:    middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		OptionalAuth:    s.optionalAuth,
 		TenantContext:   s.Middleware.Tenant,
 		TenantDBContext: s.Middleware.TenantDB,
 		GetOpenAPISpec:  NewOpenAPIHandler(s.db).GetOpenAPISpec,
@@ -262,7 +261,7 @@ func (s *Server) buildInternalAIRouteDeps() *routes.InternalAIDeps {
 	}
 	return &routes.InternalAIDeps{
 		RequireInternal:     middleware.RequireInternal(),
-		RequireAuth:         middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.DB(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:         s.requireAuth,
 		HandleChat:          s.AI.Internal.HandleChat,
 		HandleEmbed:         s.AI.Internal.HandleEmbed,
 		HandleListProviders: s.AI.Internal.HandleListProviders,
@@ -288,7 +287,7 @@ func (s *Server) buildInvitationRouteDeps() *routes.InvitationDeps {
 
 func (s *Server) buildWebhookRouteDeps() *routes.WebhookDeps {
 	return &routes.WebhookDeps{
-		RequireAuth:    middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:    s.requireAuth,
 		RequireScope:   middleware.RequireScope,
 		ListWebhooks:   s.Webhook.Handler.ListWebhooks,
 		GetWebhook:     s.Webhook.Handler.GetWebhook,
@@ -305,7 +304,7 @@ func (s *Server) buildWebhookRouteDeps() *routes.WebhookDeps {
 
 func (s *Server) buildMonitoringRouteDeps() *routes.MonitoringDeps {
 	return &routes.MonitoringDeps{
-		RequireAuth:        middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:        s.requireAuth,
 		RequireScope:       middleware.RequireScope,
 		TenantMiddleware:   s.Middleware.Tenant,
 		TenantDBMiddleware: s.Middleware.TenantDB,
@@ -321,8 +320,8 @@ func (s *Server) buildFunctionsRouteDeps() *routes.FunctionsDeps {
 	}
 	return &routes.FunctionsDeps{
 		RequireFunctionsEnabled: middleware.RequireFunctionsEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		RequireAuth:             middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
-		OptionalAuth:            middleware.OptionalAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:             s.requireAuth,
+		OptionalAuth:            s.optionalAuth,
 		RequireScope:            middleware.RequireScope,
 		TenantMiddleware:        s.Middleware.Tenant,
 		ListFunctions:           s.Functions.Handler.ListFunctions,
@@ -346,7 +345,7 @@ func (s *Server) buildJobsRouteDeps() *routes.JobsDeps {
 	}
 	return &routes.JobsDeps{
 		RequireJobsEnabled: middleware.RequireJobsEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		RequireAuth:        middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:        s.requireAuth,
 		SubmitJob:          s.Jobs.Handler.SubmitJob,
 		GetJob:             s.Jobs.Handler.GetJob,
 		ListJobs:           s.Jobs.Handler.ListJobs,
@@ -386,7 +385,7 @@ func (s *Server) buildBranchRouteDeps() *routes.BranchDeps {
 
 func (s *Server) buildClientKeysRouteDeps() *routes.ClientKeysDeps {
 	return &routes.ClientKeysDeps{
-		RequireAuth:                      middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:                      s.requireAuth,
 		RequireAdminIfClientKeysDisabled: middleware.RequireAdminIfClientKeysDisabled(s.Auth.Handler.authService.GetSettingsCache()),
 		RequireScope:                     middleware.RequireScope,
 		TenantMiddleware:                 s.Middleware.Tenant,
@@ -404,7 +403,7 @@ func (s *Server) buildSecretsRouteDeps() *routes.SecretsDeps {
 		return nil
 	}
 	return &routes.SecretsDeps{
-		RequireAuth:        middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:        s.requireAuth,
 		RequireScope:       middleware.RequireScope,
 		ListSecrets:        s.Secrets.Handler.ListSecrets,
 		GetStats:           s.Secrets.Handler.GetStats,
@@ -492,7 +491,7 @@ func (s *Server) buildCustomMCPRouteDeps() *routes.CustomMCPDeps {
 		return nil
 	}
 	return &routes.CustomMCPDeps{
-		RequireAuth:      middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:      s.requireAuth,
 		RequireAdmin:     middleware.RequireAdmin(),
 		TenantMiddleware: s.Middleware.Tenant,
 		GetConfig:        s.MCP.CustomHandler.GetConfig,
@@ -589,7 +588,7 @@ func knowledgeBaseDisabledHandler(c fiber.Ctx) error {
 func (s *Server) buildKnowledgeBaseRouteDeps() *routes.KnowledgeBaseDeps {
 	deps := &routes.KnowledgeBaseDeps{
 		RequireAIEnabled: middleware.RequireAIEnabled(s.Auth.Handler.authService.GetSettingsCache()),
-		RequireAuth:      middleware.RequireAuthOrServiceKey(s.Auth.Handler.authService, s.Auth.ClientKeyService, s.db.Pool(), &s.config.Security, s.Auth.DashboardHandler.jwtManager),
+		RequireAuth:      s.requireAuth,
 		TenantMiddleware: s.Middleware.Tenant,
 	}
 

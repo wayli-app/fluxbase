@@ -82,7 +82,7 @@ func AuthMiddleware(authService *auth.Service) fiber.Handler {
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_role", claims.Role)
 		c.Locals("session_id", claims.SessionID)
-		c.Locals("jwt_claims", claims) // Store full claims for Supabase compatibility
+		c.Locals("jwt_claims", claims)
 
 		// Continue to next handler
 		return c.Next()
@@ -143,7 +143,7 @@ func OptionalAuthMiddleware(authService *auth.Service) fiber.Handler {
 		c.Locals("user_email", claims.Email)
 		c.Locals("user_role", claims.Role)
 		c.Locals("session_id", claims.SessionID)
-		c.Locals("jwt_claims", claims) // Store full claims for Supabase compatibility
+		c.Locals("jwt_claims", claims)
 
 		log.Debug().
 			Str("user_id", claims.UserID).
@@ -300,7 +300,7 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 			c.Locals("user_id", claims.UserID)
 			c.Locals("user_email", claims.Email)
 			c.Locals("session_id", claims.SessionID)
-			c.Locals("jwt_claims", claims) // Store full claims for Supabase compatibility
+			c.Locals("jwt_claims", claims)
 
 			// Check actual role from database if JWT role is "authenticated"
 			// This allows role changes to take effect immediately without re-login
@@ -339,7 +339,7 @@ func UnifiedAuthMiddleware(authService *auth.Service, jwtManager *auth.JWTManage
 		c.Locals("user_id", userID.String())
 		c.Locals("user_email", dashboardClaims.Email)
 		c.Locals("user_role", dashboardClaims.Role)
-		c.Locals("jwt_claims", dashboardClaims) // Store full claims for Supabase compatibility
+		c.Locals("jwt_claims", dashboardClaims)
 
 		log.Debug().
 			Str("user_id", userID.String()).

@@ -36,7 +36,7 @@ func TestAuthHandler_SendOTP_Integration(t *testing.T) {
 	if resp.Status() == 200 {
 		var result map[string]interface{}
 		resp.JSON(&result)
-		// Supabase-compatible OTP response (returns user: nil, session: nil for send)
+		// Standard OTP response (returns user: nil, session: nil for send)
 		assert.Nil(t, result["user"])
 		assert.Nil(t, result["session"])
 	} else if resp.Status() == 403 {

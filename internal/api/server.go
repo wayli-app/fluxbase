@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
 	"github.com/nimbleflux/fluxbase/internal/auth"
@@ -74,10 +72,6 @@ type Server struct {
 	// This prevents creating multiple GC goroutines from Fiber's memory.New()
 	sharedMiddlewareStorage fiber.Storage
 
-	// Test transaction support (for HTTP API tests with transaction isolation)
-	// When set, HTTP requests use this transaction instead of the connection pool
-	testTx pgx.Tx
-
 	// Tenant configuration loader for multi-tenant config overrides
 	tenantConfigLoader *config.TenantConfigLoader
 
@@ -96,6 +90,10 @@ type Server struct {
 	userMgmtService       *auth.UserManagementService
 	invitationService     *auth.InvitationService
 	secretsStorage        *secrets.Storage
+
+	// Cached middleware instances (created once during init)
+	requireAuth    fiber.Handler
+	optionalAuth   fiber.Handler
 }
 
 // NewServer creates a new HTTP server
@@ -173,27 +171,6 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	return s
 }
 
-// NewServerWithTx creates a test-mode server with transaction isolation.
-// This is specifically for HTTP API tests that need to use a transaction.
-//
-// Note: This function creates a minimal server with only the essential components
-// for HTTP API testing. It does NOT initialize all services (webhooks, realtime, jobs, etc.).
-func NewServerWithTx(cfg *config.Config, db *database.Connection, tx pgx.Tx, version string) *Server {
-	server := NewServer(cfg, db, version)
-	server.testTx = tx
-	return server
-}
-
-// DB returns the database querier to use.
-// In test mode with a transaction, it returns the transaction (note: can't use tx as pool).
-// Otherwise, it returns the normal database connection pool.
-func (s *Server) DB() *pgxpool.Pool {
-	if s.testTx != nil {
-		return s.db.Pool()
-	}
-	return s.db.Pool()
-}
-
 // createMCPAuthMiddleware creates authentication middleware for MCP that supports
 // JWT, client key, service key, AND MCP OAuth tokens
 func (s *Server) createMCPAuthMiddleware() fiber.Handler {
@@ -219,7 +196,7 @@ func (s *Server) createMCPAuthMiddleware() fiber.Handler {
 		return middleware.RequireAuthOrServiceKey(
 			s.Auth.Handler.authService,
 			s.Auth.ClientKeyService,
-			s.DB(),
+			s.db.Pool(),
 			nil,
 			s.Auth.DashboardHandler.jwtManager,
 		)(c)
@@ -805,49 +782,5 @@ func (s *Server) handleRealtimeStats(c fiber.Ctx) error {
 		"connections":       filteredConnections,
 		"limit":             limit,
 		"offset":            offset,
-	})
-}
-
-// BroadcastRequest represents a broadcast request
-type BroadcastRequest struct {
-	Channel string      `json:"channel"`
-	Message interface{} `json:"message"`
-}
-
-// handleRealtimeBroadcast broadcasts a message to a channel
-func (s *Server) handleRealtimeBroadcast(c fiber.Ctx) error {
-	var req BroadcastRequest
-	if err := ParseBody(c, &req); err != nil {
-		return err
-	}
-
-	if req.Channel == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Channel is required",
-		})
-	}
-
-	if s.Realtime.Handler == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error": "Realtime service not available",
-		})
-	}
-
-	manager := s.Realtime.Handler.GetManager()
-	recipientCount := manager.BroadcastToChannel(req.Channel, realtime.ServerMessage{
-		Type:    realtime.MessageTypeBroadcast,
-		Channel: req.Channel,
-		Payload: map[string]interface{}{
-			"broadcast": map[string]interface{}{
-				"event":   "broadcast",
-				"payload": req.Message,
-			},
-		},
-	})
-
-	return c.JSON(fiber.Map{
-		"success":    true,
-		"channel":    req.Channel,
-		"recipients": recipientCount,
 	})
 }

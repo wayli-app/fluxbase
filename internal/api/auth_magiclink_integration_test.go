@@ -29,7 +29,7 @@ func TestAuthHandler_SendMagicLink_Integration(t *testing.T) {
 
 	var result map[string]interface{}
 	resp.JSON(&result)
-	// Supabase-compatible OTP response format (returns user: nil, session: nil for magic link)
+	// Standard OTP response format (returns user: nil, session: nil for magic link)
 	assert.Nil(t, result["user"])
 	assert.Nil(t, result["session"])
 }

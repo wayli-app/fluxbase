@@ -204,6 +204,9 @@ func (s *Server) initAuth() {
 	s.Auth.AdminSession = adminSessionHandler
 	s.Auth.UserManagement = userMgmtHandler
 	s.Auth.Invitation = invitationHandler
+
+	s.requireAuth = middleware.RequireAuthOrServiceKey(authService, clientKeyService, db.Pool(), &cfg.Security, dashboardJWTManager)
+	s.optionalAuth = middleware.OptionalAuthOrServiceKey(authService, clientKeyService, db.Pool(), &cfg.Security, dashboardJWTManager)
 }
 
 func (s *Server) initStorage() {
@@ -302,9 +305,9 @@ func (s *Server) initTenancy() {
 	s.Tenancy.ServiceKey = NewServiceKeyHandler(db)
 
 	var tenantManager *tenantdb.Manager
-	var tenantStorage *tenantdb.Storage
+	var tenantStorage *tenantdb.Repository
 	if cfg.Tenants.Enabled {
-		tenantStorage = tenantdb.NewStorage(db.Pool())
+		tenantStorage = tenantdb.NewRepository(db.Pool())
 		dbURL := cfg.Database.RuntimeConnectionString()
 		tenantCfg := tenantdb.Config{
 			Enabled:        cfg.Tenants.Enabled,
@@ -391,7 +394,7 @@ func (s *Server) initTenancy() {
 	if tenantManager != nil && tenantManager.GetRouter() != nil {
 		s.Middleware.TenantDB = middleware.TenantDBMiddleware(middleware.TenantDBConfig{
 			Router:  tenantManager.GetRouter(),
-			Storage: tenantStorage,
+			Repository: tenantStorage,
 		})
 	}
 }
@@ -1034,6 +1037,11 @@ func (s *Server) initGraphQL() {
 	}
 
 	s.GraphQL.Handler = NewGraphQLHandler(db, s.Schema.Cache, &cfg.GraphQL, cfg)
+
+	if s.Schema.DDL != nil && s.GraphQL.Handler != nil {
+		s.Schema.DDL.SetGraphQLInvalidator(s.GraphQL.Handler.InvalidateSchema)
+	}
+
 	log.Info().
 		Int("max_depth", cfg.GraphQL.MaxDepth).
 		Int("max_complexity", cfg.GraphQL.MaxComplexity).
@@ -1301,7 +1309,7 @@ func (s *Server) setupMiddlewares() {
 	}
 
 	idempotencyConfig := middleware.DefaultIdempotencyConfig()
-	idempotencyConfig.DB = s.DB()
+	idempotencyConfig.DB = s.db.Pool()
 	s.Middleware.Idempotency = middleware.NewIdempotencyMiddleware(idempotencyConfig)
 	s.app.Use(s.Middleware.Idempotency.Middleware())
 	log.Info().
@@ -1379,7 +1387,7 @@ type branchTenantResolver struct {
 }
 
 func (r *branchTenantResolver) GetTenantDatabase(ctx context.Context, tenantID uuid.UUID) (*branching.TenantDatabaseInfo, error) {
-	tenant, err := r.manager.GetStorage().GetTenant(ctx, tenantID.String())
+	tenant, err := r.manager.GetRepository().GetTenant(ctx, tenantID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant: %w", err)
 	}

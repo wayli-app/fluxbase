@@ -12,7 +12,6 @@ type RealtimeDeps struct {
 	TenantMiddleware       fiber.Handler
 	HandleWebSocket        fiber.Handler
 	HandleStats            fiber.Handler
-	HandleBroadcast        fiber.Handler
 }
 
 func BuildRealtimeRoutes(deps *RealtimeDeps) *RouteGroup {
@@ -45,14 +44,6 @@ func BuildRealtimeRoutes(deps *RealtimeDeps) *RouteGroup {
 				Summary: "Get realtime connection statistics",
 				Auth:    AuthRequired,
 				Scopes:  []string{"realtime:connect"},
-			},
-			{
-				Method:  "POST",
-				Path:    "/api/v1/realtime/broadcast",
-				Handler: deps.HandleBroadcast,
-				Summary: "Broadcast message to all connected clients",
-				Auth:    AuthRequired,
-				Scopes:  []string{"realtime:broadcast"},
 			},
 		},
 		AuthMiddlewares: &AuthMiddlewares{

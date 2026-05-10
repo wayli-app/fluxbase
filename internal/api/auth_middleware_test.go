@@ -299,7 +299,7 @@ func TestContextLocalKeys(t *testing.T) {
 			app.ReleaseCtx(ctx)
 		}()
 
-		// jwt_claims is used to store full TokenClaims for Supabase compatibility
+		// jwt_claims is used to store full TokenClaims for downstream use
 		type mockClaims struct {
 			UserID string
 			Role   string
