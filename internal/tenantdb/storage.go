@@ -27,15 +27,15 @@ type DB interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-type Storage struct {
+type Repository struct {
 	db DB
 }
 
-func NewStorage(db DB) *Storage {
-	return &Storage{db: db}
+func NewRepository(db DB) *Repository {
+	return &Repository{db: db}
 }
 
-func (s *Storage) GetTenant(ctx context.Context, id string) (*Tenant, error) {
+func (s *Repository) GetTenant(ctx context.Context, id string) (*Tenant, error) {
 	query := `
 		SELECT id, slug, name, db_name, is_default, status, metadata, created_at, updated_at, deleted_at
 		FROM platform.tenants
@@ -75,7 +75,7 @@ func (s *Storage) GetTenant(ctx context.Context, id string) (*Tenant, error) {
 	return &tenant, nil
 }
 
-func (s *Storage) GetTenantBySlug(ctx context.Context, slug string) (*Tenant, error) {
+func (s *Repository) GetTenantBySlug(ctx context.Context, slug string) (*Tenant, error) {
 	query := `
 		SELECT id, slug, name, db_name, is_default, status, metadata, created_at, updated_at, deleted_at
 		FROM platform.tenants
@@ -115,7 +115,7 @@ func (s *Storage) GetTenantBySlug(ctx context.Context, slug string) (*Tenant, er
 	return &tenant, nil
 }
 
-func (s *Storage) GetDefaultTenant(ctx context.Context) (*Tenant, error) {
+func (s *Repository) GetDefaultTenant(ctx context.Context) (*Tenant, error) {
 	query := `
 		SELECT id, slug, name, db_name, is_default, status, metadata, created_at, updated_at, deleted_at
 		FROM platform.tenants
@@ -156,7 +156,7 @@ func (s *Storage) GetDefaultTenant(ctx context.Context) (*Tenant, error) {
 	return &tenant, nil
 }
 
-func (s *Storage) GetAllActiveTenants(ctx context.Context) ([]Tenant, error) {
+func (s *Repository) GetAllActiveTenants(ctx context.Context) ([]Tenant, error) {
 	query := `
 		SELECT id, slug, name, db_name, is_default, status, metadata, created_at, updated_at, deleted_at
 		FROM platform.tenants
@@ -209,7 +209,7 @@ func (s *Storage) GetAllActiveTenants(ctx context.Context) ([]Tenant, error) {
 	return tenants, nil
 }
 
-func (s *Storage) CreateTenant(ctx context.Context, tenant *Tenant) error {
+func (s *Repository) CreateTenant(ctx context.Context, tenant *Tenant) error {
 	metadataBytes, err := json.Marshal(tenant.Metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -238,7 +238,7 @@ func (s *Storage) CreateTenant(ctx context.Context, tenant *Tenant) error {
 	return nil
 }
 
-func (s *Storage) UpdateTenantStatus(ctx context.Context, id string, status TenantStatus) error {
+func (s *Repository) UpdateTenantStatus(ctx context.Context, id string, status TenantStatus) error {
 	query := `
 		UPDATE platform.tenants
 		SET status = $1, updated_at = NOW()
@@ -257,7 +257,7 @@ func (s *Storage) UpdateTenantStatus(ctx context.Context, id string, status Tena
 	return nil
 }
 
-func (s *Storage) UpdateTenantDBName(ctx context.Context, id string, dbName string) error {
+func (s *Repository) UpdateTenantDBName(ctx context.Context, id string, dbName string) error {
 	query := `
 		UPDATE platform.tenants
 		SET db_name = $1, updated_at = NOW()
@@ -276,7 +276,7 @@ func (s *Storage) UpdateTenantDBName(ctx context.Context, id string, dbName stri
 	return nil
 }
 
-func (s *Storage) UpdateTenant(ctx context.Context, id string, req UpdateTenantRequest) error {
+func (s *Repository) UpdateTenant(ctx context.Context, id string, req UpdateTenantRequest) error {
 	var setClauses []string
 	args := make([]any, 0, 3)
 	argIdx := 1
@@ -318,7 +318,7 @@ func (s *Storage) UpdateTenant(ctx context.Context, id string, req UpdateTenantR
 	return nil
 }
 
-func (s *Storage) SoftDeleteTenant(ctx context.Context, id string) error {
+func (s *Repository) SoftDeleteTenant(ctx context.Context, id string) error {
 	query := `
 		UPDATE platform.tenants
 		SET deleted_at = NOW(), status = 'deleting'
@@ -337,7 +337,7 @@ func (s *Storage) SoftDeleteTenant(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Storage) HardDeleteTenant(ctx context.Context, id string) error {
+func (s *Repository) HardDeleteTenant(ctx context.Context, id string) error {
 	query := `DELETE FROM platform.tenants WHERE id = $1::uuid`
 
 	result, err := s.db.Exec(ctx, query, id)
@@ -352,7 +352,7 @@ func (s *Storage) HardDeleteTenant(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Storage) RecoverTenant(ctx context.Context, id string) error {
+func (s *Repository) RecoverTenant(ctx context.Context, id string) error {
 	query := `
 		UPDATE platform.tenants
 		SET deleted_at = NULL, status = 'active', updated_at = NOW()
@@ -371,7 +371,7 @@ func (s *Storage) RecoverTenant(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Storage) GetDeletedTenants(ctx context.Context) ([]Tenant, error) {
+func (s *Repository) GetDeletedTenants(ctx context.Context) ([]Tenant, error) {
 	query := `
 		SELECT id, slug, name, db_name, is_default, status, metadata, created_at, updated_at, deleted_at
 		FROM platform.tenants
@@ -424,7 +424,7 @@ func (s *Storage) GetDeletedTenants(ctx context.Context) ([]Tenant, error) {
 	return tenants, nil
 }
 
-func (s *Storage) AssignUserToTenant(ctx context.Context, userID, tenantID string) error {
+func (s *Repository) AssignUserToTenant(ctx context.Context, userID, tenantID string) error {
 	query := `
 		INSERT INTO platform.tenant_admin_assignments (tenant_id, user_id)
 		VALUES ($1::uuid, $2::uuid)
@@ -439,7 +439,7 @@ func (s *Storage) AssignUserToTenant(ctx context.Context, userID, tenantID strin
 	return nil
 }
 
-func (s *Storage) RemoveUserFromTenant(ctx context.Context, userID, tenantID string) error {
+func (s *Repository) RemoveUserFromTenant(ctx context.Context, userID, tenantID string) error {
 	query := `
 		DELETE FROM platform.tenant_admin_assignments
 		WHERE tenant_id = $1::uuid AND user_id = $2::uuid
@@ -453,7 +453,7 @@ func (s *Storage) RemoveUserFromTenant(ctx context.Context, userID, tenantID str
 	return nil
 }
 
-func (s *Storage) IsUserAssignedToTenant(ctx context.Context, userID, tenantID string) (bool, error) {
+func (s *Repository) IsUserAssignedToTenant(ctx context.Context, userID, tenantID string) (bool, error) {
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM platform.tenant_admin_assignments
@@ -470,7 +470,7 @@ func (s *Storage) IsUserAssignedToTenant(ctx context.Context, userID, tenantID s
 	return exists, nil
 }
 
-func (s *Storage) GetTenantAssignments(ctx context.Context, userID string) ([]string, error) {
+func (s *Repository) GetTenantAssignments(ctx context.Context, userID string) ([]string, error) {
 	query := `
 		SELECT tenant_id::text
 		FROM platform.tenant_admin_assignments
@@ -499,7 +499,7 @@ func (s *Storage) GetTenantAssignments(ctx context.Context, userID string) ([]st
 	return tenantIDs, nil
 }
 
-func (s *Storage) GetTenantsForUser(ctx context.Context, userID string) ([]Tenant, error) {
+func (s *Repository) GetTenantsForUser(ctx context.Context, userID string) ([]Tenant, error) {
 	query := `
 		SELECT t.id, t.slug, t.name, t.db_name, t.is_default, t.status, t.metadata, t.created_at, t.updated_at, t.deleted_at
 		FROM platform.tenants t
@@ -553,7 +553,7 @@ func (s *Storage) GetTenantsForUser(ctx context.Context, userID string) ([]Tenan
 	return tenants, nil
 }
 
-func (s *Storage) CountTenants(ctx context.Context) (int, error) {
+func (s *Repository) CountTenants(ctx context.Context) (int, error) {
 	query := `SELECT COUNT(*) FROM platform.tenants WHERE deleted_at IS NULL`
 
 	var count int
@@ -568,7 +568,7 @@ func (s *Storage) CountTenants(ctx context.Context) (int, error) {
 // CleanupTenantData deletes tenant-related data from the main database.
 // This must be called before HardDeleteTenant because branching tables have
 // RESTRICT FK constraints that would block tenant row deletion.
-func (s *Storage) CleanupTenantData(ctx context.Context, tenantID string) error {
+func (s *Repository) CleanupTenantData(ctx context.Context, tenantID string) error {
 	// Phase 1: Branching tables (RESTRICT FK — must delete before tenant row).
 	// Order matters: delete child tables before branches.
 	branchingTables := []string{

@@ -544,7 +544,7 @@ func TestValidateServiceRoleToken_WrongSecret(t *testing.T) {
 	assert.Nil(t, claims)
 }
 
-func TestValidateServiceRoleToken_SupabaseFormat(t *testing.T) {
+func TestValidateServiceRoleToken_ValidIssuers(t *testing.T) {
 	secret := "super-secret-jwt-token-with-at-least-32-characters-long"
 	manager, err := NewJWTManager(secret, 15*time.Minute, 7*24*time.Hour)
 	require.NoError(t, err)
@@ -554,10 +554,8 @@ func TestValidateServiceRoleToken_SupabaseFormat(t *testing.T) {
 		role   string
 		issuer string
 	}{
-		{"supabase-demo issuer with service_role", "service_role", "supabase-demo"},
-		{"supabase-demo issuer with anon", "anon", "supabase-demo"},
-		{"supabase issuer with service_role", "service_role", "supabase"},
 		{"fluxbase issuer with service_role", "service_role", "fluxbase"},
+		{"fluxbase issuer with anon", "anon", "fluxbase"},
 		{"empty issuer with service_role", "service_role", ""},
 	}
 
@@ -616,7 +614,7 @@ func TestValidateServiceRoleToken_ExpiredToken(t *testing.T) {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"role": "service_role",
-		"iss":  "supabase-demo",
+		"iss":  "fluxbase",
 		"iat":  now.Add(-2 * time.Hour).Unix(),
 		"exp":  now.Add(-1 * time.Hour).Unix(),
 	}

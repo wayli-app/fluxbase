@@ -54,7 +54,7 @@ type Manager struct {
 }
 
 func NewManager(
-	storage *Storage,
+	storage *Repository,
 	config Config,
 	adminPool *pgxpool.Pool,
 	dbURL string,
@@ -192,8 +192,7 @@ func (m *Manager) CreateTenantDatabase(ctx context.Context, req CreateTenantRequ
 			} else {
 				defer fdwPool.Close()
 
-				// Import all schema tables via FDW (nil tables = all schemas)
-				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 					log.Warn().Err(fdwErr).Str("tenant", req.Slug).Msg("Failed to set up FDW for tenant database")
 				} else {
 					// Create user mapping for the app user with the per-tenant FDW role
@@ -587,7 +586,7 @@ func (m *Manager) RepairTenant(ctx context.Context, tenant *Tenant) error {
 				log.Warn().Err(fdwPoolErr).Str("tenant", tenant.Slug).Msg("Failed to create admin pool for FDW repair")
 			} else {
 				defer fdwPool.Close()
-				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+				if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 					log.Warn().Err(fdwErr).Str("tenant", tenant.Slug).Msg("Failed to repair FDW")
 				} else {
 					appUser := extractDBUser(m.dbURL)
@@ -612,8 +611,8 @@ func (m *Manager) RepairTenant(ctx context.Context, tenant *Tenant) error {
 	return nil
 }
 
-func (m *Manager) GetStorage() *Storage {
-	if s, ok := m.storage.(*Storage); ok {
+func (m *Manager) GetRepository() *Repository {
+	if s, ok := m.storage.(*Repository); ok {
 		return s
 	}
 	return nil
@@ -719,7 +718,7 @@ func (m *Manager) UpgradeTenantFDW(ctx context.Context, tenantID string) error {
 	defer fdwPool.Close()
 
 	// Import all schema tables via FDW
-	if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig, nil); fdwErr != nil {
+	if fdwErr := SetupFDW(ctx, fdwPool, *m.fdwConfig); fdwErr != nil {
 		return fmt.Errorf("failed to set up FDW: %w", fdwErr)
 	}
 

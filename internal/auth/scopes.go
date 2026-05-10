@@ -35,8 +35,7 @@ const (
 	ScopeMonitoringRead = "monitoring:read"
 
 	// Realtime
-	ScopeRealtimeConnect   = "realtime:connect"
-	ScopeRealtimeBroadcast = "realtime:broadcast"
+	ScopeRealtimeConnect = "realtime:connect"
 
 	// RPC
 	ScopeRPCRead    = "rpc:read"
@@ -78,7 +77,6 @@ var AllScopes = []string{
 	ScopeWebhooksWrite,
 	ScopeMonitoringRead,
 	ScopeRealtimeConnect,
-	ScopeRealtimeBroadcast,
 	ScopeRPCRead,
 	ScopeRPCExecute,
 	ScopeJobsRead,

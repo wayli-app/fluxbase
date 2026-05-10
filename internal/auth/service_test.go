@@ -382,21 +382,6 @@ func (s *TestableService) GetOAuthManager() *OAuthManager {
 	return s.oauthManager
 }
 
-// SignInAnonymous signs in an anonymous user for testing
-func (s *TestableService) SignInAnonymous(ctx context.Context) (*SignInAnonymousResponse, error) {
-	anonymousUserID := uuid.New().String()
-	accessToken, err := s.jwtManager.GenerateAnonymousAccessToken(anonymousUserID)
-	if err != nil {
-		return nil, err
-	}
-	return &SignInAnonymousResponse{
-		UserID:      anonymousUserID,
-		AccessToken: accessToken,
-		ExpiresIn:   int64(s.config.JWTExpiry.Seconds()),
-		IsAnonymous: true,
-	}, nil
-}
-
 // IsTOTPEnabled checks if TOTP is enabled for testing
 func (s *TestableService) IsTOTPEnabled(ctx context.Context, userID string) (bool, error) {
 	// Mock implementation - always returns false
@@ -1891,18 +1876,6 @@ func TestService_GetOAuthManager(t *testing.T) {
 	manager := service.GetOAuthManager()
 	assert.NotNil(t, manager)
 	assert.Same(t, service.oauthManager, manager)
-}
-
-func TestService_SignInAnonymous_Success(t *testing.T) {
-	service := NewTestableService()
-
-	ctx := context.Background()
-	resp, err := service.SignInAnonymous(ctx)
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.NotEmpty(t, resp.AccessToken)
-	assert.NotEmpty(t, resp.UserID)
-	assert.True(t, resp.IsAnonymous)
 }
 
 func TestService_IsTOTPEnabled_NotEnabled(t *testing.T) {

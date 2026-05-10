@@ -476,26 +476,6 @@ func TestClearAuthCookies(t *testing.T) {
 }
 
 // =============================================================================
-// SignInAnonymous Tests (Deprecated)
-// =============================================================================
-
-func TestSignInAnonymous_Disabled(t *testing.T) {
-	handler := NewAuthHandler(nil, nil, nil, "")
-
-	app := newTestApp(t)
-	app.Post("/auth/signin/anonymous", handler.SignInAnonymous)
-
-	req := httptest.NewRequest("POST", "/auth/signin/anonymous", nil)
-	resp, err := app.Test(req)
-	require.NoError(t, err)
-
-	assert.Equal(t, fiber.StatusGone, resp.StatusCode)
-
-	body, _ := io.ReadAll(resp.Body)
-	assert.Contains(t, string(body), "disabled")
-}
-
-// =============================================================================
 // GetCSRFToken Tests
 // =============================================================================
 

@@ -784,7 +784,6 @@ func (c *Connection) Stats() *pgxpool.Stat {
 
 // WrapWithServiceRole wraps a database operation with service_role context
 // Used for privileged operations like auth, admin tasks, and webhooks
-// This is equivalent to how Supabase's auth service (GoTrue) uses supabase_auth_admin
 func WrapWithServiceRole(ctx context.Context, conn *Connection, fn func(tx pgx.Tx) error) error {
 	// Start transaction
 	tx, err := conn.Pool().Begin(ctx)
@@ -794,7 +793,7 @@ func WrapWithServiceRole(ctx context.Context, conn *Connection, fn func(tx pgx.T
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// SET LOCAL ROLE service_role - bypasses RLS for privileged operations
-	// This provides the same security model as Supabase's separate admin connections
+	// This provides the same security model as separate admin connections
 	_, err = tx.Exec(ctx, "SET LOCAL ROLE service_role")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to SET LOCAL ROLE service_role")

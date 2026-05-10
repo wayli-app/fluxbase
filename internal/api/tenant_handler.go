@@ -26,7 +26,7 @@ import (
 type TenantHandler struct {
 	DB                *database.Connection
 	Manager           *tenantdb.Manager
-	Storage           *tenantdb.Storage
+	Storage           *tenantdb.Repository
 	InvitationService *auth.InvitationService
 	EmailService      email.Service
 	Config            *config.Config
@@ -93,7 +93,7 @@ type AssignAdminRequest struct {
 	UserID string `json:"user_id"`
 }
 
-func NewTenantHandler(db *database.Connection, manager *tenantdb.Manager, storage *tenantdb.Storage, invitationService *auth.InvitationService, emailService email.Service, cfg *config.Config) *TenantHandler {
+func NewTenantHandler(db *database.Connection, manager *tenantdb.Manager, storage *tenantdb.Repository, invitationService *auth.InvitationService, emailService email.Service, cfg *config.Config) *TenantHandler {
 	return &TenantHandler{
 		DB:                db,
 		Manager:           manager,

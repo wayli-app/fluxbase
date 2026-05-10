@@ -19,7 +19,7 @@ var (
 )
 
 type Router struct {
-	storage   *Storage
+	storage   *Repository
 	config    Config
 	mainPool  *pgxpool.Pool
 	adminPool *pgxpool.Pool
@@ -41,7 +41,7 @@ type poolEntry struct {
 }
 
 func NewRouter(
-	storage *Storage,
+	storage *Repository,
 	config Config,
 	mainPool *pgxpool.Pool,
 	adminPool *pgxpool.Pool,

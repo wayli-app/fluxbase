@@ -46,6 +46,9 @@ var fdwExcludeTables = map[string][]string{
 		"schema_migrations", "migrations", "migration_execution_logs",
 		"bootstrap_state", "fluxbase_migrations", "declarative_state",
 		"rate_limits", "idempotency_keys",
+		"tenants", "users", "sessions", "sso_identities",
+		"activity_log", "email_verification_tokens", "password_reset_tokens",
+		"email_templates", "available_extensions", "key_usage",
 	},
 	"logging": {"execution_logs_migration_status"},
 	"auth": {
@@ -248,17 +251,12 @@ func extractOptionValue(options, key string) string {
 //
 // Local tables that would conflict with FDW imports are dropped first.
 // Functions, types, and other non-table objects remain local.
-func SetupFDW(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWConfig, tables []string) error {
+func SetupFDW(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWConfig) error {
 	if tenantPool == nil {
 		return fmt.Errorf("tenant pool is nil")
 	}
 	if cfg.Host == "" || cfg.DBName == "" {
 		return fmt.Errorf("FDW config incomplete: host and dbname required")
-	}
-
-	// Legacy path: if specific tables are requested, use old auth-only import
-	if len(tables) > 0 {
-		return setupFDWLegacy(ctx, tenantPool, cfg, tables)
 	}
 
 	return setupFDWAllSchemas(ctx, tenantPool, cfg)
@@ -500,86 +498,6 @@ func CreateFDWUserMapping(ctx context.Context, tenantPool *pgxpool.Pool, appUser
 
 	log.Debug().Str("app_user", appUser).Str("fdw_role", fdwRole.RoleName).
 		Msg("Created FDW user mappings for app user, tenant_service, and service_role")
-
-	return nil
-}
-
-// setupFDWLegacy implements the original auth-only FDW import for backward compatibility.
-func setupFDWLegacy(ctx context.Context, tenantPool *pgxpool.Pool, cfg FDWConfig, tablesToImport []string) error {
-	// 1. Create foreign server
-	_, err := tenantPool.Exec(ctx, fmt.Sprintf(
-		`CREATE SERVER IF NOT EXISTS %s FOREIGN DATA WRAPPER postgres_fdw
-		  OPTIONS (host 'localhost', port '%s', dbname '%s')`,
-		quoteIdent(fdwServerName), cfg.Port, cfg.DBName,
-	))
-	if err != nil {
-		return fmt.Errorf("failed to create foreign server: %w", err)
-	}
-
-	// 2. Create user mapping
-	userMappingSQL := fmt.Sprintf(
-		`CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER %s
-		  OPTIONS (user '%s'`,
-		quoteIdent(fdwServerName), cfg.User,
-	)
-	if cfg.Password != "" {
-		userMappingSQL += fmt.Sprintf(`, password '%s'`, escapeSQLString(cfg.Password))
-	}
-	userMappingSQL += ")"
-	_, err = tenantPool.Exec(ctx, userMappingSQL)
-	if err != nil {
-		return fmt.Errorf("failed to create user mapping: %w", err)
-	}
-
-	// 3. Drop local tables that will be replaced by foreign tables
-	for _, table := range tablesToImport {
-		_, err := tenantPool.Exec(ctx, fmt.Sprintf(
-			`DROP TABLE IF EXISTS auth.%s CASCADE`,
-			quoteIdent(table),
-		))
-		if err != nil {
-			log.Warn().Err(err).Str("table", table).Msg("Failed to drop local table before FDW import")
-		}
-		// Also drop existing foreign tables so IMPORT FOREIGN SCHEMA is idempotent
-		_, err = tenantPool.Exec(ctx, fmt.Sprintf(
-			`DROP FOREIGN TABLE IF EXISTS auth.%s CASCADE`,
-			quoteIdent(table),
-		))
-		if err != nil {
-			log.Warn().Err(err).Str("table", table).Msg("Failed to drop foreign table before FDW import")
-		}
-	}
-
-	// 4. Import foreign tables into auth schema
-	tableList := make([]string, len(tablesToImport))
-	for i, t := range tablesToImport {
-		tableList[i] = quoteIdent(t)
-	}
-
-	_, err = tenantPool.Exec(ctx, fmt.Sprintf(
-		`IMPORT FOREIGN SCHEMA auth LIMIT TO (%s) FROM SERVER %s INTO auth`,
-		strings.Join(tableList, ", "),
-		quoteIdent(fdwServerName),
-	))
-	if err != nil {
-		return fmt.Errorf("failed to import foreign schema: %w", err)
-	}
-
-	for _, role := range []string{"tenant_service", "service_role"} {
-		_, err = tenantPool.Exec(ctx, fmt.Sprintf(
-			`GRANT ALL ON ALL TABLES IN SCHEMA auth TO %s`,
-			quoteIdent(role),
-		))
-		if err != nil {
-			log.Warn().Err(err).Str("role", role).
-				Msg("Failed to grant permissions on imported foreign tables (legacy)")
-		}
-	}
-
-	log.Info().
-		Str("tables", strings.Join(tablesToImport, ", ")).
-		Str("main_db", cfg.DBName).
-		Msg("Set up FDW for tenant database (legacy auth-only)")
 
 	return nil
 }

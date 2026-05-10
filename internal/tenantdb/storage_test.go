@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestStorage(t *testing.T) (*Storage, *pgxpool.Pool) {
+func setupTestStorage(t *testing.T) (*Repository, *pgxpool.Pool) {
 	t.Helper()
 
 	// Skip in short mode
@@ -40,7 +40,7 @@ func setupTestStorage(t *testing.T) (*Storage, *pgxpool.Pool) {
 		pool.Close()
 	})
 
-	storage := NewStorage(pool)
+	storage := NewRepository(pool)
 	return storage, pool
 }
 

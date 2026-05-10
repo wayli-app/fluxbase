@@ -248,7 +248,7 @@ func (s *DeclarativeService) ApplyTenantSchema(ctx context.Context, tenant *Tena
 }
 
 // ApplyAllTenantSchemas applies declarative schemas to all active tenants
-func (s *DeclarativeService) ApplyAllTenantSchemas(ctx context.Context, storage *Storage) error {
+func (s *DeclarativeService) ApplyAllTenantSchemas(ctx context.Context, storage *Repository) error {
 	if !s.config.Enabled {
 		return nil
 	}

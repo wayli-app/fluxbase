@@ -342,6 +342,12 @@ const (
 )
 
 // MCP Scopes
+//
+// These scope constants are intentionally separate from auth.ScopeXxx in internal/auth/scopes.go.
+// MCP and REST are different authorization domains — MCP has additional scopes (execute:sql,
+// sync:functions, branch:read, etc.) that have no REST equivalent. Shared scope values
+// (tables:read, storage:write, etc.) are duplicated here to keep the MCP scope namespace
+// self-contained.
 const (
 	// Table scopes
 	ScopeReadTables  = "tables:read"

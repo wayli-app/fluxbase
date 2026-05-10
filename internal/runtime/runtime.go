@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bufio"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -225,70 +223,15 @@ func (r *DenoRuntime) Execute(
 	_ = tmpFile.Close()
 
 	// Build Deno command
-	args := []string{"run"}
-
-	// Apply memory limit via V8 flags (jobs only)
-	memoryLimitMB := permissions.MemoryLimitMB
-	if memoryLimitMB <= 0 {
-		memoryLimitMB = r.memoryLimitMB
+	argsConfig := denoArgsConfig{
+		RuntimeType:   r.runtimeType,
+		DenoPath:      r.denoPath,
+		PublicURL:     r.publicURL,
+		MemoryLimitMB: r.memoryLimitMB,
+		UserToken:     userToken,
+		ServiceToken:  serviceToken,
 	}
-
-	var availableMemoryMB uint64
-	// Apply memory limits to ALL runtime types (not just jobs)
-	// This prevents edge functions from consuming unbounded memory
-	if memoryLimitMB > 0 {
-		// Check available system memory and warn if limit exceeds it
-		if vmStat, err := mem.VirtualMemory(); err == nil {
-			availableMemoryMB = vmStat.Available / 1024 / 1024
-			totalMemoryMB := vmStat.Total / 1024 / 1024
-
-			if uint64(memoryLimitMB) > availableMemoryMB {
-				log.Warn().
-					Str("id", req.ID.String()).
-					Str("name", req.Name).
-					Str("runtime_type", r.runtimeType.String()).
-					Int("requested_memory_mb", memoryLimitMB).
-					Uint64("available_memory_mb", availableMemoryMB).
-					Uint64("total_memory_mb", totalMemoryMB).
-					Msg("Memory limit exceeds available system memory - OOM kill is likely")
-			}
-		}
-
-		args = append(args, fmt.Sprintf("--v8-flags=--max-old-space-size=%d", memoryLimitMB))
-	}
-
-	// Apply permissions - always allow net for SDK API calls
-	// Use SSRF-protected domain filtering
-	if permissions.AllowNet || (userToken != "" || serviceToken != "") {
-		allowedDomains := buildNetworkAllowList(permissions, r.publicURL)
-		if len(allowedDomains) > 0 {
-			// Specific domain list: --allow-net=domain1,domain2,...
-			args = append(args, fmt.Sprintf("--allow-net=%s", strings.Join(allowedDomains, ",")))
-		} else {
-			// No explicit allowlist and no blocked domains (or empty allowlist + no self URL)
-			// Use unrestricted --allow-net (but blocked domains still apply via Deno's filtering)
-			args = append(args, "--allow-net")
-		}
-	}
-	if permissions.AllowEnv {
-		args = append(args, "--allow-env")
-	} else {
-		// Always allow specific env vars for SDK access
-		// Also include secret names so they're accessible
-		secretNames := make([]string, 0, len(secrets))
-		for name := range secrets {
-			secretNames = append(secretNames, name)
-		}
-		args = append(args, fmt.Sprintf("--allow-env=%s", allowedEnvVars(r.runtimeType, secretNames)))
-	}
-	if permissions.AllowRead {
-		args = append(args, "--allow-read")
-	}
-	if permissions.AllowWrite {
-		args = append(args, "--allow-write")
-	}
-
-	args = append(args, tmpPath)
+	args, memoryLimitMB, availableMemoryMB := buildDenoArgs(argsConfig, permissions, secrets, tmpPath)
 
 	// Create command
 	cmd := exec.CommandContext(execCtx, r.denoPath, args...)
@@ -296,171 +239,16 @@ func (r *DenoRuntime) Execute(
 	// Set environment variables (including secrets)
 	cmd.Env = buildEnv(req, r.runtimeType, r.publicURL, userToken, serviceToken, cancelSignal, secrets)
 
-	// Capture stdout and stderr with streaming
-	// Note: Pipes must be closed on error to avoid file descriptor leaks
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
-	}
-
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		// Close stdout pipe to prevent FD leak
-		_ = stdoutPipe.Close()
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
-	// Start command
-	if err := cmd.Start(); err != nil {
-		// Close both pipes to prevent FD leak
-		// Note: After Start() is called successfully, pipes are managed by Wait()
-		_ = stdoutPipe.Close()
-		_ = stderrPipe.Close()
-		return nil, fmt.Errorf("failed to start deno: %w", err)
-	}
-
-	// Process output streams concurrently
-	var wg sync.WaitGroup
-	var stdoutBuilder, stderrBuilder strings.Builder
-	var outputTruncated bool
-	var lastResultLine string // Preserve the result line even if output is truncated
-	var totalOutputSize int
-
-	// Process stdout (progress updates and final result)
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Error().Interface("panic", rec).Str("id", req.ID.String()).Msg("Panic in stdout processing - recovered")
-			}
-			wg.Done()
-		}()
-		scanner := bufio.NewScanner(stdoutPipe)
-		// Increase buffer size to handle large results (1MB max per line)
-		const maxLineSize = 1024 * 1024
-		scanner.Buffer(make([]byte, maxLineSize), maxLineSize)
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			lineLen := len(line) + 1 // +1 for newline
-
-			// Always capture the result line (it's needed for parsing)
-			if strings.HasPrefix(line, "__RESULT__::") {
-				lastResultLine = line
-			}
-
-			// Check output size limit (0 = unlimited)
-			if r.maxOutputSize > 0 && totalOutputSize+lineLen > r.maxOutputSize {
-				if !outputTruncated {
-					outputTruncated = true
-					fmt.Fprintf(&stdoutBuilder, "\n[OUTPUT TRUNCATED: exceeded %d bytes limit]\n", r.maxOutputSize)
-					log.Warn().
-						Str("id", req.ID.String()).
-						Int("max_output_size", r.maxOutputSize).
-						Int("total_output_size", totalOutputSize).
-						Msg("Function output truncated - exceeded size limit")
-				}
-				// Still process progress updates and logs, just don't accumulate
-			} else if !outputTruncated {
-				stdoutBuilder.WriteString(line + "\n")
-				totalOutputSize += lineLen
-			}
-
-			// Check for progress updates (always process, even if truncated)
-			if strings.HasPrefix(line, "__PROGRESS__::") {
-				progressJSON := strings.TrimPrefix(line, "__PROGRESS__::")
-				var progress Progress
-				if err := json.Unmarshal([]byte(progressJSON), &progress); err == nil {
-					if r.onProgress != nil {
-						r.onProgress(req.ID, &progress)
-					}
-				}
-			} else if line != "" {
-				// Regular console.log output - send to log callback
-				if r.onLog != nil {
-					r.onLog(req.ID, "info", line)
-				}
-			}
-		}
-
-		// If we truncated output but have a result line, append it
-		if outputTruncated && lastResultLine != "" {
-			stdoutBuilder.WriteString(lastResultLine + "\n")
-		}
-
-		// Check for scanner errors
-		if err := scanner.Err(); err != nil {
-			log.Warn().
-				Err(err).
-				Str("id", req.ID.String()).
-				Msg("Scanner error while reading stdout - result line may be truncated")
-		}
-	}()
-
-	// Process stderr (logs)
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if rec := recover(); rec != nil {
-				log.Error().Interface("panic", rec).Str("id", req.ID.String()).Msg("Panic in stderr processing - recovered")
-			}
-			wg.Done()
-		}()
-		scanner := bufio.NewScanner(stderrPipe)
-		// Increase buffer size to handle large error messages (1MB max per line)
-		const maxLineSize = 1024 * 1024
-		scanner.Buffer(make([]byte, maxLineSize), maxLineSize)
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			stderrBuilder.WriteString(line + "\n")
-
-			if r.onLog != nil && line != "" {
-				// Determine log level based on content
-				// Deno writes informational messages (like download progress) to stderr
-				level := classifyStderrLine(line)
-				r.onLog(req.ID, level, line)
-			}
-		}
-
-		// Check for scanner errors
-		if err := scanner.Err(); err != nil {
-			log.Warn().
-				Err(err).
-				Str("id", req.ID.String()).
-				Msg("Scanner error while reading stderr")
-		}
-	}()
-
-	// Wait for command to complete
-	cmdErr := cmd.Wait()
-
-	// Wait for output processing to complete with timeout
-	// This prevents hanging if scanner goroutines are stuck
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// Normal completion
-	case <-time.After(5 * time.Second):
-		log.Warn().
-			Str("id", req.ID.String()).
-			Msg("Timeout waiting for output scanners - continuing")
-	}
+	// Start command and stream output
+	out, cmdErr := startAndStreamOutput(cmd, req.ID, r.maxOutputSize, r.onProgress, r.onLog)
 
 	duration := time.Since(start)
 
-	// Build result
 	result := &ExecutionResult{
-		Logs:       stderrBuilder.String(),
+		Logs:       out.stderr.String(),
 		DurationMs: duration.Milliseconds(),
 	}
 
-	// Check for timeout
 	if execCtx.Err() == context.DeadlineExceeded {
 		result.Success = false
 		result.Error = fmt.Sprintf("Execution timeout after %v", timeout)
@@ -476,21 +264,18 @@ func (r *DenoRuntime) Execute(
 		return result, fmt.Errorf("execution timeout after %v", timeout)
 	}
 
-	// Check for cancellation
 	if cancelSignal != nil && cancelSignal.IsCancelled() {
 		result.Success = false
 		result.Error = "Execution was cancelled"
 		if r.runtimeType == RuntimeTypeFunction {
-			result.Status = 499 // Client Closed Request
+			result.Status = 499
 		}
 		return result, fmt.Errorf("execution cancelled")
 	}
 
-	// Check for execution errors
 	if cmdErr != nil {
 		result.Success = false
 
-		// Check for OOM kill (jobs only)
 		if r.runtimeType == RuntimeTypeJob && strings.Contains(cmdErr.Error(), "signal: killed") {
 			result.Error = r.buildOOMErrorMessage(memoryLimitMB, availableMemoryMB)
 			log.Error().
@@ -509,15 +294,14 @@ func (r *DenoRuntime) Execute(
 				Err(cmdErr).
 				Str("id", req.ID.String()).
 				Str("name", req.Name).
-				Str("stderr", stderrBuilder.String()).
+				Str("stderr", out.stderr.String()).
 				Int64("duration_ms", duration.Milliseconds()).
 				Msg("Execution failed")
 		}
 		return result, cmdErr
 	}
 
-	// Parse result from stdout
-	return r.parseResult(stdoutBuilder.String(), stderrBuilder.String(), result)
+	return r.parseResult(out.stdout.String(), out.stderr.String(), result)
 }
 
 // buildOOMErrorMessage constructs an informative OOM error message

@@ -747,13 +747,15 @@ func (s *Storage) InterruptJob(ctx context.Context, jobID uuid.UUID, reason stri
 	return nil
 }
 
-// RequeueJob requeues a failed job for retry
+// RequeueJob requeues a failed job for retry with exponential backoff.
+// The backoff delay is: 5s * 2^retry_count (5s, 10s, 20s, 40s, ...), capped at ~5min.
+// Error message is preserved from the last attempt for debugging.
 func (s *Storage) RequeueJob(ctx context.Context, jobID uuid.UUID) error {
 	query := `
 		UPDATE jobs.queue
 		SET status = $1, retry_count = retry_count + 1, worker_id = NULL,
 		    started_at = NULL, last_progress_at = NULL, completed_at = NULL,
-		    error_message = NULL
+		    scheduled_at = NOW() + make_interval(secs => 5.0 * POWER(2::float8, LEAST(retry_count, 6)))
 		WHERE id = $2 AND status = $3 AND retry_count < max_retries AND (tenant_id = $4 OR ($4 IS NULL AND tenant_id IS NULL))
 	`
 

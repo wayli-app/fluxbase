@@ -98,7 +98,7 @@ type TenancyHandlers struct {
 	ServiceKey *ServiceKeyHandler
 	Tenant     *TenantHandler
 	Manager    *tenantdb.Manager
-	Storage    *tenantdb.Storage
+	Storage    *tenantdb.Repository
 }
 
 // BranchingHandlers groups database branching handlers.

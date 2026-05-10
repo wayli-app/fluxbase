@@ -291,8 +291,7 @@ func RequireScope(requiredScopes ...string) fiber.Handler {
 			}
 		}
 
-		// JWT auth doesn't use scopes yet, so just allow
-		// (could be extended in the future to check user roles)
+		// JWT auth bypasses scope checking — user authorization is handled by RLS
 
 		return c.Next()
 	}
@@ -308,7 +307,7 @@ func RequireAuthOrServiceKey(authService *auth.Service, clientKeyService *auth.C
 // If no authentication is provided, the request continues (for anonymous access with RLS)
 // IMPORTANT: If invalid credentials are provided, returns 401 (does not fall back to anonymous)
 //
-// Supports Supabase-compatible authentication:
+// Supports authentication via:
 // - clientkey header containing a JWT with role claim (anon, service_role, authenticated)
 // - Authorization: Bearer <jwt> with role claim
 // - X-Service-Key header with hashed service key or service role JWT
@@ -493,7 +492,7 @@ func authOrServiceKey(
 			}
 
 			// User JWT and platform JWT validation failed, try service role JWT (anon/service_role)
-			// This handles the Supabase pattern where JWTs have role claims instead of user claims
+			// JWTs with role claims instead of user claims
 			if strings.HasPrefix(token, "eyJ") {
 				claims, err := authService.ValidateServiceRoleToken(token)
 				if err == nil {
@@ -547,7 +546,7 @@ func authOrServiceKey(
 			})
 		}
 
-		// 3. Check for Supabase-style clientkey header (lowercase)
+		// 3. Check for clientkey header (lowercase)
 		// This header may contain a JWT with role claim (anon, service_role, authenticated)
 		fluxbaseClientKey := c.Get("clientkey")
 		if fluxbaseClientKey != "" && strings.HasPrefix(fluxbaseClientKey, "eyJ") {
