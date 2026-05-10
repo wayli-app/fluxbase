@@ -554,9 +554,6 @@ func NewTestServer(cfg TestServerConfig) *Server {
 	if cfg.RateLimiter != nil {
 		ratelimit.SetGlobalStore(cfg.RateLimiter)
 	}
-	if cfg.PubSub != nil {
-		pubsub.SetGlobalPubSub(cfg.PubSub)
-	}
 
 	// Create server using existing NewServer
 	// Config is required - caller must provide it

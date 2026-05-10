@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -50,45 +49,4 @@ func NewPubSub(cfg *config.ScalingConfig, pool *pgxpool.Pool) (PubSub, error) {
 	default:
 		return nil, fmt.Errorf("unknown pub/sub backend: %s (valid options: local, postgres, redis)", cfg.Backend)
 	}
-}
-
-// GlobalPubSub is a package-level pub/sub that can be used across the application.
-var (
-	GlobalPubSub   PubSub
-	globalPubSubMu sync.RWMutex
-)
-
-// SetGlobalPubSub sets the global pub/sub instance.
-func SetGlobalPubSub(ps PubSub) {
-	globalPubSubMu.Lock()
-	defer globalPubSubMu.Unlock()
-
-	if GlobalPubSub != nil {
-		log.Warn().Msg("Replacing existing global pub/sub")
-		_ = GlobalPubSub.Close()
-	}
-	GlobalPubSub = ps
-}
-
-// GetGlobalPubSub returns the global pub/sub instance.
-// If no pub/sub has been set, it returns a local pub/sub as fallback.
-func GetGlobalPubSub() PubSub {
-	globalPubSubMu.RLock()
-	defer globalPubSubMu.RUnlock()
-
-	if GlobalPubSub == nil {
-		// Double-check after acquiring write lock to prevent race
-		globalPubSubMu.RUnlock()
-		globalPubSubMu.Lock()
-
-		if GlobalPubSub == nil {
-			log.Warn().Msg("Global pub/sub not set, using fallback local pub/sub")
-			GlobalPubSub = NewLocalPubSub()
-		}
-
-		globalPubSubMu.Unlock()
-		globalPubSubMu.RLock()
-	}
-
-	return GlobalPubSub
 }

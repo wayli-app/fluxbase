@@ -40,6 +40,10 @@ func (m *FunctionsModule) Init(ctx context.Context, registry *ServiceRegistry) e
 	functionsScheduler := functions.NewScheduler(db, cfg.Auth.JWTSecret, functionsInternalURL, secretsStorage, cfg)
 	functionsHandler.SetScheduler(functionsScheduler)
 
+	if registry.RateLimiter != nil {
+		functionsHandler.SetRateLimiter(registry.RateLimiter)
+	}
+
 	m.Handler = functionsHandler
 	m.Scheduler = functionsScheduler
 

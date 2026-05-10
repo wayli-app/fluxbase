@@ -131,6 +131,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 
 	s.registry = NewServiceRegistry(cfg, db)
 	s.registry.PubSub = s.pubSub
+	s.registry.RateLimiter = s.rateLimiter
 
 	emailMod := &EmailModule{}
 	secretsMod := &SecretsModule{}
@@ -151,6 +152,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	graphqlMod := &GraphQLModule{}
 	mcpMod := &MCPModule{}
 	metricsMod := &MetricsModule{Metrics: metricsObj, StartTime: metricsStart}
+	bgMod := &BackgroundServicesModule{}
 
 	if err := InitModules(context.Background(), s.registry, []Module{
 		emailMod,
@@ -172,6 +174,7 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 		graphqlMod,
 		mcpMod,
 		metricsMod,
+		bgMod,
 	}); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize modules")
 	}
@@ -265,16 +268,25 @@ func NewServer(cfg *config.Config, db *database.Connection, version string) *Ser
 	s.Metrics.Server = metricsMod.Server
 	s.Metrics.StopChan = metricsMod.StopChan
 
-	s.initBackgroundServices()
+	s.Scaling.FunctionsLeader = bgMod.FunctionsLeader
+	s.Scaling.JobsLeader = bgMod.JobsLeader
+	s.Scaling.RPCLeader = bgMod.RPCLeader
+
+	if err := s.Webhook.Trigger.Start(context.Background()); err != nil {
+		log.Error().Err(err).Msg("Failed to start webhook trigger service")
+	}
+	if s.Logging.Retention != nil {
+		s.Logging.Retention.Start()
+		log.Info().
+			Dur("interval", s.config.Logging.RetentionCheckInterval).
+			Msg("Log retention cleanup service started")
+	}
+	if s.Branching.Scheduler != nil {
+		s.Branching.Scheduler.Start()
+	}
+
 	s.setupMiddlewares()
 	s.setupRoutes()
-
-	if s.rateLimiter != nil {
-		ratelimit.SetGlobalStore(s.rateLimiter)
-	}
-	if s.pubSub != nil {
-		pubsub.SetGlobalPubSub(s.pubSub)
-	}
 
 	log.Debug().Msg("Server initialization complete")
 	return s

@@ -33,12 +33,13 @@ type Handler struct {
 	loggingService         *logging.Service
 	secretsStorage         *secrets.Storage
 	settingsSecretsService *settings.SecretsService
+	rateLimiter            ratelimit.Store
 	functionsDir           string
 	corsConfig             config.CORSConfig
 	publicURL              string
-	npmRegistry            string   // Custom npm registry URL for Deno bundling
-	jsrRegistry            string   // Custom JSR registry URL for Deno bundling
-	logCounters            sync.Map // map[uuid.UUID]*executionLogContext
+	npmRegistry            string
+	jsrRegistry            string
+	logCounters            sync.Map
 	baseConfig             *config.Config
 }
 
@@ -76,6 +77,10 @@ func (h *Handler) SetScheduler(scheduler *Scheduler) {
 // SetSettingsSecretsService sets the settings secrets service for accessing user/system secrets
 func (h *Handler) SetSettingsSecretsService(svc *settings.SecretsService) {
 	h.settingsSecretsService = svc
+}
+
+func (h *Handler) SetRateLimiter(store ratelimit.Store) {
+	h.rateLimiter = store
 }
 
 // GetRuntime returns the Deno runtime for external use (e.g., MCP tools)
@@ -253,7 +258,7 @@ func (h *Handler) checkRateLimit(c fiber.Ctx, fn *EdgeFunction) error {
 		return nil
 	}
 
-	store := ratelimit.GetGlobalStore()
+	store := h.rateLimiter
 	if store == nil {
 		// No rate limit store available, fail open
 		log.Warn().Msg("Rate limit store not available, skipping function rate limit check")
